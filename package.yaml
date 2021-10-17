@@ -8,6 +8,8 @@ ghc-options:
   - -Wall
 
 internal-libraries:
+  argparser:
+    source-dirs: src/argparser
   testing-lib:
     source-dirs: src/testing-lib
 

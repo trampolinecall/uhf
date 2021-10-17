@@ -10,9 +10,19 @@ license:        MIT
 license-file:   LICENSE
 build-type:     Simple
 
+library argparser
+  other-modules:
+      Paths_uhf
+  hs-source-dirs:
+      src/argparser
+  ghc-options: -Wall
+  build-depends:
+      base >=4.7 && <5
+  default-language: Haskell2010
+
 library testing-lib
   exposed-modules:
-      Testing
+      Brace.Testing
   other-modules:
       Paths_uhf
   hs-source-dirs:

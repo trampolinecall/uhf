@@ -6,7 +6,6 @@ dependencies:
 
 ghc-options:
   - -Wall
-  - -O0
 
 internal-libraries:
   testing-lib:

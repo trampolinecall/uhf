@@ -13,8 +13,8 @@ internal-libraries:
 
 executables:
   uhfi:
-    main:                Main.hs
-    source-dirs:         src/interpreter
+    main: Main.hs
+    source-dirs: src/interpreter
 
     ghc-options:
       - -threaded
@@ -22,8 +22,8 @@ executables:
       - -with-rtsopts=-N
 
   uhfc:
-    main:                Main.hs
-    source-dirs:         src/compiler
+    main: Main.hs
+    source-dirs: src/compiler
 
     ghc-options:
       - -threaded
@@ -32,8 +32,8 @@ executables:
 
 tests:
   uhf-test:
-    main:                Spec.hs
-    source-dirs:         test
+    main: Spec.hs
+    source-dirs: test
 
     dependencies:
       - testing-lib

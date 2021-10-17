@@ -5,21 +5,36 @@ dependencies:
   - base >= 4.7 && < 5
 
 ghc-options:
-  - -Wall -O0
-  - -threaded
-  - -rtsopts
-  - -with-rtsopts=-N
+  - -Wall
+  - -O0
+
+internal-libraries:
+  testing-lib:
+    source-dirs: src/testing-lib
 
 executables:
   uhfi:
     main:                Main.hs
     source-dirs:         src/interpreter
 
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+
   uhfc:
     main:                Main.hs
     source-dirs:         src/compiler
+
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
 
 tests:
   uhf-test:
     main:                Spec.hs
     source-dirs:         test
+
+    dependencies:
+      - testing-lib

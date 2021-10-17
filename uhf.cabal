@@ -12,7 +12,7 @@ build-type:     Simple
 
 library testing-lib
   exposed-modules:
-      Lib
+      Testing
   other-modules:
       Paths_uhf
   hs-source-dirs:

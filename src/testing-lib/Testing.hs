@@ -1,7 +1,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE LambdaCase #-}
 
-module Lib
+module Testing
     ( TestSuite(..)
     , Test(..)
     , TestResult(..)

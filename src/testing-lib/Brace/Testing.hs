@@ -1,7 +1,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE LambdaCase #-}
 
-module Testing
+module Brace.Testing
     ( TestSuite(..)
     , Test(..)
     , TestResult(..)

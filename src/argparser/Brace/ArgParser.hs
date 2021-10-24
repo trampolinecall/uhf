@@ -2,7 +2,7 @@ module Brace.ArgParser
     ( tests
     ) where
 
-import Brace.Testing
+import Test.HUnit
 
-tests :: [Test]
-tests = []
+tests :: Test
+tests = TestList []

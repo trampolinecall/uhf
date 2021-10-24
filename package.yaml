@@ -3,18 +3,14 @@ version:             0.0.0
 
 dependencies:
   - base >= 4.7 && < 5
+  - HUnit
 
 ghc-options:
   - -Wall
 
 internal-libraries:
-  testing-lib:
-    source-dirs: src/testing-lib
-
   argparser:
     source-dirs: src/argparser
-    dependencies:
-      - testing-lib
 
 executables:
   uhfi:
@@ -41,5 +37,4 @@ tests:
     source-dirs: test/argparser
 
     dependencies:
-      - testing-lib
       - argparser

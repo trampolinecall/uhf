@@ -21,20 +21,8 @@ library argparser
       src/argparser
   ghc-options: -Wall
   build-depends:
-      base >=4.7 && <5
-    , testing-lib
-  default-language: Haskell2010
-
-library testing-lib
-  exposed-modules:
-      Brace.Testing
-  other-modules:
-      Paths_uhf
-  hs-source-dirs:
-      src/testing-lib
-  ghc-options: -Wall
-  build-depends:
-      base >=4.7 && <5
+      HUnit
+    , base >=4.7 && <5
   default-language: Haskell2010
 
 executable uhfc
@@ -45,7 +33,8 @@ executable uhfc
       src/compiler
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      HUnit
+    , base >=4.7 && <5
   default-language: Haskell2010
 
 executable uhfi
@@ -56,7 +45,8 @@ executable uhfi
       src/interpreter
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      HUnit
+    , base >=4.7 && <5
   default-language: Haskell2010
 
 test-suite argparser-test
@@ -68,7 +58,7 @@ test-suite argparser-test
       test/argparser
   ghc-options: -Wall
   build-depends:
-      argparser
+      HUnit
+    , argparser
     , base >=4.7 && <5
-    , testing-lib
   default-language: Haskell2010

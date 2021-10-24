@@ -8,10 +8,13 @@ ghc-options:
   - -Wall
 
 internal-libraries:
-  argparser:
-    source-dirs: src/argparser
   testing-lib:
     source-dirs: src/testing-lib
+
+  argparser:
+    source-dirs: src/argparser
+    dependencies:
+      - testing-lib
 
 executables:
   uhfi:
@@ -33,9 +36,10 @@ executables:
       - -with-rtsopts=-N
 
 tests:
-  uhf-test:
+  argparser-test:
     main: Spec.hs
-    source-dirs: test
+    source-dirs: test/argparser
 
     dependencies:
       - testing-lib
+      - argparser

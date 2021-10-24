@@ -11,6 +11,10 @@ license-file:   LICENSE
 build-type:     Simple
 
 library argparser
+  exposed-modules:
+      Brace.ArgParser
+      Brace.ArgParser.Description
+      Brace.ArgParser.Parser
   other-modules:
       Paths_uhf
   hs-source-dirs:
@@ -18,6 +22,7 @@ library argparser
   ghc-options: -Wall
   build-depends:
       base >=4.7 && <5
+    , testing-lib
   default-language: Haskell2010
 
 library testing-lib
@@ -54,15 +59,16 @@ executable uhfi
       base >=4.7 && <5
   default-language: Haskell2010
 
-test-suite uhf-test
+test-suite argparser-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
       Paths_uhf
   hs-source-dirs:
-      test
+      test/argparser
   ghc-options: -Wall
   build-depends:
-      base >=4.7 && <5
+      argparser
+    , base >=4.7 && <5
     , testing-lib
   default-language: Haskell2010

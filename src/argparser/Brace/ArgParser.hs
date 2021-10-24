@@ -1,8 +1,3 @@
-module Brace.ArgParser (Parser.parse, tests) where
+module Brace.ArgParser (parse) where
 
-import Test.HUnit
-
-import qualified Brace.ArgParser.Parser as Parser (parse, tests)
-
-tests :: Test
-tests = Parser.tests
+import Brace.ArgParser.Parser (parse)

@@ -1,8 +1,7 @@
 module Main where
 
-import Brace.Testing
-
+import Test.HUnit
 import Brace.ArgParser (tests)
 
 main :: IO ()
-main = run_test_suite $ TestSuite tests
+main = runTestTT tests >> return ()

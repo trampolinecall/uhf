@@ -25,22 +25,23 @@ module Brace.ArgParser.Description
 import Data.List
 import Data.Maybe
 
-data Description = Description [Arg]
+data Description = Description [Arg] deriving (Show, Eq)
 
-newtype HelpMessage = HelpMessage String
-data ArgProps = ArgProps HelpMessage
+newtype HelpMessage = HelpMessage String deriving (Show, Eq)
+data ArgProps = ArgProps HelpMessage deriving (Show, Eq)
 
-newtype ShortFlagName = ShortFlagName Char
-newtype LongFlagName = LongFlagName String
-data FlagProps = FlagProps ShortFlagName (Maybe LongFlagName)
+newtype ShortFlagName = ShortFlagName Char deriving (Show, Eq)
+newtype LongFlagName = LongFlagName String deriving (Show, Eq)
+data FlagProps = FlagProps ShortFlagName (Maybe LongFlagName) deriving (Show, Eq)
 
-newtype ValueName = ValueName String
-data NValues = Number Int | ZeroOrMore | OneOrMore
-data TakesValueProps = TakesValueProps ValueName NValues
+newtype ValueName = ValueName String deriving (Show, Eq)
+data NValues = Number Int | ZeroOrMore | OneOrMore deriving (Show, Eq)
+data TakesValueProps = TakesValueProps ValueName NValues deriving (Show, Eq)
 
 data Arg
     = Positional ArgProps TakesValueProps
     | Flag FlagProps ArgProps (Maybe TakesValueProps)
+    deriving (Show, Eq)
 
 positional :: String -> String -> NValues -> Arg
 positional help_message value_name n_values = Positional (ArgProps $ HelpMessage help_message) (TakesValueProps (ValueName value_name) n_values)

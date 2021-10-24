@@ -1,7 +1,8 @@
 module Main where
 
 import Test.HUnit
-import Brace.ArgParser (tests)
+
+import qualified Brace.ArgParser.Parser as Parser (tests)
 
 main :: IO ()
-main = runTestTT tests >> return ()
+main = runTestTTAndExit Parser.tests

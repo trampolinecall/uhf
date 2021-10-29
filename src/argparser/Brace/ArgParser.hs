@@ -3,7 +3,7 @@ module Brace.ArgParser (get_matches, tests) where
 import Test.HUnit
 
 import System.IO (hPutStr, stderr)
-import System.Exit (exitFailure)
+import System.Exit (exitFailure, exitSuccess)
 
 import Brace.ArgParser.Description
 import Brace.ArgParser.Parser hiding (tests)
@@ -15,14 +15,27 @@ import qualified Data.Map as Map
 get_matches :: Description -> String -> [String] -> IO (Map.Map String [String], [Char], Map.Map Char [String])
 get_matches desc prog_name args =
     case get_matches' desc prog_name args of
-        Right res -> return res
+        Right (Right res) -> return res
+
+        Right (Left help_message) ->
+            putStr help_message >> exitSuccess
+
         Left err -> hPutStr stderr err >> exitFailure
 
-get_matches' :: Description -> String -> [String] -> Either String (Map.Map String [String], [Char], Map.Map Char [String])
-get_matches' desc prog_name args =
-    case parse desc args of
-        Right (Matches positionals flags options) -> Right (positionals, flags, options)
-        Left err -> Left $ "error: " ++ str_error err ++ "\n" ++ args_help desc prog_name
+get_matches' :: Description -> String -> [String] -> Either String (Either String (Map.Map String [String], [Char], Map.Map Char [String]))
+get_matches' desc@(Description desc_args) prog_name args =
+    let (desc', added_help_flag) =
+            case get_flag (Left 'h') desc of
+                Just _ -> (desc, False)
+                Nothing -> (Description (desc_args ++ [flag 'h' (Just "help") "show this help message"]), True)
+
+    in case parse desc' args of
+        Right (Matches positionals flags options) ->
+            if 'h' `elem` flags && added_help_flag
+                then Right (Left $ args_help desc' prog_name)
+                else Right (Right (positionals, flags, options))
+
+        Left err -> Left $ "error: " ++ str_error err ++ "\n" ++ args_help desc' prog_name
 
 takes_value_str :: TakesValueProps -> String
 takes_value_str (TakesValueProps (ValueName value_name) n_values) =
@@ -112,9 +125,20 @@ tests = test
     [ "get_matches'" ~:
         let desc = (Description [flag 'c' Nothing "help"])
             prog_name = "prog"
+
+            help_message = "usage: prog [flags]\n\
+                           \\n\
+                           \flags:\n\
+                           \    -c                  help\n\
+                           \    -h, --help          show this help message\n"
         in
-            [ Right (Map.empty, "c", Map.empty) @=? get_matches' desc prog_name ["-c"]
-            , Left ("error: invalid flag: '-j'\n" ++ args_help desc prog_name) @=? get_matches' desc prog_name ["-j"]
+            [ Right (Right (Map.empty, "c", Map.empty)) @=? get_matches' desc prog_name ["-c"]
+            , Left ("error: invalid flag: '-j'\n" ++ help_message) @=? get_matches' desc prog_name ["-j"]
+
+            , Right (Left help_message) @=? get_matches' desc prog_name ["-h"]
+            , Right (Left help_message) @=? get_matches' desc prog_name ["--help"]
+
+            , Right (Right (Map.empty, "h", Map.empty)) @=? get_matches' (Description [flag 'h' Nothing "other thing"]) prog_name ["-h"]
             ]
 
     , "args_usage" ~:

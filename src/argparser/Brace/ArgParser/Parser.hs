@@ -1,4 +1,10 @@
-module Brace.ArgParser.Parser (Matches, parse, tests) where
+module Brace.ArgParser.Parser
+    ( Matches(..)
+    , ParseError(..)
+    , parse
+    , str_error
+    , tests
+    ) where
 
 import Test.HUnit
 
@@ -17,6 +23,7 @@ data Parser
       }
     deriving (Show, Eq)
 
+-- TODO: better error messages for this
 data ParseError
     = InvalidValue String
     | InvalidFlag String
@@ -26,7 +33,8 @@ data ParseError
     | UnexpectedValue
     deriving (Show, Eq)
 
-data Matches = Matches
+data Matches =
+    Matches
     { positional_results :: (Map.Map String [String])
     , flags_present :: [Char]
     , option_results :: (Map.Map Char [String])
@@ -44,6 +52,14 @@ make_parser d i =
     , matches = empty_matches
     , positionals = get_positionals d
     }
+
+str_error :: ParseError -> String
+str_error (InvalidValue val) = "invalid value: '" ++ val ++ "'"
+str_error (InvalidFlag fl) = "invalid flag: '" ++ fl ++ "'"
+str_error (ExpectedValue) = "expected a value"
+str_error (NoNameFlag) = "flag with no name"
+str_error (ExcessArguments) = "too many arguments"
+str_error (UnexpectedValue) = "unexpected value"
 
 uncons_input :: Parser -> Maybe (String, [String])
 uncons_input = uncons . input

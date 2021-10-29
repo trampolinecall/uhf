@@ -20,6 +20,8 @@ module Brace.ArgParser.Description
 
     , get_flag
     , get_positionals
+    , get_flags
+    , get_options
     ) where
 
 import Data.List
@@ -73,5 +75,17 @@ get_flag name (Description args) =
 get_positionals :: Description -> [(ArgProps, TakesValueProps)]
 get_positionals (Description args) =
     let p (Positional ap tvp) = Just (ap, tvp)
+        p _ = Nothing
+    in mapMaybe p args
+
+get_flags :: Description -> [(FlagProps, ArgProps)]
+get_flags (Description args) =
+    let p (Flag fp ap Nothing) = Just (fp, ap)
+        p _ = Nothing
+    in mapMaybe p args
+
+get_options :: Description -> [(FlagProps, ArgProps, TakesValueProps)]
+get_options (Description args) =
+    let p (Flag fp ap (Just tvp)) = Just (fp, ap, tvp)
         p _ = Nothing
     in mapMaybe p args

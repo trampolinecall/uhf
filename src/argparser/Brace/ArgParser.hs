@@ -141,6 +141,12 @@ tests = test
             , Right (Right (Map.empty, "h", Map.empty)) @=? get_matches' (Description [flag 'h' Nothing "other thing"]) prog_name ["-h"]
             ]
 
+    , "takes_value_str" ~:
+        [ "POSITIONAL" @=? takes_value_str (TakesValueProps (ValueName "POSITIONAL") (Number 1))
+        , "POSITIONAL POSITIONAL" @=? takes_value_str (TakesValueProps (ValueName "POSITIONAL") (Number 2))
+        , "POSITIONAL..." @=? takes_value_str (TakesValueProps (ValueName "POSITIONAL") OneOrMore)
+        , "[POSITIONAL...]" @=? takes_value_str (TakesValueProps (ValueName "POSITIONAL") ZeroOrMore)
+        ]
     , "args_usage" ~:
         [ "usage: prog" @=? args_usage (Description []) "prog"
 
@@ -149,10 +155,6 @@ tests = test
         , "usage: prog [options]" @=? args_usage (Description [option 'c' Nothing "" "value_name" (Number 1)]) "prog"
 
         , "usage: prog POSITIONAL" @=? args_usage (Description [positional "" "POSITIONAL" (Number 1)]) "prog"
-        , "usage: prog POSITIONAL POSITIONAL" @=? args_usage (Description [positional "" "POSITIONAL" (Number 2)]) "prog"
-        , "usage: prog POSITIONAL..." @=? args_usage (Description [positional "" "POSITIONAL" OneOrMore]) "prog"
-        , "usage: prog [POSITIONAL...]" @=? args_usage (Description [positional "" "POSITIONAL" ZeroOrMore]) "prog"
-
         , "usage: prog POSITIONAL1 POSITIONAL2" @=? args_usage (Description [positional "" "POSITIONAL1" (Number 1), positional "" "POSITIONAL2" (Number 1)]) "prog"
         ]
 

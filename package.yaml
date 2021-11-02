@@ -19,6 +19,9 @@ executables:
     main: Main.hs
     source-dirs: src/interpreter
 
+    dependencies:
+      - argparser
+
     ghc-options:
       - -threaded
       - -rtsopts
@@ -27,6 +30,9 @@ executables:
   uhfc:
     main: Main.hs
     source-dirs: src/compiler
+
+    dependencies:
+      - argparser
 
     ghc-options:
       - -threaded

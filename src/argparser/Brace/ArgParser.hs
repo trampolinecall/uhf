@@ -1,21 +1,75 @@
-module Brace.ArgParser (get_matches, tests) where
+module Brace.ArgParser
+    ( get_matches
+
+    , ArgMatches
+    , get_flag_result
+    , get_positional_result
+    , get_positional_result_ne
+    , get_positional_result_1
+    , get_option_result
+    , get_option_result_ne
+    , get_option_result_1
+
+    , report_errors
+
+    , tests
+    ) where
 
 import Test.HUnit
 
-import System.IO (hPutStr, stderr)
+import System.IO (hPutStr, hPutStrLn, stderr)
 import System.Exit (exitFailure, exitSuccess)
 
 import Brace.ArgParser.Description
+import Brace.ArgParser.Help hiding (tests)
 import Brace.ArgParser.Parser hiding (tests)
 
-import Data.List (intercalate)
-import Data.Maybe (catMaybes)
 import qualified Data.Map as Map
+import qualified Data.List.NonEmpty as NonEmpty
 
-get_matches :: Description -> String -> [String] -> IO (Map.Map String [String], [Char], Map.Map Char [String])
+-- ArgMatches {{{1
+data ArgMatches = ArgMatches (Map.Map String [String]) [Char] (Map.Map Char [String])
+data ArgError = Needs1Argument String | NeedsArguments String deriving (Show, Eq)
+
+str_arg_error :: ArgError -> String
+str_arg_error (Needs1Argument n) = "argument '" ++ n ++ "' requires 1 value"
+str_arg_error (NeedsArguments n) = "argument '" ++ n ++ "' requires values"
+
+get_flag_result :: Char -> ArgMatches -> Bool
+get_flag_result c (ArgMatches _ f _) = c `elem` f
+
+get_positional_result :: String -> ArgMatches -> [String]
+get_positional_result n (ArgMatches p _ _) = Map.findWithDefault [] n p
+
+get_positional_result_ne :: String -> ArgMatches -> Either ArgError (NonEmpty.NonEmpty String)
+get_positional_result_ne n = require_non_empty n . get_positional_result n
+
+get_positional_result_1 :: String -> ArgMatches -> Either ArgError String
+get_positional_result_1 n = require_1 n . get_positional_result n
+
+get_option_result :: Char -> ArgMatches -> [String]
+get_option_result n (ArgMatches _ _ o) = Map.findWithDefault [] n o
+
+get_option_result_ne :: Char -> ArgMatches -> Either ArgError (NonEmpty.NonEmpty String)
+get_option_result_ne n = require_non_empty ['-', n] . get_option_result n
+
+get_option_result_1 :: Char -> ArgMatches -> Either ArgError String
+get_option_result_1 n = require_1 ['-', n] . get_option_result n
+
+require_1 :: String -> [String] -> Either ArgError String
+require_1 n [] = Left $ Needs1Argument n
+require_1 _ [x] = Right x
+require_1 n _ = Left $ Needs1Argument n
+
+require_non_empty :: String -> [String] -> Either ArgError (NonEmpty.NonEmpty String)
+require_non_empty n [] = Left $ NeedsArguments n
+require_non_empty _ (x:xs) = Right $ x NonEmpty.:| xs
+
+-- get_matches {{{1
+get_matches :: Description -> String -> [String] -> IO ArgMatches
 get_matches desc prog_name args =
     case get_matches' desc prog_name args of
-        Right (Right res) -> return res
+        Right (Right (p, f, o)) -> return $ ArgMatches p f o
 
         Right (Left help_message) ->
             putStr help_message >> exitSuccess
@@ -32,94 +86,20 @@ get_matches' desc@(Description desc_args) prog_name args =
     in case parse desc' args of
         Right (Matches positionals flags options) ->
             if 'h' `elem` flags && added_help_flag
-                then Right (Left $ args_help desc' prog_name)
+                then Right (Left $ args_help_message desc' prog_name)
                 else Right (Right (positionals, flags, options))
 
-        Left err -> Left $ "error: " ++ str_error err ++ "\n" ++ args_help desc' prog_name
+        Left err -> Left $ "error: " ++ str_error err ++ "\n" ++ args_help_message desc' prog_name
+-- report_errors {{{1
+report_errors :: Either ArgError a -> IO a
+report_errors e =
+    case e of
+        Right a -> return a
 
-takes_value_str :: TakesValueProps -> String
-takes_value_str (TakesValueProps (ValueName value_name) n_values) =
-    case n_values of
-        Number n -> intercalate " " (replicate n value_name)
-        ZeroOrMore -> "[" ++ value_name ++ "...]"
-        OneOrMore -> value_name ++ "..."
-
-args_usage :: Description -> String -> String
-args_usage desc prog_name =
-    let usages =
-            (if null (get_flags desc) then [] else ["[flags]"]) ++
-            (if null (get_options desc) then [] else ["[options]"]) ++
-            map (takes_value_str . snd) (get_positionals desc)
-
-    in "usage: " ++ intercalate " " (prog_name:usages)
-
-arg_help :: String -> String -> String
-arg_help arg_desc help_message =
-    let help_indent = 24
-        help_indent_str = replicate help_indent ' '
-
-        indented_arg_desc = "    " ++ arg_desc
-
-    in if length indented_arg_desc >= help_indent
-        then indented_arg_desc ++ "\n" ++ help_indent_str ++ help_message ++ "\n"
-        else indented_arg_desc ++ replicate (help_indent - length indented_arg_desc) ' ' ++ help_message ++ "\n"
-
-positional_help :: (ArgProps, TakesValueProps) -> String
-positional_help (ArgProps (HelpMessage help_message), TakesValueProps (ValueName value_name) _) =
-    arg_help value_name help_message
-
-flag_help :: (FlagProps, ArgProps) -> String
-flag_help (FlagProps (ShortFlagName short_name) m_long_name, ArgProps (HelpMessage help_message)) =
-    let short_flag_desc = '-' : [short_name]
-
-        flag_desc =
-            case m_long_name of
-                Nothing -> short_flag_desc
-                Just (LongFlagName long_name) -> short_flag_desc ++ ", " ++ "--" ++ long_name
-
-    in arg_help flag_desc help_message
-
-option_help :: (FlagProps, ArgProps, TakesValueProps) -> String
-option_help (FlagProps (ShortFlagName short_name) m_long_name, ArgProps (HelpMessage help_message), tvp) =
-    let short_flag_desc = '-' : [short_name]
-
-        value_str = takes_value_str tvp
-
-        flag_desc =
-            case m_long_name of
-                Nothing -> short_flag_desc ++ " " ++ value_str
-                Just (LongFlagName long_name) -> short_flag_desc ++ " " ++ value_str ++ ", " ++ "--" ++ long_name ++ " " ++ value_str
-
-    in arg_help flag_desc help_message
-
-args_help :: Description -> String -> String
-args_help desc prog_name =
-    let positionals_help =
-            let positionals = get_positionals desc
-            in if null positionals
-                then Nothing
-                else Just $ "positional arguments:\n" ++ concat (map positional_help positionals)
-
-        flags_help =
-            let flags = get_flags desc
-            in if null flags
-                then Nothing
-                else Just $ "flags:\n" ++ concat (map flag_help flags)
-
-        options_help =
-            let options = get_options desc
-            in if null options
-                then Nothing
-                else Just $ "options:\n" ++ concat (map option_help options)
-
-    in intercalate "\n" $
-        catMaybes
-            [ Just $ args_usage desc prog_name ++ "\n"
-            , positionals_help
-            , flags_help
-            , options_help
-            ]
-
+        Left ae ->
+            hPutStrLn stderr ("error: " ++ str_arg_error ae) >>
+            exitFailure
+-- tests {{{1
 tests :: Test
 tests = test
     [ "get_matches'" ~:
@@ -132,81 +112,61 @@ tests = test
                            \    -c                  help\n\
                            \    -h, --help          show this help message\n"
         in
-            [ Right (Right (Map.empty, "c", Map.empty)) @=? get_matches' desc prog_name ["-c"]
-            , Left ("error: invalid flag: '-j'\n" ++ help_message) @=? get_matches' desc prog_name ["-j"]
+            [ Right (Right (Map.empty, "c", Map.empty)) ~=? get_matches' desc prog_name ["-c"]
+            , Left ("error: invalid flag: '-j'\n" ++ help_message) ~=? get_matches' desc prog_name ["-j"]
 
-            , Right (Left help_message) @=? get_matches' desc prog_name ["-h"]
-            , Right (Left help_message) @=? get_matches' desc prog_name ["--help"]
+            , Right (Left help_message) ~=? get_matches' desc prog_name ["-h"]
+            , Right (Left help_message) ~=? get_matches' desc prog_name ["--help"]
 
-            , Right (Right (Map.empty, "h", Map.empty)) @=? get_matches' (Description [flag 'h' Nothing "other thing"]) prog_name ["-h"]
+            , Right (Right (Map.empty, "h", Map.empty)) ~=? get_matches' (Description [flag 'h' Nothing "other thing"]) prog_name ["-h"]
             ]
 
-    , "takes_value_str" ~:
-        [ "POSITIONAL" @=? takes_value_str (TakesValueProps (ValueName "POSITIONAL") (Number 1))
-        , "POSITIONAL POSITIONAL" @=? takes_value_str (TakesValueProps (ValueName "POSITIONAL") (Number 2))
-        , "POSITIONAL..." @=? takes_value_str (TakesValueProps (ValueName "POSITIONAL") OneOrMore)
-        , "[POSITIONAL...]" @=? takes_value_str (TakesValueProps (ValueName "POSITIONAL") ZeroOrMore)
-        ]
-    , "args_usage" ~:
-        [ "usage: prog" @=? args_usage (Description []) "prog"
-
-        , "usage: prog [flags]" @=? args_usage (Description [flag 'c' Nothing ""]) "prog"
-
-        , "usage: prog [options]" @=? args_usage (Description [option 'c' Nothing "" "value_name" (Number 1)]) "prog"
-
-        , "usage: prog POSITIONAL" @=? args_usage (Description [positional "" "POSITIONAL" (Number 1)]) "prog"
-        , "usage: prog POSITIONAL1 POSITIONAL2" @=? args_usage (Description [positional "" "POSITIONAL1" (Number 1), positional "" "POSITIONAL2" (Number 1)]) "prog"
+    , "get_positional_result" ~:
+        [ ["abc", "def"] ~=? get_positional_result "pos" (ArgMatches (Map.fromList [("pos", ["abc", "def"])]) [] Map.empty)
+        , [] ~=? get_positional_result "pos" (ArgMatches (Map.fromList [("pos", [])]) [] Map.empty)
+        , [] ~=? get_positional_result "pos" (ArgMatches Map.empty [] Map.empty)
         ]
 
-    , "arg_help" ~:
-        [ "    abcde               help\n" @=? arg_help "abcde" "help"
-        , "    abcdefghijklmnopqrst\n\
-          \                        help\n" @=? arg_help "abcdefghijklmnopqrst" "help"
-        , "    abcdefghijklmnopqrstu\n\
-          \                        help\n" @=? arg_help "abcdefghijklmnopqrstu" "help"
+    , "get_flag_result" ~:
+        [ True ~=? get_flag_result 'c' (ArgMatches Map.empty "c" Map.empty)
+        , False ~=? get_flag_result 'c' (ArgMatches Map.empty "" Map.empty)
         ]
 
-    , "positional_help" ~:
-        "    POSITIONAL          help\n" @=? positional_help (ArgProps (HelpMessage "help"), TakesValueProps (ValueName "POSITIONAL") ZeroOrMore)
-
-    , "flag_help" ~:
-        [ "    -c                  help\n" @=? flag_help (FlagProps (ShortFlagName 'c') Nothing, ArgProps (HelpMessage "help"))
-        , "    -c, --long          help\n" @=? flag_help (FlagProps (ShortFlagName 'c') (Just $ LongFlagName "long"), ArgProps (HelpMessage "help"))
+    , "get_option_result" ~:
+        [ ["abc", "def"] ~=? get_option_result 'o' (ArgMatches Map.empty [] (Map.fromList [('o', ["abc", "def"])]))
+        , [] ~=? get_option_result 'o' (ArgMatches Map.empty [] (Map.fromList [('o', [])]))
+        , [] ~=? get_option_result 'o' (ArgMatches Map.empty [] (Map.fromList []))
         ]
 
-    , "option_help" ~:
-        [ "    -o [OPT...]         help\n" @=? option_help (FlagProps (ShortFlagName 'o') Nothing, ArgProps (HelpMessage "help"), TakesValueProps (ValueName "OPT") ZeroOrMore)
-        , "    -o [OPT...], --option [OPT...]\n\
-          \                        help\n" @=? option_help (FlagProps (ShortFlagName 'o') (Just $ LongFlagName "option"), ArgProps (HelpMessage "help"), TakesValueProps (ValueName "OPT") ZeroOrMore)
+    , "get_positional_result_ne" ~:
+        [ Right ("abc" NonEmpty.:| ["def"]) ~=? get_positional_result_ne "pos" (ArgMatches (Map.fromList [("pos", ["abc", "def"])]) [] Map.empty)
+        , Left (NeedsArguments "pos") ~=? get_positional_result_ne "pos" (ArgMatches Map.empty [] Map.empty)
         ]
 
-    , "args_help" ~:
-        [ "usage: prog\n" @=? args_help (Description []) "prog"
+    , "get_positional_result_1" ~:
+        [ Right "abc" ~=? get_positional_result_1 "pos" (ArgMatches (Map.fromList [("pos", ["abc"])]) [] Map.empty)
+        , Left (Needs1Argument "pos") ~=? get_positional_result_1 "pos" (ArgMatches Map.empty [] Map.empty)
+        ]
 
-        , "usage: prog POSITIONAL\n\
-          \\n\
-          \positional arguments:\n\
-          \    POSITIONAL          help\n" @=? args_help (Description [positional "help" "POSITIONAL" (Number 1)]) "prog"
+    , "get_option_result_ne" ~:
+        [ Right ("abc" NonEmpty.:| ["def"]) ~=? get_option_result_ne 'o' (ArgMatches Map.empty [] (Map.fromList [('o', ["abc", "def"])]))
+        , Left (NeedsArguments "-o") ~=? get_option_result_ne 'o' (ArgMatches Map.empty [] Map.empty)
+        ]
 
-        , "usage: prog [flags]\n\
-          \\n\
-          \flags:\n\
-          \    -c                  help\n" @=? args_help (Description [flag 'c' Nothing "help"]) "prog"
+    , "get_option_result_1" ~:
+        [ Right "abc" ~=? get_option_result_1 'o' (ArgMatches Map.empty [] (Map.fromList [('o', ["abc"])]))
+        , Left (Needs1Argument "-o") ~=? get_option_result_1 'o' (ArgMatches Map.empty [] Map.empty)
+        ]
 
-        , "usage: prog [options]\n\
-          \\n\
-          \options:\n\
-          \    -o OPT              help\n" @=? args_help (Description [option 'o' Nothing "help" "OPT" (Number 1)]) "prog"
+    , "require_1" ~:
+        [ Left (Needs1Argument "name") ~=? require_1 "name" []
+        , Right "a" ~=? require_1 "name" ["a"]
+        , Left (Needs1Argument "name") ~=? require_1 "name" ["a", "b"]
+        ]
 
-        , "usage: prog [flags] [options] POSITIONAL\n\
-          \\n\
-          \positional arguments:\n\
-          \    POSITIONAL          help\n\
-          \\n\
-          \flags:\n\
-          \    -c                  help\n\
-          \\n\
-          \options:\n\
-          \    -o OPT              help\n" @=? args_help (Description [positional "help" "POSITIONAL" (Number 1), flag 'c' Nothing "help", option 'o' Nothing "help" "OPT" (Number 1)]) "prog"
+    , "require_non_empty" ~:
+        [ Left (NeedsArguments "name") ~=? require_non_empty "name" []
+        , Right ("a" NonEmpty.:| [])  ~=? require_non_empty "name" ["a"]
+        , Right ("a" NonEmpty.:| ["b"]) ~=? require_non_empty "name" ["a", "b"]
         ]
     ]

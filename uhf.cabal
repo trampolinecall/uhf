@@ -14,6 +14,7 @@ library argparser
   exposed-modules:
       Brace.ArgParser
       Brace.ArgParser.Description
+      Brace.ArgParser.Help
       Brace.ArgParser.Parser
   other-modules:
       Paths_uhf

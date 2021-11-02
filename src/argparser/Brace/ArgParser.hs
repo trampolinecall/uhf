@@ -1,5 +1,7 @@
 module Brace.ArgParser
-    ( get_matches
+    ( module Brace.ArgParser.Description
+
+    , get_matches
 
     , ArgMatches
     , get_flag_result

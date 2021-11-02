@@ -1,6 +1,7 @@
 module Brace.ArgParser
     ( module Brace.ArgParser.Description
 
+    , get_matches_io
     , get_matches
 
     , ArgMatches
@@ -21,6 +22,7 @@ import Test.HUnit
 
 import System.IO (hPutStr, hPutStrLn, stderr)
 import System.Exit (exitFailure, exitSuccess)
+import System.Environment (getProgName, getArgs)
 
 import Brace.ArgParser.Description
 import Brace.ArgParser.Help hiding (tests)
@@ -68,6 +70,12 @@ require_non_empty n [] = Left $ NeedsArguments n
 require_non_empty _ (x:xs) = Right $ x NonEmpty.:| xs
 
 -- get_matches {{{1
+get_matches_io :: Description -> IO ArgMatches
+get_matches_io description =
+    getProgName >>= \ prog_name ->
+    getArgs >>= \ args ->
+    get_matches description prog_name args
+
 get_matches :: Description -> String -> [String] -> IO ArgMatches
 get_matches desc prog_name args =
     case get_matches' desc prog_name args of

@@ -50,3 +50,10 @@ tests:
 
     dependencies:
       - argparser
+
+  io-test:
+    main: Spec.hs
+    source-dirs: test/io
+
+    dependencies:
+      - io

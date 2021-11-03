@@ -9,7 +9,6 @@ replace_extension ext p =
         then p ++ "." ++ ext
         else reverse dropped ++ ext
 
-
 tests :: Test
 tests = test
     [ "thing.def" ~=? replace_extension "def" "thing.abc"

@@ -21,7 +21,7 @@ internal-libraries:
   token:
     source-dirs: src/token
 
-  lexer: 
+  lexer:
     source-dirs: src/lexer
 
     dependencies:
@@ -69,3 +69,11 @@ tests:
 
     dependencies:
       - io
+
+  lexer-test:
+    main: Spec.hs
+    source-dirs: test/lexer
+
+
+    dependencies:
+      - lexer

@@ -32,6 +32,7 @@ library io
   exposed-modules:
       Brace.IO
       Brace.IO.File
+      Brace.IO.Path
   other-modules:
       Paths_uhf
   hs-source-dirs:
@@ -87,5 +88,21 @@ test-suite argparser-test
     , argparser
     , base >=4.7 && <5
     , containers
+    , text
+  default-language: Haskell2010
+
+test-suite io-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Paths_uhf
+  hs-source-dirs:
+      test/io
+  ghc-options: -Wall
+  build-depends:
+      HUnit
+    , base >=4.7 && <5
+    , containers
+    , io
     , text
   default-language: Haskell2010

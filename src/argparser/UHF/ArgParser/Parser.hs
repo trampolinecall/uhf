@@ -1,4 +1,4 @@
-module Brace.ArgParser.Parser
+module UHF.ArgParser.Parser
     ( Matches(..)
     , ParseError(..)
     , parse
@@ -8,7 +8,7 @@ module Brace.ArgParser.Parser
 
 import Test.HUnit
 
-import Brace.ArgParser.Description
+import UHF.ArgParser.Description
 
 import qualified Data.Map as Map
 

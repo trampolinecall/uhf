@@ -1,4 +1,4 @@
-module Brace.ArgParser.Description
+module UHF.ArgParser.Description
     ( Description(..)
 
     , HelpMessage(..)

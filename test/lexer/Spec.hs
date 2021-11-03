@@ -7,5 +7,5 @@ import qualified UHF.Lexer as Lexer
 main :: IO ()
 main =
     runTestTTAndExit $ test
-            [ "Lexer" ~: Lexer.tests
-            ]
+        [ "Lexer" ~: Lexer.tests
+        ]

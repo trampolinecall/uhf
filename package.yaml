@@ -4,6 +4,7 @@ version:             0.0.0
 dependencies:
   - base >= 4.7 && < 5
   - containers
+  - text
 
   - HUnit
 
@@ -13,6 +14,9 @@ ghc-options:
 internal-libraries:
   argparser:
     source-dirs: src/argparser
+
+  io:
+    source-dirs: src/io
 
 executables:
   uhfi:

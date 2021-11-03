@@ -18,6 +18,15 @@ internal-libraries:
   io:
     source-dirs: src/io
 
+  token:
+    source-dirs: src/token
+
+  lexer: 
+    source-dirs: src/lexer
+
+    dependencies:
+      - io
+
   compiler:
     source-dirs: src/compiler
 

@@ -18,6 +18,9 @@ internal-libraries:
   io:
     source-dirs: src/io
 
+  compiler:
+    source-dirs: src/compiler
+
 executables:
   uhfi:
     main: Main.hs

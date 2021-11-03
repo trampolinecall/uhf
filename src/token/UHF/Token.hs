@@ -1,6 +1,14 @@
 module UHF.Token
     ( Token(..)
+    , IntLitBase(..)
     ) where
+
+data IntLitBase
+    = Dec
+    | Oct
+    | Hex
+    | Bin
+    deriving Eq
 
 data Token
     = OParen

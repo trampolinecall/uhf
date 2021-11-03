@@ -1,11 +1,11 @@
-module Brace.ArgParser.Help
+module UHF.ArgParser.Help
     ( args_help_message
     , tests
     ) where
 
 import Test.HUnit
 
-import Brace.ArgParser.Description
+import UHF.ArgParser.Description
 
 import Data.List (intercalate)
 import Data.Maybe (catMaybes)

@@ -2,7 +2,7 @@ module Main where
 
 import Test.HUnit
 
-import qualified Brace.IO.Path as Path (tests)
+import qualified UHF.IO.Path as Path (tests)
 
 main :: IO ()
 main =

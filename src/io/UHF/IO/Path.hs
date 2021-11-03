@@ -1,4 +1,4 @@
-module Brace.IO.Path where
+module UHF.IO.Path where
 
 import Test.HUnit
 

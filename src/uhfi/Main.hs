@@ -1,6 +1,6 @@
 module Main where
 
-import Brace.ArgParser
+import UHF.ArgParser
 
 args_description :: Description
 args_description = Description

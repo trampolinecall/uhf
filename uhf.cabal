@@ -50,7 +50,7 @@ executable uhfc
   other-modules:
       Paths_uhf
   hs-source-dirs:
-      src/compiler
+      src/uhfc
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HUnit
@@ -65,7 +65,7 @@ executable uhfi
   other-modules:
       Paths_uhf
   hs-source-dirs:
-      src/interpreter
+      src/uhfi
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HUnit

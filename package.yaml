@@ -21,7 +21,7 @@ internal-libraries:
 executables:
   uhfi:
     main: Main.hs
-    source-dirs: src/interpreter
+    source-dirs: src/uhfi
 
     dependencies:
       - argparser
@@ -33,7 +33,7 @@ executables:
 
   uhfc:
     main: Main.hs
-    source-dirs: src/compiler
+    source-dirs: src/uhfc
 
     dependencies:
       - argparser

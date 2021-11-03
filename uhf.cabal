@@ -47,11 +47,43 @@ library io
   exposed-modules:
       UHF.IO
       UHF.IO.File
+      UHF.IO.Location
       UHF.IO.Path
   other-modules:
       Paths_uhf
   hs-source-dirs:
       src/io
+  ghc-options: -Wall
+  build-depends:
+      HUnit
+    , base >=4.7 && <5
+    , containers
+    , text
+  default-language: Haskell2010
+
+library lexer
+  exposed-modules:
+      UHF.Lexer
+  other-modules:
+      Paths_uhf
+  hs-source-dirs:
+      src/lexer
+  ghc-options: -Wall
+  build-depends:
+      HUnit
+    , base >=4.7 && <5
+    , containers
+    , io
+    , text
+  default-language: Haskell2010
+
+library token
+  exposed-modules:
+      UHF.Token
+  other-modules:
+      Paths_uhf
+  hs-source-dirs:
+      src/token
   ghc-options: -Wall
   build-depends:
       HUnit

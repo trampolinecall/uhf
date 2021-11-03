@@ -25,6 +25,23 @@ library argparser
       HUnit
     , base >=4.7 && <5
     , containers
+    , text
+  default-language: Haskell2010
+
+library io
+  exposed-modules:
+      Brace.IO
+      Brace.IO.File
+  other-modules:
+      Paths_uhf
+  hs-source-dirs:
+      src/io
+  ghc-options: -Wall
+  build-depends:
+      HUnit
+    , base >=4.7 && <5
+    , containers
+    , text
   default-language: Haskell2010
 
 executable uhfc
@@ -39,6 +56,7 @@ executable uhfc
     , argparser
     , base >=4.7 && <5
     , containers
+    , text
   default-language: Haskell2010
 
 executable uhfi
@@ -53,6 +71,7 @@ executable uhfi
     , argparser
     , base >=4.7 && <5
     , containers
+    , text
   default-language: Haskell2010
 
 test-suite argparser-test
@@ -68,4 +87,5 @@ test-suite argparser-test
     , argparser
     , base >=4.7 && <5
     , containers
+    , text
   default-language: Haskell2010

@@ -12,10 +12,10 @@ build-type:     Simple
 
 library argparser
   exposed-modules:
-      Brace.ArgParser
-      Brace.ArgParser.Description
-      Brace.ArgParser.Help
-      Brace.ArgParser.Parser
+      UHF.ArgParser
+      UHF.ArgParser.Description
+      UHF.ArgParser.Help
+      UHF.ArgParser.Parser
   other-modules:
       Paths_uhf
   hs-source-dirs:
@@ -30,7 +30,7 @@ library argparser
 
 library compiler
   exposed-modules:
-      Brace.Compiler
+      UHF.Compiler
   other-modules:
       Paths_uhf
   hs-source-dirs:
@@ -45,9 +45,9 @@ library compiler
 
 library io
   exposed-modules:
-      Brace.IO
-      Brace.IO.File
-      Brace.IO.Path
+      UHF.IO
+      UHF.IO.File
+      UHF.IO.Path
   other-modules:
       Paths_uhf
   hs-source-dirs:

@@ -1,5 +1,5 @@
-module Brace.ArgParser
-    ( module Brace.ArgParser.Description
+module UHF.ArgParser
+    ( module UHF.ArgParser.Description
 
     , get_matches_io
     , get_matches
@@ -24,9 +24,9 @@ import System.IO (hPutStr, hPutStrLn, stderr)
 import System.Exit (exitFailure, exitSuccess)
 import System.Environment (getProgName, getArgs)
 
-import Brace.ArgParser.Description
-import Brace.ArgParser.Help hiding (tests)
-import Brace.ArgParser.Parser hiding (tests)
+import UHF.ArgParser.Description
+import UHF.ArgParser.Help hiding (tests)
+import UHF.ArgParser.Parser hiding (tests)
 
 import qualified Data.Map as Map
 import qualified Data.List.NonEmpty as NonEmpty

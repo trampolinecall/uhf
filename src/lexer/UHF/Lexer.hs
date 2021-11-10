@@ -108,18 +108,18 @@ lex_eof lexer
 
 lex_comment :: LexFn
 lex_comment lexer
-    | Text.take 2 (remaining lexer) == "//" =
+    | lexer `matches` "//" =
         let (_, _, lexer') = (lexer `seek` 2) `seek_while` (/='\n')
             lexer'' = lexer' `seek` 1 -- to skip newline
         in Just (False, Just $ lexer'', [], [])
 
-    | Text.take 2 (remaining lexer) == "/*" =
+    | lexer `matches` "/*" =
         let lexer' = lexer `seek` 2
 
             len_until_comment_end t
-                | Text.take 2 t == "*/" = Just 0
+                | text_matches "*/" t = Just 0
 
-                | Text.take 2 t == "/*" =
+                | text_matches "/*" t =
                     let dropped_slash_star = Text.drop 2 t
                     in len_until_comment_end dropped_slash_star >>= \ inner_comment_len ->
                     let dropped_inner_comment = Text.drop (inner_comment_len + 2) dropped_slash_star
@@ -165,13 +165,13 @@ lex_alpha_identifier lexer =
 
 lex_symbol_identifier :: LexFn
 lex_symbol_identifier lexer
-    | Text.take 1 (remaining lexer) == "(" = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.OParen])
-    | Text.take 1 (remaining lexer) == ")" = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.CParen])
-    | Text.take 1 (remaining lexer) == "[" = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.OBrack])
-    | Text.take 1 (remaining lexer) == "]" = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.CBrack])
-    | Text.take 1 (remaining lexer) == "," = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.Comma])
-    | Text.take 1 (remaining lexer) == "=" = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.Equal])
-    | Text.take 2 (remaining lexer) == "::" = Just (True, Just $ lexer `seek` 2, [], [Location.Located (lexer_span lexer 0 1) Token.DoubleColon])
+    | lexer `matches` "(" = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.OParen])
+    | lexer `matches` ")" = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.CParen])
+    | lexer `matches` "[" = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.OBrack])
+    | lexer `matches` "]" = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.CBrack])
+    | lexer `matches` "," = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.Comma])
+    | lexer `matches` "=" = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.Equal])
+    | lexer `matches` "::" = Just (True, Just $ lexer `seek` 2, [], [Location.Located (lexer_span lexer 0 1) Token.DoubleColon])
     | otherwise =
         let is_valid_char = (`elem` ("!#$%&*+-./:<=>?@^`~" :: String))
             (iden_sp, iden, lexer') = lexer `seek_while` is_valid_char
@@ -184,7 +184,7 @@ lex_str_or_char_lit lexer =
     case Text.uncons $ remaining lexer of
         Just (open, _) | open == '\'' || open == '"' ->
             let (_, str_contents, lexer') = (lexer `seek` 1) `seek_while` (\ ch -> ch /= open && ch /= '\n')
-            in if Text.take 1 (remaining lexer') == Text.pack [open]
+            in if lexer `matches` [open]
                 then
                     let lit_span = lexer_span lexer 0 (Text.length str_contents + 2)
                         lexer'' = lexer' `seek` 1
@@ -241,6 +241,12 @@ lexer_span lexer start len =
         before_end_lexer = start_lexer `seek` (len - 1)
         end_lexer = start_lexer `seek` len
     in Location.Span (lexer_location start_lexer) (lexer_location before_end_lexer) (lexer_location end_lexer)
+
+matches :: Lexer -> String -> Bool
+matches l s = text_matches s (remaining l)
+
+text_matches :: String -> Text.Text -> Bool
+text_matches s t = Text.unpack (Text.take (length s) t) == s
 
 seek_while :: Lexer -> (Char -> Bool) -> (Location.Span, Text.Text, Lexer)
 seek_while l p =

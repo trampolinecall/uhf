@@ -25,6 +25,7 @@ library argparser
       HUnit
     , base >=4.7 && <5
     , containers
+    , safe
     , text
   default-language: Haskell2010
 
@@ -40,6 +41,7 @@ library compiler
       HUnit
     , base >=4.7 && <5
     , containers
+    , safe
     , text
   default-language: Haskell2010
 
@@ -58,6 +60,7 @@ library io
       HUnit
     , base >=4.7 && <5
     , containers
+    , safe
     , text
   default-language: Haskell2010
 
@@ -74,7 +77,9 @@ library lexer
     , base >=4.7 && <5
     , containers
     , io
+    , safe
     , text
+    , token
   default-language: Haskell2010
 
 library token
@@ -89,6 +94,7 @@ library token
       HUnit
     , base >=4.7 && <5
     , containers
+    , safe
     , text
   default-language: Haskell2010
 
@@ -104,6 +110,7 @@ executable uhfc
     , argparser
     , base >=4.7 && <5
     , containers
+    , safe
     , text
   default-language: Haskell2010
 
@@ -119,6 +126,7 @@ executable uhfi
     , argparser
     , base >=4.7 && <5
     , containers
+    , safe
     , text
   default-language: Haskell2010
 
@@ -135,6 +143,7 @@ test-suite argparser-test
     , argparser
     , base >=4.7 && <5
     , containers
+    , safe
     , text
   default-language: Haskell2010
 
@@ -151,6 +160,7 @@ test-suite io-test
     , base >=4.7 && <5
     , containers
     , io
+    , safe
     , text
   default-language: Haskell2010
 
@@ -167,5 +177,6 @@ test-suite lexer-test
     , base >=4.7 && <5
     , containers
     , lexer
+    , safe
     , text
   default-language: Haskell2010

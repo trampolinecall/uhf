@@ -8,7 +8,7 @@ data IntLitBase
     | Oct
     | Hex
     | Bin
-    deriving Eq
+    deriving (Show, Eq)
 
 data Token
     = OParen
@@ -19,14 +19,7 @@ data Token
     | Equal
     | DoubleColon
 
-    | AlphaIdentifier String
     | SymbolIdentifier String
-
-    | CharLit Char
-    | StringLit String
-    | IntLit IntLitBase Integer
-    | FLoatLit Double
-    | BoolLit Bool
 
     | Root
     | Let
@@ -36,10 +29,18 @@ data Token
     | Else
     | Case
 
+    | AlphaIdentifier String
+
+    | CharLit Char
+    | StringLit String
+    | IntLit IntLitBase Integer
+    | FloatLit Double
+    | BoolLit Bool
+
     | OBrace
     | CBrace
     | Semicolon
     | Indent
     | Dedent
     | Newline
-    deriving Eq
+    deriving (Show, Eq)

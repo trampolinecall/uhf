@@ -20,11 +20,11 @@ data Transition = StateNum Int | Reject | Accept
 
 data CurState = Begin | CurStateNum Int
 
-run_dfa :: DFA r -> Text.Text -> r -> Maybe r
-run_dfa dfa = run_dfa' dfa Begin
+run_dfa :: DFA r -> Text.Text -> r -> Maybe (Int, r)
+run_dfa dfa = run_dfa' dfa Begin 0
 
-run_dfa' :: DFA r -> CurState -> Text.Text -> r -> Maybe r
-run_dfa' dfa@(DFA states begin_transition) cur_state input res =
+run_dfa' :: DFA r -> CurState -> Int -> Text.Text -> r -> Maybe (Int, r)
+run_dfa' dfa@(DFA states begin_transition) cur_state cur_len_consumed input res =
     let cur_transition = case cur_state of
             Begin -> begin_transition
             CurStateNum i -> state_transition $ states !! i
@@ -39,12 +39,16 @@ run_dfa' dfa@(DFA states begin_transition) cur_state input res =
 
     in case transition of
         Reject -> Nothing
-        Accept -> Just res
+        Accept -> Just (cur_len_consumed, res)
 
         StateNum next_state ->
-            let next_input = Text.drop 1 input
+            let (next_len_consumed, next_input) =
+                    case Text.uncons input of
+                        Just (_, more) -> (cur_len_consumed + 1, more)
+                        Nothing -> (cur_len_consumed, input)
+
                 next_res = res_mod res cur_char
-            in run_dfa' dfa (CurStateNum next_state) next_input next_res
+            in run_dfa' dfa (CurStateNum next_state) next_len_consumed next_input next_res
 
 tests :: Test
 tests = test
@@ -67,7 +71,7 @@ tests = test
               ]
               (\ c -> if c == Just 'a' then StateNum 0 else Reject)
         in
-            [ (Just 3 :: Maybe Int) ~=? run_dfa dfa "aaaabb" 0
+            [ Just (6, 3 :: Int) ~=? run_dfa dfa "aaaabb" 0
             , Nothing ~=? run_dfa dfa "" 0
             , Nothing ~=? run_dfa dfa "aa" 0
             , Nothing ~=? run_dfa dfa "aba" 0

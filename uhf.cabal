@@ -67,6 +67,7 @@ library io
 library lexer
   exposed-modules:
       UHF.Lexer
+      UHF.Lexer.DFA
   other-modules:
       Paths_uhf
   hs-source-dirs:

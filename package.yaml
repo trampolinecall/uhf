@@ -5,6 +5,7 @@ dependencies:
   - base >= 4.7 && < 5
   - containers
   - text
+  - safe
 
   - HUnit
 
@@ -26,6 +27,7 @@ internal-libraries:
 
     dependencies:
       - io
+      - token
 
   compiler:
     source-dirs: src/compiler

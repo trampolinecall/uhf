@@ -62,7 +62,7 @@ tests = test
               ]
               (\ r c -> if c == Just 'a' then StateNum 0 r else Reject)
         in
-            [ Just (4, 3 :: Int) ~=? run_dfa dfa "aaaabb" 0
+            [ Just (6, 3 :: Int) ~=? run_dfa dfa "aaaabb" 0
             , Nothing ~=? run_dfa dfa "" 0
             , Nothing ~=? run_dfa dfa "aa" 0
             , Nothing ~=? run_dfa dfa "aba" 0

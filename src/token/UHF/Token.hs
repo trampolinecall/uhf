@@ -3,6 +3,8 @@ module UHF.Token
     , IntLitBase(..)
     ) where
 
+import qualified Data.Decimal as Decimal
+
 data IntLitBase
     = Dec
     | Oct
@@ -34,7 +36,7 @@ data Token
     | CharLit Char
     | StringLit String
     | IntLit IntLitBase Integer
-    | FloatLit Double
+    | FloatLit Decimal.Decimal
     | BoolLit Bool
 
     | OBrace

@@ -22,7 +22,8 @@ library argparser
       src/argparser
   ghc-options: -Wall
   build-depends:
-      HUnit
+      Decimal
+    , HUnit
     , base >=4.7 && <5
     , containers
     , safe
@@ -38,7 +39,8 @@ library compiler
       src/compiler
   ghc-options: -Wall
   build-depends:
-      HUnit
+      Decimal
+    , HUnit
     , base >=4.7 && <5
     , containers
     , safe
@@ -57,7 +59,8 @@ library io
       src/io
   ghc-options: -Wall
   build-depends:
-      HUnit
+      Decimal
+    , HUnit
     , base >=4.7 && <5
     , containers
     , safe
@@ -74,7 +77,8 @@ library lexer
       src/lexer
   ghc-options: -Wall
   build-depends:
-      HUnit
+      Decimal
+    , HUnit
     , base >=4.7 && <5
     , containers
     , io
@@ -92,7 +96,8 @@ library token
       src/token
   ghc-options: -Wall
   build-depends:
-      HUnit
+      Decimal
+    , HUnit
     , base >=4.7 && <5
     , containers
     , safe
@@ -107,7 +112,8 @@ executable uhfc
       src/uhfc
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      HUnit
+      Decimal
+    , HUnit
     , argparser
     , base >=4.7 && <5
     , containers
@@ -123,7 +129,8 @@ executable uhfi
       src/uhfi
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      HUnit
+      Decimal
+    , HUnit
     , argparser
     , base >=4.7 && <5
     , containers
@@ -140,7 +147,8 @@ test-suite argparser-test
       test/argparser
   ghc-options: -Wall
   build-depends:
-      HUnit
+      Decimal
+    , HUnit
     , argparser
     , base >=4.7 && <5
     , containers
@@ -157,7 +165,8 @@ test-suite io-test
       test/io
   ghc-options: -Wall
   build-depends:
-      HUnit
+      Decimal
+    , HUnit
     , base >=4.7 && <5
     , containers
     , io
@@ -174,7 +183,8 @@ test-suite lexer-test
       test/lexer
   ghc-options: -Wall
   build-depends:
-      HUnit
+      Decimal
+    , HUnit
     , base >=4.7 && <5
     , containers
     , lexer

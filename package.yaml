@@ -6,6 +6,7 @@ dependencies:
   - containers
   - text
   - safe
+  - Decimal
 
   - HUnit
 

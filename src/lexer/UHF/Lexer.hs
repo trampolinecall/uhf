@@ -11,6 +11,7 @@ import qualified UHF.IO.File as File
 import qualified UHF.IO.Location as Location
 import qualified UHF.Lexer.DFA as DFA
 import qualified Data.Text as Text
+import qualified Data.Decimal as Decimal
 import Data.Maybe (mapMaybe, isJust)
 import Data.Either (lefts)
 import Data.Char (isAlpha, isDigit, isOctDigit, isHexDigit, isSpace, digitToInt)
@@ -186,7 +187,7 @@ lex_str_or_char_lit lexer =
     case Text.uncons $ remaining lexer of
         Just (open, _) | open == '\'' || open == '"' ->
             let (_, str_contents, lexer') = (lexer `seek` 1) `seek_while` (\ ch -> ch /= open && ch /= '\n')
-            in if lexer `matches` [open]
+            in if lexer' `matches` [open]
                 then
                     let lit_span = lexer_span lexer 0 (Text.length str_contents + 2)
                         lexer'' = lexer' `seek` 1
@@ -206,7 +207,7 @@ lex_number lexer =
     let dfa = DFA.DFA
             [ DFA.State -- started at 0
                 (\ (base, digits, float) -> \case
-                    Just c | isHexDigit c -> DFA.StateNum 2 (base, digits ++ ['0', c], float)
+                    Just c | isDigit c -> DFA.StateNum 2 (base, digits ++ ['0', c], float)
                     Just c | isAlpha c -> DFA.StateNum 1 (Just c, digits, float)
                     _ -> DFA.Reject
                 )
@@ -239,7 +240,7 @@ lex_number lexer =
             ]
             (\ res@(base, digits, float) -> \case
                 Just '0' -> DFA.StateNum 0 res
-                Just c | isDigit c -> DFA.StateNum 1 (base, digits ++ [c], float)
+                Just c | isDigit c -> DFA.StateNum 2 (base, digits ++ [c], float)
                 _ -> DFA.Reject
             )
 
@@ -247,7 +248,7 @@ lex_number lexer =
         Just (num_span, (base, digits, floats), lexer') ->
             let ei_tok_base = case base of
                     Just 'o' -> Right (Token.Oct, 8)
-                    Just 'h' -> Right (Token.Hex, 16)
+                    Just 'x' -> Right (Token.Hex, 16)
                     Just 'b' -> Right (Token.Bin, 2)
                     Nothing -> Right (Token.Dec, 10)
 
@@ -295,7 +296,7 @@ lex_number lexer =
                         base_is_dec = if tok_base == Token.Dec then [] else [NonDecimalFloat num_span]
 
                     in if null illegal_digits && null base_is_dec
-                        then Just (True, Just lexer', [], [Location.Located num_span (Token.FloatLit $ read_digits (**) 10 (zip [0..] (reverse digits) ++ zip [-1, -2..] floats))])
+                        then Just (True, Just lexer', [], [Location.Located num_span (Token.FloatLit $ read_digits ((^^) :: Decimal.Decimal -> Int -> Decimal.Decimal) 10 (zip [0..] (reverse digits) ++ zip [-1, -2..] floats))])
                         else Just (True, Just lexer', illegal_digits ++ base_is_dec, [])
 
                 (Left err, _) -> Just (True, Just lexer', [err], [])
@@ -583,14 +584,12 @@ tests = test
                         Nothing -> return ()
                         x -> lex_test_fail "lex_number" x
 
-                  , lex_test lex_number "123." $ \case
-                        Just (True, Just l, [], [Location.Located _ (Token.IntLit Token.Dec 123)])
-                            | remaining l == "." -> return ()
+                  , lex_test lex_number "123.x" $ \case
+                        Nothing -> return ()
                         x -> lex_test_fail "lex_number" x
 
-                  , lex_test lex_number "123.x" $ \case
-                        Just (True, Just l, [], [Location.Located _ (Token.IntLit Token.Dec 123)])
-                            | remaining l == ".x" -> return ()
+                  , lex_test lex_number "123." $ \case
+                        Nothing -> return ()
                         x -> lex_test_fail "lex_number" x
 
                   , lex_test lex_number "0b101.1" $ \case
@@ -610,11 +609,6 @@ tests = test
 
                   , lex_test lex_number "0o79a" $ \case
                         Just (True, Just l, [InvalidIntDigit '9' _, InvalidIntDigit 'a' _], [])
-                            | remaining l == "" -> return ()
-                        x -> lex_test_fail "lex_number" x
-
-                  , lex_test lex_number "0b.1" $ \case
-                        Just (True, Just l, [MissingDigits _], [])
                             | remaining l == "" -> return ()
                         x -> lex_test_fail "lex_number" x
 

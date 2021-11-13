@@ -22,7 +22,11 @@ module UHF.ArgParser.Description
     , get_positionals
     , get_flags
     , get_options
+
+    , tests
     ) where
+
+import Test.HUnit (Test(TestList))
 
 import Data.List
 import Data.Maybe
@@ -89,3 +93,6 @@ get_options (Description args) =
     let p (Flag fp ap (Just tvp)) = Just (fp, ap, tvp)
         p _ = Nothing
     in mapMaybe p args
+
+tests :: Test
+tests = TestList []

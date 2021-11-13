@@ -1,5 +1,7 @@
 module UHF.IO.Location where
 
+import Test.HUnit (Test(TestList))
+
 import qualified UHF.IO.File as File
 
 data Location = Location { file :: File.File, row :: Int, col :: Int } deriving (Show, Eq)
@@ -24,3 +26,6 @@ fmt_span (Span (Location f1 r1 c1) _ (Location _ r2 c2)) = File.path f1 ++ ":" +
 
 fmt_located :: Show a => Located a -> String
 fmt_located (Located sp a) = "<at " ++ fmt_span sp ++ "> " ++ show a
+
+tests :: Test
+tests = TestList []

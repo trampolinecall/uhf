@@ -1,6 +1,6 @@
 module UHF.ArgParser.Help
     ( args_help_message
-    , tests
+    , UHF.ArgParser.Help.tests
     ) where
 
 import Test.HUnit

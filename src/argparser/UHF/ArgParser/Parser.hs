@@ -3,7 +3,7 @@ module UHF.ArgParser.Parser
     , ParseError(..)
     , parse
     , str_error
-    , tests
+    , UHF.ArgParser.Parser.tests
     ) where
 
 import Test.HUnit

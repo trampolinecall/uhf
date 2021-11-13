@@ -8,7 +8,17 @@ name:           uhf
 version:        0.0.0
 license:        MIT
 license-file:   LICENSE
-build-type:     Simple
+build-type:     Custom
+extra-source-files:
+    test/argparser.test
+    test/io.test
+    test/lexer.test
+
+custom-setup
+  setup-depends:
+      Cabal
+    , base >=4.7 && <5
+    , extra
 
 library argparser
   exposed-modules:
@@ -140,11 +150,11 @@ executable uhfi
 
 test-suite argparser-test
   type: exitcode-stdio-1.0
-  main-is: Spec.hs
+  main-is: argparser.hs
   other-modules:
       Paths_uhf
   hs-source-dirs:
-      test/argparser
+      test/
   ghc-options: -Wall
   build-depends:
       Decimal
@@ -158,11 +168,11 @@ test-suite argparser-test
 
 test-suite io-test
   type: exitcode-stdio-1.0
-  main-is: Spec.hs
+  main-is: io.hs
   other-modules:
       Paths_uhf
   hs-source-dirs:
-      test/io
+      test/
   ghc-options: -Wall
   build-depends:
       Decimal
@@ -176,11 +186,11 @@ test-suite io-test
 
 test-suite lexer-test
   type: exitcode-stdio-1.0
-  main-is: Spec.hs
+  main-is: lexer.hs
   other-modules:
       Paths_uhf
   hs-source-dirs:
-      test/lexer
+      test/
   ghc-options: -Wall
   build-depends:
       Decimal

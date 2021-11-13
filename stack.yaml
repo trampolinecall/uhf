@@ -1,5 +1,4 @@
 resolver: lts-18.13
 
-# User packages to be built.
 packages:
-- .
+  - .

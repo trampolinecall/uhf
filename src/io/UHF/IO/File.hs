@@ -1,5 +1,7 @@
 module UHF.IO.File where
 
+import Test.HUnit (Test(TestList))
+
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text.IO
 
@@ -13,3 +15,6 @@ open_file path' = File path' <$> Text.IO.readFile path'
 
 write_file :: File -> IO ()
 write_file f = Text.IO.writeFile (path f) (contents f)
+
+tests :: Test
+tests = TestList []

@@ -1,6 +1,14 @@
 name:                uhf
 version:             0.0.0
 
+build-type: Custom
+
+custom-setup:
+  dependencies:
+    - base >= 4.7 && < 5
+    - extra
+    - Cabal
+
 dependencies:
   - base >= 4.7 && < 5
   - containers
@@ -33,6 +41,9 @@ internal-libraries:
   compiler:
     source-dirs: src/compiler
 
+extra-source-files:
+  - test/*.test
+
 executables:
   uhfi:
     main: Main.hs
@@ -60,23 +71,22 @@ executables:
 
 tests:
   argparser-test:
-    main: Spec.hs
-    source-dirs: test/argparser
+    main: argparser.hs
+    source-dirs: test/
 
     dependencies:
       - argparser
 
   io-test:
-    main: Spec.hs
-    source-dirs: test/io
+    main: io.hs
+    source-dirs: test/
 
     dependencies:
       - io
 
   lexer-test:
-    main: Spec.hs
-    source-dirs: test/lexer
-
+    main: lexer.hs
+    source-dirs: test/
 
     dependencies:
       - lexer

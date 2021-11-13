@@ -24,7 +24,7 @@ import System.IO (hPutStr, hPutStrLn, stderr)
 import System.Exit (exitFailure, exitSuccess)
 import System.Environment (getProgName, getArgs)
 
-import UHF.ArgParser.Description
+import UHF.ArgParser.Description hiding (tests)
 import UHF.ArgParser.Help hiding (tests)
 import UHF.ArgParser.Parser hiding (tests)
 

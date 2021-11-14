@@ -4,7 +4,7 @@ import Test.HUnit (Test(TestList))
 
 import qualified UHF.IO.File as File
 
-data Location = Location { file :: File.File, row :: Int, col :: Int } deriving (Show, Eq)
+data Location = Location { file :: File.File, ind :: Int, row :: Int, col :: Int } deriving (Show, Eq)
 data Span = Span { start :: Location, before_end :: Location, end :: Location } deriving (Show, Eq)
 
 data Located a = Located { just_span :: Span, unlocate :: a } deriving Show
@@ -19,10 +19,10 @@ instance Eq a => Eq (Located a) where
     (Located _ a) == (Located _ b) = a == b
 
 fmt_location :: Location -> String
-fmt_location (Location f r c) = File.path f ++ ":" ++ show r ++ ":" ++ show c
+fmt_location (Location f _ r c) = File.path f ++ ":" ++ show r ++ ":" ++ show c
 
 fmt_span :: Span -> String
-fmt_span (Span (Location f1 r1 c1) _ (Location _ r2 c2)) = File.path f1 ++ ":" ++ show r1 ++ ":" ++ show c1 ++ ":" ++ show r2 ++ ":" ++ show c2
+fmt_span (Span (Location f1 _ r1 c1) _ (Location _ _ r2 c2)) = File.path f1 ++ ":" ++ show r1 ++ ":" ++ show c1 ++ ":" ++ show r2 ++ ":" ++ show c2
 
 fmt_located :: Show a => Located a -> String
 fmt_located (Located sp a) = "<at " ++ fmt_span sp ++ "> " ++ show a

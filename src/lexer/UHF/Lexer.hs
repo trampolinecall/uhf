@@ -58,7 +58,12 @@ lex f =
     let run _ Nothing = ([], [])
         run last_tok (Just l) =
             let (l', errs, toks) = lex' l last_tok
-                (errs', toks') = run (lastMay toks) l'
+
+                last_tok' = case lastMay toks of
+                    Just x -> Just x
+                    Nothing -> last_tok
+
+                (errs', toks') = run last_tok' l'
             in (errs ++ errs', toks ++ toks')
 
     in run Nothing (Just $ new_lexer f)
@@ -272,7 +277,7 @@ lex_number lexer =
                                 if digit_legal c
                                     then Right ()
                                     else Left $ InvalidIntDigit c (lexer_span lexer i 1)
-                            ) 
+                            )
                             (zip [base_len..] digits)
 
                         illegal_digits = lefts digits_legal
@@ -316,7 +321,91 @@ make_bad_char lexer =
         Just (x, _) -> Just (True, Just $ lexer `seek` 1, [BadChar x $ lexer_span lexer 0 1], [])
 -- lex_indent {{{2
 lex_indent :: Lexer -> Maybe (Location.Located Token.Token) -> ([IndentFrame], [LexError], [Location.Located Token.Token])
-lex_indent _ _ = undefined
+lex_indent lexer last_tok =
+    let m_cur_indent =
+            let from_line_begin = Text.reverse $ Text.takeWhile (/='\n') (rev_passed lexer)
+
+                count_indent (Just acc) ' ' = Just $ acc + 1
+                count_indent (Just acc) '\t' = Just $ (acc `div` 8 + 1) * 8
+                count_indent _ _ = Nothing
+
+            in Text.foldl' count_indent (Just 0) from_line_begin
+
+        m_last_indent =
+            case head $ indent_stack lexer of
+                IndentationSensitive x -> Just x
+                IndentationInsensitive -> Nothing
+
+        m_cur_char = fst <$> Text.uncons (remaining lexer)
+
+        last_is_semi =
+            case last_tok of
+                Just (Location.Located _ Token.Semicolon) -> True
+                _ -> False
+
+        cur_char_tok = Location.Located (lexer_span lexer 0 1)
+
+        last_nl_tok =
+            let last_tok_end_ind = Location.ind $ Location.end $ Location.just_span $
+                    case last_tok of
+                        Just x -> x
+                        Nothing -> error "no last token to find newline at"
+
+                nl_from_last_tok_end =
+                    case Text.findIndex (=='\n') (Text.drop (last_tok_end_ind) (File.contents $ file lexer)) of
+                        Just x -> x
+                        Nothing -> error "no newlines to make token at"
+
+            in Location.Located (lexer_span lexer (last_tok_end_ind + nl_from_last_tok_end - location lexer) 1)
+
+        process_braces (stack, errs, toks)
+            | m_cur_char == Just '{' = (IndentationInsensitive : stack, errs, toks ++ [cur_char_tok Token.OBrace])
+
+            | m_cur_char == Just ';' = (stack, errs, toks ++ [cur_char_tok Token.Semicolon])
+
+            | m_cur_char == Just '}' =
+                case head stack of
+                    IndentationInsensitive -> (tail stack, errs, toks ++ [cur_char_tok Token.CBrace])
+                    IndentationSensitive _ -> (stack, errs, toks ++ [cur_char_tok Token.CBrace]) -- the parser can handle this error when it finds a random CBrace where it shouldn't be
+
+            | otherwise = (stack, errs, toks)
+
+        process_indents (stack, errs, toks) =
+            case (m_cur_indent, m_last_indent) of
+                (Just cur_indent, Just last_indent)
+                    | cur_indent > last_indent -> (IndentationSensitive cur_indent : stack, errs, toks ++ [cur_char_tok Token.Indent])
+
+                    | cur_indent == last_indent && isJust last_tok ->
+                        if last_is_semi
+                            then (stack, errs, toks)
+                            else (stack, errs, toks ++ [last_nl_tok Token.Newline])
+
+                    | cur_indent < last_indent ->
+                        let can_pop (IndentationSensitive ind) = cur_indent < ind
+                            can_pop IndentationInsensitive = False
+
+                            (popped, after_pop) = span can_pop stack
+
+                            is_valid_level = case head after_pop of
+                                IndentationSensitive lvl
+                                    | cur_indent == lvl -> True
+                                IndentationInsensitive -> True
+
+                                _ -> False
+
+                            num_popped = length popped
+                        in
+                            ( after_pop
+                            , errs ++
+                                if is_valid_level then [] else [BadDedent (lexer_span lexer 0 1)]
+                            , toks ++
+                                (if last_is_semi then [] else [last_nl_tok Token.Newline]) ++
+                                replicate num_popped (cur_char_tok Token.Dedent)
+                            )
+
+                _ -> (stack, errs, toks)
+
+    in process_braces . process_indents $ (indent_stack lexer, [], [])
 -- helper functions {{{1
 l_contents :: Lexer -> Text.Text
 l_contents = File.contents . file
@@ -334,7 +423,7 @@ new_lexer :: File.File -> Lexer
 new_lexer f = Lexer f 0 1 1 [IndentationSensitive 0]
 
 lexer_location :: Lexer -> Location.Location
-lexer_location lexer = Location.Location (file lexer) (line lexer) (col lexer)
+lexer_location lexer = Location.Location (file lexer) (location lexer) (line lexer) (col lexer)
 
 lexer_span :: Lexer -> Int -> Int -> Location.Span
 lexer_span lexer start len =
@@ -402,11 +491,11 @@ tests = test
 
     , "lexer_location" ~:
         let f = File.File "a" "abc"
-        in Location.Location f 2 4 ~=? lexer_location (Lexer f 0 2 4 [])
+        in Location.Location f 1 1 2 ~=? lexer_location (Lexer f 1 1 2 [])
 
     , "lexer_span" ~:
         let f = File.File "a" "abcdef"
-        in Location.Span (Location.Location f 1 1) (Location.Location f 1 2) (Location.Location f 1 3) ~=? lexer_span (new_lexer f) 0 2
+        in Location.Span (Location.Location f 0 1 1) (Location.Location f 1 1 2) (Location.Location f 2 1 3) ~=? lexer_span (new_lexer f) 0 2
 
     , "seek" ~:
         [ let l = new_lexer $ File.File "a" "abc"
@@ -436,7 +525,7 @@ tests = test
         ]
 
     , "lex" ~:
-        case UHF.Lexer.lex (File.File "a" "abc *&* ( \"adji") of
+        case UHF.Lexer.lex (File.File "a" "abc *&* ( \"adji\n") of
             ([UnclosedStrLit _], [Location.Located _ (Token.AlphaIdentifier "abc"), Location.Located _ (Token.SymbolIdentifier "*&*"), Location.Located _ Token.OParen]) -> return ()
             x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
@@ -445,7 +534,9 @@ tests = test
       in "lexing" ~:
             [ "lex'" ~:
                 [ lex_test (flip lex' Nothing) "abc" $ \case
-                      (Nothing, [], [Location.Located _ (Token.AlphaIdentifier "abc")]) -> return ()
+                      (Just l, [], [Location.Located _ (Token.AlphaIdentifier "abc")])
+                        | remaining l == "" -> return ()
+
                       x -> lex_test_fail "lex'" x
                 , lex_test (flip lex' Nothing) "" $ \case
                       (Nothing, [], []) -> return ()
@@ -644,13 +735,56 @@ tests = test
                         Nothing -> return ()
                         x -> lex_test_fail "make_bad_char" x
                   ]
-            -- , "lex_indent" ~: []
-            -- inserts indent when indentation increased, inserts new indentation frame
-            -- inserts newline when indentation same
-            -- inserts dedents when indentation is less, removes indentation frames
-            -- inserts dedents when indentation is less, removes indentation frames multiple
-            -- inserts { when {, adds indentation frame
-            -- inserts } when }, removes indentation frame
-            -- inserts ; when ;
+            , "lex_indent" ~:
+                  let indent_test m_last_tok stack offset input check =
+                          let lexer = (new_lexer (File.File "a" input) `seek` offset) { indent_stack = stack }
+
+                              last_tok =
+                                  case m_last_tok of
+                                    Just (tok, start, len) -> Just $ Location.Located (lexer_span lexer start len) tok
+                                    Nothing -> Nothing
+
+                          in check $ lex_indent lexer last_tok
+                  in
+                  [ indent_test Nothing [IndentationSensitive 0] 4 "    abcd\n" $ \case
+                        ([IndentationSensitive 4, IndentationSensitive 0], [], [Location.Located _ Token.Indent]) -> return ()
+                        x -> lex_test_fail "lex_indent" x
+
+                  , indent_test (Just (Token.AlphaIdentifier "abcde", -6, 5)) [IndentationSensitive 0] 6 "abcde\nfghij\n" $ \case
+                        ([IndentationSensitive 0], [], [Location.Located _ Token.Newline]) -> return ()
+                        x -> lex_test_fail "lex_indent" x
+
+                  , indent_test (Just (Token.Semicolon, -1, 1)) [IndentationSensitive 0] 6 "abcd;\nfghij\n" $ \case
+                        ([IndentationSensitive 0], [], []) -> return ()
+                        x -> lex_test_fail "lex_indent" x
+
+                  , indent_test (Just (Token.AlphaIdentifier "b", -2, 1)) [IndentationSensitive 4, IndentationSensitive 0] 8 "a\n    b\nc" $ \case
+                        ([IndentationSensitive 0], [], [Location.Located _ Token.Newline, Location.Located _ Token.Dedent]) -> return ()
+                        x -> lex_test_fail "lex_indent" x
+
+                  , indent_test (Just (Token.Semicolon, -2, 1)) [IndentationSensitive 4, IndentationSensitive 0] 9 "a\n    b;\nc" $ \case
+                        ([IndentationSensitive 0], [], [Location.Located _ Token.Dedent]) -> return ()
+                        x -> lex_test_fail "lex_indent" x
+
+                  , indent_test (Just (Token.AlphaIdentifier "c", -2, 1)) [IndentationSensitive 8, IndentationSensitive 4, IndentationSensitive 0] 18 "a\n    b\n        c\nd" $ \case
+                        ([IndentationSensitive 0], [], [Location.Located _ Token.Newline, Location.Located _ Token.Dedent, Location.Located _ Token.Dedent]) -> return ()
+                        x -> lex_test_fail "lex_indent" x
+
+                  , indent_test (Just (Token.Semicolon, -2, 1)) [IndentationSensitive 8, IndentationSensitive 4, IndentationSensitive 0] 19 "a\n    b\n        c;\nd" $ \case
+                        ([IndentationSensitive 0], [], [Location.Located _ Token.Dedent, Location.Located _ Token.Dedent]) -> return ()
+                        x -> lex_test_fail "lex_indent" x
+
+                  , indent_test Nothing [IndentationSensitive 0] 0 "{\n" $ \case
+                        ([IndentationInsensitive, IndentationSensitive 0], [], [Location.Located _ Token.OBrace]) -> return ()
+                        x -> lex_test_fail "lex_indent" x
+
+                  , indent_test Nothing [IndentationSensitive 0] 0 ";\n" $ \case
+                        ([IndentationSensitive 0], [], [Location.Located _ Token.Semicolon]) -> return ()
+                        x -> lex_test_fail "lex_indent" x
+
+                  , indent_test Nothing [IndentationInsensitive, IndentationSensitive 0] 0 "}\n" $ \case
+                        ([IndentationSensitive 0], [], [Location.Located _ Token.CBrace]) -> return ()
+                        x -> lex_test_fail "lex_indent" x
+                  ]
             ]
     ]

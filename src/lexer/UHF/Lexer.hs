@@ -3,10 +3,12 @@
 
 module UHF.Lexer
     ( UHF.Lexer.lex
-    , tests
     ) where
 
-import Test.HUnit
+import Test.Tasty
+import Test.Tasty.HUnit
+import Test.Tasty.TH
+
 import qualified UHF.IO.File as File
 import qualified UHF.IO.Location as Location
 import qualified UHF.Lexer.DFA as DFA
@@ -406,6 +408,7 @@ lex_indent lexer last_tok =
                 _ -> (stack, errs, toks)
 
     in process_braces . process_indents $ (indent_stack lexer, [], [])
+
 -- helper functions {{{1
 l_contents :: Lexer -> Text.Text
 l_contents = File.contents . file
@@ -471,320 +474,414 @@ seek lexer n =
        , col = col'
        }
 -- tests {{{1
-tests :: Test
-tests = test
-    [ "l_contents" ~:
-        "abcdefghijkl" ~=? l_contents (Lexer (File.File "filename" "abcdefghijkl") 0 1 1 [])
+case_l_contents :: Assertion
+case_l_contents = "abcdefghijkl" @=? l_contents (Lexer (File.File "filename" "abcdefghijkl") 0 1 1 [])
+case_remaining :: Assertion
+case_remaining = "fghijkl" @=? remaining (Lexer (File.File "filename" "abcdefghijkl") 5 1 1 [])
+case_passed :: Assertion
+case_passed = "abcde" @=? passed (Lexer (File.File "filename" "abcdefghijkl") 5 1 1 [])
+case_rev_passed :: Assertion
+case_rev_passed = "edcba" @=? rev_passed (Lexer (File.File "filename" "abcdefghijkl") 5 1 1 [])
 
-    , "remaining" ~:
-        "fghijkl" ~=? remaining (Lexer (File.File "filename" "abcdefghijkl") 5 1 1 [])
+case_new_lexer :: Assertion
+case_new_lexer =
+    let f = File.File "a" "abc"
+    in Lexer f 0 1 1 [IndentationSensitive 0] @=? new_lexer f
 
-    , "passed" ~:
-        "abcde" ~=? passed (Lexer (File.File "filename" "abcdefghijkl") 5 1 1 [])
+case_lexer_location :: Assertion
+case_lexer_location =
+    let f = File.File "a" "abc"
+    in Location.Location f 1 1 2 @=? lexer_location (Lexer f 1 1 2 [])
 
-    , "rev_passed" ~:
-        "edcba" ~=? rev_passed (Lexer (File.File "filename" "abcdefghijkl") 5 1 1 [])
+case_lexer_span :: Assertion
+case_lexer_span =
+    let f = File.File "a" "abcdef"
+    in Location.Span (Location.Location f 0 1 1) (Location.Location f 1 1 2) (Location.Location f 2 1 3) @=? lexer_span (new_lexer f) 0 2
 
-    , "new_lexer" ~:
-        let f = File.File "a" "abc"
-        in Lexer f 0 1 1 [IndentationSensitive 0] ~=? new_lexer f
+case_seek_same :: Assertion
+case_seek_same =
+    let l = new_lexer $ File.File "a" "abc"
+    in l @=? seek l 0
 
-    , "lexer_location" ~:
-        let f = File.File "a" "abc"
-        in Location.Location f 1 1 2 ~=? lexer_location (Lexer f 1 1 2 [])
+case_seek_forward_same_line :: Assertion
+case_seek_forward_same_line =
+    let f = File.File "a" "abcd\nefgh"
+    in Lexer f 2 1 3 [] @=? seek (Lexer f 0 1 1 []) 2
+case_seek_forward_up_to_newline :: Assertion
+case_seek_forward_up_to_newline =
+    let f = File.File "a" "abcd\nefgh"
+    in Lexer f 3 1 4 [] @=? seek (Lexer f 0 1 1 []) 3
+case_seek_forward_to_newline :: Assertion
+case_seek_forward_to_newline =
+    let f = File.File "a" "abcd\nefgh"
+    in Lexer f 4 1 5 [] @=? seek (Lexer f 0 1 1 []) 4
+case_seek_forward_past_newline :: Assertion
+case_seek_forward_past_newline =
+    let f = File.File "a" "abcd\nefgh"
+    in Lexer f 5 2 1 [] @=? seek (Lexer f 0 1 1 []) 5
 
-    , "lexer_span" ~:
-        let f = File.File "a" "abcdef"
-        in Location.Span (Location.Location f 0 1 1) (Location.Location f 1 1 2) (Location.Location f 2 1 3) ~=? lexer_span (new_lexer f) 0 2
+case_seek_backward_same_line :: Assertion
+case_seek_backward_same_line =
+    let f = File.File "a" "abcd\nefgh"
+    in Lexer f 6 2 2 [] @=? seek (Lexer f 8 2 4 []) (-2)
+case_seek_backward_up_to_newline :: Assertion
+case_seek_backward_up_to_newline =
+    let f = File.File "a" "abcd\nefgh"
+    in Lexer f 5 2 1 [] @=? seek (Lexer f 8 2 4 []) (-3)
+case_seek_backward_to_newline :: Assertion
+case_seek_backward_to_newline =
+    let f = File.File "a" "abcd\nefgh"
+    in Lexer f 4 1 5 [] @=? seek (Lexer f 8 2 4 []) (-4)
+case_seek_backward_past_newline :: Assertion
+case_seek_backward_past_newline =
+    let f = File.File "a" "abcd\nefgh"
+    in Lexer f 3 1 4 [] @=? seek (Lexer f 8 2 4 []) (-5)
 
-    , "seek" ~:
-        [ let l = new_lexer $ File.File "a" "abc"
-          in l ~=? seek l 0
+case_lex :: Assertion
+case_lex =
+    case UHF.Lexer.lex (File.File "a" "abc *&* ( \"adji\n") of
+        ([UnclosedStrLit _], [Location.Located _ (Token.AlphaIdentifier "abc"), Location.Located _ (Token.SymbolIdentifier "*&*"), Location.Located _ Token.OParen]) -> return ()
+        x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
-        , "forward" ~:
-            [ let f = File.File "a" "abcd\nefgh"
-              in Lexer f 2 1 3 [] ~=? seek (Lexer f 0 1 1 []) 2
-            , let f = File.File "a" "abcd\nefgh"
-              in Lexer f 3 1 4 [] ~=? seek (Lexer f 0 1 1 []) 3
-            , let f = File.File "a" "abcd\nefgh"
-              in Lexer f 4 1 5 [] ~=? seek (Lexer f 0 1 1 []) 4
-            , let f = File.File "a" "abcd\nefgh"
-              in Lexer f 5 2 1 [] ~=? seek (Lexer f 0 1 1 []) 5
-            ]
+lex_test fn input check = check $ fn $ new_lexer $ File.File "a" input
+lex_test_fail fn_name res = assertFailure $ "'" ++ fn_name ++ "' lexed incorrectly: returned '" ++ show res ++ "'"
 
-        , "backward" ~:
-            [ let f = File.File "a" "abcd\nefgh"
-              in Lexer f 6 2 2 [] ~=? seek (Lexer f 8 2 4 []) (-2)
-            , let f = File.File "a" "abcd\nefgh"
-              in Lexer f 5 2 1 [] ~=? seek (Lexer f 8 2 4 []) (-3)
-            , let f = File.File "a" "abcd\nefgh"
-              in Lexer f 4 1 5 [] ~=? seek (Lexer f 8 2 4 []) (-4)
-            , let f = File.File "a" "abcd\nefgh"
-              in Lexer f 3 1 4 [] ~=? seek (Lexer f 8 2 4 []) (-5)
-            ]
-        ]
+indent_test m_last_tok stack offset input check =
+    let lexer = (new_lexer (File.File "a" input) `seek` offset) { indent_stack = stack }
 
-    , "lex" ~:
-        case UHF.Lexer.lex (File.File "a" "abc *&* ( \"adji\n") of
-            ([UnclosedStrLit _], [Location.Located _ (Token.AlphaIdentifier "abc"), Location.Located _ (Token.SymbolIdentifier "*&*"), Location.Located _ Token.OParen]) -> return ()
-            x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
+        last_tok =
+            case m_last_tok of
+                Just (tok, start, len) -> Just $ Location.Located (lexer_span lexer start len) tok
+                Nothing -> Nothing
 
-    , let lex_test fn input check = TestCase $ check $ fn $ new_lexer $ File.File "a" input
-          lex_test_fail fn_name res = assertFailure $ "'" ++ fn_name ++ "' lexed incorrectly: returned '" ++ show res ++ "'"
-      in "lexing" ~:
-            [ "lex'" ~:
-                [ lex_test (flip lex' Nothing) "abc" $ \case
-                      (Just l, [], [Location.Located _ (Token.AlphaIdentifier "abc")])
-                        | remaining l == "" -> return ()
+    in check $ lex_indent lexer last_tok
 
-                      x -> lex_test_fail "lex'" x
-                , lex_test (flip lex' Nothing) "" $ \case
-                      (Nothing, [], []) -> return ()
-                      x -> lex_test_fail "lex'" x
-                ]
+case_lex' :: Assertion
+case_lex' =
+    lex_test (flip lex' Nothing) "abc" $ \case
+        (Just l, [], [Location.Located _ (Token.AlphaIdentifier "abc")])
+            | remaining l == "" -> return ()
 
-            , "lex_eof" ~:
-                  [ lex_test lex_eof "" $ \case
-                        Just (False, Nothing, [], []) -> return ()
-                        x -> lex_test_fail "lex_eof" x
-                  , lex_test lex_eof "a" $ \case
-                        Nothing -> return ()
-                        x -> lex_test_fail "lex_eof" x
-                  , TestCase $
-                        let f = File.File "a" ""
-                            l = Lexer f 0 1 1 [IndentationInsensitive, IndentationSensitive 4, IndentationInsensitive, IndentationSensitive 0]
-                        in case lex_eof l of
-                            Just (False, Nothing, [], [Location.Located _ Token.Newline, Location.Located _ Token.Dedent]) -> return ()
-                            x -> lex_test_fail "lex_eof" x
-                  ]
+        x -> lex_test_fail "lex'" x
 
-            , "lex_comment" ~:
-                  [ lex_test lex_comment "// asdf\nabcde\n" $ \case
-                        Just (False, Just l', [], [])
-                            | remaining l' == "abcde\n" -> return ()
-                        x -> lex_test_fail "lex_comment" x
-                  , lex_test lex_comment "// asdf" $ \case
-                        Just (False, Just l', [], [])
-                            | remaining l' == "" -> return ()
-                        x -> lex_test_fail "lex_comment" x
-                  , lex_test lex_comment "/* asdf\nasdf */more\n" $ \case
-                        Just (False, Just l', [], [])
-                            | remaining l' == "more\n" -> return ()
-                        x -> lex_test_fail "lex_comment" x
-                  , lex_test lex_comment "/* asdf /* asdf */ asdf */more\n" $ \case
-                        Just (False, Just l', [], [])
-                            | remaining l' == "more\n" -> return ()
-                        x -> lex_test_fail "lex_comment" x
-                  , lex_test lex_comment "/* asdf" $ \case
-                        Just (False, Just l', [UnclosedMComment _], [])
-                            | remaining l' == "" -> return ()
-                        x -> lex_test_fail "lex_comment" x
-                  , lex_test lex_comment "a" $ \case
-                        Nothing -> return ()
-                        x -> lex_test_fail "lex_comment" x
-                  ]
+case_lex'_empty :: Assertion
+case_lex'_empty =
+    lex_test (flip lex' Nothing) "" $ \case
+        (Nothing, [], []) -> return ()
+        x -> lex_test_fail "lex'" x
 
-            , "lex_alpha_identifier" ~:
-                  [ lex_test lex_alpha_identifier "a" $ \case
-                        Just (True, Just l, [], [Location.Located _ (Token.AlphaIdentifier "a")])
-                            | remaining l == "" -> return ()
-                        x -> lex_test_fail "lex_alpha_identifier" x
-                  , lex_test lex_alpha_identifier "a12" $ \case
-                        Just (True, Just l, [], [Location.Located _ (Token.AlphaIdentifier "a12")])
-                            | remaining l == "" -> return ()
-                        x -> lex_test_fail "lex_alpha_identifier" x
-                  , lex_test lex_alpha_identifier "a''" $ \case
-                        Just (True, Just l, [], [Location.Located _ (Token.AlphaIdentifier "a''")])
-                            | remaining l == "" -> return ()
-                        x -> lex_test_fail "lex_alpha_identifier" x
-                  , lex_test lex_alpha_identifier "_a" $ \case
-                        Just (True, Just l, [], [Location.Located _ (Token.AlphaIdentifier "_a")])
-                            | remaining l == "" -> return ()
-                        x -> lex_test_fail "lex_alpha_identifier" x
-                  ]
-            , "lex_symbol_identifier" ~:
-                  [ lex_test lex_symbol_identifier "*" $ \case
-                        Just (True, Just l, [], [Location.Located _ (Token.SymbolIdentifier "*")])
-                            | remaining l == "" -> return ()
-                        x -> lex_test_fail "lex_alpha_identifier" x
-                  , lex_test lex_symbol_identifier "*^&*&" $ \case
-                        Just (True, Just l, [], [Location.Located _ (Token.SymbolIdentifier "*^&*&")])
-                            | remaining l == "" -> return ()
-                        x -> lex_test_fail "lex_alpha_identifier" x
-                  ]
+case_lex_eof_end :: Assertion
+case_lex_eof_end =
+    lex_test lex_eof "" $ \case
+        Just (False, Nothing, [], []) -> return ()
+        x -> lex_test_fail "lex_eof" x
+case_lex_eof_not_end :: Assertion
+case_lex_eof_not_end =
+    lex_test lex_eof "a" $ \case
+        Nothing -> return ()
+        x -> lex_test_fail "lex_eof" x
+case_lex_eof_with_dedents :: Assertion
+case_lex_eof_with_dedents =
+    let f = File.File "a" ""
+        l = Lexer f 0 1 1 [IndentationInsensitive, IndentationSensitive 4, IndentationInsensitive, IndentationSensitive 0]
+    in case lex_eof l of
+        Just (False, Nothing, [], [Location.Located _ Token.Newline, Location.Located _ Token.Dedent]) -> return ()
+        x -> lex_test_fail "lex_eof" x
 
-            , "lex_str_or_char_lit" ~:
-                  [ "character literals" ~:
-                        [ lex_test lex_str_or_char_lit "'c'" $ \case
-                              Just (True, Just l, [], [Location.Located _ (Token.CharLit 'c')])
-                                  | remaining l == "" -> return ()
-                              x -> lex_test_fail "lex_str_or_char_lit" x
-                        , lex_test lex_str_or_char_lit "'c" $ \case
-                              Just (True, Just l, [UnclosedCharLit _], [])
-                                  | remaining l == "" -> return ()
-                              x -> lex_test_fail "lex_str_or_char_lit" x
-                        , lex_test lex_str_or_char_lit "'cab'" $ \case
-                              Just (True, Just l, [MulticharCharLit _], [])
-                                  | remaining l == "" -> return ()
-                              x -> lex_test_fail "lex_str_or_char_lit" x
-                        ]
-                  , "string literals" ~:
-                        [ lex_test lex_str_or_char_lit "\"abcde\"" $ \case
-                              Just (True, Just l, [], [Location.Located _ (Token.StringLit "abcde")])
-                                  | remaining l == "" -> return ()
-                              x -> lex_test_fail "lex_str_or_char_lit" x
-                        , lex_test lex_str_or_char_lit "\"cjfwoeifj" $ \case
-                              Just (True, Just l, [UnclosedStrLit _], [])
-                                  | remaining l == "" -> return ()
-                              x -> lex_test_fail "lex_str_or_char_lit" x
-                        ]
-                  ]
+case_lex_comment_single :: Assertion
+case_lex_comment_single =
+    lex_test lex_comment "// asdf\nabcde\n" $ \case
+        Just (False, Just l', [], [])
+            | remaining l' == "abcde\n" -> return ()
+        x -> lex_test_fail "lex_comment" x
+case_lex_comment_single2 :: Assertion
+case_lex_comment_single2 =
+    lex_test lex_comment "// asdf" $ \case
+        Just (False, Just l', [], [])
+            | remaining l' == "" -> return ()
+        x -> lex_test_fail "lex_comment" x
+case_lex_comment_multiline :: Assertion
+case_lex_comment_multiline =
+    lex_test lex_comment "/* asdf\nasdf */more\n" $ \case
+        Just (False, Just l', [], [])
+            | remaining l' == "more\n" -> return ()
+        x -> lex_test_fail "lex_comment" x
+case_lex_comment_multiline_nesting :: Assertion
+case_lex_comment_multiline_nesting =
+    lex_test lex_comment "/* asdf /* asdf */ asdf */more\n" $ \case
+        Just (False, Just l', [], [])
+            | remaining l' == "more\n" -> return ()
+        x -> lex_test_fail "lex_comment" x
+case_lex_comment_unclosed_multiline :: Assertion
+case_lex_comment_unclosed_multiline =
+    lex_test lex_comment "/* asdf" $ \case
+        Just (False, Just l', [UnclosedMComment _], [])
+            | remaining l' == "" -> return ()
+        x -> lex_test_fail "lex_comment" x
+case_lex_comment_not_comment :: Assertion
+case_lex_comment_not_comment =
+    lex_test lex_comment "a" $ \case
+        Nothing -> return ()
+        x -> lex_test_fail "lex_comment" x
 
-            , "lex_number" ~:
-                  [ lex_test lex_number "1234" $ \case
-                        Just (True, Just l, [], [Location.Located _ (Token.IntLit Token.Dec 1234)])
-                            | remaining l == "" -> return ()
-                        x -> lex_test_fail "lex_number" x
+case_lex_alpha_identifier :: Assertion
+case_lex_alpha_identifier =
+    lex_test lex_alpha_identifier "a" $ \case
+        Just (True, Just l, [], [Location.Located _ (Token.AlphaIdentifier "a")])
+            | remaining l == "" -> return ()
+        x -> lex_test_fail "lex_alpha_identifier" x
+case_lex_alpha_identifier_with_numbers :: Assertion
+case_lex_alpha_identifier_with_numbers =
+    lex_test lex_alpha_identifier "a12" $ \case
+        Just (True, Just l, [], [Location.Located _ (Token.AlphaIdentifier "a12")])
+            | remaining l == "" -> return ()
+        x -> lex_test_fail "lex_alpha_identifier" x
+case_lex_alpha_identifier_apostrophes :: Assertion
+case_lex_alpha_identifier_apostrophes =
+    lex_test lex_alpha_identifier "a''" $ \case
+        Just (True, Just l, [], [Location.Located _ (Token.AlphaIdentifier "a''")])
+            | remaining l == "" -> return ()
+        x -> lex_test_fail "lex_alpha_identifier" x
+case_lex_alpha_identifier_underscore :: Assertion
+case_lex_alpha_identifier_underscore =
+    lex_test lex_alpha_identifier "_a" $ \case
+        Just (True, Just l, [], [Location.Located _ (Token.AlphaIdentifier "_a")])
+            | remaining l == "" -> return ()
+        x -> lex_test_fail "lex_alpha_identifier" x
 
-                  , lex_test lex_number "01234" $ \case
-                        Just (True, Just l, [], [Location.Located _ (Token.IntLit Token.Dec 1234)])
-                            | remaining l == "" -> return ()
-                        x -> lex_test_fail "lex_number" x
+case_lex_symbol_identifier :: Assertion
+case_lex_symbol_identifier =
+    lex_test lex_symbol_identifier "*" $ \case
+        Just (True, Just l, [], [Location.Located _ (Token.SymbolIdentifier "*")])
+            | remaining l == "" -> return ()
+        x -> lex_test_fail "lex_alpha_identifier" x
+case_lex_symbol_identifier_multiple :: Assertion
+case_lex_symbol_identifier_multiple =
+    lex_test lex_symbol_identifier "*^&*&" $ \case
+        Just (True, Just l, [], [Location.Located _ (Token.SymbolIdentifier "*^&*&")])
+            | remaining l == "" -> return ()
+        x -> lex_test_fail "lex_alpha_identifier" x
 
-                  , lex_test lex_number "1234.1234" $ \case
-                        Just (True, Just l, [], [Location.Located _ (Token.FloatLit 1234.1234)])
-                            | remaining l == "" -> return ()
-                        x -> lex_test_fail "lex_number" x
+case_lex_char_lit :: Assertion
+case_lex_char_lit =
+    lex_test lex_str_or_char_lit "'c'" $ \case
+        Just (True, Just l, [], [Location.Located _ (Token.CharLit 'c')])
+            | remaining l == "" -> return ()
+        x -> lex_test_fail "lex_str_or_char_lit" x
+case_lex_char_lit_unclosed :: Assertion
+case_lex_char_lit_unclosed =
+    lex_test lex_str_or_char_lit "'c" $ \case
+        Just (True, Just l, [UnclosedCharLit _], [])
+            | remaining l == "" -> return ()
+        x -> lex_test_fail "lex_str_or_char_lit" x
+case_lex_char_lit_multiple :: Assertion
+case_lex_char_lit_multiple =
+    lex_test lex_str_or_char_lit "'cab'" $ \case
+        Just (True, Just l, [MulticharCharLit _], [])
+            | remaining l == "" -> return ()
+        x -> lex_test_fail "lex_str_or_char_lit" x
 
-                  , lex_test lex_number "0b101" $ \case
-                        Just (True, Just l, [], [Location.Located _ (Token.IntLit Token.Bin 5)])
-                            | remaining l == "" -> return ()
-                        x -> lex_test_fail "lex_number" x
+case_lex_str_lit :: Assertion
+case_lex_str_lit =
+    lex_test lex_str_or_char_lit "\"abcde\"" $ \case
+        Just (True, Just l, [], [Location.Located _ (Token.StringLit "abcde")])
+            | remaining l == "" -> return ()
+        x -> lex_test_fail "lex_str_or_char_lit" x
+case_lex_str_lit_unclosed :: Assertion
+case_lex_str_lit_unclosed =
+    lex_test lex_str_or_char_lit "\"cjfwoeifj" $ \case
+        Just (True, Just l, [UnclosedStrLit _], [])
+            | remaining l == "" -> return ()
+        x -> lex_test_fail "lex_str_or_char_lit" x
 
-                  , lex_test lex_number "0xf1abcABC" $ \case
-                        Just (True, Just l, [], [Location.Located _ (Token.IntLit Token.Hex 4054567612)])
-                            | remaining l == "" -> return ()
-                        x -> lex_test_fail "lex_number" x
+case_lex_number_decimal :: Assertion
+case_lex_number_decimal =
+    lex_test lex_number "1234" $ \case
+        Just (True, Just l, [], [Location.Located _ (Token.IntLit Token.Dec 1234)])
+            | remaining l == "" -> return ()
+        x -> lex_test_fail "lex_number" x
 
-                  , lex_test lex_number "0o765" $ \case
-                        Just (True, Just l, [], [Location.Located _ (Token.IntLit Token.Oct 501)])
-                            | remaining l == "" -> return ()
-                        x -> lex_test_fail "lex_number" x
+case_lex_number_decimal_leading_0 :: Assertion
+case_lex_number_decimal_leading_0 =
+    lex_test lex_number "01234" $ \case
+        Just (True, Just l, [], [Location.Located _ (Token.IntLit Token.Dec 1234)])
+            | remaining l == "" -> return ()
+        x -> lex_test_fail "lex_number" x
 
-                  , lex_test lex_number ".123" $ \case
-                        Nothing -> return ()
-                        x -> lex_test_fail "lex_number" x
+case_lex_number_float :: Assertion
+case_lex_number_float =
+    lex_test lex_number "1234.1234" $ \case
+        Just (True, Just l, [], [Location.Located _ (Token.FloatLit 1234.1234)])
+            | remaining l == "" -> return ()
+        x -> lex_test_fail "lex_number" x
 
-                  , lex_test lex_number "123.x" $ \case
-                        Nothing -> return ()
-                        x -> lex_test_fail "lex_number" x
+case_lex_number_binary :: Assertion
+case_lex_number_binary =
+    lex_test lex_number "0b101" $ \case
+        Just (True, Just l, [], [Location.Located _ (Token.IntLit Token.Bin 5)])
+            | remaining l == "" -> return ()
+        x -> lex_test_fail "lex_number" x
 
-                  , lex_test lex_number "123." $ \case
-                        Nothing -> return ()
-                        x -> lex_test_fail "lex_number" x
+case_lex_number_hex :: Assertion
+case_lex_number_hex =
+    lex_test lex_number "0xf1abcABC" $ \case
+        Just (True, Just l, [], [Location.Located _ (Token.IntLit Token.Hex 4054567612)])
+            | remaining l == "" -> return ()
+        x -> lex_test_fail "lex_number" x
 
-                  , lex_test lex_number "0b101.1" $ \case
-                        Just (True, Just l, [NonDecimalFloat _], [])
-                            | remaining l == "" -> return ()
-                        x -> lex_test_fail "lex_number" x
+case_lex_number_octal :: Assertion
+case_lex_number_octal =
+    lex_test lex_number "0o765" $ \case
+        Just (True, Just l, [], [Location.Located _ (Token.IntLit Token.Oct 501)])
+            | remaining l == "" -> return ()
+        x -> lex_test_fail "lex_number" x
 
-                  , lex_test lex_number "0b29a" $ \case
-                        Just (True, Just l, [InvalidIntDigit '2' _, InvalidIntDigit '9' _, InvalidIntDigit 'a' _], [])
-                            | remaining l == "" -> return ()
-                        x -> lex_test_fail "lex_number" x
+case_lex_number_leading_point :: Assertion
+case_lex_number_leading_point =
+    lex_test lex_number ".123" $ \case
+        Nothing -> return ()
+        x -> lex_test_fail "lex_number" x
 
-                  , lex_test lex_number "20ab3" $ \case
-                        Just (True, Just l, [InvalidIntDigit 'a' _, InvalidIntDigit 'b' _], [])
-                            | remaining l == "" -> return ()
-                        x -> lex_test_fail "lex_number" x
+case_lex_number_with_invalid_float :: Assertion
+case_lex_number_with_invalid_float =
+    lex_test lex_number "123.x" $ \case
+        Nothing -> return ()
+        x -> lex_test_fail "lex_number" x
 
-                  , lex_test lex_number "0o79a" $ \case
-                        Just (True, Just l, [InvalidIntDigit '9' _, InvalidIntDigit 'a' _], [])
-                            | remaining l == "" -> return ()
-                        x -> lex_test_fail "lex_number" x
+case_lex_number_no_float_digits :: Assertion
+case_lex_number_no_float_digits =
+    lex_test lex_number "123." $ \case
+        Nothing -> return ()
+        x -> lex_test_fail "lex_number" x
 
-                  , lex_test lex_number "0a98a" $ \case
-                        Just (True, Just l, [InvalidIntBase 'a' _], [])
-                            | remaining l == "" -> return ()
-                        x -> lex_test_fail "lex_number" x
-                  ]
-            , "lex_space" ~:
-                  [ lex_test lex_space " a" $ \case
-                        Just (False, Just l, [], [])
-                            | remaining l == "a" -> return ()
-                        x -> lex_test_fail "lex_space" x
-                  , lex_test lex_space "\na" $ \case
-                        Just (False, Just l, [], [])
-                            | remaining l == "a" -> return ()
-                        x -> lex_test_fail "lex_space" x
-                  , lex_test lex_space "\ta" $ \case
-                        Just (False, Just l, [], [])
-                            | remaining l == "a" -> return ()
-                        x -> lex_test_fail "lex_space" x
-                  , lex_test lex_space "\va" $ \case
-                        Just (False, Just l, [], [])
-                            | remaining l == "a" -> return ()
-                        x -> lex_test_fail "lex_space" x
-                  ]
-            , "make_bad_char" ~:
-                  [ lex_test make_bad_char "a" $ \case
-                        Just (True, Just l, [BadChar 'a' _], [])
-                            | remaining l == "" -> return ()
-                        x -> lex_test_fail "make_bad_char" x
-                  , lex_test make_bad_char "" $ \case
-                        Nothing -> return ()
-                        x -> lex_test_fail "make_bad_char" x
-                  ]
-            , "lex_indent" ~:
-                  let indent_test m_last_tok stack offset input check =
-                          let lexer = (new_lexer (File.File "a" input) `seek` offset) { indent_stack = stack }
+case_lex_number_binary_decimal :: Assertion
+case_lex_number_binary_decimal =
+    lex_test lex_number "0b101.1" $ \case
+        Just (True, Just l, [NonDecimalFloat _], [])
+            | remaining l == "" -> return ()
+        x -> lex_test_fail "lex_number" x
 
-                              last_tok =
-                                  case m_last_tok of
-                                    Just (tok, start, len) -> Just $ Location.Located (lexer_span lexer start len) tok
-                                    Nothing -> Nothing
+case_lex_number_binary_invalid :: Assertion
+case_lex_number_binary_invalid =
+    lex_test lex_number "0b29a" $ \case
+        Just (True, Just l, [InvalidIntDigit '2' _, InvalidIntDigit '9' _, InvalidIntDigit 'a' _], [])
+            | remaining l == "" -> return ()
+        x -> lex_test_fail "lex_number" x
 
-                          in check $ lex_indent lexer last_tok
-                  in
-                  [ indent_test Nothing [IndentationSensitive 0] 4 "    abcd\n" $ \case
-                        ([IndentationSensitive 4, IndentationSensitive 0], [], [Location.Located _ Token.Indent]) -> return ()
-                        x -> lex_test_fail "lex_indent" x
+case_lex_number_decimal_invalid :: Assertion
+case_lex_number_decimal_invalid =
+    lex_test lex_number "20ab3" $ \case
+        Just (True, Just l, [InvalidIntDigit 'a' _, InvalidIntDigit 'b' _], [])
+            | remaining l == "" -> return ()
+        x -> lex_test_fail "lex_number" x
 
-                  , indent_test (Just (Token.AlphaIdentifier "abcde", -6, 5)) [IndentationSensitive 0] 6 "abcde\nfghij\n" $ \case
-                        ([IndentationSensitive 0], [], [Location.Located _ Token.Newline]) -> return ()
-                        x -> lex_test_fail "lex_indent" x
+case_lex_number_octal_invalid :: Assertion
+case_lex_number_octal_invalid =
+    lex_test lex_number "0o79a" $ \case
+        Just (True, Just l, [InvalidIntDigit '9' _, InvalidIntDigit 'a' _], [])
+            | remaining l == "" -> return ()
+        x -> lex_test_fail "lex_number" x
 
-                  , indent_test (Just (Token.Semicolon, -1, 1)) [IndentationSensitive 0] 6 "abcd;\nfghij\n" $ \case
-                        ([IndentationSensitive 0], [], []) -> return ()
-                        x -> lex_test_fail "lex_indent" x
+case_lex_number_invalid_base :: Assertion
+case_lex_number_invalid_base =
+    lex_test lex_number "0a98a" $ \case
+        Just (True, Just l, [InvalidIntBase 'a' _], [])
+            | remaining l == "" -> return ()
+        x -> lex_test_fail "lex_number" x
 
-                  , indent_test (Just (Token.AlphaIdentifier "b", -2, 1)) [IndentationSensitive 4, IndentationSensitive 0] 8 "a\n    b\nc" $ \case
-                        ([IndentationSensitive 0], [], [Location.Located _ Token.Newline, Location.Located _ Token.Dedent]) -> return ()
-                        x -> lex_test_fail "lex_indent" x
+case_lex_space_space :: Assertion
+case_lex_space_space =
+    lex_test lex_space " a" $ \case
+        Just (False, Just l, [], [])
+            | remaining l == "a" -> return ()
+        x -> lex_test_fail "lex_space" x
+case_lex_space_newline :: Assertion
+case_lex_space_newline =
+    lex_test lex_space "\na" $ \case
+        Just (False, Just l, [], [])
+            | remaining l == "a" -> return ()
+        x -> lex_test_fail "lex_space" x
+case_lex_space_tab :: Assertion
+case_lex_space_tab =
+    lex_test lex_space "\ta" $ \case
+        Just (False, Just l, [], [])
+            | remaining l == "a" -> return ()
+        x -> lex_test_fail "lex_space" x
+case_lex_space_vertical_tab :: Assertion
+case_lex_space_vertical_tab =
+    lex_test lex_space "\va" $ \case
+        Just (False, Just l, [], [])
+            | remaining l == "a" -> return ()
+        x -> lex_test_fail "lex_space" x
 
-                  , indent_test (Just (Token.Semicolon, -2, 1)) [IndentationSensitive 4, IndentationSensitive 0] 9 "a\n    b;\nc" $ \case
-                        ([IndentationSensitive 0], [], [Location.Located _ Token.Dedent]) -> return ()
-                        x -> lex_test_fail "lex_indent" x
+case_lex_make_bad_char :: Assertion
+case_lex_make_bad_char =
+    lex_test make_bad_char "a" $ \case
+        Just (True, Just l, [BadChar 'a' _], [])
+            | remaining l == "" -> return ()
+        x -> lex_test_fail "make_bad_char" x
+case_lex_make_bad_char_empty :: Assertion
+case_lex_make_bad_char_empty =
+    lex_test make_bad_char "" $ \case
+        Nothing -> return ()
+        x -> lex_test_fail "make_bad_char" x
 
-                  , indent_test (Just (Token.AlphaIdentifier "c", -2, 1)) [IndentationSensitive 8, IndentationSensitive 4, IndentationSensitive 0] 18 "a\n    b\n        c\nd" $ \case
-                        ([IndentationSensitive 0], [], [Location.Located _ Token.Newline, Location.Located _ Token.Dedent, Location.Located _ Token.Dedent]) -> return ()
-                        x -> lex_test_fail "lex_indent" x
+case_lex_indent_indent :: Assertion
+case_lex_indent_indent =
+    indent_test Nothing [IndentationSensitive 0] 4 "    abcd\n" $ \case
+        ([IndentationSensitive 4, IndentationSensitive 0], [], [Location.Located _ Token.Indent]) -> return ()
+        x -> lex_test_fail "lex_indent" x
 
-                  , indent_test (Just (Token.Semicolon, -2, 1)) [IndentationSensitive 8, IndentationSensitive 4, IndentationSensitive 0] 19 "a\n    b\n        c;\nd" $ \case
-                        ([IndentationSensitive 0], [], [Location.Located _ Token.Dedent, Location.Located _ Token.Dedent]) -> return ()
-                        x -> lex_test_fail "lex_indent" x
+case_lex_indent_newline :: Assertion
+case_lex_indent_newline =
+    indent_test (Just (Token.AlphaIdentifier "abcde", -6, 5)) [IndentationSensitive 0] 6 "abcde\nfghij\n" $ \case
+        ([IndentationSensitive 0], [], [Location.Located _ Token.Newline]) -> return ()
+        x -> lex_test_fail "lex_indent" x
 
-                  , indent_test Nothing [IndentationSensitive 0] 0 "{\n" $ \case
-                        ([IndentationInsensitive, IndentationSensitive 0], [], [Location.Located _ Token.OBrace]) -> return ()
-                        x -> lex_test_fail "lex_indent" x
+case_lex_indent_newline_with_semi :: Assertion
+case_lex_indent_newline_with_semi =
+    indent_test (Just (Token.Semicolon, -1, 1)) [IndentationSensitive 0] 6 "abcd;\nfghij\n" $ \case
+        ([IndentationSensitive 0], [], []) -> return ()
+        x -> lex_test_fail "lex_indent" x
 
-                  , indent_test Nothing [IndentationSensitive 0] 0 ";\n" $ \case
-                        ([IndentationSensitive 0], [], [Location.Located _ Token.Semicolon]) -> return ()
-                        x -> lex_test_fail "lex_indent" x
+case_lex_indent_dedent :: Assertion
+case_lex_indent_dedent =
+    indent_test (Just (Token.AlphaIdentifier "b", -2, 1)) [IndentationSensitive 4, IndentationSensitive 0] 8 "a\n    b\nc" $ \case
+        ([IndentationSensitive 0], [], [Location.Located _ Token.Newline, Location.Located _ Token.Dedent]) -> return ()
+        x -> lex_test_fail "lex_indent" x
 
-                  , indent_test Nothing [IndentationInsensitive, IndentationSensitive 0] 0 "}\n" $ \case
-                        ([IndentationSensitive 0], [], [Location.Located _ Token.CBrace]) -> return ()
-                        x -> lex_test_fail "lex_indent" x
-                  ]
-            ]
-    ]
+case_lex_indent_dedent_with_semi :: Assertion
+case_lex_indent_dedent_with_semi =
+    indent_test (Just (Token.Semicolon, -2, 1)) [IndentationSensitive 4, IndentationSensitive 0] 9 "a\n    b;\nc" $ \case
+        ([IndentationSensitive 0], [], [Location.Located _ Token.Dedent]) -> return ()
+        x -> lex_test_fail "lex_indent" x
+
+case_lex_indent_dedent_multiple :: Assertion
+case_lex_indent_dedent_multiple =
+    indent_test (Just (Token.AlphaIdentifier "c", -2, 1)) [IndentationSensitive 8, IndentationSensitive 4, IndentationSensitive 0] 18 "a\n    b\n        c\nd" $ \case
+        ([IndentationSensitive 0], [], [Location.Located _ Token.Newline, Location.Located _ Token.Dedent, Location.Located _ Token.Dedent]) -> return ()
+        x -> lex_test_fail "lex_indent" x
+
+case_lex_indent_dedent_multiple_with_semi :: Assertion
+case_lex_indent_dedent_multiple_with_semi =
+    indent_test (Just (Token.Semicolon, -2, 1)) [IndentationSensitive 8, IndentationSensitive 4, IndentationSensitive 0] 19 "a\n    b\n        c;\nd" $ \case
+        ([IndentationSensitive 0], [], [Location.Located _ Token.Dedent, Location.Located _ Token.Dedent]) -> return ()
+        x -> lex_test_fail "lex_indent" x
+
+case_lex_indent_open_brace :: Assertion
+case_lex_indent_open_brace =
+    indent_test Nothing [IndentationSensitive 0] 0 "{\n" $ \case
+        ([IndentationInsensitive, IndentationSensitive 0], [], [Location.Located _ Token.OBrace]) -> return ()
+        x -> lex_test_fail "lex_indent" x
+
+case_lex_indent_semi :: Assertion
+case_lex_indent_semi =
+    indent_test Nothing [IndentationSensitive 0] 0 ";\n" $ \case
+        ([IndentationSensitive 0], [], [Location.Located _ Token.Semicolon]) -> return ()
+        x -> lex_test_fail "lex_indent" x
+
+case_lex_indent_close_brace :: Assertion
+case_lex_indent_close_brace =
+    indent_test Nothing [IndentationInsensitive, IndentationSensitive 0] 0 "}\n" $ \case
+        ([IndentationSensitive 0], [], [Location.Located _ Token.CBrace]) -> return ()
+        x -> lex_test_fail "lex_indent" x

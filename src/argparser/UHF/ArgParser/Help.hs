@@ -1,9 +1,8 @@
 module UHF.ArgParser.Help
     ( args_help_message
-    , UHF.ArgParser.Help.tests
     ) where
 
-import Test.HUnit
+import Test.Tasty.HUnit
 
 import UHF.ArgParser.Description
 
@@ -93,75 +92,88 @@ option_help (FlagProps (ShortFlagName short_name) m_long_name, ArgProps (HelpMes
 
     in arg_help flag_desc help_message
 
-tests :: Test
-tests = test
-    [ "takes_value_str" ~:
-        [ "POSITIONAL" @=? takes_value_str (TakesValueProps (ValueName "POSITIONAL") (Number 1))
-        , "POSITIONAL POSITIONAL" @=? takes_value_str (TakesValueProps (ValueName "POSITIONAL") (Number 2))
-        , "POSITIONAL..." @=? takes_value_str (TakesValueProps (ValueName "POSITIONAL") OneOrMore)
-        , "[POSITIONAL...]" @=? takes_value_str (TakesValueProps (ValueName "POSITIONAL") ZeroOrMore)
-        ]
+case_takes_value_str_single_value :: Assertion
+case_takes_value_str_single_value = "POSITIONAL" @=? takes_value_str (TakesValueProps (ValueName "POSITIONAL") (Number 1))
+case_takes_value_str_double_value :: Assertion
+case_takes_value_str_double_value = "POSITIONAL POSITIONAL" @=? takes_value_str (TakesValueProps (ValueName "POSITIONAL") (Number 2))
+case_takes_value_str_one_more_value :: Assertion
+case_takes_value_str_one_more_value = "POSITIONAL..." @=? takes_value_str (TakesValueProps (ValueName "POSITIONAL") OneOrMore)
+case_takes_value_str_zero_more_value :: Assertion
+case_takes_value_str_zero_more_value = "[POSITIONAL...]" @=? takes_value_str (TakesValueProps (ValueName "POSITIONAL") ZeroOrMore)
 
-    , "args_usage_message" ~:
-        [ "usage: prog" @=? args_usage_message (Description []) "prog"
+case_usage_message_empty :: Assertion
+case_usage_message_empty = "usage: prog" @=? args_usage_message (Description []) "prog"
 
-        , "usage: prog [flags]" @=? args_usage_message (Description [flag 'c' Nothing ""]) "prog"
+case_usage_message_flag :: Assertion
+case_usage_message_flag = "usage: prog [flags]" @=? args_usage_message (Description [flag 'c' Nothing ""]) "prog"
 
-        , "usage: prog [options]" @=? args_usage_message (Description [option 'c' Nothing "" "value_name" (Number 1)]) "prog"
+case_usage_message_option :: Assertion
+case_usage_message_option = "usage: prog [options]" @=? args_usage_message (Description [option 'c' Nothing "" "value_name" (Number 1)]) "prog"
 
-        , "usage: prog POSITIONAL" @=? args_usage_message (Description [positional "" "POSITIONAL" (Number 1)]) "prog"
-        , "usage: prog POSITIONAL1 POSITIONAL2" @=? args_usage_message (Description [positional "" "POSITIONAL1" (Number 1), positional "" "POSITIONAL2" (Number 1)]) "prog"
-        ]
+case_usage_message_positional :: Assertion
+case_usage_message_positional = "usage: prog POSITIONAL" @=? args_usage_message (Description [positional "" "POSITIONAL" (Number 1)]) "prog"
+case_usage_message_positional_multiple :: Assertion
+case_usage_message_positional_multiple = "usage: prog POSITIONAL1 POSITIONAL2" @=? args_usage_message (Description [positional "" "POSITIONAL1" (Number 1), positional "" "POSITIONAL2" (Number 1)]) "prog"
 
-    , "arg_help" ~:
-        [ "    abcde               help\n" @=? arg_help "abcde" "help"
-        , "    abcdefghijklmnopqrst\n\
-          \                        help\n" @=? arg_help "abcdefghijklmnopqrst" "help"
-        , "    abcdefghijklmnopqrstu\n\
-          \                        help\n" @=? arg_help "abcdefghijklmnopqrstu" "help"
-        ]
+case_arg_help :: Assertion
+case_arg_help = "    abcde               help\n" @=? arg_help "abcde" "help"
+case_arg_help_at_24 :: Assertion
+case_arg_help_at_24 =
+    "    abcdefghijklmnopqrst\n\
+    \                        help\n" @=? arg_help "abcdefghijklmnopqrst" "help"
+case_arg_help_more_than_24 :: Assertion
+case_arg_help_more_than_24 =
+    "    abcdefghijklmnopqrstu\n\
+    \                        help\n" @=? arg_help "abcdefghijklmnopqrstu" "help"
 
-    , "positional_help" ~:
-        "    POSITIONAL          help\n" @=? positional_help (ArgProps (HelpMessage "help"), TakesValueProps (ValueName "POSITIONAL") ZeroOrMore)
+case_positional_help :: Assertion
+case_positional_help = "    POSITIONAL          help\n" @=? positional_help (ArgProps (HelpMessage "help"), TakesValueProps (ValueName "POSITIONAL") ZeroOrMore)
 
-    , "flag_help" ~:
-        [ "    -c                  help\n" @=? flag_help (FlagProps (ShortFlagName 'c') Nothing, ArgProps (HelpMessage "help"))
-        , "    -c, --long          help\n" @=? flag_help (FlagProps (ShortFlagName 'c') (Just $ LongFlagName "long"), ArgProps (HelpMessage "help"))
-        ]
+case_flag_help :: Assertion
+case_flag_help = "    -c                  help\n" @=? flag_help (FlagProps (ShortFlagName 'c') Nothing, ArgProps (HelpMessage "help"))
+case_flag_help_long :: Assertion
+case_flag_help_long = "    -c, --long          help\n" @=? flag_help (FlagProps (ShortFlagName 'c') (Just $ LongFlagName "long"), ArgProps (HelpMessage "help"))
 
-    , "option_help" ~:
-        [ "    -o [OPT...]         help\n" @=? option_help (FlagProps (ShortFlagName 'o') Nothing, ArgProps (HelpMessage "help"), TakesValueProps (ValueName "OPT") ZeroOrMore)
-        , "    -o [OPT...], --option [OPT...]\n\
-          \                        help\n" @=? option_help (FlagProps (ShortFlagName 'o') (Just $ LongFlagName "option"), ArgProps (HelpMessage "help"), TakesValueProps (ValueName "OPT") ZeroOrMore)
-        ]
+case_option_help :: Assertion
+case_option_help = "    -o [OPT...]         help\n" @=? option_help (FlagProps (ShortFlagName 'o') Nothing, ArgProps (HelpMessage "help"), TakesValueProps (ValueName "OPT") ZeroOrMore)
+case_option_help_long :: Assertion
+case_option_help_long =
+    "    -o [OPT...], --option [OPT...]\n\
+    \                        help\n" @=? option_help (FlagProps (ShortFlagName 'o') (Just $ LongFlagName "option"), ArgProps (HelpMessage "help"), TakesValueProps (ValueName "OPT") ZeroOrMore)
 
-    , "args_help_message" ~:
-        [ "usage: prog\n" @=? args_help_message (Description []) "prog"
+case_args_help_message_empty :: Assertion
+case_args_help_message_empty = "usage: prog\n" @=? args_help_message (Description []) "prog"
 
-        , "usage: prog POSITIONAL\n\
-          \\n\
-          \positional arguments:\n\
-          \    POSITIONAL          help\n" @=? args_help_message (Description [positional "help" "POSITIONAL" (Number 1)]) "prog"
+case_args_help_message_positional :: Assertion
+case_args_help_message_positional =
+    "usage: prog POSITIONAL\n\
+    \\n\
+    \positional arguments:\n\
+    \    POSITIONAL          help\n" @=? args_help_message (Description [positional "help" "POSITIONAL" (Number 1)]) "prog"
 
-        , "usage: prog [flags]\n\
-          \\n\
-          \flags:\n\
-          \    -c                  help\n" @=? args_help_message (Description [flag 'c' Nothing "help"]) "prog"
+case_args_help_message_flag :: Assertion
+case_args_help_message_flag =
+    "usage: prog [flags]\n\
+    \\n\
+    \flags:\n\
+    \    -c                  help\n" @=? args_help_message (Description [flag 'c' Nothing "help"]) "prog"
 
-        , "usage: prog [options]\n\
-          \\n\
-          \options:\n\
-          \    -o OPT              help\n" @=? args_help_message (Description [option 'o' Nothing "help" "OPT" (Number 1)]) "prog"
+case_args_help_message_option :: Assertion
+case_args_help_message_option =
+    "usage: prog [options]\n\
+    \\n\
+    \options:\n\
+    \    -o OPT              help\n" @=? args_help_message (Description [option 'o' Nothing "help" "OPT" (Number 1)]) "prog"
 
-        , "usage: prog [flags] [options] POSITIONAL\n\
-          \\n\
-          \positional arguments:\n\
-          \    POSITIONAL          help\n\
-          \\n\
-          \flags:\n\
-          \    -c                  help\n\
-          \\n\
-          \options:\n\
-          \    -o OPT              help\n" @=? args_help_message (Description [positional "help" "POSITIONAL" (Number 1), flag 'c' Nothing "help", option 'o' Nothing "help" "OPT" (Number 1)]) "prog"
-        ]
-    ]
+case_args_help_message_all :: Assertion
+case_args_help_message_all =
+    "usage: prog [flags] [options] POSITIONAL\n\
+    \\n\
+    \positional arguments:\n\
+    \    POSITIONAL          help\n\
+    \\n\
+    \flags:\n\
+    \    -c                  help\n\
+    \\n\
+    \options:\n\
+    \    -o OPT              help\n" @=? args_help_message (Description [positional "help" "POSITIONAL" (Number 1), flag 'c' Nothing "help", option 'o' Nothing "help" "OPT" (Number 1)]) "prog"

@@ -6,11 +6,9 @@ module UHF.Lexer.DFA
     , State(..)
     , Transition(..)
     , run_dfa
-
-    , tests
     ) where
 
-import Test.HUnit (Test, test, (~:), (~=?))
+import Test.Tasty.HUnit
 
 import qualified Data.Text as Text
 
@@ -43,28 +41,26 @@ run_dfa' dfa@(DFA states begin_transition) cur_state cur_len_consumed input cur_
 
             in run_dfa' dfa (CurStateNum next_state) next_len_consumed next_input next_res
 
-tests :: Test
-tests = test
-    [ "run_dfa" ~:
-        let dfa = DFA
-              [ State
-                  (\ r -> \case
-                      Just 'a' -> StateNum 0 (r + 1)
-                      Just 'b' -> StateNum 1 r
-                      _ -> Reject
-                  )
-              , State
-                  (\ r -> \case
-                      Just 'b' -> StateNum 1 r
-                      Nothing -> Accept r
-                      _ -> Reject
-                  )
-              ]
-              (\ r c -> if c == Just 'a' then StateNum 0 r else Reject)
-        in
-            [ Just (6, 3 :: Int) ~=? run_dfa dfa "aaaabb" 0
-            , Nothing ~=? run_dfa dfa "" 0
-            , Nothing ~=? run_dfa dfa "aa" 0
-            , Nothing ~=? run_dfa dfa "aba" 0
-            ]
-    ]
+case_run_dfa_1 :: Assertion
+(case_run_dfa_1, case_run_dfa_2, case_run_dfa_3, case_run_dfa_4) =
+    let dfa = DFA
+          [ State
+              (\ r -> \case
+                  Just 'a' -> StateNum 0 (r + 1)
+                  Just 'b' -> StateNum 1 r
+                  _ -> Reject
+              )
+          , State
+              (\ r -> \case
+                  Just 'b' -> StateNum 1 r
+                  Nothing -> Accept r
+                  _ -> Reject
+              )
+          ]
+          (\ r c -> if c == Just 'a' then StateNum 0 r else Reject)
+    in
+        ( Just (6, 3 :: Int) @=? run_dfa dfa "aaaabb" 0
+        , Nothing @=? run_dfa dfa "" 0
+        , Nothing @=? run_dfa dfa "aa" 0
+        , Nothing @=? run_dfa dfa "aba" 0
+        )

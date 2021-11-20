@@ -3,10 +3,9 @@ module UHF.ArgParser.Parser
     , ParseError(..)
     , parse
     , str_error
-    , UHF.ArgParser.Parser.tests
     ) where
 
-import Test.HUnit
+import Test.Tasty.HUnit
 
 import UHF.ArgParser.Description
 
@@ -217,168 +216,140 @@ parse_value_once p =
         Just ('-':_) -> Nothing
         Just s -> Just (s, drop_first_str p)
 
-tests :: Test
-tests =
-    let parser_with_input inp = Parser (Description []) inp empty_matches []
-    in test
-        [ "first_str" ~:
-            [ Just "abc" ~=? first_str (parser_with_input ["abc", "def"])
-            , Nothing ~=? first_str (parser_with_input [])
-            ]
+-- tests {{{1
+parser_with_input inp = Parser (Description []) inp empty_matches []
 
-        , "first_ch" ~:
-            [ Just 'a' ~=? first_ch (parser_with_input ["abc", "def"])
-            , Nothing ~=? first_ch (parser_with_input ["", "abc"])
-            , Nothing ~=? first_ch (parser_with_input [])
-            ]
+make_parse_test desc inp expected_inp expected_matches expected_positionals parse_fn =
+    case parse_fn (make_parser (Description desc) inp) of
+        Right p ->
+            (expected_inp @=? input p) >>
+            (expected_matches @=? matches p) >>
+            (expected_positionals @=? positionals p)
 
-        , "uncons_input" ~:
-            Just ("abc", ["def", "ghi"]) ~=? uncons_input (parser_with_input ["abc", "def", "ghi"])
+        Left e -> assertFailure $ "expected parser to return success, but it returned failure: '" ++ show e ++ "'"
 
-        , "uncons_positionals" ~:
-            let ap = ArgProps (HelpMessage "")
-                tvp = TakesValueProps (ValueName "v") ZeroOrMore
-            in Just ((ap, tvp), []) ~=? uncons_positionals (Parser (Description []) [] empty_matches [(ap, tvp)])
+expect_fail_test desc inp e parse_fn =
+    case parse_fn (make_parser (Description desc) inp) of
+        Left e'
+            | e == e' -> return ()
 
-        , "record_positional_match" ~:
-            Matches (Map.fromList [("key", ["val1", "val2"])]) "" Map.empty ~=? matches (record_positional_match "key" ["val1", "val2"] (parser_with_input []))
+        Left e' -> assertFailure $ "parser did not return correct error: expected '" ++ show e ++ "' but got '" ++ show e' ++ "'"
 
-        , "record_flag_presence" ~:
-            Matches Map.empty "c" Map.empty ~=? matches (record_flag_presence 'c' (parser_with_input []))
+        Right p -> assertFailure $ "expected parser to fail, but it succedeed: '" ++ show p ++ "'"
 
-        , "record_option_match" ~:
-            Matches Map.empty "" (Map.fromList [('c', ["val1", "val2"])]) ~=? matches (record_option_match 'c' ["val1", "val2"] (parser_with_input []))
+case_first_str_with_input = Just "abc" @=? first_str (parser_with_input ["abc", "def"])
+case_first_str_empty = Nothing @=? first_str (parser_with_input [])
 
-        , "drop_first_str" ~:
-            [ ["b"] ~=? input (drop_first_str $ parser_with_input ["a", "b"])
-            , [] ~=? input (drop_first_str $ parser_with_input [])
-            ]
+case_first_ch_with_input = Just 'a' @=? first_ch (parser_with_input ["abc", "def"])
+case_first_ch_empty_first = Nothing @=? first_ch (parser_with_input ["", "abc"])
+case_first_ch_empty = Nothing @=? first_ch (parser_with_input [])
 
-        , "drop_first_ch" ~:
-            [ ["bc", "def"] ~=? input (drop_first_ch $ parser_with_input ["abc", "def"])
-            , ["bc"] ~=? input (drop_first_ch $ parser_with_input ["abc"])
-            , [""] ~=? input (drop_first_ch $ parser_with_input [""])
-            , [] ~=? input (drop_first_ch $ parser_with_input [])
-            ]
+case_uncons_input = Just ("abc", ["def", "ghi"]) @=? uncons_input (parser_with_input ["abc", "def", "ghi"])
 
-        , "drop_first_str_if_empty" ~:
-            [ ["abc", "def"] ~=? input (drop_first_str_if_empty $ parser_with_input ["abc", "def"])
-            , ["abc", "def"] ~=? input (drop_first_str_if_empty $ parser_with_input ["", "abc", "def"])
-            ]
+case_uncons_positionals =
+    let ap = ArgProps (HelpMessage "")
+        tvp = TakesValueProps (ValueName "v") ZeroOrMore
+    in Just ((ap, tvp), []) @=? uncons_positionals (Parser (Description []) [] empty_matches [(ap, tvp)])
 
-        , "consume_until_char_or_end" ~:
-            [ let (res, p) = consume_until_char_or_end '=' (parser_with_input ["abc=def", "ghi"])
-              in ("abc" @=? res) >> (["def", "ghi"] @=? input p)
+case_record_positional_match = Matches (Map.fromList [("key", ["val1", "val2"])]) "" Map.empty @=? matches (record_positional_match "key" ["val1", "val2"] (parser_with_input []))
 
-            , let (res, p) = consume_until_char_or_end '=' (parser_with_input ["abc", "def", "ghi"])
-              in ("abc" @=? res) >> (["", "def", "ghi"] @=? input p)
+case_record_flat_presence = Matches Map.empty "c" Map.empty @=? matches (record_flag_presence 'c' (parser_with_input []))
 
-            , let (res, p) = consume_until_char_or_end '=' (parser_with_input [])
-              in ("" @=? res) >> ([] @=? input p)
-            ]
+case_record_option_match = Matches Map.empty "" (Map.fromList [('c', ["val1", "val2"])]) @=? matches (record_option_match 'c' ["val1", "val2"] (parser_with_input []))
 
-        , "parsing" ~:
-            let make_parse_test name desc inp expected_inp expected_matches expected_positionals parse_fn =
-                    name ~:
-                        case parse_fn (make_parser (Description desc) inp) of
-                            Right p ->
-                                (expected_inp @=? input p) >>
-                                (expected_matches @=? matches p) >>
-                                (expected_positionals @=? positionals p)
+case_drop_first_str = ["b"] @=? input (drop_first_str $ parser_with_input ["a", "b"])
+case_drop_first_str_empty = [] @=? input (drop_first_str $ parser_with_input [])
 
-                            Left e -> assertFailure $ "expected parser to return success, but it returned failure: '" ++ show e ++ "'"
+case_drop_first_ch = ["bc", "def"] @=? input (drop_first_ch $ parser_with_input ["abc", "def"])
+case_drop_first_ch_2 = ["bc"] @=? input (drop_first_ch $ parser_with_input ["abc"])
+case_drop_first_ch_first_empty = [""] @=? input (drop_first_ch $ parser_with_input [""])
+case_drop_first_ch_empty = [] @=? input (drop_first_ch $ parser_with_input [])
 
-                expect_fail_test name desc inp e parse_fn =
-                    name ~:
-                        case parse_fn (make_parser (Description desc) inp) of
-                            Left e'
-                                | e == e' -> return ()
+case_drop_first_str_if_empty_no = ["abc", "def"] @=? input (drop_first_str_if_empty $ parser_with_input ["abc", "def"])
+case_drop_first_str_if_empty_empty = ["abc", "def"] @=? input (drop_first_str_if_empty $ parser_with_input ["", "abc", "def"])
 
-                            Left e' -> assertFailure $ "parser did not return correct error: expected '" ++ show e ++ "' but got '" ++ show e' ++ "'"
+case_consume_until_char_or_end_char =
+    let (res, p) = consume_until_char_or_end '=' (parser_with_input ["abc=def", "ghi"])
+    in ("abc" @=? res) >> (["def", "ghi"] @=? input p)
 
-                            Right p -> assertFailure $ "expected parser to fail, but it succedeed: '" ++ show p ++ "'"
+case_consume_until_char_or_end_end =
+    let (res, p) = consume_until_char_or_end '=' (parser_with_input ["abc", "def", "ghi"])
+    in ("abc" @=? res) >> (["", "def", "ghi"] @=? input p)
 
-            in
-                [ "parse" ~:
-                    let parsed =
-                            parse
-                                (Description [flag 'f' Nothing "", flag 'g' (Just "gflag") "", option 'o' Nothing "" "option_value" (Number 2), option 'p' (Just "poption") "" "poption_value" (Number 2), positional "" "positional_val" (Number 1)])
-                                ["-f", "--gflag", "-o", "a", "b", "--poption", "c", "d", "pos"]
-                    in Right (Matches (Map.fromList [("positional_val", ["pos"])]) "gf" (Map.fromList [('o', ["a", "b"]), ('p', ["c", "d"])])) @=? parsed
+case_consume_until_char_or_end_empty =
+    let (res, p) = consume_until_char_or_end '=' (parser_with_input [])
+    in ("" @=? res) >> ([] @=? input p)
 
-                , "parse_flag" ~:
-                    [ make_parse_test "short flags" [flag 's' Nothing ""] ["s"] [] (Matches Map.empty "s" Map.empty) [] parse_flag
-                    , make_parse_test "long flags" [flag 's' (Just "long") ""] ["-long"] [] (Matches Map.empty "s" Map.empty) [] parse_flag
-                    ]
+case_parse =
+    let parsed =
+            parse
+                (Description [flag 'f' Nothing "", flag 'g' (Just "gflag") "", option 'o' Nothing "" "option_value" (Number 2), option 'p' (Just "poption") "" "poption_value" (Number 2), positional "" "positional_val" (Number 1)])
+                ["-f", "--gflag", "-o", "a", "b", "--poption", "c", "d", "pos"]
+    in Right (Matches (Map.fromList [("positional_val", ["pos"])]) "gf" (Map.fromList [('o', ["a", "b"]), ('p', ["c", "d"])])) @=? parsed
 
-                , "parse_long_flag" ~:
-                    [ expect_fail_test "no name" [flag 's' (Just "long") ""] [""] NoNameFlag parse_long_flag
-                    , expect_fail_test "invalid" [flag 's' (Just "long") ""] ["abc"] (InvalidFlag "--abc") parse_long_flag
-                    , expect_fail_test "unexpected value" [flag 's' (Just "long") ""] ["long=abc"] UnexpectedValue parse_long_flag
+case_parse_flag_short = make_parse_test [flag 's' Nothing ""] ["s"] [] (Matches Map.empty "s" Map.empty) [] parse_flag
+case_parse_flag_long = make_parse_test [flag 's' (Just "long") ""] ["-long"] [] (Matches Map.empty "s" Map.empty) [] parse_flag
 
-                    , make_parse_test "long flag" [flag 's' (Just "long") ""] ["long"] [] (Matches Map.empty "s" Map.empty) [] parse_long_flag
-                    , make_parse_test "long option with space" [option 's' (Just "long") "" "long_value" (Number 1)] ["long", "abc"] [] (Matches Map.empty "" (Map.fromList [('s', ["abc"])])) [] parse_long_flag
-                    , make_parse_test "long option with equal" [option 's' (Just "long") "" "long_value" (Number 1)] ["long=abc"] [] (Matches Map.empty "" (Map.fromList [('s', ["abc"])])) [] parse_long_flag
-                    ]
+case_parse_long_flag_no_name = expect_fail_test [flag 's' (Just "long") ""] [""] NoNameFlag parse_long_flag
+case_parse_long_flag_invalid = expect_fail_test [flag 's' (Just "long") ""] ["abc"] (InvalidFlag "--abc") parse_long_flag
+case_parse_long_flag_unexpected_value = expect_fail_test [flag 's' (Just "long") ""] ["long=abc"] UnexpectedValue parse_long_flag
 
-                , "parse_short_flag" ~:
-                    [ expect_fail_test "invalid" [flag 's' Nothing ""] ["a"] (InvalidFlag "-a") parse_short_flag
+case_parse_long_flag = make_parse_test [flag 's' (Just "long") ""] ["long"] [] (Matches Map.empty "s" Map.empty) [] parse_long_flag
+case_parse_long_flag_long_option_with_space = make_parse_test [option 's' (Just "long") "" "long_value" (Number 1)] ["long", "abc"] [] (Matches Map.empty "" (Map.fromList [('s', ["abc"])])) [] parse_long_flag
+case_parse_long_flag_long_option_with_equal = make_parse_test [option 's' (Just "long") "" "long_value" (Number 1)] ["long=abc"] [] (Matches Map.empty "" (Map.fromList [('s', ["abc"])])) [] parse_long_flag
 
-                    , make_parse_test "short flag" [flag 's' Nothing ""] ["s"] [] (Matches Map.empty "s" Map.empty) [] parse_short_flag
-                    , make_parse_test "multiple short flags" [flag 's' Nothing "", flag 'a' Nothing ""] ["sa"] [] (Matches Map.empty "as" Map.empty) [] parse_short_flag
+case_parse_short_flag_invalid = expect_fail_test [flag 's' Nothing ""] ["a"] (InvalidFlag "-a") parse_short_flag
 
-                    , make_parse_test "short option with space" [option 's' Nothing "" "value_name" (Number 1)] ["s", "abc"] [] (Matches Map.empty "" (Map.fromList [('s', ["abc"])])) [] parse_short_flag
-                    , make_parse_test "short option with no space" [option 's' Nothing "" "value_name" (Number 1)] ["sabc"] [] (Matches Map.empty "" (Map.fromList [('s', ["abc"])])) [] parse_short_flag
+case_parse_short_flag_short_flag = make_parse_test [flag 's' Nothing ""] ["s"] [] (Matches Map.empty "s" Map.empty) [] parse_short_flag
+case_parse_short_flag_multiple_short_flags = make_parse_test [flag 's' Nothing "", flag 'a' Nothing ""] ["sa"] [] (Matches Map.empty "as" Map.empty) [] parse_short_flag
+case_parse_short_flag_short_option_with_space = make_parse_test [option 's' Nothing "" "value_name" (Number 1)] ["s", "abc"] [] (Matches Map.empty "" (Map.fromList [('s', ["abc"])])) [] parse_short_flag
+case_parse_short_flag_short_option_with_no_space = make_parse_test [option 's' Nothing "" "value_name" (Number 1)] ["sabc"] [] (Matches Map.empty "" (Map.fromList [('s', ["abc"])])) [] parse_short_flag
+case_parse_short_flag_flags_and_options_with_space = make_parse_test [flag 'a' Nothing "", option 's' Nothing "" "value_name" (Number 1)] ["as", "abc"] [] (Matches Map.empty "a" (Map.fromList [('s', ["abc"])])) [] parse_short_flag
+case_parse_short_flag_flags_and_options_with_no_space = make_parse_test [flag 'a' Nothing "", option 's' Nothing "" "value_name" (Number 1)] ["asabc"] [] (Matches Map.empty "a" (Map.fromList [('s', ["abc"])])) [] parse_short_flag
 
-                    , make_parse_test "short flags and options with space" [flag 'a' Nothing "", option 's' Nothing "" "value_name" (Number 1)] ["as", "abc"] [] (Matches Map.empty "a" (Map.fromList [('s', ["abc"])])) [] parse_short_flag
-                    , make_parse_test "short flags and options with no space" [flag 'a' Nothing "", option 's' Nothing "" "value_name" (Number 1)] ["asabc"] [] (Matches Map.empty "a" (Map.fromList [('s', ["abc"])])) [] parse_short_flag
-                    ]
+case_parse_positional = make_parse_test [positional "" "positional_val" (Number 1)] ["val"] [] (Matches (Map.fromList [("positional_val", ["val"])]) "" Map.empty) [] parse_positional
+case_parse_positional_extra = expect_fail_test [] ["val"] ExcessArguments parse_positional
 
-                , "parse_positional" ~:
-                    [ make_parse_test "positional" [positional "" "positional_val" (Number 1)] ["val"] [] (Matches (Map.fromList [("positional_val", ["val"])]) "" Map.empty) [] parse_positional
-                    , expect_fail_test "extra positional" [] ["val"] ExcessArguments parse_positional
-                    ]
+case_parse_values_1_empty = Left ExpectedValue @=? parse_values (Number 1) (parser_with_input [])
+case_parse_values_1_1_value = Right (["val"], parser_with_input []) @=? parse_values (Number 1) (parser_with_input ["val"])
+case_parse_values_1_2_values = Right (["val1"], parser_with_input ["val2"]) @=? parse_values (Number 1) (parser_with_input ["val1", "val2"])
 
-                , "parse_values" ~:
-                    [ Left ExpectedValue ~=? parse_values (Number 1) (parser_with_input [])
-                    , Right (["val"], parser_with_input []) ~=? parse_values (Number 1) (parser_with_input ["val"])
-                    , Right (["val1"], parser_with_input ["val2"]) ~=? parse_values (Number 1) (parser_with_input ["val1", "val2"])
+case_parse_values_2_empty = Left ExpectedValue @=? parse_values (Number 2) (parser_with_input [])
+case_parse_values_2_1_value = Left ExpectedValue @=? parse_values (Number 2) (parser_with_input ["val"])
+case_parse_values_2_2_values = Right (["val1", "val2"], parser_with_input []) @=? parse_values (Number 2) (parser_with_input ["val1", "val2"])
 
-                    , Left ExpectedValue ~=? parse_values (Number 2) (parser_with_input [])
-                    , Left ExpectedValue ~=? parse_values (Number 2) (parser_with_input ["val"])
-                    , Right (["val1", "val2"], parser_with_input []) ~=? parse_values (Number 2) (parser_with_input ["val1", "val2"])
+case_parse_values_zero_more_empty = Right ([], parser_with_input []) @=? parse_values ZeroOrMore (parser_with_input [])
+case_parse_values_zero_more_1_value = Right (["val"], parser_with_input []) @=? parse_values OneOrMore (parser_with_input ["val"])
+case_parse_values_zero_more_2_values = Right (["val1", "val2"], parser_with_input []) @=? parse_values OneOrMore (parser_with_input ["val1", "val2"])
 
-                    , Right ([], parser_with_input []) ~=? parse_values ZeroOrMore (parser_with_input [])
-                    , Right (["val"], parser_with_input []) ~=? parse_values OneOrMore (parser_with_input ["val"])
-                    , Right (["val1", "val2"], parser_with_input []) ~=? parse_values OneOrMore (parser_with_input ["val1", "val2"])
+case_parse_values_one_more_empty = Left ExpectedValue @=? parse_values OneOrMore (parser_with_input [])
+case_parse_values_one_more_1_value = Right (["val"], parser_with_input []) @=? parse_values OneOrMore (parser_with_input ["val"])
+case_parse_values_one_more_2_values = Right (["val1", "val2"], parser_with_input []) @=? parse_values OneOrMore (parser_with_input ["val1", "val2"])
 
-                    , Left ExpectedValue ~=? parse_values OneOrMore (parser_with_input [])
-                    , Right (["val"], parser_with_input []) ~=? parse_values OneOrMore (parser_with_input ["val"])
-                    , Right (["val1", "val2"], parser_with_input []) ~=? parse_values OneOrMore (parser_with_input ["val1", "val2"])
-                    ]
+case_parse_zero_more_empty = Right ([], parser_with_input []) @=? parse_zero_or_more [] (parser_with_input [])
+case_parse_zero_more_1 = Right (["val"], parser_with_input []) @=? parse_zero_or_more [] (parser_with_input ["val"])
+case_parse_zero_more_2 = Right (["val1", "val2"], parser_with_input []) @=? parse_zero_or_more [] (parser_with_input ["val1", "val2"])
 
-                , "parse_zero_or_more" ~:
-                    [ Right ([], parser_with_input []) ~=? parse_zero_or_more [] (parser_with_input [])
-                    , Right (["val"], parser_with_input []) ~=? parse_zero_or_more [] (parser_with_input ["val"])
-                    , Right (["val1", "val2"], parser_with_input []) ~=? parse_zero_or_more [] (parser_with_input ["val1", "val2"])
-                    ]
+case_parse_n_values_1_empty = Left ExpectedValue @=? parse_n_values [] 1 (parser_with_input [])
+case_parse_n_values_1_1 :: Assertion
+case_parse_n_values_1_1 = Right (["val"], parser_with_input []) @=? parse_n_values [] 1 (parser_with_input ["val"])
+case_parse_n_values_1_2 :: Assertion
+case_parse_n_values_1_2 = Right (["val1"], parser_with_input ["val2"]) @=? parse_n_values [] 1 (parser_with_input ["val1", "val2"])
 
-                , "parse_n_values" ~:
-                   [ Left ExpectedValue ~=? parse_n_values [] 1 (parser_with_input [])
-                   , Right (["val"], parser_with_input []) ~=? parse_n_values [] 1 (parser_with_input ["val"])
-                   , Right (["val1"], parser_with_input ["val2"]) ~=? parse_n_values [] 1 (parser_with_input ["val1", "val2"])
+case_parse_n_values_2_empty :: Assertion
+case_parse_n_values_2_empty = Left ExpectedValue @=? parse_n_values [] 2 (parser_with_input [])
+case_parse_n_values_2_1 :: Assertion
+case_parse_n_values_2_1 = Left ExpectedValue @=? parse_n_values [] 2 (parser_with_input ["val"])
+case_parse_n_values_2_2 :: Assertion
+case_parse_n_values_2_2 = Right (["val1", "val2"], parser_with_input []) @=? parse_n_values [] 2 (parser_with_input ["val1", "val2"])
 
-                   , Left ExpectedValue ~=? parse_n_values [] 2 (parser_with_input [])
-                   , Left ExpectedValue ~=? parse_n_values [] 2 (parser_with_input ["val"])
-                   , Right (["val1", "val2"], parser_with_input []) ~=? parse_n_values [] 2 (parser_with_input ["val1", "val2"])
-                   ]
-
-                , "parse_value_once" ~:
-                   [ Just ("val", parser_with_input []) ~=? parse_value_once (parser_with_input ["val"])
-                   , Just ("val1", parser_with_input ["val2"]) ~=? parse_value_once (parser_with_input ["val1", "val2"])
-                   , Nothing ~=? parse_value_once (parser_with_input [])
-                   , Nothing ~=? parse_value_once (parser_with_input ["--flag"])
-                   , Nothing ~=? parse_value_once (parser_with_input ["-f"])
-                   ]
-                ]
-        ]
+case_parse_value_once_value :: Assertion
+case_parse_value_once_value = Just ("val", parser_with_input []) @=? parse_value_once (parser_with_input ["val"])
+case_parse_value_once_2_values :: Assertion
+case_parse_value_once_2_values = Just ("val1", parser_with_input ["val2"]) @=? parse_value_once (parser_with_input ["val1", "val2"])
+case_parse_values_once_empty :: Assertion
+case_parse_values_once_empty = Nothing @=? parse_value_once (parser_with_input [])
+case_parse_values_once_long_flag :: Assertion
+case_parse_values_once_long_flag = Nothing @=? parse_value_once (parser_with_input ["--flag"])
+case_parse_values_once_short_flag :: Assertion
+case_parse_values_once_short_flag = Nothing @=? parse_value_once (parser_with_input ["-f"])

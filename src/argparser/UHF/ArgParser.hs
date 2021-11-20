@@ -14,11 +14,9 @@ module UHF.ArgParser
     , get_option_result_1
 
     , report_errors
-
-    , tests
     ) where
 
-import Test.HUnit
+import Test.Tasty.HUnit
 
 import System.IO (hPutStr, hPutStrLn, stderr)
 import System.Exit (exitFailure, exitSuccess)
@@ -110,73 +108,75 @@ report_errors e =
             hPutStrLn stderr ("error: " ++ str_arg_error ae) >>
             exitFailure
 -- tests {{{1
-tests :: Test
-tests = test
-    [ "get_matches'" ~:
-        let desc = (Description [flag 'c' Nothing "help"])
-            prog_name = "prog"
+case_get_matches'_flag, case_get_matches'_invalid_flag, case_get_matches'_help, case_get_matches'_long_help, case_get_matches'_other_h_flag :: Assertion
+(case_get_matches'_flag, case_get_matches'_invalid_flag, case_get_matches'_help, case_get_matches'_long_help, case_get_matches'_other_h_flag) =
+    let desc = (Description [flag 'c' Nothing "help"])
+        prog_name = "prog"
 
-            help_message = "usage: prog [flags]\n\
-                           \\n\
-                           \flags:\n\
-                           \    -c                  help\n\
-                           \    -h, --help          show this help message\n"
-        in
-            [ Right (Right (Map.empty, "c", Map.empty)) ~=? get_matches' desc prog_name ["-c"]
-            , Left ("error: invalid flag: '-j'\n" ++ help_message) ~=? get_matches' desc prog_name ["-j"]
+        help_message = "usage: prog [flags]\n\
+                       \\n\
+                       \flags:\n\
+                       \    -c                  help\n\
+                       \    -h, --help          show this help message\n"
+    in
+        ( Right (Right (Map.empty, "c", Map.empty)) @=? get_matches' desc prog_name ["-c"]
+        , Left ("error: invalid flag: '-j'\n" ++ help_message) @=? get_matches' desc prog_name ["-j"]
 
-            , Right (Left help_message) ~=? get_matches' desc prog_name ["-h"]
-            , Right (Left help_message) ~=? get_matches' desc prog_name ["--help"]
+        , Right (Left help_message) @=? get_matches' desc prog_name ["-h"]
+        , Right (Left help_message) @=? get_matches' desc prog_name ["--help"]
 
-            , Right (Right (Map.empty, "h", Map.empty)) ~=? get_matches' (Description [flag 'h' Nothing "other thing"]) prog_name ["-h"]
-            ]
+        , Right (Right (Map.empty, "h", Map.empty)) @=? get_matches' (Description [flag 'h' Nothing "other thing"]) prog_name ["-h"]
+        )
 
-    , "get_positional_result" ~:
-        [ ["abc", "def"] ~=? get_positional_result "pos" (ArgMatches (Map.fromList [("pos", ["abc", "def"])]) [] Map.empty)
-        , [] ~=? get_positional_result "pos" (ArgMatches (Map.fromList [("pos", [])]) [] Map.empty)
-        , [] ~=? get_positional_result "pos" (ArgMatches Map.empty [] Map.empty)
-        ]
+case_get_positional_result_results :: Assertion
+case_get_positional_result_results = ["abc", "def"] @=? get_positional_result "pos" (ArgMatches (Map.fromList [("pos", ["abc", "def"])]) [] Map.empty)
+case_get_positional_result_empty :: Assertion
+case_get_positional_result_empty = [] @=? get_positional_result "pos" (ArgMatches (Map.fromList [("pos", [])]) [] Map.empty)
+case_get_positional_result_no_result :: Assertion
+case_get_positional_result_no_result = [] @=? get_positional_result "pos" (ArgMatches Map.empty [] Map.empty)
 
-    , "get_flag_result" ~:
-        [ True ~=? get_flag_result 'c' (ArgMatches Map.empty "c" Map.empty)
-        , False ~=? get_flag_result 'c' (ArgMatches Map.empty "" Map.empty)
-        ]
+case_get_flag_result_yes :: Assertion
+case_get_flag_result_yes = True @=? get_flag_result 'c' (ArgMatches Map.empty "c" Map.empty)
+case_get_flag_result_no :: Assertion
+case_get_flag_result_no = False @=? get_flag_result 'c' (ArgMatches Map.empty "" Map.empty)
 
-    , "get_option_result" ~:
-        [ ["abc", "def"] ~=? get_option_result 'o' (ArgMatches Map.empty [] (Map.fromList [('o', ["abc", "def"])]))
-        , [] ~=? get_option_result 'o' (ArgMatches Map.empty [] (Map.fromList [('o', [])]))
-        , [] ~=? get_option_result 'o' (ArgMatches Map.empty [] (Map.fromList []))
-        ]
+case_get_option_result_multiple :: Assertion
+case_get_option_result_multiple = ["abc", "def"] @=? get_option_result 'o' (ArgMatches Map.empty [] (Map.fromList [('o', ["abc", "def"])]))
+case_get_option_result_empty :: Assertion
+case_get_option_result_empty = [] @=? get_option_result 'o' (ArgMatches Map.empty [] (Map.fromList [('o', [])]))
+case_get_option_result_no_result :: Assertion
+case_get_option_result_no_result = [] @=? get_option_result 'o' (ArgMatches Map.empty [] (Map.fromList []))
 
-    , "get_positional_result_ne" ~:
-        [ Right ("abc" NonEmpty.:| ["def"]) ~=? get_positional_result_ne "pos" (ArgMatches (Map.fromList [("pos", ["abc", "def"])]) [] Map.empty)
-        , Left (NeedsArguments "pos") ~=? get_positional_result_ne "pos" (ArgMatches Map.empty [] Map.empty)
-        ]
+case_get_positional_result_ne :: Assertion
+case_get_positional_result_ne = Right ("abc" NonEmpty.:| ["def"]) @=? get_positional_result_ne "pos" (ArgMatches (Map.fromList [("pos", ["abc", "def"])]) [] Map.empty)
+case_get_positional_result_ne_empty :: Assertion
+case_get_positional_result_ne_empty = Left (NeedsArguments "pos") @=? get_positional_result_ne "pos" (ArgMatches Map.empty [] Map.empty)
 
-    , "get_positional_result_1" ~:
-        [ Right "abc" ~=? get_positional_result_1 "pos" (ArgMatches (Map.fromList [("pos", ["abc"])]) [] Map.empty)
-        , Left (Needs1Argument "pos") ~=? get_positional_result_1 "pos" (ArgMatches Map.empty [] Map.empty)
-        ]
+case_get_positional_result_1 :: Assertion
+case_get_positional_result_1 = Right "abc" @=? get_positional_result_1 "pos" (ArgMatches (Map.fromList [("pos", ["abc"])]) [] Map.empty)
+case_get_positional_result_1_none :: Assertion
+case_get_positional_result_1_none = Left (Needs1Argument "pos") @=? get_positional_result_1 "pos" (ArgMatches Map.empty [] Map.empty)
 
-    , "get_option_result_ne" ~:
-        [ Right ("abc" NonEmpty.:| ["def"]) ~=? get_option_result_ne 'o' (ArgMatches Map.empty [] (Map.fromList [('o', ["abc", "def"])]))
-        , Left (NeedsArguments "-o") ~=? get_option_result_ne 'o' (ArgMatches Map.empty [] Map.empty)
-        ]
+case_get_option_result_ne :: Assertion
+case_get_option_result_ne = Right ("abc" NonEmpty.:| ["def"]) @=? get_option_result_ne 'o' (ArgMatches Map.empty [] (Map.fromList [('o', ["abc", "def"])]))
+case_get_option_result_ne_empty :: Assertion
+case_get_option_result_ne_empty = Left (NeedsArguments "-o") @=? get_option_result_ne 'o' (ArgMatches Map.empty [] Map.empty)
 
-    , "get_option_result_1" ~:
-        [ Right "abc" ~=? get_option_result_1 'o' (ArgMatches Map.empty [] (Map.fromList [('o', ["abc"])]))
-        , Left (Needs1Argument "-o") ~=? get_option_result_1 'o' (ArgMatches Map.empty [] Map.empty)
-        ]
+case_get_option_result_1 :: Assertion
+case_get_option_result_1 = Right "abc" @=? get_option_result_1 'o' (ArgMatches Map.empty [] (Map.fromList [('o', ["abc"])]))
+case_get_option_result_1_empty :: Assertion
+case_get_option_result_1_empty = Left (Needs1Argument "-o") @=? get_option_result_1 'o' (ArgMatches Map.empty [] Map.empty)
 
-    , "require_1" ~:
-        [ Left (Needs1Argument "name") ~=? require_1 "name" []
-        , Right "a" ~=? require_1 "name" ["a"]
-        , Left (Needs1Argument "name") ~=? require_1 "name" ["a", "b"]
-        ]
+case_require_1_none :: Assertion
+case_require_1_none = Left (Needs1Argument "name") @=? require_1 "name" []
+case_require_1_1 :: Assertion
+case_require_1_1 = Right "a" @=? require_1 "name" ["a"]
+case_require_1_2 :: Assertion
+case_require_1_2 = Left (Needs1Argument "name") @=? require_1 "name" ["a", "b"]
 
-    , "require_non_empty" ~:
-        [ Left (NeedsArguments "name") ~=? require_non_empty "name" []
-        , Right ("a" NonEmpty.:| [])  ~=? require_non_empty "name" ["a"]
-        , Right ("a" NonEmpty.:| ["b"]) ~=? require_non_empty "name" ["a", "b"]
-        ]
-    ]
+case_require_non_empty_none :: Assertion
+case_require_non_empty_none = Left (NeedsArguments "name") @=? require_non_empty "name" []
+case_require_non_empty_1 :: Assertion
+case_require_non_empty_1 = Right ("a" NonEmpty.:| [])  @=? require_non_empty "name" ["a"]
+case_require_non_empty_2 :: Assertion
+case_require_non_empty_2 = Right ("a" NonEmpty.:| ["b"]) @=? require_non_empty "name" ["a", "b"]

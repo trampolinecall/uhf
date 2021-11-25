@@ -1,14 +1,6 @@
 name:                uhf
 version:             0.0.0
 
-build-type: Custom
-
-custom-setup:
-  dependencies:
-    - base >= 4.7 && < 5
-    - extra
-    - Cabal
-
 dependencies:
   - base >= 4.7 && < 5
   - containers
@@ -16,7 +8,9 @@ dependencies:
   - safe
   - Decimal
 
-  - HUnit
+  - tasty
+  - tasty-hunit
+  - tasty-th
 
 ghc-options:
   - -Wall
@@ -40,9 +34,6 @@ internal-libraries:
 
   compiler:
     source-dirs: src/compiler
-
-extra-source-files:
-  - test/*.test
 
 executables:
   uhfi:

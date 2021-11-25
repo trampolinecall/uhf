@@ -121,7 +121,7 @@ executable uhfc
   other-modules:
       Paths_uhf
   hs-source-dirs:
-      src/uhfc
+      exe/uhfc
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       argparser
@@ -136,7 +136,7 @@ executable uhfi
   other-modules:
       Paths_uhf
   hs-source-dirs:
-      src/uhfi
+      exe/uhfi
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       argparser

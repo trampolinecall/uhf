@@ -1,8 +1,14 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module UHF.ArgParser.Help
     ( args_help_message
+
+    , tests
     ) where
 
 import Test.Tasty.HUnit
+import Test.Tasty.TH
+import Test.Tasty
 
 import UHF.ArgParser.Description
 
@@ -177,3 +183,6 @@ case_args_help_message_all =
     \\n\
     \options:\n\
     \    -o OPT              help\n" @=? args_help_message (Description [positional "help" "POSITIONAL" (Number 1), flag 'c' Nothing "help", option 'o' Nothing "help" "OPT" (Number 1)]) "prog"
+
+tests :: TestTree
+tests = $(testGroupGenerator)

@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module UHF.ArgParser
     ( module UHF.ArgParser.Description
 
@@ -14,15 +16,19 @@ module UHF.ArgParser
     , get_option_result_1
 
     , report_errors
+
+    , tests
     ) where
 
 import Test.Tasty.HUnit
+import Test.Tasty.TH
+import Test.Tasty
 
 import System.IO (hPutStr, hPutStrLn, stderr)
 import System.Exit (exitFailure, exitSuccess)
 import System.Environment (getProgName, getArgs)
 
-import UHF.ArgParser.Description hiding (tests)
+import UHF.ArgParser.Description
 import UHF.ArgParser.Help hiding (tests)
 import UHF.ArgParser.Parser hiding (tests)
 
@@ -108,8 +114,8 @@ report_errors e =
             hPutStrLn stderr ("error: " ++ str_arg_error ae) >>
             exitFailure
 -- tests {{{1
-case_get_matches'_flag, case_get_matches'_invalid_flag, case_get_matches'_help, case_get_matches'_long_help, case_get_matches'_other_h_flag :: Assertion
-(case_get_matches'_flag, case_get_matches'_invalid_flag, case_get_matches'_help, case_get_matches'_long_help, case_get_matches'_other_h_flag) =
+test_get_matches' :: [TestTree]
+test_get_matches' =
     let desc = (Description [flag 'c' Nothing "help"])
         prog_name = "prog"
 
@@ -119,14 +125,14 @@ case_get_matches'_flag, case_get_matches'_invalid_flag, case_get_matches'_help, 
                        \    -c                  help\n\
                        \    -h, --help          show this help message\n"
     in
-        ( Right (Right (Map.empty, "c", Map.empty)) @=? get_matches' desc prog_name ["-c"]
-        , Left ("error: invalid flag: '-j'\n" ++ help_message) @=? get_matches' desc prog_name ["-j"]
+        [ testCase "get_matches'_flag" $ Right (Right (Map.empty, "c", Map.empty)) @=? get_matches' desc prog_name ["-c"]
+        , testCase "get_matches'_invalid_flag" $ Left ("error: invalid flag: '-j'\n" ++ help_message) @=? get_matches' desc prog_name ["-j"]
 
-        , Right (Left help_message) @=? get_matches' desc prog_name ["-h"]
-        , Right (Left help_message) @=? get_matches' desc prog_name ["--help"]
+        , testCase "get_matches'_help" $ Right (Left help_message) @=? get_matches' desc prog_name ["-h"]
+        , testCase "get_matches'_long_help" $ Right (Left help_message) @=? get_matches' desc prog_name ["--help"]
 
-        , Right (Right (Map.empty, "h", Map.empty)) @=? get_matches' (Description [flag 'h' Nothing "other thing"]) prog_name ["-h"]
-        )
+        , testCase "get_matches'_other_h_flag" $ Right (Right (Map.empty, "h", Map.empty)) @=? get_matches' (Description [flag 'h' Nothing "other thing"]) prog_name ["-h"]
+        ]
 
 case_get_positional_result_results :: Assertion
 case_get_positional_result_results = ["abc", "def"] @=? get_positional_result "pos" (ArgMatches (Map.fromList [("pos", ["abc", "def"])]) [] Map.empty)
@@ -180,3 +186,6 @@ case_require_non_empty_1 :: Assertion
 case_require_non_empty_1 = Right ("a" NonEmpty.:| [])  @=? require_non_empty "name" ["a"]
 case_require_non_empty_2 :: Assertion
 case_require_non_empty_2 = Right ("a" NonEmpty.:| ["b"]) @=? require_non_empty "name" ["a", "b"]
+
+tests :: TestTree
+tests = $(testGroupGenerator)

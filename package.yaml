@@ -3,10 +3,6 @@ version:             0.0.0
 
 dependencies:
   - base >= 4.7 && < 5
-  - containers
-  - text
-  - safe
-  - Decimal
 
   - tasty
   - tasty-hunit
@@ -19,11 +15,23 @@ internal-libraries:
   argparser:
     source-dirs: src/argparser
 
+    dependencies:
+      - containers
+
   io:
     source-dirs: src/io
 
+    dependencies:
+      - text
+
   token:
     source-dirs: src/token
+
+    dependencies:
+      - Decimal
+
+  diagnostic:
+    source-dirs: src/diagnostic
 
   lexer:
     source-dirs: src/lexer
@@ -32,8 +40,16 @@ internal-libraries:
       - io
       - token
 
+      - text
+      - Decimal
+      - safe
+
+
   compiler:
     source-dirs: src/compiler
+
+    dependencies:
+      - text
 
 executables:
   uhfi:

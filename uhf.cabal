@@ -8,17 +8,7 @@ name:           uhf
 version:        0.0.0
 license:        MIT
 license-file:   LICENSE
-build-type:     Custom
-extra-source-files:
-    test/argparser.test
-    test/io.test
-    test/lexer.test
-
-custom-setup
-  setup-depends:
-      Cabal
-    , base >=4.7 && <5
-    , extra
+build-type:     Simple
 
 library argparser
   exposed-modules:
@@ -33,10 +23,12 @@ library argparser
   ghc-options: -Wall
   build-depends:
       Decimal
-    , HUnit
     , base >=4.7 && <5
     , containers
     , safe
+    , tasty
+    , tasty-hunit
+    , tasty-th
     , text
   default-language: Haskell2010
 
@@ -50,10 +42,12 @@ library compiler
   ghc-options: -Wall
   build-depends:
       Decimal
-    , HUnit
     , base >=4.7 && <5
     , containers
     , safe
+    , tasty
+    , tasty-hunit
+    , tasty-th
     , text
   default-language: Haskell2010
 
@@ -70,10 +64,12 @@ library io
   ghc-options: -Wall
   build-depends:
       Decimal
-    , HUnit
     , base >=4.7 && <5
     , containers
     , safe
+    , tasty
+    , tasty-hunit
+    , tasty-th
     , text
   default-language: Haskell2010
 
@@ -88,11 +84,13 @@ library lexer
   ghc-options: -Wall
   build-depends:
       Decimal
-    , HUnit
     , base >=4.7 && <5
     , containers
     , io
     , safe
+    , tasty
+    , tasty-hunit
+    , tasty-th
     , text
     , token
   default-language: Haskell2010
@@ -107,10 +105,12 @@ library token
   ghc-options: -Wall
   build-depends:
       Decimal
-    , HUnit
     , base >=4.7 && <5
     , containers
     , safe
+    , tasty
+    , tasty-hunit
+    , tasty-th
     , text
   default-language: Haskell2010
 
@@ -123,11 +123,13 @@ executable uhfc
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       Decimal
-    , HUnit
     , argparser
     , base >=4.7 && <5
     , containers
     , safe
+    , tasty
+    , tasty-hunit
+    , tasty-th
     , text
   default-language: Haskell2010
 
@@ -140,11 +142,13 @@ executable uhfi
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       Decimal
-    , HUnit
     , argparser
     , base >=4.7 && <5
     , containers
     , safe
+    , tasty
+    , tasty-hunit
+    , tasty-th
     , text
   default-language: Haskell2010
 
@@ -158,11 +162,13 @@ test-suite argparser-test
   ghc-options: -Wall
   build-depends:
       Decimal
-    , HUnit
     , argparser
     , base >=4.7 && <5
     , containers
     , safe
+    , tasty
+    , tasty-hunit
+    , tasty-th
     , text
   default-language: Haskell2010
 
@@ -176,11 +182,13 @@ test-suite io-test
   ghc-options: -Wall
   build-depends:
       Decimal
-    , HUnit
     , base >=4.7 && <5
     , containers
     , io
     , safe
+    , tasty
+    , tasty-hunit
+    , tasty-th
     , text
   default-language: Haskell2010
 
@@ -194,10 +202,12 @@ test-suite lexer-test
   ghc-options: -Wall
   build-depends:
       Decimal
-    , HUnit
     , base >=4.7 && <5
     , containers
     , lexer
     , safe
+    , tasty
+    , tasty-hunit
+    , tasty-th
     , text
   default-language: Haskell2010

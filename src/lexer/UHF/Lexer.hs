@@ -1,13 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module UHF.Lexer
     ( UHF.Lexer.lex
+    , tests
     ) where
 
-import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.TH
+import Test.Tasty
 
 import qualified UHF.IO.File as File
 import qualified UHF.IO.Location as Location
@@ -543,9 +545,12 @@ case_lex =
         ([UnclosedStrLit _], [Location.Located _ (Token.AlphaIdentifier "abc"), Location.Located _ (Token.SymbolIdentifier "*&*"), Location.Located _ Token.OParen]) -> return ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
+lex_test :: (Lexer -> r) -> Text.Text -> (r -> IO ()) -> IO ()
 lex_test fn input check = check $ fn $ new_lexer $ File.File "a" input
+lex_test_fail :: Show r => String -> r -> IO a
 lex_test_fail fn_name res = assertFailure $ "'" ++ fn_name ++ "' lexed incorrectly: returned '" ++ show res ++ "'"
 
+indent_test :: Maybe (Token.Token, Int, Int) -> [IndentFrame] -> Int -> Text.Text -> (([IndentFrame], [LexError], [Location.Located Token.Token]) -> IO ()) -> IO ()
 indent_test m_last_tok stack offset input check =
     let lexer = (new_lexer (File.File "a" input) `seek` offset) { indent_stack = stack }
 
@@ -885,3 +890,6 @@ case_lex_indent_close_brace =
     indent_test Nothing [IndentationInsensitive, IndentationSensitive 0] 0 "}\n" $ \case
         ([IndentationSensitive 0], [], [Location.Located _ Token.CBrace]) -> return ()
         x -> lex_test_fail "lex_indent" x
+
+tests :: TestTree
+tests = $(testGroupGenerator)

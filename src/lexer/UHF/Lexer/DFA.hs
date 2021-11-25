@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -6,9 +7,13 @@ module UHF.Lexer.DFA
     , State(..)
     , Transition(..)
     , run_dfa
+
+    , tests
     ) where
 
 import Test.Tasty.HUnit
+import Test.Tasty.TH
+import Test.Tasty
 
 import qualified Data.Text as Text
 
@@ -41,8 +46,8 @@ run_dfa' dfa@(DFA states begin_transition) cur_state cur_len_consumed input cur_
 
             in run_dfa' dfa (CurStateNum next_state) next_len_consumed next_input next_res
 
-case_run_dfa_1 :: Assertion
-(case_run_dfa_1, case_run_dfa_2, case_run_dfa_3, case_run_dfa_4) =
+test_run_dfa :: [TestTree]
+test_run_dfa =
     let dfa = DFA
           [ State
               (\ r -> \case
@@ -59,8 +64,11 @@ case_run_dfa_1 :: Assertion
           ]
           (\ r c -> if c == Just 'a' then StateNum 0 r else Reject)
     in
-        ( Just (6, 3 :: Int) @=? run_dfa dfa "aaaabb" 0
-        , Nothing @=? run_dfa dfa "" 0
-        , Nothing @=? run_dfa dfa "aa" 0
-        , Nothing @=? run_dfa dfa "aba" 0
-        )
+        [ testCase "1" $ Just (6, 3 :: Int) @=? run_dfa dfa "aaaabb" 0
+        , testCase "2" $ Nothing @=? run_dfa dfa "" 0
+        , testCase "3" $ Nothing @=? run_dfa dfa "aa" 0
+        , testCase "4" $ Nothing @=? run_dfa dfa "aba" 0
+        ]
+
+tests :: TestTree
+tests = $(testGroupGenerator)

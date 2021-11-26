@@ -48,16 +48,23 @@ library compiler
 library diagnostic
   exposed-modules:
       UHF.Diagnostic
+      UHF.Diagnostic.Code
+      UHF.Diagnostic.Codes
+      UHF.Diagnostic.Colors
+      UHF.Diagnostic.FormattedString
   other-modules:
       Paths_uhf
   hs-source-dirs:
       src/diagnostic
   ghc-options: -Wall
   build-depends:
-      base >=4.7 && <5
+      ansi-terminal
+    , base >=4.7 && <5
+    , io
     , tasty
     , tasty-hunit
     , tasty-th
+    , text
   default-language: Haskell2010
 
 library io
@@ -157,6 +164,22 @@ test-suite argparser-test
   build-depends:
       argparser
     , base >=4.7 && <5
+    , tasty
+    , tasty-hunit
+    , tasty-th
+  default-language: Haskell2010
+
+test-suite diagnostic-test
+  type: exitcode-stdio-1.0
+  main-is: diagnostic.hs
+  other-modules:
+      Paths_uhf
+  hs-source-dirs:
+      test/
+  ghc-options: -Wall
+  build-depends:
+      base >=4.7 && <5
+    , diagnostic
     , tasty
     , tasty-hunit
     , tasty-th

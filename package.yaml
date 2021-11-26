@@ -33,6 +33,12 @@ internal-libraries:
   diagnostic:
     source-dirs: src/diagnostic
 
+    dependencies:
+      - io
+
+      - ansi-terminal
+      - text
+
   lexer:
     source-dirs: src/lexer
 
@@ -97,3 +103,10 @@ tests:
 
     dependencies:
       - lexer
+
+  diagnostic-test:
+    main: diagnostic.hs
+    source-dirs: test/
+
+    dependencies:
+      - diagnostic

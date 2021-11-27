@@ -1,16 +1,9 @@
-module UHF.Token
+module UHF.RawToken
     ( Token(..)
-    , IntLitBase(..)
     ) where
 
 import qualified Data.Decimal as Decimal
-
-data IntLitBase
-    = Dec
-    | Oct
-    | Hex
-    | Bin
-    deriving (Show, Eq)
+import qualified UHF.Token as Token
 
 data Token
     = OParen
@@ -19,6 +12,7 @@ data Token
     | CBrack
     | Comma
     | Equal
+    | DoubleColon
 
     | Root
     | Let
@@ -28,12 +22,12 @@ data Token
     | Else
     | Case
 
-    | SymbolIdentifier [String]
-    | AlphaIdentifier [String]
+    | SymbolIdentifier String
+    | AlphaIdentifier String
 
     | CharLit Char
     | StringLit String
-    | IntLit IntLitBase Integer
+    | IntLit Token.IntLitBase Integer
     | FloatLit Decimal.Decimal
     | BoolLit Bool
 

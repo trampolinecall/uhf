@@ -90,6 +90,8 @@ library lexer
   exposed-modules:
       UHF.Lexer
       UHF.Lexer.DFA
+      UHF.Lexer.MainLexer
+      UHF.Lexer.PostProcess
   other-modules:
       Paths_uhf
   hs-source-dirs:
@@ -109,6 +111,7 @@ library lexer
 
 library token
   exposed-modules:
+      UHF.RawToken
       UHF.Token
   other-modules:
       Paths_uhf

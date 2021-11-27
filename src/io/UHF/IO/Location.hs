@@ -2,6 +2,9 @@ module UHF.IO.Location where
 
 import qualified UHF.IO.File as File
 
+import Data.List (minimumBy, maximumBy)
+import Data.Function (on)
+
 data Location = Location { file :: File.File, ind :: Int, row :: Int, col :: Int } deriving (Show, Eq)
 data Span = Span { start :: Location, before_end :: Location, end :: Location } deriving (Show, Eq)
 
@@ -15,6 +18,18 @@ instance Functor Located where
 
 instance Eq a => Eq (Located a) where
     (Located _ a) == (Located _ b) = a == b
+
+join_span :: Span -> Span -> Span
+join_span (Span s1 b1 e1) (Span s2 b2 e2) =
+    if all ((file s1 ==) . file) [s1, b1, e1, s2, b2, e2]
+        then
+            let comparator = compare `on` ind
+                minstart = minimumBy comparator [s1, s2]
+                maxbefore =  maximumBy comparator [b1, b2]
+                maxend = maximumBy comparator [e1, e2]
+            in Span minstart maxbefore maxend
+
+        else error "join two spans where some locations have different files"
 
 fmt_location :: Location -> String
 fmt_location (Location f _ r c) = File.path f ++ ":" ++ show r ++ ":" ++ show c

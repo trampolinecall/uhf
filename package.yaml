@@ -46,15 +46,24 @@ internal-libraries:
       - io
       - token
 
+      - span-helper
+
       - text
       - Decimal
       - safe
-
 
   compiler:
     source-dirs: src/compiler
 
     dependencies:
+      - text
+
+  span-helper:
+    source-dirs: test/span-helper
+
+    dependencies:
+      - io
+
       - text
 
 executables:

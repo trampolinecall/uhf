@@ -102,11 +102,29 @@ library lexer
     , base >=4.7 && <5
     , io
     , safe
+    , span-helper
     , tasty
     , tasty-hunit
     , tasty-th
     , text
     , token
+  default-language: Haskell2010
+
+library span-helper
+  exposed-modules:
+      UHF.Test.SpanHelper
+  other-modules:
+      Paths_uhf
+  hs-source-dirs:
+      test/span-helper
+  ghc-options: -Wall
+  build-depends:
+      base >=4.7 && <5
+    , io
+    , tasty
+    , tasty-hunit
+    , tasty-th
+    , text
   default-language: Haskell2010
 
 library token

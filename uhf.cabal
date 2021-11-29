@@ -134,8 +134,8 @@ library span-helper
 
 library token
   exposed-modules:
-      UHF.RawToken
       UHF.Token
+      UHF.Token.Raw
   other-modules:
       Paths_uhf
   hs-source-dirs:

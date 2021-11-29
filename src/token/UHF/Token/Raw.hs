@@ -1,4 +1,4 @@
-module UHF.RawToken
+module UHF.Token.Raw
     ( Token(..)
     ) where
 

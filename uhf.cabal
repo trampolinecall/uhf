@@ -39,6 +39,9 @@ library compiler
   ghc-options: -Wall
   build-depends:
       base >=4.7 && <5
+    , diagnostic
+    , io
+    , lexer
     , tasty
     , tasty-hunit
     , tasty-th
@@ -90,6 +93,7 @@ library lexer
   exposed-modules:
       UHF.Lexer
       UHF.Lexer.DFA
+      UHF.Lexer.LexError
       UHF.Lexer.MainLexer
       UHF.Lexer.PostProcess
   other-modules:
@@ -100,6 +104,7 @@ library lexer
   build-depends:
       Decimal
     , base >=4.7 && <5
+    , diagnostic
     , io
     , safe
     , span-helper

@@ -5,14 +5,14 @@
 module UHF.Lexer.MainLexer
     ( UHF.Lexer.MainLexer.lex
 
-    , LexError(..)
-
     , tests
     ) where
 
 import Test.Tasty.HUnit
 import Test.Tasty.TH
 import Test.Tasty
+
+import qualified UHF.Lexer.LexError as LexError
 
 import qualified UHF.IO.File as File
 import qualified UHF.IO.Location as Location
@@ -47,22 +47,8 @@ data IndentFrame
     | IndentationInsensitive
     deriving (Eq, Show)
 
-data LexError
-    = BadChar Char Location.Span
-    | UnclosedMComment Location.Span
-    | UnclosedStrLit Location.Span
-    | UnclosedCharLit Location.Span
-    | MulticharCharLit Location.Span
-    | InvalidIntBase Char Location.Span
-    | InvalidIntDigit Char Location.Span
-    | NonDecimalFloat Location.Span
-    | MissingDigits Location.Span
-    -- TODO: add 4 fields: new indent level, before indent level, two closest indentation levels
-    | BadDedent Location.Span
-    | InvalidDoubleColon Location.Span
-    deriving (Eq, Show)
 -- lexing {{{1
-lex :: File.File -> ([LexError], [Location.Located RawToken.Token])
+lex :: File.File -> ([LexError.LexError], [Location.Located RawToken.Token])
 lex f =
     let run _ Nothing = ([], [])
         run last_tok (Just l) =
@@ -77,7 +63,7 @@ lex f =
 
     in run Nothing (Just $ new_lexer f)
 -- lex' {{{2
-lex' :: Lexer -> Maybe (Location.Located RawToken.Token) -> (Maybe Lexer, [LexError], [Location.Located RawToken.Token])
+lex' :: Lexer -> Maybe (Location.Located RawToken.Token) -> (Maybe Lexer, [LexError.LexError], [Location.Located RawToken.Token])
 lex' lexer last_tok =
     let lex_choices =
             [ lex_eof
@@ -106,7 +92,7 @@ lex' lexer last_tok =
 
         else (lexer', errs, toks)
 -- lexing functions {{{2
-type LexFn = Lexer -> Maybe (Bool, Maybe Lexer, [LexError], [Location.Located RawToken.Token])
+type LexFn = Lexer -> Maybe (Bool, Maybe Lexer, [LexError.LexError], [Location.Located RawToken.Token])
 
 lex_eof :: LexFn
 lex_eof lexer
@@ -150,7 +136,7 @@ lex_comment lexer
             Just len -> Just (False, Just $ lexer' `seek` (len + 2), [], [])
             Nothing ->
                 let input_length = Text.length $ remaining lexer'
-                in Just (False, Just $ lexer' `seek` input_length, [UnclosedMComment $ lexer_span lexer 0 (input_length + 2)], [])
+                in Just (False, Just $ lexer' `seek` input_length, [LexError.UnclosedMComment $ lexer_span lexer 0 (input_length + 2)], [])
 
     | otherwise = Nothing
 
@@ -207,12 +193,12 @@ lex_str_or_char_lit lexer =
                         lexer'' = lexer' `seek` 1
                     in if open == '\''
                         then if Text.length str_contents /= 1
-                            then Just (True, Just lexer'', [MulticharCharLit lit_span], [])
+                            then Just (True, Just lexer'', [LexError.MulticharCharLit lit_span], [])
                             else Just (True, Just lexer'', [], [Location.Located lit_span $ RawToken.CharLit $ Text.head str_contents])
                         else Just (True, Just lexer'', [], [Location.Located lit_span $ RawToken.StringLit $ Text.unpack str_contents])
                 else if open == '\''
-                        then Just (True, Just lexer', [UnclosedCharLit $ lexer_span lexer 0 $ Text.length str_contents], [])
-                        else Just (True, Just lexer', [UnclosedStrLit $ lexer_span lexer 0 $ Text.length str_contents], [])
+                        then Just (True, Just lexer', [LexError.UnclosedCharLit $ lexer_span lexer 0 $ Text.length str_contents], [])
+                        else Just (True, Just lexer', [LexError.UnclosedStrLit $ lexer_span lexer 0 $ Text.length str_contents], [])
 
         _ -> Nothing
 
@@ -266,7 +252,7 @@ lex_number lexer =
                     Just 'b' -> Right (Token.Bin, 2)
                     Nothing -> Right (Token.Dec, 10)
 
-                    Just c -> Left $ InvalidIntBase c (lexer_span lexer 1 1)
+                    Just c -> Left $ LexError.InvalidIntBase c (lexer_span lexer 1 1)
 
                 base_len = if isJust base then 2 else 0
 
@@ -285,7 +271,7 @@ lex_number lexer =
                             (\ (i, c) ->
                                 if digit_legal c
                                     then Right ()
-                                    else Left $ InvalidIntDigit c (lexer_span lexer i 1)
+                                    else Left $ LexError.InvalidIntDigit c (lexer_span lexer i 1)
                             )
                             (zip [base_len..] digits)
 
@@ -301,13 +287,13 @@ lex_number lexer =
                             ( \ (i, c) ->
                                 if isDigit c || c == '.'
                                     then Right ()
-                                    else Left $ InvalidIntDigit c (lexer_span lexer i 1)
+                                    else Left $ LexError.InvalidIntDigit c (lexer_span lexer i 1)
                             )
                             (zip [base_len..] (digits ++ "." ++ floats))
 
                         illegal_digits = lefts digits_legal
 
-                        base_is_dec = if tok_base == Token.Dec then [] else [NonDecimalFloat num_span]
+                        base_is_dec = if tok_base == Token.Dec then [] else [LexError.NonDecimalFloat num_span]
 
                     in if null illegal_digits && null base_is_dec
                         then Just (True, Just lexer', [], [Location.Located num_span (RawToken.FloatLit $ read_digits ((^^) :: Decimal.Decimal -> Int -> Decimal.Decimal) 10 (zip [0..] (reverse digits) ++ zip [-1, -2..] floats))])
@@ -327,9 +313,9 @@ make_bad_char :: LexFn
 make_bad_char lexer =
     case Text.uncons $ remaining lexer of
         Nothing -> Nothing
-        Just (x, _) -> Just (True, Just $ lexer `seek` 1, [BadChar x $ lexer_span lexer 0 1], [])
+        Just (x, _) -> Just (True, Just $ lexer `seek` 1, [LexError.BadChar x $ lexer_span lexer 0 1], [])
 -- lex_indent {{{2
-lex_indent :: Lexer -> Maybe (Location.Located RawToken.Token) -> ([IndentFrame], [LexError], [Location.Located RawToken.Token])
+lex_indent :: Lexer -> Maybe (Location.Located RawToken.Token) -> ([IndentFrame], [LexError.LexError], [Location.Located RawToken.Token])
 lex_indent lexer last_tok =
     let m_cur_indent =
             let from_line_begin = Text.reverse $ Text.takeWhile (/='\n') (rev_passed lexer)
@@ -406,7 +392,7 @@ lex_indent lexer last_tok =
                         in
                             ( after_pop
                             , errs ++
-                                if is_valid_level then [] else [BadDedent (lexer_span lexer 0 1)]
+                                if is_valid_level then [] else [LexError.BadDedent (lexer_span lexer 0 1)]
                             , toks ++
                                 (if last_is_semi then [] else [last_nl_tok RawToken.Newline]) ++
                                 replicate num_popped (cur_char_tok RawToken.Dedent)
@@ -547,7 +533,7 @@ case_seek_backward_past_newline =
 case_lex :: Assertion
 case_lex =
     case UHF.Lexer.MainLexer.lex (File.File "a" "abc *&* ( \"adji\n") of
-        ([UnclosedStrLit _], [Location.Located _ (RawToken.AlphaIdentifier "abc"), Location.Located _ (RawToken.SymbolIdentifier "*&*"), Location.Located _ RawToken.OParen]) -> return ()
+        ([LexError.UnclosedStrLit _], [Location.Located _ (RawToken.AlphaIdentifier "abc"), Location.Located _ (RawToken.SymbolIdentifier "*&*"), Location.Located _ RawToken.OParen]) -> return ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
 lex_test :: (Lexer -> r) -> Text.Text -> (r -> IO ()) -> IO ()
@@ -555,7 +541,7 @@ lex_test fn input check = check $ fn $ new_lexer $ File.File "a" input
 lex_test_fail :: Show r => String -> r -> IO a
 lex_test_fail fn_name res = assertFailure $ "'" ++ fn_name ++ "' lexed incorrectly: returned '" ++ show res ++ "'"
 
-indent_test :: Maybe (RawToken.Token, Int, Int) -> [IndentFrame] -> Int -> Text.Text -> (([IndentFrame], [LexError], [Location.Located RawToken.Token]) -> IO ()) -> IO ()
+indent_test :: Maybe (RawToken.Token, Int, Int) -> [IndentFrame] -> Int -> Text.Text -> (([IndentFrame], [LexError.LexError], [Location.Located RawToken.Token]) -> IO ()) -> IO ()
 indent_test m_last_tok stack offset input check =
     let lexer = (new_lexer (File.File "a" input) `seek` offset) { indent_stack = stack }
 
@@ -625,7 +611,7 @@ case_lex_comment_multiline_nesting =
 case_lex_comment_unclosed_multiline :: Assertion
 case_lex_comment_unclosed_multiline =
     lex_test lex_comment "/* asdf" $ \case
-        Just (False, Just l', [UnclosedMComment _], [])
+        Just (False, Just l', [LexError.UnclosedMComment _], [])
             | remaining l' == "" -> return ()
         x -> lex_test_fail "lex_comment" x
 case_lex_comment_not_comment :: Assertion
@@ -681,13 +667,13 @@ case_lex_char_lit =
 case_lex_char_lit_unclosed :: Assertion
 case_lex_char_lit_unclosed =
     lex_test lex_str_or_char_lit "'c" $ \case
-        Just (True, Just l, [UnclosedCharLit _], [])
+        Just (True, Just l, [LexError.UnclosedCharLit _], [])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_str_or_char_lit" x
 case_lex_char_lit_multiple :: Assertion
 case_lex_char_lit_multiple =
     lex_test lex_str_or_char_lit "'cab'" $ \case
-        Just (True, Just l, [MulticharCharLit _], [])
+        Just (True, Just l, [LexError.MulticharCharLit _], [])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_str_or_char_lit" x
 
@@ -700,7 +686,7 @@ case_lex_str_lit =
 case_lex_str_lit_unclosed :: Assertion
 case_lex_str_lit_unclosed =
     lex_test lex_str_or_char_lit "\"cjfwoeifj" $ \case
-        Just (True, Just l, [UnclosedStrLit _], [])
+        Just (True, Just l, [LexError.UnclosedStrLit _], [])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_str_or_char_lit" x
 
@@ -767,35 +753,35 @@ case_lex_number_no_float_digits =
 case_lex_number_binary_decimal :: Assertion
 case_lex_number_binary_decimal =
     lex_test lex_number "0b101.1" $ \case
-        Just (True, Just l, [NonDecimalFloat _], [])
+        Just (True, Just l, [LexError.NonDecimalFloat _], [])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_binary_invalid :: Assertion
 case_lex_number_binary_invalid =
     lex_test lex_number "0b29a" $ \case
-        Just (True, Just l, [InvalidIntDigit '2' _, InvalidIntDigit '9' _, InvalidIntDigit 'a' _], [])
+        Just (True, Just l, [LexError.InvalidIntDigit '2' _, LexError.InvalidIntDigit '9' _, LexError.InvalidIntDigit 'a' _], [])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_decimal_invalid :: Assertion
 case_lex_number_decimal_invalid =
     lex_test lex_number "20ab3" $ \case
-        Just (True, Just l, [InvalidIntDigit 'a' _, InvalidIntDigit 'b' _], [])
+        Just (True, Just l, [LexError.InvalidIntDigit 'a' _, LexError.InvalidIntDigit 'b' _], [])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_octal_invalid :: Assertion
 case_lex_number_octal_invalid =
     lex_test lex_number "0o79a" $ \case
-        Just (True, Just l, [InvalidIntDigit '9' _, InvalidIntDigit 'a' _], [])
+        Just (True, Just l, [LexError.InvalidIntDigit '9' _, LexError.InvalidIntDigit 'a' _], [])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_invalid_base :: Assertion
 case_lex_number_invalid_base =
     lex_test lex_number "0a98a" $ \case
-        Just (True, Just l, [InvalidIntBase 'a' _], [])
+        Just (True, Just l, [LexError.InvalidIntBase 'a' _], [])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_number" x
 
@@ -827,7 +813,7 @@ case_lex_space_vertical_tab =
 case_lex_make_bad_char :: Assertion
 case_lex_make_bad_char =
     lex_test make_bad_char "a" $ \case
-        Just (True, Just l, [BadChar 'a' _], [])
+        Just (True, Just l, [LexError.BadChar 'a' _], [])
             | remaining l == "" -> return ()
         x -> lex_test_fail "make_bad_char" x
 case_lex_make_bad_char_empty :: Assertion

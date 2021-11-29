@@ -12,7 +12,7 @@ import Test.Tasty.HUnit
 import Test.Tasty.TH
 import qualified UHF.Test.SpanHelper as SpanHelper
 
-import qualified UHF.Lexer.MainLexer as MainLexer
+import qualified UHF.Lexer.LexError as LexError
 
 import qualified UHF.Token as Token
 import qualified UHF.RawToken as RawToken
@@ -20,12 +20,12 @@ import qualified UHF.IO.Location as Location
 
 import qualified Safe
 
-group_identifiers :: ([MainLexer.LexError], [Location.Located RawToken.Token]) -> ([MainLexer.LexError], [Location.Located Token.Token])
+group_identifiers :: ([LexError.LexError], [Location.Located RawToken.Token]) -> ([LexError.LexError], [Location.Located Token.Token])
 group_identifiers (errs, toks) =
     let (errs', grouped) = group_identifiers' toks
     in (errs ++ errs', grouped)
 
-group_identifiers' :: [Location.Located RawToken.Token] -> ([MainLexer.LexError], [Location.Located Token.Token])
+group_identifiers' :: [Location.Located RawToken.Token] -> ([LexError.LexError], [Location.Located Token.Token])
 
 group_identifiers' ((Location.Located start_sp (RawToken.AlphaIdentifier start_iden)):more) =
     let find_iden ((Location.Located _ RawToken.DoubleColon) : (Location.Located sp (RawToken.AlphaIdentifier iden)) : m) =
@@ -59,14 +59,14 @@ group_identifiers' (other:more) =
 
 group_identifiers' [] = ([], [])
 
-convert_raw_token :: Location.Located RawToken.Token -> Either MainLexer.LexError (Location.Located Token.Token)
+convert_raw_token :: Location.Located RawToken.Token -> Either LexError.LexError (Location.Located Token.Token)
 convert_raw_token (Location.Located sp RawToken.OParen) = Right $ Location.Located sp Token.OParen
 convert_raw_token (Location.Located sp RawToken.CParen) = Right $ Location.Located sp Token.CParen
 convert_raw_token (Location.Located sp RawToken.OBrack) = Right $ Location.Located sp Token.OBrack
 convert_raw_token (Location.Located sp RawToken.CBrack) = Right $ Location.Located sp Token.CBrack
 convert_raw_token (Location.Located sp RawToken.Comma) = Right $ Location.Located sp Token.Comma
 convert_raw_token (Location.Located sp RawToken.Equal) = Right $ Location.Located sp Token.Equal
-convert_raw_token (Location.Located sp RawToken.DoubleColon) = Left $ MainLexer.InvalidDoubleColon sp
+convert_raw_token (Location.Located sp RawToken.DoubleColon) = Left $ LexError.InvalidDoubleColon sp
 convert_raw_token (Location.Located sp RawToken.Root) = Right $ Location.Located sp Token.Root
 convert_raw_token (Location.Located sp RawToken.Let) = Right $ Location.Located sp Token.Let
 convert_raw_token (Location.Located sp RawToken.Data) = Right $ Location.Located sp Token.Data
@@ -146,7 +146,7 @@ case_group_identifiers'_multiple_symbol =
 case_group_identifiers'_symbol_start :: Assertion
 case_group_identifiers'_symbol_start =
     let (_, [star, dc1, amper, dc2, dollar]) = SpanHelper.make_spans ["*", "::", "$", "::", "$"]
-    in ([MainLexer.InvalidDoubleColon dc1, MainLexer.InvalidDoubleColon dc2], [Location.Located star $ Token.SymbolIdentifier ["*"], Location.Located amper $ Token.SymbolIdentifier ["&"], Location.Located dollar $ Token.SymbolIdentifier ["$"]])
+    in ([LexError.InvalidDoubleColon dc1, LexError.InvalidDoubleColon dc2], [Location.Located star $ Token.SymbolIdentifier ["*"], Location.Located amper $ Token.SymbolIdentifier ["&"], Location.Located dollar $ Token.SymbolIdentifier ["$"]])
     @=?
     group_identifiers'
         [ Location.Located star $ RawToken.SymbolIdentifier "*"

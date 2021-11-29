@@ -45,6 +45,7 @@ internal-libraries:
     dependencies:
       - io
       - token
+      - diagnostic
 
       - span-helper
 
@@ -56,6 +57,10 @@ internal-libraries:
     source-dirs: src/compiler
 
     dependencies:
+      - io
+      - diagnostic
+      - lexer
+
       - text
 
   span-helper:

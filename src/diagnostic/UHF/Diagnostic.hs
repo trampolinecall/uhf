@@ -4,6 +4,7 @@ module UHF.Diagnostic
     ( Diagnostic(..)
     , Section
 
+    , IsDiagnostic(..)
     , ToSection(..)
     , to_section
     , report
@@ -20,6 +21,9 @@ import qualified Data.Text.IO as Text.IO
 import qualified System.IO as IO
 
 data Diagnostic = Diagnostic Code.Code (Maybe Location.Span) [Section]
+
+class IsDiagnostic d where
+    to_diagnostic :: d -> Diagnostic
 
 data Section = Section [(Text.Text, Char, FormattedString.FormattedString)]
 class ToSection s where

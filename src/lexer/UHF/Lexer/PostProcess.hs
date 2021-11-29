@@ -10,13 +10,13 @@ module UHF.Lexer.PostProcess
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.TH
+import qualified UHF.Test.SpanHelper as SpanHelper
 
 import qualified UHF.Lexer.MainLexer as MainLexer
 
 import qualified UHF.Token as Token
 import qualified UHF.RawToken as RawToken
 import qualified UHF.IO.Location as Location
-import qualified UHF.IO.File as File
 
 import qualified Safe
 
@@ -89,70 +89,71 @@ convert_raw_token (Location.Located sp RawToken.Dedent) = Right $ Location.Locat
 convert_raw_token (Location.Located sp RawToken.Newline) = Right $ Location.Located sp Token.Newline
 
 -- tests {{{1
-placeholder_span :: Location.Span
-placeholder_span =
-    let loc = Location.Location (File.File "" "") 0 0 0
-    in Location.Span loc loc loc
-
 case_group_identifiers :: Assertion
 case_group_identifiers =
-    ([], [Location.Located placeholder_span Token.OParen, Location.Located placeholder_span (Token.AlphaIdentifier ["a", "b"])])
+    let (_, [paren_sp, a_sp, dcolon_sp, b_sp]) = SpanHelper.make_spans ["(", "a", "::", "b"]
+    in ([], [Location.Located paren_sp Token.OParen, Location.Located (a_sp `Location.join_span` b_sp) (Token.AlphaIdentifier ["a", "b"])])
     @=?
     group_identifiers
         ( []
-        , [ Location.Located placeholder_span RawToken.OParen
-          , Location.Located placeholder_span (RawToken.AlphaIdentifier "a")
-          , Location.Located placeholder_span RawToken.DoubleColon
-          , Location.Located placeholder_span (RawToken.AlphaIdentifier "b")
+        , [ Location.Located paren_sp RawToken.OParen
+          , Location.Located a_sp (RawToken.AlphaIdentifier "a")
+          , Location.Located dcolon_sp RawToken.DoubleColon
+          , Location.Located b_sp (RawToken.AlphaIdentifier "b")
           ]
         )
 
 case_group_identifiers'_single_alpha :: Assertion
 case_group_identifiers'_single_alpha =
-    ([], [Location.Located placeholder_span (Token.AlphaIdentifier ["a"])])
+    let (_, [sp]) = SpanHelper.make_spans ["a"]
+    in ([], [Location.Located sp (Token.AlphaIdentifier ["a"])])
     @=?
-    group_identifiers' [Location.Located placeholder_span (RawToken.AlphaIdentifier "a")]
+    group_identifiers' [Location.Located sp (RawToken.AlphaIdentifier "a")]
 
 case_group_identifiers'_multiple_alpha :: Assertion
 case_group_identifiers'_multiple_alpha =
-    ([], [Location.Located placeholder_span (Token.AlphaIdentifier ["a", "b", "c"])])
+    let (_, [a, dc1, b, dc2, c]) = SpanHelper.make_spans ["a", "::", "b", "::", "c"]
+    in ([], [Location.Located (a `Location.join_span` c) (Token.AlphaIdentifier ["a", "b", "c"])])
     @=?
     group_identifiers'
-        [ Location.Located placeholder_span $ RawToken.AlphaIdentifier "a"
-        , Location.Located placeholder_span RawToken.DoubleColon
-        , Location.Located placeholder_span $ RawToken.AlphaIdentifier "b"
-        , Location.Located placeholder_span RawToken.DoubleColon
-        , Location.Located placeholder_span $ RawToken.AlphaIdentifier "c"
+        [ Location.Located a $ RawToken.AlphaIdentifier "a"
+        , Location.Located dc1 RawToken.DoubleColon
+        , Location.Located b $ RawToken.AlphaIdentifier "b"
+        , Location.Located dc2 RawToken.DoubleColon
+        , Location.Located c $ RawToken.AlphaIdentifier "c"
         ]
 
 case_group_identifiers'_single_symbol :: Assertion
 case_group_identifiers'_single_symbol =
-    ([], [Location.Located placeholder_span $ Token.SymbolIdentifier ["*"]])
+    let (_, [sp]) = SpanHelper.make_spans ["*"]
+    in ([], [Location.Located sp $ Token.SymbolIdentifier ["*"]])
     @=?
-    group_identifiers' [Location.Located placeholder_span $ RawToken.SymbolIdentifier "*"]
+    group_identifiers' [Location.Located sp $ RawToken.SymbolIdentifier "*"]
 
 case_group_identifiers'_multiple_symbol :: Assertion
 case_group_identifiers'_multiple_symbol =
-    ([], [Location.Located placeholder_span $ Token.SymbolIdentifier ["a", "b", "*"]])
+    let (_, [a, dc1, b, dc2, star]) = SpanHelper.make_spans ["a", "::", "b", "::", "*"]
+    in ([], [Location.Located (a `Location.join_span` star) $ Token.SymbolIdentifier ["a", "b", "*"]])
     @=?
     group_identifiers'
-        [ Location.Located placeholder_span $ RawToken.AlphaIdentifier "a"
-        , Location.Located placeholder_span RawToken.DoubleColon
-        , Location.Located placeholder_span $ RawToken.AlphaIdentifier "b"
-        , Location.Located placeholder_span RawToken.DoubleColon
-        , Location.Located placeholder_span $ RawToken.SymbolIdentifier "*"
+        [ Location.Located a $ RawToken.AlphaIdentifier "a"
+        , Location.Located dc1 RawToken.DoubleColon
+        , Location.Located b $ RawToken.AlphaIdentifier "b"
+        , Location.Located dc2 RawToken.DoubleColon
+        , Location.Located star $ RawToken.SymbolIdentifier "*"
         ]
 
 case_group_identifiers'_symbol_start :: Assertion
 case_group_identifiers'_symbol_start =
-    ([MainLexer.InvalidDoubleColon placeholder_span, MainLexer.InvalidDoubleColon placeholder_span], [Location.Located placeholder_span $ Token.SymbolIdentifier ["*"], Location.Located placeholder_span $ Token.SymbolIdentifier ["&"], Location.Located placeholder_span $ Token.SymbolIdentifier ["$"]])
+    let (_, [star, dc1, amper, dc2, dollar]) = SpanHelper.make_spans ["*", "::", "$", "::", "$"]
+    in ([MainLexer.InvalidDoubleColon dc1, MainLexer.InvalidDoubleColon dc2], [Location.Located star $ Token.SymbolIdentifier ["*"], Location.Located amper $ Token.SymbolIdentifier ["&"], Location.Located dollar $ Token.SymbolIdentifier ["$"]])
     @=?
     group_identifiers'
-        [ Location.Located placeholder_span $ RawToken.SymbolIdentifier "*"
-        , Location.Located placeholder_span RawToken.DoubleColon
-        , Location.Located placeholder_span $ RawToken.SymbolIdentifier "&"
-        , Location.Located placeholder_span RawToken.DoubleColon
-        , Location.Located placeholder_span $ RawToken.SymbolIdentifier "$"
+        [ Location.Located star $ RawToken.SymbolIdentifier "*"
+        , Location.Located dc1 RawToken.DoubleColon
+        , Location.Located amper $ RawToken.SymbolIdentifier "&"
+        , Location.Located dc2 RawToken.DoubleColon
+        , Location.Located dollar $ RawToken.SymbolIdentifier "$"
         ]
 
 tests :: TestTree

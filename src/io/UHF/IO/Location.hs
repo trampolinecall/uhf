@@ -8,16 +8,13 @@ import Data.Function (on)
 data Location = Location { file :: File.File, ind :: Int, row :: Int, col :: Int } deriving (Show, Eq)
 data Span = Span { start :: Location, before_end :: Location, end :: Location } deriving (Show, Eq)
 
-data Located a = Located { just_span :: Span, unlocate :: a } deriving Show
+data Located a = Located { just_span :: Span, unlocate :: a } deriving (Show, Eq)
 
 line :: Location -> Int
 line = row
 
 instance Functor Located where
     fmap f (Located sp v) = Located sp (f v)
-
-instance Eq a => Eq (Located a) where
-    (Located _ a) == (Located _ b) = a == b
 
 join_span :: Span -> Span -> Span
 join_span (Span s1 b1 e1) (Span s2 b2 e2) =

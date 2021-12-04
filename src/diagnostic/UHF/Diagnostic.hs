@@ -12,7 +12,7 @@ module UHF.Diagnostic
     ) where
 
 import qualified UHF.Diagnostic.FormattedString as FormattedString
-import qualified UHF.Diagnostic.Code as Code
+import qualified UHF.Diagnostic.Codes.Code as Code
 import qualified UHF.Diagnostic.Colors as Colors
 import qualified UHF.Diagnostic.Line as Line
 

@@ -51,13 +51,14 @@ library compiler
 library diagnostic
   exposed-modules:
       UHF.Diagnostic
-      UHF.Diagnostic.Code
       UHF.Diagnostic.Codes
-      UHF.Diagnostic.CodeTH
+      UHF.Diagnostic.Codes.Code
+      UHF.Diagnostic.Codes.CodeTH
       UHF.Diagnostic.Colors
       UHF.Diagnostic.FormattedString
       UHF.Diagnostic.Line
       UHF.Diagnostic.Sections.Underlines
+      UHF.Diagnostic.Sections.Utils
   other-modules:
       Paths_uhf
   hs-source-dirs:

@@ -10,6 +10,7 @@ module UHF.Diagnostic.Sections.Underlines
 
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Line as Line
+import qualified UHF.Diagnostic.Sections.Utils as Utils
 
 import qualified UHF.IO.Location as Location
 import qualified UHF.IO.File as File
@@ -34,16 +35,16 @@ underlines unds =
 data Line = UnderlinesLine File.File Int | FileLine File.File | ElipsisLine
 
 show_singleline :: [Underline] -> [Line.Line]
-show_singleline underlines = concatMap (show_line underlines) $ file_and_elipsis_lines $ context_lines $ lines_shown underlines
+show_singleline underlines =
+    concatMap (show_line underlines) $
+    file_and_elipsis_lines $
+    List.sortBy Utils.flnr_comparator $
+    nub $
+    concatMap Utils.context_lines $
+    lines_shown underlines
 
 lines_shown :: [Underline] -> [(File.File, Int)]
 lines_shown = map (\ (Location.Span start _ _, _, _) -> (Location.file start, Location.row start))
-
-context_lines :: [(File.File, Int)] -> [(File.File, Int)]
-context_lines =
-    List.sortBy (\ (f1, n1) (f2, n2) -> if f1 == f2 then n1 `compare` n2 else EQ) .
-    List.nub .
-    concatMap (\ (fl, nr) -> map (fl,) [nr-2..nr+2])
 
 file_and_elipsis_lines :: [(File.File, Int)] -> [Line]
 file_and_elipsis_lines lines =

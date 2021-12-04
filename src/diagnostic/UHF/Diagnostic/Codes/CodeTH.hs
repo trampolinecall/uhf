@@ -1,10 +1,10 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module UHF.Diagnostic.CodeTH where
+module UHF.Diagnostic.Codes.CodeTH where
 
 import qualified Data.Text as Text
 import qualified Language.Haskell.TH as TH
-import qualified UHF.Diagnostic.Code as Code
+import qualified UHF.Diagnostic.Codes.Code as Code
 
 code :: Code.Type -> Int -> String -> TH.Q [TH.Dec]
 code ty num var =

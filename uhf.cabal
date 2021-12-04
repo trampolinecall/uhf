@@ -56,6 +56,8 @@ library diagnostic
       UHF.Diagnostic.CodeTH
       UHF.Diagnostic.Colors
       UHF.Diagnostic.FormattedString
+      UHF.Diagnostic.Line
+      UHF.Diagnostic.Sections.Underlines
   other-modules:
       Paths_uhf
   hs-source-dirs:
@@ -74,7 +76,6 @@ library diagnostic
 
 library io
   exposed-modules:
-      UHF.IO
       UHF.IO.File
       UHF.IO.Location
       UHF.IO.Path

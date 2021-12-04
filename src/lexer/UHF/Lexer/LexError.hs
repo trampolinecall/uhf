@@ -4,6 +4,7 @@ module UHF.Lexer.LexError
 
 import qualified UHF.IO.Location as Location
 import qualified UHF.Diagnostic as Diagnostic
+import qualified UHF.Diagnostic.Codes as Diagnostic.Codes
 
 data LexError
     = BadChar Char Location.Span

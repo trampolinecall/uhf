@@ -36,3 +36,6 @@ fmt_span (Span (Location f1 _ r1 c1) _ (Location _ _ r2 c2)) = File.path f1 ++ "
 
 fmt_located :: Show a => Located a -> String
 fmt_located (Located sp a) = "<at " ++ fmt_span sp ++ "> " ++ show a
+
+is_single_line :: Span -> Bool
+is_single_line (Span s be _) = row s == row be

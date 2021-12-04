@@ -7,7 +7,7 @@ import qualified Language.Haskell.TH as TH
 import qualified UHF.Diagnostic.Code as Code
 
 code :: Code.Type -> Int -> String -> TH.Q [TH.Dec]
-code ty num name =
+code ty num var =
     let diag_code =
             let ty_letter = case ty of
                     Code.Error -> "E"
@@ -19,14 +19,15 @@ code ty num name =
 
             in ty_letter ++ replicate (4 - length num_str) '0' ++ num_str
 
-        var_name = TH.mkName $ map (\ ch -> if ch == '-' then '_' else ch) name
-        code_var_name = TH.mkName $ "code_" ++ diag_code
-
-        code_var_name_p = return $ TH.VarP code_var_name
+        var_name = TH.mkName var
         var_name_p = return $ TH.VarP var_name
 
+        code_var_name = TH.mkName $ "code_" ++ diag_code
+        code_var_name_p = return $ TH.VarP code_var_name
+
+        diag_name = map (\ ch -> if ch == '_' then '-' else ch) var
         diag_code_lit = return $ TH.LitE $ TH.StringL diag_code
-        name_lit = return $ TH.LitE $ TH.StringL name
+        name_lit = return $ TH.LitE $ TH.StringL diag_name
     in
     [d|
         $code_var_name_p = Code.Code ty (Just (Text.pack $diag_code_lit, Text.pack $name_lit))

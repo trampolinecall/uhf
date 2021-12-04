@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module UHF.Diagnostic
@@ -13,6 +14,7 @@ module UHF.Diagnostic
 import qualified UHF.Diagnostic.FormattedString as FormattedString
 import qualified UHF.Diagnostic.Code as Code
 import qualified UHF.Diagnostic.Colors as Colors
+import qualified UHF.Diagnostic.Line as Line
 
 import qualified UHF.IO.Location as Location
 
@@ -25,9 +27,11 @@ data Diagnostic = Diagnostic Code.Code (Maybe Location.Span) [Section]
 class IsDiagnostic d where
     to_diagnostic :: d -> Diagnostic
 
-data Section = Section [(Text.Text, Char, FormattedString.FormattedString)]
+data Section = Section [Line.Line]
 class ToSection s where
-    to_section' :: s -> [(Text.Text, Char, FormattedString.FormattedString)]
+    to_section' :: s -> [Line.Line]
+instance ToSection [Line.Line] where
+    to_section' = id
 
 to_section :: ToSection s => s -> Section
 to_section = Section . to_section'

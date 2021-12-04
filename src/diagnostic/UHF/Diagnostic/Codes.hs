@@ -2,8 +2,8 @@
 
 module UHF.Diagnostic.Codes where
 
-import UHF.Diagnostic.Code
-import UHF.Diagnostic.CodeTH
+import UHF.Diagnostic.Codes.Code
+import UHF.Diagnostic.Codes.CodeTH
 
 $(code Error 0 "bad_char")
 $(code Error 1 "unclosed_multiline_comment")

@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveLift #-}
 
-module UHF.Diagnostic.Code
+module UHF.Diagnostic.Codes.Code
     ( Code(..)
     , Type(..)
     ) where

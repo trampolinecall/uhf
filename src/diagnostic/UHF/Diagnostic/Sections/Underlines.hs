@@ -37,8 +37,7 @@ show_singleline :: [Underline] -> [Line.Line]
 show_singleline underlines = concatMap (show_line underlines) $ file_and_elipsis_lines $ context_lines $ lines_shown underlines
 
 lines_shown :: [Underline] -> [(File.File, Int)]
-lines_shown =
-    map (\ (sp, _, _) -> (Location.file $ Location.start sp, Location.row $ Location.start sp))
+lines_shown = map (\ (Location.Span start _ _, _, _) -> (Location.file start, Location.row start))
 
 context_lines :: [(File.File, Int)] -> [(File.File, Int)]
 context_lines =
@@ -59,7 +58,10 @@ file_and_elipsis_lines lines =
     in concatMap fel $ zip lasts lines
 
 show_line :: [Underline] -> Line -> [Line.Line]
-show_line = _
+show_line _ (FileLine f) = [Line.file_line f]
+show_line _ (ElipsisLine) = [Line.elipsis_line]
+
+show_line unds (UnderlinesLine fl nr) = _
 -- show_multiline {{{1
 show_multiline :: Underline -> [Line.Line]
 show_multiline und = _

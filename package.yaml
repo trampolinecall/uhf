@@ -39,6 +39,7 @@ internal-libraries:
       - template-haskell
       - ansi-terminal
       - text
+      - safe
 
   lexer:
     source-dirs: src/lexer

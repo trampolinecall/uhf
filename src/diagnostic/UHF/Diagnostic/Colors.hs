@@ -45,7 +45,7 @@ bg_magenta = ANSI.SetColor ANSI.Background ANSI.Dull ANSI.Magenta
 bg_cyan = ANSI.SetColor ANSI.Background ANSI.Dull ANSI.Cyan
 bg_white = ANSI.SetColor ANSI.Background ANSI.Dull ANSI.White
 
-file_path, error, warning, debug_message, note, diag_code, diag_desc :: [ANSI.SGR]
+file_path, error, warning, debug_message, note, hint, diag_code, diag_desc :: [ANSI.SGR]
 
 file_path = [bold, fg_bcyan]
 
@@ -53,6 +53,7 @@ error = [bold, fg_bred]
 warning = [bold, fg_bmagenta]
 debug_message = [bold, fg_bgreen]
 note = [bold, fg_bblue]
+hint = [bold, fg_bcyan]
 
 diag_code = [bold]
 diag_desc = [bold]

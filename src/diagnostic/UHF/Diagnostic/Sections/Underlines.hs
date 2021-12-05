@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 
 module UHF.Diagnostic.Sections.Underlines
@@ -10,18 +11,32 @@ module UHF.Diagnostic.Sections.Underlines
 
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Line as Line
+import qualified UHF.Diagnostic.FormattedString as FormattedString
 import qualified UHF.Diagnostic.Sections.Utils as Utils
+import qualified UHF.Diagnostic.Colors as Colors
 
 import qualified UHF.IO.Location as Location
 import qualified UHF.IO.File as File
 
 import qualified Data.Text as Text
 import qualified Data.List as List
+import qualified System.Console.ANSI as ANSI
 
 type UnderlinesSection = [Underline]
 type Underline = (Location.Span, Importance, [(Type, Text.Text)])
 data Importance = Primary | Secondary | Tertiary
 data Type = Error | Warning | Note | Hint
+
+type_color :: Type -> [ANSI.SGR]
+type_color Error = Colors.error
+type_color Warning = Colors.warning
+type_color Note = Colors.note
+type_color Hint = Colors.hint
+
+imp_char :: Importance -> Char
+imp_char Primary = '^'
+imp_char Secondary = '-'
+imp_char Tertiary = '.'
 
 underlines :: UnderlinesSection -> Diagnostic.Section
 underlines unds =
@@ -72,11 +87,19 @@ show_line unds (UnderlinesLine fl nr) =
         underline_importance_and_color (_, imp, (first_msg_ty, _):_) = (imp, Just first_msg_ty)
         underline_importance_and_color (_, imp, []) = (imp, Nothing)
 
-        quote = Utils.get_quote fl nr
+        quote = Text.unpack $ Utils.get_quote fl nr
         quote_underlines =
-            map (\ c -> underline_importance_and_color <$> List.find (col_in_underline c) cur_line_unds) [1 .. Text.length quote+1]
+            map (\ c -> underline_importance_and_color <$> List.find (col_in_underline c) cur_line_unds) [1 .. length quote+1]
 
-    in _
+        colored_quote =
+            map (\ (ch, m_und) -> (maybe [] (maybe [] type_color . snd) m_und, Text.pack [ch])) (zip quote quote_underlines)
+        underlines =
+            map (maybe ([], " ") (\ (imp, ty) -> (maybe [Colors.bold] type_color ty, Text.pack [imp_char imp])) . snd) (zip quote quote_underlines)
+
+    in [ (Text.pack $ show nr, '|', FormattedString.make_formatted_string colored_quote)
+       , ("", '|', FormattedString.make_formatted_string underlines)
+       ]
+       -- TODO: put underlines
 
 assign_message :: [(Int, Location.Span, Type, Text.Text)] -> (Location.Span, Type, Text.Text) -> [(Int, Location.Span, Type, Text.Text)]
 assign_message assigned msg@(msg_sp, msg_ty, msg_text) =

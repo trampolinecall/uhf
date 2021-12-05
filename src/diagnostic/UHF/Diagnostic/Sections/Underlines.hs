@@ -39,8 +39,8 @@ show_singleline underlines =
     concatMap (show_line underlines) $
     file_and_elipsis_lines $
     List.sortBy Utils.flnr_comparator $
-    nub $
-    concatMap Utils.context_lines $
+    List.nub $
+    concatMap (uncurry Utils.context_lines) $
     lines_shown underlines
 
 lines_shown :: [Underline] -> [(File.File, Int)]
@@ -62,7 +62,38 @@ show_line :: [Underline] -> Line -> [Line.Line]
 show_line _ (FileLine f) = [Line.file_line f]
 show_line _ (ElipsisLine) = [Line.elipsis_line]
 
-show_line unds (UnderlinesLine fl nr) = _
+show_line unds (UnderlinesLine fl nr) =
+    let cur_line_unds = filter (\ (Location.Span start _ _, _, _) -> Location.file start == fl && Location.row start == nr) unds
+
+        messages_with_span = concatMap (\ (sp, _, msgs) -> map (\ (ty, tx) -> (sp, ty, tx)) msgs) cur_line_unds
+        assigned = List.foldl' assign_message [] messages_with_span
+
+        col_in_underline c (Location.Span start before _, _, _) = Location.col start <= c && c <= Location.col before
+        underline_importance_and_color (_, imp, (first_msg_ty, _):_) = (imp, Just first_msg_ty)
+        underline_importance_and_color (_, imp, []) = (imp, Nothing)
+
+        quote = Utils.get_quote fl nr
+        quote_underlines =
+            map (\ c -> underline_importance_and_color <$> List.find (col_in_underline c) cur_line_unds) [1 .. Text.length quote+1]
+
+    in _
+
+assign_message :: [(Int, Location.Span, Type, Text.Text)] -> (Location.Span, Type, Text.Text) -> [(Int, Location.Span, Type, Text.Text)]
+assign_message assigned msg@(msg_sp, msg_ty, msg_text) =
+    let (Just working_row) = List.find (not . overlapping msg assigned) [0..]
+        assigned_message = (working_row, msg_sp, msg_ty, msg_text)
+    in assigned_message : assigned
+
+overlapping :: (Location.Span, Type, Text.Text) -> [(Int, Location.Span, Type, Text.Text)] -> Int -> Bool
+overlapping msg@(msg_sp@(Location.Span _ msg_start _), _, msg_text) assigned row =
+    let msg_start_col = Location.col msg_start
+        msg_end_col = message_end_column msg_sp msg_text
+
+        msgs_on_row = filter (\ (r, _, _, _) -> r == row) assigned
+    in any (\ (_, sp@(Location.Span _ b _), _, txt) -> msg_start_col <= message_end_column sp txt || msg_end_col >= Location.col b) msgs_on_row
+
+message_end_column :: Location.Span -> Text.Text -> Int
+message_end_column sp t = Location.col (Location.before_end sp) + Text.length t
 -- show_multiline {{{1
 show_multiline :: Underline -> [Line.Line]
 show_multiline und = _

@@ -56,7 +56,7 @@ underlines unds =
     in Diagnostic.to_section $ singleline' ++ multiline'
 
 -- show_singleline {{{1
-data Line = UnderlinesLine File.File Int | FileLine File.File | ElipsisLine
+data Line = UnderlinesLine File.File Int | FileLine File.File | ElipsisLine deriving (Show, Eq)
 
 show_singleline :: [Underline] -> [Line.Line]
 show_singleline underlines =
@@ -244,7 +244,17 @@ case_lines_shown =
     in [(f1, 1), (f1, 1), (f1, 2), (f2, 1)] @=? lines_shown unds
 
 case_file_and_elipsis_lines :: Assertion -- pass multiple spans from differnet files, f1:2 f2:12, f2:20
-case_file_and_elipsis_lines = _
+case_file_and_elipsis_lines =
+    let (f1, _) = make_spans ["ajfowiejf"]
+        (f2, _) = make_spans ["aobjiwoiejfawoeijf"]
+
+        lines =
+            [ (f1, 2)
+            , (f2, 12)
+            , (f2, 20)
+            ]
+
+    in [FileLine f1, UnderlinesLine f1 2, FileLine f2, UnderlinesLine f2 12, ElipsisLine, UnderlinesLine f2 20] @=? file_and_elipsis_lines lines
 
 case_show_line_single :: Assertion -- single underline
 case_show_line_single = _

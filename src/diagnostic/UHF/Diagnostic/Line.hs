@@ -7,6 +7,7 @@ import qualified UHF.Diagnostic.Colors as Colors
 
 import qualified UHF.IO.File as File
 
+import qualified System.Console.ANSI as ANSI
 import qualified Data.Text as Text
 
 type Line = (Text.Text, Char, FormattedString.FormattedString)
@@ -16,3 +17,9 @@ file_line f = ("", '>', FormattedString.make_formatted_string [(Colors.file_path
 
 elipsis_line :: Line
 elipsis_line = ("...", '|', FormattedString.make_formatted_string [([], "...")])
+
+compare_line :: Text.Text -> Char -> [(Char, [ANSI.SGR])] -> String -> String -> Line -> Bool
+compare_line prefix sep bindings text sgrs (line_prefix, line_sep, line_after) =
+    prefix == line_prefix &&
+    sep == line_sep &&
+    FormattedString.compare_formatted_string bindings text sgrs line_after

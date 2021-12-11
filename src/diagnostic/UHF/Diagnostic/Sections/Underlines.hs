@@ -52,18 +52,19 @@ underlines unds =
     let (singleline, multiline) = List.partition (Location.is_single_line . (\ (a, _, _) -> a)) unds
 
         singleline' = show_singleline singleline
-        multiline' = concatMap show_multiline multiline
-    in Diagnostic.to_section $ singleline' ++ multiline'
+        -- multiline' = concatMap show_multiline multiline
+    in Diagnostic.to_section $ singleline'
+    -- in Diagnostic.to_section $ singleline' ++ multiline'
 
 -- show_singleline {{{1
 show_singleline :: [Underline] -> [Line.Line]
-show_singleline underlines =
-    concatMap (show_line underlines) $
+show_singleline unds =
+    concatMap (show_line unds) $
     Utils.file_and_elipsis_lines id $
     List.sortBy Utils.flnr_comparator $
     List.nub $
     concatMap (uncurry Utils.context_lines) $
-    lines_shown underlines
+    lines_shown unds
 
 lines_shown :: [Underline] -> [(File.File, Int)]
 lines_shown = map (\ (Location.Span start _ _, _, _) -> (Location.file start, Location.row start))
@@ -85,12 +86,12 @@ show_line unds (other_lines, (fl, nr)) =
 
         colored_quote =
             map (\ (ch, m_und) -> (maybe [] (maybe [] type_color . snd) m_und, Text.pack [ch])) (zip quote quote_underlines)
-        underlines =
+        underline_line =
             map (maybe ([], " ") (\ (imp, ty) -> (maybe [Colors.bold] type_color ty, Text.pack [imp_char imp])) . snd) (zip quote quote_underlines)
 
     in other_lines ++
         [ (Text.pack $ show nr, '|', FormattedString.make_formatted_string colored_quote)
-        , ("", '|', FormattedString.make_formatted_string underlines)
+        , ("", '|', FormattedString.make_formatted_string underline_line)
         ]
        -- TODO: put underlines
 
@@ -101,7 +102,7 @@ assign_message assigned msg@(msg_sp, msg_ty, msg_text) =
     in assigned_message : assigned
 
 overlapping :: (Location.Span, Type, Text.Text) -> [(Int, Location.Span, Type, Text.Text)] -> Int -> Bool
-overlapping msg@(msg_sp@(Location.Span _ msg_start _), _, msg_text) assigned row =
+overlapping (msg_sp@(Location.Span _ msg_start _), _, msg_text) assigned row =
     let msg_start_col = Location.col msg_start
         msg_end_col = message_end_column msg_sp msg_text
 
@@ -111,12 +112,12 @@ overlapping msg@(msg_sp@(Location.Span _ msg_start _), _, msg_text) assigned row
 message_end_column :: Location.Span -> Text.Text -> Int
 message_end_column sp t = Location.col (Location.before_end sp) + Text.length t
 -- show_multiline {{{1
-show_multiline :: Underline -> [Line.Line]
-show_multiline und = _
+-- show_multiline :: Underline -> [Line.Line]
+-- show_multiline und = _
 -- tests {{{1
 case_underlines :: Assertion
 case_underlines =
-    let (f, [single_sp, multi_sp]) = make_spans ["abc", "def\nghi\njklm\n"]
+    let (_, [single_sp, multi_sp]) = make_spans ["abc", "def\nghi\njklm\n"]
 
         section = underlines
             [ (single_sp, Primary, [(Error, "message 1"), (Hint, "message 2")])
@@ -164,8 +165,8 @@ case_underlines =
 
 case_show_singleline :: Assertion
 case_show_singleline =
-    let (abc, [abc1, abc2, _, _, _, _, _, _, _, abc3, _, _]) = make_spans' "" "abc" ["abc1", "abc2", "\n", "\n", "\n", "\n", "\n", "context1\n", "context2\n", "abc3\n", "context3\n", "context4\n"]
-        (zyx, [zyx1]) = make_spans' "" "zyx" ["zyx1"]
+    let (_, [abc1, abc2, _, _, _, _, _, _, _, abc3, _, _]) = make_spans' "" "abc" ["abc1", "abc2", "\n", "\n", "\n", "\n", "\n", "context1\n", "context2\n", "abc3\n", "context3\n", "context4\n"]
+        (_, [zyx1]) = make_spans' "" "zyx" ["zyx1"]
 
         unds =
             [ (zyx1, Primary, [(Error, "primary error")])
@@ -290,7 +291,7 @@ case_show_line_multiple_overlapping =
 
 case_assign_message_non_overlapping :: Assertion
 case_assign_message_non_overlapping =
-    let (f, [sp1, _, sp2]) = make_spans ["sp1", "                ", "sp2"]
+    let (_, [sp1, _, sp2]) = make_spans ["sp1", "                ", "sp2"]
 
         msg2 = (0, sp2, Error, "message 2")
         msg1 = (sp1, Error, "message 1")
@@ -299,7 +300,7 @@ case_assign_message_non_overlapping =
 
 case_assign_message_overlapping :: Assertion
 case_assign_message_overlapping =
-    let (f, [sp1, _, sp2]) = make_spans ["sp1", "sp2"]
+    let (_, [sp1, _, sp2]) = make_spans ["sp1", "sp2"]
 
         msg2 = (0, sp2, Error, "message 2")
         msg1 = (sp1, Error, "message 1")
@@ -321,7 +322,7 @@ case_assign_message_with_no_space_between =
       |    `-- b
       `-- a
     -}
-    let (f, [sp1, _, sp2]) = make_spans' "" "f" ["sp1", "  ", "sp2"]
+    let (_, [sp1, _, sp2]) = make_spans' "" "f" ["sp1", "  ", "sp2"]
 
         msg2 = (0, sp2, Error, "b")
         msg1 = (sp1, Error, "a")
@@ -330,7 +331,7 @@ case_assign_message_with_no_space_between =
 
 case_overlapping_overlapping :: Assertion
 case_overlapping_overlapping =
-    let (f, [sp1, _, sp2]) = make_spans' "" "f" ["sp1", "abcde", "sp2"]
+    let (_, [sp1, _, sp2]) = make_spans' "" "f" ["sp1", "abcde", "sp2"]
         {-
         sp1abcdesp2
         ^^^     ^^^
@@ -343,7 +344,7 @@ case_overlapping_overlapping =
 
 case_overlapping_not_overlapping :: Assertion
 case_overlapping_not_overlapping =
-    let (f, [sp1, _, sp2]) = make_spans' "" "f" ["sp1", "abcdefghijkl", "sp2"]
+    let (_, [sp1, _, sp2]) = make_spans' "" "f" ["sp1", "abcdefghijkl", "sp2"]
         {-
         sp1abcdefghijklsp2
         ^^^            ^^^
@@ -357,7 +358,7 @@ case_overlapping_not_overlapping =
 
 case_overlapping_no_space_between :: Assertion
 case_overlapping_no_space_between =
-    let (f, [sp1, _, sp2]) = make_spans' "" "f" ["sp1", "abcdefghij", "sp2"]
+    let (_, [sp1, _, sp2]) = make_spans' "" "f" ["sp1", "abcdefghij", "sp2"]
         {-
         sp1abcdefghijsp2
         ^^^          ^^^
@@ -376,15 +377,15 @@ case_message_end_column =
      `-- abc
     12345678
     -}
-    let (f, [sp]) = make_spans ["sp"]
+    let (_, [sp]) = make_spans ["sp"]
     in 9 @=? message_end_column sp "abc"
 
-case_multiline_flat_box :: Assertion
-case_multiline_flat_box = _
-case_multiline_top_change :: Assertion
-case_multiline_top_change = _
-case_multiline_bottom_change :: Assertion
-case_multiline_bottom_change = _
+-- case_multiline_flat_box :: Assertion
+-- case_multiline_flat_box = _
+-- case_multiline_top_change :: Assertion
+-- case_multiline_top_change = _
+-- case_multiline_bottom_change :: Assertion
+-- case_multiline_bottom_change = _
 
 tests :: TestTree
 tests = $(testGroupGenerator)

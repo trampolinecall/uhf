@@ -8,6 +8,7 @@ module UHF.Diagnostic.FormattedString
 
     , make_formatted_string
     , render_formatted_string
+    , compare_formatted_string
 
     , tests
     ) where

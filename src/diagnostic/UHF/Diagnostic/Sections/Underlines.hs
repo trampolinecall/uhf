@@ -165,8 +165,8 @@ case_underlines =
 
 case_show_singleline :: Assertion
 case_show_singleline =
-    let (_, [abc1, abc2, _, _, _, _, _, _, _, abc3, _, _]) = make_spans' "" "abc" ["abc1", "abc2", "\n", "\n", "\n", "\n", "\n", "context1\n", "context2\n", "abc3\n", "context3\n", "context4\n"]
-        (_, [zyx1]) = make_spans' "" "zyx" ["zyx1"]
+    let (_, [abc1, abc2, _, _, _, _, _, _, _, abc3, _, _]) = make_spans' "abc" "" ["abc1", "abc2", "\n", "\n", "\n", "\n", "\n", "context1\n", "context2\n", "abc3\n", "context3\n", "context4\n"]
+        (_, [zyx1]) = make_spans' "zyx" "" ["zyx1"]
 
         unds =
             [ (zyx1, Primary, [(Error, "primary error")])
@@ -220,8 +220,8 @@ case_show_singleline =
 
 case_lines_shown :: Assertion
 case_lines_shown =
-    let (f1, [sp1, sp2, _, sp3]) = make_spans' "" "f1" ["sp1", "sp2", "\n", "sp3"]
-        (f2, [sp4]) = make_spans' "" "f2" ["sp4"]
+    let (f1, [sp1, sp2, _, sp3]) = make_spans' "f1" "" ["sp1", "sp2", "\n", "sp3"]
+        (f2, [sp4]) = make_spans' "f2" "" ["sp4"]
 
         unds = [(sp1, undefined, undefined), (sp2, undefined, undefined), (sp3, undefined, undefined), (sp4, undefined, undefined)]
     in [(f1, 1), (f1, 1), (f1, 2), (f2, 1)] @=? lines_shown unds
@@ -322,7 +322,7 @@ case_assign_message_with_no_space_between =
       |    `-- b
       `-- a
     -}
-    let (_, [sp1, _, sp2]) = make_spans' "" "f" ["sp1", "  ", "sp2"]
+    let (_, [sp1, _, sp2]) = make_spans' "f" "" ["sp1", "  ", "sp2"]
 
         msg2 = (0, sp2, Error, "b")
         msg1 = (sp1, Error, "a")
@@ -331,7 +331,7 @@ case_assign_message_with_no_space_between =
 
 case_overlapping_overlapping :: Assertion
 case_overlapping_overlapping =
-    let (_, [sp1, _, sp2]) = make_spans' "" "f" ["sp1", "abcde", "sp2"]
+    let (_, [sp1, _, sp2]) = make_spans' "f" "" ["sp1", "abcde", "sp2"]
         {-
         sp1abcdesp2
         ^^^     ^^^
@@ -344,7 +344,7 @@ case_overlapping_overlapping =
 
 case_overlapping_not_overlapping :: Assertion
 case_overlapping_not_overlapping =
-    let (_, [sp1, _, sp2]) = make_spans' "" "f" ["sp1", "abcdefghijkl", "sp2"]
+    let (_, [sp1, _, sp2]) = make_spans' "f" "" ["sp1", "abcdefghijkl", "sp2"]
         {-
         sp1abcdefghijklsp2
         ^^^            ^^^
@@ -358,7 +358,7 @@ case_overlapping_not_overlapping =
 
 case_overlapping_no_space_between :: Assertion
 case_overlapping_no_space_between =
-    let (_, [sp1, _, sp2]) = make_spans' "" "f" ["sp1", "abcdefghij", "sp2"]
+    let (_, [sp1, _, sp2]) = make_spans' "f" "" ["sp1", "abcdefghij", "sp2"]
         {-
         sp1abcdefghijsp2
         ^^^          ^^^

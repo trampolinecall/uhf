@@ -33,5 +33,16 @@ compare_many_lines bindings line_expectations =
 
 compare_many_lines' :: [(Char, [ANSI.SGR])] -> [(Text.Text, Char, String, String)] -> [Line] -> Assertion
 compare_many_lines' bindings line_expectations lns =
-    -- TODO: better assertion failure message
-    assertBool "compare_many_lines failed" $ compare_many_lines bindings line_expectations lns
+    let expectations_str = concatMap
+            (\ (prefix, ch, text, formats) ->
+                Text.unpack prefix ++ " " ++ [ch] ++ " " ++ text ++ "\n" ++ replicate (Text.length prefix + 3) ' ' ++ formats ++ "\n")
+            line_expectations
+
+        lns_str = concatMap
+            (\ (prefix, ch, fmstr) ->
+                let (fmstr_text, fmstr_formats) = FormattedString.formatted_string_contents_and_formats bindings fmstr
+                in Text.unpack prefix ++ " " ++ [ch] ++ " " ++ fmstr_text ++ "\n" ++ replicate (Text.length prefix + 3) ' ' ++ fmstr_formats ++ "\n"
+            )
+            lns
+
+    in assertBool ("expected\n" ++ expectations_str ++ "got\n" ++ lns_str) $ length lns == length line_expectations && compare_many_lines bindings line_expectations lns

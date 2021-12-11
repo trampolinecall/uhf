@@ -102,15 +102,23 @@ assign_message assigned msg@(msg_sp, msg_ty, msg_text) =
     in assigned_message : assigned
 
 overlapping :: (Location.Span, Type, Text.Text) -> [(Int, Location.Span, Type, Text.Text)] -> Int -> Bool
-overlapping (msg_sp@(Location.Span _ msg_start _), _, msg_text) assigned row =
-    let msg_start_col = Location.col msg_start
-        msg_end_col = message_end_column msg_sp msg_text
+overlapping (msg_sp@(Location.Span _ msg_sp_start _), _, msg_text) assigned row =
+    let assigning_msg_start_col = Location.col msg_sp_start
+        assigning_msg_end_col = message_end_column msg_sp msg_text
 
         msgs_on_row = filter (\ (r, _, _, _) -> r == row) assigned
-    in any (\ (_, sp@(Location.Span _ b _), _, txt) -> msg_start_col <= message_end_column sp txt || msg_end_col >= Location.col b) msgs_on_row
+    in any (\ (_, sp@(Location.Span _ b _), _, txt) ->
+        let msg_start = Location.col b
+            msg_end = message_end_column sp txt
+        in not $
+            (assigning_msg_start_col < msg_start && assigning_msg_end_col < msg_start) ||
+            (assigning_msg_start_col > msg_end && assigning_msg_end_col < msg_end)
+        ) msgs_on_row
 
 message_end_column :: Location.Span -> Text.Text -> Int
-message_end_column sp t = Location.col (Location.before_end sp) + Text.length t
+message_end_column sp t = Location.col (Location.before_end sp) + Text.length t + 4
+    -- `-- message
+    -- 4 ('`-- ') + length of message
 -- show_multiline {{{1
 -- show_multiline :: Underline -> [Line.Line]
 -- show_multiline und = _
@@ -271,7 +279,7 @@ case_show_line_multiple =
 
 case_show_line_multiple_overlapping :: Assertion
 case_show_line_multiple_overlapping =
-    let (f, [sp1, _, sp2]) = make_spans ["sp1", "sp2"]
+    let (f, [sp1, sp2]) = make_spans ["sp1", "sp2"]
         unds = [(sp1, Primary, [(Error, "message1"), (Error, "message2")]), (sp2, Primary, [(Error, "message3")])]
 
     in Line.compare_many_lines'
@@ -300,7 +308,7 @@ case_assign_message_non_overlapping =
 
 case_assign_message_overlapping :: Assertion
 case_assign_message_overlapping =
-    let (_, [sp1, _, sp2]) = make_spans ["sp1", "sp2"]
+    let (_, [sp1, sp2]) = make_spans ["sp1", "sp2"]
 
         msg2 = (0, sp2, Error, "message 2")
         msg1 = (sp1, Error, "message 1")
@@ -329,46 +337,36 @@ case_assign_message_with_no_space_between =
 
     in [(1, sp1, Error, "a"), msg2] @=? assign_message [msg2] msg1
 
-case_overlapping_overlapping :: Assertion
-case_overlapping_overlapping =
-    let (_, [sp1, _, sp2]) = make_spans' "f" "" ["sp1", "abcde", "sp2"]
-        {-
-        sp1abcdesp2
-        ^^^     ^^^
-                  `-- message 2
-          `-- message 1
-        -}
-        msg2 = (0, sp2, Error, "message 2")
-        msg1 = (sp1, Error, "message 1")
-    in True @=? overlapping msg1 [msg2] 0
+test_overlapping :: [TestTree]
+test_overlapping =
+    let make_test_case name spacing expected =
+            let (_, [sp1, _, sp2]) = make_spans' "f" "" ["sp1", spacing, "sp2"]
 
-case_overlapping_not_overlapping :: Assertion
-case_overlapping_not_overlapping =
-    let (_, [sp1, _, sp2]) = make_spans' "f" "" ["sp1", "abcdefghijkl", "sp2"]
-        {-
-        sp1abcdefghijklsp2
-        ^^^            ^^^
-                         `-- message 2
-          `-- message 1
+                msg2 = (0, sp2, Error, "b")
+                msg1 = (sp1, Error, "message 1")
+            in testCase name $ expected @=? overlapping msg1 [msg2] 0
 
-        -}
-        msg2 = (0, sp2, Error, "message 2")
-        msg1 = (sp1, Error, "message 1")
-    in False @=? overlapping msg1 [msg2] 0
+    in
+        [ make_test_case "end left" "abcdefghijk" False
+            -- sp1abcdefghijksp2
+            --                 `-- b
+            --   `-- message 1
 
-case_overlapping_no_space_between :: Assertion
-case_overlapping_no_space_between =
-    let (_, [sp1, _, sp2]) = make_spans' "f" "" ["sp1", "abcdefghij", "sp2"]
-        {-
-        sp1abcdefghijsp2
-        ^^^          ^^^
-                       `-- message 2
-          `-- message 1
+        , make_test_case "end inside" "abcdefgh" True
+            -- sp1abcdefghsp2
+            --              `-- b
+            --   `-- message 1
 
-        -}
-        msg2 = (0, sp2, Error, "message 2")
-        msg1 = (sp1, Error, "message 1")
-    in True @=? overlapping msg1 [msg2] 0
+        , make_test_case "end right" "" True
+            -- sp1sp2
+            --    `-- b
+            --   `-- message 1
+
+        , make_test_case "no space between" "abcdefghij" True
+            -- sp1abcdefghijsp2
+            --                `-- b
+            --   `-- message 1
+        ]
 
 case_message_end_column :: Assertion
 case_message_end_column =

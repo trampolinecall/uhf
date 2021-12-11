@@ -1,7 +1,16 @@
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module UHF.Diagnostic.Sections.Utils where
+
+import Test.Tasty.HUnit
+import Test.Tasty.TH
+import Test.Tasty
+
+import UHF.Test.SpanHelper
+
+import qualified UHF.Diagnostic.Line as Line
 
 import qualified UHF.IO.File as File
 
@@ -22,3 +31,34 @@ flnr_comparator (f1, n1) (f2, n2)
 
 get_quote :: File.File -> Int -> Text.Text
 get_quote fl nr = Safe.headDef "" $ drop nr $ Text.lines $ File.contents fl
+
+file_and_elipsis_lines :: (a -> (File.File, Int)) -> [a] -> [([Line.Line], a)]
+file_and_elipsis_lines convert things =
+    let lns = map convert things
+        lasts = Nothing : map Just lns
+
+        fel (Just (lastf, lastn), (curf, curn), cur)
+            | lastf /= curf = ([Line.file_line curf], cur)
+            | lastn + 1 /= curn = ([Line.elipsis_line], cur)
+            | otherwise = ([], cur)
+
+        fel (Nothing, _, cur) = ([], cur)
+
+    in map fel $ zip3 lasts lns things
+
+-- tests {{{1
+case_file_and_elipsis_lines :: Assertion
+case_file_and_elipsis_lines =
+    let (f1, _) = make_spans ["ajfowiejf"]
+        (f2, _) = make_spans ["aobjiwoiejfawoeijf"]
+
+        lns =
+            [ (f1, 2)
+            , (f2, 12)
+            , (f2, 20)
+            ]
+
+    in [([Line.file_line f1], (f1, 2)), ([Line.file_line f2], (f2, 12)), ([Line.elipsis_line], (f2, 20))] @=? file_and_elipsis_lines id lns
+
+tests :: TestTree
+tests = $(testGroupGenerator)

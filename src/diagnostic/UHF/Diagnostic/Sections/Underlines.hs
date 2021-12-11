@@ -34,7 +34,7 @@ import qualified System.Console.ANSI as ANSI
 type UnderlinesSection = [Underline]
 type Underline = (Location.Span, Importance, [(Type, Text.Text)])
 data Importance = Primary | Secondary | Tertiary
-data Type = Error | Warning | Note | Hint
+data Type = Error | Warning | Note | Hint deriving (Show, Eq)
 
 type_color :: Type -> [ANSI.SGR]
 type_color Error = Colors.error
@@ -122,46 +122,45 @@ case_underlines =
             [ (single_sp, Primary, [(Error, "message 1"), (Hint, "message 2")])
             , (multi_sp, Primary, [(Warning, "message 3")])
             ]
-    in assertBool "underlines failed to render correctly" $
-        Line.compare_many_lines
-            [('f', Colors.file_path), ('e', Colors.error), ('w', Colors.warning), ('h', Colors.hint)]
-            [ ("", '>',  "<generated span file>",
-                         "f--------------------")
+    in Line.compare_many_lines'
+        [('f', Colors.file_path), ('e', Colors.error), ('w', Colors.warning), ('h', Colors.hint)]
+        [ ("", '>',  "<generated span file>",
+                     "f--------------------")
 
-            , ("1", '|', "abc def",
-                         "e--    ")
-            , ( "", '|', "^^^    ",
-                         "e--    ")
-            , ( "", '|', "  |-- message 1",
-                         "  e------------")
-            , ( "", '|', "  `-- message 2",
-                         "  h------------")
-            , ("2", '|', "ghi",
-                         "   ")
-            , ("3", '|', "jklm",
-                         "    ")
+        , ("1", '|', "abc def",
+                     "e--    ")
+        , ( "", '|', "^^^    ",
+                     "e--    ")
+        , ( "", '|', "  |-- message 1",
+                     "  e------------")
+        , ( "", '|', "  `-- message 2",
+                     "  h------------")
+        , ("2", '|', "ghi",
+                     "   ")
+        , ("3", '|', "jklm",
+                     "    ")
 
-            , ("", '>',  "<generated span file>",
-                         "f--------------------")
+        , ("", '>',  "<generated span file>",
+                     "f--------------------")
 
-            , ( "", '|', "     ^^^^^^^",
-                         "     w------")
-            , ("1", '|', "abc  ^ def ^ ",
-                         "    w--   w--")
-            , ( "", '|', " ^^^^^ ^^^^^",
-                         " w---- w----")
-            , ("2", '|', " ^ ghi ^ ",
-                         "w--   w--")
-            , (" ", '|', " ^     ^^",
-                         " w     w-")
-            , ("3", '|', " ^ jklm ^ ",
-                         "w--    w--")
-            , (" ", '|', " ^^^^^^^^",
-                         " w-------")
-            , (" ", '|', "        `-- message 3",
-                         "        w------------")
-            ]
-            (Diagnostic.section_contents section)
+        , ( "", '|', "     ^^^^^^^",
+                     "     w------")
+        , ("1", '|', "abc  ^ def ^ ",
+                     "    w--   w--")
+        , ( "", '|', " ^^^^^ ^^^^^",
+                     " w---- w----")
+        , ("2", '|', " ^ ghi ^ ",
+                     "w--   w--")
+        , (" ", '|', " ^     ^^",
+                     " w     w-")
+        , ("3", '|', " ^ jklm ^ ",
+                     "w--    w--")
+        , (" ", '|', " ^^^^^^^^",
+                     " w-------")
+        , (" ", '|', "        `-- message 3",
+                     "        w------------")
+        ]
+        (Diagnostic.section_contents section)
 
 case_show_singleline :: Assertion
 case_show_singleline =
@@ -175,49 +174,48 @@ case_show_singleline =
             , (abc2, Tertiary, [(Note, "tertiary note")])
             ]
 
-    in assertBool "underlines failed to render correctly" $
-        Line.compare_many_lines
-            [('f', Colors.file_path), ('e', Colors.error), ('w', Colors.warning), ('n', Colors.note), ('h', Colors.hint)]
-            [ (   "", '>', "zyx",
-                           "f--")
-            , (  "1", '|', "zyx1",
-                           "e---")
-            , (   "", '|', "^^^^",
-                           "e---")
-            , (   "", '|', "   `-- primary error",
-                           "   e----------------")
-            , (   "", '>', "abc",
-                           "f--")
-            , (  "1", '|', "abc1abc2",
-                           "w---n---")
-            , (   "", '|', "----....",
-                           "w---n---")
-            , (   "", '|', "   |   `-- tertiary note",
-                           "       n----------------")
-            , (   "", '|', "   `-- secondary warning",
-                           "   w--------------------")
-            , (  "2", '|', "",
-                           "")
-            , (  "3", '|', "",
-                           "")
-            , ("...", '|', "...",
-                           "   ")
-            , (  "6", '|', "context1",
-                           "        ")
-            , (  "7", '|', "context2",
-                           "        ")
-            , (  "8", '|', "abc3",
-                           "h---")
-            , (   "", '|', "-----",
-                           "h----")
-            , (   "", '|', "    `-- secondary hint",
-                           "    h-----------------")
-            , (  "9", '|', "context3",
-                           "        ")
-            , ( "10", '|', "context4",
-                           "        ")
-            ]
-            (show_singleline unds)
+    in Line.compare_many_lines'
+        [('f', Colors.file_path), ('e', Colors.error), ('w', Colors.warning), ('n', Colors.note), ('h', Colors.hint)]
+        [ (   "", '>', "zyx",
+                       "f--")
+        , (  "1", '|', "zyx1",
+                       "e---")
+        , (   "", '|', "^^^^",
+                       "e---")
+        , (   "", '|', "   `-- primary error",
+                       "   e----------------")
+        , (   "", '>', "abc",
+                       "f--")
+        , (  "1", '|', "abc1abc2",
+                       "w---n---")
+        , (   "", '|', "----....",
+                       "w---n---")
+        , (   "", '|', "   |   `-- tertiary note",
+                       "       n----------------")
+        , (   "", '|', "   `-- secondary warning",
+                       "   w--------------------")
+        , (  "2", '|', "",
+                       "")
+        , (  "3", '|', "",
+                       "")
+        , ("...", '|', "...",
+                       "   ")
+        , (  "6", '|', "context1",
+                       "        ")
+        , (  "7", '|', "context2",
+                       "        ")
+        , (  "8", '|', "abc3",
+                       "h---")
+        , (   "", '|', "-----",
+                       "h----")
+        , (   "", '|', "    `-- secondary hint",
+                       "    h-----------------")
+        , (  "9", '|', "context3",
+                       "        ")
+        , ( "10", '|', "context4",
+                       "        ")
+        ]
+        (show_singleline unds)
 
 case_lines_shown :: Assertion
 case_lines_shown =
@@ -227,27 +225,159 @@ case_lines_shown =
         unds = [(sp1, undefined, undefined), (sp2, undefined, undefined), (sp3, undefined, undefined), (sp4, undefined, undefined)]
     in [(f1, 1), (f1, 1), (f1, 2), (f2, 1)] @=? lines_shown unds
 
-case_show_line_single :: Assertion -- single underline
-case_show_line_single = _
-case_show_line_multiple :: Assertion -- multiple undelrines, nothing overlapping
-case_show_line_multiple = _
-case_show_line_multiple_overlapping :: Assertion -- multiple undliners, with overlap, make sure right to left
-case_show_line_multiple_overlapping = _
+case_show_line_other_lines :: Assertion -- check concatenates other lines
+case_show_line_other_lines =
+    let (f, [_]) = make_spans ["thing"]
+        unds = []
 
-case_assign_message_non_overlapping :: Assertion -- 2 messages
-case_assign_message_non_overlapping = _
-case_assign_message_overlapping :: Assertion -- 2 messages
-case_assign_message_overlapping = _
-case_assign_message_with_no_space_between :: Assertion -- 2 messages, should put on different lines
-case_assign_message_with_no_space_between = _
+        other = ("abcdef", '?', FormattedString.make_formatted_string [([], "abcdefghijklmnop")])
+
+    in [ other
+       , ("1", '|', FormattedString.make_formatted_string [([], "thing")])
+       ] @=? show_line unds ([other], (f, 1))
+
+case_show_line_single :: Assertion
+case_show_line_single =
+    let (f, [sp]) = make_spans ["sp"]
+        unds = [(sp, Primary, [(Error, "message")])]
+
+    in Line.compare_many_lines'
+        [('e', Colors.error)]
+        [ ("1", '|', "sp",
+                     "e-")
+        , ( "", '|', "^^",
+                     "e-")
+        , ( "", '|', " `-- message",
+                     " e----------")
+        ]
+        (show_line unds ([], (f, 1)))
+
+case_show_line_multiple :: Assertion
+case_show_line_multiple =
+    let (f, [sp1, _, sp2]) = make_spans ["sp1", "               ", "sp2"]
+        unds = [(sp1, Primary, [(Error, "a")]), (sp2, Primary, [(Error, "b")])]
+
+    in Line.compare_many_lines'
+        [('e', Colors.error)]
+        [ ("1", '|', "sp1                 sp2",
+                     "e--                 e--")
+        , ( "", '|', "^^^                 ^^^",
+                     "e--                 e--")
+        , ( "", '|', "  `-- a               `-- b",
+                     "  e----               e----")
+        ]
+        (show_line unds ([], (f, 1)))
+
+case_show_line_multiple_overlapping :: Assertion
+case_show_line_multiple_overlapping =
+    let (f, [sp1, _, sp2]) = make_spans ["sp1", "sp2"]
+        unds = [(sp1, Primary, [(Error, "message1"), (Error, "message2")]), (sp2, Primary, [(Error, "message3")])]
+
+    in Line.compare_many_lines'
+        [('e', Colors.error)]
+        [ ("1", '|', "sp1 sp2",
+                     "e-- e--")
+        , ( "", '|', "^^^ ^^^",
+                     "e-- e--")
+        , ( "", '|', "  |   `-- message3",
+                     "      e-----------")
+        , ( "", '|', "  |-- message1",
+                     "   e----------")
+        , ( "", '|', "  `-- message2",
+                     "  e-----------")
+        ]
+        (show_line unds ([], (f, 1)))
+
+case_assign_message_non_overlapping :: Assertion
+case_assign_message_non_overlapping =
+    let (f, [sp1, _, sp2]) = make_spans ["sp1", "                ", "sp2"]
+
+        msg2 = (0, sp2, Error, "message 2")
+        msg1 = (sp1, Error, "message 1")
+
+    in [(0, sp1, Error, "message 1"), msg2] @=? assign_message [msg2] msg1
+
+case_assign_message_overlapping :: Assertion
+case_assign_message_overlapping =
+    let (f, [sp1, _, sp2]) = make_spans ["sp1", "sp2"]
+
+        msg2 = (0, sp2, Error, "message 2")
+        msg1 = (sp1, Error, "message 1")
+
+    in [(1, sp1, Error, "message 1"), msg2] @=? assign_message [msg2] msg1
+
+case_assign_message_with_no_space_between :: Assertion
+case_assign_message_with_no_space_between =
+    {-
+    this is not allowed:
+
+    sp1  sp2
+    ^^^  ^^^
+      `-- a`-- b
+
+    instead, one of the message must be placed a row below:
+    sp1  sp2
+    ^^^  ^^^
+      |    `-- b
+      `-- a
+    -}
+    let (f, [sp1, _, sp2]) = make_spans' "" "f" ["sp1", "  ", "sp2"]
+
+        msg2 = (0, sp2, Error, "b")
+        msg1 = (sp1, Error, "a")
+
+    in [(1, sp1, Error, "a"), msg2] @=? assign_message [msg2] msg1
 
 case_overlapping_overlapping :: Assertion
-case_overlapping_overlapping = _
+case_overlapping_overlapping =
+    let (f, [sp1, _, sp2]) = make_spans' "" "f" ["sp1", "abcde", "sp2"]
+        {-
+        sp1abcdesp2
+        ^^^     ^^^
+                  `-- message 2
+          `-- message 1
+        -}
+        msg2 = (0, sp2, Error, "message 2")
+        msg1 = (sp1, Error, "message 1")
+    in True @=? overlapping msg1 [msg2] 0
+
 case_overlapping_not_overlapping :: Assertion
-case_overlapping_not_overlapping = _
+case_overlapping_not_overlapping =
+    let (f, [sp1, _, sp2]) = make_spans' "" "f" ["sp1", "abcdefghijkl", "sp2"]
+        {-
+        sp1abcdefghijklsp2
+        ^^^            ^^^
+                         `-- message 2
+          `-- message 1
+
+        -}
+        msg2 = (0, sp2, Error, "message 2")
+        msg1 = (sp1, Error, "message 1")
+    in False @=? overlapping msg1 [msg2] 0
+
+case_overlapping_no_space_between :: Assertion
+case_overlapping_no_space_between =
+    let (f, [sp1, _, sp2]) = make_spans' "" "f" ["sp1", "abcdefghij", "sp2"]
+        {-
+        sp1abcdefghijsp2
+        ^^^          ^^^
+                       `-- message 2
+          `-- message 1
+
+        -}
+        msg2 = (0, sp2, Error, "message 2")
+        msg1 = (sp1, Error, "message 1")
+    in True @=? overlapping msg1 [msg2] 0
 
 case_message_end_column :: Assertion
-case_message_end_column = _
+case_message_end_column =
+    {-
+    sp
+     `-- abc
+    12345678
+    -}
+    let (f, [sp]) = make_spans ["sp"]
+    in 9 @=? message_end_column sp "abc"
 
 case_multiline_flat_box :: Assertion
 case_multiline_flat_box = _

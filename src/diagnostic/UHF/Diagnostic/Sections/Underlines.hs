@@ -191,7 +191,7 @@ case_show_singleline =
             , (  "1", '|', "abc1abc2",
                            "w---n---")
             , (   "", '|', "----....",
-                           "        ")
+                           "w---n---")
             , (   "", '|', "   |   `-- tertiary note",
                            "       n----------------")
             , (   "", '|', "   `-- secondary warning",

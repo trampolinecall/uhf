@@ -42,7 +42,7 @@ file_and_elipsis_lines convert things =
             | lastn + 1 /= curn = ([Line.elipsis_line], cur)
             | otherwise = ([], cur)
 
-        fel (Nothing, _, cur) = ([], cur)
+        fel (Nothing, (curf, _), cur) = ([Line.file_line curf], cur)
 
     in map fel $ zip3 lasts lns things
 

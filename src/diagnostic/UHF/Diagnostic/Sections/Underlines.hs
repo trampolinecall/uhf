@@ -90,9 +90,10 @@ show_line unds (other_lines, (fl, nr)) =
             map (maybe ([], " ") (\ (imp, ty) -> (maybe [Colors.bold] type_color ty, Text.pack [imp_char imp])) . snd) (zip quote quote_underlines)
 
     in other_lines ++
-        [ (Text.pack $ show nr, '|', FormattedString.make_formatted_string colored_quote)
-        , ("", '|', FormattedString.make_formatted_string underline_line)
-        ]
+        [(Text.pack $ show nr, '|', FormattedString.make_formatted_string colored_quote)] ++
+        if not $ null cur_line_unds
+            then [("", '|', FormattedString.make_formatted_string underline_line)]
+            else []
        -- TODO: put underlines
 
 assign_message :: [(Int, Location.Span, Type, Text.Text)] -> (Location.Span, Type, Text.Text) -> [(Int, Location.Span, Type, Text.Text)]
@@ -242,7 +243,7 @@ case_show_line_other_lines =
         other = ("abcdef", '?', FormattedString.make_formatted_string [([], "abcdefghijklmnop")])
 
     in [ other
-       , ("1", '|', FormattedString.make_formatted_string [([], "thing")])
+       , ("1", '|', FormattedString.make_formatted_string [([], "t"), ([], "h"), ([], "i"), ([], "n"), ([], "g")])
        ] @=? show_line unds ([other], (f, 1))
 
 case_show_line_single :: Assertion

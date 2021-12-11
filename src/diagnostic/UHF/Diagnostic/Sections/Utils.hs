@@ -30,7 +30,7 @@ flnr_comparator (f1, n1) (f2, n2)
     | otherwise = EQ
 
 get_quote :: File.File -> Int -> Text.Text
-get_quote fl nr = Safe.headDef "" $ drop nr $ Text.lines $ File.contents fl
+get_quote fl nr = Safe.headDef "" $ drop (nr - 1) $ Text.lines $ File.contents fl
 
 file_and_elipsis_lines :: (a -> (File.File, Int)) -> [a] -> [([Line.Line], a)]
 file_and_elipsis_lines convert things =

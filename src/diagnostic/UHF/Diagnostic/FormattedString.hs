@@ -10,6 +10,8 @@ module UHF.Diagnostic.FormattedString
     , render_formatted_string
     , compare_formatted_string
 
+    , formatted_string_contents_and_formats
+
     , tests
     ) where
 
@@ -21,6 +23,8 @@ import qualified UHF.Diagnostic.Colors as Colors
 
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text.IO
+import qualified Data.Tuple as Tuple
+import qualified Data.Maybe as Maybe
 import qualified System.Console.ANSI as ANSI
 import qualified Data.List as List
 import qualified System.IO as IO
@@ -64,6 +68,19 @@ render_formatted_string handle c_needed (FormattedString str formats) =
 
     in sequence_ puts
 
+formatted_string_contents_and_formats :: [(Char, [ANSI.SGR])] -> FormattedString -> (String, String)
+formatted_string_contents_and_formats bindings (FormattedString text formats) =
+    let reverse_bindings = map Tuple.swap bindings
+    in ( Text.unpack text
+       , concatMap
+           (\ (sgrs, amt) ->
+               if amt == 0
+                   then ""
+                   else if null sgrs
+                       then replicate amt ' '
+                       else Maybe.fromJust (lookup sgrs reverse_bindings) : replicate (amt - 1) '-')
+           formats
+       )
 -- for testing
 compare_formatted_string :: [(Char, [ANSI.SGR])] -> String -> String -> FormattedString -> Bool
 compare_formatted_string bindings text sgrs =

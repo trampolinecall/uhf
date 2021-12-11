@@ -12,11 +12,11 @@ module UHF.Diagnostic.FormattedString
     , tests
     ) where
 
-import qualified UHF.Diagnostic.Colors as Colors
-
 import Test.Tasty.HUnit
 import Test.Tasty.TH
 import Test.Tasty
+
+import qualified UHF.Diagnostic.Colors as Colors
 
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text.IO
@@ -63,7 +63,39 @@ render_formatted_string handle c_needed (FormattedString str formats) =
 
     in sequence_ puts
 
+-- for testing
+compare_formatted_string :: [(Char, [ANSI.SGR])] -> String -> String -> FormattedString -> Bool
+compare_formatted_string bindings text sgrs =
+    let group_sgrs textsgrs@((_, ' '):_) =
+            let (grabbed_chrs, more) = span ((==' ') . snd) textsgrs
+            in (([], Text.pack $ map fst grabbed_chrs) : group_sgrs more)
+
+        group_sgrs ((ch, sgr_binding):more) =
+            let (grabbed_chrs, more') = span ((=='-') . snd) more
+                sgr =
+                    case lookup sgr_binding bindings of
+                        Just x -> x
+                        Nothing -> error $ "undefined sgr character: '" ++ [sgr_binding] ++ "'"
+
+            in ((sgr, Text.pack $ ch : map fst grabbed_chrs) : group_sgrs more')
+
+        group_sgrs [] = []
+
+    in (make_formatted_string (group_sgrs $ zip text sgrs) ==)
+
 -- tests {{{1
+case_compare_formatted_string :: Assertion
+case_compare_formatted_string =
+    assertBool "compare_formatted_string failed" $
+        compare_formatted_string
+            [ ('a', [Colors.fg_bred])
+            , ('b', [Colors.fg_bgreen])
+            , ('c', [Colors.fg_bblue])
+            ]
+            "abcdefghijklmnop"
+            "a---   b  c---  "
+            (make_formatted_string [([Colors.fg_bred], "abcd"), ([], "efg"), ([Colors.fg_bgreen], "h"), ([], "ij"), ([Colors.fg_bblue], "klmn"), ([], "op")])
+
 case_make_formatted_string :: Assertion
 case_make_formatted_string =
     FormattedString "text a b cdef"

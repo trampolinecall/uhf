@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 
@@ -7,7 +8,15 @@ module UHF.Diagnostic.Sections.Underlines
     , Importance(..)
     , Type(..)
     , underlines
+
+    , tests
     ) where
+
+import Test.Tasty.HUnit
+import Test.Tasty.TH
+import Test.Tasty
+
+import UHF.Test.SpanHelper
 
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Line as Line
@@ -120,3 +129,151 @@ message_end_column sp t = Location.col (Location.before_end sp) + Text.length t
 -- show_multiline {{{1
 show_multiline :: Underline -> [Line.Line]
 show_multiline und = _
+-- tests {{{1
+case_underlines :: Assertion -- pass singlelinee and multiline to see if it concatenates corectly
+case_underlines =
+    let (f, [single_sp, multi_sp]) = make_spans ["abc", "def\nghi\njklm\n"]
+
+        section = underlines
+            [ (single_sp, Primary, [(Error, "message 1"), (Hint, "message 2")])
+            , (multi_sp, Primary, [(Warning, "message 3")])
+            ]
+    in assertBool "underlines failed to render correctly" $
+        Line.compare_many_lines
+            [('f', Colors.file_path), ('e', Colors.error), ('w', Colors.warning), ('h', Colors.hint)]
+            [ ("", '>',  "<generated span file>",
+                         "f--------------------")
+
+            , ("1", '|', "abc def",
+                         "e--    ")
+            , ( "", '|', "^^^    ",
+                         "e--    ")
+            , ( "", '|', "  |-- message 1",
+                         "  e------------")
+            , ( "", '|', "  `-- message 2",
+                         "  h------------")
+            , ("2", '|', "ghi",
+                         "   ")
+            , ("3", '|', "jklm",
+                         "    ")
+
+            , ("", '>',  "<generated span file>",
+                         "f--------------------")
+
+            , ( "", '|', "     ^^^^^^^",
+                         "     w------")
+            , ("1", '|', "abc  ^ def ^ ",
+                         "    w--   w--")
+            , ( "", '|', " ^^^^^ ^^^^^",
+                         " w---- w----")
+            , ("2", '|', " ^ ghi ^ ",
+                         "w--   w--")
+            , (" ", '|', " ^     ^^",
+                         " w     w-")
+            , ("3", '|', " ^ jklm ^ ",
+                         "w--    w--")
+            , (" ", '|', " ^^^^^^^^",
+                         " w-------")
+            , (" ", '|', "        `-- message 3",
+                         "        w------------")
+            ]
+            (Diagnostic.section_contents section)
+
+case_show_singleline :: Assertion
+case_show_singleline =
+    let (abc, [abc1, abc2, _, _, _, _, _, _, _, abc3, _, _]) = make_spans' "" "abc" ["abc1", "abc2", "\n", "\n", "\n", "\n", "\n", "context1\n", "context2\n", "abc3\n", "context3\n", "context4\n"]
+        (zyx, [zyx1]) = make_spans' "" "zyx" ["zyx1"]
+
+        unds =
+            [ (zyx1, Primary, [(Error, "primary error")])
+            , (abc3, Secondary, [(Hint, "secondary hint")])
+            , (abc1, Secondary, [(Warning, "secondary warning")])
+            , (abc2, Tertiary, [(Note, "tertiary note")])
+            ]
+
+    in assertBool "underlines failed to render correctly" $
+        Line.compare_many_lines
+            [('f', Colors.file_path), ('e', Colors.error), ('w', Colors.warning), ('n', Colors.note), ('h', Colors.hint)]
+            [ (   "", '>', "zyx",
+                           "f--")
+            , (  "1", '|', "zyx1",
+                           "e---")
+            , (   "", '|', "^^^^",
+                           "e---")
+            , (   "", '|', "   `-- primary error",
+                           "   e----------------")
+            , (   "", '>', "abc",
+                           "f--")
+            , (  "1", '|', "abc1abc2",
+                           "w---n---")
+            , (   "", '|', "----....",
+                           "        ")
+            , (   "", '|', "   |   `-- tertiary note",
+                           "       n----------------")
+            , (   "", '|', "   `-- secondary warning",
+                           "   w--------------------")
+            , (  "2", '|', "",
+                           "")
+            , (  "3", '|', "",
+                           "")
+            , ("...", '|', "...",
+                           "   ")
+            , (  "6", '|', "context1",
+                           "        ")
+            , (  "7", '|', "context2",
+                           "        ")
+            , (  "8", '|', "abc3",
+                           "h---")
+            , (   "", '|', "-----",
+                           "h----")
+            , (   "", '|', "    `-- secondary hint",
+                           "    h-----------------")
+            , (  "9", '|', "context3",
+                           "        ")
+            , ( "10", '|', "context4",
+                           "        ")
+            ]
+            (show_singleline unds)
+
+case_lines_shown :: Assertion
+case_lines_shown =
+    let (f1, [sp1, sp2, _, sp3]) = make_spans' "" "f1" ["sp1", "sp2", "\n", "sp3"]
+        (f2, [sp4]) = make_spans' "" "f2" ["sp4"]
+
+        unds = [(sp1, undefined, undefined), (sp2, undefined, undefined), (sp3, undefined, undefined), (sp4, undefined, undefined)]
+    in [(f1, 1), (f1, 1), (f1, 2), (f2, 1)] @=? lines_shown unds
+
+case_file_and_elipsis_lines :: Assertion -- pass multiple spans from differnet files, f1:2 f2:12, f2:20
+case_file_and_elipsis_lines = _
+
+case_show_line_single :: Assertion -- single underline
+case_show_line_single = _
+case_show_line_multiple :: Assertion -- multiple undelrines, nothing overlapping
+case_show_line_multiple = _
+case_show_line_multiple_overlapping :: Assertion -- multiple undliners, with overlap, make sure right to left
+case_show_line_multiple_overlapping = _
+
+case_assign_message_non_overlapping :: Assertion -- 2 messages
+case_assign_message_non_overlapping = _
+case_assign_message_overlapping :: Assertion -- 2 messages
+case_assign_message_overlapping = _
+case_assign_message_with_no_space_between :: Assertion -- 2 messages, should put on different lines
+case_assign_message_with_no_space_between = _
+
+case_overlapping_overlapping :: Assertion
+case_overlapping_overlapping = _
+case_overlapping_not_overlapping :: Assertion
+case_overlapping_not_overlapping = _
+
+case_message_end_column :: Assertion
+case_message_end_column = _
+
+case_multiline_flat_box :: Assertion
+case_multiline_flat_box = _
+case_multiline_top_change :: Assertion
+case_multiline_top_change = _
+case_multiline_bottom_change :: Assertion
+case_multiline_bottom_change = _
+
+tests :: TestTree
+tests = $(testGroupGenerator)

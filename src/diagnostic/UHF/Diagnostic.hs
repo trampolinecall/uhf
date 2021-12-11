@@ -4,6 +4,7 @@
 module UHF.Diagnostic
     ( Diagnostic(..)
     , Section
+    , section_contents
 
     , IsDiagnostic(..)
     , ToSection(..)
@@ -27,7 +28,7 @@ data Diagnostic = Diagnostic Code.Code (Maybe Location.Span) [Section]
 class IsDiagnostic d where
     to_diagnostic :: d -> Diagnostic
 
-data Section = Section [Line.Line]
+data Section = Section { section_contents :: [Line.Line] }
 class ToSection s where
     to_section' :: s -> [Line.Line]
 instance ToSection [Line.Line] where

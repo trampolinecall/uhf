@@ -36,6 +36,8 @@ internal-libraries:
     dependencies:
       - io
 
+      - span-helper
+
       - template-haskell
       - ansi-terminal
       - text

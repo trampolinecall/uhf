@@ -56,12 +56,10 @@ underlines unds =
     in Diagnostic.to_section $ singleline' ++ multiline'
 
 -- show_singleline {{{1
-data Line = UnderlinesLine File.File Int | FileLine File.File | ElipsisLine deriving (Show, Eq)
-
 show_singleline :: [Underline] -> [Line.Line]
 show_singleline underlines =
     concatMap (show_line underlines) $
-    file_and_elipsis_lines $
+    Utils.file_and_elipsis_lines id $
     List.sortBy Utils.flnr_comparator $
     List.nub $
     concatMap (uncurry Utils.context_lines) $
@@ -70,23 +68,8 @@ show_singleline underlines =
 lines_shown :: [Underline] -> [(File.File, Int)]
 lines_shown = map (\ (Location.Span start _ _, _, _) -> (Location.file start, Location.row start))
 
-file_and_elipsis_lines :: [(File.File, Int)] -> [Line]
-file_and_elipsis_lines lines =
-    let lasts = Nothing : map Just lines
-
-        fel (Just (lastf, lastn), (curf, curn))
-            | lastf /= curf = [FileLine curf, UnderlinesLine curf curn]
-            | lastn + 1 /= curn = [ElipsisLine, UnderlinesLine curf curn]
-            | otherwise = [UnderlinesLine curf curn]
-        fel (Nothing, (curf, curn)) = [UnderlinesLine curf curn]
-
-    in concatMap fel $ zip lasts lines
-
-show_line :: [Underline] -> Line -> [Line.Line]
-show_line _ (FileLine f) = [Line.file_line f]
-show_line _ (ElipsisLine) = [Line.elipsis_line]
-
-show_line unds (UnderlinesLine fl nr) =
+show_line :: [Underline] -> ([Line.Line], (File.File, Int)) -> [Line.Line]
+show_line unds (other_lines, (fl, nr)) =
     let cur_line_unds = filter (\ (Location.Span start _ _, _, _) -> Location.file start == fl && Location.row start == nr) unds
 
         messages_with_span = concatMap (\ (sp, _, msgs) -> map (\ (ty, tx) -> (sp, ty, tx)) msgs) cur_line_unds
@@ -105,9 +88,10 @@ show_line unds (UnderlinesLine fl nr) =
         underlines =
             map (maybe ([], " ") (\ (imp, ty) -> (maybe [Colors.bold] type_color ty, Text.pack [imp_char imp])) . snd) (zip quote quote_underlines)
 
-    in [ (Text.pack $ show nr, '|', FormattedString.make_formatted_string colored_quote)
-       , ("", '|', FormattedString.make_formatted_string underlines)
-       ]
+    in other_lines ++
+        [ (Text.pack $ show nr, '|', FormattedString.make_formatted_string colored_quote)
+        , ("", '|', FormattedString.make_formatted_string underlines)
+        ]
        -- TODO: put underlines
 
 assign_message :: [(Int, Location.Span, Type, Text.Text)] -> (Location.Span, Type, Text.Text) -> [(Int, Location.Span, Type, Text.Text)]
@@ -130,7 +114,7 @@ message_end_column sp t = Location.col (Location.before_end sp) + Text.length t
 show_multiline :: Underline -> [Line.Line]
 show_multiline und = _
 -- tests {{{1
-case_underlines :: Assertion -- pass singlelinee and multiline to see if it concatenates corectly
+case_underlines :: Assertion
 case_underlines =
     let (f, [single_sp, multi_sp]) = make_spans ["abc", "def\nghi\njklm\n"]
 
@@ -242,19 +226,6 @@ case_lines_shown =
 
         unds = [(sp1, undefined, undefined), (sp2, undefined, undefined), (sp3, undefined, undefined), (sp4, undefined, undefined)]
     in [(f1, 1), (f1, 1), (f1, 2), (f2, 1)] @=? lines_shown unds
-
-case_file_and_elipsis_lines :: Assertion -- pass multiple spans from differnet files, f1:2 f2:12, f2:20
-case_file_and_elipsis_lines =
-    let (f1, _) = make_spans ["ajfowiejf"]
-        (f2, _) = make_spans ["aobjiwoiejfawoeijf"]
-
-        lines =
-            [ (f1, 2)
-            , (f2, 12)
-            , (f2, 20)
-            ]
-
-    in [FileLine f1, UnderlinesLine f1 2, FileLine f2, UnderlinesLine f2 12, ElipsisLine, UnderlinesLine f2 20] @=? file_and_elipsis_lines lines
 
 case_show_line_single :: Assertion -- single underline
 case_show_line_single = _

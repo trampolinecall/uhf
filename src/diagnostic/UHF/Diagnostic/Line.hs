@@ -2,6 +2,8 @@
 
 module UHF.Diagnostic.Line where
 
+import Test.Tasty.HUnit
+
 import qualified UHF.Diagnostic.FormattedString as FormattedString
 import qualified UHF.Diagnostic.Colors as Colors
 
@@ -28,3 +30,8 @@ compare_many_lines :: [(Char, [ANSI.SGR])] -> [(Text.Text, Char, String, String)
 compare_many_lines bindings line_expectations =
     let c ((pre, sep, text, sgrs), l) = compare_line pre sep bindings text sgrs l
     in all c . zip line_expectations
+
+compare_many_lines' :: [(Char, [ANSI.SGR])] -> [(Text.Text, Char, String, String)] -> [Line] -> Assertion
+compare_many_lines' bindings line_expectations lns =
+    -- TODO: better assertion failure message
+    assertBool "compare_many_lines failed" $ compare_many_lines bindings line_expectations lns

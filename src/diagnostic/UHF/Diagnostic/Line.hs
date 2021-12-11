@@ -24,7 +24,7 @@ compare_line prefix sep bindings text sgrs (line_prefix, line_sep, line_after) =
     sep == line_sep &&
     FormattedString.compare_formatted_string bindings text sgrs line_after
 
-compare_many_lines :: [(Text.Text, Char, [(Char, [ANSI.SGR])], String, String)] -> [Line] -> Bool
-compare_many_lines line_expectations =
-    let c ((pre, sep, bindings, text, sgrs), l) = compare_line pre sep bindings text sgrs l
+compare_many_lines :: [(Char, [ANSI.SGR])] -> [(Text.Text, Char, String, String)] -> [Line] -> Bool
+compare_many_lines bindings line_expectations =
+    let c ((pre, sep, text, sgrs), l) = compare_line pre sep bindings text sgrs l
     in all c . zip line_expectations

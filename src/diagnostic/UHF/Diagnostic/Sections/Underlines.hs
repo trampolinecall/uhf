@@ -89,8 +89,7 @@ lines_shown = map (\ (Location.Span start _ _, _, _) -> (Location.file start, Lo
 -- show_line {{{2
 get_complete_messages :: [Underline] -> [CompleteMessage]
 get_complete_messages =
-    reverse .
-    List.sortBy (compare `Function.on` (\ (_, Location.Span _ before _, _, _) -> Location.col before)) .
+    List.sortBy (flip compare `Function.on` (\ (_, Location.Span _ before _, _, _) -> Location.col before)) .
     concatMap
         (\ (sp, _, msgs) -> map (\ (i, (ty, tx)) -> (i == length msgs - 1, sp, ty, tx)) $ zip [0..] msgs)
 
@@ -125,8 +124,8 @@ get_colored_quote_and_underline_line fl nr unds =
 
     in (FormattedString.make_formatted_string colored_quote, FormattedString.make_formatted_string underline_line)
 
-show_messages_on_row :: [AssignedCompleteMessage] -> Line.Line
-show_messages_on_row msgs =
+show_row :: [AssignedCompleteMessage] -> Line.Line
+show_row msgs =
     let sorted_msgs = List.sortBy (compare `Function.on` (\ (_, _, Location.Span _ before _, _, _) -> Location.col before)) msgs
 
         render_msg last_col msg@(_, is_last, _, ty, text) =
@@ -151,7 +150,7 @@ show_line unds (other_lines, (fl, nr)) =
             then [("", '|', underline_line)]
             else []) ++
 
-        map show_messages_on_row (takeWhile (not . null) (map (\ row -> filter (\ (r, _, _, _, _) -> r == row) assigned) [0..]))
+        map show_row (takeWhile (not . null) (map (\ row -> filter (\ (r, _, _, _, _) -> r == row) assigned) [0..]))
 -- assigning {{{3
 assign_message :: [AssignedCompleteMessage] -> CompleteMessage -> [AssignedCompleteMessage]
 assign_message assigned msg@(is_last, msg_sp, msg_ty, msg_text) =
@@ -194,8 +193,8 @@ case_underlines =
 
         , ("1", '|', "abc def",
                      "eee    ")
-        , ( "", '|', "^^^    ",
-                     "eee    ")
+        , ( "", '|', "^^^     ",
+                     "eee     ")
         , ( "", '|', "  |-- message 1",
                      "  e------------")
         , ( "", '|', "  `-- message 2",
@@ -245,16 +244,16 @@ case_show_singleline =
                        "f--")
         , (  "1", '|', "zyx1",
                        "eeee")
-        , (   "", '|', "^^^^",
-                       "eeee")
+        , (   "", '|', "^^^^ ",
+                       "eeee ")
         , (   "", '|', "   `-- primary error",
                        "   e----------------")
         , (   "", '>', "abc",
                        "f--")
         , (  "1", '|', "abc1abc2",
                        "wwwwnnnn")
-        , (   "", '|', "----....",
-                       "wwwwnnnn")
+        , (   "", '|', "----.... ",
+                       "wwwwnnnn ")
         , (   "", '|', "   |   `-- tertiary note",
                        "       n----------------")
         , (   "", '|', "   `-- secondary warning",
@@ -310,8 +309,8 @@ case_show_line_single =
         [('e', Colors.error)]
         [ ("1", '|', "sp",
                      "ee")
-        , ( "", '|', "^^",
-                     "ee")
+        , ( "", '|', "^^ ",
+                     "ee ")
         , ( "", '|', " `-- message",
                      " e----------")
         ]
@@ -326,8 +325,8 @@ case_show_line_multiple =
         [('e', Colors.error)]
         [ ("1", '|', "sp1                 sp2",
                      "eee                 eee")
-        , ( "", '|', "^^^                 ^^^",
-                     "eee                 eee")
+        , ( "", '|', "^^^                 ^^^ ",
+                     "eee                 eee ")
         , ( "", '|', "  `-- a               `-- b",
                      "  e----               e----")
         ]
@@ -342,8 +341,8 @@ case_show_line_multiple_overlapping =
         [('e', Colors.error)]
         [ ("1", '|', "sp1 sp2",
                      "eee eee")
-        , ( "", '|', "^^^ ^^^",
-                     "eee eee")
+        , ( "", '|', "^^^ ^^^ ",
+                     "eee eee ")
         , ( "", '|', "  |   `-- message3",
                      "      e-----------")
         , ( "", '|', "  |-- message1",
@@ -353,8 +352,8 @@ case_show_line_multiple_overlapping =
         ]
         (show_line unds ([], (f, 1)))
 
-case_show_messages_on_row :: Assertion
-case_show_messages_on_row =
+case_show_row :: Assertion
+case_show_row =
     let (_, [_, sp2]) = make_spans ["sp1", "sp2"]
         messages = [(0, True, sp2, Error, "message")]
     in Line.compare_many_lines'
@@ -363,10 +362,10 @@ case_show_messages_on_row =
         [("", '|', "  `-- message",
                    "  e----------")]
 
-        [show_messages_on_row messages]
+        [show_row messages]
 
-case_show_messages_on_row_not_last :: Assertion
-case_show_messages_on_row_not_last =
+case_show_row_not_last :: Assertion
+case_show_row_not_last =
     let (_, [_, sp2]) = make_spans ["sp1", "sp2"]
         messages = [(0, False, sp2, Error, "message")]
     in Line.compare_many_lines'
@@ -375,10 +374,10 @@ case_show_messages_on_row_not_last =
         [("", '|', "  |-- message",
                    "  e----------")]
 
-        [show_messages_on_row messages]
+        [show_row messages]
 
-case_show_messages_on_row_multiple :: Assertion
-case_show_messages_on_row_multiple =
+case_show_row_multiple :: Assertion
+case_show_row_multiple =
     let (_, [sp1, _, sp2]) = make_spans ["sp1", "                  ", "sp2"]
         messages = [(0, True, sp1, Error, "message1"), (0, True, sp2, Error, "message2")]
     in Line.compare_many_lines'
@@ -387,7 +386,7 @@ case_show_messages_on_row_multiple =
         [("", '|', "  `-- message1           `-- message2",
                    "  e-----------           e-----------")]
 
-        [show_messages_on_row messages]
+        [show_row messages]
 
 case_assign_message_non_overlapping :: Assertion
 case_assign_message_non_overlapping =

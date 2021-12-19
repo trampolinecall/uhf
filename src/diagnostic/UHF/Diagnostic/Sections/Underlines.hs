@@ -1,6 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE LambdaCase #-}
 
 module UHF.Diagnostic.Sections.Underlines
     ( UnderlinesSection
@@ -58,6 +59,22 @@ underlines unds =
     -- in Diagnostic.to_section $ singleline' ++ multiline'
 
 -- show_singleline {{{1
+-- Message helpers {{{2
+type CompleteMessage = (Bool, Location.Span, Type, Text.Text)
+type AssignedCompleteMessage = (Int, Bool, Location.Span, Type, Text.Text)
+
+cm_start_col :: CompleteMessage -> Int
+cm_start_col (_, Location.Span _ before _, _, _) = Location.col before
+acm_start_col :: AssignedCompleteMessage -> Int
+acm_start_col (_, _, Location.Span _ before _, _, _) = Location.col before
+
+-- `-- message
+-- 4 ('`-- ') + length of message
+cm_end_col :: CompleteMessage -> Int
+cm_end_col (_, Location.Span _ before _, _, text) = Location.col before + Text.length text + 4
+acm_end_col :: AssignedCompleteMessage -> Int
+acm_end_col (_, _, Location.Span _ before _, _, text) = Location.col before + Text.length text + 4
+-- show_singleline {{{2
 show_singleline :: [Underline] -> [Line.Line]
 show_singleline unds =
     concatMap (show_line unds) $
@@ -69,70 +86,94 @@ show_singleline unds =
 
 lines_shown :: [Underline] -> [(File.File, Int)]
 lines_shown = map (\ (Location.Span start _ _, _, _) -> (Location.file start, Location.row start))
+-- show_line {{{2
+get_complete_messages :: [Underline] -> [CompleteMessage]
+get_complete_messages =
+    List.sortBy (compare `Function.on` (\ (_, Location.Span _ before _, _, _) -> Location.col before)) .
+    concatMap
+        (\ (sp, _, msgs) -> map (\ (i, (ty, tx)) -> (i == length msgs - 1, sp, ty, tx)) $ zip [0..] msgs)
+
+get_colored_quote_and_underline_line :: File.File -> Int -> [Underline] -> (FormattedString.FormattedString, FormattedString.FormattedString)
+get_colored_quote_and_underline_line fl nr unds =
+    let col_in_underline c (Location.Span start before _, _, _) = Location.col start <= c && c <= Location.col before
+
+        underline_importance_and_color (_, imp, (first_msg_ty, _):_) = (imp, Just first_msg_ty)
+        underline_importance_and_color (_, imp, []) = (imp, Nothing)
+
+        underline_for_cols = map (\ c -> underline_importance_and_color <$> List.find (col_in_underline c) unds) [1 .. length quote+1]
+
+        quote = Text.unpack $ Utils.get_quote fl nr
+        colored_quote =
+            map
+                (\ (ch, m_und) ->
+                    case m_und of
+                        Nothing -> ([], Text.pack [ch])
+                        Just (_, Nothing) -> ([Colors.bold], Text.pack [ch])
+                        Just (_, Just ty) -> (type_color ty, Text.pack [ch])
+                )
+                (zip quote underline_for_cols)
+
+        underline_line =
+            map
+                (\case
+                    Nothing -> ([], " ")
+                    Just (imp, Nothing) -> ([Colors.bold], Text.pack [imp_char imp])
+                    Just (imp, Just ty) -> (type_color ty, Text.pack [imp_char imp])
+                )
+                underline_for_cols
+
+    in (FormattedString.make_formatted_string colored_quote, FormattedString.make_formatted_string underline_line)
+
+show_messages_on_row :: [AssignedCompleteMessage] -> Line.Line
+show_messages_on_row msgs =
+    let sorted_msgs = List.sortBy (compare `Function.on` (\ (_, _, Location.Span _ before _, _, _) -> Location.col before)) msgs
+
+        render_msg last_col msg@(_, is_last, _, ty, text) =
+            let start_col = acm_start_col msg
+                end_col = acm_end_col msg
+            in (end_col, [([], Text.replicate (start_col - last_col) " "), (type_color ty, Text.concat [if is_last then "`" else "|", "-- ", text])])
+
+    in ("", '|', FormattedString.make_formatted_string $ concat $ snd $ List.mapAccumL render_msg 1 sorted_msgs)
 
 show_line :: [Underline] -> ([Line.Line], (File.File, Int)) -> [Line.Line]
 show_line unds (other_lines, (fl, nr)) =
     let cur_line_unds = filter (\ (Location.Span start _ _, _, _) -> Location.file start == fl && Location.row start == nr) unds
 
-        messages_with_span = concatMap (\ (sp, _, msgs) -> map (\ (i, (ty, tx)) -> (i == length msgs - 1, sp, ty, tx)) $ zip [0..] msgs) cur_line_unds
-        sorted_messages_with_span = reverse $ List.sortBy (compare `Function.on` (\ (_, Location.Span _ before _, _, _) -> Location.col before)) messages_with_span
-        assigned = List.foldl' assign_message [] sorted_messages_with_span
+        complete_messages = get_complete_messages cur_line_unds
+        assigned = List.foldl' assign_message [] complete_messages
 
-        col_in_underline c (Location.Span start before _, _, _) = Location.col start <= c && c <= Location.col before
-        underline_importance_and_color (_, imp, (first_msg_ty, _):_) = (imp, Just first_msg_ty)
-        underline_importance_and_color (_, imp, []) = (imp, Nothing)
-
-        quote = Text.unpack $ Utils.get_quote fl nr
-        quote_underlines =
-            map (\ c -> underline_importance_and_color <$> List.find (col_in_underline c) cur_line_unds) [1 .. length quote+1]
-
-        colored_quote =
-            map (\ (ch, m_und) -> (maybe [] (maybe [] type_color . snd) m_und, Text.pack [ch])) (zip quote quote_underlines)
-        underline_line =
-            map (maybe ([], " ") (\ (imp, ty) -> (maybe [Colors.bold] type_color ty, Text.pack [imp_char imp])) . snd) (zip quote quote_underlines)
+        (quote, underline_line) = get_colored_quote_and_underline_line fl nr cur_line_unds
 
     in other_lines ++
-        [(Text.pack $ show nr, '|', FormattedString.make_formatted_string colored_quote)] ++
+        [(Text.pack $ show nr, '|', quote)] ++
         (if not $ null cur_line_unds
-            then [("", '|', FormattedString.make_formatted_string underline_line)]
+            then [("", '|', underline_line)]
             else []) ++
 
         map show_messages_on_row (takeWhile (not . null) (map (\ row -> filter (\ (r, _, _, _, _) -> r == row) assigned) [0..]))
-
-show_messages_on_row :: [(Int, Bool, Location.Span, Type, Text.Text)] -> Line.Line
-show_messages_on_row msgs =
-    let sorted_msgs = List.sortBy (compare `Function.on` (\ (_, _, Location.Span _ before _, _, _) -> Location.col before)) msgs
-
-        render_msg last_col (_, is_last, sp@(Location.Span _ before _), ty, text) =
-            let start_col = Location.col before
-            in (message_end_column sp text, [([], Text.replicate (start_col - last_col) " "), (type_color ty, Text.concat [if is_last then "`" else "|", "-- ", text])])
-
-    in ("", '|', FormattedString.make_formatted_string $ concat $ snd $ List.mapAccumL render_msg 1 sorted_msgs)
-
-assign_message :: [(Int, Bool, Location.Span, Type, Text.Text)] -> (Bool, Location.Span, Type, Text.Text) -> [(Int, Bool, Location.Span, Type, Text.Text)]
+-- assigning {{{3
+assign_message :: [AssignedCompleteMessage] -> CompleteMessage -> [AssignedCompleteMessage]
 assign_message assigned msg@(is_last, msg_sp, msg_ty, msg_text) =
     let (Just working_row) = List.find (not . overlapping msg assigned) [0..]
         assigned_message = (working_row, is_last, msg_sp, msg_ty, msg_text)
     in assigned_message : assigned
 
-overlapping :: (Bool, Location.Span, Type, Text.Text) -> [(Int, Bool, Location.Span, Type, Text.Text)] -> Int -> Bool
-overlapping (_, msg_sp@(Location.Span _ msg_sp_start _), _, msg_text) assigned row =
-    let assigning_msg_start_col = Location.col msg_sp_start
-        assigning_msg_end_col = message_end_column msg_sp msg_text
+overlapping :: CompleteMessage -> [AssignedCompleteMessage] -> Int -> Bool
+overlapping to_assign assigned row =
+    let to_assign_start_col = cm_start_col to_assign
+        to_assign_end_col = cm_end_col to_assign
 
         msgs_on_row = filter (\ (r, _, _, _, _) -> r == row) assigned
-    in any (\ (_, _, sp@(Location.Span _ b _), _, txt) ->
-        let msg_start = Location.col b
-            msg_end = message_end_column sp txt
-        in not $
-            (assigning_msg_start_col < msg_start && assigning_msg_end_col < msg_start) ||
-            (assigning_msg_start_col > msg_end && assigning_msg_end_col < msg_end)
-        ) msgs_on_row
 
-message_end_column :: Location.Span -> Text.Text -> Int
-message_end_column sp t = Location.col (Location.before_end sp) + Text.length t + 4
-    -- `-- message
-    -- 4 ('`-- ') + length of message
+    in any
+        (\ already ->
+            let already_start = acm_start_col already
+                already_end = acm_end_col already
+            in not $
+                (to_assign_start_col < already_start && to_assign_end_col < already_start) ||
+                (to_assign_start_col > already_end && to_assign_end_col < already_end)
+        )
+        msgs_on_row
 -- show_multiline {{{1
 -- show_multiline :: Underline -> [Line.Line]
 -- show_multiline und = _
@@ -417,16 +458,6 @@ test_overlapping =
             --                `-- b
             --   `-- message 1
         ]
-
-case_message_end_column :: Assertion
-case_message_end_column =
-    {-
-    sp
-     `-- abc
-    12345678
-    -}
-    let (_, [sp]) = make_spans ["sp"]
-    in 9 @=? message_end_column sp "abc"
 
 -- case_multiline_flat_box :: Assertion
 -- case_multiline_flat_box = _

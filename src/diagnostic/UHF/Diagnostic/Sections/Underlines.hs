@@ -261,7 +261,7 @@ case_show_singleline =
         , (   "", '|', "^^^^ ",
                        "eeee ")
         , (   "", '|', "   `-- primary error",
-                       "   e----------------")
+                       " --e----------------")
         , (   "", '>', "abc",
                        "f--")
         , (  "1", '|', "abc1abc2",
@@ -269,15 +269,15 @@ case_show_singleline =
         , (   "", '|', "----.... ",
                        "wwwwnnnn ")
         , (   "", '|', "   |   `-- tertiary note",
-                       "       n----------------")
+                       " ------n----------------")
         , (   "", '|', "   `-- secondary warning",
-                       "   w--------------------")
+                       " --w--------------------")
         , (  "2", '|', "",
                        "")
         , (  "3", '|', "",
                        "")
         , ("...", '|', "...",
-                       "   ")
+                       " --")
         , (  "6", '|', "context1",
                        "        ")
         , (  "7", '|', "context2",
@@ -287,7 +287,7 @@ case_show_singleline =
         , (   "", '|', "-----",
                        "hhhhh")
         , (   "", '|', "    `-- secondary hint",
-                       "    h-----------------")
+                       " ---h-----------------")
         , (  "9", '|', "context3",
                        "        ")
         , ( "10", '|', "context4",
@@ -342,7 +342,7 @@ case_show_line_multiple =
         , ( "", '|', "^^^                  ^^^ ",
                      "eee                  eee ")
         , ( "", '|', "  `-- a                `-- b",
-                     "  e----                e----")
+                     " -e---- ---------------e----")
         ]
         (show_line unds ([], (f, 1)))
 
@@ -358,11 +358,11 @@ case_show_line_multiple_overlapping =
         , ( "", '|', "^^^ ^^^ ",
                      "eee eee ")
         , ( "", '|', "  |   `-- message3",
-                     "      e-----------")
+                     " -----e-----------")
         , ( "", '|', "  |-- message1",
-                     "   e----------")
+                     " -e-----------")
         , ( "", '|', "  `-- message2",
-                     "  e-----------")
+                     " -e-----------")
         ]
         (show_line unds ([], (f, 1)))
 
@@ -374,7 +374,7 @@ case_show_row =
         [('e', Colors.error)]
                  -- sp1 sp2
         [("", '|', "  `-- message",
-                   "  e----------")]
+                   " -e----------")]
 
         [show_row [] messages]
 
@@ -386,7 +386,7 @@ case_show_row_message_below =
         [('e', Colors.error)]
                  -- sp1 sp2
         [("", '|', "  |   `-- message",
-                   "      e----------")]
+                   " -----e----------")]
 
         [show_row [(1, True, sp1, Error, "message")] messages]
 
@@ -398,7 +398,7 @@ case_show_row_not_last =
         [('e', Colors.error)]
                  -- sp1 sp2
         [("", '|', "  |-- message",
-                   "  e----------")]
+                   " -e----------")]
 
         [show_row [] messages]
 
@@ -410,7 +410,7 @@ case_show_row_multiple =
         [('e', Colors.error)]
                  -- sp1 abcdefghijklmnop sp2
         [("", '|', "  `-- message1         `-- message2",
-                   "  e-----------         e-----------")]
+                   " -e----------- --------e-----------")]
 
         [show_row [] messages]
 

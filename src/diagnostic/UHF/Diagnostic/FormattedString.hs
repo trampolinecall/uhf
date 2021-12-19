@@ -70,28 +70,23 @@ render_formatted_string handle c_needed (FormattedString str formats) =
 
 formatted_string_contents_and_formats :: [(Char, [ANSI.SGR])] -> FormattedString -> (String, String)
 formatted_string_contents_and_formats bindings (FormattedString text formats) =
-    let reverse_bindings = map Tuple.swap bindings
+    let reverse_bindings = ([], ' ') : map Tuple.swap bindings
     in ( Text.unpack text
        , concatMap
            (\ (sgrs, amt) ->
                if amt == 0
                    then ""
-                   else if null sgrs
-                       then replicate amt ' '
-                       else Maybe.fromJust (lookup sgrs reverse_bindings) : replicate (amt - 1) '-')
+                   else Maybe.fromJust (lookup sgrs reverse_bindings) : replicate (amt - 1) '-')
            formats
        )
 -- for testing
 compare_formatted_string :: [(Char, [ANSI.SGR])] -> String -> String -> FormattedString -> Bool
 compare_formatted_string bindings text sgrs =
-    let group_sgrs textsgrs@((_, ' '):_) =
-            let (grabbed_chrs, more) = span ((==' ') . snd) textsgrs
-            in (([], Text.pack $ map fst grabbed_chrs) : group_sgrs more)
-
+    let bindings' = (' ', []) : bindings
         group_sgrs ((ch, sgr_binding):more) =
             let (grabbed_chrs, more') = span ((=='-') . snd) more
                 sgr =
-                    case lookup sgr_binding bindings of
+                    case lookup sgr_binding bindings' of
                         Just x -> x
                         Nothing -> error $ "undefined sgr character: '" ++ [sgr_binding] ++ "'"
 
@@ -111,8 +106,8 @@ case_compare_formatted_string =
             , ('c', [Colors.fg_bblue])
             ]
             "abcdefghijklmnop"
-            "a---   b  c---  "
-            (make_formatted_string [([Colors.fg_bred], "abcd"), ([], "efg"), ([Colors.fg_bgreen], "h"), ([], "ij"), ([Colors.fg_bblue], "klmn"), ([], "op")])
+            "a--- --b -c---  "
+            (make_formatted_string [([Colors.fg_bred], "abcd"), ([], "efg"), ([Colors.fg_bgreen], "h"), ([], "ij"), ([Colors.fg_bblue], "klmn"), ([], "o"), ([], "p")])
 
 case_make_formatted_string :: Assertion
 case_make_formatted_string =

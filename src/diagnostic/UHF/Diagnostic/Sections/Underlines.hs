@@ -89,6 +89,7 @@ lines_shown = map (\ (Location.Span start _ _, _, _) -> (Location.file start, Lo
 -- show_line {{{2
 get_complete_messages :: [Underline] -> [CompleteMessage]
 get_complete_messages =
+    reverse .
     List.sortBy (compare `Function.on` (\ (_, Location.Span _ before _, _, _) -> Location.col before)) .
     concatMap
         (\ (sp, _, msgs) -> map (\ (i, (ty, tx)) -> (i == length msgs - 1, sp, ty, tx)) $ zip [0..] msgs)

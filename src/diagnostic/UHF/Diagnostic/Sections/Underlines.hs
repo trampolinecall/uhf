@@ -28,6 +28,7 @@ import qualified UHF.IO.Location as Location
 import qualified UHF.IO.File as File
 
 import qualified Data.Text as Text
+import qualified Data.Function as Function
 import qualified Data.List as List
 import qualified System.Console.ANSI as ANSI
 
@@ -91,10 +92,21 @@ show_line unds (other_lines, (fl, nr)) =
 
     in other_lines ++
         [(Text.pack $ show nr, '|', FormattedString.make_formatted_string colored_quote)] ++
-        if not $ null cur_line_unds
+        (if not $ null cur_line_unds
             then [("", '|', FormattedString.make_formatted_string underline_line)]
-            else []
-       -- TODO: put underlines
+            else []) ++
+
+        map show_messages_on_row (takeWhile (not . null) (map (\ row -> filter (\ (r, _, _, _) -> r == row) assigned) [1..]))
+
+show_messages_on_row :: [(Int, Location.Span, Type, Text.Text)] -> Line.Line
+show_messages_on_row msgs =
+    let sorted_msgs = List.sortBy (compare `Function.on` (\ (_, Location.Span _ before _, _, _) -> Location.col before)) msgs
+
+        render_msg last_col (_, sp@(Location.Span _ before _), ty, text) =
+            let start_col = Location.col before
+            in (message_end_column sp text, [([], Text.replicate (start_col - last_col) " "), (type_color ty, Text.append "|--" text)])
+
+    in ("", '|', FormattedString.make_formatted_string $ concat $ snd $ List.mapAccumL render_msg 1 sorted_msgs)
 
 assign_message :: [(Int, Location.Span, Type, Text.Text)] -> (Location.Span, Type, Text.Text) -> [(Int, Location.Span, Type, Text.Text)]
 assign_message assigned msg@(msg_sp, msg_ty, msg_text) =
@@ -297,6 +309,30 @@ case_show_line_multiple_overlapping =
                      "  e-----------")
         ]
         (show_line unds ([], (f, 1)))
+
+case_show_messages_on_row :: Assertion
+case_show_messages_on_row =
+    let (_, [_, sp2]) = make_spans ["sp1", "sp2"]
+        messages = [(0, sp2, Error, "message")]
+    in Line.compare_many_lines'
+        []
+                 -- sp1 sp2
+        [("", '|', "  `-- message",
+                   "  e----------")]
+
+        [show_messages_on_row messages]
+
+case_show_messages_on_row_multiple :: Assertion
+case_show_messages_on_row_multiple =
+    let (_, [sp1, sp2]) = make_spans ["sp1", "                  ", "sp2"]
+        messages = [(0, sp1, Error, "message1"), (0, sp2, Error, "message2")]
+    in Line.compare_many_lines'
+        []
+                 -- sp1                    sp2
+        [("", '|', "  `-- message1           `-- message2",
+                   "  e-----------           e-----------")]
+
+        [show_messages_on_row messages]
 
 case_assign_message_non_overlapping :: Assertion
 case_assign_message_non_overlapping =

@@ -318,17 +318,17 @@ case_show_line_single =
 
 case_show_line_multiple :: Assertion
 case_show_line_multiple =
-    let (f, [sp1, _, sp2]) = make_spans ["sp1", "               ", "sp2"]
+    let (f, [sp1, _, sp2]) = make_spans ["sp1", "abcdefghijklmnop", "sp2"]
         unds = [(sp1, Primary, [(Error, "a")]), (sp2, Primary, [(Error, "b")])]
 
     in Line.compare_many_lines'
         [('e', Colors.error)]
-        [ ("1", '|', "sp1                 sp2",
-                     "eee                 eee")
-        , ( "", '|', "^^^                 ^^^ ",
-                     "eee                 eee ")
-        , ( "", '|', "  `-- a               `-- b",
-                     "  e----               e----")
+        [ ("1", '|', "sp1 abcdefghijklmnop  sp2",
+                     "eee                   eee")
+        , ( "", '|', "^^^                   ^^^ ",
+                     "eee                   eee ")
+        , ( "", '|', "  `-- a                 `-- b",
+                     "  e----                 e----")
         ]
         (show_line unds ([], (f, 1)))
 
@@ -354,8 +354,8 @@ case_show_line_multiple_overlapping =
 
 case_show_row :: Assertion
 case_show_row =
-    let (_, [_, sp2]) = make_spans ["sp1", "sp2"]
-        messages = [(0, True, sp2, Error, "message")]
+    let (_, [sp1, _]) = make_spans ["sp1", "sp2"]
+        messages = [(0, True, sp1, Error, "message")]
     in Line.compare_many_lines'
         [('e', Colors.error)]
                  -- sp1 sp2
@@ -366,8 +366,8 @@ case_show_row =
 
 case_show_row_not_last :: Assertion
 case_show_row_not_last =
-    let (_, [_, sp2]) = make_spans ["sp1", "sp2"]
-        messages = [(0, False, sp2, Error, "message")]
+    let (_, [sp1, _]) = make_spans ["sp1", "sp2"]
+        messages = [(0, False, sp1, Error, "message")]
     in Line.compare_many_lines'
         [('e', Colors.error)]
                  -- sp1 sp2
@@ -378,13 +378,13 @@ case_show_row_not_last =
 
 case_show_row_multiple :: Assertion
 case_show_row_multiple =
-    let (_, [sp1, _, sp2]) = make_spans ["sp1", "                  ", "sp2"]
+    let (_, [sp1, _, sp2]) = make_spans ["sp1", "abcdefghijklmnop", "sp2"]
         messages = [(0, True, sp1, Error, "message1"), (0, True, sp2, Error, "message2")]
     in Line.compare_many_lines'
         [('e', Colors.error)]
-                 -- sp1                    sp2
-        [("", '|', "  `-- message1           `-- message2",
-                   "  e-----------           e-----------")]
+                 -- sp1 abcdefghijklmnop sp2
+        [("", '|', "  `-- message1         `-- message2",
+                   "  e-----------         e-----------")]
 
         [show_row messages]
 

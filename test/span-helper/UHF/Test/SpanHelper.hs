@@ -16,7 +16,7 @@ make_spans = make_spans' "<generated span file>" " "
 make_spans' :: String -> String -> [String] -> (File.File, [Location.Span])
 make_spans' fname intercalation strs =
     let combined = Text.pack $ List.intercalate intercalation strs
-        (_, indices) = List.mapAccumL (\ start s -> let end = start + length s in (end, (start, end))) 0 strs
+        (_, indices) = List.mapAccumL (\ start s -> let end = start + length s in (end + length intercalation, (start, end))) 0 strs
 
         file = File.File fname combined
         loc i = Location.Location file i (1 + Text.count "\n" (Text.take i combined)) (1 + Text.length (Text.takeWhile ('\n'/=) $ Text.reverse $ Text.take i combined))

@@ -51,9 +51,9 @@ file_path = [bold, fg_bcyan]
 
 error = [bold, fg_bred]
 warning = [bold, fg_bmagenta]
-debug_message = [bold, fg_bgreen]
-note = [bold, fg_bblue]
-hint = [bold, fg_bcyan]
+debug_message = [bold]
+note = [bold, fg_bgreen]
+hint = [bold, fg_bblue]
 
 diag_code = [bold]
 diag_desc = [bold]

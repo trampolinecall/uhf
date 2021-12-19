@@ -74,8 +74,9 @@ show_line :: [Underline] -> ([Line.Line], (File.File, Int)) -> [Line.Line]
 show_line unds (other_lines, (fl, nr)) =
     let cur_line_unds = filter (\ (Location.Span start _ _, _, _) -> Location.file start == fl && Location.row start == nr) unds
 
-        messages_with_span = concatMap (\ (sp, _, msgs) -> map (\ (ty, tx) -> (sp, ty, tx)) msgs) cur_line_unds
-        assigned = List.foldl' assign_message [] messages_with_span
+        messages_with_span = concatMap (\ (sp, _, msgs) -> map (\ (i, (ty, tx)) -> (i == length msgs - 1, sp, ty, tx)) $ zip [0..] msgs) cur_line_unds
+        sorted_messages_with_span = reverse $ List.sortBy (compare `Function.on` (\ (_, Location.Span _ before _, _, _) -> Location.col before)) messages_with_span
+        assigned = List.foldl' assign_message [] sorted_messages_with_span
 
         col_in_underline c (Location.Span start before _, _, _) = Location.col start <= c && c <= Location.col before
         underline_importance_and_color (_, imp, (first_msg_ty, _):_) = (imp, Just first_msg_ty)
@@ -96,31 +97,31 @@ show_line unds (other_lines, (fl, nr)) =
             then [("", '|', FormattedString.make_formatted_string underline_line)]
             else []) ++
 
-        map show_messages_on_row (takeWhile (not . null) (map (\ row -> filter (\ (r, _, _, _) -> r == row) assigned) [1..]))
+        map show_messages_on_row (takeWhile (not . null) (map (\ row -> filter (\ (r, _, _, _, _) -> r == row) assigned) [0..]))
 
-show_messages_on_row :: [(Int, Location.Span, Type, Text.Text)] -> Line.Line
+show_messages_on_row :: [(Int, Bool, Location.Span, Type, Text.Text)] -> Line.Line
 show_messages_on_row msgs =
-    let sorted_msgs = List.sortBy (compare `Function.on` (\ (_, Location.Span _ before _, _, _) -> Location.col before)) msgs
+    let sorted_msgs = List.sortBy (compare `Function.on` (\ (_, _, Location.Span _ before _, _, _) -> Location.col before)) msgs
 
-        render_msg last_col (_, sp@(Location.Span _ before _), ty, text) =
+        render_msg last_col (_, is_last, sp@(Location.Span _ before _), ty, text) =
             let start_col = Location.col before
-            in (message_end_column sp text, [([], Text.replicate (start_col - last_col) " "), (type_color ty, Text.append "|--" text)])
+            in (message_end_column sp text, [([], Text.replicate (start_col - last_col) " "), (type_color ty, Text.concat [if is_last then "`" else "|", "-- ", text])])
 
     in ("", '|', FormattedString.make_formatted_string $ concat $ snd $ List.mapAccumL render_msg 1 sorted_msgs)
 
-assign_message :: [(Int, Location.Span, Type, Text.Text)] -> (Location.Span, Type, Text.Text) -> [(Int, Location.Span, Type, Text.Text)]
-assign_message assigned msg@(msg_sp, msg_ty, msg_text) =
+assign_message :: [(Int, Bool, Location.Span, Type, Text.Text)] -> (Bool, Location.Span, Type, Text.Text) -> [(Int, Bool, Location.Span, Type, Text.Text)]
+assign_message assigned msg@(is_last, msg_sp, msg_ty, msg_text) =
     let (Just working_row) = List.find (not . overlapping msg assigned) [0..]
-        assigned_message = (working_row, msg_sp, msg_ty, msg_text)
+        assigned_message = (working_row, is_last, msg_sp, msg_ty, msg_text)
     in assigned_message : assigned
 
-overlapping :: (Location.Span, Type, Text.Text) -> [(Int, Location.Span, Type, Text.Text)] -> Int -> Bool
-overlapping (msg_sp@(Location.Span _ msg_sp_start _), _, msg_text) assigned row =
+overlapping :: (Bool, Location.Span, Type, Text.Text) -> [(Int, Bool, Location.Span, Type, Text.Text)] -> Int -> Bool
+overlapping (_, msg_sp@(Location.Span _ msg_sp_start _), _, msg_text) assigned row =
     let assigning_msg_start_col = Location.col msg_sp_start
         assigning_msg_end_col = message_end_column msg_sp msg_text
 
-        msgs_on_row = filter (\ (r, _, _, _) -> r == row) assigned
-    in any (\ (_, sp@(Location.Span _ b _), _, txt) ->
+        msgs_on_row = filter (\ (r, _, _, _, _) -> r == row) assigned
+    in any (\ (_, _, sp@(Location.Span _ b _), _, txt) ->
         let msg_start = Location.col b
             msg_end = message_end_column sp txt
         in not $
@@ -150,9 +151,9 @@ case_underlines =
                      "f--------------------")
 
         , ("1", '|', "abc def",
-                     "e--    ")
+                     "eee    ")
         , ( "", '|', "^^^    ",
-                     "e--    ")
+                     "eee    ")
         , ( "", '|', "  |-- message 1",
                      "  e------------")
         , ( "", '|', "  `-- message 2",
@@ -201,17 +202,17 @@ case_show_singleline =
         [ (   "", '>', "zyx",
                        "f--")
         , (  "1", '|', "zyx1",
-                       "e---")
+                       "eeee")
         , (   "", '|', "^^^^",
-                       "e---")
+                       "eeee")
         , (   "", '|', "   `-- primary error",
                        "   e----------------")
         , (   "", '>', "abc",
                        "f--")
         , (  "1", '|', "abc1abc2",
-                       "w---n---")
+                       "wwwwnnnn")
         , (   "", '|', "----....",
-                       "w---n---")
+                       "wwwwnnnn")
         , (   "", '|', "   |   `-- tertiary note",
                        "       n----------------")
         , (   "", '|', "   `-- secondary warning",
@@ -227,9 +228,9 @@ case_show_singleline =
         , (  "7", '|', "context2",
                        "        ")
         , (  "8", '|', "abc3",
-                       "h---")
+                       "hhhh")
         , (   "", '|', "-----",
-                       "h----")
+                       "hhhhh")
         , (   "", '|', "    `-- secondary hint",
                        "    h-----------------")
         , (  "9", '|', "context3",
@@ -266,9 +267,9 @@ case_show_line_single =
     in Line.compare_many_lines'
         [('e', Colors.error)]
         [ ("1", '|', "sp",
-                     "e-")
+                     "ee")
         , ( "", '|', "^^",
-                     "e-")
+                     "ee")
         , ( "", '|', " `-- message",
                      " e----------")
         ]
@@ -282,9 +283,9 @@ case_show_line_multiple =
     in Line.compare_many_lines'
         [('e', Colors.error)]
         [ ("1", '|', "sp1                 sp2",
-                     "e--                 e--")
+                     "eee                 eee")
         , ( "", '|', "^^^                 ^^^",
-                     "e--                 e--")
+                     "eee                 eee")
         , ( "", '|', "  `-- a               `-- b",
                      "  e----               e----")
         ]
@@ -298,9 +299,9 @@ case_show_line_multiple_overlapping =
     in Line.compare_many_lines'
         [('e', Colors.error)]
         [ ("1", '|', "sp1 sp2",
-                     "e-- e--")
+                     "eee eee")
         , ( "", '|', "^^^ ^^^",
-                     "e-- e--")
+                     "eee eee")
         , ( "", '|', "  |   `-- message3",
                      "      e-----------")
         , ( "", '|', "  |-- message1",
@@ -313,21 +314,33 @@ case_show_line_multiple_overlapping =
 case_show_messages_on_row :: Assertion
 case_show_messages_on_row =
     let (_, [_, sp2]) = make_spans ["sp1", "sp2"]
-        messages = [(0, sp2, Error, "message")]
+        messages = [(0, True, sp2, Error, "message")]
     in Line.compare_many_lines'
-        []
+        [('e', Colors.error)]
                  -- sp1 sp2
         [("", '|', "  `-- message",
                    "  e----------")]
 
         [show_messages_on_row messages]
 
+case_show_messages_on_row_not_last :: Assertion
+case_show_messages_on_row_not_last =
+    let (_, [_, sp2]) = make_spans ["sp1", "sp2"]
+        messages = [(0, False, sp2, Error, "message")]
+    in Line.compare_many_lines'
+        [('e', Colors.error)]
+                 -- sp1 sp2
+        [("", '|', "  |-- message",
+                   "  e----------")]
+
+        [show_messages_on_row messages]
+
 case_show_messages_on_row_multiple :: Assertion
 case_show_messages_on_row_multiple =
-    let (_, [sp1, sp2]) = make_spans ["sp1", "                  ", "sp2"]
-        messages = [(0, sp1, Error, "message1"), (0, sp2, Error, "message2")]
+    let (_, [sp1, _, sp2]) = make_spans ["sp1", "                  ", "sp2"]
+        messages = [(0, True, sp1, Error, "message1"), (0, True, sp2, Error, "message2")]
     in Line.compare_many_lines'
-        []
+        [('e', Colors.error)]
                  -- sp1                    sp2
         [("", '|', "  `-- message1           `-- message2",
                    "  e-----------           e-----------")]
@@ -338,19 +351,19 @@ case_assign_message_non_overlapping :: Assertion
 case_assign_message_non_overlapping =
     let (_, [sp1, _, sp2]) = make_spans ["sp1", "                ", "sp2"]
 
-        msg2 = (0, sp2, Error, "message 2")
-        msg1 = (sp1, Error, "message 1")
+        msg2 = (0, False, sp2, Error, "message 2")
+        msg1 = (False, sp1, Error, "message 1")
 
-    in [(0, sp1, Error, "message 1"), msg2] @=? assign_message [msg2] msg1
+    in [(0, True, sp1, Error, "message 1"), msg2] @=? assign_message [msg2] msg1
 
 case_assign_message_overlapping :: Assertion
 case_assign_message_overlapping =
     let (_, [sp1, sp2]) = make_spans ["sp1", "sp2"]
 
-        msg2 = (0, sp2, Error, "message 2")
-        msg1 = (sp1, Error, "message 1")
+        msg2 = (0, False, sp2, Error, "message 2")
+        msg1 = (False, sp1, Error, "message 1")
 
-    in [(1, sp1, Error, "message 1"), msg2] @=? assign_message [msg2] msg1
+    in [(1, True, sp1, Error, "message 1"), msg2] @=? assign_message [msg2] msg1
 
 case_assign_message_with_no_space_between :: Assertion
 case_assign_message_with_no_space_between =
@@ -369,18 +382,18 @@ case_assign_message_with_no_space_between =
     -}
     let (_, [sp1, _, sp2]) = make_spans' "f" "" ["sp1", "  ", "sp2"]
 
-        msg2 = (0, sp2, Error, "b")
-        msg1 = (sp1, Error, "a")
+        msg2 = (0, False, sp2, Error, "b")
+        msg1 = (False, sp1, Error, "a")
 
-    in [(1, sp1, Error, "a"), msg2] @=? assign_message [msg2] msg1
+    in [(1, True, sp1, Error, "a"), msg2] @=? assign_message [msg2] msg1
 
 test_overlapping :: [TestTree]
 test_overlapping =
     let make_test_case name spacing expected =
             let (_, [sp1, _, sp2]) = make_spans' "f" "" ["sp1", spacing, "sp2"]
 
-                msg2 = (0, sp2, Error, "b")
-                msg1 = (sp1, Error, "message 1")
+                msg2 = (0, True, sp2, Error, "b")
+                msg1 = (True, sp1, Error, "message 1")
             in testCase name $ expected @=? overlapping msg1 [msg2] 0
 
     in

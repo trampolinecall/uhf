@@ -19,7 +19,7 @@ make_spans' fname intercalation strs =
         (_, indices) = List.mapAccumL (\ start s -> let end = start + length s in (end, (start, end))) 0 strs
 
         file = File.File fname combined
-        loc i = Location.Location file i (1 + Text.count "\n" (Text.take i combined)) (i + 1)
+        loc i = Location.Location file i (1 + Text.count "\n" (Text.take i combined)) (1 + Text.length (Text.takeWhile ('\n'/=) $ Text.reverse $ Text.take i combined))
         sp (start, end) = Location.Span (loc start) (loc $ end - 1) (loc end)
 
     in (file, map sp indices)

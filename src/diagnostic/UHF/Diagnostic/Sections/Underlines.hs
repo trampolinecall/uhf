@@ -124,16 +124,28 @@ get_colored_quote_and_underline_line fl nr unds =
 
     in (FormattedString.make_formatted_string colored_quote, FormattedString.make_formatted_string underline_line)
 
-show_row :: [AssignedCompleteMessage] -> Line.Line
-show_row msgs =
-    let sorted_msgs = List.sortBy (compare `Function.on` (\ (_, _, Location.Span _ before _, _, _) -> Location.col before)) msgs
+show_row :: [AssignedCompleteMessage] -> [AssignedCompleteMessage] -> Line.Line
+show_row below msgs =
+    let below_pipes = map acm_start_col below
+        sorted_msgs = List.sortBy (compare `Function.on` (\ (_, _, Location.Span _ before _, _, _) -> Location.col before)) msgs
 
         render_msg last_col msg@(_, is_last, _, ty, text) =
             let start_col = acm_start_col msg
                 end_col = acm_end_col msg
-            in (end_col, [([], Text.replicate (start_col - last_col) " "), (type_color ty, Text.concat [if is_last then "`" else "|", "-- ", text])])
+            in (end_col, [([], Text.pack $ map (\ c -> if c `elem` below_pipes then '|' else ' ') [last_col..start_col - 1]), (type_color ty, Text.concat [if is_last then "`" else "|", "-- ", text])])
 
     in ("", '|', FormattedString.make_formatted_string $ concat $ snd $ List.mapAccumL render_msg 1 sorted_msgs)
+
+get_rows :: [AssignedCompleteMessage] -> [([AssignedCompleteMessage], [AssignedCompleteMessage])]
+get_rows assigned =
+    let row_has_messages = not . null . snd
+
+        get_row row =
+            let below = filter (\ (r, _, _, _, _) -> r > row) assigned
+                msgs = filter (\ (r, _, _, _, _) -> r == row) assigned
+            in (below, msgs)
+
+    in takeWhile row_has_messages $ map get_row [0..]
 
 show_line :: [Underline] -> ([Line.Line], (File.File, Int)) -> [Line.Line]
 show_line unds (other_lines, (fl, nr)) =
@@ -144,13 +156,15 @@ show_line unds (other_lines, (fl, nr)) =
 
         (quote, underline_line) = get_colored_quote_and_underline_line fl nr cur_line_unds
 
+        rows = get_rows assigned
+
     in other_lines ++
         [(Text.pack $ show nr, '|', quote)] ++
         (if not $ null cur_line_unds
             then [("", '|', underline_line)]
             else []) ++
 
-        map show_row (takeWhile (not . null) (map (\ row -> filter (\ (r, _, _, _, _) -> r == row) assigned) [0..]))
+        map (uncurry show_row) rows
 -- assigning {{{3
 assign_message :: [AssignedCompleteMessage] -> CompleteMessage -> [AssignedCompleteMessage]
 assign_message assigned msg@(is_last, msg_sp, msg_ty, msg_text) =
@@ -323,12 +337,12 @@ case_show_line_multiple =
 
     in Line.compare_many_lines'
         [('e', Colors.error)]
-        [ ("1", '|', "sp1 abcdefghijklmnop  sp2",
-                     "eee                   eee")
-        , ( "", '|', "^^^                   ^^^ ",
-                     "eee                   eee ")
-        , ( "", '|', "  `-- a                 `-- b",
-                     "  e----                 e----")
+        [ ("1", '|', "sp1 abcdefghijklmnop sp2",
+                     "eee                  eee")
+        , ( "", '|', "^^^                  ^^^ ",
+                     "eee                  eee ")
+        , ( "", '|', "  `-- a                `-- b",
+                     "  e----                e----")
         ]
         (show_line unds ([], (f, 1)))
 
@@ -362,7 +376,19 @@ case_show_row =
         [("", '|', "  `-- message",
                    "  e----------")]
 
-        [show_row messages]
+        [show_row [] messages]
+
+case_show_row_message_below :: Assertion
+case_show_row_message_below =
+    let (_, [sp1, sp2]) = make_spans ["sp1", "sp2"]
+        messages = [(0, True, sp2, Error, "message")]
+    in Line.compare_many_lines'
+        [('e', Colors.error)]
+                 -- sp1 sp2
+        [("", '|', "  |   `-- message",
+                   "      e----------")]
+
+        [show_row [(1, True, sp1, Error, "message")] messages]
 
 case_show_row_not_last :: Assertion
 case_show_row_not_last =
@@ -374,7 +400,7 @@ case_show_row_not_last =
         [("", '|', "  |-- message",
                    "  e----------")]
 
-        [show_row messages]
+        [show_row [] messages]
 
 case_show_row_multiple :: Assertion
 case_show_row_multiple =
@@ -386,7 +412,7 @@ case_show_row_multiple =
         [("", '|', "  `-- message1         `-- message2",
                    "  e-----------         e-----------")]
 
-        [show_row messages]
+        [show_row [] messages]
 
 case_assign_message_non_overlapping :: Assertion
 case_assign_message_non_overlapping =
@@ -395,7 +421,7 @@ case_assign_message_non_overlapping =
         msg2 = (0, False, sp2, Error, "message 2")
         msg1 = (False, sp1, Error, "message 1")
 
-    in [(0, True, sp1, Error, "message 1"), msg2] @=? assign_message [msg2] msg1
+    in [(0, False, sp1, Error, "message 1"), msg2] @=? assign_message [msg2] msg1
 
 case_assign_message_overlapping :: Assertion
 case_assign_message_overlapping =
@@ -404,7 +430,7 @@ case_assign_message_overlapping =
         msg2 = (0, False, sp2, Error, "message 2")
         msg1 = (False, sp1, Error, "message 1")
 
-    in [(1, True, sp1, Error, "message 1"), msg2] @=? assign_message [msg2] msg1
+    in [(1, False, sp1, Error, "message 1"), msg2] @=? assign_message [msg2] msg1
 
 case_assign_message_with_no_space_between :: Assertion
 case_assign_message_with_no_space_between =
@@ -426,7 +452,7 @@ case_assign_message_with_no_space_between =
         msg2 = (0, False, sp2, Error, "b")
         msg1 = (False, sp1, Error, "a")
 
-    in [(1, True, sp1, Error, "a"), msg2] @=? assign_message [msg2] msg1
+    in [(1, False, sp1, Error, "a"), msg2] @=? assign_message [msg2] msg1
 
 test_overlapping :: [TestTree]
 test_overlapping =

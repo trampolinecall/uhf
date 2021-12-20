@@ -138,7 +138,7 @@ show_row below msgs =
                  ]
                )
 
-    in ("", '|', FormattedString.make_formatted_string $ concat $ snd $ List.mapAccumL render_msg 1 sorted_msgs)
+    in Line.other_line $ FormattedString.make_formatted_string $ concat $ snd $ List.mapAccumL render_msg 1 sorted_msgs
 
 get_rows :: [AssignedCompleteMessage] -> [([AssignedCompleteMessage], [AssignedCompleteMessage])]
 get_rows assigned =
@@ -163,9 +163,9 @@ show_line unds (other_lines, (fl, nr)) =
         rows = get_rows assigned
 
     in other_lines ++
-        [(Text.pack $ show nr, '|', quote)] ++
+        [Line.numbered_line nr quote] ++
         (if not $ null cur_line_unds
-            then [("", '|', underline_line)]
+            then [Line.other_line underline_line]
             else []) ++
 
         map (uncurry show_row) rows
@@ -312,10 +312,10 @@ case_show_line_other_lines =
     let (f, [_]) = make_spans ["thing"]
         unds = []
 
-        other = ("abcdef", '?', FormattedString.make_formatted_string [([], "abcdefghijklmnop")])
+        other = Line.numbered_line 2 $ FormattedString.make_formatted_string [([], "abcdefghijklmnop")]
 
     in [ other
-       , ("1", '|', FormattedString.make_formatted_string [([], "t"), ([], "h"), ([], "i"), ([], "n"), ([], "g")])
+       , Line.numbered_line 1 $ FormattedString.make_formatted_string [([], "t"), ([], "h"), ([], "i"), ([], "n"), ([], "g")]
        ] @=? show_line unds ([other], (f, 1))
 
 case_show_line_single :: Assertion

@@ -56,15 +56,19 @@ report handle (Diagnostic code m_sp sections) =
                 Nothing -> Nothing
 
         section_lines = concatMap (\ (Section l) -> l) sections
-        indent = maximum $ map (\ (p, _, _) -> Text.length p) section_lines
+        indent = maximum $ map (Text.length . Line.prefix) section_lines
 
         p_fmtstr = FormattedString.render_formatted_string handle FormattedString.AutoDetect
 
-        p_line (prefix, sep, str) =
-            IO.hPutStr handle (replicate (indent - Text.length prefix) ' ') >>
-            Text.IO.hPutStr handle prefix >>
+        p_line l =
+            let pre = Line.prefix l
+                sep = Line.separ l
+                contents = Line.contents l
+            in
+            IO.hPutStr handle (replicate (indent - Text.length pre) ' ') >>
+            Text.IO.hPutStr handle pre >>
             IO.hPutStr handle [' ', sep, ' '] >>
-            p_fmtstr str >>
+            p_fmtstr contents >>
             IO.hPutStr handle "\n"
     in
     p_fmtstr header >>

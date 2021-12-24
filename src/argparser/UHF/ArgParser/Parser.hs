@@ -270,8 +270,8 @@ case_uncons_positionals =
 case_record_positional_match = Matches (Map.fromList [("key", ["val1", "val2"])]) "" Map.empty @=? matches (record_positional_match "key" ["val1", "val2"] (parser_with_input []))
 case_record_positional_match :: Assertion
 
-case_record_flat_presence = Matches Map.empty "c" Map.empty @=? matches (record_flag_presence 'c' (parser_with_input []))
-case_record_flat_presence :: Assertion
+case_record_flag_presence = Matches Map.empty "c" Map.empty @=? matches (record_flag_presence 'c' (parser_with_input []))
+case_record_flag_presence :: Assertion
 
 case_record_option_match = Matches Map.empty "" (Map.fromList [('c', ["val1", "val2"])]) @=? matches (record_option_match 'c' ["val1", "val2"] (parser_with_input []))
 case_record_option_match :: Assertion

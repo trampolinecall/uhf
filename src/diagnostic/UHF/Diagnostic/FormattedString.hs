@@ -40,7 +40,9 @@ make_formatted_string str =
                 (\ start (sgrs, t) ->
                     let len = Text.length t
                         end = start + len
-                    in (end, [(sgrs, len), ([ANSI.Reset], 0)])
+                    in if len == 0
+                        then (end, [])
+                        else (end, [(sgrs, len), ([ANSI.Reset], 0)])
                 )
                 0
                 str

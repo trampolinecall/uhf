@@ -26,6 +26,7 @@ import qualified UHF.IO.File as File
 
 import qualified System.Console.ANSI as ANSI
 import qualified Data.Text as Text
+import qualified Data.List as List
 
 data Line = Line { prefix :: Text.Text, separ :: Char, contents :: FormattedString.FormattedString } deriving (Show, Eq)
 
@@ -47,10 +48,10 @@ compare_line pre sep bindings text sgrs (Line line_pre line_sep line_after) =
     sep == line_sep &&
     FormattedString.compare_formatted_string bindings text sgrs line_after
 
-compare_many_lines :: [(Char, [ANSI.SGR])] -> [(Text.Text, Char, String, String)] -> [Line] -> Bool
+compare_many_lines :: [(Char, [ANSI.SGR])] -> [(Text.Text, Char, String, String)] -> [Line] -> Either Int ()
 compare_many_lines bindings line_expectations =
     let c ((pre, sep, text, sgrs), l) = compare_line pre sep bindings text sgrs l
-    in all c . zip line_expectations
+    in maybe (Right ()) Left . List.elemIndex False . map c . zip line_expectations
 
 compare_many_lines' :: [(Char, [ANSI.SGR])] -> [(Text.Text, Char, String, String)] -> [Line] -> Assertion
 compare_many_lines' bindings line_expectations lns =
@@ -66,4 +67,7 @@ compare_many_lines' bindings line_expectations lns =
             )
             lns
 
-    in assertBool ("expected\n" ++ expectations_str ++ "got\n" ++ lns_str) $ length lns == length line_expectations && compare_many_lines bindings line_expectations lns
+    in assertBool ("line number mismatch\nexpected\n" ++ expectations_str ++ "got\n" ++ lns_str) (length lns == length line_expectations) >>
+    case compare_many_lines bindings line_expectations lns of
+        Right () -> return ()
+        Left i -> assertFailure $ "line " ++ show i ++ " does not match\nepected\n" ++ expectations_str ++ "got\n" ++ lns_str

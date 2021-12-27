@@ -33,6 +33,8 @@ import qualified Data.Function as Function
 import qualified Data.List as List
 import qualified System.Console.ANSI as ANSI
 
+import qualified Safe
+
 type UnderlinesSection = [Underline]
 type Underline = (Location.Span, Importance, [(Type, Text.Text)])
 data Importance = Primary | Secondary | Tertiary
@@ -44,19 +46,22 @@ type_color Warning = Colors.warning
 type_color Note = Colors.note
 type_color Hint = Colors.hint
 
-imp_char :: Importance -> Char
+imp_char, top_imp_char :: Importance -> Char
 imp_char Primary = '^'
 imp_char Secondary = '-'
 imp_char Tertiary = '.'
+
+top_imp_char Primary = 'v'
+top_imp_char Secondary = '-'
+top_imp_char Tertiary = '.'
 
 underlines :: UnderlinesSection -> Diagnostic.Section
 underlines unds =
     let (singleline, multiline) = List.partition (Location.is_single_line . (\ (a, _, _) -> a)) unds
 
         singleline' = show_singleline singleline
-        -- multiline' = concatMap show_multiline multiline
-    in Diagnostic.to_section $ singleline'
-    -- in Diagnostic.to_section $ singleline' ++ multiline'
+        multiline' = concatMap show_multiline multiline
+    in Diagnostic.to_section $ singleline' ++ multiline'
 
 -- show_singleline {{{1
 -- Message helpers {{{2
@@ -74,6 +79,9 @@ cm_end_col :: CompleteMessage -> Int
 cm_end_col (_, loc, _, text) = Location.col loc + Text.length text + 4
 acm_end_col :: AssignedCompleteMessage -> Int
 acm_end_col (_, _, loc, _, text) = Location.col loc + Text.length text + 4
+
+str_message :: Bool -> Type -> Text.Text -> ([ANSI.SGR], Text.Text)
+str_message is_last ty text = (type_color ty, Text.concat [if is_last then "`" else "|", "-- ", text])
 -- show_singleline {{{2
 show_singleline :: [Underline] -> [Line.Line]
 show_singleline unds =
@@ -134,7 +142,7 @@ show_row below msgs =
                 end_col = acm_end_col msg
             in ( end_col
                , [ ([], Text.pack $ map (\ c -> if c `elem` below_pipes then '|' else ' ') [last_col..start_col - 1])
-                 , (type_color ty, Text.concat [if is_last then "`" else "|", "-- ", text])
+                 , str_message is_last ty text
                  ]
                )
 
@@ -193,8 +201,84 @@ overlapping to_assign assigned row =
         )
         msgs_on_row
 -- show_multiline {{{1
--- show_multiline :: Underline -> [Line.Line]
--- show_multiline und = _
+show_multiline :: Underline -> [Line.Line]
+show_multiline (und_sp, und_importance, und_msgs) =
+    let
+        start_line = Location.line $ Location.start und_sp
+        end_line = Location.line $ Location.before_end und_sp
+
+        n_lines = (end_line + 1) - start_line
+        n_vertical_lines = n_lines `div` 2
+        mid_line =
+            if odd n_lines
+                then Just $ (Location.file $ Location.start und_sp, (start_line + end_line) `div` 2)
+                else Nothing
+
+        und_imp_char = imp_char und_importance
+        rev_und_imp_char = top_imp_char und_importance
+
+        und_sgr = maybe ([Colors.bold]) type_color (fst <$> Safe.headMay und_msgs)
+
+    in
+        [Line.file_line (Location.file $ Location.start und_sp)] ++
+        show_top_lines (Location.start und_sp) n_vertical_lines rev_und_imp_char und_sgr ++
+        show_middle_line mid_line und_sgr ++
+        show_bottom_lines (Location.before_end und_sp) n_vertical_lines und_imp_char und_sgr und_msgs
+
+show_top_lines :: Location.Location -> Int -> Char -> [ANSI.SGR] -> [Line.Line]
+show_top_lines loc n ch sgr =
+    let start_col = Location.col loc
+        start_line = Location.line loc
+        file = Location.file loc
+
+        start_quote = Utils.get_quote file start_line
+
+        top_lines = [Location.line loc + 1 .. Location.line loc + n - 1]
+        max_col = maximum (map (Text.length . Utils.get_quote (file)) (start_line : top_lines)) + 2
+
+        col_diff = max_col - start_col + 1
+        n_ch = min 3 col_diff
+        n_dash = col_diff - n_ch
+
+    in [ Line.other_line $ FormattedString.make_formatted_string
+            [([], Text.replicate (start_col + 2 - 1) " "), (sgr, Text.replicate n_ch (Text.pack [ch])), ([Colors.bold], Text.replicate n_dash "-")]] ++
+        [ Line.numbered_line start_line $ FormattedString.make_formatted_string
+            [([], "  "), ([], Text.take (start_col - 1) start_quote), (sgr, Text.drop (start_col - 1) start_quote), ([], Text.replicate (max_col - Text.length start_quote - 1) " "), ([Colors.bold], "|")]] ++
+        map (\ l ->
+            let quote = Utils.get_quote (file) l
+                pad = max_col - Text.length quote - 1
+            in Line.numbered_line l $ FormattedString.make_formatted_string [([], "  "), (sgr, quote), ([], Text.replicate pad " "), ([Colors.bold], "|")]
+        ) top_lines
+
+show_bottom_lines :: Location.Location -> Int -> Char -> [ANSI.SGR] -> [(Type, Text.Text)] -> [Line.Line]
+show_bottom_lines loc n ch sgr msgs =
+    let end_col = Location.col loc + 2
+        end_line = Location.line loc
+        file = Location.file loc
+
+        end_quote = Utils.get_quote file end_line
+
+        n_ch = min 3 end_col
+        n_dash = end_col - n_ch
+
+        bottom_lines = [Location.line loc - n + 1 .. Location.line loc - 1]
+
+    in map (\ l ->
+            let quote = Utils.get_quote file l
+            in Line.numbered_line l $ FormattedString.make_formatted_string [([Colors.bold], "| "), (sgr, quote)]
+        ) bottom_lines ++
+        [ Line.numbered_line end_line $ FormattedString.make_formatted_string
+            [([Colors.bold], "| "), (sgr, Text.take (end_col - 2 ) end_quote), ([], Text.drop (end_col - 2) end_quote)]] ++
+        [ Line.other_line $ FormattedString.make_formatted_string
+            [([Colors.bold], Text.replicate n_dash "-"), (sgr, Text.replicate n_ch (Text.pack [ch]))]] ++
+        zipWith (\ i (ty, msg) ->
+            Line.other_line $ FormattedString.make_formatted_string
+                [([], Text.replicate (end_col - 1) " "), str_message (i == length msgs - 1) ty msg]
+        ) [0..] msgs
+
+show_middle_line :: Maybe (File.File, Int) -> [ANSI.SGR] -> [Line.Line]
+show_middle_line (Just (file, nr)) sgr = [Line.numbered_line nr $ FormattedString.make_formatted_string [([], "  "), (sgr, Utils.get_quote file nr)]]
+show_middle_line Nothing _ = []
 -- tests {{{1
 case_underlines :: Assertion
 case_underlines =
@@ -205,7 +289,7 @@ case_underlines =
             , (multi_sp, Primary, [(Warning, "message 3")])
             ]
     in Line.compare_many_lines'
-        [('f', Colors.file_path), ('e', Colors.error), ('w', Colors.warning), ('h', Colors.hint)]
+        [('f', Colors.file_path), ('e', Colors.error), ('w', Colors.warning), ('h', Colors.hint), ('b', [Colors.bold])]
         [ ("", '>',  "<generated span file>",
                      "f--------------------")
 
@@ -214,9 +298,9 @@ case_underlines =
         , ( "", '|', "^^^     ",
                      "eee     ")
         , ( "", '|', "  |-- message 1",
-                     "  e------------")
+                     " -e------------")
         , ( "", '|', "  `-- message 2",
-                     "  h------------")
+                     " -h------------")
         , ("2", '|', "ghi",
                      "   ")
         , ("3", '|', "jklm",
@@ -225,22 +309,18 @@ case_underlines =
         , ("", '>',  "<generated span file>",
                      "f--------------------")
 
-        , ( "", '|', "     ^^^^^^^",
-                     "     w------")
-        , ("1", '|', "abc  ^ def ^ ",
-                     "    w--   w--")
-        , ( "", '|', " ^^^^^ ^^^^^",
-                     " w---- w----")
-        , ("2", '|', " ^ ghi ^ ",
-                     "w--   w--")
-        , (" ", '|', " ^     ^^",
-                     " w     w-")
-        , ("3", '|', " ^ jklm ^ ",
-                     "w--    w--")
-        , (" ", '|', " ^^^^^^^^",
-                     " w-------")
-        , (" ", '|', "        `-- message 3",
-                     "        w------------")
+        , ( "", '|', "      vvv--",
+                     " -----w--b-")
+        , ("1", '|', "  abc def |",
+                     " - ---w-- b")
+        , ("2", '|', "  ghi",
+                     " -w--")
+        , ("3", '|', "| jklm",
+                     "b-w---")
+        , ( "", '|', "----^^^",
+                     "b---w--")
+        , ( "", '|', "      `-- message 3",
+                     " -----w------------")
         ]
         (Diagnostic.section_contents section)
 
@@ -489,12 +569,67 @@ test_overlapping =
             --   `-- message 1
         ]
 
--- case_multiline_flat_box :: Assertion
--- case_multiline_flat_box = _
--- case_multiline_top_change :: Assertion
--- case_multiline_top_change = _
--- case_multiline_bottom_change :: Assertion
--- case_multiline_bottom_change = _
+case_multiline_lines_even :: Assertion
+case_multiline_lines_even =
+    let (_, [_, _, sp, _]) = make_spans' "file" "" ["\n", "th", "ing\nthingthing\nthing\nab", "c"]
+    in Line.compare_many_lines'
+        [ ('e', Colors.error)
+        , ('w', Colors.warning)
+        , ('b', [Colors.bold])
+        , ('f', Colors.file_path)
+        ]
+        [ ( "", '>', "file",
+                     "f---")
+        , ( "", '|', "    vvv-------",
+                     " ---e--b------")
+        , ("2", '|', "  thing      |",
+                     " - -e-- -----b")
+        , ("3", '|', "  thingthing |",
+                     " -e--------- b")
+        , ("4", '|', "| thing",
+                     "b-e----")
+        , ("5", '|', "| abc",
+                     "b-e- ")
+        , ( "", '|', "-^^^",
+                     "be--")
+        , ( "", '|', "   |-- message 1",
+                     " --e------------")
+        , ( "", '|', "   `-- message 2",
+                     " --w------------")
+        ]
+        (show_multiline (sp, Primary, [(Error, "message 1"), (Warning, "message 2")]))
+
+case_multiline_lines_odd :: Assertion
+case_multiline_lines_odd =
+    let (_, [_, _, sp, _]) = make_spans' "file" "" ["\n", "th", "ing\nthingthing\nzyx\nthing\nab", "c"]
+    in Line.compare_many_lines'
+        [ ('e', Colors.error)
+        , ('w', Colors.warning)
+        , ('b', [Colors.bold])
+        , ('f', Colors.file_path)
+        ]
+        [ ( "", '>', "file",
+                     "f---")
+        , ( "", '|', "    vvv-------",
+                     " ---e--b------")
+        , ("2", '|', "  thing      |",
+                     " - -e-- -----b")
+        , ("3", '|', "  thingthing |",
+                     " -e--------- b")
+        , ("4", '|', "  zyx",
+                     " -e--")
+        , ("5", '|', "| thing",
+                     "b-e----")
+        , ("6", '|', "| abc",
+                     "b-e- ")
+        , ( "", '|', "-^^^",
+                     "be--")
+        , ( "", '|', "   |-- message 1",
+                     " --e------------")
+        , ( "", '|', "   `-- message 2",
+                     " --w------------")
+        ]
+        (show_multiline (sp, Primary, [(Error, "message 1"), (Warning, "message 2")]))
 
 tests :: TestTree
 tests = $(testGroupGenerator)

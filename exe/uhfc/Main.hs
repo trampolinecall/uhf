@@ -24,4 +24,5 @@ compile :: String -> IO ()
 compile fname =
     File.open_file fname >>= \ f ->
     let (diags, res) = Compiler.compile f
-    in Diagnostic.report_diagnostics IO.stderr diags
+    in Diagnostic.report_diagnostics IO.stderr diags >>
+    print res

@@ -64,6 +64,7 @@ internal-libraries:
       - io
       - diagnostic
       - lexer
+      - token
 
       - text
 
@@ -95,8 +96,8 @@ executables:
     dependencies:
       - argparser
       - compiler
-      - io
       - diagnostic
+      - io
 
     ghc-options:
       - -threaded

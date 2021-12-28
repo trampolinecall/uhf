@@ -11,7 +11,7 @@ compile = lex_phase
 
 type Phase a b = a -> ([Diagnostic.Diagnostic], b)
 
-link_phases :: (a -> ([Diagnostic.Diagnostic], b)) -> (b -> ([Diagnostic.Diagnostic], c)) -> a -> ([Diagnostic.Diagnostic], c)
+link_phases :: Phase a b -> Phase b c -> Phase a c
 link_phases phase1 phase2 a =
     let (diags1, b) = phase1 a
         (diags2, c) = phase2 b

@@ -22,6 +22,7 @@ data LexError
     deriving (Eq, Show)
 
 instance Diagnostic.IsDiagnostic LexError where
+    -- TODO: implement these
     to_diagnostic (BadChar ch sp) = Diagnostic.Diagnostic Codes.bad_char (Just sp) undefined
     to_diagnostic (UnclosedMComment sp) = Diagnostic.Diagnostic Codes.unclosed_multiline_comment (Just sp) undefined
     to_diagnostic (UnclosedStrLit sp) = Diagnostic.Diagnostic Codes.unclosed_string_lit (Just sp) undefined

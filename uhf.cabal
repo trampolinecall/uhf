@@ -165,6 +165,9 @@ executable uhfc
   build-depends:
       argparser
     , base >=4.7 && <5
+    , compiler
+    , diagnostic
+    , io
     , tasty
     , tasty-hunit
     , tasty-th

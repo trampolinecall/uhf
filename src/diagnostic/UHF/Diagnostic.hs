@@ -10,6 +10,7 @@ module UHF.Diagnostic
     , ToSection(..)
     , to_section
     , report
+    , report_diagnostics
     ) where
 
 import qualified UHF.Diagnostic.FormattedString as FormattedString
@@ -75,3 +76,6 @@ report handle (Diagnostic code m_sp sections) =
     IO.hPutStr handle "\n" >>
     sequence_ (map p_line section_lines) >>
     maybe (return ()) (\ f -> IO.hPutStr handle (replicate indent ' ') >> p_fmtstr f) footer
+
+report_diagnostics :: IO.Handle -> [Diagnostic] -> IO ()
+report_diagnostics handle = mapM_ (report handle)

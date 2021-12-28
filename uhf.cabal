@@ -46,6 +46,7 @@ library compiler
     , tasty-hunit
     , tasty-th
     , text
+    , token
   default-language: Haskell2010
 
 library diagnostic

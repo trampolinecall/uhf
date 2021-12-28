@@ -94,6 +94,9 @@ executables:
 
     dependencies:
       - argparser
+      - compiler
+      - io
+      - diagnostic
 
     ghc-options:
       - -threaded

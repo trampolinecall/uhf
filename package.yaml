@@ -108,28 +108,28 @@ executables:
 tests:
   argparser-test:
     main: argparser.hs
-    source-dirs: test/
+    source-dirs: test/tests/
 
     dependencies:
       - argparser
 
   io-test:
     main: io.hs
-    source-dirs: test/
+    source-dirs: test/tests/
 
     dependencies:
       - io
 
   lexer-test:
     main: lexer.hs
-    source-dirs: test/
+    source-dirs: test/tests/
 
     dependencies:
       - lexer
 
   diagnostic-test:
     main: diagnostic.hs
-    source-dirs: test/
+    source-dirs: test/tests/
 
     dependencies:
       - diagnostic

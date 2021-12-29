@@ -112,46 +112,44 @@ seek n loc =
 
     in Location (file loc) (ind loc + n) row' col'
 
-{- TODO: adapt lexer tests
 case_seek_same :: Assertion
 case_seek_same =
-    let l = new_lexer $ File.File "a" "abc"
-    in l @=? seek l 0
+    let l = new_location $ File.File "a" "abc"
+    in l @=? seek 0 l
 
 case_seek_forward_same_line :: Assertion
 case_seek_forward_same_line =
     let f = File.File "a" "abcd\nefgh"
-    in Lexer f 2 1 3 [] @=? seek (Lexer f 0 1 1 []) 2
+    in Location f 2 1 3 @=? seek 2 (Location f 0 1 1)
 case_seek_forward_up_to_newline :: Assertion
 case_seek_forward_up_to_newline =
     let f = File.File "a" "abcd\nefgh"
-    in Lexer f 3 1 4 [] @=? seek (Lexer f 0 1 1 []) 3
+    in Location f 3 1 4 @=? seek 3 (Location f 0 1 1)
 case_seek_forward_to_newline :: Assertion
 case_seek_forward_to_newline =
     let f = File.File "a" "abcd\nefgh"
-    in Lexer f 4 1 5 [] @=? seek (Lexer f 0 1 1 []) 4
+    in Location f 4 1 5 @=? seek 4 (Location f 0 1 1)
 case_seek_forward_past_newline :: Assertion
 case_seek_forward_past_newline =
     let f = File.File "a" "abcd\nefgh"
-    in Lexer f 5 2 1 [] @=? seek (Lexer f 0 1 1 []) 5
+    in Location f 5 2 1 @=? seek 5 (Location f 0 1 1)
 
 case_seek_backward_same_line :: Assertion
 case_seek_backward_same_line =
     let f = File.File "a" "abcd\nefgh"
-    in Lexer f 6 2 2 [] @=? seek (Lexer f 8 2 4 []) (-2)
+    in Location f 6 2 2 @=? seek (-2) (Location f 8 2 4)
 case_seek_backward_up_to_newline :: Assertion
 case_seek_backward_up_to_newline =
     let f = File.File "a" "abcd\nefgh"
-    in Lexer f 5 2 1 [] @=? seek (Lexer f 8 2 4 []) (-3)
+    in Location f 5 2 1 @=? seek (-3) (Location f 8 2 4)
 case_seek_backward_to_newline :: Assertion
 case_seek_backward_to_newline =
     let f = File.File "a" "abcd\nefgh"
-    in Lexer f 4 1 5 [] @=? seek (Lexer f 8 2 4 []) (-4)
+    in Location f 4 1 5 @=? seek (-4) (Location f 8 2 4)
 case_seek_backward_past_newline :: Assertion
 case_seek_backward_past_newline =
     let f = File.File "a" "abcd\nefgh"
-    in Lexer f 3 1 4 [] @=? seek (Lexer f 8 2 4 []) (-5)
--}
+    in Location f 3 1 4 @=? seek (-5) (Location f 8 2 4)
 
 tests :: TestTree
 tests = $(testGroupGenerator)

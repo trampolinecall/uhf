@@ -2,10 +2,11 @@ module UHF.IO.Location where
 
 import qualified UHF.IO.File as File
 
+import qualified Data.Text as Text
 import Data.List (minimumBy, maximumBy)
 import Data.Function (on)
 
-data Location = Location { file :: File.File, ind :: Int, row :: Int, col :: Int } deriving (Show, Eq)
+data Location = Location { file :: File.File, ind :: Int, row :: Int, col :: Int } deriving Eq
 -- TODO: make span constructor function that does not allow locations to be in different files
 data Span = Span { start :: Location, before_end :: Location, end :: Location } deriving (Show, Eq)
 
@@ -13,6 +14,16 @@ data Located a = Located { just_span :: Span, unlocate :: a } deriving (Show, Eq
 
 line :: Location -> Int
 line = row
+
+instance Show Location where
+    show (Location f i r c) =
+        let snippet = Text.drop (i - 3) $ File.contents f
+
+            before = Text.take 2 snippet
+            after = Text.take 2 $ Text.drop 3 snippet
+            ch = Text.take 1 $ Text.drop 2 snippet
+
+        in (File.path f) ++ ":" ++ show r ++ ":" ++ show c ++ ": " ++ "'" ++ Text.unpack before ++ "\"" ++ Text.unpack ch ++ "\"" ++ Text.unpack after ++ "'"
 
 instance Functor Located where
     fmap f (Located sp v) = Located sp (f v)

@@ -196,7 +196,7 @@ test-suite argparser-test
   other-modules:
       Paths_uhf
   hs-source-dirs:
-      test/
+      test/tests/
   ghc-options: -Wall
   build-depends:
       argparser
@@ -212,7 +212,7 @@ test-suite diagnostic-test
   other-modules:
       Paths_uhf
   hs-source-dirs:
-      test/
+      test/tests/
   ghc-options: -Wall
   build-depends:
       base >=4.7 && <5
@@ -228,7 +228,7 @@ test-suite io-test
   other-modules:
       Paths_uhf
   hs-source-dirs:
-      test/
+      test/tests/
   ghc-options: -Wall
   build-depends:
       base >=4.7 && <5
@@ -244,7 +244,7 @@ test-suite lexer-test
   other-modules:
       Paths_uhf
   hs-source-dirs:
-      test/
+      test/tests/
   ghc-options: -Wall
   build-depends:
       base >=4.7 && <5

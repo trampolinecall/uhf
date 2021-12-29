@@ -93,7 +93,7 @@ show_singleline unds =
     lines_shown unds
 
 lines_shown :: [Underline] -> [(File.File, Int)]
-lines_shown = map (\ (Location.Span start _ _, _, _) -> (Location.file start, Location.row start))
+lines_shown = map (\ (sp, _, _) -> (Location.file $ Location.start sp, Location.row $ Location.start sp))
 -- show_line {{{2
 get_complete_messages :: [Underline] -> [CompleteMessage]
 get_complete_messages =
@@ -103,7 +103,7 @@ get_complete_messages =
 
 get_colored_quote_and_underline_line :: File.File -> Int -> [Underline] -> (FormattedString.FormattedString, FormattedString.FormattedString)
 get_colored_quote_and_underline_line fl nr unds =
-    let col_in_underline c (Location.Span start before _, _, _) = Location.col start <= c && c <= Location.col before
+    let col_in_underline c (sp, _, _) = Location.col (Location.start sp) <= c && c <= Location.col (Location.before_end sp)
 
         underline_importance_and_color (_, imp, (first_msg_ty, _):_) = (imp, Just first_msg_ty)
         underline_importance_and_color (_, imp, []) = (imp, Nothing)
@@ -161,7 +161,7 @@ get_rows assigned =
 
 show_line :: [Underline] -> ([Line.Line], (File.File, Int)) -> [Line.Line]
 show_line unds (other_lines, (fl, nr)) =
-    let cur_line_unds = filter (\ (Location.Span start _ _, _, _) -> Location.file start == fl && Location.row start == nr) unds
+    let cur_line_unds = filter (\ (sp, _, _) -> Location.file (Location.start sp) == fl && Location.row (Location.start sp) == nr) unds
 
         complete_messages = get_complete_messages cur_line_unds
         assigned = List.foldl' assign_message [] complete_messages

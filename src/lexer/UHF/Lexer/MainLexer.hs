@@ -29,17 +29,14 @@ import qualified UHF.Token as Token
 -- datatypes {{{1
 data Lexer
     = Lexer
-      { file :: File.File
-      , location :: Int
-      , line :: Int
-      , col :: Int
+      { location :: Location.Location
       , indent_stack :: [IndentFrame]
       }
       deriving (Eq)
 
 instance Show Lexer where
     show l =
-        "Lexer { file = " ++ show (file l) ++ ", at " ++ show (line l) ++ ":" ++ show (col l) ++ " (" ++ show (location l) ++ ")," ++
+        "Lexer { location = " ++ show (location l) ++ ", " ++
         show (Text.unpack (Text.reverse (Text.take 5 (rev_passed l)))) ++ " | " ++ show (Text.unpack (Text.take 5 (remaining l))) ++ " }"
 
 data IndentFrame
@@ -347,11 +344,11 @@ lex_indent lexer last_tok =
                         Nothing -> error "no last token to find newline at"
 
                 nl_from_last_tok_end =
-                    case Text.findIndex (=='\n') (Text.drop (last_tok_end_ind) (File.contents $ file lexer)) of
+                    case Text.findIndex (=='\n') (Text.drop (last_tok_end_ind) (l_contents lexer)) of
                         Just x -> x
                         Nothing -> error "no newlines to make token at"
 
-            in Location.Located (lexer_span lexer (last_tok_end_ind + nl_from_last_tok_end - location lexer) 1)
+            in Location.Located (lexer_span lexer (last_tok_end_ind + nl_from_last_tok_end - l_ind lexer) 1)
 
         process_braces (stack, errs, toks)
             | m_cur_char == Just '{' = (IndentationInsensitive : stack, errs, toks ++ [cur_char_tok Token.Raw.OBrace])
@@ -404,29 +401,25 @@ lex_indent lexer last_tok =
 
 -- helper functions {{{1
 l_contents :: Lexer -> Text.Text
-l_contents = File.contents . file
+l_contents = File.contents . Location.file . location
+
+l_ind :: Lexer -> Int
+l_ind = Location.ind . location
 
 remaining :: Lexer -> Text.Text
-remaining l = Text.drop (location l) (l_contents l)
+remaining l = Text.drop (l_ind l) (l_contents l)
 
 passed :: Lexer -> Text.Text
-passed l = Text.take (location l) (l_contents l)
+passed l = Text.take (l_ind l) (l_contents l)
 
 rev_passed :: Lexer -> Text.Text
 rev_passed = Text.reverse . passed
 
 new_lexer :: File.File -> Lexer
-new_lexer f = Lexer f 0 1 1 [IndentationSensitive 0]
-
-lexer_location :: Lexer -> Location.Location
-lexer_location lexer = Location.Location (file lexer) (location lexer) (line lexer) (col lexer)
+new_lexer f = Lexer (Location.new_location f) [IndentationSensitive 0]
 
 lexer_span :: Lexer -> Int -> Int -> Location.Span
-lexer_span lexer start len =
-    let start_lexer = lexer `seek` start
-        before_end_lexer = start_lexer `seek` (len - 1)
-        end_lexer = start_lexer `seek` len
-    in Location.Span (lexer_location start_lexer) (lexer_location before_end_lexer) (lexer_location end_lexer)
+lexer_span lexer start len = Location.new_span (location lexer) start len
 
 matches :: Lexer -> String -> Bool
 matches l s = text_matches s (remaining l)
@@ -445,90 +438,21 @@ seek_while l p =
     in (lexer_span l 0 (Text.length fits), fits, l `seek` Text.length fits)
 
 seek :: Lexer -> Int -> Lexer
-seek lexer 0 = lexer
-seek lexer n =
-    let
-        num_nl
-            | n < 0 = Text.count "\n" $ Text.take (-n) (Text.drop (location lexer + n) (l_contents lexer))
-            | otherwise = Text.count "\n" $ Text.take n (Text.drop (location lexer) (l_contents lexer))
-
-        line'
-            | n < 0 = line lexer - num_nl
-            | otherwise = line lexer + num_nl
-
-        col'
-            | num_nl == 0 = col lexer + n
-            | otherwise =
-                1 + Text.length (Text.takeWhile (/='\n') $ Text.reverse $ Text.take (location lexer + n) (l_contents lexer))
-
-    in lexer
-       { location = location lexer + n
-       , line = line'
-       , col = col'
-       }
+seek l n = l { location = Location.seek n (location l) }
 -- tests {{{1
 case_l_contents :: Assertion
-case_l_contents = "abcdefghijkl" @=? l_contents (Lexer (File.File "filename" "abcdefghijkl") 0 1 1 [])
+case_l_contents = "abcdefghijkl" @=? l_contents (Lexer (Location.new_location (File.File "filename" "abcdefghijkl")) [])
 case_remaining :: Assertion
-case_remaining = "fghijkl" @=? remaining (Lexer (File.File "filename" "abcdefghijkl") 5 1 1 [])
+case_remaining = "fghijkl" @=? remaining (Lexer (Location.seek 5 $ Location.new_location (File.File "filename" "abcdefghijkl")) [])
 case_passed :: Assertion
-case_passed = "abcde" @=? passed (Lexer (File.File "filename" "abcdefghijkl") 5 1 1 [])
+case_passed = "abcde" @=? passed (Lexer (Location.seek 5 $ Location.new_location (File.File "filename" "abcdefghijkl")) [])
 case_rev_passed :: Assertion
-case_rev_passed = "edcba" @=? rev_passed (Lexer (File.File "filename" "abcdefghijkl") 5 1 1 [])
+case_rev_passed = "edcba" @=? rev_passed (Lexer (Location.seek 5 $ Location.new_location (File.File "filename" "abcdefghijkl")) [])
 
 case_new_lexer :: Assertion
 case_new_lexer =
     let f = File.File "a" "abc"
-    in Lexer f 0 1 1 [IndentationSensitive 0] @=? new_lexer f
-
-case_lexer_location :: Assertion
-case_lexer_location =
-    let f = File.File "a" "abc"
-    in Location.Location f 1 1 2 @=? lexer_location (Lexer f 1 1 2 [])
-
-case_lexer_span :: Assertion
-case_lexer_span =
-    let f = File.File "a" "abcdef"
-    in Location.Span (Location.Location f 0 1 1) (Location.Location f 1 1 2) (Location.Location f 2 1 3) @=? lexer_span (new_lexer f) 0 2
-
-case_seek_same :: Assertion
-case_seek_same =
-    let l = new_lexer $ File.File "a" "abc"
-    in l @=? seek l 0
-
-case_seek_forward_same_line :: Assertion
-case_seek_forward_same_line =
-    let f = File.File "a" "abcd\nefgh"
-    in Lexer f 2 1 3 [] @=? seek (Lexer f 0 1 1 []) 2
-case_seek_forward_up_to_newline :: Assertion
-case_seek_forward_up_to_newline =
-    let f = File.File "a" "abcd\nefgh"
-    in Lexer f 3 1 4 [] @=? seek (Lexer f 0 1 1 []) 3
-case_seek_forward_to_newline :: Assertion
-case_seek_forward_to_newline =
-    let f = File.File "a" "abcd\nefgh"
-    in Lexer f 4 1 5 [] @=? seek (Lexer f 0 1 1 []) 4
-case_seek_forward_past_newline :: Assertion
-case_seek_forward_past_newline =
-    let f = File.File "a" "abcd\nefgh"
-    in Lexer f 5 2 1 [] @=? seek (Lexer f 0 1 1 []) 5
-
-case_seek_backward_same_line :: Assertion
-case_seek_backward_same_line =
-    let f = File.File "a" "abcd\nefgh"
-    in Lexer f 6 2 2 [] @=? seek (Lexer f 8 2 4 []) (-2)
-case_seek_backward_up_to_newline :: Assertion
-case_seek_backward_up_to_newline =
-    let f = File.File "a" "abcd\nefgh"
-    in Lexer f 5 2 1 [] @=? seek (Lexer f 8 2 4 []) (-3)
-case_seek_backward_to_newline :: Assertion
-case_seek_backward_to_newline =
-    let f = File.File "a" "abcd\nefgh"
-    in Lexer f 4 1 5 [] @=? seek (Lexer f 8 2 4 []) (-4)
-case_seek_backward_past_newline :: Assertion
-case_seek_backward_past_newline =
-    let f = File.File "a" "abcd\nefgh"
-    in Lexer f 3 1 4 [] @=? seek (Lexer f 8 2 4 []) (-5)
+    in Lexer (Location.new_location f) [IndentationSensitive 0] @=? new_lexer f
 
 case_lex :: Assertion
 case_lex =
@@ -579,7 +503,7 @@ case_lex_eof_not_end =
 case_lex_eof_with_dedents :: Assertion
 case_lex_eof_with_dedents =
     let f = File.File "a" ""
-        l = Lexer f 0 1 1 [IndentationInsensitive, IndentationSensitive 4, IndentationInsensitive, IndentationSensitive 0]
+        l = Lexer (Location.new_location f) [IndentationInsensitive, IndentationSensitive 4, IndentationInsensitive, IndentationSensitive 0]
     in case lex_eof l of
         Just (False, Nothing, [], [Location.Located _ Token.Raw.Newline, Location.Located _ Token.Raw.Dedent]) -> return ()
         x -> lex_test_fail "lex_eof" x

@@ -20,6 +20,7 @@ instance Show Location where
     show (Location f i r c) =
         let snippet = Text.drop (i - 3) $ File.contents f
 
+            -- TODO: this does not return the correct results when snippet is not 5 chars long
             before = Text.take 2 snippet
             after = Text.take 2 $ Text.drop 3 snippet
             ch = Text.take 1 $ Text.drop 2 snippet

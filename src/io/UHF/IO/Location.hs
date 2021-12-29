@@ -29,7 +29,7 @@ instance Show Location where
             after' = Safe.initDef "" $ Safe.tailDef "" $ show after
             ch' = Safe.initDef "" $ Safe.tailDef "" $ show ch
 
-        in (File.path f) ++ ":" ++ show r ++ ":" ++ show c ++ ": " ++ "\"" ++ before' ++ "'" ++ ch' ++ "'" ++ after' ++ "\""
+        in File.path f ++ ":" ++ show r ++ ":" ++ show c ++ ": " ++ "\"" ++ before' ++ "'" ++ ch' ++ "'" ++ after' ++ "\""
 
 instance Functor Located where
     fmap f (Located sp v) = Located sp (f v)

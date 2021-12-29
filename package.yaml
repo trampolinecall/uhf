@@ -23,6 +23,7 @@ internal-libraries:
 
     dependencies:
       - text
+      - safe
 
   token:
     source-dirs: src/token

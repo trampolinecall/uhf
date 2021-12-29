@@ -5,6 +5,7 @@ import qualified UHF.IO.File as File
 import qualified Data.Text as Text
 import Data.List (minimumBy, maximumBy)
 import Data.Function (on)
+import qualified Safe
 
 data Location = Location { file :: File.File, ind :: Int, row :: Int, col :: Int } deriving Eq
 -- TODO: make span constructor function that does not allow locations to be in different files
@@ -23,7 +24,11 @@ instance Show Location where
             after = Text.take 2 $ Text.drop 3 snippet
             ch = Text.take 1 $ Text.drop 2 snippet
 
-        in (File.path f) ++ ":" ++ show r ++ ":" ++ show c ++ ": " ++ "'" ++ Text.unpack before ++ "\"" ++ Text.unpack ch ++ "\"" ++ Text.unpack after ++ "'"
+            before' = Safe.initDef "" $ Safe.tailDef "" $ show before
+            after' = Safe.initDef "" $ Safe.tailDef "" $ show after
+            ch' = Safe.initDef "" $ Safe.tailDef "" $ show ch
+
+        in (File.path f) ++ ":" ++ show r ++ ":" ++ show c ++ ": " ++ "\"" ++ before' ++ "'" ++ ch' ++ "'" ++ after' ++ "\""
 
 instance Functor Located where
     fmap f (Located sp v) = Located sp (f v)

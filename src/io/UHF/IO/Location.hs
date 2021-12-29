@@ -34,7 +34,6 @@ import qualified Safe
 -- TODO: test this entire module
 
 data Location = Location { file :: File.File, ind :: Int, row :: Int, col :: Int } deriving Eq
--- TODO: make span constructor function that does not allow locations to be in different files
 data Span = Span { start :: Location, before_end :: Location, end :: Location } deriving (Show, Eq)
 
 data Located a = Located { just_span :: Span, unlocate :: a } deriving (Show, Eq)

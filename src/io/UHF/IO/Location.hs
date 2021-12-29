@@ -18,7 +18,7 @@ line = row
 
 instance Show Location where
     show (Location f i r c) =
-        let snippet = Text.drop (i - 3) $ File.contents f
+        let snippet = Text.drop (i - 2) $ File.contents f
 
             -- TODO: this does not return the correct results when snippet is not 5 chars long
             before = Text.take 2 snippet

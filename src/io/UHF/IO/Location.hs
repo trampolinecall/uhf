@@ -43,12 +43,14 @@ line = row
 
 instance Show Location where
     show (Location f i r c) =
-        let snippet = Text.drop (i - 2) $ File.contents f
+        let before =
+                let b_start = i - 2
+                    b_end = i
+                    b_start' = max 0 b_start
+                in Text.take (b_end - b_start') $ Text.drop b_start' (File.contents f)
 
-            -- TODO: this does not return the correct results when snippet is not 5 chars long
-            before = Text.take 2 snippet
-            after = Text.take 2 $ Text.drop 3 snippet
-            ch = Text.take 1 $ Text.drop 2 snippet
+            after = Text.take 2 $ Text.drop (i + 1) (File.contents f)
+            ch = Text.take 1 $ Text.drop i (File.contents f)
 
             before' = Safe.initDef "" $ Safe.tailDef "" $ show before
             after' = Safe.initDef "" $ Safe.tailDef "" $ show after
@@ -150,6 +152,21 @@ case_seek_backward_past_newline :: Assertion
 case_seek_backward_past_newline =
     let f = File.File "a" "abcd\nefgh"
     in Location f 3 1 4 @=? seek (-5) (Location f 8 2 4)
+
+case_show_location_near_start :: Assertion
+case_show_location_near_start =
+    let f = File.File "a" "abcde"
+    in "a:1:2: \"a'b'cd\"" @=? show (seek 1 $ new_location f)
+
+case_show_location_near_end :: Assertion
+case_show_location_near_end =
+    let f = File.File "a" "abcde"
+    in "a:1:4: \"bc'd'e\"" @=? show (seek 3 $ new_location f)
+
+case_show_location_in_middle :: Assertion
+case_show_location_in_middle =
+    let f = File.File "a" "abcde"
+    in "a:1:3: \"ab'c'de\"" @=? show (seek 2 $ new_location f)
 
 tests :: TestTree
 tests = $(testGroupGenerator)

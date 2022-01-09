@@ -102,7 +102,7 @@ lex_eof lexer
             make_dedent (IndentationSensitive _) = [Location.Located (lexer_span lexer 0 1) Token.Raw.Dedent]
             make_dedent _ = []
 
-        in Just (False, Nothing, [], all_dedents)
+        in Just (False, Nothing, [], Location.Located (lexer_span lexer 0 1) Token.Raw.Newline : all_dedents)
 
     | otherwise = Nothing
 

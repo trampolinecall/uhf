@@ -10,6 +10,9 @@ module UHF.Diagnostic.Sections.Underlines
     , Type(..)
     , underlines
 
+    , primary, secondary, tertiary
+    , UHF.Diagnostic.Sections.Underlines.error, warning, note, hint
+
     , tests
     ) where
 
@@ -54,6 +57,17 @@ imp_char Tertiary = '.'
 top_imp_char Primary = 'v'
 top_imp_char Secondary = '-'
 top_imp_char Tertiary = '.'
+
+primary, secondary, tertiary :: Location.Span -> [(Type, Text.Text)] -> Underline
+primary s m = (s, Primary, m)
+secondary s m = (s, Secondary, m)
+tertiary s m = (s, Tertiary, m)
+
+error, warning, note, hint :: Text.Text -> (Type, Text.Text)
+error = (Error,)
+warning = (Warning,)
+note = (Note,)
+hint = (Hint,)
 
 underlines :: UnderlinesSection -> Diagnostic.Section
 underlines unds =

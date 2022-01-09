@@ -32,6 +32,9 @@ library argparser
 library ast
   exposed-modules:
       UHF.AST
+      UHF.AST.Decl
+      UHF.AST.Expr
+      UHF.AST.Type
   other-modules:
       Paths_uhf
   hs-source-dirs:
@@ -42,6 +45,7 @@ library ast
     , tasty
     , tasty-hunit
     , tasty-th
+    , token
   default-language: Haskell2010
 
 library compiler

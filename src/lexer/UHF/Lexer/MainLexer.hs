@@ -94,10 +94,7 @@ type LexFn = Lexer -> Maybe (Bool, Maybe Lexer, [LexError.LexError], [Location.L
 lex_eof :: LexFn
 lex_eof lexer
     | Text.null $ remaining lexer =
-        let all_dedents =
-                case concatMap make_dedent (init $ indent_stack lexer) of
-                    [] -> []
-                    dedents -> Location.Located (lexer_span lexer 0 1) Token.Raw.Newline : dedents
+        let all_dedents = concatMap make_dedent (init $ indent_stack lexer)
 
             make_dedent (IndentationSensitive _) = [Location.Located (lexer_span lexer 0 1) Token.Raw.Dedent]
             make_dedent _ = []
@@ -457,7 +454,7 @@ case_new_lexer =
 case_lex :: Assertion
 case_lex =
     case UHF.Lexer.MainLexer.lex (File.File "a" "abc *&* ( \"adji\n") of
-        ([LexError.UnclosedStrLit _], [Location.Located _ (Token.Raw.AlphaIdentifier "abc"), Location.Located _ (Token.Raw.SymbolIdentifier "*&*"), Location.Located _ Token.Raw.OParen]) -> return ()
+        ([LexError.UnclosedStrLit _], [Location.Located _ (Token.Raw.AlphaIdentifier "abc"), Location.Located _ (Token.Raw.SymbolIdentifier "*&*"), Location.Located _ Token.Raw.OParen, Location.Located _ Token.Raw.Newline]) -> return ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
 lex_test :: (Lexer -> r) -> Text.Text -> (r -> IO ()) -> IO ()
@@ -487,13 +484,13 @@ case_lex' =
 case_lex'_empty :: Assertion
 case_lex'_empty =
     lex_test (flip lex' Nothing) "" $ \case
-        (Nothing, [], []) -> return ()
+        (Nothing, [], [Location.Located _ Token.Raw.Newline]) -> return ()
         x -> lex_test_fail "lex'" x
 
 case_lex_eof_end :: Assertion
 case_lex_eof_end =
     lex_test lex_eof "" $ \case
-        Just (False, Nothing, [], []) -> return ()
+        Just (False, Nothing, [], [Location.Located _ Token.Raw.Newline]) -> return ()
         x -> lex_test_fail "lex_eof" x
 case_lex_eof_not_end :: Assertion
 case_lex_eof_not_end =

@@ -28,7 +28,7 @@ data LexError
 
 instance Diagnostic.IsDiagnostic LexError where
     to_diagnostic (BadChar ch sp) = Diagnostic.Diagnostic Codes.bad_char (Just sp)
-        [Underlines.underlines [sp `Underlines.primary` [Underlines.error "bad character"]]]
+        [Underlines.underlines [sp `Underlines.primary` [Underlines.error $ "bad character '" `Text.append` Text.singleton ch `Text.append` "'"]]]
 
     to_diagnostic (UnclosedMComment sp) = Diagnostic.Diagnostic Codes.unclosed_multiline_comment (Just sp)
         [Underlines.underlines [sp `Underlines.primary` [Underlines.error "unclosed multiline comment"]]]

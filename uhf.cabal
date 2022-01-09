@@ -29,6 +29,21 @@ library argparser
     , tasty-th
   default-language: Haskell2010
 
+library ast
+  exposed-modules:
+      UHF.AST
+  other-modules:
+      Paths_uhf
+  hs-source-dirs:
+      src/ast
+  ghc-options: -Wall
+  build-depends:
+      base >=4.7 && <5
+    , tasty
+    , tasty-hunit
+    , tasty-th
+  default-language: Haskell2010
+
 library compiler
   exposed-modules:
       UHF.Compiler
@@ -120,6 +135,23 @@ library lexer
     , tasty-hunit
     , tasty-th
     , text
+    , token
+  default-language: Haskell2010
+
+library parser
+  exposed-modules:
+      UHF.Parser
+  other-modules:
+      Paths_uhf
+  hs-source-dirs:
+      src/parser
+  ghc-options: -Wall
+  build-depends:
+      ast
+    , base >=4.7 && <5
+    , tasty
+    , tasty-hunit
+    , tasty-th
     , token
   default-language: Haskell2010
 

@@ -34,6 +34,9 @@ internal-libraries:
   ast:
     source-dirs: src/ast
 
+    dependencies:
+      - token
+
   diagnostic:
     source-dirs: src/diagnostic
 

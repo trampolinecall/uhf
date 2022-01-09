@@ -34,7 +34,7 @@ import qualified Safe
 -- TODO: test this entire module
 
 data Location = Location { file :: File.File, ind :: Int, row :: Int, col :: Int } deriving Eq
-data Span = Span { start :: Location, before_end :: Location, end :: Location } deriving (Show, Eq)
+data Span = Span { start :: Location, before_end :: Location, end :: Location } deriving Eq
 
 data Located a = Located { just_span :: Span, unlocate :: a } deriving (Show, Eq)
 
@@ -57,6 +57,28 @@ instance Show Location where
             ch' = Safe.initDef "" $ Safe.tailDef "" $ show ch
 
         in File.path f ++ ":" ++ show r ++ ":" ++ show c ++ ": " ++ "\"" ++ before' ++ "'" ++ ch' ++ "'" ++ after' ++ "\""
+
+instance Show Span where
+    show (Span s _ e) =
+        let si = ind s
+            ei = ind e
+
+            contents = File.contents $ file s
+
+            before =
+                let b_start = si - 4
+                    b_end = si
+                    b_start' = max 0 b_start
+                in Text.take (b_end - b_start') $ Text.drop b_start' contents
+
+            after = Text.take 4 $ Text.drop ei contents
+            inside = Text.take (ei - si) $ Text.drop si contents
+
+            before' = Safe.initDef "" $ Safe.tailDef "" $ show before
+            after' = Safe.initDef "" $ Safe.tailDef "" $ show after
+            inside' = Safe.initDef "" $ Safe.tailDef "" $ show inside
+
+        in File.path (file s) ++ ":(" ++ show (row s) ++ ":" ++ show (col s) ++ " " ++ show (row e) ++ ":" ++ show (col e) ++ "): " ++ "\"" ++ before' ++ "'" ++ inside' ++ "'" ++ after' ++ "\""
 
 instance Functor Located where
     fmap f (Located sp v) = Located sp (f v)
@@ -167,6 +189,27 @@ case_show_location_in_middle :: Assertion
 case_show_location_in_middle =
     let f = File.File "a" "abcde"
     in "a:1:3: \"ab'c'de\"" @=? show (seek 2 $ new_location f)
+
+case_show_span_near_start :: Assertion
+case_show_span_near_start =
+    let f = File.File "a" "abcdefghijkl"
+        l = seek 2 $ new_location f
+        s = new_span l 0 4
+    in "a:(1:3 1:7): \"ab'cdef'ghij\"" @=? show s
+
+case_show_span_near_end :: Assertion
+case_show_span_near_end =
+    let f = File.File "a" "abcdefghijkl"
+        l = seek 6 $ new_location f
+        s = new_span l 0 4
+    in "a:(1:7 1:11): \"cdef'ghij'kl\"" @=? show s
+
+case_show_span_in_middle :: Assertion
+case_show_span_in_middle =
+    let f = File.File "a" "abcdefghijkl"
+        l = seek 4 $ new_location f
+        s = new_span l 0 4
+    in "a:(1:5 1:9): \"abcd'efgh'ijkl\"" @=? show s
 
 tests :: TestTree
 tests = $(testGroupGenerator)

@@ -31,7 +31,6 @@ library argparser
 
 library ast
   exposed-modules:
-      UHF.AST
       UHF.AST.Decl
       UHF.AST.Expr
       UHF.AST.Type
@@ -41,7 +40,8 @@ library ast
       src/ast
   ghc-options: -Wall
   build-depends:
-      base >=4.7 && <5
+      Decimal
+    , base >=4.7 && <5
     , tasty
     , tasty-hunit
     , tasty-th
@@ -145,6 +145,7 @@ library lexer
 library parser
   exposed-modules:
       UHF.Parser
+      UHF.Parser.ParseError
   other-modules:
       Paths_uhf
   hs-source-dirs:
@@ -153,9 +154,13 @@ library parser
   build-depends:
       ast
     , base >=4.7 && <5
+    , diagnostic
+    , io
+    , mtl
     , tasty
     , tasty-hunit
     , tasty-th
+    , text
     , token
   default-language: Haskell2010
 

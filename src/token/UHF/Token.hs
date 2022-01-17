@@ -22,6 +22,8 @@ data Token
 
     | Root
     | Let
+    | Define
+    | Type
     | Data
     | Under
     | If

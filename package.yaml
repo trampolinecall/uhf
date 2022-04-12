@@ -39,6 +39,9 @@ internal-libraries:
 
       - Decimal
 
+  core:
+    source-dirs: src/core
+
   diagnostic:
     source-dirs: src/diagnostic
 

@@ -40,8 +40,7 @@ library ast
       src/ast
   ghc-options: -Wall
   build-depends:
-      Decimal
-    , base >=4.7 && <5
+      base >=4.7 && <5
     , tasty
     , tasty-hunit
     , tasty-th
@@ -157,6 +156,7 @@ library parser
     , diagnostic
     , io
     , mtl
+    , safe
     , tasty
     , tasty-hunit
     , tasty-th

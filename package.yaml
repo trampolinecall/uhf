@@ -37,8 +37,6 @@ internal-libraries:
     dependencies:
       - token
 
-      - Decimal
-
   diagnostic:
     source-dirs: src/diagnostic
 
@@ -77,6 +75,7 @@ internal-libraries:
 
       - text
       - mtl
+      - safe
 
   compiler:
     source-dirs: src/compiler

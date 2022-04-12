@@ -53,14 +53,14 @@ parse toks =
         -- Recoverable errs res -> (NonEmpty.toList errs, res)
 
 parse' :: ParseFn [Decl.Decl]
-parse' = _
+parse' = error "not implemented yet"
 
 -- decls {{{2
 -- decl {{{3
 decl_lookahead_matches :: LookaheadMatches
-decl_lookahead_matches = _
+decl_lookahead_matches = error "not implemented yet"
 decl_parse :: ParseFn Decl.Decl
-decl_parse = _
+decl_parse = error "not implemented yet"
 -- type signatures {{{3
 
 -- helpers {{{1

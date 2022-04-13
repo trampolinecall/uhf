@@ -71,6 +71,7 @@ library compiler
 library core
   exposed-modules:
       UHF.Core
+      UHF.Core.Name
   other-modules:
       Paths_uhf
   hs-source-dirs:

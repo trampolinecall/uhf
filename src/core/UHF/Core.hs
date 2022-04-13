@@ -1,17 +1,19 @@
 module UHF.Core where
 
+import qualified UHF.Core.Name as Name
+
 data Core
-    = Core [(String, Expr)]
+    = Core [(Name.Name, Expr)]
 
 data Expr
-    = Var String
-    | Abstract (String, Type) Expr
+    = Var Name.Name
+    | Abstract (Name.Name, Type) Expr
     | Apply Expr Expr
-    | TypeAbstract String Expr
+    | TypeAbstract Name.Name Expr
     | TypeApply Expr Type
 
 data Type
     = BaseType
-    | TypeVar String
+    | TypeVar Name.Name
     | Function Type Type
-    | UniversalType String Type
+    | UniversalType Name.Name Type

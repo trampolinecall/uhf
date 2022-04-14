@@ -62,8 +62,8 @@ render_formatted_string handle c_needed (FormattedString str formats) =
                 (\ remaining (sgrs, len) ->
                     let (cur, remaining') = Text.splitAt len remaining
                     in (remaining',
-                        (if c_needed' then ANSI.setSGR sgrs else return ()) >>
-                        Text.IO.putStr cur)
+                        (if c_needed' then ANSI.hSetSGR handle sgrs else return ()) >>
+                        Text.IO.hPutStr handle cur)
                 )
                 str
                 formats

@@ -12,6 +12,7 @@ data Token
     | CBrack
     | Comma
     | Equal
+    | Colon
     | DoubleColon
 
     | Root

@@ -5,10 +5,13 @@
 
 module UHF.Token
     ( Token(..)
+    , LToken
     , IntLitBase(..)
 
     , Decimal(..)
     ) where
+
+import qualified UHF.IO.Location as Location
 
 import qualified Data.Decimal as Decimal
 import qualified Data.Data as Data
@@ -23,6 +26,7 @@ data IntLitBase
     | Bin
     deriving (Show, Eq, Data.Data)
 
+type LToken = Location.Located Token
 data Token
     = OParen
     | CParen
@@ -30,10 +34,10 @@ data Token
     | CBrack
     | Comma
     | Equal
+    | Colon
 
     | Root
     | Let
-    | Define
     | Type
     | Data
     | Under

@@ -8,7 +8,7 @@ import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Lexer as Lexer
 import qualified UHF.Token as Token
 
-compile :: Phase File.File [Location.Located Token.Token]
+compile :: Phase File.File [Token.LToken]
 compile = lex_phase
 
 type Phase a b = a -> ([Diagnostic.Diagnostic], b)
@@ -19,7 +19,7 @@ link phase1 phase2 a =
         (diags2, c) = phase2 b
     in (diags1 ++ diags2, c)
 
-lex_phase :: Phase File.File [Location.Located Token.Token]
+lex_phase :: Phase File.File [Token.LToken]
 lex_phase file =
     let (diagnostics, res) = Lexer.lex file
     in (map Diagnostic.to_diagnostic diagnostics, res)

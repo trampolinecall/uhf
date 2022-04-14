@@ -193,6 +193,7 @@ library token
   build-depends:
       Decimal
     , base >=4.7 && <5
+    , io
     , tasty
     , tasty-hunit
     , tasty-th

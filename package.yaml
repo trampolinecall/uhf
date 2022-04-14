@@ -29,6 +29,8 @@ internal-libraries:
     source-dirs: src/token
 
     dependencies:
+      - io
+
       - Decimal
 
   ast:

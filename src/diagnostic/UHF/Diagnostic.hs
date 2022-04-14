@@ -75,7 +75,7 @@ report handle (Diagnostic code m_sp sections) =
     p_fmtstr header >>
     IO.hPutStr handle "\n" >>
     sequence_ (map p_line section_lines) >>
-    maybe (return ()) (\ f -> IO.hPutStr handle (replicate indent ' ') >> p_fmtstr f) footer
+    maybe (return ()) (\ f -> IO.hPutStr handle (replicate indent ' ') >> p_fmtstr f >> IO.hPutStr handle "\n") footer
 
 report_diagnostics :: IO.Handle -> [Diagnostic] -> IO ()
 report_diagnostics handle = mapM_ (report handle)

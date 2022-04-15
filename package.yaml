@@ -2,7 +2,7 @@ name:                uhf
 version:             0.0.0
 
 dependencies:
-  - base >= 4.7 && < 5
+  - base >= 4.15 && < 5
 
   - tasty
   - tasty-hunit
@@ -87,6 +87,8 @@ internal-libraries:
       - diagnostic
       - lexer
       - token
+      - parser
+      - ast
 
       - text
 

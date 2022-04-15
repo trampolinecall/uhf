@@ -22,7 +22,7 @@ library argparser
       src/argparser
   ghc-options: -Wall
   build-depends:
-      base >=4.7 && <5
+      base >=4.15 && <5
     , containers
     , tasty
     , tasty-hunit
@@ -40,7 +40,7 @@ library ast
       src/ast
   ghc-options: -Wall
   build-depends:
-      base >=4.7 && <5
+      base >=4.15 && <5
     , tasty
     , tasty-hunit
     , tasty-th
@@ -56,10 +56,12 @@ library compiler
       src/compiler
   ghc-options: -Wall
   build-depends:
-      base >=4.7 && <5
+      ast
+    , base >=4.15 && <5
     , diagnostic
     , io
     , lexer
+    , parser
     , tasty
     , tasty-hunit
     , tasty-th
@@ -85,7 +87,7 @@ library diagnostic
   ghc-options: -Wall
   build-depends:
       ansi-terminal
-    , base >=4.7 && <5
+    , base >=4.15 && <5
     , io
     , safe
     , span-helper
@@ -107,7 +109,7 @@ library io
       src/io
   ghc-options: -Wall
   build-depends:
-      base >=4.7 && <5
+      base >=4.15 && <5
     , safe
     , tasty
     , tasty-hunit
@@ -129,7 +131,7 @@ library lexer
   ghc-options: -Wall
   build-depends:
       Decimal
-    , base >=4.7 && <5
+    , base >=4.15 && <5
     , diagnostic
     , io
     , safe
@@ -152,7 +154,7 @@ library parser
   ghc-options: -Wall
   build-depends:
       ast
-    , base >=4.7 && <5
+    , base >=4.15 && <5
     , diagnostic
     , io
     , mtl
@@ -173,7 +175,7 @@ library span-helper
       test/span-helper
   ghc-options: -Wall
   build-depends:
-      base >=4.7 && <5
+      base >=4.15 && <5
     , io
     , tasty
     , tasty-hunit
@@ -192,7 +194,7 @@ library token
   ghc-options: -Wall
   build-depends:
       Decimal
-    , base >=4.7 && <5
+    , base >=4.15 && <5
     , io
     , tasty
     , tasty-hunit
@@ -208,7 +210,7 @@ executable uhfc
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       argparser
-    , base >=4.7 && <5
+    , base >=4.15 && <5
     , compiler
     , diagnostic
     , io
@@ -226,7 +228,7 @@ executable uhfi
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       argparser
-    , base >=4.7 && <5
+    , base >=4.15 && <5
     , tasty
     , tasty-hunit
     , tasty-th
@@ -242,7 +244,7 @@ test-suite argparser-test
   ghc-options: -Wall
   build-depends:
       argparser
-    , base >=4.7 && <5
+    , base >=4.15 && <5
     , tasty
     , tasty-hunit
     , tasty-th
@@ -257,7 +259,7 @@ test-suite diagnostic-test
       test/tests/
   ghc-options: -Wall
   build-depends:
-      base >=4.7 && <5
+      base >=4.15 && <5
     , diagnostic
     , tasty
     , tasty-hunit
@@ -273,7 +275,7 @@ test-suite io-test
       test/tests/
   ghc-options: -Wall
   build-depends:
-      base >=4.7 && <5
+      base >=4.15 && <5
     , io
     , tasty
     , tasty-hunit
@@ -289,7 +291,7 @@ test-suite lexer-test
       test/tests/
   ghc-options: -Wall
   build-depends:
-      base >=4.7 && <5
+      base >=4.15 && <5
     , lexer
     , tasty
     , tasty-hunit

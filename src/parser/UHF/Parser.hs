@@ -13,67 +13,154 @@ import qualified UHF.Token as Token
 import qualified UHF.IO.Location as Location
 
 import qualified UHF.AST.Decl as Decl
+import qualified UHF.AST.Type as Type
+import qualified UHF.AST.Expr as Expr
 
-import qualified Data.Maybe as Maybe
+import qualified Data.Data as Data
+import qualified Data.List as List
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Control.Monad.State as State
 
-type TokenStream = [Location.Located Token.Token]
+type TokenStream = [Token.LToken]
 type Errors = NonEmpty.NonEmpty ParseError.ParseError
 
-type ParseFn r = State.State TokenStream (ParseResult r)
-type LookaheadMatches = Token.Token -> Bool
+type ParseFn r = State.State TokenStream r
+type Parser r = ParseFn (ParseResult Errors r)
+type TokenPredicate = Token.Token -> Bool
+type TokenPredicateM a = Token.Token -> Maybe a
 
 -- ParseResult {{{1
-data ParseResult r
-    = Failed
+data ParseResult e r
+    = Failed e
     | Success r
 
-instance Functor ParseResult where
-    fmap _ Failed = Failed
+instance Functor (ParseResult e) where
+    fmap _ (Failed e) = (Failed e)
     fmap f (Success a) = Success (f a)
 
-instance Applicative ParseResult where
+instance Semigroup e => Applicative (ParseResult e) where
     pure = Success
 
     (Success f) <*> (Success b) = Success $ f b
-    _ <*> _ = Failed
+    (Failed e) <*> (Success _) = Failed e
+    (Success _) <*> (Failed e) = Failed e
+    (Failed e1) <*> (Failed e2) = Failed (e1 <> e2)
 
-instance Monad ParseResult where
-    (Success a) >>= f = f a
-    Failed >>= _ = Failed
+instance Semigroup e => Monad (ParseResult e) where
+    Success a >>= f = f a
+    Failed e >>= _ = Failed e
 
 -- parse {{{1
-parse :: TokenStream -> ([ParseError.ParseError], [Decl.Decl])
-parse toks =
-    let r_res = State.evalState parse' toks
+parse :: TokenStream -> Token.LToken -> ([ParseError.ParseError], [Decl.Decl])
+parse toks eof_tok =
+    let r_res = State.evalState parse' (toks ++ repeat eof_tok)
     in case r_res of
         Success res -> ([], res)
-        Failed -> ([], []) -- TODO: failed should return errors
+        Failed e -> (NonEmpty.toList e, []) -- TODO: failed should return errors
         -- Recoverable errs res -> (NonEmpty.toList errs, res)
 
-parse' :: ParseFn [Decl.Decl]
-parse' = error "not implemented yet"
-
+parse' :: Parser [Decl.Decl]
+parse' = decl_parse >>= \case -- TODO
+    Failed e -> return $ Failed e
+    Success r -> return $ Success [r]
 -- decls {{{2
--- decl {{{3
-decl_lookahead_matches :: LookaheadMatches
-decl_lookahead_matches = error "not implemented yet"
-decl_parse :: ParseFn Decl.Decl
-decl_parse = error "not implemented yet"
--- type signatures {{{3
+decl_lookahead_matches :: TokenPredicate
+decl_lookahead_matches = is_tt (Token.AlphaIdentifier [])
 
+decl_parse :: Parser Decl.Decl
+decl_parse =
+    consume (\case
+        Token.AlphaIdentifier name -> Just name
+        _ -> Nothing)
+        (\ t -> nonempty_singleton $ ParseError.BadToken t [(Token.AlphaIdentifier [], "declaration", Just "name")]) >>=
+    \case
+        Success decl_name ->
+            choice
+                [ (is_tt Token.Equal, advance >> binding_parse decl_name)
+                , (is_tt Token.Colon, advance >> type_signature_parse decl_name)
+                ]
+                (peek >>= \ tok ->
+                return (Failed $ nonempty_singleton $ ParseError.BadToken tok [(Token.Colon, "type signature", Nothing), (Token.Equal, "declaration", Nothing)]))
+        Failed e -> return $ Failed e
+
+binding_parse :: [String] -> Parser Decl.Decl
+binding_parse decl_name =
+    assert_consume (is_tt_u Token.Equal) >>
+    expr_parse >>= \case
+        Success ex -> return $ Success $ Decl.Binding decl_name ex
+        Failed e -> return $ Failed e
+
+type_signature_parse :: [String] -> Parser Decl.Decl
+type_signature_parse decl_name =
+    assert_consume (is_tt_u Token.Colon) >>
+    type_parse >>= \case
+        Success ty -> return $ Success $ Decl.TypeSignature decl_name ty
+        Failed e -> return $ Failed e
+-- types {{{2
+type_parse :: Parser Type.Type
+type_parse =
+    consume (\case
+        Token.AlphaIdentifier iden -> Just iden
+        _ -> Nothing)
+        (\ tok -> nonempty_singleton $ ParseError.BadToken tok [(Token.AlphaIdentifier [], "type", Nothing)])
+        >>=
+    \case
+        Success iden ->
+            return $ Success $ Type.Identifier iden
+        Failed e -> return $ Failed e
+
+
+-- exprs {{{2
+expr_parse :: Parser Expr.Expr
+expr_parse =
+    peek >>= \ tok ->
+    return $ Failed $ nonempty_singleton $ ParseError.NotImpl (Location.Located (Location.just_span tok) "expressions") -- TODO
 -- helpers {{{1
-consume :: (Token.Token -> Maybe r) -> {- (Maybe (Location.Located Token.Token) -> Errors) -> -} ParseFn r
-consume pred =
+peek :: State.State TokenStream Token.LToken
+peek = State.state $ \ toks -> (head toks, toks)
+
+peek_matches :: (Token.Token -> Bool) -> State.State TokenStream Bool
+peek_matches p = p <$> Location.unlocate <$> peek
+
+is_tt :: Token.Token -> Token.Token -> Bool
+is_tt a b = Data.toConstr a == Data.toConstr b
+
+is_tt_v :: a -> Token.Token -> Token.Token -> Maybe a
+is_tt_v v a b = if is_tt a b then Just v else Nothing
+
+is_tt_u :: Token.Token -> Token.Token -> Maybe ()
+is_tt_u = is_tt_v ()
+
+consume :: TokenPredicateM r -> (Token.LToken -> Errors) -> Parser r
+consume p e =
     State.state $ \case
         orig_toks@(tok:more_toks) ->
-            case pred $ Location.unlocate tok of
+            case p $ Location.unlocate tok of
                 Just res -> (Success res, more_toks)
-                _ -> (Failed, orig_toks)
+                _ -> (Failed $ e $ tok, orig_toks)
 
-        [] -> (Failed, [])
+        [] -> error "unreachable"
 
+assert_consume :: TokenPredicateM r -> Parser r
+assert_consume p = consume p (\ _ -> error "assert_consume predicate failed")
+
+advance :: ParseFn ()
+advance = State.state $ \ toks -> ((), drop 1 toks)
+
+choice :: [(TokenPredicate, ParseFn a)] -> ParseFn a -> ParseFn a
+choice choices def =
+    peek >>= \ tok ->
+    let unlocated = Location.unlocate tok
+    in case List.findIndex (($ unlocated) . fst) choices of
+        Just i -> snd $ choices !! i
+        Nothing -> def
+
+-- TODO: use NonEmpty.singleton when a new stack resolver comes out with ghc 9.2.2
+--  NonEmpty.singleton is only in base-1.15 or higher, but the only lts stack resolver that has that version of base
+--  uses ghc 9.0.2, which is currently missing profiling libraries for base
+--  this ghc bug is fixed in ghc 9.2.2, but there is not an lts stack resolver that uses ghc 9.2.2 yet
+nonempty_singleton :: a -> NonEmpty.NonEmpty a
+nonempty_singleton a = a NonEmpty.:| []
 {-
 parse_list :: ParseConcept r -> ParseConcept [r]
 parse_list = _

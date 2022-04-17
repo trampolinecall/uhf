@@ -16,3 +16,6 @@ $(code Error 7 "unclosed_char_lit")
 $(code Error 8 "invalid_char_lit")
 $(code Error 9 "bad_dedent")
 $(code Error 10 "invalid_double_colon")
+
+$(code Error 100 "not_implemented")
+$(code Error 101 "bad_token")

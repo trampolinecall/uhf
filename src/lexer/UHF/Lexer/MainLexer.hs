@@ -45,7 +45,7 @@ data IndentFrame
     deriving (Eq, Show)
 
 -- lexing {{{1
-lex :: File.File -> ([LexError.LexError], [Location.Located Token.Raw.Token])
+lex :: File.File -> ([LexError.LexError], [Location.Located Token.Raw.Token], Token.LToken)
 lex f =
     let run _ Nothing = ([], [])
         run last_tok (Just l) =
@@ -58,7 +58,9 @@ lex f =
                 (errs', toks') = run last_tok' l'
             in (errs ++ errs', toks ++ toks')
 
-    in run Nothing (Just $ new_lexer f)
+        (e, t) = run Nothing (Just $ new_lexer f)
+
+    in (e, t, Location.Located (Location.eof_span f) Token.EOF)
 -- lex' {{{2
 lex' :: Lexer -> Maybe (Location.Located Token.Raw.Token) -> (Maybe Lexer, [LexError.LexError], [Location.Located Token.Raw.Token])
 lex' lexer last_tok =
@@ -168,7 +170,9 @@ lex_symbol_identifier lexer
     | lexer `matches` "]" = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.Raw.CBrack])
     | lexer `matches` "," = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.Raw.Comma])
     | lexer `matches` "=" = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.Raw.Equal])
+    | lexer `matches` ":" = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.Raw.Colon])
     | lexer `matches` "::" = Just (True, Just $ lexer `seek` 2, [], [Location.Located (lexer_span lexer 0 1) Token.Raw.DoubleColon])
+    | lexer `matches` "->" = Just (True, Just $ lexer `seek` 2, [], [Location.Located (lexer_span lexer 0 1) Token.Raw.Arrow])
     | otherwise =
         let is_valid_char = (`elem` ("!#$%&*+-./:<=>?@^`~" :: String))
             (iden_sp, iden, lexer') = lexer `seek_while` is_valid_char
@@ -454,7 +458,7 @@ case_new_lexer =
 case_lex :: Assertion
 case_lex =
     case UHF.Lexer.MainLexer.lex (File.File "a" "abc *&* ( \"adji\n") of
-        ([LexError.UnclosedStrLit _], [Location.Located _ (Token.Raw.AlphaIdentifier "abc"), Location.Located _ (Token.Raw.SymbolIdentifier "*&*"), Location.Located _ Token.Raw.OParen, Location.Located _ Token.Raw.Newline]) -> return ()
+        ([LexError.UnclosedStrLit _], [Location.Located _ (Token.Raw.AlphaIdentifier "abc"), Location.Located _ (Token.Raw.SymbolIdentifier "*&*"), Location.Located _ Token.Raw.OParen, Location.Located _ Token.Raw.Newline], _) -> return ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
 lex_test :: (Lexer -> r) -> Text.Text -> (r -> IO ()) -> IO ()

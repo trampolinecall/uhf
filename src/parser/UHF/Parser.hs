@@ -72,7 +72,7 @@ decl_parse =
     consume (\case
         Token.AlphaIdentifier name -> Just name
         _ -> Nothing)
-        (\ t -> NonEmpty.singleton $ ParseError.BadToken t [(Token.AlphaIdentifier [], "declaration", Just "name")]) >>=
+        (\ t -> nonempty_singleton $ ParseError.BadToken t [(Token.AlphaIdentifier [], "declaration", Just "name")]) >>=
     \case
         Success decl_name ->
             choice
@@ -80,7 +80,7 @@ decl_parse =
                 , (is_tt Token.Colon, advance >> type_signature_parse decl_name)
                 ]
                 (peek >>= \ tok ->
-                return (Failed $ NonEmpty.singleton $ ParseError.BadToken tok [(Token.Colon, "type signature", Nothing), (Token.Equal, "declaration", Nothing)]))
+                return (Failed $ nonempty_singleton $ ParseError.BadToken tok [(Token.Colon, "type signature", Nothing), (Token.Equal, "declaration", Nothing)]))
         Failed e -> return $ Failed e
 
 binding_parse :: [String] -> Parser Decl.Decl
@@ -100,12 +100,12 @@ type_signature_parse decl_name =
 type_parse :: Parser Type.Type
 type_parse =
     peek >>= \ tok ->
-    return $ Failed $ NonEmpty.singleton $ ParseError.NotImpl (Location.Located (Location.just_span tok) "types") -- TODO
+    return $ Failed $ nonempty_singleton $ ParseError.NotImpl (Location.Located (Location.just_span tok) "types") -- TODO
 -- exprs {{{2
 expr_parse :: Parser Expr.Expr
 expr_parse =
     peek >>= \ tok ->
-    return $ Failed $ NonEmpty.singleton $ ParseError.NotImpl (Location.Located (Location.just_span tok) "expressions") -- TODO
+    return $ Failed $ nonempty_singleton $ ParseError.NotImpl (Location.Located (Location.just_span tok) "expressions") -- TODO
 -- helpers {{{1
 peek :: State.State TokenStream Token.LToken
 peek = State.state $ \ toks -> (head toks, toks)
@@ -146,6 +146,12 @@ choice choices def =
         Just i -> snd $ choices !! i
         Nothing -> def
 
+-- TODO: use NonEmpty.singleton when a new stack resolver comes out with ghc 9.2.2
+--  NonEmpty.singleton is only in base-1.15 or higher, but the only lts stack resolver that has that version of base
+--  uses ghc 9.0.2, which is currently missing profiling libraries for base
+--  this ghc bug is fixed in ghc 9.2.2, but there is not an lts stack resolver that uses ghc 9.2.2 yet
+nonempty_singleton :: a -> NonEmpty.NonEmpty a
+nonempty_singleton a = a NonEmpty.:| []
 {-
 parse_list :: ParseConcept r -> ParseConcept [r]
 parse_list = _

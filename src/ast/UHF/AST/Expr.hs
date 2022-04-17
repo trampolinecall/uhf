@@ -1,11 +1,11 @@
 module UHF.AST.Expr where
 
-import qualified Data.Decimal as Decimal
+import qualified UHF.Token as Token
 
 data Expr
     = Identifier [String]
     | CharLit Char
     | StringLit String
     | IntLit Integer
-    | FloatLit Decimal.Decimal
+    | FloatLit Token.Decimal
     | BoolLit Bool

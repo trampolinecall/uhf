@@ -12,7 +12,9 @@ data Token
     | CBrack
     | Comma
     | Equal
+    | Colon
     | DoubleColon
+    | Arrow
 
     | Root
     | Let

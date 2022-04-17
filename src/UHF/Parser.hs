@@ -196,7 +196,12 @@ parse_list stop = p' [] []
                         e:e' -> return $ Recoverable (e NonEmpty.:| e') p_acc Nothing
 
 sync :: TokenPredicate -> ParseFn ()
-sync sync_p = parse_list sync_p (consume (const $ Just ()) (error "unreachable")) >> return ()
+sync sync_p =
+    parse_list
+        (\case
+            Token.EOF -> True
+            t -> sync_p t)
+        (consume (const $ Just ()) (error "unreachable")) >> return ()
 m_sync :: Maybe TokenPredicate -> ParseFn ()
 m_sync Nothing = return ()
 m_sync (Just sync_p) = sync sync_p

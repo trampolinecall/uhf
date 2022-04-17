@@ -20,10 +20,10 @@ import qualified UHF.IO.Location as Location
 
 import qualified Safe
 
-group_identifiers :: ([LexError.LexError], [Location.Located Token.Raw.Token]) -> ([LexError.LexError], [Location.Located Token.Token])
-group_identifiers (errs, toks) =
+group_identifiers :: ([LexError.LexError], [Location.Located Token.Raw.Token], Token.LToken) -> ([LexError.LexError], [Location.Located Token.Token], Token.LToken)
+group_identifiers (errs, toks, eof_tok) =
     let (errs', grouped) = group_identifiers' toks
-    in (errs ++ errs', grouped)
+    in (errs ++ errs', grouped, eof_tok)
 
 group_identifiers' :: [Location.Located Token.Raw.Token] -> ([LexError.LexError], [Location.Located Token.Token])
 
@@ -92,8 +92,9 @@ convert_raw_token (Location.Located sp Token.Raw.Newline) = Right $ Location.Loc
 -- tests {{{1
 case_group_identifiers :: Assertion
 case_group_identifiers =
-    let (_, [paren_sp, a_sp, dcolon_sp, b_sp]) = SpanHelper.make_spans ["(", "a", "::", "b"]
-    in ([], [Location.Located paren_sp Token.OParen, Location.Located (a_sp `Location.join_span` b_sp) (Token.AlphaIdentifier ["a", "b"])])
+    let (_, [paren_sp, a_sp, dcolon_sp, b_sp, eof_sp]) = SpanHelper.make_spans ["(", "a", "::", "b", "eof"]
+        eof_tok = Location.Located eof_sp Token.EOF
+    in ([], [Location.Located paren_sp Token.OParen, Location.Located (a_sp `Location.join_span` b_sp) (Token.AlphaIdentifier ["a", "b"])], eof_tok)
     @=?
     group_identifiers
         ( []
@@ -102,6 +103,7 @@ case_group_identifiers =
           , Location.Located dcolon_sp Token.Raw.DoubleColon
           , Location.Located b_sp (Token.Raw.AlphaIdentifier "b")
           ]
+        , eof_tok
         )
 
 case_group_identifiers'_single_alpha :: Assertion

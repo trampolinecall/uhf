@@ -18,11 +18,8 @@ import qualified UHF.AST.Expr as Expr
 
 import qualified Data.Data as Data
 import qualified Data.List as List
-import qualified Data.Maybe as Maybe
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Control.Monad.State as State
-
-import qualified Safe
 
 type TokenStream = [Token.LToken]
 type Errors = NonEmpty.NonEmpty ParseError.ParseError
@@ -31,7 +28,6 @@ type ParseFn r = State.State TokenStream r
 type Parser r = ParseFn (ParseResult Errors r)
 type TokenPredicate = Token.Token -> Bool
 type TokenPredicateM a = Token.Token -> Maybe a
-type MTokenPredicate = Maybe Token.Token -> Bool
 
 -- ParseResult {{{1
 data ParseResult e r
@@ -55,9 +51,9 @@ instance Semigroup e => Monad (ParseResult e) where
     Failed e >>= _ = Failed e
 
 -- parse {{{1
-parse :: TokenStream -> ([ParseError.ParseError], [Decl.Decl])
-parse toks =
-    let r_res = State.evalState parse' toks
+parse :: TokenStream -> Token.LToken -> ([ParseError.ParseError], [Decl.Decl])
+parse toks eof_tok =
+    let r_res = State.evalState parse' (toks ++ repeat eof_tok)
     in case r_res of
         Success res -> ([], res)
         Failed e -> (NonEmpty.toList e, []) -- TODO: failed should return errors
@@ -76,15 +72,15 @@ decl_parse =
     consume (\case
         Token.AlphaIdentifier name -> Just name
         _ -> Nothing)
-        (\ t -> NonEmpty.singleton $ ParseError.BadTokenWithName t [(Token.AlphaIdentifier [], "name", "declaration")]) >>=
+        (\ t -> NonEmpty.singleton $ ParseError.BadToken t [(Token.AlphaIdentifier [], "declaration", Just "name")]) >>=
     \case
         Success decl_name ->
             choice
-                [ (maybe False (is_tt Token.Equal), advance >> binding_parse decl_name)
-                , (maybe False (is_tt Token.Colon), advance >> type_signature_parse decl_name)
+                [ (is_tt Token.Equal, advance >> binding_parse decl_name)
+                , (is_tt Token.Colon, advance >> type_signature_parse decl_name)
                 ]
                 (peek >>= \ tok ->
-                return (Failed $ NonEmpty.singleton $ ParseError.BadToken tok [(Token.Colon, "type signature"), (Token.Equal, "declaration")]))
+                return (Failed $ NonEmpty.singleton $ ParseError.BadToken tok [(Token.Colon, "type signature", Nothing), (Token.Equal, "declaration", Nothing)]))
         Failed e -> return $ Failed e
 
 binding_parse :: [String] -> Parser Decl.Decl
@@ -102,16 +98,20 @@ type_signature_parse decl_name =
         Failed e -> return $ Failed e
 -- types {{{2
 type_parse :: Parser Type.Type
-type_parse = return $ Failed $ NonEmpty.singleton $ ParseError.NotImpl "types" -- TODO
+type_parse =
+    peek >>= \ tok ->
+    return $ Failed $ NonEmpty.singleton $ ParseError.NotImpl (Location.Located (Location.just_span tok) "types") -- TODO
 -- exprs {{{2
 expr_parse :: Parser Expr.Expr
-expr_parse = return $ Failed $ NonEmpty.singleton $ ParseError.NotImpl "expressions" -- TODO
+expr_parse =
+    peek >>= \ tok ->
+    return $ Failed $ NonEmpty.singleton $ ParseError.NotImpl (Location.Located (Location.just_span tok) "expressions") -- TODO
 -- helpers {{{1
-peek :: State.State TokenStream (Maybe (Location.Located Token.Token))
-peek = State.state $ \ toks -> (Safe.headMay toks, toks)
+peek :: State.State TokenStream Token.LToken
+peek = State.state $ \ toks -> (head toks, toks)
 
-peek_matches :: (Maybe Token.Token -> Bool) -> State.State TokenStream Bool
-peek_matches p = p <$> (Location.unlocate <$>) <$> peek
+peek_matches :: (Token.Token -> Bool) -> State.State TokenStream Bool
+peek_matches p = p <$> Location.unlocate <$> peek
 
 is_tt :: Token.Token -> Token.Token -> Bool
 is_tt a b = Data.toConstr a == Data.toConstr b
@@ -122,15 +122,15 @@ is_tt_v v a b = if is_tt a b then Just v else Nothing
 is_tt_u :: Token.Token -> Token.Token -> Maybe ()
 is_tt_u = is_tt_v ()
 
-consume :: TokenPredicateM r -> (Maybe (Token.LToken) -> Errors) -> Parser r
+consume :: TokenPredicateM r -> (Token.LToken -> Errors) -> Parser r
 consume p e =
     State.state $ \case
         orig_toks@(tok:more_toks) ->
             case p $ Location.unlocate tok of
                 Just res -> (Success res, more_toks)
-                _ -> (Failed $ e $ Just tok, orig_toks)
+                _ -> (Failed $ e $ tok, orig_toks)
 
-        [] -> (Failed $ e Nothing, [])
+        [] -> error "unreachable"
 
 assert_consume :: TokenPredicateM r -> Parser r
 assert_consume p = consume p (\ _ -> error "assert_consume predicate failed")
@@ -138,10 +138,10 @@ assert_consume p = consume p (\ _ -> error "assert_consume predicate failed")
 advance :: ParseFn ()
 advance = State.state $ \ toks -> ((), drop 1 toks)
 
-choice :: [(MTokenPredicate, ParseFn a)] -> ParseFn a -> ParseFn a
+choice :: [(TokenPredicate, ParseFn a)] -> ParseFn a -> ParseFn a
 choice choices def =
     peek >>= \ tok ->
-    let unlocated = Location.unlocate <$> tok
+    let unlocated = Location.unlocate tok
     in case List.findIndex (($ unlocated) . fst) choices of
         Just i -> snd $ choices !! i
         Nothing -> def

@@ -2,7 +2,6 @@ module UHF.Compiler
     ( compile
     ) where
 
-import qualified UHF.IO.Location as Location
 import qualified UHF.IO.File as File
 import qualified UHF.Diagnostic as Diagnostic
 
@@ -23,12 +22,12 @@ link phase1 phase2 a =
         (diags2, c) = phase2 b
     in (diags1 ++ diags2, c)
 
-lex_phase :: Phase File.File [Token.LToken]
+lex_phase :: Phase File.File ([Token.LToken], Token.LToken)
 lex_phase file =
-    let (diagnostics, res) = Lexer.lex file
-    in (map Diagnostic.to_diagnostic diagnostics, res)
+    let (diagnostics, res, eof_tok) = Lexer.lex file
+    in (map Diagnostic.to_diagnostic diagnostics, (res, eof_tok))
 
-parse_phase :: Phase [Token.LToken] [AST.Decl.Decl]
-parse_phase toks =
-    let (diagnostics, res) = Parser.parse toks
+parse_phase :: Phase ([Token.LToken], Token.LToken) [AST.Decl.Decl]
+parse_phase (toks, eof_tok) =
+    let (diagnostics, res) = Parser.parse toks eof_tok
     in (map Diagnostic.to_diagnostic diagnostics, res)

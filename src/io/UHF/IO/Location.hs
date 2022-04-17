@@ -8,6 +8,7 @@ module UHF.IO.Location
 
     , new_location
     , new_span
+    , eof_span
 
     , file, ind, row, col, line
     , start, before_end, end
@@ -92,6 +93,9 @@ new_span loc start_i len =
         before_end_l = seek (len - 1) start_l
         end_l = seek len start_l
     in Span start_l before_end_l end_l
+
+eof_span :: File.File -> Span
+eof_span f = new_span (seek (Text.length $ File.contents f) $ new_location f) 0 1
 
 join_span :: Span -> Span -> Span
 join_span (Span s1 b1 e1) (Span s2 b2 e2) =

@@ -20,7 +20,7 @@ import Test.Tasty.HUnit
 import Test.Tasty.TH
 import Test.Tasty
 
-import UHF.Test.SpanHelper
+import UHF.IO.Location.SpanHelper
 
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Line as Line

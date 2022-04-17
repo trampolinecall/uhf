@@ -173,23 +173,22 @@ parse_list :: TokenPredicate -> Parser a -> Parser [a]
 parse_list stop = p' [] []
     where
         p' e_acc p_acc p =
-            p >>= \case
-                Failed err m_sync_p ->
-                    m_sync m_sync_p >>
-                    maybe_continue (e_acc ++ NonEmpty.toList err) p_acc p
-
-                Recoverable err res m_sync_p ->
-                    m_sync m_sync_p >>
-                    maybe_continue (e_acc ++ NonEmpty.toList err) (p_acc ++ [res]) p
-
-                Success res ->
-                    maybe_continue e_acc (p_acc ++ [res]) p
-
-        maybe_continue e_acc p_acc p =
             peek >>= \ tok ->
             let unlocated = Location.unlocate tok
             in case (is_tt Token.EOF unlocated, stop unlocated) of
-                (False, False) -> p' e_acc p_acc p
+                (False, False) ->
+                    p >>= \ case
+                        Failed err m_sync_p ->
+                            m_sync m_sync_p >>
+                            p' (e_acc ++ NonEmpty.toList err) p_acc p
+
+                        Recoverable err res m_sync_p ->
+                            m_sync m_sync_p >>
+                            p' (e_acc ++ NonEmpty.toList err) (p_acc ++ [res]) p
+
+                        Success res ->
+                            p' e_acc (p_acc ++ [res]) p
+
                 _ ->
                     case e_acc of
                         [] -> return $ Success p_acc

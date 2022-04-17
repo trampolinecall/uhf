@@ -11,98 +11,17 @@ dependencies:
 ghc-options:
   - -Wall
 
-internal-libraries:
-  argparser:
-    source-dirs: src/argparser
+library:
+  source-dirs: src
 
-    dependencies:
-      - containers
-
-  io:
-    source-dirs: src/io
-
-    dependencies:
-      - text
-      - safe
-
-  token:
-    source-dirs: src/token
-
-    dependencies:
-      - io
-
-      - Decimal
-
-  ast:
-    source-dirs: src/ast
-
-    dependencies:
-      - token
-      - Decimal
-
-  core:
-    source-dirs: src/core
-
-  diagnostic:
-    source-dirs: src/diagnostic
-
-    dependencies:
-      - io
-
-      - span-helper
-
-      - template-haskell
-      - ansi-terminal
-      - text
-      - safe
-
-  lexer:
-    source-dirs: src/lexer
-
-    dependencies:
-      - io
-      - token
-      - diagnostic
-
-      - span-helper
-
-      - text
-      - Decimal
-      - safe
-
-  parser:
-    source-dirs: src/parser
-
-    dependencies:
-      - ast
-      - io
-      - token
-      - diagnostic
-
-      - text
-      - mtl
-      - safe
-
-  compiler:
-    source-dirs: src/compiler
-
-    dependencies:
-      - io
-      - diagnostic
-      - lexer
-      - token
-      - parser
-      - ast
-
-      - text
-
-  span-helper:
-    source-dirs: test/span-helper
-
-    dependencies:
-      - io
-
-      - text
+  dependencies:
+    - text
+    - safe
+    - Decimal
+    - containers
+    - template-haskell
+    - ansi-terminal
+    - mtl
 
 executables:
   uhfi:
@@ -110,7 +29,7 @@ executables:
     source-dirs: exe/uhfi
 
     dependencies:
-      - argparser
+      - uhf
 
     ghc-options:
       - -threaded
@@ -122,10 +41,7 @@ executables:
     source-dirs: exe/uhfc
 
     dependencies:
-      - argparser
-      - compiler
-      - diagnostic
-      - io
+      - uhf
 
     ghc-options:
       - -threaded
@@ -133,30 +49,9 @@ executables:
       - -with-rtsopts=-N
 
 tests:
-  argparser-test:
-    main: argparser.hs
-    source-dirs: test/tests/
+  uhf-test:
+    main: uhf.hs
+    source-dirs: test/
 
     dependencies:
-      - argparser
-
-  io-test:
-    main: io.hs
-    source-dirs: test/tests/
-
-    dependencies:
-      - io
-
-  lexer-test:
-    main: lexer.hs
-    source-dirs: test/tests/
-
-    dependencies:
-      - lexer
-
-  diagnostic-test:
-    main: diagnostic.hs
-    source-dirs: test/tests/
-
-    dependencies:
-      - diagnostic
+      - uhf

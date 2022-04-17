@@ -10,7 +10,7 @@ module UHF.Lexer.PostProcess
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.TH
-import qualified UHF.Test.SpanHelper as SpanHelper
+import qualified UHF.IO.Location.SpanHelper as SpanHelper
 
 import qualified UHF.Lexer.LexError as LexError
 

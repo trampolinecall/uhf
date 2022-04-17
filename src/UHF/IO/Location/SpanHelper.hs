@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module UHF.Test.SpanHelper
+module UHF.IO.Location.SpanHelper
     ( make_spans
     , make_spans'
     ) where

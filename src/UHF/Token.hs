@@ -73,6 +73,7 @@ format_tok CBrack = "']'"
 format_tok Comma = "','"
 format_tok Equal = "'='"
 format_tok Colon = "':'"
+format_tok Arrow = "'->'"
 
 format_tok Root = "'root'"
 format_tok Let = "'let'"

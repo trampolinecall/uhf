@@ -2,7 +2,7 @@ name:                uhf
 version:             0.0.0
 
 dependencies:
-  - base >= 4.7 && < 5
+  - base >= 4.13 && < 5
 
   - tasty
   - tasty-hunit
@@ -29,6 +29,8 @@ internal-libraries:
     source-dirs: src/token
 
     dependencies:
+      - io
+
       - Decimal
 
   ast:
@@ -36,7 +38,6 @@ internal-libraries:
 
     dependencies:
       - token
-
       - Decimal
 
   core:
@@ -80,6 +81,7 @@ internal-libraries:
 
       - text
       - mtl
+      - safe
 
   compiler:
     source-dirs: src/compiler
@@ -89,6 +91,8 @@ internal-libraries:
       - diagnostic
       - lexer
       - token
+      - parser
+      - ast
 
       - text
 

@@ -20,10 +20,10 @@ import qualified UHF.IO.Location as Location
 
 import qualified Safe
 
-group_identifiers :: ([LexError.LexError], [Location.Located Token.Raw.Token]) -> ([LexError.LexError], [Location.Located Token.Token])
-group_identifiers (errs, toks) =
+group_identifiers :: ([LexError.LexError], [Location.Located Token.Raw.Token], Token.LToken) -> ([LexError.LexError], [Location.Located Token.Token], Token.LToken)
+group_identifiers (errs, toks, eof_tok) =
     let (errs', grouped) = group_identifiers' toks
-    in (errs ++ errs', grouped)
+    in (errs ++ errs', grouped, eof_tok)
 
 group_identifiers' :: [Location.Located Token.Raw.Token] -> ([LexError.LexError], [Location.Located Token.Token])
 
@@ -66,7 +66,9 @@ convert_raw_token (Location.Located sp Token.Raw.OBrack) = Right $ Location.Loca
 convert_raw_token (Location.Located sp Token.Raw.CBrack) = Right $ Location.Located sp Token.CBrack
 convert_raw_token (Location.Located sp Token.Raw.Comma) = Right $ Location.Located sp Token.Comma
 convert_raw_token (Location.Located sp Token.Raw.Equal) = Right $ Location.Located sp Token.Equal
+convert_raw_token (Location.Located sp Token.Raw.Colon) = Right $ Location.Located sp Token.Colon
 convert_raw_token (Location.Located sp Token.Raw.DoubleColon) = Left $ LexError.InvalidDoubleColon sp
+convert_raw_token (Location.Located sp Token.Raw.Arrow) = Right $ Location.Located sp Token.Arrow
 convert_raw_token (Location.Located sp Token.Raw.Root) = Right $ Location.Located sp Token.Root
 convert_raw_token (Location.Located sp Token.Raw.Let) = Right $ Location.Located sp Token.Let
 convert_raw_token (Location.Located sp Token.Raw.Data) = Right $ Location.Located sp Token.Data
@@ -79,7 +81,7 @@ convert_raw_token (Location.Located _ (Token.Raw.AlphaIdentifier _)) = error "ca
 convert_raw_token (Location.Located sp (Token.Raw.CharLit val)) = Right $ Location.Located sp $ Token.CharLit val
 convert_raw_token (Location.Located sp (Token.Raw.StringLit val)) = Right $ Location.Located sp $ Token.StringLit val
 convert_raw_token (Location.Located sp (Token.Raw.IntLit base val)) = Right $ Location.Located sp $ Token.IntLit base val
-convert_raw_token (Location.Located sp (Token.Raw.FloatLit val)) = Right $ Location.Located sp $ Token.FloatLit val
+convert_raw_token (Location.Located sp (Token.Raw.FloatLit val)) = Right $ Location.Located sp $ Token.FloatLit $ Token.Decimal val
 convert_raw_token (Location.Located sp (Token.Raw.BoolLit val)) = Right $ Location.Located sp $ Token.BoolLit val
 convert_raw_token (Location.Located sp Token.Raw.OBrace) = Right $ Location.Located sp Token.OBrace
 convert_raw_token (Location.Located sp Token.Raw.CBrace) = Right $ Location.Located sp Token.CBrace
@@ -91,8 +93,9 @@ convert_raw_token (Location.Located sp Token.Raw.Newline) = Right $ Location.Loc
 -- tests {{{1
 case_group_identifiers :: Assertion
 case_group_identifiers =
-    let (_, [paren_sp, a_sp, dcolon_sp, b_sp]) = SpanHelper.make_spans ["(", "a", "::", "b"]
-    in ([], [Location.Located paren_sp Token.OParen, Location.Located (a_sp `Location.join_span` b_sp) (Token.AlphaIdentifier ["a", "b"])])
+    let (_, [paren_sp, a_sp, dcolon_sp, b_sp, eof_sp]) = SpanHelper.make_spans ["(", "a", "::", "b", "eof"]
+        eof_tok = Location.Located eof_sp Token.EOF
+    in ([], [Location.Located paren_sp Token.OParen, Location.Located (a_sp `Location.join_span` b_sp) (Token.AlphaIdentifier ["a", "b"])], eof_tok)
     @=?
     group_identifiers
         ( []
@@ -101,6 +104,7 @@ case_group_identifiers =
           , Location.Located dcolon_sp Token.Raw.DoubleColon
           , Location.Located b_sp (Token.Raw.AlphaIdentifier "b")
           ]
+        , eof_tok
         )
 
 case_group_identifiers'_single_alpha :: Assertion

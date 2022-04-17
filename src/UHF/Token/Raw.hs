@@ -17,9 +17,9 @@ data Token
     | Arrow
 
     | Root
-    | Let
     | Data
     | Under
+    | Let
     | If
     | Else
     | Case

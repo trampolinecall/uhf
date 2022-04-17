@@ -57,7 +57,10 @@ report handle (Diagnostic code m_sp sections) =
                 Nothing -> Nothing
 
         section_lines = concatMap (\ (Section l) -> l) sections
-        indent = maximum $ map (Text.length . Line.prefix) section_lines
+        indent =
+            if null section_lines
+                then 4
+                else maximum $ map (Text.length . Line.prefix) section_lines
 
         p_fmtstr = FormattedString.render_formatted_string handle FormattedString.AutoDetect
 

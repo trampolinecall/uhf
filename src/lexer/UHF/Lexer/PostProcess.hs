@@ -68,6 +68,7 @@ convert_raw_token (Location.Located sp Token.Raw.Comma) = Right $ Location.Locat
 convert_raw_token (Location.Located sp Token.Raw.Equal) = Right $ Location.Located sp Token.Equal
 convert_raw_token (Location.Located sp Token.Raw.Colon) = Right $ Location.Located sp Token.Colon
 convert_raw_token (Location.Located sp Token.Raw.DoubleColon) = Left $ LexError.InvalidDoubleColon sp
+convert_raw_token (Location.Located sp Token.Raw.Arrow) = Right $ Location.Located sp Token.Arrow
 convert_raw_token (Location.Located sp Token.Raw.Root) = Right $ Location.Located sp Token.Root
 convert_raw_token (Location.Located sp Token.Raw.Let) = Right $ Location.Located sp Token.Let
 convert_raw_token (Location.Located sp Token.Raw.Data) = Right $ Location.Located sp Token.Data

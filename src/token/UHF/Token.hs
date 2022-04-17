@@ -36,6 +36,7 @@ data Token
     | Comma
     | Equal
     | Colon
+    | Arrow
 
     | Root
     | Let

@@ -35,23 +35,23 @@ data ParseResult e r
     | Recoverable e r (Maybe TokenPredicate)
     | Success r
 
-instance Functor (ParseResult e) where
-    fmap _ (Failed e s) = Failed e s
-    fmap f (Recoverable e a s) = Recoverable e (f a) s
-    fmap f (Success a) = Success (f a)
+p_then :: Parser a -> (a -> Parser b) -> Parser b
+p_then a b =
+    a >>= \case
+        Success a_res -> b a_res
 
-instance Semigroup e => Applicative (ParseResult e) where
-    pure = Success
+        Recoverable a_errs a_res a_sync ->
+            m_sync a_sync >>
+            b a_res >>= add_to_b_res a_errs
 
-    (Success f) <*> (Success b) = Success $ f b
-    (Failed e s) <*> (Success _) = Failed e s
-    (Success _) <*> (Failed e s) = Failed e s
-    (Failed e1 _) <*> (Failed e2 s) = Failed (e1 <> e2) s -- not sure how this should work
+        Failed a_errs a_sync_p ->
+            m_sync a_sync_p >>
+            return (Failed a_errs a_sync_p)
 
-instance Semigroup e => Monad (ParseResult e) where
-    Success a >>= f = f a
-    Failed e s >>= _ = Failed e s
-
+    where
+        add_to_b_res a_errs (Success b_res) = return $ Recoverable a_errs b_res Nothing
+        add_to_b_res a_errs (Recoverable b_errs b_res b_sync_p) = return $ Recoverable (a_errs `nonempty_append` b_errs) b_res b_sync_p
+        add_to_b_res a_errs (Failed b_errs b_sync_p) = return $ Failed (a_errs `nonempty_append` b_errs) b_sync_p
 -- parse {{{1
 parse :: TokenStream -> Token.LToken -> ([ParseError.ParseError], [Decl.Decl])
 parse toks eof_tok =
@@ -72,43 +72,34 @@ decl_parse =
     consume (\case
         Token.AlphaIdentifier name -> Just name
         _ -> Nothing)
-        (\ t -> (nonempty_singleton $ ParseError.BadToken t [(Token.AlphaIdentifier [], "declaration", Just "name")], Just decl_lookahead_matches)) >>=
-    \case
-        Success decl_name ->
-            choice
-                [ (is_tt Token.Equal, advance >> binding_parse decl_name)
-                , (is_tt Token.Colon, advance >> type_signature_parse decl_name)
-                ]
-                (peek >>= \ tok ->
-                return (Failed (nonempty_singleton $ ParseError.BadToken tok [(Token.Colon, "type signature", Nothing), (Token.Equal, "declaration", Nothing)]) Nothing))
-        Failed e s -> return $ Failed e s
+        (\ t -> (nonempty_singleton $ ParseError.BadToken t [(Token.AlphaIdentifier [], "declaration", Just "name")], Just decl_lookahead_matches)) `p_then` \ decl_name ->
+
+    choice
+        [ (is_tt Token.Equal, advance >> binding_parse decl_name)
+        , (is_tt Token.Colon, advance >> type_signature_parse decl_name)
+        ]
+        (peek >>= \ tok ->
+        return (Failed (nonempty_singleton $ ParseError.BadToken tok [(Token.Colon, "type signature", Nothing), (Token.Equal, "declaration", Nothing)]) Nothing))
 
 binding_parse :: [String] -> Parser Decl.Decl
 binding_parse decl_name =
     assert_consume (is_tt_u Token.Equal) >>
-    expr_parse >>= \case
-        Success ex -> return $ Success $ Decl.Binding decl_name ex
-        Failed e s -> return $ Failed e s
+    expr_parse `p_then` \ ex ->
+    return (Success $ Decl.Binding decl_name ex)
 
 type_signature_parse :: [String] -> Parser Decl.Decl
 type_signature_parse decl_name =
     assert_consume (is_tt_u Token.Colon) >>
-    type_parse >>= \case
-        Success ty -> return $ Success $ Decl.TypeSignature decl_name ty
-        Failed e s -> return $ Failed e s
+    type_parse `p_then` \ ty ->
+    return (Success $ Decl.TypeSignature decl_name ty)
 -- types {{{2
 type_parse :: Parser Type.Type
 type_parse =
     consume (\case
         Token.AlphaIdentifier iden -> Just iden
         _ -> Nothing)
-        (\ tok -> (nonempty_singleton $ ParseError.BadToken tok [(Token.AlphaIdentifier [], "type", Nothing)], Nothing))
-        >>=
-    \case
-        Success iden ->
-            return $ Success $ Type.Identifier iden
-        Failed e s -> return $ Failed e s
-
+        (\ tok -> (nonempty_singleton $ ParseError.BadToken tok [(Token.AlphaIdentifier [], "type", Nothing)], Nothing)) `p_then` \ iden ->
+    return (Success $ Type.Identifier iden)
 
 -- exprs {{{2
 expr_parse :: Parser Expr.Expr
@@ -118,9 +109,6 @@ expr_parse =
 -- helpers {{{1
 peek :: State.State TokenStream Token.LToken
 peek = State.state $ \ toks -> (head toks, toks)
-
-peek_matches :: (Token.Token -> Bool) -> State.State TokenStream Bool
-peek_matches p = p <$> Location.unlocate <$> peek
 
 is_tt :: Token.Token -> Token.Token -> Bool
 is_tt a b = Data.toConstr a == Data.toConstr b
@@ -163,18 +151,16 @@ parse_list stop = p' [] []
         p' e_acc p_acc p =
             p >>= \case
                 Failed err m_sync_p ->
-                    maybe_sync m_sync_p >>
+                    m_sync m_sync_p >>
                     maybe_continue (e_acc ++ NonEmpty.toList err) p_acc p
 
                 Recoverable err res m_sync_p ->
-                    maybe_sync m_sync_p >>
+                    m_sync m_sync_p >>
                     maybe_continue (e_acc ++ NonEmpty.toList err) (p_acc ++ [res]) p
 
                 Success res ->
                     maybe_continue e_acc (p_acc ++ [res]) p
 
-        maybe_sync Nothing = return ()
-        maybe_sync (Just sync_p) = sync sync_p
         maybe_continue e_acc p_acc p =
             peek >>= \ tok ->
             case stop $ Location.unlocate tok of
@@ -187,10 +173,18 @@ parse_list stop = p' [] []
 
 sync :: TokenPredicate -> ParseFn ()
 sync sync_p = parse_list sync_p (consume (const $ Just ()) (error "unreachable")) >> return ()
+m_sync :: Maybe TokenPredicate -> ParseFn ()
+m_sync Nothing = return ()
+m_sync (Just sync_p) = sync sync_p
 
 -- TODO: use NonEmpty.singleton when a new stack resolver comes out with ghc 9.2.2
---  NonEmpty.singleton is only in base-1.15 or higher, but the only lts stack resolver that has that version of base
+--  NonEmpty.singleton is only in base-4.15 or higher, but the only lts stack resolver that has that version of base
 --  uses ghc 9.0.2, which is currently missing profiling libraries for base
 --  this ghc bug is fixed in ghc 9.2.2, but there is not an lts stack resolver that uses ghc 9.2.2 yet
 nonempty_singleton :: a -> NonEmpty.NonEmpty a
 nonempty_singleton a = a NonEmpty.:| []
+
+-- TODO: use NonEmpty.append when there is a stack resolver that has base-4.16
+nonempty_append :: NonEmpty.NonEmpty a -> NonEmpty.NonEmpty a -> NonEmpty.NonEmpty a
+nonempty_append (a NonEmpty.:| as) (b NonEmpty.:| bs) =
+    a NonEmpty.:| (as ++ b:bs)

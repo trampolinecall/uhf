@@ -99,8 +99,17 @@ type_signature_parse decl_name =
 -- types {{{2
 type_parse :: Parser Type.Type
 type_parse =
-    peek >>= \ tok ->
-    return $ Failed $ nonempty_singleton $ ParseError.NotImpl (Location.Located (Location.just_span tok) "types") -- TODO
+    consume (\case
+        Token.AlphaIdentifier iden -> Just iden
+        _ -> Nothing)
+        (\ tok -> nonempty_singleton $ ParseError.BadToken tok [(Token.AlphaIdentifier [], "type", Nothing)])
+        >>=
+    \case
+        Success iden ->
+            return $ Success $ Type.Identifier iden
+        Failed e -> return $ Failed e
+
+
 -- exprs {{{2
 expr_parse :: Parser Expr.Expr
 expr_parse =

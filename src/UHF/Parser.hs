@@ -65,31 +65,53 @@ parse' :: Parser [Decl.Decl]
 parse' = parse_list (is_tt Token.EOF) decl_parse
 -- decls {{{2
 decl_lookahead_matches :: TokenPredicate
-decl_lookahead_matches = is_tt (Token.AlphaIdentifier [])
-
+decl_lookahead_matches Token.Data = True
+decl_lookahead_matches Token.Under = True
+decl_lookahead_matches (Token.AlphaIdentifier []) = True
+decl_lookahead_matches _ = False
+--
 decl_parse :: Parser Decl.Decl
 decl_parse =
-    consume (\case
-        Token.AlphaIdentifier name -> Just name
-        _ -> Nothing)
-        (\ t -> (nonempty_singleton $ ParseError.BadToken t [(Token.AlphaIdentifier [], "declaration", Just "name")], Just decl_lookahead_matches)) `p_then` \ decl_name ->
-
     choice
-        [ (is_tt Token.Equal, advance >> binding_parse decl_name)
-        , (is_tt Token.Colon, advance >> type_signature_parse decl_name)
+        [ (is_tt Token.Data, advance >> data_parse)
+        , (is_tt Token.Under, advance >> under_parse)
+        , (is_tt (Token.AlphaIdentifier []), assert_consume (\ (Token.AlphaIdentifier name) -> Just name) >>= type_sig_or_function_parse)
+        ]
+        (peek >>= \ tok ->
+        return (Failed
+            (nonempty_singleton $ ParseError.BadToken tok
+                [ (Token.Data, "datatype declaration", Nothing)
+                , (Token.Under, "'under' block", Nothing)
+                , (Token.AlphaIdentifier [], "function declaration", Just "name")
+                ])
+            (Just decl_lookahead_matches)))
+
+data_parse :: Parser Decl.Decl
+data_parse =
+    peek >>= \ tok -> -- TODO: maybe use the 'data' token
+    return (Failed (nonempty_singleton $ ParseError.NotImpl $ Location.Located (Location.just_span tok) "datatype declarations") (Just decl_lookahead_matches))
+
+under_parse :: Parser Decl.Decl
+under_parse =
+    peek >>= \ tok -> -- TODO: maybe use the 'under' token
+    return (Failed (nonempty_singleton $ ParseError.NotImpl $ Location.Located (Location.just_span tok) "'under' blocks") (Just decl_lookahead_matches))
+
+type_sig_or_function_parse :: [String] -> Parser Decl.Decl
+type_sig_or_function_parse name =
+    choice
+        [ (is_tt Token.Equal, advance >> binding_parse name)
+        , (is_tt Token.Colon, advance >> type_signature_parse name)
         ]
         (peek >>= \ tok ->
         return (Failed (nonempty_singleton $ ParseError.BadToken tok [(Token.Colon, "type signature", Nothing), (Token.Equal, "declaration", Nothing)]) Nothing))
 
 binding_parse :: [String] -> Parser Decl.Decl
 binding_parse decl_name =
-    assert_consume (is_tt_u Token.Equal) >>
     expr_parse `p_then` \ ex ->
     return (Success $ Decl.Binding decl_name ex)
 
 type_signature_parse :: [String] -> Parser Decl.Decl
 type_signature_parse decl_name =
-    assert_consume (is_tt_u Token.Colon) >>
     type_parse `p_then` \ ty ->
     return (Success $ Decl.TypeSignature decl_name ty)
 -- types {{{2
@@ -100,7 +122,6 @@ type_parse =
         _ -> Nothing)
         (\ tok -> (nonempty_singleton $ ParseError.BadToken tok [(Token.AlphaIdentifier [], "type", Nothing)], Nothing)) `p_then` \ iden ->
     return (Success $ Type.Identifier iden)
-
 -- exprs {{{2
 expr_parse :: Parser Expr.Expr
 expr_parse =
@@ -131,8 +152,11 @@ consume p e =
 
         [] -> error "unreachable"
 
-assert_consume :: TokenPredicateM r -> Parser r
-assert_consume p = consume p (\ _ -> error "assert_consume predicate failed")
+assert_consume :: TokenPredicateM r -> ParseFn r
+assert_consume p =
+    consume p (const $ error "assert_consume predicate failed") >>= \case
+        Success r -> return r
+        _ -> error "assert_consume predicate failed"
 
 advance :: ParseFn ()
 advance = State.state $ \ toks -> ((), drop 1 toks)

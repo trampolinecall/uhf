@@ -172,6 +172,7 @@ lex_symbol_identifier lexer
     | lexer `matches` "=" = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.Raw.Equal])
     | lexer `matches` ":" = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.Raw.Colon])
     | lexer `matches` "::" = Just (True, Just $ lexer `seek` 2, [], [Location.Located (lexer_span lexer 0 1) Token.Raw.DoubleColon])
+    | lexer `matches` "->" = Just (True, Just $ lexer `seek` 2, [], [Location.Located (lexer_span lexer 0 1) Token.Raw.Arrow])
     | otherwise =
         let is_valid_char = (`elem` ("!#$%&*+-./:<=>?@^`~" :: String))
             (iden_sp, iden, lexer') = lexer `seek_while` is_valid_char

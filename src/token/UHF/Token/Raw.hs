@@ -14,6 +14,7 @@ data Token
     | Equal
     | Colon
     | DoubleColon
+    | Arrow
 
     | Root
     | Let

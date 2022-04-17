@@ -187,9 +187,10 @@ parse_list stop = p' [] []
 
         maybe_continue e_acc p_acc p =
             peek >>= \ tok ->
-            case stop $ Location.unlocate tok of
-                True -> p' e_acc p_acc p
-                False ->
+            let unlocated = Location.unlocate tok
+            in case (is_tt Token.EOF unlocated, stop unlocated) of
+                (False, False) -> p' e_acc p_acc p
+                _ ->
                     case e_acc of
                         [] -> return $ Success p_acc
                         e:e' -> return $ Recoverable (e NonEmpty.:| e') p_acc Nothing

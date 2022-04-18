@@ -1,6 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ExistentialQuantification #-}
 
 module UHF.Parser
     ( parse
@@ -17,6 +18,8 @@ import qualified UHF.Parser.ParseError as ParseError
 
 import qualified UHF.Token as Token
 import qualified UHF.IO.Location as Location
+import qualified UHF.IO.File as File
+import qualified UHF.IO.Location.SpanHelper as SpanHelper
 
 import qualified UHF.AST.Decl as Decl
 import qualified UHF.AST.Type as Type
@@ -232,11 +235,6 @@ m_sync (Just sync_p) = sync sync_p
 --  this ghc bug is fixed in ghc 9.2.2, but there is not an lts stack resolver that uses ghc 9.2.2 yet
 nonempty_singleton :: a -> NonEmpty.NonEmpty a
 nonempty_singleton a = a NonEmpty.:| []
-
--- TODO: use NonEmpty.append when there is a stack resolver that has base-4.16
-nonempty_append :: NonEmpty.NonEmpty a -> NonEmpty.NonEmpty a -> NonEmpty.NonEmpty a
-nonempty_append (a NonEmpty.:| as) (b NonEmpty.:| bs) =
-    a NonEmpty.:| (as ++ b:bs)
 -- tests {{{1
 test_p_then :: [TestTree]
 test_p_then =
@@ -274,6 +272,47 @@ test_p_then =
         , t "s-r" s r' (Recoverable [5] "true recoverable" Nothing)
         , t "s-s" s s' (Success "true success")
         ]
+
+data ParsingTest = forall r. (Show r, Eq r) => ParsingTest String (File.File, TokenStream) r [(String, Parser Errors r)]
+parsing_tests :: [ParsingTest]
+parsing_tests =
+    [ ParsingTest "function decl"
+        (SpanHelper.make_spans_with_items [("x", Token.AlphaIdentifier ["x"]), ("=", Token.Equal), ("'c'", Token.CharLit 'c')])
+        (Decl.Binding ["x"] (Expr.CharLit 'c'))
+        [("decl_parse", decl_parse)]
+    , ParsingTest "type signature"
+        (SpanHelper.make_spans_with_items [("x", Token.AlphaIdentifier ["x"]), (":", Token.Colon), ("int", Token.AlphaIdentifier ["int"])])
+        (Decl.TypeSignature ["x"] (Type.Identifier ["int"]))
+        [("decl_parse", decl_parse)]
+    , ParsingTest "data decl"
+        (SpanHelper.make_spans_with_items
+            [ ("data", Token.Data), ("X", Token.AlphaIdentifier ["X"])
+            , ("indent", Token.Indent), ("Y", Token.AlphaIdentifier ["Y"]), ("string", Token.AlphaIdentifier ["string"]), ("newline", Token.Newline)
+            , ("Z", Token.AlphaIdentifier ["Z"]), ("X", Token.AlphaIdentifier ["X"]), ("newline", Token.Newline)
+            , ("dedent", Token.Dedent)
+            ])
+        (error "not implemented yet")
+        [("decl_parse", decl_parse), ("data_parse", data_parse)]
+    , ParsingTest "under decl"
+        (SpanHelper.make_spans_with_items
+            [ ("under", Token.Data), ("X", Token.AlphaIdentifier ["X"])
+            , ("indent", Token.Indent), ("x", Token.AlphaIdentifier ["x"]), ("=", Token.Equal), ("2", Token.IntLit Token.Dec 2), ("newline", Token.Newline)
+            , ("dedent", Token.Dedent)
+            ])
+        (error "not implemented yet")
+        [("decl_parse", decl_parse), ("under_parse", under_parse)]
+    ]
+
+run_test :: ParsingTest -> TestTree
+run_test (ParsingTest construct_name (_, construct_toks) construct_res parsers) =
+    testGroup construct_name $
+        map
+            (\ (p_name, p) ->
+            testCase (p_name ++ " parsing " ++ construct_name) $ Success construct_res @=? (State.evalState p construct_toks))
+            parsers
+
+test_parsing :: [TestTree]
+test_parsing = map run_test parsing_tests
 
 tests :: TestTree
 tests = $(testGroupGenerator)

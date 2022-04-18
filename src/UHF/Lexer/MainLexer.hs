@@ -65,7 +65,7 @@ lex f =
 lex' :: Lexer -> Maybe (Location.Located Token.Raw.Token) -> (Maybe Lexer, [LexError.LexError], [Location.Located Token.Raw.Token])
 lex' lexer last_tok =
     let lex_choices =
-            [ lex_eof
+            [ lex_eof last_tok
             , lex_comment
 
             , lex_alpha_identifier
@@ -93,18 +93,17 @@ lex' lexer last_tok =
 -- lexing functions {{{2
 type LexFn = Lexer -> Maybe (Bool, Maybe Lexer, [LexError.LexError], [Location.Located Token.Raw.Token])
 
-lex_eof :: LexFn
-lex_eof lexer
+lex_eof :: Maybe (Location.Located Token.Raw.Token) -> LexFn
+lex_eof last_tok lexer
     | Text.null $ remaining lexer =
         let all_dedents = concatMap make_dedent (init $ indent_stack lexer)
 
             make_dedent (IndentationSensitive _) = [Location.Located (lexer_span lexer 0 1) Token.Raw.Dedent]
             make_dedent _ = []
 
-            nl =
-                if not $ null all_dedents
-                    then [Location.Located (lexer_span lexer 0 1) Token.Raw.Newline]
-                    else []
+            nl
+                | isJust last_tok = [Location.Located (lexer_span lexer 0 1) Token.Raw.Newline]
+                | otherwise = []
 
         in Just (False, Nothing, [], nl ++ all_dedents)
 
@@ -466,6 +465,12 @@ case_lex =
         ([LexError.UnclosedStrLit _], [Location.Located _ (Token.Raw.AlphaIdentifier "abc"), Location.Located _ (Token.Raw.SymbolIdentifier "*&*"), Location.Located _ Token.Raw.OParen, Location.Located _ Token.Raw.Newline], _) -> return ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
+case_lex_empty :: Assertion
+case_lex_empty =
+    case UHF.Lexer.MainLexer.lex (File.File "a" "") of
+        ([], [], _) -> return ()
+        x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
+
 lex_test :: (Lexer -> r) -> Text.Text -> (r -> IO ()) -> IO ()
 lex_test fn input check = check $ fn $ new_lexer $ File.File "a" input
 lex_test_fail :: Show r => String -> r -> IO a
@@ -493,25 +498,32 @@ case_lex' =
 case_lex'_empty :: Assertion
 case_lex'_empty =
     lex_test (flip lex' Nothing) "" $ \case
-        (Nothing, [], [Location.Located _ Token.Raw.Newline]) -> return ()
+        (Nothing, [], []) -> return ()
         x -> lex_test_fail "lex'" x
 
 case_lex_eof_end :: Assertion
 case_lex_eof_end =
-    lex_test lex_eof "" $ \case
+    lex_test (lex_eof (Just undefined)) "" $ \case
         Just (False, Nothing, [], [Location.Located _ Token.Raw.Newline]) -> return ()
         x -> lex_test_fail "lex_eof" x
 case_lex_eof_not_end :: Assertion
 case_lex_eof_not_end =
-    lex_test lex_eof "a" $ \case
+    lex_test (lex_eof (Just undefined)) "a" $ \case
         Nothing -> return ()
         x -> lex_test_fail "lex_eof" x
 case_lex_eof_with_dedents :: Assertion
 case_lex_eof_with_dedents =
     let f = File.File "a" ""
         l = Lexer (Location.new_location f) [IndentationInsensitive, IndentationSensitive 4, IndentationInsensitive, IndentationSensitive 0]
-    in case lex_eof l of
+    in case lex_eof (Just undefined) l of
         Just (False, Nothing, [], [Location.Located _ Token.Raw.Newline, Location.Located _ Token.Raw.Dedent]) -> return ()
+        x -> lex_test_fail "lex_eof" x
+case_lex_eof_empty_file :: Assertion
+case_lex_eof_empty_file =
+    let f = File.File "a" ""
+        l = Lexer (Location.new_location f) [IndentationSensitive 0]
+    in case lex_eof Nothing l of
+        Just (False, Nothing, [], []) -> return ()
         x -> lex_test_fail "lex_eof" x
 
 case_lex_comment_single :: Assertion

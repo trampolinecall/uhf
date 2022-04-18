@@ -17,18 +17,21 @@ import qualified UHF.Lexer.MainLexer (tests)
 import qualified UHF.Lexer.PostProcess (tests)
 import qualified UHF.Lexer.DFA (tests)
 
+import qualified UHF.Parser (tests)
+
 main :: IO ()
 main = defaultMain $
     testGroup "tests"
         [ UHF.ArgParser.tests
         , UHF.ArgParser.Help.tests
         , UHF.ArgParser.Parser.tests
+        , UHF.Diagnostic.FormattedString.tests
+        , UHF.Diagnostic.Sections.Underlines.tests
+        , UHF.Diagnostic.Sections.Utils.tests
         , UHF.Lexer.MainLexer.tests
         , UHF.Lexer.PostProcess.tests
         , UHF.Lexer.DFA.tests
         , UHF.IO.Location.tests
         , UHF.IO.Path.tests
-        , UHF.Diagnostic.FormattedString.tests
-        , UHF.Diagnostic.Sections.Underlines.tests
-        , UHF.Diagnostic.Sections.Utils.tests
+        , UHF.Parser.tests
         ]

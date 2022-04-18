@@ -2,6 +2,8 @@
 module UHF.IO.Location.SpanHelper
     ( make_spans
     , make_spans'
+    , make_spans_with_items
+    , make_spans_with_items'
     ) where
 
 import qualified UHF.IO.File as File
@@ -27,3 +29,11 @@ make_spans' fname intercalation strs =
                 strs
 
     in (file, spans)
+
+make_spans_with_items :: [(String, a)] -> (File.File, [Location.Located a])
+make_spans_with_items = make_spans_with_items' "<generated span file>" " "
+
+make_spans_with_items' :: String -> String -> [(String, a)] -> (File.File, [Location.Located a])
+make_spans_with_items' fname intercalation strs =
+    let (f, sps) = make_spans' fname intercalation (fst <$> strs)
+    in (f, zipWith Location.Located sps (snd <$> strs))

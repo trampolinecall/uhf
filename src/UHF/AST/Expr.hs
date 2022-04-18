@@ -9,3 +9,4 @@ data Expr
     | IntLit Integer
     | FloatLit Token.Decimal
     | BoolLit Bool
+    deriving (Eq, Show)

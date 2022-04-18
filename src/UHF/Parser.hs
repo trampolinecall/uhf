@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
 
@@ -5,7 +6,12 @@ module UHF.Parser
     ( parse
 
     , ParseError.ParseError
+    , tests
     ) where
+
+import Test.Tasty.HUnit
+import Test.Tasty.TH
+import Test.Tasty
 
 import qualified UHF.Parser.ParseError as ParseError
 
@@ -25,7 +31,7 @@ type TokenStream = [Token.LToken]
 type Errors = NonEmpty.NonEmpty ParseError.ParseError
 
 type ParseFn r = State.State TokenStream r
-type Parser r = ParseFn (ParseResult Errors r)
+type Parser e r = ParseFn (ParseResult e r)
 type TokenPredicate = Token.Token -> Bool
 type TokenPredicateM a = Token.Token -> Maybe a
 
@@ -35,7 +41,22 @@ data ParseResult e r
     | Recoverable e r (Maybe TokenPredicate)
     | Success r
 
-p_then :: Parser a -> (a -> Parser b) -> Parser b
+instance (Eq e, Eq r) => Eq (ParseResult e r) where
+    (Failed e1 _) == (Failed e2 _) = e1 == e2
+    (Recoverable e1 r1 _) == (Recoverable e2 r2 _) = e1 == e2 && r1 == r2
+    (Success r1) == (Success r2) = r1 == r2
+    _ == _ = False
+
+instance (Show e, Show r) => Show (ParseResult e r) where
+    show (Failed e (Just _)) = "Failed " ++ show e ++ " <synchronization predicate>"
+    show (Failed e Nothing) = "Failed " ++ show e ++ " <no synchronization predicate>"
+
+    show (Recoverable e r (Just _)) = "Recoverable " ++ show e ++ " " ++ show r ++ " <synchronization predicate>"
+    show (Recoverable e r Nothing) = "Recoverable " ++ show e ++ " " ++ show r ++ " <no synchronization predicate>"
+
+    show (Success r) = "Success " ++ show r
+
+p_then :: Semigroup e => Parser e a -> (a -> Parser e b) -> Parser e b
 p_then a b =
     a >>= \case
         Success a_res -> b a_res
@@ -50,8 +71,8 @@ p_then a b =
 
     where
         add_to_b_res a_errs (Success b_res) = return $ Recoverable a_errs b_res Nothing
-        add_to_b_res a_errs (Recoverable b_errs b_res b_sync_p) = return $ Recoverable (a_errs `nonempty_append` b_errs) b_res b_sync_p
-        add_to_b_res a_errs (Failed b_errs b_sync_p) = return $ Failed (a_errs `nonempty_append` b_errs) b_sync_p
+        add_to_b_res a_errs (Recoverable b_errs b_res b_sync_p) = return $ Recoverable (a_errs <> b_errs) b_res b_sync_p
+        add_to_b_res a_errs (Failed b_errs b_sync_p) = return $ Failed (a_errs <> b_errs) b_sync_p
 -- parse {{{1
 parse :: TokenStream -> Token.LToken -> ([ParseError.ParseError], [Decl.Decl])
 parse toks eof_tok =
@@ -61,7 +82,7 @@ parse toks eof_tok =
         Failed errs _ -> (NonEmpty.toList errs, [])
         Recoverable errs res _ -> (NonEmpty.toList errs, res)
 
-parse' :: Parser [Decl.Decl]
+parse' :: Parser Errors [Decl.Decl]
 parse' = parse_list (is_tt Token.EOF) decl_parse
 -- decls {{{2
 decl_lookahead_matches :: TokenPredicate
@@ -70,7 +91,7 @@ decl_lookahead_matches Token.Under = True
 decl_lookahead_matches (Token.AlphaIdentifier []) = True
 decl_lookahead_matches _ = False
 --
-decl_parse :: Parser Decl.Decl
+decl_parse :: Parser Errors Decl.Decl
 decl_parse =
     choice
         [ (is_tt Token.Data, advance >> data_parse)
@@ -86,17 +107,17 @@ decl_parse =
                 ])
             (Just decl_lookahead_matches)))
 
-data_parse :: Parser Decl.Decl
+data_parse :: Parser Errors Decl.Decl
 data_parse =
     peek >>= \ tok -> -- TODO: maybe use the 'data' token
     return (Failed (nonempty_singleton $ ParseError.NotImpl $ Location.Located (Location.just_span tok) "datatype declarations") (Just decl_lookahead_matches))
 
-under_parse :: Parser Decl.Decl
+under_parse :: Parser Errors Decl.Decl
 under_parse =
     peek >>= \ tok -> -- TODO: maybe use the 'under' token
     return (Failed (nonempty_singleton $ ParseError.NotImpl $ Location.Located (Location.just_span tok) "'under' blocks") (Just decl_lookahead_matches))
 
-type_sig_or_function_parse :: [String] -> Parser Decl.Decl
+type_sig_or_function_parse :: [String] -> Parser Errors Decl.Decl
 type_sig_or_function_parse name =
     choice
         [ (is_tt Token.Equal, advance >> binding_parse name)
@@ -105,17 +126,17 @@ type_sig_or_function_parse name =
         (peek >>= \ tok ->
         return (Failed (nonempty_singleton $ ParseError.BadToken tok [(Token.Colon, "type signature", Nothing), (Token.Equal, "declaration", Nothing)]) Nothing))
 
-binding_parse :: [String] -> Parser Decl.Decl
+binding_parse :: [String] -> Parser Errors Decl.Decl
 binding_parse decl_name =
     expr_parse `p_then` \ ex ->
     return (Success $ Decl.Binding decl_name ex)
 
-type_signature_parse :: [String] -> Parser Decl.Decl
+type_signature_parse :: [String] -> Parser Errors Decl.Decl
 type_signature_parse decl_name =
     type_parse `p_then` \ ty ->
     return (Success $ Decl.TypeSignature decl_name ty)
 -- types {{{2
-type_parse :: Parser Type.Type
+type_parse :: Parser Errors Type.Type
 type_parse =
     consume (\case
         Token.AlphaIdentifier iden -> Just iden
@@ -123,7 +144,7 @@ type_parse =
         (\ tok -> (nonempty_singleton $ ParseError.BadToken tok [(Token.AlphaIdentifier [], "type", Nothing)], Nothing)) `p_then` \ iden ->
     return (Success $ Type.Identifier iden)
 -- exprs {{{2
-expr_parse :: Parser Expr.Expr
+expr_parse :: Parser Errors Expr.Expr
 expr_parse =
     peek >>= \ tok ->
     return $ Failed (nonempty_singleton $ ParseError.NotImpl (Location.Located (Location.just_span tok) "expressions")) Nothing -- TODO
@@ -140,7 +161,7 @@ is_tt_v v a b = if is_tt a b then Just v else Nothing
 is_tt_u :: Token.Token -> Token.Token -> Maybe ()
 is_tt_u = is_tt_v ()
 
-consume :: TokenPredicateM r -> (Token.LToken -> (Errors, Maybe TokenPredicate)) -> Parser r
+consume :: TokenPredicateM r -> (Token.LToken -> (Errors, Maybe TokenPredicate)) -> Parser Errors r
 consume p e =
     State.state $ \case
         orig_toks@(tok:more_toks) ->
@@ -169,7 +190,7 @@ choice choices def =
         Just i -> snd $ choices !! i
         Nothing -> def
 
-parse_list :: TokenPredicate -> Parser a -> Parser [a]
+parse_list :: TokenPredicate -> Parser Errors a -> Parser Errors [a]
 parse_list stop = p' [] []
     where
         p' e_acc p_acc p =
@@ -216,3 +237,43 @@ nonempty_singleton a = a NonEmpty.:| []
 nonempty_append :: NonEmpty.NonEmpty a -> NonEmpty.NonEmpty a -> NonEmpty.NonEmpty a
 nonempty_append (a NonEmpty.:| as) (b NonEmpty.:| bs) =
     a NonEmpty.:| (as ++ b:bs)
+-- tests {{{1
+test_p_then :: [TestTree]
+test_p_then =
+    let f, r, s :: Parser [Int] Bool
+        f', r', s' :: Bool -> Parser [Int] String
+
+        f = return $ Failed [0] Nothing
+        r = return $ Recoverable [1] False Nothing
+        s = return $ Success True
+
+        f' =
+            \case
+                False -> return $ Failed [2] Nothing
+                True -> return $ Failed [3] Nothing
+
+        r' =
+            \case
+                False -> return $ Recoverable [4] "false recoverable" Nothing
+                True -> return $ Recoverable [5] "true recoverable" Nothing
+
+        s' =
+            \case
+                False -> return $ Success "false success"
+                True -> return $ Success "true success"
+
+        t n a b e = testCase n $ e @=? (State.evalState (a `p_then` b) [])
+    in
+        [ t "f-f" f f' (Failed [0] Nothing)
+        , t "f-r" f r' (Failed [0] Nothing)
+        , t "f-s" f s' (Failed [0] Nothing)
+        , t "r-f" r f' (Failed [1, 2] Nothing)
+        , t "r-r" r r' (Recoverable [1, 4] "false recoverable" Nothing)
+        , t "r-s" r s' (Recoverable [1] "false success" Nothing)
+        , t "s-f" s f' (Failed [3] Nothing)
+        , t "s-r" s r' (Recoverable [5] "true recoverable" Nothing)
+        , t "s-s" s s' (Success "true success")
+        ]
+
+tests :: TestTree
+tests = $(testGroupGenerator)

@@ -99,7 +99,7 @@ decl_parse =
     choice
         [ (is_tt Token.Data, advance >> data_parse)
         , (is_tt Token.Under, advance >> under_parse)
-        , (is_tt (Token.AlphaIdentifier []), assert_consume (\ (Token.AlphaIdentifier name) -> Just name) >>= type_sig_or_function_parse)
+        , (is_alpha_iden, assert_consume is_alpha_iden_m >>= type_sig_or_function_parse)
         ]
         (peek >>= \ tok ->
         return (Failed
@@ -141,10 +141,7 @@ type_signature_parse decl_name =
 -- types {{{2
 type_parse :: Parser Errors Type.Type
 type_parse =
-    consume (\case
-        Token.AlphaIdentifier iden -> Just iden
-        _ -> Nothing)
-        (\ tok -> (nonempty_singleton $ ParseError.BadToken tok [(Token.AlphaIdentifier [], "type", Nothing)], Nothing)) `p_then` \ iden ->
+    consume is_alpha_iden_m (\ tok -> (nonempty_singleton $ ParseError.BadToken tok [(Token.AlphaIdentifier [], "type", Nothing)], Nothing)) `p_then` \ iden ->
     return (Success $ Type.Identifier iden)
 -- exprs {{{2
 expr_parse :: Parser Errors Expr.Expr
@@ -235,6 +232,13 @@ m_sync (Just sync_p) = sync sync_p
 --  this ghc bug is fixed in ghc 9.2.2, but there is not an lts stack resolver that uses ghc 9.2.2 yet
 nonempty_singleton :: a -> NonEmpty.NonEmpty a
 nonempty_singleton a = a NonEmpty.:| []
+-- predicates {{{2
+is_alpha_iden :: TokenPredicate
+is_alpha_iden = is_tt (Token.AlphaIdentifier [])
+is_alpha_iden_m :: TokenPredicateM [String]
+is_alpha_iden_m = \case
+    Token.AlphaIdentifier iden -> Just iden
+    _ -> Nothing
 -- tests {{{1
 test_p_then :: [TestTree]
 test_p_then =

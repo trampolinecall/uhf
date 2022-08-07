@@ -12,10 +12,6 @@ build-type:     Simple
 
 library
   exposed-modules:
-      UHF.ArgParser
-      UHF.ArgParser.Description
-      UHF.ArgParser.Help
-      UHF.ArgParser.Parser
       UHF.AST.Decl
       UHF.AST.Expr
       UHF.AST.Type
@@ -72,6 +68,7 @@ executable uhfc
   ghc-options: -Wall -Wextra -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.13 && <5
+    , optparse-applicative
     , tasty
     , tasty-hunit
     , tasty-th

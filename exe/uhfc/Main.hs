@@ -1,6 +1,7 @@
 module Main where
 
-import UHF.ArgParser
+import Options.Applicative
+
 import qualified UHF.Compiler as Compiler
 import qualified UHF.IO.File as File
 import qualified UHF.Diagnostic as Diagnostic
@@ -9,16 +10,30 @@ import qualified System.IO as IO
 
 import qualified Data.List.NonEmpty as NonEmpty
 
-args_description :: Description
-args_description = Description
-    [ positional "files to compile" "FILES" OneOrMore
-    ]
+data Args
+    = Args
+      { files :: [String]
+      }
+
+argparser :: ParserInfo Args
+argparser = info (args <**> helper)
+    ( fullDesc
+    <> progDesc "compile one or more uhf files"
+    <> header "uhfc: uhf compiler"
+    )
+    where
+        args = Args <$>
+            some (
+                argument str
+                    ( metavar "FILES..."
+                    <> help "files to compile"
+                    )
+            )
 
 main :: IO ()
 main =
-    get_matches_io args_description >>= \ matches ->
-    report_errors (get_positional_result_ne "FILES" matches) >>= \ files ->
-    sequence_ (NonEmpty.map compile files)
+    execParser argparser >>= \ (Args files) ->
+    sequence_ (map compile files)
 
 compile :: String -> IO ()
 compile fname =

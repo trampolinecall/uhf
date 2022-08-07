@@ -2,10 +2,6 @@ module Main where
 
 import Test.Tasty
 
-import qualified UHF.ArgParser (tests)
-import qualified UHF.ArgParser.Help (tests)
-import qualified UHF.ArgParser.Parser (tests)
-
 import qualified UHF.Diagnostic.FormattedString (tests)
 import qualified UHF.Diagnostic.Sections.Underlines (tests)
 import qualified UHF.Diagnostic.Sections.Utils (tests)
@@ -22,10 +18,7 @@ import qualified UHF.Parser (tests)
 main :: IO ()
 main = defaultMain $
     testGroup "tests"
-        [ UHF.ArgParser.tests
-        , UHF.ArgParser.Help.tests
-        , UHF.ArgParser.Parser.tests
-        , UHF.Diagnostic.FormattedString.tests
+        [ UHF.Diagnostic.FormattedString.tests
         , UHF.Diagnostic.Sections.Underlines.tests
         , UHF.Diagnostic.Sections.Utils.tests
         , UHF.Lexer.MainLexer.tests

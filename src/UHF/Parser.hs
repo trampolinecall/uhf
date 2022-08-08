@@ -4,11 +4,12 @@
 {-# LANGUAGE ExistentialQuantification #-}
 
 module UHF.Parser
-    ( parse
+    -- ( parse
 
-    , ParseError.ParseError
-    , tests
-    ) where
+    -- , ParseError.ParseError
+    -- , tests
+    -- ) where
+    where
 
 import Test.Tasty.HUnit
 import Test.Tasty.TH
@@ -28,55 +29,185 @@ import qualified UHF.AST.Expr as Expr
 import qualified Data.Data as Data
 import qualified Data.List as List
 import qualified Data.List.NonEmpty as NonEmpty
-import qualified Control.Monad.State as State
+
+-- TODO: clean up
 
 type TokenStream = [Token.LToken]
-type Errors = NonEmpty.NonEmpty ParseError.ParseError
-
-type ParseFn r = State.State TokenStream r
-type Parser e r = ParseFn (ParseResult e r)
+-- TODO: type Errors = NonEmpty.NonEmpty ParseError.ParseError
+type Errors = ()
 type TokenPredicate = Token.Token -> Bool
-type TokenPredicateM a = Token.Token -> Maybe a
 
+-- Parser {{{1
+data Parser e r =
+    Parser { run_parser :: (TokenStream -> ParseResult e (r, TokenStream)) }
+
+instance Functor (Parser e) where
+    fmap f (Parser parser) =
+        Parser $ \ toks ->
+            let res = parser toks
+            in (\ (a, toks') -> (f a, toks')) <$> res
+
+instance Semigroup e => Applicative (Parser e) where
+    pure a = Parser $ \ toks -> pure (a, toks)
+
+    (Parser parser_f) <*> (Parser parser_v) = Parser $ \ toks ->
+        -- this is actually in the ParseResult monad and not in the Parser monad
+        parser_f toks >>= \ (f, toks') ->
+        parser_v toks' >>= \ (v, toks'') ->
+        Success (f v, toks'')
+
+instance Semigroup e => Monad (Parser e) where
+    (Parser parser_a) >>= b = Parser $ \ toks ->
+        parser_a toks >>= \ (a, toks') ->
+        run_parser (b a) toks'
 -- ParseResult {{{1
 data ParseResult e r
-    = Failed e (Maybe TokenPredicate)
-    | Recoverable e r (Maybe TokenPredicate)
+    -- TODO: synchronization predicate
+    = Failed e -- (Maybe TokenPredicate)
+    | Recoverable e r
     | Success r
 
 instance (Eq e, Eq r) => Eq (ParseResult e r) where
-    (Failed e1 _) == (Failed e2 _) = e1 == e2
-    (Recoverable e1 r1 _) == (Recoverable e2 r2 _) = e1 == e2 && r1 == r2
+    (Failed e1 {- _ -}) == (Failed e2 {- _ -}) = e1 == e2
+    (Recoverable e1 r1) == (Recoverable e2 r2) = e1 == e2 && r1 == r2 -- TODO: check token streams?
     (Success r1) == (Success r2) = r1 == r2
     _ == _ = False
 
 instance (Show e, Show r) => Show (ParseResult e r) where
-    show (Failed e (Just _)) = "Failed " ++ show e ++ " <synchronization predicate>"
-    show (Failed e Nothing) = "Failed " ++ show e ++ " <no synchronization predicate>"
+    show pr =
+        case pr of
+            (Failed e {- s -}) -> "Failed " ++ show e -- ++ " " ++ show_sync s
+            (Recoverable e r) -> "Recoverable " ++ show e ++ " " ++ show r
+            (Success r) -> "Success " ++ show r
+        where
+            show_sync (Just _) = "<synchronization predicate>"
+            show_sync Nothing = "<no synchronization predicate>"
 
-    show (Recoverable e r (Just _)) = "Recoverable " ++ show e ++ " " ++ show r ++ " <synchronization predicate>"
-    show (Recoverable e r Nothing) = "Recoverable " ++ show e ++ " " ++ show r ++ " <no synchronization predicate>"
+instance Functor (ParseResult e) where
+    fmap _ (Failed e {- sync -}) = Failed e {- sync -}
+    fmap f (Recoverable e r) = Recoverable e (f r)
+    fmap f (Success r) = Success (f r)
 
-    show (Success r) = "Success " ++ show r
+instance Semigroup e => Applicative (ParseResult e) where
+    pure = Success
 
-p_then :: Semigroup e => Parser e a -> (a -> Parser e b) -> Parser e b
-p_then a b =
-    a >>= \case
-        Success a_res -> b a_res
+    a <*> b =
+        case a of
+            Failed a_e {- sync -} -> Failed a_e {- sync -}
 
-        Recoverable a_errs a_res a_sync ->
-            m_sync a_sync >>
-            b a_res >>= add_to_b_res a_errs
+            Recoverable a_e a_v ->
+                case a_v <$> b of
+                    Failed b_e {- sync -} -> Failed (a_e <> b_e) {- sync -}
+                    Recoverable b_e b_v -> Recoverable (a_e <> b_e) b_v
+                    Success b_v -> Recoverable a_e b_v
 
-        Failed a_errs a_sync_p ->
-            m_sync a_sync_p >>
-            return (Failed a_errs a_sync_p)
+            Success a_v -> a_v <$> b
 
+instance Semigroup e => Monad (ParseResult e) where
+    a >>= b =
+        case a of
+            Failed a_e {- sync -} -> Failed a_e {- sync -}
+
+            Recoverable a_e a_v ->
+                case b a_v of
+                    Failed b_e {- sync -} -> Failed (a_e <> b_e) {- sync -}
+                    Recoverable b_e b_v -> Recoverable (a_e <> b_e) b_v
+                    Success b_v -> Recoverable a_e b_v
+
+            Success a_v -> b a_v
+-- helpers {{{1
+peek :: Parser Errors Token.LToken
+peek = Parser $ \ toks -> Success $ (head toks, toks)
+
+is_tt :: Token.Token -> Token.Token -> Bool
+is_tt a b = Data.toConstr a == Data.toConstr b
+
+consume :: TokenPredicate -> Parser Errors Token.LToken
+consume p = Parser $
+    \ (tok:more_toks) ->
+        if p $ Location.unlocate tok
+            then Success $ (tok, more_toks)
+            else Failed ()
+
+advance :: Parser Errors ()
+advance = Parser $ \ toks -> Success ((), drop 1 toks)
+-- combinators {{{1
+
+-- sequence combinator is >>=
+
+choice :: [Parser Errors a] -> Parser Errors a
+choice choices = Parser $ \ toks ->
+    try_choices choices toks
     where
-        add_to_b_res a_errs (Success b_res) = return $ Recoverable a_errs b_res Nothing
-        add_to_b_res a_errs (Recoverable b_errs b_res b_sync_p) = return $ Recoverable (a_errs <> b_errs) b_res b_sync_p
-        add_to_b_res a_errs (Failed b_errs b_sync_p) = return $ Failed (a_errs <> b_errs) b_sync_p
+        try_choices (c:cs) toks =
+            case run_parser c toks of
+                Success r -> return r
+                Recoverable e r -> Recoverable e r
+                -- TODO: collect these
+                Failed _ -> try_choices cs toks
+
+        try_choices [] _ = Failed ()
+
+star :: Parser Errors a -> Parser Errors [a]
+star a = Parser $ \ toks ->
+    star' [] [] toks
+    where
+        star' err_acc a_acc toks =
+            case run_parser a toks of
+                Success (r, toks') -> star' err_acc (a_acc ++ [r]) toks'
+                Recoverable e (r, toks') -> star' (err_acc <> [e]) (a_acc ++ [r]) toks'
+                Failed _ -> Success (a_acc, toks)
+                    -- if null err_acc TODO
+                        -- then Success ([], toks)
+                        -- else Recoverable err_acc ([], toks)
+
+plus :: Parser Errors a -> Parser Errors [a]
+plus a = Parser $ \ toks ->
+    plus' [] [] toks
+    where
+        plus' err_acc a_acc toks =
+            case run_parser a toks of
+                Success (r, toks') -> plus' err_acc (a_acc ++ [r]) toks'
+                Recoverable e (r, toks') -> plus' (err_acc <> [e]) (a_acc ++ [r]) toks'
+                Failed _ ->
+                    if length a_acc == 0
+                        then Failed () -- TODO err_acc list
+                        else Success (a_acc, toks)
+
+optional :: Parser Errors a -> Parser Errors (Maybe a)
+optional a = Parser $ \ toks ->
+    case run_parser a toks of
+        Success (r, toks') -> Success (Just r, toks')
+        Recoverable e (r, toks') -> Recoverable e (Just r, toks')
+        Failed _ -> Success (Nothing, toks)
+
+-- andpred :: Parser Errors a -> Parser Errors ()
+-- notpred :: Parser Errors a -> Parser Errors ()
+
+{- TODO: synchronization (also "synchronization predicate" todo at definition of ParseResult)
+sync :: TokenPredicate -> Parser Errors ()
+sync sync_p =
+    parse_list
+        (\case
+            Token.EOF -> True
+            t -> sync_p t)
+        (consume (const $ Just ()) (error "unreachable")) >> return ()
+m_sync :: Maybe TokenPredicate -> Parser Errors ()
+m_sync Nothing = return ()
+m_sync (Just sync_p) = sync sync_p
+-}
+
+-- TODO: use NonEmpty.singleton when a new stack resolver comes out with ghc 9.2.2
+--  NonEmpty.singleton is only in base-4.15 or higher, but the only lts stack resolver that has that version of base
+--  uses ghc 9.0.2, which is currently missing profiling libraries for base
+--  this ghc bug is fixed in ghc 9.2.2, but there is not an lts stack resolver that uses ghc 9.2.2 yet
+nonempty_singleton :: a -> NonEmpty.NonEmpty a
+nonempty_singleton a = a NonEmpty.:| []
+-- predicates {{{2
+is_alpha_iden :: TokenPredicate
+is_alpha_iden = is_tt (Token.AlphaIdentifier [])
 -- parse {{{1
+{- -- TODO
 parse :: TokenStream -> Token.LToken -> ([ParseError.ParseError], [Decl.Decl])
 parse toks eof_tok =
     let r_res = State.evalState parse' (toks ++ repeat eof_tok)
@@ -148,98 +279,9 @@ expr_parse :: Parser Errors Expr.Expr
 expr_parse =
     peek >>= \ tok ->
     return $ Failed (nonempty_singleton $ ParseError.NotImpl (Location.Located (Location.just_span tok) "expressions")) Nothing -- TODO
--- helpers {{{1
-peek :: State.State TokenStream Token.LToken
-peek = State.state $ \ toks -> (head toks, toks)
-
-is_tt :: Token.Token -> Token.Token -> Bool
-is_tt a b = Data.toConstr a == Data.toConstr b
-
-is_tt_v :: a -> Token.Token -> Token.Token -> Maybe a
-is_tt_v v a b = if is_tt a b then Just v else Nothing
-
-is_tt_u :: Token.Token -> Token.Token -> Maybe ()
-is_tt_u = is_tt_v ()
-
-consume :: TokenPredicateM r -> (Token.LToken -> (Errors, Maybe TokenPredicate)) -> Parser Errors r
-consume p e =
-    State.state $ \case
-        orig_toks@(tok:more_toks) ->
-            case p $ Location.unlocate tok of
-                Just res -> (Success res, more_toks)
-                _ ->
-                    let (errs, sync_p) = e tok
-                    in (Failed errs sync_p, orig_toks)
-
-        [] -> error "unreachable"
-
-assert_consume :: TokenPredicateM r -> ParseFn r
-assert_consume p =
-    consume p (const $ error "assert_consume predicate failed") >>= \case
-        Success r -> return r
-        _ -> error "assert_consume predicate failed"
-
-advance :: ParseFn ()
-advance = State.state $ \ toks -> ((), drop 1 toks)
-
-choice :: [(TokenPredicate, ParseFn a)] -> ParseFn a -> ParseFn a
-choice choices def =
-    peek >>= \ tok ->
-    let unlocated = Location.unlocate tok
-    in case List.findIndex (($ unlocated) . fst) choices of
-        Just i -> snd $ choices !! i
-        Nothing -> def
-
-parse_list :: TokenPredicate -> Parser Errors a -> Parser Errors [a]
-parse_list stop = p' [] []
-    where
-        p' e_acc p_acc p =
-            peek >>= \ tok ->
-            let unlocated = Location.unlocate tok
-            in case (is_tt Token.EOF unlocated, stop unlocated) of
-                (False, False) ->
-                    p >>= \ case
-                        Failed err m_sync_p ->
-                            m_sync m_sync_p >>
-                            p' (e_acc ++ NonEmpty.toList err) p_acc p
-
-                        Recoverable err res m_sync_p ->
-                            m_sync m_sync_p >>
-                            p' (e_acc ++ NonEmpty.toList err) (p_acc ++ [res]) p
-
-                        Success res ->
-                            p' e_acc (p_acc ++ [res]) p
-
-                _ ->
-                    case e_acc of
-                        [] -> return $ Success p_acc
-                        e:e' -> return $ Recoverable (e NonEmpty.:| e') p_acc Nothing
-
-sync :: TokenPredicate -> ParseFn ()
-sync sync_p =
-    parse_list
-        (\case
-            Token.EOF -> True
-            t -> sync_p t)
-        (consume (const $ Just ()) (error "unreachable")) >> return ()
-m_sync :: Maybe TokenPredicate -> ParseFn ()
-m_sync Nothing = return ()
-m_sync (Just sync_p) = sync sync_p
-
--- TODO: use NonEmpty.singleton when a new stack resolver comes out with ghc 9.2.2
---  NonEmpty.singleton is only in base-4.15 or higher, but the only lts stack resolver that has that version of base
---  uses ghc 9.0.2, which is currently missing profiling libraries for base
---  this ghc bug is fixed in ghc 9.2.2, but there is not an lts stack resolver that uses ghc 9.2.2 yet
-nonempty_singleton :: a -> NonEmpty.NonEmpty a
-nonempty_singleton a = a NonEmpty.:| []
--- predicates {{{2
-is_alpha_iden :: TokenPredicate
-is_alpha_iden = is_tt (Token.AlphaIdentifier [])
-is_alpha_iden_m :: TokenPredicateM [String]
-is_alpha_iden_m = \case
-    Token.AlphaIdentifier iden -> Just iden
-    _ -> Nothing
+-}
 -- tests {{{1
+{- -- TODO
 test_p_then :: [TestTree]
 test_p_then =
     let f, r, s :: Parser [Int] Bool
@@ -320,3 +362,4 @@ test_parsing = map run_test parsing_tests
 
 tests :: TestTree
 tests = $(testGroupGenerator)
+-}

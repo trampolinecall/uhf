@@ -8,8 +8,6 @@ import qualified UHF.Diagnostic as Diagnostic
 
 import qualified System.IO as IO
 
-import qualified Data.List.NonEmpty as NonEmpty
-
 data Args
     = Args
       { files :: [String]

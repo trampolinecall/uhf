@@ -1,6 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 module UHF.Diagnostic.FormattedString
     ( FormattedString
 

@@ -1,7 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE TemplateHaskell #-}
-
 module UHF.Lexer.MainLexer
     ( UHF.Lexer.MainLexer.lex
 

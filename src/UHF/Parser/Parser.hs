@@ -1,4 +1,27 @@
-module UHF.Parser.Parser where
+module UHF.Parser.Parser
+    ( TokenStream
+    , TokenPredicate
+
+    , Parser
+    , run_parser
+    , ParseResult(..)
+    , return_fail
+    , return_recoverable
+
+    , is_tt
+    , is_alpha_iden
+
+    , peek
+    , consume
+    , advance
+
+    , choice
+    , star
+    , plus
+    , optional
+
+    , tests
+    ) where
 
 import Test.Tasty.HUnit
 import Test.Tasty.TH
@@ -16,8 +39,6 @@ import qualified Data.Data as Data
 
 type TokenStream = InfList.InfList Token.LToken
 type TokenPredicate = Token.Token -> Bool
-type BreakingError = ParseError.ParseError
-type RecoverableErrors = [ParseError.ParseError]
 
 -- TODO: also clean up this too
 -- TODO: allow each thing to provide a custom error function
@@ -47,8 +68,8 @@ instance Monad Parser where
 
 data ParseResult r
     -- TODO: synchronization predicate
-    = Failed RecoverableErrors BreakingError -- (Maybe TokenPredicate)
-    | Recoverable RecoverableErrors r
+    = Failed [ParseError.ParseError] ParseError.ParseError -- (Maybe TokenPredicate)
+    | Recoverable [ParseError.ParseError] r
     | Success r
     deriving (Show, Eq)
 
@@ -103,11 +124,20 @@ instance Monad ParseResult where
 
             Success a_v -> b a_v
 
-peek :: Parser Token.LToken
-peek = Parser $ \ toks -> Success $ (InfList.head toks, toks)
+return_fail :: [ParseError.ParseError] -> ParseError.ParseError -> Parser a
+return_fail errs err = Parser $ \ _ -> Failed errs err
+
+return_recoverable :: [ParseError.ParseError] -> a -> Parser a
+return_recoverable errs res = Parser $ \ toks -> Recoverable errs (res, toks)
 
 is_tt :: Token.Token -> Token.Token -> Bool
 is_tt a b = Data.toConstr a == Data.toConstr b
+
+is_alpha_iden :: TokenPredicate
+is_alpha_iden = is_tt (Token.AlphaIdentifier [])
+
+peek :: Parser Token.LToken
+peek = Parser $ \ toks -> Success $ (InfList.head toks, toks)
 
 consume :: TokenPredicate -> Parser Token.LToken
 consume p = Parser $
@@ -119,13 +149,7 @@ consume p = Parser $
 advance :: Parser ()
 advance = Parser $ \ toks -> Success ((), InfList.drop1 toks)
 
-return_fail :: RecoverableErrors -> BreakingError -> Parser a
-return_fail errs err = Parser $ \ _ -> Failed errs err
-
-return_recoverable :: RecoverableErrors -> a -> Parser a
-return_recoverable errs res = Parser $ \ toks -> Recoverable errs (res, toks)
-
--- combinators 
+-- combinators
 
 -- sequence combinator is >>=
 
@@ -195,5 +219,93 @@ nonempty_singleton :: a -> NonEmpty.NonEmpty a
 nonempty_singleton a = a NonEmpty.:| []
 -}
 
-is_alpha_iden :: TokenPredicate
-is_alpha_iden = is_tt (Token.AlphaIdentifier [])
+-- tests {{{1
+-- TODO: there is probably a way to make this less repetitive
+
+case_parser_fmap :: Assertion
+case_parser_fmap = Success "ba" @=? fst <$> run_parser (reverse <$> pure "ab") undefined
+
+case_parser_applicative :: Assertion
+case_parser_applicative = Success "ba" @=? fst <$> run_parser (pure reverse <*> pure "ab") undefined
+
+case_parser_monad :: Assertion
+case_parser_monad = Success "ba" @=? fst <$> run_parser (pure "ab" >>= \ a -> pure (reverse a)) undefined
+
+test_parse_result_fmap :: [TestTree]
+test_parse_result_fmap =
+    [ testCase "on failed" undefined
+    , testCase "on recoverable" undefined
+    , testCase "on success" undefined
+    ]
+
+test_parse_result_applicative :: [TestTree]
+test_parse_result_applicative =
+    [ testCase "failed x undefined" undefined -- should not crash because Failed first argument short circuits out second argument
+    , testCase "recoverable x failed" undefined
+    , testCase "recoverable x recoverable" undefined
+    , testCase "recoverable x success" undefined
+    , testCase "success x failed" undefined
+    , testCase "success x recoverable" undefined
+    , testCase "success x success" undefined
+    ]
+
+test_parse_result_monad :: [TestTree]
+test_parse_result_monad =
+    [ testCase "failed x undefined" undefined -- same as above
+    , testCase "recoverable x failed" undefined
+    , testCase "recoverable x recoverable" undefined
+    , testCase "recoverable x success" undefined
+    , testCase "success x failed" undefined
+    , testCase "success x recoverable" undefined
+    , testCase "success x success" undefined
+    ]
+
+case_return_fail = undefined
+
+case_return_recoverable = undefined
+
+test_is_tt =
+    [ testCase "is_tt same" undefined
+    , testCase "is_tt different" undefined
+    ]
+
+test_is_alpha_iden =
+    [ testCase "is_alpha_iden alpha identifier" undefined
+    , testCase "is_alpha_iden not alpha identifier" undefined
+    ]
+
+case_peek = undefined
+
+test_consume =
+    [ testCase "consume with True" undefined
+    , testCase "consume with False" undefined
+    ]
+
+case_advance = undefined
+
+test_choice =
+    [ testCase "1" undefined
+    , testCase "2" undefined
+    , testCase "not matched" undefined
+    ]
+
+test_star =
+    [ testCase "none" undefined
+    , testCase "once" undefined
+    , testCase "multiple" undefined
+    ]
+
+test_plus =
+    [ testCase "none" undefined
+    , testCase "once" undefined
+    , testCase "multiple" undefined
+    ]
+
+test_optional =
+    [ testCase "none" undefined
+    , testCase "once" undefined
+    , testCase "multiple" undefined
+    ]
+
+tests :: TestTree
+tests = $(testGroupGenerator)

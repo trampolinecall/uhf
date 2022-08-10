@@ -164,6 +164,8 @@ lex_alpha_identifier lexer =
 
 lex_symbol_identifier :: LexFn
 lex_symbol_identifier lexer
+    | lexer `matches` "->" = Just (True, Just $ lexer `seek` 2, [], [Location.Located (lexer_span lexer 0 2) Token.Raw.Arrow])
+    | lexer `matches` "::" = Just (True, Just $ lexer `seek` 2, [], [Location.Located (lexer_span lexer 0 2) Token.Raw.DoubleColon])
     | lexer `matches` "(" = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.Raw.OParen])
     | lexer `matches` ")" = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.Raw.CParen])
     | lexer `matches` "[" = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.Raw.OBrack])
@@ -171,8 +173,6 @@ lex_symbol_identifier lexer
     | lexer `matches` "," = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.Raw.Comma])
     | lexer `matches` "=" = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.Raw.Equal])
     | lexer `matches` ":" = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.Raw.Colon])
-    | lexer `matches` "::" = Just (True, Just $ lexer `seek` 2, [], [Location.Located (lexer_span lexer 0 1) Token.Raw.DoubleColon])
-    | lexer `matches` "->" = Just (True, Just $ lexer `seek` 2, [], [Location.Located (lexer_span lexer 0 1) Token.Raw.Arrow])
     | otherwise =
         let is_valid_char = (`elem` ("!#$%&*+-./:<=>?@^`~" :: String))
             (iden_sp, iden, lexer') = lexer `seek_while` is_valid_char
@@ -593,6 +593,18 @@ case_lex_symbol_identifier_multiple :: Assertion
 case_lex_symbol_identifier_multiple =
     lex_test lex_symbol_identifier "*^&*&" $ \case
         Just (True, Just l, [], [Location.Located _ (Token.Raw.SymbolIdentifier "*^&*&")])
+            | remaining l == "" -> return ()
+        x -> lex_test_fail "lex_alpha_identifier" x
+case_lex_symbol_identifier_kw :: Assertion
+case_lex_symbol_identifier_kw =
+    lex_test lex_symbol_identifier ":" $ \case
+        Just (True, Just l, [], [Location.Located _ Token.Raw.Colon])
+            | remaining l == "" -> return ()
+        x -> lex_test_fail "lex_alpha_identifier" x
+case_lex_symbol_identifier_long_kw :: Assertion
+case_lex_symbol_identifier_long_kw =
+    lex_test lex_symbol_identifier "->" $ \case
+        Just (True, Just l, [], [Location.Located _ Token.Raw.Arrow])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_alpha_identifier" x
 

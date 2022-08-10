@@ -41,7 +41,7 @@ parse toks eof_tok =
         Parser.Recoverable errs (res, _) -> (errs, res)
 
 parse' :: Parser.Parser [Decl.Decl]
-parse' = Parser.star decl_parse >>= \ ds -> Parser.consume (Parser.is_tt Token.EOF) >> return ds
+parse' = Parser.star decl_parse >>= \ ds -> Parser.consume "end of file" Token.EOF >> return ds
 -- decls {{{2
 decl_lookahead_matches :: Parser.TokenPredicate
 decl_lookahead_matches Token.Data = True
@@ -59,17 +59,17 @@ decl_parse =
 
 data_parse :: Parser.Parser Decl.Decl
 data_parse =
-    Parser.consume (Parser.is_tt Token.Data) >>= \ data_tok ->
+    Parser.consume "data declaration" Token.Data >>= \ data_tok ->
     Parser.return_fail [] (ParseError.NotImpl $ Location.Located (Location.just_span data_tok) "datatype declarations")
 
 under_parse :: Parser.Parser Decl.Decl
 under_parse =
-    Parser.consume (Parser.is_tt Token.Under) >>= \ under_tok ->
+    Parser.consume "under declaration" Token.Under >>= \ under_tok ->
     Parser.return_fail [] (ParseError.NotImpl $ Location.Located (Location.just_span under_tok) "'under' blocks")
 
 type_sig_or_function_parse :: Parser.Parser Decl.Decl
 type_sig_or_function_parse =
-    Parser.consume Parser.is_alpha_iden >>= \ (Location.Located _ (Token.AlphaIdentifier name)) ->
+    Parser.consume "type signature or binding" Parser.alpha_iden >>= \ (Location.Located _ (Token.AlphaIdentifier name)) ->
     Parser.choice
         [ binding_parse name
         , type_signature_parse name
@@ -77,19 +77,19 @@ type_sig_or_function_parse =
 
 binding_parse :: [String] -> Parser.Parser Decl.Decl
 binding_parse decl_name =
-    Parser.consume (Parser.is_tt Token.Equal) >>= \ eq ->
+    Parser.consume "binding" Token.Equal >>= \ eq ->
     expr_parse >>= \ ex ->
     return (Decl.Binding decl_name ex)
 
 type_signature_parse :: [String] -> Parser.Parser Decl.Decl
 type_signature_parse decl_name =
-    Parser.consume (Parser.is_tt Token.Colon) >>= \ colon ->
+    Parser.consume "type signature" Token.Colon >>= \ colon ->
     type_parse >>= \ ty ->
     return (Decl.TypeSignature decl_name ty)
 -- types {{{2
 type_parse :: Parser.Parser Type.Type
 type_parse =
-    Parser.consume Parser.is_alpha_iden >>= \ (Location.Located _ (Token.AlphaIdentifier iden)) ->
+    Parser.consume "type" Parser.alpha_iden >>= \ (Location.Located _ (Token.AlphaIdentifier iden)) ->
     return (Type.Identifier iden)
 -- exprs {{{2
 expr_parse :: Parser.Parser Expr.Expr

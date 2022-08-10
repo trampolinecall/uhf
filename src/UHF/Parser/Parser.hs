@@ -9,7 +9,7 @@ module UHF.Parser.Parser
     , return_recoverable
 
     , is_tt
-    , is_alpha_iden
+    , alpha_iden
 
     , peek
     , consume
@@ -133,18 +133,18 @@ return_recoverable errs res = Parser $ \ toks -> Recoverable errs (res, toks)
 is_tt :: Token.Token -> Token.Token -> Bool
 is_tt a b = Data.toConstr a == Data.toConstr b
 
-is_alpha_iden :: TokenPredicate
-is_alpha_iden = is_tt (Token.AlphaIdentifier [])
+alpha_iden :: Token.Token
+alpha_iden = Token.AlphaIdentifier []
 
 peek :: Parser Token.LToken
 peek = Parser $ \ toks -> Success $ (InfList.head toks, toks)
 
-consume :: TokenPredicate -> Parser Token.LToken
-consume p = Parser $
+consume :: String -> Token.Token -> Parser Token.LToken
+consume name exp = Parser $
     \ (tok InfList.::: more_toks) ->
-        if p $ Location.unlocate tok
+        if is_tt (Location.unlocate tok) exp
             then Success $ (tok, more_toks)
-            else Failed [] $ ParseError.BadToken tok undefined undefined undefined -- TODO
+            else Failed [] $ ParseError.BadToken tok exp name
 
 advance :: Parser ()
 advance = Parser $ \ toks -> Success ((), InfList.drop1 toks)

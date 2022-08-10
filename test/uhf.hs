@@ -14,6 +14,7 @@ import qualified UHF.Lexer.PostProcess (tests)
 import qualified UHF.Lexer.DFA (tests)
 
 import qualified UHF.Parser (tests)
+import qualified UHF.Parser.Parser (tests)
 
 main :: IO ()
 main = defaultMain $
@@ -27,4 +28,5 @@ main = defaultMain $
         , UHF.IO.Location.tests
         , UHF.IO.Path.tests
         , UHF.Parser.tests
+        , UHF.Parser.Parser.tests
         ]

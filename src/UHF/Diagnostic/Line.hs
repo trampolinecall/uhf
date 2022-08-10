@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module UHF.Diagnostic.Line
     ( Line
     , prefix

@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module UHF.Diagnostic.Codes.CodeTH where
 
 import qualified Data.Text as Text

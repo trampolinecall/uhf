@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 module UHF.IO.Location.SpanHelper
     ( make_spans
     , make_spans'

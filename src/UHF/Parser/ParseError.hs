@@ -14,7 +14,6 @@ import qualified Data.Text as Text
 data ParseError
     = BadToken Token.LToken Token.Token String
     | NoneMatched Token.LToken [ParseError]
-    | ExpectedAtLeastOne Token.LToken [ParseError]
     | NotImpl (Location.Located String)
     deriving (Eq, Show)
 
@@ -35,3 +34,13 @@ instance Diagnostic.IsDiagnostic ParseError where
             [ Underlines.underlines
                 [Location.just_span construct `Underlines.primary` [Underlines.error $ Text.pack $ Location.unlocate construct ++ " are not implemented yet"]]
             ]
+
+    to_diagnostic (NoneMatched (Location.Located sp tok) errs) =
+        Diagnostic.Diagnostic Codes.none_matched (Just sp) $
+            [ Underlines.underlines
+                [ sp `Underlines.primary`
+                    [ Underlines.error $ Text.pack $ "no parser matched tokens" ]
+                ]
+            ] ++
+            -- TODO: make this less janky
+            concatMap ((\ (Diagnostic.Diagnostic _ _ sections) -> sections) . Diagnostic.to_diagnostic) errs

@@ -12,24 +12,25 @@ import qualified UHF.Diagnostic.Sections.Underlines as Underlines
 import qualified Data.Text as Text
 
 data ParseError
-    = BadToken Token.LToken [(Token.Token, String, Maybe String)]
+    = BadToken Token.LToken Token.Token String (Maybe String)
+    | NoneMatched Token.LToken [ParseError]
+    | ExpectedAtLeastOne Token.LToken [ParseError]
     | NotImpl (Location.Located String)
     deriving (Eq, Show)
 
 instance Diagnostic.IsDiagnostic ParseError where
-    to_diagnostic (BadToken tok possibilities) =
+    to_diagnostic (BadToken tok expectation construct m_component) =
         let sp = Location.just_span tok
-            possibility_underlines =
-                map
-                    (\ (expectation, construct, m_component) ->
-                        Underlines.note $ Text.pack $ construct ++ " expects " ++ Token.format_tok expectation ++
-                            (case m_component of
-                                Just c -> " as " ++ c
-                                Nothing -> ""))
-                    possibilities
         in Diagnostic.Diagnostic Codes.bad_token (Just sp)
             [ Underlines.underlines
-                [sp `Underlines.primary` ((Underlines.error $ Text.pack $ "bad " ++ Token.format_tok (Location.unlocate tok)) : possibility_underlines)]
+                [sp `Underlines.primary`
+                    [ Underlines.error $ Text.pack $ "bad " ++ Token.format_tok (Location.unlocate tok)
+                    , Underlines.note $ Text.pack $ construct ++ " expects " ++ Token.format_tok expectation ++
+                        (case m_component of
+                            Just c -> " as " ++ c
+                            Nothing -> "")
+                    ]
+                ]
             ]
 
     to_diagnostic (NotImpl construct) =

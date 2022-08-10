@@ -1,7 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
-{-# LANGUAGE LambdaCase #-}
 
 module UHF.Diagnostic.Sections.Underlines
     ( UnderlinesSection

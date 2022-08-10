@@ -12,4 +12,4 @@ import qualified UHF.Token as Token
 import qualified UHF.IO.File as File
 
 lex :: File.File -> ([LexError.LexError], [Token.LToken], Token.LToken)
-lex = PostProcess.group_identifiers . MainLexer.lex
+lex = PostProcess.group_identifiers . MainLexer.lex -- TODO: . IndentCounter.count_indents

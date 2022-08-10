@@ -30,8 +30,8 @@ argparser = info (args <**> helper)
 
 main :: IO ()
 main =
-    execParser argparser >>= \ (Args files) ->
-    sequence_ (map compile files)
+    execParser argparser >>= \ (Args f) ->
+    sequence_ (map compile f)
 
 compile :: String -> IO ()
 compile fname =

@@ -33,21 +33,21 @@ import qualified Data.List.NonEmpty as NonEmpty
 -- TODO: clean up
 
 type TokenStream = [Token.LToken]
--- TODO: type Errors = NonEmpty.NonEmpty ParseError.ParseError
-type Errors = ()
 type TokenPredicate = Token.Token -> Bool
+type BreakingError = ParseError.ParseError
+type RecoverableErrors = [ParseError.ParseError]
 
 -- Parser {{{1
-data Parser e r =
-    Parser { run_parser :: (TokenStream -> ParseResult e (r, TokenStream)) }
+data Parser r =
+    Parser { run_parser :: (TokenStream -> ParseResult (r, TokenStream)) }
 
-instance Functor (Parser e) where
+instance Functor Parser where
     fmap f (Parser parser) =
         Parser $ \ toks ->
             let res = parser toks
             in (\ (a, toks') -> (f a, toks')) <$> res
 
-instance Semigroup e => Applicative (Parser e) where
+instance Applicative Parser where
     pure a = Parser $ \ toks -> pure (a, toks)
 
     (Parser parser_f) <*> (Parser parser_v) = Parser $ \ toks ->
@@ -56,143 +56,141 @@ instance Semigroup e => Applicative (Parser e) where
         parser_v toks' >>= \ (v, toks'') ->
         Success (f v, toks'')
 
-instance Semigroup e => Monad (Parser e) where
+instance Monad Parser where
     (Parser parser_a) >>= b = Parser $ \ toks ->
         parser_a toks >>= \ (a, toks') ->
         run_parser (b a) toks'
 -- ParseResult {{{1
-data ParseResult e r
+data ParseResult r
     -- TODO: synchronization predicate
-    = Failed e -- (Maybe TokenPredicate)
-    | Recoverable e r
+    = Failed RecoverableErrors BreakingError -- (Maybe TokenPredicate)
+    | Recoverable RecoverableErrors r
     | Success r
+    deriving (Show, Eq)
 
-instance (Eq e, Eq r) => Eq (ParseResult e r) where
-    (Failed e1 {- _ -}) == (Failed e2 {- _ -}) = e1 == e2
-    (Recoverable e1 r1) == (Recoverable e2 r2) = e1 == e2 && r1 == r2 -- TODO: check token streams?
+{-
+instance (Eq r) => Eq (ParseResult r) where
+    (Failed es1 e1 {- _ -}) == (Failed es2 e2 {- _ -}) = es1 == es2 && e1 == e2
+    (Recoverable e1 r1) == (Recoverable e2 r2) = e1 == e2 && r1 == r2
     (Success r1) == (Success r2) = r1 == r2
     _ == _ = False
 
-instance (Show e, Show r) => Show (ParseResult e r) where
+instance (Show r) => Show (ParseResult r) where
     show pr =
         case pr of
-            (Failed e {- s -}) -> "Failed " ++ show e -- ++ " " ++ show_sync s
+            (Failed es e {- s -}) -> "Failed " ++ show e -- ++ " " ++ show_sync s
             (Recoverable e r) -> "Recoverable " ++ show e ++ " " ++ show r
             (Success r) -> "Success " ++ show r
         where
-            show_sync (Just _) = "<synchronization predicate>"
-            show_sync Nothing = "<no synchronization predicate>"
+            -- show_sync (Just _) = "<synchronization predicate>"
+            -- show_sync Nothing = "<no synchronization predicate>"
+-}
 
-instance Functor (ParseResult e) where
-    fmap _ (Failed e {- sync -}) = Failed e {- sync -}
-    fmap f (Recoverable e r) = Recoverable e (f r)
+instance Functor ParseResult where
+    fmap _ (Failed es e {- sync -}) = Failed es e {- sync -}
+    fmap f (Recoverable es r) = Recoverable es (f r)
     fmap f (Success r) = Success (f r)
 
-instance Semigroup e => Applicative (ParseResult e) where
+instance Applicative ParseResult where
     pure = Success
 
     a <*> b =
         case a of
-            Failed a_e {- sync -} -> Failed a_e {- sync -}
+            Failed a_es a_e {- sync -} -> Failed a_es a_e {- sync -}
 
-            Recoverable a_e a_v ->
+            Recoverable a_es a_v ->
                 case a_v <$> b of
-                    Failed b_e {- sync -} -> Failed (a_e <> b_e) {- sync -}
-                    Recoverable b_e b_v -> Recoverable (a_e <> b_e) b_v
-                    Success b_v -> Recoverable a_e b_v
+                    Failed b_es b_e {- sync -} -> Failed (a_es ++ b_es) b_e {- sync -}
+                    Recoverable b_es b_v -> Recoverable (a_es ++ b_es) b_v
+                    Success b_v -> Recoverable a_es b_v
 
             Success a_v -> a_v <$> b
 
-instance Semigroup e => Monad (ParseResult e) where
+instance Monad ParseResult where
     a >>= b =
         case a of
-            Failed a_e {- sync -} -> Failed a_e {- sync -}
+            Failed a_es a_e {- sync -} -> Failed a_es a_e {- sync -}
 
-            Recoverable a_e a_v ->
+            Recoverable a_es a_v ->
                 case b a_v of
-                    Failed b_e {- sync -} -> Failed (a_e <> b_e) {- sync -}
-                    Recoverable b_e b_v -> Recoverable (a_e <> b_e) b_v
-                    Success b_v -> Recoverable a_e b_v
+                    Failed b_es b_e {- sync -} -> Failed (a_es ++ b_es) b_e {- sync -}
+                    Recoverable b_es b_v -> Recoverable (a_es ++ b_es) b_v
+                    Success b_v -> Recoverable a_es b_v
 
             Success a_v -> b a_v
 -- helpers {{{1
-peek :: Parser Errors Token.LToken
+peek :: Parser Token.LToken
 peek = Parser $ \ toks -> Success $ (head toks, toks)
 
 is_tt :: Token.Token -> Token.Token -> Bool
 is_tt a b = Data.toConstr a == Data.toConstr b
 
-consume :: TokenPredicate -> Parser Errors Token.LToken
-consume p = Parser $
+consume :: TokenPredicate -> (Token.LToken -> BreakingError) -> Parser Token.LToken
+consume p er = Parser $
     \ (tok:more_toks) ->
         if p $ Location.unlocate tok
             then Success $ (tok, more_toks)
-            else Failed ()
+            else Failed [] $ er tok
 
-advance :: Parser Errors ()
+advance :: Parser ()
 advance = Parser $ \ toks -> Success ((), drop 1 toks)
 -- combinators {{{1
 
 -- sequence combinator is >>=
 
-choice :: [Parser Errors a] -> Parser Errors a
+choice :: [Parser a] -> Parser a
 choice choices = Parser $ \ toks ->
-    try_choices choices toks
+    try_choices choices [] toks
     where
-        try_choices (c:cs) toks =
+        try_choices (c:cs) breaking_acc toks =
             case run_parser c toks of
                 Success r -> return r
-                Recoverable e r -> Recoverable e r
-                -- TODO: collect these
-                Failed _ -> try_choices cs toks
+                Recoverable es r -> Recoverable es r
+                Failed _ err -> try_choices cs (err:breaking_acc) toks
+                -- ignore recoverable errors because they only apply if the choice could be decided
+                -- e.g. a hypothetical recoverable error like "invalid function name" or something doesn't apply if it can't decide whether or not it is parsing a function or a datatype
 
-        try_choices [] _ = Failed ()
+        try_choices [] errs_acc (tok:_) = Failed [] (ParseError.NoneMatched tok errs_acc)
 
-star :: Parser Errors a -> Parser Errors [a]
+star :: Parser a -> Parser [a]
 star a = Parser $ \ toks ->
     star' [] [] toks
     where
         star' err_acc a_acc toks =
             case run_parser a toks of
                 Success (r, toks') -> star' err_acc (a_acc ++ [r]) toks'
-                Recoverable e (r, toks') -> star' (err_acc <> [e]) (a_acc ++ [r]) toks'
-                Failed _ -> Success (a_acc, toks)
-                    -- if null err_acc TODO
-                        -- then Success ([], toks)
-                        -- else Recoverable err_acc ([], toks)
+                Recoverable es (r, toks') -> star' (err_acc ++ es) (a_acc ++ [r]) toks'
+                Failed _ _ ->
+                -- both errors do not apply if it doesn't work because that just means the list ends there
+                    if null err_acc
+                        then Success (a_acc, toks)
+                        else Recoverable err_acc (a_acc, toks)
 
-plus :: Parser Errors a -> Parser Errors [a]
-plus a = Parser $ \ toks ->
-    plus' [] [] toks
-    where
-        plus' err_acc a_acc toks =
-            case run_parser a toks of
-                Success (r, toks') -> plus' err_acc (a_acc ++ [r]) toks'
-                Recoverable e (r, toks') -> plus' (err_acc <> [e]) (a_acc ++ [r]) toks'
-                Failed _ ->
-                    if length a_acc == 0
-                        then Failed () -- TODO err_acc list
-                        else Success (a_acc, toks)
+plus :: Parser a -> Parser [a]
+plus a =
+    a >>= \ a_res ->
+    star a >>= \ more_as ->
+    return (a_res : more_as)
 
-optional :: Parser Errors a -> Parser Errors (Maybe a)
+optional :: Parser a -> Parser (Maybe a)
 optional a = Parser $ \ toks ->
     case run_parser a toks of
         Success (r, toks') -> Success (Just r, toks')
         Recoverable e (r, toks') -> Recoverable e (Just r, toks')
-        Failed _ -> Success (Nothing, toks)
+        Failed _ _ -> Success (Nothing, toks)
 
--- andpred :: Parser Errors a -> Parser Errors ()
--- notpred :: Parser Errors a -> Parser Errors ()
+-- andpred :: Parser a -> Parser ()
+-- notpred :: Parser a -> Parser ()
 
 {- TODO: synchronization (also "synchronization predicate" todo at definition of ParseResult)
-sync :: TokenPredicate -> Parser Errors ()
+sync :: TokenPredicate -> Parser ()
 sync sync_p =
     parse_list
         (\case
             Token.EOF -> True
             t -> sync_p t)
         (consume (const $ Just ()) (error "unreachable")) >> return ()
-m_sync :: Maybe TokenPredicate -> Parser Errors ()
+m_sync :: Maybe TokenPredicate -> Parser ()
 m_sync Nothing = return ()
 m_sync (Just sync_p) = sync sync_p
 -}
@@ -216,7 +214,7 @@ parse toks eof_tok =
         Failed errs _ -> (NonEmpty.toList errs, [])
         Recoverable errs res _ -> (NonEmpty.toList errs, res)
 
-parse' :: Parser Errors [Decl.Decl]
+parse' :: Parser [Decl.Decl]
 parse' = parse_list (is_tt Token.EOF) decl_parse
 -- decls {{{2
 decl_lookahead_matches :: TokenPredicate
@@ -225,7 +223,7 @@ decl_lookahead_matches Token.Under = True
 decl_lookahead_matches (Token.AlphaIdentifier []) = True
 decl_lookahead_matches _ = False
 --
-decl_parse :: Parser Errors Decl.Decl
+decl_parse :: Parser Decl.Decl
 decl_parse =
     choice
         [ (is_tt Token.Data, advance >> data_parse)
@@ -241,17 +239,17 @@ decl_parse =
                 ])
             (Just decl_lookahead_matches)))
 
-data_parse :: Parser Errors Decl.Decl
+data_parse :: Parser Decl.Decl
 data_parse =
     peek >>= \ tok -> -- TODO: maybe use the 'data' token
     return (Failed (nonempty_singleton $ ParseError.NotImpl $ Location.Located (Location.just_span tok) "datatype declarations") (Just decl_lookahead_matches))
 
-under_parse :: Parser Errors Decl.Decl
+under_parse :: Parser Decl.Decl
 under_parse =
     peek >>= \ tok -> -- TODO: maybe use the 'under' token
     return (Failed (nonempty_singleton $ ParseError.NotImpl $ Location.Located (Location.just_span tok) "'under' blocks") (Just decl_lookahead_matches))
 
-type_sig_or_function_parse :: [String] -> Parser Errors Decl.Decl
+type_sig_or_function_parse :: [String] -> Parser Decl.Decl
 type_sig_or_function_parse name =
     choice
         [ (is_tt Token.Equal, advance >> binding_parse name)
@@ -260,22 +258,22 @@ type_sig_or_function_parse name =
         (peek >>= \ tok ->
         return (Failed (nonempty_singleton $ ParseError.BadToken tok [(Token.Colon, "type signature", Nothing), (Token.Equal, "declaration", Nothing)]) Nothing))
 
-binding_parse :: [String] -> Parser Errors Decl.Decl
+binding_parse :: [String] -> Parser Decl.Decl
 binding_parse decl_name =
     expr_parse `p_then` \ ex ->
     return (Success $ Decl.Binding decl_name ex)
 
-type_signature_parse :: [String] -> Parser Errors Decl.Decl
+type_signature_parse :: [String] -> Parser Decl.Decl
 type_signature_parse decl_name =
     type_parse `p_then` \ ty ->
     return (Success $ Decl.TypeSignature decl_name ty)
 -- types {{{2
-type_parse :: Parser Errors Type.Type
+type_parse :: Parser Type.Type
 type_parse =
     consume is_alpha_iden_m (\ tok -> (nonempty_singleton $ ParseError.BadToken tok [(Token.AlphaIdentifier [], "type", Nothing)], Nothing)) `p_then` \ iden ->
     return (Success $ Type.Identifier iden)
 -- exprs {{{2
-expr_parse :: Parser Errors Expr.Expr
+expr_parse :: Parser Expr.Expr
 expr_parse =
     peek >>= \ tok ->
     return $ Failed (nonempty_singleton $ ParseError.NotImpl (Location.Located (Location.just_span tok) "expressions")) Nothing -- TODO
@@ -319,7 +317,7 @@ test_p_then =
         , t "s-s" s s' (Success "true success")
         ]
 
-data ParsingTest = forall r. (Show r, Eq r) => ParsingTest String (File.File, TokenStream) r [(String, Parser Errors r)]
+data ParsingTest = forall r. (Show r, Eq r) => ParsingTest String (File.File, TokenStream) r [(String, Parser r)]
 parsing_tests :: [ParsingTest]
 parsing_tests =
     [ ParsingTest "function decl"

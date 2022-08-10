@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module UHF.IO.Path where
 
 import Test.Tasty.HUnit

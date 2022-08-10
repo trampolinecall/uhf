@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module UHF.Lexer.LexError
     ( LexError(..)
     ) where

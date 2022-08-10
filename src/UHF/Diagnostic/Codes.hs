@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module UHF.Diagnostic.Codes where
 
 import UHF.Diagnostic.Codes.Code

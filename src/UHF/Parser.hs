@@ -1,6 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ExistentialQuantification #-}
 
 module UHF.Parser
@@ -113,10 +111,12 @@ parsing_tests =
         (make_token_stream [("x", Token.AlphaIdentifier ["x"]), ("=", Token.Equal), ("'c'", Token.CharLit 'c')])
         (Decl.Binding ["x"] (Expr.CharLit 'c'))
         [("decl_parse", decl_parse)]
+
     , ParsingTest "type signature"
         (make_token_stream [("x", Token.AlphaIdentifier ["x"]), (":", Token.Colon), ("int", Token.AlphaIdentifier ["int"])])
         (Decl.TypeSignature ["x"] (Type.Identifier ["int"]))
         [("decl_parse", decl_parse)]
+
     , ParsingTest "data decl"
         (make_token_stream
             [ ("data", Token.Data), ("X", Token.AlphaIdentifier ["X"])
@@ -126,6 +126,7 @@ parsing_tests =
             ])
         (error "not implemented yet")
         [("decl_parse", decl_parse), ("data_parse", data_parse)]
+
     , ParsingTest "under decl"
         (make_token_stream
             [ ("under", Token.Data), ("X", Token.AlphaIdentifier ["X"])

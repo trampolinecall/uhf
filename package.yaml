@@ -12,6 +12,11 @@ ghc-options:
   - -Wall
   - -Wextra
 
+default-extensions:
+  - LambdaCase
+  - TemplateHaskell
+  - OverloadedStrings
+
 library:
   source-dirs: src
 

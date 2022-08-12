@@ -48,12 +48,12 @@ type_color Hint = Colors.hint
 
 imp_char, top_imp_char :: Importance -> Char
 imp_char Primary = '^'
-imp_char Secondary = '-'
-imp_char Tertiary = '.'
+imp_char Secondary = '~'
+imp_char Tertiary = '-'
 
 top_imp_char Primary = 'v'
-top_imp_char Secondary = '-'
-top_imp_char Tertiary = '.'
+top_imp_char Secondary = '~'
+top_imp_char Tertiary = '-'
 
 primary, secondary, tertiary :: Location.Span -> [(Type, Text.Text)] -> Underline
 primary s m = (s, Primary, m)

@@ -87,6 +87,13 @@ test_count_indents =
         in
             [(0, [(Location.start ln1, "line1\\", Location.start ln1nl), (Location.start ln2, "    line2", Location.start ln2nl)]),
              (0, [(Location.start ln3, "line3", Location.start $ Location.eof_span f)])] @=? count_indents f
+
+    , testCase "trailing newline" $
+        let (f, [ln1, ln1nl, ln2, ln2nl, ln3, ln3nl]) = SpanHelper.make_spans' "a" "" ["line1", "\n", "line2", "\n", "line3", "\n"]
+        in
+            [(0, [(Location.start ln1, "line1", Location.start ln1nl)]),
+             (0, [(Location.start ln2, "line2", Location.start ln2nl)]),
+             (0, [(Location.start ln3, "line3", Location.start ln3nl)])] @=? count_indents f
     ]
 
 tests :: TestTree

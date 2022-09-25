@@ -4,11 +4,16 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 module UHF.Token
-    ( Token(..)
-    , LToken
+    ( BaseToken(..)
+
+    , LBeforePPToken
+    , LNormalToken
+    , BeforePPToken
+    , NormalToken
+
     , IntLitBase(..)
 
-    , Decimal(..)
+    , Decimal.Decimal
     , format_tok
     ) where
 
@@ -16,9 +21,9 @@ import qualified UHF.IO.Location as Location
 
 import qualified Data.Decimal as Decimal
 import qualified Data.Data as Data
+import qualified Data.Void as Void
 
 deriving instance Data.Data Decimal.Decimal -- TODO: maybe not have an orphan instance
-newtype Decimal = Decimal Decimal.Decimal deriving (Show, Eq, Data.Data)
 
 data IntLitBase
     = Dec
@@ -27,8 +32,13 @@ data IntLitBase
     | Bin
     deriving (Show, Eq, Data.Data)
 
-type LToken = Location.Located Token
-data Token
+type LNormalToken = Location.Located NormalToken
+type LBeforePPToken = Location.Located BeforePPToken
+
+type BeforePPToken = BaseToken () String Void.Void
+type NormalToken = BaseToken Void.Void [String] ()
+
+data BaseToken dc id eof
     = OParen
     | CParen
     | OBrack
@@ -37,6 +47,8 @@ data Token
     | Equal
     | Colon
     | Arrow
+
+    | DoubleColon dc
 
     | Root
     | Let
@@ -47,13 +59,13 @@ data Token
     | Else
     | Case
 
-    | SymbolIdentifier [String]
-    | AlphaIdentifier [String]
+    | SymbolIdentifier id
+    | AlphaIdentifier id
 
     | CharLit Char
     | StringLit String
     | IntLit IntLitBase Integer
-    | FloatLit Decimal
+    | FloatLit Decimal.Decimal
     | BoolLit Bool
 
     | OBrace
@@ -62,10 +74,10 @@ data Token
     | Indent
     | Dedent
     | Newline
-    | EOF
+    | EOF eof
     deriving (Show, Eq, Data.Data)
 
-format_tok :: Token -> String
+format_tok :: BaseToken dc id eof -> String
 format_tok OParen = "'('"
 format_tok CParen = "')'"
 format_tok OBrack = "'['"
@@ -73,6 +85,7 @@ format_tok CBrack = "']'"
 format_tok Comma = "','"
 format_tok Equal = "'='"
 format_tok Colon = "':'"
+format_tok (DoubleColon _) = "':'"
 format_tok Arrow = "'->'"
 
 format_tok Root = "'root'"
@@ -99,4 +112,4 @@ format_tok Semicolon = "';'"
 format_tok Indent = "indent"
 format_tok Dedent = "dedent"
 format_tok Newline = "newline"
-format_tok EOF = "end of file"
+format_tok (EOF _) = "end of file"

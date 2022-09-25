@@ -41,7 +41,7 @@ data IndentFrame
 
 -- lexing {{{1
 lex :: File.File -> [(Int, [Text.Text])] -> ([LexError.LexError], [Token.LBeforePPToken], Token.LNormalToken)
-lex f lines =
+lex f lines = -- TODO: using lines
     let (errs, toks) = run [] [] Nothing (Just $ new_lexer f)
         eof = Location.Located (Location.eof_span f) (Token.EOF ())
     in (errs, toks, eof)
@@ -444,7 +444,6 @@ seek_while l p =
 seek :: Lexer -> Int -> Lexer
 seek l n = l { location = Location.seek n (location l) }
 -- tests {{{1
-{- -- TODO
 case_l_contents :: Assertion
 case_l_contents = "abcdefghijkl" @=? l_contents (Lexer (Location.new_location (File.File "filename" "abcdefghijkl")) [])
 case_remaining :: Assertion
@@ -461,13 +460,15 @@ case_new_lexer =
 
 case_lex :: Assertion
 case_lex =
-    case UHF.Lexer.MainLexer.lex (File.File "a" "abc *&* ( \"adji\n") of
+    let src = "abc *&* ( \"adji\n"
+        f = File.File "a" src
+    in case UHF.Lexer.MainLexer.lex f [(0, [src])] of
         ([LexError.UnclosedStrLit _], [Location.Located _ (Token.AlphaIdentifier "abc"), Location.Located _ (Token.SymbolIdentifier "*&*"), Location.Located _ Token.OParen, Location.Located _ Token.Newline], _) -> return ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
 case_lex_empty :: Assertion
 case_lex_empty =
-    case UHF.Lexer.MainLexer.lex (File.File "a" "") of
+    case UHF.Lexer.MainLexer.lex (File.File "a" "") [(0, [""])] of
         ([], [], _) -> return ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
@@ -838,7 +839,3 @@ case_lex_indent_close_brace =
 
 tests :: TestTree
 tests = $(testGroupGenerator)
--}
-
-tests :: TestTree
-tests = testGroup "todo" []

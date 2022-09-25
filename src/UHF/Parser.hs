@@ -32,7 +32,7 @@ import qualified Data.List.NonEmpty as NonEmpty
 
 -- TODO: clean up
 
-parse :: [Token.LToken] -> Token.LToken -> ([ParseError.ParseError], [Decl.Decl])
+parse :: [Token.LNormalToken] -> Token.LNormalToken -> ([ParseError.ParseError], [Decl.Decl])
 parse toks eof_tok =
     let r_res = Parser.run_parser parse' (InfList.from_list eof_tok toks)
     in case r_res of
@@ -41,7 +41,7 @@ parse toks eof_tok =
         Parser.Recoverable errs (res, _) -> (errs, res)
 
 parse' :: Parser.Parser [Decl.Decl]
-parse' = Parser.star decl_parse >>= \ ds -> Parser.consume "end of file" Token.EOF >> return ds
+parse' = Parser.star decl_parse >>= \ ds -> Parser.consume "end of file" (Token.EOF ()) >> return ds
 -- decls {{{2
 decl_lookahead_matches :: Parser.TokenPredicate
 decl_lookahead_matches Token.Data = True
@@ -99,7 +99,7 @@ expr_parse =
 
 -- tests {{{1
 data ParsingTest = forall r. (Show r, Eq r) => ParsingTest String (File.File, Parser.TokenStream) r [(String, Parser.Parser r)]
-make_token_stream :: [(String, Token.Token)] -> (File.File, Parser.TokenStream)
+make_token_stream :: [(String, Token.NormalToken)] -> (File.File, Parser.TokenStream)
 make_token_stream things =
     let (file, things') = SpanHelper.make_spans_with_items things
         l = last things'

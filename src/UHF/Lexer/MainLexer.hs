@@ -15,11 +15,10 @@ import qualified UHF.IO.Location as Location
 import qualified UHF.Lexer.DFA as DFA
 import qualified Data.Text as Text
 import qualified Data.Decimal as Decimal
-import Data.Maybe (mapMaybe, isJust, fromMaybe)
+import Data.Maybe (mapMaybe, isJust)
 import Data.Either (lefts)
 import Data.Char (isAlpha, isDigit, isOctDigit, isHexDigit, isSpace, digitToInt)
 import Safe (lastMay)
-import qualified UHF.Token.Raw as Token.Raw
 import qualified UHF.Token as Token
 
 -- datatypes {{{1
@@ -41,16 +40,19 @@ data IndentFrame
     deriving (Eq, Show)
 
 -- lexing {{{1
-lex :: File.File -> [(Int, [Text.Text])] -> ([LexError.LexError], [Location.Located Token.Raw.Token], Token.LToken)
+lex :: File.File -> [(Int, [Text.Text])] -> ([LexError.LexError], [Token.LBeforePPToken], Token.LNormalToken)
 lex f lines =
     let (errs, toks) = run [] [] Nothing (Just $ new_lexer f)
-        eof = Location.Located (Location.eof_span f) Token.EOF
+        eof = Location.Located (Location.eof_span f) (Token.EOF ())
     in (errs, toks, eof)
     where
         run e t _ Nothing = (e, t)
         run errs_acc toks_acc last_tok (Just l) =
             let (l', e, t) = lex' l last_tok
-                last_tok' = fromMaybe last_tok (lastMay toks_acc)
+                last_tok' =
+                    case lastMay toks_acc of
+                        Just x -> Just x
+                        Nothing -> last_tok
 
                 next_errs = errs_acc ++ e
                 next_toks = toks_acc ++ t
@@ -59,7 +61,7 @@ lex f lines =
                 seq next_toks $
                 run next_errs next_toks last_tok' l'
 -- lex' {{{2
-lex' :: Lexer -> Maybe (Location.Located Token.Raw.Token) -> (Maybe Lexer, [LexError.LexError], [Location.Located Token.Raw.Token])
+lex' :: Lexer -> Maybe Token.LBeforePPToken -> (Maybe Lexer, [LexError.LexError], [Token.LBeforePPToken])
 lex' lexer last_tok =
     let lex_choices =
             [ lex_eof last_tok
@@ -88,18 +90,18 @@ lex' lexer last_tok =
 
         else (lexer', errs, toks)
 -- lexing functions {{{2
-type LexFn = Lexer -> Maybe (Bool, Maybe Lexer, [LexError.LexError], [Location.Located Token.Raw.Token])
+type LexFn = Lexer -> Maybe (Bool, Maybe Lexer, [LexError.LexError], [Token.LBeforePPToken])
 
-lex_eof :: Maybe (Location.Located Token.Raw.Token) -> LexFn
+lex_eof :: Maybe (Token.LBeforePPToken) -> LexFn
 lex_eof last_tok lexer
     | Text.null $ remaining lexer =
         let all_dedents = concatMap make_dedent (init $ indent_stack lexer)
 
-            make_dedent (IndentationSensitive _) = [Location.Located (lexer_span lexer 0 1) Token.Raw.Dedent]
+            make_dedent (IndentationSensitive _) = [Location.Located (lexer_span lexer 0 1) Token.Dedent]
             make_dedent _ = []
 
             nl
-                | isJust last_tok = [Location.Located (lexer_span lexer 0 1) Token.Raw.Newline]
+                | isJust last_tok = [Location.Located (lexer_span lexer 0 1) Token.Newline]
                 | otherwise = []
 
         in Just (False, Nothing, [], nl ++ all_dedents)
@@ -148,16 +150,16 @@ lex_alpha_identifier lexer =
                     full_iden = c : Text.unpack more_iden
 
                     tok = case full_iden of
-                            "root" -> Token.Raw.Root
-                            "let" -> Token.Raw.Let
-                            "data" -> Token.Raw.Data
-                            "under" -> Token.Raw.Under
-                            "if" -> Token.Raw.If
-                            "else" -> Token.Raw.Else
-                            "case" -> Token.Raw.Case
-                            "true" -> Token.Raw.BoolLit True
-                            "false" -> Token.Raw.BoolLit False
-                            _ -> Token.Raw.AlphaIdentifier full_iden
+                            "root" -> Token.Root
+                            "let" -> Token.Let
+                            "data" -> Token.Data
+                            "under" -> Token.Under
+                            "if" -> Token.If
+                            "else" -> Token.Else
+                            "case" -> Token.Case
+                            "true" -> Token.BoolLit True
+                            "false" -> Token.BoolLit False
+                            _ -> Token.AlphaIdentifier full_iden
 
                 in Just (True, Just lexer', [], [Location.Located (lexer_span lexer 0 (length full_iden)) tok])
 
@@ -165,21 +167,21 @@ lex_alpha_identifier lexer =
 
 lex_symbol_identifier :: LexFn
 lex_symbol_identifier lexer
-    | lexer `matches` "->" = Just (True, Just $ lexer `seek` 2, [], [Location.Located (lexer_span lexer 0 2) Token.Raw.Arrow])
-    | lexer `matches` "::" = Just (True, Just $ lexer `seek` 2, [], [Location.Located (lexer_span lexer 0 2) Token.Raw.DoubleColon])
-    | lexer `matches` "(" = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.Raw.OParen])
-    | lexer `matches` ")" = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.Raw.CParen])
-    | lexer `matches` "[" = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.Raw.OBrack])
-    | lexer `matches` "]" = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.Raw.CBrack])
-    | lexer `matches` "," = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.Raw.Comma])
-    | lexer `matches` "=" = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.Raw.Equal])
-    | lexer `matches` ":" = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.Raw.Colon])
+    | lexer `matches` "->" = Just (True, Just $ lexer `seek` 2, [], [Location.Located (lexer_span lexer 0 2) Token.Arrow])
+    | lexer `matches` "::" = Just (True, Just $ lexer `seek` 2, [], [Location.Located (lexer_span lexer 0 2) (Token.DoubleColon ())])
+    | lexer `matches` "(" = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.OParen])
+    | lexer `matches` ")" = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.CParen])
+    | lexer `matches` "[" = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.OBrack])
+    | lexer `matches` "]" = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.CBrack])
+    | lexer `matches` "," = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.Comma])
+    | lexer `matches` "=" = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.Equal])
+    | lexer `matches` ":" = Just (True, Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.Colon])
     | otherwise =
         let is_valid_char = (`elem` ("!#$%&*+-./:<=>?@^`~" :: String))
             (iden_sp, iden, lexer') = lexer `seek_while` is_valid_char
         in if Text.null iden
             then Nothing
-            else Just (True, Just lexer', [], [Location.Located iden_sp (Token.Raw.SymbolIdentifier $ Text.unpack iden)])
+            else Just (True, Just lexer', [], [Location.Located iden_sp (Token.SymbolIdentifier $ Text.unpack iden)])
 
 lex_str_or_char_lit :: LexFn
 lex_str_or_char_lit lexer =
@@ -193,8 +195,8 @@ lex_str_or_char_lit lexer =
                     in if open == '\''
                         then if Text.length str_contents /= 1
                             then Just (True, Just lexer'', [LexError.MulticharCharLit lit_span], [])
-                            else Just (True, Just lexer'', [], [Location.Located lit_span $ Token.Raw.CharLit $ Text.head str_contents])
-                        else Just (True, Just lexer'', [], [Location.Located lit_span $ Token.Raw.StringLit $ Text.unpack str_contents])
+                            else Just (True, Just lexer'', [], [Location.Located lit_span $ Token.CharLit $ Text.head str_contents])
+                        else Just (True, Just lexer'', [], [Location.Located lit_span $ Token.StringLit $ Text.unpack str_contents])
                 else if open == '\''
                         then Just (True, Just lexer', [LexError.UnclosedCharLit $ lexer_span lexer 0 $ Text.length str_contents], [])
                         else Just (True, Just lexer', [LexError.UnclosedStrLit $ lexer_span lexer 0 $ Text.length str_contents], [])
@@ -277,7 +279,7 @@ lex_number lexer =
                         illegal_digits = lefts digits_legal
 
                     in if null illegal_digits
-                        then Just (True, Just lexer', [], [Location.Located num_span (Token.Raw.IntLit tok_base (read_digits ((^) :: Integer -> Int -> Integer) base_num (zip [0..] (reverse digits))))])
+                        then Just (True, Just lexer', [], [Location.Located num_span (Token.IntLit tok_base (read_digits ((^) :: Integer -> Int -> Integer) base_num (zip [0..] (reverse digits))))])
                         else Just (True, Just lexer', illegal_digits, [])
 
                 (Right (tok_base, _), _) ->
@@ -295,7 +297,7 @@ lex_number lexer =
                         base_is_dec = if tok_base == Token.Dec then [] else [LexError.NonDecimalFloat num_span]
 
                     in if null illegal_digits && null base_is_dec
-                        then Just (True, Just lexer', [], [Location.Located num_span (Token.Raw.FloatLit $ read_digits ((^^) :: Decimal.Decimal -> Int -> Decimal.Decimal) 10 (zip [0..] (reverse digits) ++ zip [-1, -2..] floats))])
+                        then Just (True, Just lexer', [], [Location.Located num_span (Token.FloatLit $ read_digits ((^^) :: Decimal.Decimal -> Int -> Decimal.Decimal) 10 (zip [0..] (reverse digits) ++ zip [-1, -2..] floats))])
                         else Just (True, Just lexer', illegal_digits ++ base_is_dec, [])
 
                 (Left err, _) -> Just (True, Just lexer', [err], [])
@@ -314,7 +316,7 @@ make_bad_char lexer =
         Nothing -> Nothing
         Just (x, _) -> Just (True, Just $ lexer `seek` 1, [LexError.BadChar x $ lexer_span lexer 0 1], [])
 -- lex_indent {{{2
-lex_indent :: Lexer -> Maybe (Location.Located Token.Raw.Token) -> ([IndentFrame], [LexError.LexError], [Location.Located Token.Raw.Token])
+lex_indent :: Lexer -> Maybe (Token.LBeforePPToken) -> ([IndentFrame], [LexError.LexError], [Token.LBeforePPToken])
 lex_indent lexer last_tok =
     let m_cur_indent =
             let from_line_begin = Text.reverse $ Text.takeWhile (/='\n') (rev_passed lexer)
@@ -334,7 +336,7 @@ lex_indent lexer last_tok =
 
         last_is_semi =
             case last_tok of
-                Just (Location.Located _ Token.Raw.Semicolon) -> True
+                Just (Location.Located _ Token.Semicolon) -> True
                 _ -> False
 
         cur_char_tok = Location.Located (lexer_span lexer 0 1)
@@ -353,26 +355,26 @@ lex_indent lexer last_tok =
             in Location.Located (lexer_span lexer (last_tok_end_ind + nl_from_last_tok_end - l_ind lexer) 1)
 
         process_braces (stack, errs, toks)
-            | m_cur_char == Just '{' = (IndentationInsensitive : stack, errs, toks ++ [cur_char_tok Token.Raw.OBrace])
+            | m_cur_char == Just '{' = (IndentationInsensitive : stack, errs, toks ++ [cur_char_tok Token.OBrace])
 
-            | m_cur_char == Just ';' = (stack, errs, toks ++ [cur_char_tok Token.Raw.Semicolon])
+            | m_cur_char == Just ';' = (stack, errs, toks ++ [cur_char_tok Token.Semicolon])
 
             | m_cur_char == Just '}' =
                 case head stack of
-                    IndentationInsensitive -> (tail stack, errs, toks ++ [cur_char_tok Token.Raw.CBrace])
-                    IndentationSensitive _ -> (stack, errs, toks ++ [cur_char_tok Token.Raw.CBrace]) -- the parser can handle this error when it finds a random CBrace where it shouldn't be
+                    IndentationInsensitive -> (tail stack, errs, toks ++ [cur_char_tok Token.CBrace])
+                    IndentationSensitive _ -> (stack, errs, toks ++ [cur_char_tok Token.CBrace]) -- the parser can handle this error when it finds a random CBrace where it shouldn't be
 
             | otherwise = (stack, errs, toks)
 
         process_indents (stack, errs, toks) =
             case (m_cur_indent, m_last_indent) of
                 (Just cur_indent, Just last_indent)
-                    | cur_indent > last_indent -> (IndentationSensitive cur_indent : stack, errs, toks ++ [cur_char_tok Token.Raw.Indent])
+                    | cur_indent > last_indent -> (IndentationSensitive cur_indent : stack, errs, toks ++ [cur_char_tok Token.Indent])
 
                     | cur_indent == last_indent && isJust last_tok ->
                         if last_is_semi
                             then (stack, errs, toks)
-                            else (stack, errs, toks ++ [last_nl_tok Token.Raw.Newline])
+                            else (stack, errs, toks ++ [last_nl_tok Token.Newline])
 
                     | cur_indent < last_indent ->
                         let can_pop (IndentationSensitive ind) = cur_indent < ind
@@ -393,8 +395,8 @@ lex_indent lexer last_tok =
                             , errs ++
                                 if is_valid_level then [] else [LexError.BadDedent (lexer_span lexer 0 1)]
                             , toks ++
-                                (if last_is_semi then [] else [last_nl_tok Token.Raw.Newline]) ++
-                                replicate num_popped (cur_char_tok Token.Raw.Dedent)
+                                (if last_is_semi then [] else [last_nl_tok Token.Newline]) ++
+                                replicate num_popped (cur_char_tok Token.Dedent)
                             )
 
                 _ -> (stack, errs, toks)
@@ -460,7 +462,7 @@ case_new_lexer =
 case_lex :: Assertion
 case_lex =
     case UHF.Lexer.MainLexer.lex (File.File "a" "abc *&* ( \"adji\n") of
-        ([LexError.UnclosedStrLit _], [Location.Located _ (Token.Raw.AlphaIdentifier "abc"), Location.Located _ (Token.Raw.SymbolIdentifier "*&*"), Location.Located _ Token.Raw.OParen, Location.Located _ Token.Raw.Newline], _) -> return ()
+        ([LexError.UnclosedStrLit _], [Location.Located _ (Token.AlphaIdentifier "abc"), Location.Located _ (Token.SymbolIdentifier "*&*"), Location.Located _ Token.OParen, Location.Located _ Token.Newline], _) -> return ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
 case_lex_empty :: Assertion
@@ -474,7 +476,7 @@ lex_test fn input check = check $ fn $ new_lexer $ File.File "a" input
 lex_test_fail :: Show r => String -> r -> IO a
 lex_test_fail fn_name res = assertFailure $ "'" ++ fn_name ++ "' lexed incorrectly: returned '" ++ show res ++ "'"
 
-indent_test :: Maybe (Token.Raw.Token, Int, Int) -> [IndentFrame] -> Int -> Text.Text -> (([IndentFrame], [LexError.LexError], [Location.Located Token.Raw.Token]) -> IO ()) -> IO ()
+indent_test :: Maybe (Token.BeforePPToken, Int, Int) -> [IndentFrame] -> Int -> Text.Text -> (([IndentFrame], [LexError.LexError], [Token.LBeforePPToken]) -> IO ()) -> IO ()
 indent_test m_last_tok stack offset input check =
     let lexer = (new_lexer (File.File "a" input) `seek` offset) { indent_stack = stack }
 
@@ -488,7 +490,7 @@ indent_test m_last_tok stack offset input check =
 case_lex' :: Assertion
 case_lex' =
     lex_test (flip lex' Nothing) "abc" $ \case
-        (Just l, [], [Location.Located _ (Token.Raw.AlphaIdentifier "abc")])
+        (Just l, [], [Location.Located _ (Token.AlphaIdentifier "abc")])
             | remaining l == "" -> return ()
 
         x -> lex_test_fail "lex'" x
@@ -502,7 +504,7 @@ case_lex'_empty =
 case_lex_eof_end :: Assertion
 case_lex_eof_end =
     lex_test (lex_eof (Just undefined)) "" $ \case
-        Just (False, Nothing, [], [Location.Located _ Token.Raw.Newline]) -> return ()
+        Just (False, Nothing, [], [Location.Located _ Token.Newline]) -> return ()
         x -> lex_test_fail "lex_eof" x
 case_lex_eof_not_end :: Assertion
 case_lex_eof_not_end =
@@ -514,7 +516,7 @@ case_lex_eof_with_dedents =
     let f = File.File "a" ""
         l = Lexer (Location.new_location f) [IndentationInsensitive, IndentationSensitive 4, IndentationInsensitive, IndentationSensitive 0]
     in case lex_eof (Just undefined) l of
-        Just (False, Nothing, [], [Location.Located _ Token.Raw.Newline, Location.Located _ Token.Raw.Dedent]) -> return ()
+        Just (False, Nothing, [], [Location.Located _ Token.Newline, Location.Located _ Token.Dedent]) -> return ()
         x -> lex_test_fail "lex_eof" x
 case_lex_eof_empty_file :: Assertion
 case_lex_eof_empty_file =
@@ -563,57 +565,57 @@ case_lex_comment_not_comment =
 case_lex_alpha_identifier :: Assertion
 case_lex_alpha_identifier =
     lex_test lex_alpha_identifier "a" $ \case
-        Just (True, Just l, [], [Location.Located _ (Token.Raw.AlphaIdentifier "a")])
+        Just (True, Just l, [], [Location.Located _ (Token.AlphaIdentifier "a")])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_alpha_identifier" x
 case_lex_alpha_identifier_with_numbers :: Assertion
 case_lex_alpha_identifier_with_numbers =
     lex_test lex_alpha_identifier "a12" $ \case
-        Just (True, Just l, [], [Location.Located _ (Token.Raw.AlphaIdentifier "a12")])
+        Just (True, Just l, [], [Location.Located _ (Token.AlphaIdentifier "a12")])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_alpha_identifier" x
 case_lex_alpha_identifier_apostrophes :: Assertion
 case_lex_alpha_identifier_apostrophes =
     lex_test lex_alpha_identifier "a''" $ \case
-        Just (True, Just l, [], [Location.Located _ (Token.Raw.AlphaIdentifier "a''")])
+        Just (True, Just l, [], [Location.Located _ (Token.AlphaIdentifier "a''")])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_alpha_identifier" x
 case_lex_alpha_identifier_underscore :: Assertion
 case_lex_alpha_identifier_underscore =
     lex_test lex_alpha_identifier "_a" $ \case
-        Just (True, Just l, [], [Location.Located _ (Token.Raw.AlphaIdentifier "_a")])
+        Just (True, Just l, [], [Location.Located _ (Token.AlphaIdentifier "_a")])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_alpha_identifier" x
 
 case_lex_symbol_identifier :: Assertion
 case_lex_symbol_identifier =
     lex_test lex_symbol_identifier "*" $ \case
-        Just (True, Just l, [], [Location.Located _ (Token.Raw.SymbolIdentifier "*")])
+        Just (True, Just l, [], [Location.Located _ (Token.SymbolIdentifier "*")])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_alpha_identifier" x
 case_lex_symbol_identifier_multiple :: Assertion
 case_lex_symbol_identifier_multiple =
     lex_test lex_symbol_identifier "*^&*&" $ \case
-        Just (True, Just l, [], [Location.Located _ (Token.Raw.SymbolIdentifier "*^&*&")])
+        Just (True, Just l, [], [Location.Located _ (Token.SymbolIdentifier "*^&*&")])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_alpha_identifier" x
 case_lex_symbol_identifier_kw :: Assertion
 case_lex_symbol_identifier_kw =
     lex_test lex_symbol_identifier ":" $ \case
-        Just (True, Just l, [], [Location.Located _ Token.Raw.Colon])
+        Just (True, Just l, [], [Location.Located _ Token.Colon])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_alpha_identifier" x
 case_lex_symbol_identifier_long_kw :: Assertion
 case_lex_symbol_identifier_long_kw =
     lex_test lex_symbol_identifier "->" $ \case
-        Just (True, Just l, [], [Location.Located _ Token.Raw.Arrow])
+        Just (True, Just l, [], [Location.Located _ Token.Arrow])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_alpha_identifier" x
 
 case_lex_char_lit :: Assertion
 case_lex_char_lit =
     lex_test lex_str_or_char_lit "'c'" $ \case
-        Just (True, Just l, [], [Location.Located _ (Token.Raw.CharLit 'c')])
+        Just (True, Just l, [], [Location.Located _ (Token.CharLit 'c')])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_str_or_char_lit" x
 case_lex_char_lit_unclosed :: Assertion
@@ -632,7 +634,7 @@ case_lex_char_lit_multiple =
 case_lex_str_lit :: Assertion
 case_lex_str_lit =
     lex_test lex_str_or_char_lit "\"abcde\"" $ \case
-        Just (True, Just l, [], [Location.Located _ (Token.Raw.StringLit "abcde")])
+        Just (True, Just l, [], [Location.Located _ (Token.StringLit "abcde")])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_str_or_char_lit" x
 case_lex_str_lit_unclosed :: Assertion
@@ -645,42 +647,42 @@ case_lex_str_lit_unclosed =
 case_lex_number_decimal :: Assertion
 case_lex_number_decimal =
     lex_test lex_number "1234" $ \case
-        Just (True, Just l, [], [Location.Located _ (Token.Raw.IntLit Token.Dec 1234)])
+        Just (True, Just l, [], [Location.Located _ (Token.IntLit Token.Dec 1234)])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_decimal_leading_0 :: Assertion
 case_lex_number_decimal_leading_0 =
     lex_test lex_number "01234" $ \case
-        Just (True, Just l, [], [Location.Located _ (Token.Raw.IntLit Token.Dec 1234)])
+        Just (True, Just l, [], [Location.Located _ (Token.IntLit Token.Dec 1234)])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_float :: Assertion
 case_lex_number_float =
     lex_test lex_number "1234.1234" $ \case
-        Just (True, Just l, [], [Location.Located _ (Token.Raw.FloatLit 1234.1234)])
+        Just (True, Just l, [], [Location.Located _ (Token.FloatLit 1234.1234)])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_binary :: Assertion
 case_lex_number_binary =
     lex_test lex_number "0b101" $ \case
-        Just (True, Just l, [], [Location.Located _ (Token.Raw.IntLit Token.Bin 5)])
+        Just (True, Just l, [], [Location.Located _ (Token.IntLit Token.Bin 5)])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_hex :: Assertion
 case_lex_number_hex =
     lex_test lex_number "0xf1abcABC" $ \case
-        Just (True, Just l, [], [Location.Located _ (Token.Raw.IntLit Token.Hex 4054567612)])
+        Just (True, Just l, [], [Location.Located _ (Token.IntLit Token.Hex 4054567612)])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_octal :: Assertion
 case_lex_number_octal =
     lex_test lex_number "0o765" $ \case
-        Just (True, Just l, [], [Location.Located _ (Token.Raw.IntLit Token.Oct 501)])
+        Just (True, Just l, [], [Location.Located _ (Token.IntLit Token.Oct 501)])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_number" x
 
@@ -777,61 +779,61 @@ case_lex_make_bad_char_empty =
 case_lex_indent_indent :: Assertion
 case_lex_indent_indent =
     indent_test Nothing [IndentationSensitive 0] 4 "    abcd\n" $ \case
-        ([IndentationSensitive 4, IndentationSensitive 0], [], [Location.Located _ Token.Raw.Indent]) -> return ()
+        ([IndentationSensitive 4, IndentationSensitive 0], [], [Location.Located _ Token.Indent]) -> return ()
         x -> lex_test_fail "lex_indent" x
 
 case_lex_indent_newline :: Assertion
 case_lex_indent_newline =
-    indent_test (Just (Token.Raw.AlphaIdentifier "abcde", -6, 5)) [IndentationSensitive 0] 6 "abcde\nfghij\n" $ \case
-        ([IndentationSensitive 0], [], [Location.Located _ Token.Raw.Newline]) -> return ()
+    indent_test (Just (Token.AlphaIdentifier "abcde", -6, 5)) [IndentationSensitive 0] 6 "abcde\nfghij\n" $ \case
+        ([IndentationSensitive 0], [], [Location.Located _ Token.Newline]) -> return ()
         x -> lex_test_fail "lex_indent" x
 
 case_lex_indent_newline_with_semi :: Assertion
 case_lex_indent_newline_with_semi =
-    indent_test (Just (Token.Raw.Semicolon, -1, 1)) [IndentationSensitive 0] 6 "abcd;\nfghij\n" $ \case
+    indent_test (Just (Token.Semicolon, -1, 1)) [IndentationSensitive 0] 6 "abcd;\nfghij\n" $ \case
         ([IndentationSensitive 0], [], []) -> return ()
         x -> lex_test_fail "lex_indent" x
 
 case_lex_indent_dedent :: Assertion
 case_lex_indent_dedent =
-    indent_test (Just (Token.Raw.AlphaIdentifier "b", -2, 1)) [IndentationSensitive 4, IndentationSensitive 0] 8 "a\n    b\nc" $ \case
-        ([IndentationSensitive 0], [], [Location.Located _ Token.Raw.Newline, Location.Located _ Token.Raw.Dedent]) -> return ()
+    indent_test (Just (Token.AlphaIdentifier "b", -2, 1)) [IndentationSensitive 4, IndentationSensitive 0] 8 "a\n    b\nc" $ \case
+        ([IndentationSensitive 0], [], [Location.Located _ Token.Newline, Location.Located _ Token.Dedent]) -> return ()
         x -> lex_test_fail "lex_indent" x
 
 case_lex_indent_dedent_with_semi :: Assertion
 case_lex_indent_dedent_with_semi =
-    indent_test (Just (Token.Raw.Semicolon, -2, 1)) [IndentationSensitive 4, IndentationSensitive 0] 9 "a\n    b;\nc" $ \case
-        ([IndentationSensitive 0], [], [Location.Located _ Token.Raw.Dedent]) -> return ()
+    indent_test (Just (Token.Semicolon, -2, 1)) [IndentationSensitive 4, IndentationSensitive 0] 9 "a\n    b;\nc" $ \case
+        ([IndentationSensitive 0], [], [Location.Located _ Token.Dedent]) -> return ()
         x -> lex_test_fail "lex_indent" x
 
 case_lex_indent_dedent_multiple :: Assertion
 case_lex_indent_dedent_multiple =
-    indent_test (Just (Token.Raw.AlphaIdentifier "c", -2, 1)) [IndentationSensitive 8, IndentationSensitive 4, IndentationSensitive 0] 18 "a\n    b\n        c\nd" $ \case
-        ([IndentationSensitive 0], [], [Location.Located _ Token.Raw.Newline, Location.Located _ Token.Raw.Dedent, Location.Located _ Token.Raw.Dedent]) -> return ()
+    indent_test (Just (Token.AlphaIdentifier "c", -2, 1)) [IndentationSensitive 8, IndentationSensitive 4, IndentationSensitive 0] 18 "a\n    b\n        c\nd" $ \case
+        ([IndentationSensitive 0], [], [Location.Located _ Token.Newline, Location.Located _ Token.Dedent, Location.Located _ Token.Dedent]) -> return ()
         x -> lex_test_fail "lex_indent" x
 
 case_lex_indent_dedent_multiple_with_semi :: Assertion
 case_lex_indent_dedent_multiple_with_semi =
-    indent_test (Just (Token.Raw.Semicolon, -2, 1)) [IndentationSensitive 8, IndentationSensitive 4, IndentationSensitive 0] 19 "a\n    b\n        c;\nd" $ \case
-        ([IndentationSensitive 0], [], [Location.Located _ Token.Raw.Dedent, Location.Located _ Token.Raw.Dedent]) -> return ()
+    indent_test (Just (Token.Semicolon, -2, 1)) [IndentationSensitive 8, IndentationSensitive 4, IndentationSensitive 0] 19 "a\n    b\n        c;\nd" $ \case
+        ([IndentationSensitive 0], [], [Location.Located _ Token.Dedent, Location.Located _ Token.Dedent]) -> return ()
         x -> lex_test_fail "lex_indent" x
 
 case_lex_indent_open_brace :: Assertion
 case_lex_indent_open_brace =
     indent_test Nothing [IndentationSensitive 0] 0 "{\n" $ \case
-        ([IndentationInsensitive, IndentationSensitive 0], [], [Location.Located _ Token.Raw.OBrace]) -> return ()
+        ([IndentationInsensitive, IndentationSensitive 0], [], [Location.Located _ Token.OBrace]) -> return ()
         x -> lex_test_fail "lex_indent" x
 
 case_lex_indent_semi :: Assertion
 case_lex_indent_semi =
     indent_test Nothing [IndentationSensitive 0] 0 ";\n" $ \case
-        ([IndentationSensitive 0], [], [Location.Located _ Token.Raw.Semicolon]) -> return ()
+        ([IndentationSensitive 0], [], [Location.Located _ Token.Semicolon]) -> return ()
         x -> lex_test_fail "lex_indent" x
 
 case_lex_indent_close_brace :: Assertion
 case_lex_indent_close_brace =
     indent_test Nothing [IndentationInsensitive, IndentationSensitive 0] 0 "}\n" $ \case
-        ([IndentationSensitive 0], [], [Location.Located _ Token.Raw.CBrace]) -> return ()
+        ([IndentationSensitive 0], [], [Location.Located _ Token.CBrace]) -> return ()
         x -> lex_test_fail "lex_indent" x
 
 tests :: TestTree

@@ -55,7 +55,7 @@ lex f lines =
                 next_errs = errs_acc ++ e
                 next_toks = toks_acc ++ t
 
-            in seq next_errs $
+            in seq next_errs $ -- not sure if this actually helps, needs deep seq?
                 seq next_toks $
                 run next_errs next_toks last_tok' l'
 -- lex' {{{2

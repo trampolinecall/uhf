@@ -15,7 +15,7 @@ import qualified UHF.IO.Location as Location
 import qualified UHF.Lexer.DFA as DFA
 import qualified Data.Text as Text
 import qualified Data.Decimal as Decimal
-import Data.Maybe (mapMaybe, isJust)
+import Data.Maybe (mapMaybe, isJust, fromMaybe)
 import Data.Either (lefts)
 import Data.Char (isAlpha, isDigit, isOctDigit, isHexDigit, isSpace, digitToInt)
 import Safe (lastMay)
@@ -43,20 +43,21 @@ data IndentFrame
 -- lexing {{{1
 lex :: File.File -> [(Int, [Text.Text])] -> ([LexError.LexError], [Location.Located Token.Raw.Token], Token.LToken)
 lex f lines =
-    let run _ Nothing = ([], [])
-        run last_tok (Just l) =
-            let (l', errs, toks) = lex' l last_tok
+    let (errs, toks) = run [] [] Nothing (Just $ new_lexer f)
+        eof = Location.Located (Location.eof_span f) Token.EOF
+    in (errs, toks, eof)
+    where
+        run e t _ Nothing = (e, t)
+        run errs_acc toks_acc last_tok (Just l) =
+            let (l', e, t) = lex' l last_tok
+                last_tok' = fromMaybe last_tok (lastMay toks_acc)
 
-                last_tok' = case lastMay toks of
-                    Just x -> Just x
-                    Nothing -> last_tok
+                next_errs = errs_acc ++ e
+                next_toks = toks_acc ++ t
 
-                (errs', toks') = run last_tok' l'
-            in (errs ++ errs', toks ++ toks')
-
-        (e, t) = run Nothing (Just $ new_lexer f)
-
-    in (e, t, Location.Located (Location.eof_span f) Token.EOF)
+            in seq next_errs $
+                seq next_toks $
+                run next_errs next_toks last_tok' l'
 -- lex' {{{2
 lex' :: Lexer -> Maybe (Location.Located Token.Raw.Token) -> (Maybe Lexer, [LexError.LexError], [Location.Located Token.Raw.Token])
 lex' lexer last_tok =

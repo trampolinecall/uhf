@@ -12,8 +12,8 @@ import qualified UHF.Diagnostic.Sections.Underlines as Underlines
 import qualified Data.Text as Text
 
 data ParseError
-    = BadToken Token.LToken Token.Token String
-    | NoneMatched Token.LToken [ParseError]
+    = BadToken Token.LNormalToken Token.NormalToken String
+    | NoneMatched Token.LNormalToken [ParseError]
     | NotImpl (Location.Located String)
     deriving (Eq, Show)
 

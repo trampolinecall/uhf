@@ -37,8 +37,8 @@ import qualified UHF.Util.InfList as InfList
 
 import qualified Data.Data as Data
 
-type TokenStream = InfList.InfList Token.LToken
-type TokenPredicate = Token.Token -> Bool
+type TokenStream = InfList.InfList Token.LNormalToken
+type TokenPredicate = Token.NormalToken -> Bool
 
 -- TODO: also clean up this too
 -- TODO: allow each thing to provide a custom error function
@@ -130,16 +130,16 @@ return_fail errs err = Parser $ \ _ -> Failed errs err
 return_recoverable :: [ParseError.ParseError] -> a -> Parser a
 return_recoverable errs res = Parser $ \ toks -> Recoverable errs (res, toks)
 
-is_tt :: Token.Token -> Token.Token -> Bool
+is_tt :: Token.NormalToken -> Token.NormalToken -> Bool
 is_tt a b = Data.toConstr a == Data.toConstr b
 
-alpha_iden :: Token.Token
+alpha_iden :: Token.NormalToken
 alpha_iden = Token.AlphaIdentifier []
 
-peek :: Parser Token.LToken
+peek :: Parser Token.LNormalToken
 peek = Parser $ \ toks -> Success $ (InfList.head toks, toks)
 
-consume :: String -> Token.Token -> Parser Token.LToken
+consume :: String -> Token.NormalToken -> Parser Token.LNormalToken
 consume name exp = Parser $
     \ (tok InfList.::: more_toks) ->
         if is_tt (Location.unlocate tok) exp

@@ -68,4 +68,4 @@ compare_many_lines' bindings line_expectations lns =
     in assertBool ("line number mismatch\nexpected\n" ++ expectations_str ++ "got\n" ++ lns_str) (length lns == length line_expectations) >>
     case compare_many_lines bindings line_expectations lns of
         Right () -> return ()
-        Left i -> assertFailure $ "line " ++ show i ++ " does not match\nepected\n" ++ expectations_str ++ "got\n" ++ lns_str
+        Left i -> assertFailure $ "line " ++ show i ++ " does not match\nexpected\n" ++ expectations_str ++ "got\n" ++ lns_str

@@ -8,15 +8,25 @@ import Test.Tasty.HUnit
 import Test.Tasty.TH
 import Test.Tasty
 
+import qualified UHF.IO.File as File
+import qualified UHF.IO.Location as Location
+import qualified UHF.IO.Location.SpanHelper as SpanHelper
+
+import qualified Data.List as List
 import qualified Data.Text as Text
 
-count_indents :: Text.Text -> [(Int, [Text.Text])]
+count_indents :: File.File -> [(Int, [(Location.Location, Text.Text, Location.Location)])]
 count_indents = count_each_line . split_lines
 
-split_lines :: Text.Text -> [[Text.Text]]
-split_lines t =
-    let lines = Text.lines t
-        has_backslash = map (maybe False (('\\' ==) . snd) . Text.unsnoc . Text.stripEnd) lines
+split_lines :: File.File -> [[(Location.Location, Text.Text, Location.Location)]]
+split_lines f =
+    let (_, lines) =
+            List.mapAccumL
+                (\ l line -> ((Text.length line + 1) `Location.seek` l, (l, line, (Text.length line) `Location.seek` l)))
+                (Location.new_location f)
+                (Text.lines $ File.contents f)
+
+        has_backslash = map (maybe False (('\\' ==) . snd) . Text.unsnoc . Text.stripEnd . (\ (_, x, _) -> x)) lines
 
         -- the first line always starts a new line
         -- every line from then only starts a new line if the previous line doesnt end in a backslash
@@ -31,56 +41,52 @@ split_lines t =
 
     in make_groups $ zip lines start_new_line
 
-count_each_line :: [[Text.Text]] -> [(Int, [Text.Text])]
+count_each_line :: [[(Location.Location, Text.Text, Location.Location)]] -> [(Int, [(Location.Location, Text.Text, Location.Location)])]
 count_each_line lines =
     zip
-        (map (Text.length . Text.takeWhile (==' ') . head) lines) -- a line should never be empty
+        (map (Text.length . Text.takeWhile (==' ') . (\ (_, x, _) -> x) . head) lines) -- a line should never be empty
         lines
 
 -- tests {{{1
 test_count_indents :: [TestTree]
 test_count_indents =
     [ testCase "simple" $
-        [(0, ["line1"]), (0, ["line2"]), (0, ["line3"])] @=? count_indents "line1\nline2\nline3"
+        let (f, [ln1, ln1nl, ln2, ln2nl, ln3]) = SpanHelper.make_spans' "a" "" ["line1", "\n", "line2", "\n", "line3"]
+        in
+            [(0, [(Location.start ln1, "line1", Location.start ln1nl)]),
+             (0, [(Location.start ln2, "line2", Location.start ln2nl)]),
+             (0, [(Location.start ln3, "line3", Location.start $ Location.eof_span f)])] @=? count_indents f
 
     , testCase "indent" $
-        [(0, ["line1"]), (4, ["    line2"]), (0, ["line3"])] @=? count_indents "line1\n    line2\nline3"
+        let (f, [ln1, ln1nl, ln2, ln2nl, ln3]) = SpanHelper.make_spans' "a" "" ["line1", "\n", "    line2", "\n", "line3"]
+        in
+            [(0, [(Location.start ln1, "line1", Location.start ln1nl)]),
+             (4, [(Location.start ln2, "    line2", Location.start ln2nl)]),
+             (0, [(Location.start ln3, "line3", Location.start $ Location.eof_span f)])] @=? count_indents f
 
     , testCase "backslash" $
-        [(0, ["line1\\", "line2"]), (0, ["line3"])] @=? count_indents "line1\\\nline2\nline3"
+        let (f, [ln1, ln1nl, ln2, ln2nl, ln3]) = SpanHelper.make_spans' "a" "" ["line1\\", "\n", "line2", "\n", "line3"]
+        in
+            [(0, [(Location.start ln1, "line1\\", Location.start ln1nl), (Location.start ln2, "line2", Location.start ln2nl)]),
+             (0, [(Location.start ln3, "line3", Location.start $ Location.eof_span f)])] @=? count_indents f
 
     , testCase "backslash then indent" $
-        [(0, ["line1\\", "line2"]), (4, ["    line3"])] @=? count_indents "line1\\\nline2\n    line3"
+        let (f, [ln1, ln1nl, ln2, ln2nl, ln3]) = SpanHelper.make_spans' "a" "" ["line1\\", "\n", "line2", "\n", "    line3"]
+        in
+            [(0, [(Location.start ln1, "line1\\", Location.start ln1nl), (Location.start ln2, "line2", Location.start ln2nl)]),
+             (4, [(Location.start ln3, "    line3", Location.start $ Location.eof_span f)])] @=? count_indents f
 
     , testCase "indent on backslash" $
-        [(4, ["    line1\\", "line2"]), (2, ["  line3"])] @=? count_indents "    line1\\\nline2\n  line3"
+        let (f, [ln1, ln1nl, ln2, ln2nl, ln3]) = SpanHelper.make_spans' "a" "" ["    line1\\", "\n", "line2", "\n", "  line3"]
+        in
+            [(4, [(Location.start ln1, "    line1\\", Location.start ln1nl), (Location.start ln2, "line2", Location.start ln2nl)]),
+             (2, [(Location.start ln3, "  line3", Location.start $ Location.eof_span f)])] @=? count_indents f
 
     , testCase "insignificant indent" $
-        [(0, ["line1\\", "    line2"]), (0, ["line3"])] @=? count_indents "line1\\\n    line2\nline3"
-    ]
-
-test_split_lines :: [TestTree]
-test_split_lines =
-    [ testCase "no backslashes" $
-        [["line1"], ["line2"], ["line3"]] @=? split_lines "line1\nline2\nline3"
-
-    , testCase "backslash" $
-        [["line1\\", "line2"], ["line3"]] @=? split_lines "line1\\\nline2\nline3"
-
-    , testCase "backslash with wh" $
-        [["line1 \\ ", "line2"], ["line3"]] @=? split_lines "line1 \\ \nline2\nline3"
-
-    , testCase "backslashes" $
-        [["line1 \\ ", "line2 \\", "line3"], ["line4"]] @=? split_lines "line1 \\ \nline2 \\\nline3\nline4"
-    ]
-
-test_count_each_line :: [TestTree]
-test_count_each_line =
-    [ testCase "simple" $
-        [(0, ["line1"]), (4, ["    line2"]), (6, ["      line3"]), (0, ["line4"])] @=? count_each_line [["line1"], ["    line2"], ["      line3"], ["line4"]]
-
-    , testCase "long line" $
-        [(0, ["line1  \\", "line2 \\", "      line3"]), (4, ["    line2"]), (0, ["line3"])] @=? count_each_line [["line1  \\", "line2 \\", "      line3"], ["    line2"], ["line3"]]
+        let (f, [ln1, ln1nl, ln2, ln2nl, ln3]) = SpanHelper.make_spans' "a" "" ["line1\\", "\n", "    line2", "\n", "line3"]
+        in
+            [(0, [(Location.start ln1, "line1\\", Location.start ln1nl), (Location.start ln2, "    line2", Location.start ln2nl)]),
+             (0, [(Location.start ln3, "line3", Location.start $ Location.eof_span f)])] @=? count_indents f
     ]
 
 tests :: TestTree

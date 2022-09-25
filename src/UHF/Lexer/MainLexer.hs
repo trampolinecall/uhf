@@ -9,17 +9,19 @@ import Test.Tasty.TH
 import Test.Tasty
 
 import qualified UHF.Lexer.LexError as LexError
-
 import qualified UHF.IO.File as File
 import qualified UHF.IO.Location as Location
 import qualified UHF.Lexer.DFA as DFA
+import qualified UHF.Token as Token
+import qualified UHF.Lexer.IndentCounter as IndentCounter
+
 import qualified Data.Text as Text
 import qualified Data.Decimal as Decimal
+
 import Data.Maybe (mapMaybe, isJust)
 import Data.Either (lefts)
 import Data.Char (isAlpha, isDigit, isOctDigit, isHexDigit, isSpace, digitToInt)
 import Safe (lastMay)
-import qualified UHF.Token as Token
 
 -- datatypes {{{1
 data Lexer
@@ -40,7 +42,7 @@ data IndentFrame
     deriving (Eq, Show)
 
 -- lexing {{{1
-lex :: File.File -> [(Int, [Text.Text])] -> ([LexError.LexError], [Token.LBeforePPToken], Token.LNormalToken)
+lex :: File.File -> [(Int, [(Location.Location, Text.Text, Location.Location)])] -> ([LexError.LexError], [Token.LBeforePPToken], Token.LNormalToken)
 lex f lines = -- TODO: using lines
     let (errs, toks) = run [] [] Nothing (Just $ new_lexer f)
         eof = Location.Located (Location.eof_span f) (Token.EOF ())
@@ -462,13 +464,14 @@ case_lex :: Assertion
 case_lex =
     let src = "abc *&* ( \"adji\n"
         f = File.File "a" src
-    in case UHF.Lexer.MainLexer.lex f [(0, [src])] of
+    in case UHF.Lexer.MainLexer.lex f (IndentCounter.count_indents f) of
         ([LexError.UnclosedStrLit _], [Location.Located _ (Token.AlphaIdentifier "abc"), Location.Located _ (Token.SymbolIdentifier "*&*"), Location.Located _ Token.OParen, Location.Located _ Token.Newline], _) -> return ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
 case_lex_empty :: Assertion
 case_lex_empty =
-    case UHF.Lexer.MainLexer.lex (File.File "a" "") [(0, [""])] of
+    let f = File.File "a" ""
+    in case UHF.Lexer.MainLexer.lex f (IndentCounter.count_indents f) of
         ([], [], _) -> return ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 

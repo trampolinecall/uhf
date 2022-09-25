@@ -12,7 +12,7 @@ import qualified UHF.Lexer.IndentCounter as IndentCounter
 import qualified UHF.Token as Token
 import qualified UHF.IO.File as File
 
-lex :: File.File -> ([LexError.LexError], [Token.LToken], Token.LToken)
+lex :: File.File -> ([LexError.LexError], [Token.LNormalToken], Token.LNormalToken)
 lex f =
     let contents = File.contents f
         counted = IndentCounter.count_indents contents

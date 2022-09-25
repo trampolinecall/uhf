@@ -41,7 +41,6 @@ library
       UHF.Parser.ParseError
       UHF.Parser.Parser
       UHF.Token
-      UHF.Token.Raw
       UHF.Util.InfList
   other-modules:
       Paths_uhf

@@ -42,7 +42,7 @@ data IndentFrame
     deriving (Eq, Show)
 
 -- lexing {{{1
-lex :: File.File -> [(Int, [(Location.Location, Text.Text, Location.Location)])] -> ([LexError.LexError], [Token.LBeforePPToken], Token.LNormalToken)
+lex :: File.File -> [(Int, Location.Location, Text.Text, Location.Location)] -> ([LexError.LexError], [Token.LBeforePPToken], Token.LNormalToken)
 lex f lines = -- TODO: using lines
     let (errs, toks) = run [] [] Nothing (Just $ new_lexer f)
         eof = Location.Located (Location.eof_span f) (Token.EOF ())

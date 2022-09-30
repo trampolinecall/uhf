@@ -15,4 +15,4 @@ import qualified UHF.IO.File as File
 lex :: File.File -> ([LexError.LexError], [Token.LNormalToken], Token.LNormalToken)
 lex f =
     let counted = IndentCounter.count_indents f
-    in PostProcess.group_identifiers $ MainLexer.lex f counted
+    in PostProcess.group_identifiers $ MainLexer.lex f

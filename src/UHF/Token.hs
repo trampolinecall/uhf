@@ -35,10 +35,10 @@ data IntLitBase
 type LNormalToken = Location.Located NormalToken
 type LBeforePPToken = Location.Located BeforePPToken
 
-type BeforePPToken = BaseToken () String Void.Void
-type NormalToken = BaseToken Void.Void [String] ()
+type BeforePPToken = BaseToken () String Void.Void Void.Void
+type NormalToken = BaseToken Void.Void [String] () ()
 
-data BaseToken dc id eof
+data BaseToken doublecolon identifier eof indentation
     = OParen
     | CParen
     | OBrack
@@ -48,7 +48,7 @@ data BaseToken dc id eof
     | Colon
     | Arrow
 
-    | DoubleColon dc
+    | DoubleColon doublecolon
 
     | Root
     | Let
@@ -59,8 +59,8 @@ data BaseToken dc id eof
     | Else
     | Case
 
-    | SymbolIdentifier id
-    | AlphaIdentifier id
+    | SymbolIdentifier identifier
+    | AlphaIdentifier identifier
 
     | CharLit Char
     | StringLit String
@@ -71,13 +71,13 @@ data BaseToken dc id eof
     | OBrace
     | CBrace
     | Semicolon
-    | Indent
-    | Dedent
-    | Newline
+    | Indent indentation
+    | Dedent indentation
+    | Newline indentation
     | EOF eof
     deriving (Show, Eq, Data.Data)
 
-format_tok :: BaseToken dc id eof -> String
+format_tok :: BaseToken doublecolon identifier eof indentation -> String
 format_tok OParen = "'('"
 format_tok CParen = "')'"
 format_tok OBrack = "'['"
@@ -109,7 +109,7 @@ format_tok (BoolLit _) = "bool literal"
 format_tok OBrace = "'{'"
 format_tok CBrace = "'}'"
 format_tok Semicolon = "';'"
-format_tok Indent = "indent"
-format_tok Dedent = "dedent"
-format_tok Newline = "newline"
+format_tok (Indent _) = "indent"
+format_tok (Dedent _) = "dedent"
+format_tok (Newline _) = "newline"
 format_tok (EOF _) = "end of file"

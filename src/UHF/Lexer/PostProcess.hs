@@ -85,9 +85,9 @@ convert_raw_token (Location.Located sp (Token.BoolLit val)) = Right $ Location.L
 convert_raw_token (Location.Located sp Token.OBrace) = Right $ Location.Located sp Token.OBrace
 convert_raw_token (Location.Located sp Token.CBrace) = Right $ Location.Located sp Token.CBrace
 convert_raw_token (Location.Located sp Token.Semicolon) = Right $ Location.Located sp Token.Semicolon
-convert_raw_token (Location.Located sp Token.Indent) = Right $ Location.Located sp Token.Indent
-convert_raw_token (Location.Located sp Token.Dedent) = Right $ Location.Located sp Token.Dedent
-convert_raw_token (Location.Located sp Token.Newline) = Right $ Location.Located sp Token.Newline
+convert_raw_token (Location.Located sp (Token.Indent v)) = Void.absurd v
+convert_raw_token (Location.Located sp (Token.Dedent v)) = Void.absurd v
+convert_raw_token (Location.Located sp (Token.Newline v)) = Void.absurd v
 convert_raw_token (Location.Located _ (Token.EOF eof)) = Void.absurd eof
 
 -- tests {{{1

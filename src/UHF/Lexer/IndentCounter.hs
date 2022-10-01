@@ -105,34 +105,12 @@ insert_indentation_tokens lns = Writer.execWriter $ State.execStateT (mapM do_li
                 wtok (Location.Located sp t) = lift $ Writer.tell [Location.Located sp (do_tok t)]
 
                 do_tok :: Token.UnprocessedToken -> Token.TokenWithIndentation
-                do_tok (Token.OParen) = Token.OParen
-                do_tok (Token.CParen) = Token.CParen
-                do_tok (Token.OBrack) = Token.OBrack
-                do_tok (Token.CBrack) = Token.CBrack
-                do_tok (Token.Comma) = Token.Comma
-                do_tok (Token.Equal) = Token.Equal
-                do_tok (Token.Colon) = Token.Colon
-                do_tok (Token.Arrow) = Token.Arrow
+                do_tok (Token.SingleTypeToken t) = Token.SingleTypeToken t
 
                 do_tok (Token.DoubleColon dc) = Token.DoubleColon dc
 
-                do_tok (Token.Root) = Token.Root
-                do_tok (Token.Let) = Token.Let
-                do_tok (Token.Type) = Token.Type
-                do_tok (Token.Data) = Token.Data
-                do_tok (Token.Under) = Token.Under
-                do_tok (Token.If) = Token.If
-                do_tok (Token.Else) = Token.Else
-                do_tok (Token.Case) = Token.Case
-
                 do_tok (Token.SymbolIdentifier i) = Token.SymbolIdentifier i
                 do_tok (Token.AlphaIdentifier i) = Token.AlphaIdentifier i
-
-                do_tok (Token.CharLit c) = Token.CharLit c
-                do_tok (Token.StringLit s) = Token.StringLit s
-                do_tok (Token.IntLit b i) = Token.IntLit b i
-                do_tok (Token.FloatLit d) = Token.FloatLit d
-                do_tok (Token.BoolLit b) = Token.BoolLit b
 
                 do_tok (Token.OBrace) = Token.OBrace
                 do_tok (Token.CBrace) = Token.CBrace
@@ -166,6 +144,7 @@ insert_indentation_tokens lns = Writer.execWriter $ State.execStateT (mapM do_li
 -- case_join_logical_lines_none = "line1\nline2\nline3"
 -- case_join_logical_lines_multiple :: Assertion
 -- case_join_logical_lines_multiple = "line1\\\nline2\\\nline3"
+-- case_join_logical_lines_backslash_last = "line1\\\n"
 
 -- case_count_indent_numbers :: Assertion
 -- case_count_indent_numbers = "line1\n    line2\n        line3\n  line4\n\tline5\n  \tline6"

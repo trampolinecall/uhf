@@ -17,7 +17,7 @@ import qualified UHF.Token as Token
 import qualified Data.Text as Text
 import qualified Data.Decimal as Decimal
 
-import Data.Maybe (mapMaybe, isJust)
+import Data.Maybe (mapMaybe, isJust, fromMaybe)
 import Data.Either (lefts)
 import Data.Char (isAlpha, isDigit, isOctDigit, isHexDigit, isSpace, digitToInt)
 
@@ -104,49 +104,51 @@ lex_comment lexer
 
     | otherwise = Nothing
 
-lex_alpha_identifier :: LexFn
-lex_alpha_identifier lexer =
-    let is_valid_start ch = isAlpha ch || ch == '_'
-        is_valid_iden_char ch = isAlpha ch || isDigit ch || ch == '_' || ch == '\''
-    in case Text.uncons $ remaining lexer of
-        Just (c, _)
-            | is_valid_start c ->
-                let (_, more_iden, lexer') = (lexer `seek` 1) `seek_while` is_valid_iden_char
-                    full_iden = c : Text.unpack more_iden
-
-                    tok = case full_iden of
-                            "root" -> Token.SingleTypeToken $ Token.Root
-                            "let" -> Token.SingleTypeToken $ Token.Let
-                            "data" -> Token.SingleTypeToken $ Token.Data
-                            "under" -> Token.SingleTypeToken $ Token.Under
-                            "if" -> Token.SingleTypeToken $ Token.If
-                            "else" -> Token.SingleTypeToken $ Token.Else
-                            "case" -> Token.SingleTypeToken $ Token.Case
-                            "true" -> Token.SingleTypeToken $ Token.BoolLit True
-                            "false" -> Token.SingleTypeToken $ Token.BoolLit False
-                            _ -> Token.AlphaIdentifier full_iden
-
-                in Just (Just lexer', [], [Location.Located (lexer_span lexer 0 (length full_iden)) tok])
+lex_id_or_kw :: (Char -> Bool) -> (Char -> Bool) -> [(String, Token.UnprocessedToken)] -> (String -> Token.UnprocessedToken) -> LexFn
+lex_id_or_kw is_valid_start is_valid_char kws def lexer =
+    case Text.uncons $ remaining lexer of
+        Just (first_char, _)
+            | is_valid_start first_char ->
+                let (_, more, lexer') = (lexer `seek` 1) `seek_while` is_valid_char
+                    full = first_char : Text.unpack more
+                    tok = fromMaybe (def full) (lookup full kws)
+                in Just (Just lexer', [], [Location.Located (lexer_span lexer 0 (length full)) tok])
 
         _ -> Nothing
 
+lex_alpha_identifier :: LexFn
+lex_alpha_identifier =
+    lex_id_or_kw
+        (\ ch -> isAlpha ch || ch == '_')
+        (\ ch -> isAlpha ch || isDigit ch || ch == '_' || ch == '\'')
+        [ ("root", Token.SingleTypeToken Token.Root)
+        , ("let", Token.SingleTypeToken Token.Let)
+        , ("data", Token.SingleTypeToken Token.Data)
+        , ("under", Token.SingleTypeToken Token.Under)
+        , ("if", Token.SingleTypeToken Token.If)
+        , ("else", Token.SingleTypeToken Token.Else)
+        , ("case", Token.SingleTypeToken Token.Case)
+        , ("true", Token.SingleTypeToken $ Token.BoolLit True)
+        , ("false", Token.SingleTypeToken $ Token.BoolLit False)
+        ]
+        Token.AlphaIdentifier
+
 lex_symbol_identifier :: LexFn
-lex_symbol_identifier lexer -- TODO: rewrite this to be more like alpha identifier
-    | lexer `matches` "->" = Just (Just $ lexer `seek` 2, [], [Location.Located (lexer_span lexer 0 2) $ Token.SingleTypeToken $ Token.Arrow])
-    | lexer `matches` "::" = Just (Just $ lexer `seek` 2, [], [Location.Located (lexer_span lexer 0 2) (Token.DoubleColon ())])
-    | lexer `matches` "(" = Just (Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) $ Token.SingleTypeToken $ Token.OParen])
-    | lexer `matches` ")" = Just (Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) $ Token.SingleTypeToken $ Token.CParen])
-    | lexer `matches` "[" = Just (Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) $ Token.SingleTypeToken $ Token.OBrack])
-    | lexer `matches` "]" = Just (Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) $ Token.SingleTypeToken $ Token.CBrack])
-    | lexer `matches` "," = Just (Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) $ Token.SingleTypeToken $ Token.Comma])
-    | lexer `matches` "=" = Just (Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) $ Token.SingleTypeToken $ Token.Equal])
-    | lexer `matches` ":" = Just (Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) $ Token.SingleTypeToken $ Token.Colon])
-    | otherwise =
-        let is_valid_char = (`elem` ("!#$%&*+-./:<=>?@^`~" :: String))
-            (iden_sp, iden, lexer') = lexer `seek_while` is_valid_char
-        in if Text.null iden
-            then Nothing
-            else Just (Just lexer', [], [Location.Located iden_sp (Token.SymbolIdentifier $ Text.unpack iden)])
+lex_symbol_identifier =
+    lex_id_or_kw
+        (`elem` ("!#$%&*+-./:<=>?@^`~" :: String))
+        (`elem` ("!#$%&*+-./:<=>?@^`~" :: String))
+        [ ("->", Token.SingleTypeToken Token.Arrow)
+        , ("::", (Token.DoubleColon ()))
+        , ("(", Token.SingleTypeToken Token.OParen)
+        , (")", Token.SingleTypeToken Token.CParen)
+        , ("[", Token.SingleTypeToken Token.OBrack)
+        , ("]", Token.SingleTypeToken Token.CBrack)
+        , (",", Token.SingleTypeToken Token.Comma)
+        , ("=", Token.SingleTypeToken Token.Equal)
+        , (":", Token.SingleTypeToken Token.Colon)
+        ]
+        Token.SymbolIdentifier
 
 lex_str_or_char_lit :: LexFn
 lex_str_or_char_lit lexer =
@@ -281,95 +283,6 @@ make_bad_char lexer =
         Nothing -> Nothing
         Just (x, _) -> Just (Just $ lexer `seek` 1, [LexError.BadChar x $ lexer_span lexer 0 1], [])
 -- TODO: lex_braces, lex_newline, lex_backslash
--- lex_indent {{{2
-{-
-lex_indent :: Lexer -> Maybe (Token.LUnprocessedToken) -> ([IndentFrame], [LexError.LexError], [Token.LUnprocessedToken])
-lex_indent lexer last_tok =
-    let m_cur_indent =
-            let from_line_begin = Text.reverse $ Text.takeWhile (/='\n') (rev_passed lexer)
-
-                count_indent (Just acc) ' ' = Just $ acc + 1
-                count_indent (Just acc) '\t' = Just $ (acc `div` 8 + 1) * 8
-                count_indent _ _ = Nothing
-
-            in Text.foldl' count_indent (Just 0) from_line_begin
-
-        m_last_indent =
-            case head $ indent_stack lexer of
-                IndentationSensitive x -> Just x
-                IndentationInsensitive -> Nothing
-
-        m_cur_char = fst <$> Text.uncons (remaining lexer)
-
-        last_is_semi =
-            case last_tok of
-                Just (Location.Located _ Token.Semicolon) -> True
-                _ -> False
-
-        cur_char_tok = Location.Located (lexer_span lexer 0 1)
-
-        last_nl_tok =
-            let last_tok_end_ind = Location.ind $ Location.end $ Location.just_span $
-                    case last_tok of
-                        Just x -> x
-                        Nothing -> error "no last token to find newline at"
-
-                nl_from_last_tok_end =
-                    case Text.findIndex (=='\n') (Text.drop (last_tok_end_ind) (l_contents lexer)) of
-                        Just x -> x
-                        Nothing -> error "no newlines to make token at"
-
-            in Location.Located (lexer_span lexer (last_tok_end_ind + nl_from_last_tok_end - l_ind lexer) 1)
-
-        process_braces (stack, errs, toks)
-            | m_cur_char == Just '{' = (IndentationInsensitive : stack, errs, toks ++ [cur_char_tok Token.OBrace])
-
-            | m_cur_char == Just ';' = (stack, errs, toks ++ [cur_char_tok Token.Semicolon])
-
-            | m_cur_char == Just '}' =
-                case head stack of
-                    IndentationInsensitive -> (tail stack, errs, toks ++ [cur_char_tok Token.CBrace])
-                    IndentationSensitive _ -> (stack, errs, toks ++ [cur_char_tok Token.CBrace]) -- the parser can handle this error when it finds a random CBrace where it shouldn't be
-
-            | otherwise = (stack, errs, toks)
-
-        process_indents (stack, errs, toks) =
-            case (m_cur_indent, m_last_indent) of
-                (Just cur_indent, Just last_indent)
-                    | cur_indent > last_indent -> (IndentationSensitive cur_indent : stack, errs, toks ++ [cur_char_tok Token.Indent])
-
-                    | cur_indent == last_indent && isJust last_tok ->
-                        if last_is_semi
-                            then (stack, errs, toks)
-                            else (stack, errs, toks ++ [last_nl_tok Token.Newline])
-
-                    | cur_indent < last_indent ->
-                        let can_pop (IndentationSensitive ind) = cur_indent < ind
-                            can_pop IndentationInsensitive = False
-
-                            (popped, after_pop) = span can_pop stack
-
-                            is_valid_level = case head after_pop of
-                                IndentationSensitive lvl
-                                    | cur_indent == lvl -> True
-                                IndentationInsensitive -> True
-
-                                _ -> False
-
-                            num_popped = length popped
-                        in
-                            ( after_pop
-                            , errs ++
-                                if is_valid_level then [] else [LexError.BadDedent (lexer_span lexer 0 1)]
-                            , toks ++
-                                (if last_is_semi then [] else [last_nl_tok Token.Newline]) ++
-                                replicate num_popped (cur_char_tok Token.Dedent)
-                            )
-
-                _ -> (stack, errs, toks)
-
-    in process_braces . process_indents $ (indent_stack lexer, [], [])
--}
 -- helper functions {{{1
 l_contents :: Lexer -> Text.Text
 l_contents = File.contents . Location.file . location

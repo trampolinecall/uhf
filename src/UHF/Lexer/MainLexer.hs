@@ -136,17 +136,22 @@ lex_alpha_identifier =
 lex_symbol_identifier :: LexFn
 lex_symbol_identifier =
     lex_id_or_kw
-        (`elem` ("!#$%&*+-./:<=>?@^`~" :: String))
-        (`elem` ("!#$%&*+-./:<=>?@^`~" :: String))
+        (`elem` ("~!@#$%^&*+`-=|:./<>?()[]\\{};,\n" :: String))
+        (`elem` ("~!@#$%^&*+`-=|:./<>?" :: String))
         [ ("->", Token.SingleTypeToken Token.Arrow)
         , ("::", (Token.DoubleColon ()))
         , ("(", Token.SingleTypeToken Token.OParen)
         , (")", Token.SingleTypeToken Token.CParen)
         , ("[", Token.SingleTypeToken Token.OBrack)
         , ("]", Token.SingleTypeToken Token.CBrack)
+        , ("\\", Token.Backslash ())
+        , ("{", Token.OBrace)
+        , ("}", Token.CBrace)
+        , (";", Token.Semicolon)
         , (",", Token.SingleTypeToken Token.Comma)
         , ("=", Token.SingleTypeToken Token.Equal)
         , (":", Token.SingleTypeToken Token.Colon)
+        , ("\n", Token.Newline Token.NLPhysical)
         ]
         Token.SymbolIdentifier
 
@@ -282,7 +287,6 @@ make_bad_char lexer =
     case Text.uncons $ remaining lexer of
         Nothing -> Nothing
         Just (x, _) -> Just (Just $ lexer `seek` 1, [LexError.BadChar x $ lexer_span lexer 0 1], [])
--- TODO: lex_braces, lex_newline, lex_backslash
 -- helper functions {{{1
 l_contents :: Lexer -> Text.Text
 l_contents = File.contents . Location.file . location

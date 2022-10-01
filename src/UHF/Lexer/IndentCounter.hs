@@ -132,12 +132,13 @@ insert_indentation_tokens lns = Writer.execWriter $ State.execStateT (mapM do_li
                     indentation_frames)
 
 -- tests {{{1
-generate_lines :: [Int] -> (File.File, [(Location.Located (Token.BaseToken dc String eof ind nl bs), Location.Span)])
+generate_lines :: [Int] -> (File.File, [(Int, Location.Located (Token.BaseToken dc String eof ind nl bs), Location.Span)])
 generate_lines indents =
     let (f, sps) = SpanHelper.make_spans' "test" " " (concatMap (\ (ln, i) -> [replicate i ' ', "line" ++ show ln, "\n"]) $ zip ([1..] :: [Int]) indents)
     in (f, map
-        (\ (ln, [_, line_sp, nl_sp]) -> (Location.Located line_sp $ Token.AlphaIdentifier $ "line" ++ show ln, nl_sp))
-            (zip
+        (\ (ind, ln, [_, line_sp, nl_sp]) -> (ind, Location.Located line_sp $ Token.AlphaIdentifier $ "line" ++ show ln, nl_sp))
+            (zip3
+                indents
                 ([1..] :: [Int])
                 (Split.chunksOf 3 sps)))
 
@@ -183,14 +184,8 @@ case_join_logical_lines_backslash_last =
 
 case_count_indent_numbers :: Assertion
 case_count_indent_numbers =
-    let (_, [(ln1, nl1), (ln2, nl2), (ln3, nl3), (ln4, nl4), (ln5, nl5), (ln6, nl6)]) = generate_lines [0, 4, 8, 2]
-    in
-        [ (0, [ln1], nl1)
-        , (4, [ln2], nl2)
-        , (8, [ln3], nl3)
-        , (2, [ln4], nl4)
-        ]
-        @=? count_indent_numbers [([ln1], nl1), ([ln2], nl2), ([ln3], nl3), ([ln4], nl4), ([ln5], nl5), ([ln6], nl6)]
+    let (_, res) = generate_lines [0, 4, 8, 2]
+    in map (\ (i, t, nl) -> (i, [t], nl)) res @=? count_indent_numbers (map (\ (_, t, nl) -> ([t], nl)) res)
 
 case_count_indent_numbers_tabs :: Assertion
 case_count_indent_numbers_tabs =
@@ -208,31 +203,33 @@ case_count_indent_numbers_tabs =
             , ([ln2], Location.just_span nl2)
             ])
 
--- TODO: these tests
-
 case_insert_indentation_tokens_indented_block :: Assertion
-case_insert_indentation_tokens_indented_block = undefined
+case_insert_indentation_tokens_indented_block =
+    let (_, res@[(_, ln1, _), (_, ln2, nl2), (_, ln3, nl3)]) = generate_lines [0, 4, 0]
+        indent = Location.Located (Location.new_span (Location.start $ Location.just_span ln2) 0 1) (Token.Indent ())
+        dedent = Location.Located (Location.new_span (Location.start $ Location.just_span ln3) 0 1) (Token.Dedent ())
+    in [ln1, indent, ln2, Location.Located nl2 $ Token.Newline Token.NLLogical, dedent, ln3, Location.Located nl3 $ Token.Newline Token.NLLogical] @=? insert_indentation_tokens (map (\ (i, t, nl) -> (i, [t], nl)) res)
 
-{-
-line1
-    line2
-line3
--}
-
-case_insert_indentation_tokens_ending_dedents = undefined
-
-{-
-line1
-    line2
--}
+case_insert_indentation_tokens_ending_dedents =
+    let (_, res@[(_, ln1, _), (_, ln2, nl2)]) = generate_lines [0, 4]
+        indent = Location.Located (Location.new_span (Location.start $ Location.just_span ln2) 0 1) (Token.Indent ())
+        dedent = Location.Located (Location.new_span (Location.start nl2) 0 1) (Token.Dedent ())
+    in [ln1, indent, ln2, Location.Located nl2 $ Token.Newline Token.NLLogical, dedent] @=? insert_indentation_tokens (map (\ (i, t, nl) -> (i, [t], nl)) res)
 
 case_insert_indentation_tokens_braced_block :: Assertion
-case_insert_indentation_tokens_braced_block = undefined
-{-
-line1 {
-    line2
-}
--}
+case_insert_indentation_tokens_braced_block =
+    let (_, [ln1, obrace, nl1, ln2, nl2, cbrace, nl3]) =
+            SpanHelper.make_spans_with_show_items' "test" ""
+                [ (Token.AlphaIdentifier "line1", Token.AlphaIdentifier "line1"), (Token.OBrace, Token.OBrace), (Token.Newline Token.NLPhysical, Token.Newline Token.NLLogical)
+                , (Token.AlphaIdentifier "line2", Token.AlphaIdentifier "line2"), (Token.Newline Token.NLPhysical, Token.Newline Token.NLLogical)
+                , (Token.CBrace, Token.CBrace), (Token.Newline Token.NLPhysical, Token.Newline Token.NLLogical)
+                ]
+    in
+        insert_indentation_tokens
+            [(0, [fst <$> ln1, fst <$> obrace], Location.just_span nl1), (4, [fst <$> ln2], Location.just_span nl2), (3, [fst <$> cbrace], Location.just_span nl3)] @?=
+        map (snd <$>) [ln1, obrace, ln2, nl2, cbrace, nl3]
+
+-- TODO: these tests
 
 case_insert_indentation_tokens_nested_indented_blocks :: Assertion
 case_insert_indentation_tokens_nested_indented_blocks = undefined

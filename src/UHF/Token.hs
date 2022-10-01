@@ -6,10 +6,14 @@
 module UHF.Token
     ( BaseToken(..)
 
-    , LBeforePPToken
+    , LUnprocessedToken
+    , LTokenWithIndentation
     , LNormalToken
-    , BeforePPToken
+    , UnprocessedToken
+    , TokenWithIndentation
     , NormalToken
+
+    , NLPhysical(..), NLLogical(..)
 
     , IntLitBase(..)
 
@@ -33,12 +37,17 @@ data IntLitBase
     deriving (Show, Eq, Data.Data)
 
 type LNormalToken = Location.Located NormalToken
-type LBeforePPToken = Location.Located BeforePPToken
+type LTokenWithIndentation = Location.Located TokenWithIndentation
+type LUnprocessedToken = Location.Located UnprocessedToken
 
-type BeforePPToken = BaseToken () String Void.Void Void.Void
-type NormalToken = BaseToken Void.Void [String] () ()
+type UnprocessedToken = BaseToken () String Void.Void Void.Void NLPhysical ()
+type TokenWithIndentation = BaseToken () String Void.Void () NLLogical Void.Void
+type NormalToken = BaseToken Void.Void [String] () () NLLogical Void.Void
 
-data BaseToken doublecolon identifier eof indentation
+data NLLogical = NLLogical deriving (Show, Eq, Data.Data)
+data NLPhysical = NLPhysical deriving (Show, Eq, Data.Data)
+
+data BaseToken doublecolon identifier eof indentation newline backslash
     = OParen
     | CParen
     | OBrack
@@ -71,13 +80,14 @@ data BaseToken doublecolon identifier eof indentation
     | OBrace
     | CBrace
     | Semicolon
+    | Backslash backslash
     | Indent indentation
     | Dedent indentation
-    | Newline indentation
+    | Newline newline
     | EOF eof
     deriving (Show, Eq, Data.Data)
 
-format_tok :: BaseToken doublecolon identifier eof indentation -> String
+format_tok :: BaseToken doublecolon identifier eof indentation newline backslash -> String
 format_tok OParen = "'('"
 format_tok CParen = "')'"
 format_tok OBrack = "'['"
@@ -109,6 +119,7 @@ format_tok (BoolLit _) = "bool literal"
 format_tok OBrace = "'{'"
 format_tok CBrace = "'}'"
 format_tok Semicolon = "';'"
+format_tok (Backslash _) = "'\\'"
 format_tok (Indent _) = "indent"
 format_tok (Dedent _) = "dedent"
 format_tok (Newline _) = "newline"

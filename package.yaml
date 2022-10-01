@@ -29,7 +29,7 @@ library:
     - containers
     - template-haskell
     - ansi-terminal
-    - mtl
+    - transformers
 
 executables:
   uhfc:

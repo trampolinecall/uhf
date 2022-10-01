@@ -30,6 +30,7 @@ library:
     - template-haskell
     - ansi-terminal
     - transformers
+    - split
 
 executables:
   uhfc:

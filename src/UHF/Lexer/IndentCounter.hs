@@ -17,6 +17,7 @@ import qualified UHF.IO.Location.SpanHelper as SpanHelper
 import qualified UHF.Token as Token
 
 import qualified Data.List as List
+import qualified Data.List.Split as Split
 import qualified Data.Text as Text
 import qualified Data.Void as Void
 import qualified Data.Maybe as Maybe
@@ -131,6 +132,15 @@ insert_indentation_tokens lns = Writer.execWriter $ State.execStateT (mapM do_li
                     indentation_frames)
 
 -- tests {{{1
+generate_lines :: [Int] -> (File.File, [(Location.Located (Token.BaseToken dc String eof ind nl bs), Location.Span)])
+generate_lines indents =
+    let (f, sps) = SpanHelper.make_spans' "test" " " (concatMap (\ (ln, i) -> [replicate i ' ', "line" ++ show ln, "\n"]) $ zip ([1..] :: [Int]) indents)
+    in (f, map
+        (\ (ln, [_, line_sp, nl_sp]) -> (Location.Located line_sp $ Token.AlphaIdentifier $ "line" ++ show ln, nl_sp))
+            (zip
+                ([1..] :: [Int])
+                (Split.chunksOf 3 sps)))
+
 case_split_lines :: Assertion
 case_split_lines =
     let (f, toks@[line1, nl, line2]) = SpanHelper.make_spans_with_show_items [Token.AlphaIdentifier "line1", Token.Newline Token.NLPhysical, Token.AlphaIdentifier "line2"]
@@ -173,41 +183,29 @@ case_join_logical_lines_backslash_last =
 
 case_count_indent_numbers :: Assertion
 case_count_indent_numbers =
-    let (f, [line1, nl1, _, line2, nl2, _, line3, nl3, _, line4, nl4, _, line5, nl5, _, line6]) =
-            SpanHelper.make_spans_with_items' "test" ""
-            [ ("line1", Token.AlphaIdentifier "line1")
-            , ("\n", Token.Newline Token.NLPhysical)
-            , ("    ", undefined)
-            , ("line2", Token.AlphaIdentifier "line2")
-            , ("\n", Token.Newline Token.NLPhysical)
-            , ("        ", undefined)
-            , ("line3", Token.AlphaIdentifier "line3")
-            , ("\n", Token.Newline Token.NLPhysical)
-            , ("  ", undefined)
-            , ("line4", Token.AlphaIdentifier "line4")
-            , ("\n", Token.Newline Token.NLPhysical)
-            , ("\t", undefined)
-            , ("line5", Token.AlphaIdentifier "line5")
-            , ("\n", Token.Newline Token.NLPhysical)
-            , ("  \t", undefined)
-            , ("line6", Token.AlphaIdentifier "line6")
-            ]
-        eof_sp = Location.eof_span f
+    let (_, [(ln1, nl1), (ln2, nl2), (ln3, nl3), (ln4, nl4), (ln5, nl5), (ln6, nl6)]) = generate_lines [0, 4, 8, 2]
     in
-        [ (0, [line1], Location.just_span nl1)
-        , (4, [line2], Location.just_span nl2)
-        , (8, [line3], Location.just_span nl3)
-        , (2, [line4], Location.just_span nl4)
-        , (8, [line5], Location.just_span nl5)
-        , (8, [line6], eof_sp)
+        [ (0, [ln1], nl1)
+        , (4, [ln2], nl2)
+        , (8, [ln3], nl3)
+        , (2, [ln4], nl4)
+        ]
+        @=? count_indent_numbers [([ln1], nl1), ([ln2], nl2), ([ln3], nl3), ([ln4], nl4), ([ln5], nl5), ([ln6], nl6)]
+
+case_count_indent_numbers_tabs :: Assertion
+case_count_indent_numbers_tabs =
+    let (_, [_, ln1, nl1, _, ln2, nl2]) =
+            SpanHelper.make_spans_with_items' "test" ""
+                [ ("\t", undefined), ("line1", Token.AlphaIdentifier "line1"), ("\n", Token.Newline Token.NLPhysical)
+                , ("  \t", undefined), ("line2", Token.AlphaIdentifier "line2"), ("\n", Token.Newline Token.NLPhysical)
+                ]
+    in
+        [ (8, [ln1], Location.just_span nl1)
+        , (8, [ln2], Location.just_span nl2)
         ] @=?
         (count_indent_numbers
-            [ ([line1], Location.just_span nl1)
-            , ([line2], Location.just_span nl2)
-            , ([line3], Location.just_span nl3)
-            , ([line4], Location.just_span nl4)
-            , ([line5], Location.just_span nl5)
-            , ([line6], eof_sp)
+            [ ([ln1], Location.just_span nl1)
+            , ([ln2], Location.just_span nl2)
             ])
 
 -- TODO: these tests

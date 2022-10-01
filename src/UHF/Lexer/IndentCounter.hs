@@ -32,6 +32,7 @@ count_indents :: ([Token.LUnprocessedToken], Token.LNormalToken) -> [Token.LToke
 count_indents = insert_indentation_tokens . count_indent_numbers . join_logical_lines . split_lines
 
 split_lines :: ([Token.LUnprocessedToken], Token.LNormalToken) -> [([Token.LUnprocessedToken], Location.Span)]
+split_lines ([], _) = []
 split_lines (toks, eof) = (one_line, next_nl_span) : split_lines (drop 1 more, eof) -- drop the newline, but if there is no newline then it will just be an empty list
     where
         nl_ind = List.findIndex (\ (Location.Located _ t) -> t == Token.Newline Token.NLPhysical) toks
@@ -156,7 +157,7 @@ case_split_lines_trailing =
         eof_sp = Location.eof_span f
         eof = Location.Located eof_sp (Token.EOF ())
 
-    in [([line1], Location.just_span nl1), ([line2], Location.just_span nl2), ([], eof_sp)] @=? split_lines (toks, eof)
+    in [([line1], Location.just_span nl1), ([line2], Location.just_span nl2)] @=? split_lines (toks, eof)
 
 case_join_logical_lines :: Assertion
 case_join_logical_lines =

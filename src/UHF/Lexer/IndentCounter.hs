@@ -58,16 +58,11 @@ count_indent_numbers = Maybe.mapMaybe count_indent
 insert_indentation_tokens :: [(Int, [Token.LUnprocessedToken], Location.Span)] -> [Token.LTokenWithIndentation]
 insert_indentation_tokens lns = Writer.execWriter $ State.execStateT (mapM do_line lns >> put_final_dedents) [IndentationSensitive 0]
     where
-        do_line :: (Int, [Token.LUnprocessedToken], Location.Span) -> State.StateT [IndentationFrame] (Writer.Writer [Token.LTokenWithIndentation]) ()
-
-        put_final_dedents :: State.StateT [IndentationFrame] (Writer.Writer [Token.LTokenWithIndentation]) ()
-
         do_line (indent_amt, toks, nl) =
             do_indentation indent_amt (Location.start $ Location.just_span $ head toks) >>
             go_through_tokens toks >>
             put_newline nl
 
-        do_indentation :: Int -> Location.Location -> State.StateT [IndentationFrame] (Writer.Writer [Token.LTokenWithIndentation]) ()
         do_indentation cur_indent start_loc =
             let indent_token_sp = Location.new_span start_loc 0 1
             in head <$> State.get >>= \case
@@ -104,7 +99,7 @@ insert_indentation_tokens lns = Writer.execWriter $ State.execStateT (mapM do_li
                 _ -> return ()
 
         go_through_tokens :: [Token.LUnprocessedToken] -> State.StateT [IndentationFrame] (Writer.Writer [Token.LTokenWithIndentation]) ()
-        go_through_tokens = mapM_ wtok
+        go_through_tokens = mapM_ wtok -- TODO: braces
             where
                 wtok :: Token.LUnprocessedToken -> State.StateT [IndentationFrame] (Writer.Writer [Token.LTokenWithIndentation]) ()
                 wtok (Location.Located sp t) = lift $ Writer.tell [Location.Located sp (do_tok t)]
@@ -159,6 +154,75 @@ insert_indentation_tokens lns = Writer.execWriter $ State.execStateT (mapM do_li
 
 -- tests {{{1
 -- TODO: tests
+
+-- case_split_lines :: Assertion
+-- case_split_lines = "abcde\nfghij"
+-- case_split_lines_trailing :: Assertion
+-- case_split_lines_trailing = "abcde\nfghij"
+
+-- case_join_logical_lines :: Assertion
+-- case_join_logical_lines = "line1\\\nline2\nline3"
+-- case_join_logical_lines_none :: Assertion
+-- case_join_logical_lines_none = "line1\nline2\nline3"
+-- case_join_logical_lines_multiple :: Assertion
+-- case_join_logical_lines_multiple = "line1\\\nline2\\\nline3"
+
+-- case_count_indent_numbers :: Assertion
+-- case_count_indent_numbers = "line1\n    line2\n        line3\n  line4\n\tline5\n  \tline6"
+
+case_insert_indentation_tokens_indented_block :: Assertion
+case_insert_indentation_tokens_indented_block = undefined
+
+{-
+line1
+    line2
+line3
+-}
+
+case_insert_indentation_tokens_ending_dedents = undefined
+
+{-
+line1
+    line2
+-}
+
+case_insert_indentation_tokens_braced_block :: Assertion
+case_insert_indentation_tokens_braced_block = undefined
+{-
+line1 {
+    line2
+}
+-}
+
+case_insert_indentation_tokens_nested_indented_blocks :: Assertion
+case_insert_indentation_tokens_nested_indented_blocks = undefined
+{-
+
+line1
+    line2
+        line3
+            line4
+        line5
+line6
+    line7
+        line8
+-}
+
+case_insert_indentation_tokens_nl_after_semi :: Assertion
+case_insert_indentation_tokens_nl_after_semi = undefined
+
+{-
+"line1;\n"
+-}
+
+case_insert_indentation_tokens_semi_before_dedent :: Assertion
+case_insert_indentation_tokens_semi_before_dedent = undefined
+
+{-
+line1
+    line2;
+line3
+-}
 
 tests :: TestTree
 tests = $(testGroupGenerator)

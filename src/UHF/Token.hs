@@ -5,6 +5,7 @@
 
 module UHF.Token
     ( BaseToken(..)
+    , SingleTypeToken(..)
 
     , LUnprocessedToken
     , LTokenWithIndentation
@@ -47,7 +48,7 @@ type NormalToken = BaseToken Void.Void [String] () () NLLogical Void.Void
 data NLLogical = NLLogical deriving (Show, Eq, Data.Data)
 data NLPhysical = NLPhysical deriving (Show, Eq, Data.Data)
 
-data BaseToken doublecolon identifier eof indentation newline backslash
+data SingleTypeToken
     = OParen
     | CParen
     | OBrack
@@ -56,8 +57,6 @@ data BaseToken doublecolon identifier eof indentation newline backslash
     | Equal
     | Colon
     | Arrow
-
-    | DoubleColon doublecolon
 
     | Root
     | Let
@@ -68,14 +67,20 @@ data BaseToken doublecolon identifier eof indentation newline backslash
     | Else
     | Case
 
-    | SymbolIdentifier identifier
-    | AlphaIdentifier identifier
-
     | CharLit Char
     | StringLit String
     | IntLit IntLitBase Integer
     | FloatLit Decimal.Decimal
     | BoolLit Bool
+    deriving (Show, Eq, Data.Data)
+
+data BaseToken doublecolon identifier eof indentation newline backslash
+    = SingleTypeToken SingleTypeToken
+
+    | DoubleColon doublecolon
+
+    | SymbolIdentifier identifier
+    | AlphaIdentifier identifier
 
     | OBrace
     | CBrace
@@ -87,34 +92,38 @@ data BaseToken doublecolon identifier eof indentation newline backslash
     | EOF eof
     deriving (Show, Eq, Data.Data)
 
-format_tok :: BaseToken doublecolon identifier eof indentation newline backslash -> String
-format_tok OParen = "'('"
-format_tok CParen = "')'"
-format_tok OBrack = "'['"
-format_tok CBrack = "']'"
-format_tok Comma = "','"
-format_tok Equal = "'='"
-format_tok Colon = "':'"
-format_tok (DoubleColon _) = "':'"
-format_tok Arrow = "'->'"
+format_sttok :: SingleTypeToken -> String
+format_sttok OParen = "'('"
+format_sttok CParen = "')'"
+format_sttok OBrack = "'['"
+format_sttok CBrack = "']'"
+format_sttok Comma = "','"
+format_sttok Equal = "'='"
+format_sttok Colon = "':'"
+format_sttok Arrow = "'->'"
 
-format_tok Root = "'root'"
-format_tok Let = "'let'"
-format_tok Type = "'type'"
-format_tok Data = "'data'"
-format_tok Under = "'under'"
-format_tok If = "'if'"
-format_tok Else = "'else'"
-format_tok Case = "'case'"
+format_sttok Root = "'root'"
+format_sttok Let = "'let'"
+format_sttok Type = "'type'"
+format_sttok Data = "'data'"
+format_sttok Under = "'under'"
+format_sttok If = "'if'"
+format_sttok Else = "'else'"
+format_sttok Case = "'case'"
+
+format_sttok (CharLit _) = "character literal"
+format_sttok (StringLit _) = "string literal"
+format_sttok (IntLit _ _) = "integer literal"
+format_sttok (FloatLit _) = "floating point literal"
+format_sttok (BoolLit _) = "bool literal"
+
+format_tok :: BaseToken doublecolon identifier eof indentation newline backslash -> String
+format_tok (SingleTypeToken s) = format_sttok s
+
+format_tok (DoubleColon _) = "':'"
 
 format_tok (SymbolIdentifier _) = "symbol identifier"
 format_tok (AlphaIdentifier _) = "alphabetic identifier"
-
-format_tok (CharLit _) = "character literal"
-format_tok (StringLit _) = "string literal"
-format_tok (IntLit _ _) = "integer literal"
-format_tok (FloatLit _) = "floating point literal"
-format_tok (BoolLit _) = "bool literal"
 
 format_tok OBrace = "'{'"
 format_tok CBrace = "'}'"

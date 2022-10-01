@@ -115,15 +115,15 @@ lex_alpha_identifier lexer =
                     full_iden = c : Text.unpack more_iden
 
                     tok = case full_iden of
-                            "root" -> Token.Root
-                            "let" -> Token.Let
-                            "data" -> Token.Data
-                            "under" -> Token.Under
-                            "if" -> Token.If
-                            "else" -> Token.Else
-                            "case" -> Token.Case
-                            "true" -> Token.BoolLit True
-                            "false" -> Token.BoolLit False
+                            "root" -> Token.SingleTypeToken $ Token.Root
+                            "let" -> Token.SingleTypeToken $ Token.Let
+                            "data" -> Token.SingleTypeToken $ Token.Data
+                            "under" -> Token.SingleTypeToken $ Token.Under
+                            "if" -> Token.SingleTypeToken $ Token.If
+                            "else" -> Token.SingleTypeToken $ Token.Else
+                            "case" -> Token.SingleTypeToken $ Token.Case
+                            "true" -> Token.SingleTypeToken $ Token.BoolLit True
+                            "false" -> Token.SingleTypeToken $ Token.BoolLit False
                             _ -> Token.AlphaIdentifier full_iden
 
                 in Just (Just lexer', [], [Location.Located (lexer_span lexer 0 (length full_iden)) tok])
@@ -132,15 +132,15 @@ lex_alpha_identifier lexer =
 
 lex_symbol_identifier :: LexFn
 lex_symbol_identifier lexer -- TODO: rewrite this to be more like alpha identifier
-    | lexer `matches` "->" = Just (Just $ lexer `seek` 2, [], [Location.Located (lexer_span lexer 0 2) Token.Arrow])
+    | lexer `matches` "->" = Just (Just $ lexer `seek` 2, [], [Location.Located (lexer_span lexer 0 2) $ Token.SingleTypeToken $ Token.Arrow])
     | lexer `matches` "::" = Just (Just $ lexer `seek` 2, [], [Location.Located (lexer_span lexer 0 2) (Token.DoubleColon ())])
-    | lexer `matches` "(" = Just (Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.OParen])
-    | lexer `matches` ")" = Just (Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.CParen])
-    | lexer `matches` "[" = Just (Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.OBrack])
-    | lexer `matches` "]" = Just (Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.CBrack])
-    | lexer `matches` "," = Just (Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.Comma])
-    | lexer `matches` "=" = Just (Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.Equal])
-    | lexer `matches` ":" = Just (Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.Colon])
+    | lexer `matches` "(" = Just (Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) $ Token.SingleTypeToken $ Token.OParen])
+    | lexer `matches` ")" = Just (Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) $ Token.SingleTypeToken $ Token.CParen])
+    | lexer `matches` "[" = Just (Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) $ Token.SingleTypeToken $ Token.OBrack])
+    | lexer `matches` "]" = Just (Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) $ Token.SingleTypeToken $ Token.CBrack])
+    | lexer `matches` "," = Just (Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) $ Token.SingleTypeToken $ Token.Comma])
+    | lexer `matches` "=" = Just (Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) $ Token.SingleTypeToken $ Token.Equal])
+    | lexer `matches` ":" = Just (Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) $ Token.SingleTypeToken $ Token.Colon])
     | otherwise =
         let is_valid_char = (`elem` ("!#$%&*+-./:<=>?@^`~" :: String))
             (iden_sp, iden, lexer') = lexer `seek_while` is_valid_char
@@ -160,8 +160,8 @@ lex_str_or_char_lit lexer =
                     in if open == '\''
                         then if Text.length str_contents /= 1
                             then Just (Just lexer'', [LexError.MulticharCharLit lit_span], [])
-                            else Just (Just lexer'', [], [Location.Located lit_span $ Token.CharLit $ Text.head str_contents])
-                        else Just (Just lexer'', [], [Location.Located lit_span $ Token.StringLit $ Text.unpack str_contents])
+                            else Just (Just lexer'', [], [Location.Located lit_span $ Token.SingleTypeToken $ Token.CharLit $ Text.head str_contents])
+                        else Just (Just lexer'', [], [Location.Located lit_span $ Token.SingleTypeToken $ Token.StringLit $ Text.unpack str_contents])
                 else if open == '\''
                         then Just (Just lexer', [LexError.UnclosedCharLit $ lexer_span lexer 0 $ Text.length str_contents], [])
                         else Just (Just lexer', [LexError.UnclosedStrLit $ lexer_span lexer 0 $ Text.length str_contents], [])
@@ -244,7 +244,7 @@ lex_number lexer =
                         illegal_digits = lefts digits_legal
 
                     in if null illegal_digits
-                        then Just (Just lexer', [], [Location.Located num_span (Token.IntLit tok_base (read_digits ((^) :: Integer -> Int -> Integer) base_num (zip [0..] (reverse digits))))])
+                        then Just (Just lexer', [], [Location.Located num_span (Token.SingleTypeToken $ Token.IntLit tok_base (read_digits ((^) :: Integer -> Int -> Integer) base_num (zip [0..] (reverse digits))))])
                         else Just (Just lexer', illegal_digits, [])
 
                 (Right (tok_base, _), _) ->
@@ -262,7 +262,7 @@ lex_number lexer =
                         base_is_dec = if tok_base == Token.Dec then [] else [LexError.NonDecimalFloat num_span]
 
                     in if null illegal_digits && null base_is_dec
-                        then Just (Just lexer', [], [Location.Located num_span (Token.FloatLit $ read_digits ((^^) :: Decimal.Decimal -> Int -> Decimal.Decimal) 10 (zip [0..] (reverse digits) ++ zip [-1, -2..] floats))])
+                        then Just (Just lexer', [], [Location.Located num_span (Token.SingleTypeToken $ Token.FloatLit $ read_digits ((^^) :: Decimal.Decimal -> Int -> Decimal.Decimal) 10 (zip [0..] (reverse digits) ++ zip [-1, -2..] floats))])
                         else Just (Just lexer', illegal_digits ++ base_is_dec, [])
 
                 (Left err, _) -> Just (Just lexer', [err], [])
@@ -430,7 +430,7 @@ case_lex =
     let src = "abc *&* ( \"adji\n"
         f = File.File "a" src
     in case UHF.Lexer.MainLexer.lex f of
-        ([LexError.UnclosedStrLit _], [Location.Located _ (Token.AlphaIdentifier "abc"), Location.Located _ (Token.SymbolIdentifier "*&*"), Location.Located _ Token.OParen], _) -> return ()
+        ([LexError.UnclosedStrLit _], [Location.Located _ (Token.AlphaIdentifier "abc"), Location.Located _ (Token.SymbolIdentifier "*&*"), Location.Located _ (Token.SingleTypeToken Token.OParen)], _) -> return ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
 case_lex_empty :: Assertion
@@ -573,20 +573,20 @@ case_lex_symbol_identifier_multiple =
 case_lex_symbol_identifier_kw :: Assertion
 case_lex_symbol_identifier_kw =
     lex_test lex_symbol_identifier ":" $ \case
-        Just (Just l, [], [Location.Located _ Token.Colon])
+        Just (Just l, [], [Location.Located _ (Token.SingleTypeToken Token.Colon)])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_alpha_identifier" x
 case_lex_symbol_identifier_long_kw :: Assertion
 case_lex_symbol_identifier_long_kw =
     lex_test lex_symbol_identifier "->" $ \case
-        Just (Just l, [], [Location.Located _ Token.Arrow])
+        Just (Just l, [], [Location.Located _ (Token.SingleTypeToken Token.Arrow)])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_alpha_identifier" x
 
 case_lex_char_lit :: Assertion
 case_lex_char_lit =
     lex_test lex_str_or_char_lit "'c'" $ \case
-        Just (Just l, [], [Location.Located _ (Token.CharLit 'c')])
+        Just (Just l, [], [Location.Located _ (Token.SingleTypeToken (Token.CharLit 'c'))])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_str_or_char_lit" x
 case_lex_char_lit_unclosed :: Assertion
@@ -605,7 +605,7 @@ case_lex_char_lit_multiple =
 case_lex_str_lit :: Assertion
 case_lex_str_lit =
     lex_test lex_str_or_char_lit "\"abcde\"" $ \case
-        Just (Just l, [], [Location.Located _ (Token.StringLit "abcde")])
+        Just (Just l, [], [Location.Located _ (Token.SingleTypeToken (Token.StringLit "abcde"))])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_str_or_char_lit" x
 case_lex_str_lit_unclosed :: Assertion
@@ -618,42 +618,42 @@ case_lex_str_lit_unclosed =
 case_lex_number_decimal :: Assertion
 case_lex_number_decimal =
     lex_test lex_number "1234" $ \case
-        Just (Just l, [], [Location.Located _ (Token.IntLit Token.Dec 1234)])
+        Just (Just l, [], [Location.Located _ (Token.SingleTypeToken (Token.IntLit Token.Dec 1234))])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_decimal_leading_0 :: Assertion
 case_lex_number_decimal_leading_0 =
     lex_test lex_number "01234" $ \case
-        Just (Just l, [], [Location.Located _ (Token.IntLit Token.Dec 1234)])
+        Just (Just l, [], [Location.Located _ (Token.SingleTypeToken (Token.IntLit Token.Dec 1234))])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_float :: Assertion
 case_lex_number_float =
     lex_test lex_number "1234.1234" $ \case
-        Just (Just l, [], [Location.Located _ (Token.FloatLit 1234.1234)])
+        Just (Just l, [], [Location.Located _ (Token.SingleTypeToken (Token.FloatLit 1234.1234))])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_binary :: Assertion
 case_lex_number_binary =
     lex_test lex_number "0b101" $ \case
-        Just (Just l, [], [Location.Located _ (Token.IntLit Token.Bin 5)])
+        Just (Just l, [], [Location.Located _ (Token.SingleTypeToken (Token.IntLit Token.Bin 5))])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_hex :: Assertion
 case_lex_number_hex =
     lex_test lex_number "0xf1abcABC" $ \case
-        Just (Just l, [], [Location.Located _ (Token.IntLit Token.Hex 4054567612)])
+        Just (Just l, [], [Location.Located _ (Token.SingleTypeToken (Token.IntLit Token.Hex 4054567612))])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_octal :: Assertion
 case_lex_number_octal =
     lex_test lex_number "0o765" $ \case
-        Just (Just l, [], [Location.Located _ (Token.IntLit Token.Oct 501)])
+        Just (Just l, [], [Location.Located _ (Token.SingleTypeToken (Token.IntLit Token.Oct 501))])
             | remaining l == "" -> return ()
         x -> lex_test_fail "lex_number" x
 

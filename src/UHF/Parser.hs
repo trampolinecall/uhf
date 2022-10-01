@@ -44,8 +44,8 @@ parse' :: Parser.Parser [Decl.Decl]
 parse' = Parser.star decl_parse >>= \ ds -> Parser.consume "end of file" (Token.EOF ()) >> return ds
 -- decls {{{2
 decl_lookahead_matches :: Parser.TokenPredicate
-decl_lookahead_matches Token.Data = True
-decl_lookahead_matches Token.Under = True
+decl_lookahead_matches (Token.SingleTypeToken Token.Data) = True
+decl_lookahead_matches (Token.SingleTypeToken Token.Under) = True
 decl_lookahead_matches (Token.AlphaIdentifier []) = True
 decl_lookahead_matches _ = False
 
@@ -59,12 +59,12 @@ decl_parse =
 
 data_parse :: Parser.Parser Decl.Decl
 data_parse =
-    Parser.consume "data declaration" Token.Data >>= \ data_tok ->
+    Parser.consume "data declaration" (Token.SingleTypeToken Token.Data) >>= \ data_tok ->
     Parser.return_fail [] (ParseError.NotImpl $ Location.Located (Location.just_span data_tok) "datatype declarations")
 
 under_parse :: Parser.Parser Decl.Decl
 under_parse =
-    Parser.consume "under declaration" Token.Under >>= \ under_tok ->
+    Parser.consume "under declaration" (Token.SingleTypeToken Token.Under) >>= \ under_tok ->
     Parser.return_fail [] (ParseError.NotImpl $ Location.Located (Location.just_span under_tok) "'under' blocks")
 
 type_sig_or_function_parse :: Parser.Parser Decl.Decl
@@ -77,13 +77,13 @@ type_sig_or_function_parse =
 
 binding_parse :: [String] -> Parser.Parser Decl.Decl
 binding_parse decl_name =
-    Parser.consume "binding" Token.Equal >>= \ eq ->
+    Parser.consume "binding" (Token.SingleTypeToken Token.Equal) >>= \ eq ->
     expr_parse >>= \ ex ->
     return (Decl.Binding decl_name ex)
 
 type_signature_parse :: [String] -> Parser.Parser Decl.Decl
 type_signature_parse decl_name =
-    Parser.consume "type signature" Token.Colon >>= \ colon ->
+    Parser.consume "type signature" (Token.SingleTypeToken Token.Colon) >>= \ colon ->
     type_parse >>= \ ty ->
     return (Decl.TypeSignature decl_name ty)
 -- types {{{2
@@ -108,30 +108,30 @@ make_token_stream things =
 parsing_tests :: [ParsingTest]
 parsing_tests =
     [ ParsingTest "function decl"
-        (make_token_stream [("x", Token.AlphaIdentifier ["x"]), ("=", Token.Equal), ("'c'", Token.CharLit 'c')])
+        (make_token_stream [("x", Token.AlphaIdentifier ["x"]), ("=", Token.SingleTypeToken Token.Equal), ("'c'", Token.SingleTypeToken $ Token.CharLit 'c')])
         (Decl.Binding ["x"] (Expr.CharLit 'c'))
         [("decl_parse", decl_parse)]
 
     , ParsingTest "type signature"
-        (make_token_stream [("x", Token.AlphaIdentifier ["x"]), (":", Token.Colon), ("int", Token.AlphaIdentifier ["int"])])
+        (make_token_stream [("x", Token.AlphaIdentifier ["x"]), (":", Token.SingleTypeToken Token.Colon), ("int", Token.AlphaIdentifier ["int"])])
         (Decl.TypeSignature ["x"] (Type.Identifier ["int"]))
         [("decl_parse", decl_parse)]
 
     , ParsingTest "data decl"
         (make_token_stream
-            [ ("data", Token.Data), ("X", Token.AlphaIdentifier ["X"])
-            , ("indent", Token.Indent), ("Y", Token.AlphaIdentifier ["Y"]), ("string", Token.AlphaIdentifier ["string"]), ("newline", Token.Newline)
-            , ("Z", Token.AlphaIdentifier ["Z"]), ("X", Token.AlphaIdentifier ["X"]), ("newline", Token.Newline)
-            , ("dedent", Token.Dedent)
+            [ ("data", Token.SingleTypeToken Token.Data), ("X", Token.AlphaIdentifier ["X"])
+            , ("indent", Token.Indent ()), ("Y", Token.AlphaIdentifier ["Y"]), ("string", Token.AlphaIdentifier ["string"]), ("newline", Token.Newline Token.NLLogical)
+            , ("Z", Token.AlphaIdentifier ["Z"]), ("X", Token.AlphaIdentifier ["X"]), ("newline", Token.Newline Token.NLLogical)
+            , ("dedent", Token.Dedent ())
             ])
         (error "not implemented yet")
         [("decl_parse", decl_parse), ("data_parse", data_parse)]
 
     , ParsingTest "under decl"
         (make_token_stream
-            [ ("under", Token.Data), ("X", Token.AlphaIdentifier ["X"])
-            , ("indent", Token.Indent), ("x", Token.AlphaIdentifier ["x"]), ("=", Token.Equal), ("2", Token.IntLit Token.Dec 2), ("newline", Token.Newline)
-            , ("dedent", Token.Dedent)
+            [ ("under", Token.SingleTypeToken Token.Data), ("X", Token.AlphaIdentifier ["X"])
+            , ("indent", Token.Indent ()), ("x", Token.AlphaIdentifier ["x"]), ("=", Token.SingleTypeToken Token.Equal), ("2", Token.SingleTypeToken $ Token.IntLit Token.Dec 2), ("newline", Token.Newline Token.NLLogical)
+            , ("dedent", Token.Dedent ())
             ])
         (error "not implemented yet")
         [("decl_parse", decl_parse), ("under_parse", under_parse)]

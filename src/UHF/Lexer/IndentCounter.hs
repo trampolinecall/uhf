@@ -133,8 +133,18 @@ insert_indentation_tokens lns = Writer.execWriter $ State.execStateT (mapM do_li
 -- tests {{{1
 -- TODO: tests
 
--- case_split_lines :: Assertion
--- case_split_lines = "abcde\nfghij"
+case_split_lines :: Assertion
+case_split_lines =
+    let (f, [line1_sp, nl_sp, line2_sp]) = SpanHelper.make_spans' "test" "" ["line1", "\n", "line2"]
+        eof_sp = Location.eof_span f
+        eof = Location.Located eof_sp (Token.EOF ())
+
+        line1 = Location.Located line1_sp (Token.AlphaIdentifier "line1")
+        nl = Location.Located nl_sp (Token.Newline Token.NLPhysical)
+        line2 = Location.Located line2_sp (Token.AlphaIdentifier "line2")
+
+    in [([line1], nl_sp), ([line2], eof_sp)] @=? split_lines ([line1, nl, line2], eof)
+
 -- case_split_lines_trailing :: Assertion
 -- case_split_lines_trailing = "abcde\nfghij"
 

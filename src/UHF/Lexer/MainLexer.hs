@@ -31,7 +31,7 @@ instance Show Lexer where
         show (Text.unpack (Text.reverse (Text.take 5 (rev_passed l)))) ++ " | " ++ show (Text.unpack (Text.take 5 (remaining l))) ++ " }"
 
 -- lexing {{{1
-lex :: File.File -> ([LexError.LexError], [Token.LBeforePPToken], Token.LNormalToken)
+lex :: File.File -> ([LexError.LexError], [Token.LUnprocessedToken], Token.LNormalToken)
 lex f =
     let (errs, toks) = run [] [] (Just $ new_lexer f)
         eof = Location.Located (Location.eof_span f) (Token.EOF ())
@@ -48,7 +48,7 @@ lex f =
                 seq next_toks $
                 run next_errs next_toks l'
 -- lex' {{{2
-lex' :: Lexer -> (Maybe Lexer, [LexError.LexError], [Token.LBeforePPToken])
+lex' :: Lexer -> (Maybe Lexer, [LexError.LexError], [Token.LUnprocessedToken])
 lex' lexer = head $ mapMaybe ($ lexer) lex_choices
     where
         lex_choices =
@@ -65,7 +65,8 @@ lex' lexer = head $ mapMaybe ($ lexer) lex_choices
             , make_bad_char
             ]
 -- lexing functions {{{2
-type LexFn = Lexer -> Maybe (Maybe Lexer, [LexError.LexError], [Token.LBeforePPToken])
+-- TODO: rewrite this to be a monad in order to use combinators, also use Writer for output of LexErrors / tokens?
+type LexFn = Lexer -> Maybe (Maybe Lexer, [LexError.LexError], [Token.LUnprocessedToken])
 
 lex_eof :: LexFn
 lex_eof lexer
@@ -130,7 +131,7 @@ lex_alpha_identifier lexer =
         _ -> Nothing
 
 lex_symbol_identifier :: LexFn
-lex_symbol_identifier lexer
+lex_symbol_identifier lexer -- TODO: rewrite this to be more like alpha identifier
     | lexer `matches` "->" = Just (Just $ lexer `seek` 2, [], [Location.Located (lexer_span lexer 0 2) Token.Arrow])
     | lexer `matches` "::" = Just (Just $ lexer `seek` 2, [], [Location.Located (lexer_span lexer 0 2) (Token.DoubleColon ())])
     | lexer `matches` "(" = Just (Just $ lexer `seek` 1, [], [Location.Located (lexer_span lexer 0 1) Token.OParen])
@@ -281,7 +282,7 @@ make_bad_char lexer =
         Just (x, _) -> Just (Just $ lexer `seek` 1, [LexError.BadChar x $ lexer_span lexer 0 1], [])
 -- lex_indent {{{2
 {-
-lex_indent :: Lexer -> Maybe (Token.LBeforePPToken) -> ([IndentFrame], [LexError.LexError], [Token.LBeforePPToken])
+lex_indent :: Lexer -> Maybe (Token.LUnprocessedToken) -> ([IndentFrame], [LexError.LexError], [Token.LUnprocessedToken])
 lex_indent lexer last_tok =
     let m_cur_indent =
             let from_line_begin = Text.reverse $ Text.takeWhile (/='\n') (rev_passed lexer)
@@ -444,7 +445,7 @@ lex_test_fail :: Show r => String -> r -> IO a
 lex_test_fail fn_name res = assertFailure $ "'" ++ fn_name ++ "' lexed incorrectly: returned '" ++ show res ++ "'"
 
 {-
-indent_test :: Maybe (Token.BeforePPToken, Int, Int) -> [IndentFrame] -> Int -> Text.Text -> (([IndentFrame], [LexError.LexError], [Token.LBeforePPToken]) -> IO ()) -> IO ()
+indent_test :: Maybe (Token.UnprocessedToken, Int, Int) -> [IndentFrame] -> Int -> Text.Text -> (([IndentFrame], [LexError.LexError], [Token.LUnprocessedToken]) -> IO ()) -> IO ()
 indent_test m_last_tok stack offset input check =
     let lexer = (new_lexer (File.File "a" input) `seek` offset) { indent_stack = stack }
 

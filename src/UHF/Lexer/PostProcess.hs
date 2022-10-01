@@ -18,14 +18,8 @@ import qualified Data.Void as Void
 
 import qualified Safe
 
-group_identifiers :: ([LexError.LexError], [Token.LBeforePPToken], Token.LNormalToken) -> ([LexError.LexError], [Token.LNormalToken], Token.LNormalToken)
-group_identifiers (errs, toks, eof_tok) =
-    let (errs', grouped) = group_identifiers' toks
-    in (errs ++ errs', grouped, eof_tok)
-
-group_identifiers' :: [Token.LBeforePPToken] -> ([LexError.LexError], [Token.LNormalToken])
-
-group_identifiers' ((Location.Located start_sp (Token.AlphaIdentifier start_iden)):more) =
+group_identifiers :: [Token.LTokenWithIndentation] -> ([LexError.LexError], [Token.LNormalToken])
+group_identifiers ((Location.Located start_sp (Token.AlphaIdentifier start_iden)):more) =
     let find_iden ((Location.Located _ (Token.DoubleColon _)) : (Location.Located sp (Token.AlphaIdentifier iden)) : m) =
             let (more_iden, is_symbol, m') = find_iden m
             in ((iden, sp):more_iden, is_symbol, m')
@@ -45,19 +39,19 @@ group_identifiers' ((Location.Located start_sp (Token.AlphaIdentifier start_iden
                 then Token.SymbolIdentifier iden_names
                 else Token.AlphaIdentifier iden_names
 
-        (errs, more'_grouped) = group_identifiers' more'
+        (errs, more'_grouped) = group_identifiers more'
 
     in (errs, Location.Located iden_sp iden_tok : more'_grouped)
 
-group_identifiers' (other:more) =
-    let (errs', more') = group_identifiers' more
+group_identifiers (other:more) =
+    let (errs', more') = group_identifiers more
     in case convert_raw_token other of
         Right converted -> (errs', converted : more')
         Left err -> (err : errs', more')
 
-group_identifiers' [] = ([], [])
+group_identifiers [] = ([], [])
 
-convert_raw_token :: Token.LBeforePPToken -> Either LexError.LexError (Token.LNormalToken)
+convert_raw_token :: Token.LTokenWithIndentation -> Either LexError.LexError (Token.LNormalToken)
 convert_raw_token (Location.Located sp Token.OParen) = Right $ Location.Located sp Token.OParen
 convert_raw_token (Location.Located sp Token.CParen) = Right $ Location.Located sp Token.CParen
 convert_raw_token (Location.Located sp Token.OBrack) = Right $ Location.Located sp Token.OBrack
@@ -85,42 +79,38 @@ convert_raw_token (Location.Located sp (Token.BoolLit val)) = Right $ Location.L
 convert_raw_token (Location.Located sp Token.OBrace) = Right $ Location.Located sp Token.OBrace
 convert_raw_token (Location.Located sp Token.CBrace) = Right $ Location.Located sp Token.CBrace
 convert_raw_token (Location.Located sp Token.Semicolon) = Right $ Location.Located sp Token.Semicolon
-convert_raw_token (Location.Located sp (Token.Indent v)) = Void.absurd v
-convert_raw_token (Location.Located sp (Token.Dedent v)) = Void.absurd v
-convert_raw_token (Location.Located sp (Token.Newline v)) = Void.absurd v
+convert_raw_token (Location.Located sp (Token.Indent i)) = Right $ Location.Located sp $ Token.Indent i
+convert_raw_token (Location.Located sp (Token.Dedent i)) = Right $ Location.Located sp $ Token.Dedent i
+convert_raw_token (Location.Located sp (Token.Newline nl)) = Right $ Location.Located sp $ Token.Newline nl
+convert_raw_token (Location.Located _ (Token.Backslash v)) = Void.absurd v
 convert_raw_token (Location.Located _ (Token.EOF eof)) = Void.absurd eof
 
 -- tests {{{1
 case_group_identifiers :: Assertion
 case_group_identifiers =
-    let (_, [paren_sp, a_sp, dcolon_sp, b_sp, eof_sp]) = SpanHelper.make_spans ["(", "a", "::", "b", "eof"]
-        eof_tok :: Token.LNormalToken
-        eof_tok = Location.Located eof_sp (Token.EOF ())
-    in ([], [Location.Located paren_sp Token.OParen, Location.Located (a_sp `Location.join_span` b_sp) (Token.AlphaIdentifier ["a", "b"])], eof_tok)
+    let (_, [paren_sp, a_sp, dcolon_sp, b_sp, _]) = SpanHelper.make_spans ["(", "a", "::", "b", "eof"]
+    in ([], [Location.Located paren_sp Token.OParen, Location.Located (a_sp `Location.join_span` b_sp) (Token.AlphaIdentifier ["a", "b"])])
     @=?
     group_identifiers
-        ( []
-        , [ Location.Located paren_sp Token.OParen
-          , Location.Located a_sp (Token.AlphaIdentifier "a")
-          , Location.Located dcolon_sp (Token.DoubleColon ())
-          , Location.Located b_sp (Token.AlphaIdentifier "b")
-          ]
-        , eof_tok
-        )
+        [ Location.Located paren_sp Token.OParen
+        , Location.Located a_sp (Token.AlphaIdentifier "a")
+        , Location.Located dcolon_sp (Token.DoubleColon ())
+        , Location.Located b_sp (Token.AlphaIdentifier "b")
+        ]
 
-case_group_identifiers'_single_alpha :: Assertion
-case_group_identifiers'_single_alpha =
+case_group_identifiers_single_alpha :: Assertion
+case_group_identifiers_single_alpha =
     let (_, [sp]) = SpanHelper.make_spans ["a"]
     in ([], [Location.Located sp (Token.AlphaIdentifier ["a"])])
     @=?
-    group_identifiers' [Location.Located sp (Token.AlphaIdentifier "a")]
+    group_identifiers [Location.Located sp (Token.AlphaIdentifier "a")]
 
-case_group_identifiers'_multiple_alpha :: Assertion
-case_group_identifiers'_multiple_alpha =
+case_group_identifiers_multiple_alpha :: Assertion
+case_group_identifiers_multiple_alpha =
     let (_, [a, dc1, b, dc2, c]) = SpanHelper.make_spans ["a", "::", "b", "::", "c"]
     in ([], [Location.Located (a `Location.join_span` c) (Token.AlphaIdentifier ["a", "b", "c"])])
     @=?
-    group_identifiers'
+    group_identifiers
         [ Location.Located a $ Token.AlphaIdentifier "a"
         , Location.Located dc1 (Token.DoubleColon ())
         , Location.Located b $ Token.AlphaIdentifier "b"
@@ -128,19 +118,19 @@ case_group_identifiers'_multiple_alpha =
         , Location.Located c $ Token.AlphaIdentifier "c"
         ]
 
-case_group_identifiers'_single_symbol :: Assertion
-case_group_identifiers'_single_symbol =
+case_group_identifiers_single_symbol :: Assertion
+case_group_identifiers_single_symbol =
     let (_, [sp]) = SpanHelper.make_spans ["*"]
     in ([], [Location.Located sp $ Token.SymbolIdentifier ["*"]])
     @=?
-    group_identifiers' [Location.Located sp $ Token.SymbolIdentifier "*"]
+    group_identifiers [Location.Located sp $ Token.SymbolIdentifier "*"]
 
-case_group_identifiers'_multiple_symbol :: Assertion
-case_group_identifiers'_multiple_symbol =
+case_group_identifiers_multiple_symbol :: Assertion
+case_group_identifiers_multiple_symbol =
     let (_, [a, dc1, b, dc2, star]) = SpanHelper.make_spans ["a", "::", "b", "::", "*"]
     in ([], [Location.Located (a `Location.join_span` star) $ Token.SymbolIdentifier ["a", "b", "*"]])
     @=?
-    group_identifiers'
+    group_identifiers
         [ Location.Located a $ Token.AlphaIdentifier "a"
         , Location.Located dc1 (Token.DoubleColon ())
         , Location.Located b $ Token.AlphaIdentifier "b"
@@ -148,12 +138,12 @@ case_group_identifiers'_multiple_symbol =
         , Location.Located star $ Token.SymbolIdentifier "*"
         ]
 
-case_group_identifiers'_symbol_start :: Assertion
-case_group_identifiers'_symbol_start =
+case_group_identifiers_symbol_start :: Assertion
+case_group_identifiers_symbol_start =
     let (_, [star, dc1, amper, dc2, dollar]) = SpanHelper.make_spans ["*", "::", "$", "::", "$"]
     in ([LexError.InvalidDoubleColon dc1, LexError.InvalidDoubleColon dc2], [Location.Located star $ Token.SymbolIdentifier ["*"], Location.Located amper $ Token.SymbolIdentifier ["&"], Location.Located dollar $ Token.SymbolIdentifier ["$"]])
     @=?
-    group_identifiers'
+    group_identifiers
         [ Location.Located star $ Token.SymbolIdentifier "*"
         , Location.Located dc1 (Token.DoubleColon ())
         , Location.Located amper $ Token.SymbolIdentifier "&"

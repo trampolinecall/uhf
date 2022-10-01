@@ -48,7 +48,7 @@ decl_lookahead_matches Token.Data = True
 decl_lookahead_matches Token.Under = True
 decl_lookahead_matches (Token.AlphaIdentifier []) = True
 decl_lookahead_matches _ = False
---
+
 decl_parse :: Parser.Parser Decl.Decl
 decl_parse =
     Parser.choice

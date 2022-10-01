@@ -280,6 +280,7 @@ make_bad_char lexer =
     case Text.uncons $ remaining lexer of
         Nothing -> Nothing
         Just (x, _) -> Just (Just $ lexer `seek` 1, [LexError.BadChar x $ lexer_span lexer 0 1], [])
+-- TODO: lex_braces, lex_newline, lex_backslash
 -- lex_indent {{{2
 {-
 lex_indent :: Lexer -> Maybe (Token.LUnprocessedToken) -> ([IndentFrame], [LexError.LexError], [Token.LUnprocessedToken])
@@ -745,68 +746,6 @@ case_lex_make_bad_char_empty =
     lex_test make_bad_char "" $ \case
         Nothing -> return ()
         x -> lex_test_fail "make_bad_char" x
-
-{-
--- case_lex_indent_indent :: Assertion
--- case_lex_indent_indent =
-    indent_test Nothing [IndentationSensitive 0] 4 "    abcd\n" $ \case
-        ([IndentationSensitive 4, IndentationSensitive 0], [], [Location.Located _ Token.Indent]) -> return ()
-        x -> lex_test_fail "lex_indent" x
-
--- case_lex_indent_newline :: Assertion
--- case_lex_indent_newline =
-    indent_test (Just (Token.AlphaIdentifier "abcde", -6, 5)) [IndentationSensitive 0] 6 "abcde\nfghij\n" $ \case
-        ([IndentationSensitive 0], [], [Location.Located _ Token.Newline]) -> return ()
-        x -> lex_test_fail "lex_indent" x
-
--- case_lex_indent_newline_with_semi :: Assertion
--- case_lex_indent_newline_with_semi =
-    indent_test (Just (Token.Semicolon, -1, 1)) [IndentationSensitive 0] 6 "abcd;\nfghij\n" $ \case
-        ([IndentationSensitive 0], [], []) -> return ()
-        x -> lex_test_fail "lex_indent" x
-
--- case_lex_indent_dedent :: Assertion
--- case_lex_indent_dedent =
-    indent_test (Just (Token.AlphaIdentifier "b", -2, 1)) [IndentationSensitive 4, IndentationSensitive 0] 8 "a\n    b\nc" $ \case
-        ([IndentationSensitive 0], [], [Location.Located _ Token.Newline, Location.Located _ Token.Dedent]) -> return ()
-        x -> lex_test_fail "lex_indent" x
-
--- case_lex_indent_dedent_with_semi :: Assertion
--- case_lex_indent_dedent_with_semi =
-    indent_test (Just (Token.Semicolon, -2, 1)) [IndentationSensitive 4, IndentationSensitive 0] 9 "a\n    b;\nc" $ \case
-        ([IndentationSensitive 0], [], [Location.Located _ Token.Dedent]) -> return ()
-        x -> lex_test_fail "lex_indent" x
-
--- case_lex_indent_dedent_multiple :: Assertion
--- case_lex_indent_dedent_multiple =
-    indent_test (Just (Token.AlphaIdentifier "c", -2, 1)) [IndentationSensitive 8, IndentationSensitive 4, IndentationSensitive 0] 18 "a\n    b\n        c\nd" $ \case
-        ([IndentationSensitive 0], [], [Location.Located _ Token.Newline, Location.Located _ Token.Dedent, Location.Located _ Token.Dedent]) -> return ()
-        x -> lex_test_fail "lex_indent" x
-
--- case_lex_indent_dedent_multiple_with_semi :: Assertion
--- case_lex_indent_dedent_multiple_with_semi =
-    indent_test (Just (Token.Semicolon, -2, 1)) [IndentationSensitive 8, IndentationSensitive 4, IndentationSensitive 0] 19 "a\n    b\n        c;\nd" $ \case
-        ([IndentationSensitive 0], [], [Location.Located _ Token.Dedent, Location.Located _ Token.Dedent]) -> return ()
-        x -> lex_test_fail "lex_indent" x
-
--- case_lex_indent_open_brace :: Assertion
--- case_lex_indent_open_brace =
-    indent_test Nothing [IndentationSensitive 0] 0 "{\n" $ \case
-        ([IndentationInsensitive, IndentationSensitive 0], [], [Location.Located _ Token.OBrace]) -> return ()
-        x -> lex_test_fail "lex_indent" x
-
--- case_lex_indent_semi :: Assertion
--- case_lex_indent_semi =
-    indent_test Nothing [IndentationSensitive 0] 0 ";\n" $ \case
-        ([IndentationSensitive 0], [], [Location.Located _ Token.Semicolon]) -> return ()
-        x -> lex_test_fail "lex_indent" x
-
--- case_lex_indent_close_brace :: Assertion
--- case_lex_indent_close_brace =
-    indent_test Nothing [IndentationInsensitive, IndentationSensitive 0] 0 "}\n" $ \case
-        ([IndentationSensitive 0], [], [Location.Located _ Token.CBrace]) -> return ()
-        x -> lex_test_fail "lex_indent" x
--}
 
 tests :: TestTree
 tests = $(testGroupGenerator)

@@ -131,33 +131,86 @@ insert_indentation_tokens lns = Writer.execWriter $ State.execStateT (mapM do_li
                     indentation_frames)
 
 -- tests {{{1
--- TODO: tests
-
 case_split_lines :: Assertion
 case_split_lines =
-    let (f, [line1_sp, nl_sp, line2_sp]) = SpanHelper.make_spans' "test" "" ["line1", "\n", "line2"]
+    let (f, toks@[line1, nl, line2]) = SpanHelper.make_spans_with_show_items [Token.AlphaIdentifier "line1", Token.Newline Token.NLPhysical, Token.AlphaIdentifier "line2"]
         eof_sp = Location.eof_span f
         eof = Location.Located eof_sp (Token.EOF ())
 
-        line1 = Location.Located line1_sp (Token.AlphaIdentifier "line1")
-        nl = Location.Located nl_sp (Token.Newline Token.NLPhysical)
-        line2 = Location.Located line2_sp (Token.AlphaIdentifier "line2")
+    in [([line1], Location.just_span nl), ([line2], eof_sp)] @=? split_lines (toks, eof)
 
-    in [([line1], nl_sp), ([line2], eof_sp)] @=? split_lines ([line1, nl, line2], eof)
+case_split_lines_trailing :: Assertion
+case_split_lines_trailing =
+    let (f, toks@[line1, nl1, line2, nl2]) = SpanHelper.make_spans_with_show_items [Token.AlphaIdentifier "line1", Token.Newline Token.NLPhysical, Token.AlphaIdentifier "line2", Token.Newline Token.NLPhysical]
+        eof_sp = Location.eof_span f
+        eof = Location.Located eof_sp (Token.EOF ())
 
--- case_split_lines_trailing :: Assertion
--- case_split_lines_trailing = "abcde\nfghij"
+    in [([line1], Location.just_span nl1), ([line2], Location.just_span nl2), ([], eof_sp)] @=? split_lines (toks, eof)
 
--- case_join_logical_lines :: Assertion
--- case_join_logical_lines = "line1\\\nline2\nline3"
--- case_join_logical_lines_none :: Assertion
--- case_join_logical_lines_none = "line1\nline2\nline3"
--- case_join_logical_lines_multiple :: Assertion
--- case_join_logical_lines_multiple = "line1\\\nline2\\\nline3"
--- case_join_logical_lines_backslash_last = "line1\\\n"
+case_join_logical_lines :: Assertion
+case_join_logical_lines =
+    let (f, [line1, bs, nl1, line2, nl2, line3]) = SpanHelper.make_spans_with_show_items [Token.AlphaIdentifier "line1", Token.Backslash (), Token.Newline Token.NLPhysical, Token.AlphaIdentifier "line2", Token.Newline Token.NLPhysical, Token.AlphaIdentifier "line3"]
+        eof_sp = Location.eof_span f
+    in [([line1, line2], Location.just_span nl2), ([line3], eof_sp)] @=? join_logical_lines [([line1, bs], Location.just_span nl1), ([line2], Location.just_span nl2), ([line3], eof_sp)]
 
--- case_count_indent_numbers :: Assertion
--- case_count_indent_numbers = "line1\n    line2\n        line3\n  line4\n\tline5\n  \tline6"
+case_join_logical_lines_none :: Assertion
+case_join_logical_lines_none =
+    let (f, [line1, nl1, line2, nl2, line3]) = SpanHelper.make_spans_with_show_items [Token.AlphaIdentifier "line1", Token.Newline Token.NLPhysical, Token.AlphaIdentifier "line2", Token.Newline Token.NLPhysical, Token.AlphaIdentifier "line3"]
+        eof_sp = Location.eof_span f
+        a = [([line1], Location.just_span nl1), ([line2], Location.just_span nl2), ([line3], eof_sp)]
+    in a @=? join_logical_lines a
+
+case_join_logical_lines_multiple :: Assertion
+case_join_logical_lines_multiple =
+    let (f, [line1, bs1, nl1, line2, bs2, nl2, line3]) = SpanHelper.make_spans_with_show_items [Token.AlphaIdentifier "line1", Token.Backslash (), Token.Newline Token.NLPhysical, Token.AlphaIdentifier "line2", Token.Backslash (), Token.Newline Token.NLPhysical, Token.AlphaIdentifier "line3"]
+        eof_sp = Location.eof_span f
+    in [([line1, line2, line3], eof_sp)] @=? join_logical_lines [([line1, bs1], Location.just_span nl1), ([line2, bs2], Location.just_span nl2), ([line3], eof_sp)]
+
+case_join_logical_lines_backslash_last :: Assertion
+case_join_logical_lines_backslash_last =
+    let (_, [line1, bs1, nl1]) = SpanHelper.make_spans_with_show_items [Token.AlphaIdentifier "line1", Token.Backslash (), Token.Newline Token.NLPhysical]
+    in [([line1], Location.just_span nl1)] @=? join_logical_lines [([line1, bs1], Location.just_span nl1)]
+
+case_count_indent_numbers :: Assertion
+case_count_indent_numbers =
+    let (f, [line1, nl1, _, line2, nl2, _, line3, nl3, _, line4, nl4, _, line5, nl5, _, line6]) =
+            SpanHelper.make_spans_with_items' "test" ""
+            [ ("line1", Token.AlphaIdentifier "line1")
+            , ("\n", Token.Newline Token.NLPhysical)
+            , ("    ", undefined)
+            , ("line2", Token.AlphaIdentifier "line2")
+            , ("\n", Token.Newline Token.NLPhysical)
+            , ("        ", undefined)
+            , ("line3", Token.AlphaIdentifier "line3")
+            , ("\n", Token.Newline Token.NLPhysical)
+            , ("  ", undefined)
+            , ("line4", Token.AlphaIdentifier "line4")
+            , ("\n", Token.Newline Token.NLPhysical)
+            , ("\t", undefined)
+            , ("line5", Token.AlphaIdentifier "line5")
+            , ("\n", Token.Newline Token.NLPhysical)
+            , ("  \t", undefined)
+            , ("line6", Token.AlphaIdentifier "line6")
+            ]
+        eof_sp = Location.eof_span f
+    in
+        [ (0, [line1], Location.just_span nl1)
+        , (4, [line2], Location.just_span nl2)
+        , (8, [line3], Location.just_span nl3)
+        , (2, [line4], Location.just_span nl4)
+        , (8, [line5], Location.just_span nl5)
+        , (8, [line6], eof_sp)
+        ] @=?
+        (count_indent_numbers
+            [ ([line1], Location.just_span nl1)
+            , ([line2], Location.just_span nl2)
+            , ([line3], Location.just_span nl3)
+            , ([line4], Location.just_span nl4)
+            , ([line5], Location.just_span nl5)
+            , ([line6], eof_sp)
+            ])
+
+-- TODO: these tests
 
 case_insert_indentation_tokens_indented_block :: Assertion
 case_insert_indentation_tokens_indented_block = undefined

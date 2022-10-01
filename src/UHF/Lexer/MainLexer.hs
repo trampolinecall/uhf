@@ -328,6 +328,7 @@ seek_while l p =
 seek :: Lexer -> Int -> Lexer
 seek l n = l { location = Location.seek n (location l) }
 -- tests {{{1
+-- TODO: update tests
 case_l_contents :: Assertion
 case_l_contents = "abcdefghijkl" @=? l_contents (Lexer (Location.new_location (File.File "filename" "abcdefghijkl")))
 case_remaining :: Assertion

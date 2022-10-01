@@ -57,6 +57,7 @@ library
     , base >=4.13 && <5
     , containers
     , safe
+    , split
     , tasty
     , tasty-hunit
     , tasty-th

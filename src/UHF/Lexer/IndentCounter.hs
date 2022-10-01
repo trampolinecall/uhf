@@ -40,13 +40,10 @@ split_lines (toks, eof) = (one_line, next_nl_span) : split_lines (drop 1 more, e
         (one_line, more) = maybe (,[]) List.splitAt nl_ind toks
 
 join_logical_lines :: [([Token.LUnprocessedToken], Location.Span)] -> [([Token.LUnprocessedToken], Location.Span)]
-join_logical_lines lines = -- TODO: refactor this
-    let (until_end, last_line) = (init lines, last lines)
-        (has_backslash, without_backslash) = span ((==Token.Backslash ()) . Location.unlocate . last . fst) until_end
-        one_without_backslash:more = without_backslash ++ [last_line]
-
-        joining = has_backslash ++ [one_without_backslash] -- TODO: remove backslash from this line
-    in (concat $ map fst joining, snd $ last joining) : join_logical_lines more
+join_logical_lines ((cur_line_toks, cur_line_nl) : (next_line_toks, next_line_nl) : more)
+    | Location.unlocate (last cur_line_toks) == Token.Backslash () = join_logical_lines $ (init cur_line_toks ++ next_line_toks, next_line_nl) : more
+join_logical_lines (cur_line : more) = cur_line : join_logical_lines more
+join_logical_lines [] = []
 
 count_indent_numbers :: [([Token.LUnprocessedToken], Location.Span)] -> [(Int, [Token.LUnprocessedToken], Location.Span)]
 count_indent_numbers = Maybe.mapMaybe count_indent
@@ -181,7 +178,7 @@ case_join_logical_lines_multiple =
 case_join_logical_lines_backslash_last :: Assertion
 case_join_logical_lines_backslash_last =
     let (_, [line1, bs1, nl1]) = SpanHelper.make_spans_with_show_items [Token.AlphaIdentifier "line1", Token.Backslash (), Token.Newline Token.NLPhysical]
-    in [([line1], Location.just_span nl1)] @=? join_logical_lines [([line1, bs1], Location.just_span nl1)]
+    in [([line1, bs1], Location.just_span nl1)] @=? join_logical_lines [([line1, bs1], Location.just_span nl1)]
 
 case_count_indent_numbers :: Assertion
 case_count_indent_numbers =

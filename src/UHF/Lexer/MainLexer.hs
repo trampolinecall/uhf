@@ -445,19 +445,6 @@ lex_test fn input check = check $ fn $ new_lexer $ File.File "a" input
 lex_test_fail :: Show r => String -> r -> IO a
 lex_test_fail fn_name res = assertFailure $ "'" ++ fn_name ++ "' lexed incorrectly: returned '" ++ show res ++ "'"
 
-{-
-indent_test :: Maybe (Token.UnprocessedToken, Int, Int) -> [IndentFrame] -> Int -> Text.Text -> (([IndentFrame], [LexError.LexError], [Token.LUnprocessedToken]) -> IO ()) -> IO ()
-indent_test m_last_tok stack offset input check =
-    let lexer = (new_lexer (File.File "a" input) `seek` offset) { indent_stack = stack }
-
-        last_tok =
-            case m_last_tok of
-                Just (tok, start, len) -> Just $ Location.Located (lexer_span lexer start len) tok
-                Nothing -> Nothing
-
-    in check $ lex_indent lexer last_tok
--}
-
 case_lex' :: Assertion
 case_lex' =
     lex_test lex' "abc" $ \case

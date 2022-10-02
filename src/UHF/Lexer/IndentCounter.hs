@@ -227,6 +227,7 @@ case_insert_indentation_tokens_indented_block =
         eof_sp = Location.eof_span f
     in ([], [ln1, indent_at ln2, ln2, nl_at nl2, dedent_at ln3, ln3, nl_at nl3]) @=? insert_indentation_tokens eof_sp (map (\ (i, t, nl) -> (i, [t], nl)) res)
 
+case_insert_indentation_tokens_ending_dedents :: Assertion
 case_insert_indentation_tokens_ending_dedents =
     let (f, res@[(_, ln1, _), (_, ln2, nl2)]) = generate_lines [0, 4]
         eof_sp = Location.eof_span f
@@ -292,12 +293,6 @@ case_insert_indentation_tokens_semi_before_dedent =
             , (4, [fst <$> ln2, fst <$> semi2], Location.just_span nl2)
             , (0, [fst <$> ln3], Location.just_span nl3)
             ]
-
-{-
-line1
-    line2;
-line3
--}
 
 tests :: TestTree
 tests = $(testGroupGenerator)

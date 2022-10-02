@@ -15,5 +15,6 @@ import qualified UHF.IO.File as File
 lex :: File.File -> ([LexError.LexError], [Token.LNormalToken], Token.LNormalToken)
 lex f =
     let (errs, toks, eof) = MainLexer.lex f
-        (errs', toks') = PostProcess.group_identifiers $ IndentCounter.count_indents (toks, eof)
-    in (errs ++ errs', toks', eof)
+        (errs', toks') = IndentCounter.count_indents toks eof
+        (errs'', toks'') = PostProcess.group_identifiers toks' -- TODO: use writer monad for this
+    in (errs ++ errs' ++ errs'', toks'', eof)

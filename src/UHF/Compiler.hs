@@ -14,6 +14,7 @@ import qualified UHF.AST.Decl as AST.Decl
 compile :: Phase File.File [AST.Decl.Decl]
 compile = lex_phase `link` parse_phase
 
+-- TODO: use Writer to collect diagnostics
 type Phase a b = a -> ([Diagnostic.Diagnostic], b)
 
 link :: Phase a b -> Phase b c -> Phase a c

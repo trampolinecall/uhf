@@ -236,9 +236,6 @@ new_span_start_and_end :: Location.Location -> Location.Location -> Location.Spa
 -- start and end should be in the same file because the lex function never processes more than one file at a time
 new_span_start_and_end start end = Location.new_span start 0 (Location.ind end - Location.ind start)
 
-seek :: Location.Location -> Int -> Location.Location
-seek = flip Location.seek
-
 choice :: [Lexer a] -> Lexer a
 choice [] = Lexer $ \ _ -> Nothing
 choice (fn:fns) = Lexer $ \ loc ->
@@ -250,7 +247,7 @@ consume :: (Char -> Bool) -> Lexer (Location.Located Char)
 consume p = Lexer $ \ loc ->
     case Text.uncons $ remaining loc of
         Just (c, _)
-            | p c -> Just (loc `seek` 1, [], Location.Located (Location.new_span loc 0 1) c)
+            | p c -> Just (Location.seek 1 loc, [], Location.Located (Location.new_span loc 0 1) c)
         _ -> Nothing
 
 get_loc :: Lexer Location.Location

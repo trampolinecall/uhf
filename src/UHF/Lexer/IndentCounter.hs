@@ -24,6 +24,7 @@ import qualified Data.Text as Text
 import qualified Data.Void as Void
 import qualified Data.Maybe as Maybe
 
+import qualified Control.Arrow as Arrow
 import qualified Control.Monad.Trans.State as State
 import qualified Control.Monad.Trans.Writer as Writer
 import Control.Monad.Trans.Class
@@ -57,9 +58,15 @@ count_indent_numbers = Maybe.mapMaybe count_indent
             where
                 sp_start = Location.start sp
 
--- TODO: remove newlines before indents, after semicolons
 insert_indentation_tokens :: Location.Span -> [(Int, [Token.LUnprocessedToken], Location.Span)] -> ([LexError.LexError], [Token.LTokenWithIndentation])
-insert_indentation_tokens eof_sp lns = Writer.runWriter $ Writer.execWriterT $ State.execStateT (mapM do_line lns >> put_final_dedents) [ISensitive 0]
+insert_indentation_tokens eof_sp lns =
+    let remove_nls ((Location.Located _ (Token.Newline Token.NLLogical)) : indent@(Location.Located _ (Token.Indent ())) : more) = indent : remove_nls more
+        remove_nls (semi@(Location.Located _ Token.Semicolon) : (Location.Located _ (Token.Newline Token.NLLogical)) : more) = semi : remove_nls more
+        remove_nls (x:more) = x : remove_nls more
+        remove_nls [] = []
+    in Arrow.second remove_nls $ Writer.runWriter $ Writer.execWriterT $ State.execStateT
+        (mapM do_line lns >> put_final_dedents)
+        [ISensitive 0]
     where
         do_line (indent_amt, toks, nl) =
             do_indentation indent_amt (Location.start $ Location.just_span $ head toks) >>

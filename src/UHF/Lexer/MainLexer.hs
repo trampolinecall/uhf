@@ -156,24 +156,27 @@ lex_symbol_identifier =
         Token.SymbolIdentifier
 
 lex_str_or_char_lit :: Lexer [Token.LUnprocessedToken]
-lex_str_or_char_lit = Lexer $ \ loc ->
-    case Text.uncons $ remaining loc of
-        Just (open, _) | open == '\'' || open == '"' ->
-            let (_, str_contents, loc') = (loc `seek` 1) `seek_while` (\ ch -> ch /= open && ch /= '\n')
-            in if loc' `matches` [open]
-                then
-                    let lit_span = Location.new_span loc 0 (Text.length str_contents + 2)
-                        loc'' = loc' `seek` 1
-                    in if open == '\''
-                        then if Text.length str_contents /= 1
-                            then Just (loc'', [LexError.MulticharCharLit lit_span], [])
-                            else Just (loc'', [], [Location.Located lit_span $ Token.SingleTypeToken $ Token.CharLit $ Text.head str_contents])
-                        else Just (loc'', [], [Location.Located lit_span $ Token.SingleTypeToken $ Token.StringLit $ Text.unpack str_contents])
-                else if open == '\''
-                        then Just (loc', [LexError.UnclosedCharLit $ Location.new_span loc 0 $ Text.length str_contents], [])
-                        else Just (loc', [LexError.UnclosedStrLit $ Location.new_span loc 0 $ Text.length str_contents], [])
+lex_str_or_char_lit =
+    get_loc >>= \ start_loc ->
+    consume (\ c -> c == '\'' || c == '"') >>= \ (Location.Located _ open) ->
+    let lex_rest = consume (\ ch -> ch /= open && ch /= '\n') >>= \ c -> (Location.unlocate c :) <$> choice [lex_rest, pure []]
+    in lex_rest >>= \ contents ->
+    choice
+        [ consume (==open) >>
+          get_loc >>= \ end_loc ->
+          let sp = new_span_start_and_end start_loc end_loc
+          in if open == '\''
+              then case contents of
+                    [c] -> pure [Location.Located sp $ Token.SingleTypeToken $ Token.CharLit c]
+                    _ -> put_error (LexError.MulticharCharLit sp) >> pure []
+              else pure [Location.Located sp $ Token.SingleTypeToken $ Token.StringLit contents]
 
-        _ -> Nothing
+        , get_loc >>= \ end_loc ->
+          let sp = new_span_start_and_end start_loc end_loc
+          in if open == '\''
+              then put_error (LexError.UnclosedCharLit sp) >> pure []
+              else put_error (LexError.UnclosedStrLit sp) >> pure []
+        ]
 
 lex_number :: Lexer [Token.LUnprocessedToken]
 lex_number =
@@ -238,17 +241,6 @@ remaining l = Text.drop (Location.ind l) (File.contents $ Location.file l)
 new_span_start_and_end :: Location.Location -> Location.Location -> Location.Span
 -- start and end should be in the same file because the lex function never processes more than one file at a time
 new_span_start_and_end start end = Location.new_span start 0 (Location.ind end - Location.ind start)
-
-matches :: Location.Location -> String -> Bool
-matches l s = text_matches s (remaining l)
-
-text_matches :: String -> Text.Text -> Bool
-text_matches s t = Text.unpack (Text.take (length s) t) == s
-
-seek_while :: Location.Location -> (Char -> Bool) -> (Location.Span, Text.Text, Location.Location)
-seek_while l p =
-    let fits = Text.takeWhile p (remaining l)
-    in (Location.new_span l 0 (Text.length fits), fits, l `seek` Text.length fits)
 
 seek :: Location.Location -> Int -> Location.Location
 seek = flip Location.seek
@@ -391,6 +383,18 @@ case_lex_symbol_identifier_long_kw =
     lex_test' lex_symbol_identifier "->" $ \case
         Just (l, [], [Location.Located _ (Token.SingleTypeToken Token.Arrow)])
             | remaining l == "" -> return ()
+        x -> lex_test_fail "lex_alpha_identifier" x
+case_lex_nl :: Assertion
+case_lex_nl =
+    lex_test' lex_symbol_identifier "\n" $ \case
+        Just (l, [], [Location.Located _ (Token.Newline Token.NLPhysical)])
+            | remaining l == "" -> return ()
+        x -> lex_test_fail "lex_alpha_identifier" x
+case_lex_nl_double :: Assertion
+case_lex_nl_double =
+    lex_test' lex_symbol_identifier "\n\n" $ \case
+        Just (l, [], [Location.Located _ (Token.Newline Token.NLPhysical)])
+            | remaining l == "\n" -> return ()
         x -> lex_test_fail "lex_alpha_identifier" x
 
 case_lex_char_lit :: Assertion

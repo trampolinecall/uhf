@@ -44,6 +44,7 @@ split_lines toks eof = (one_line, next_nl_span) : split_lines (drop 1 more) eof 
         (one_line, more) = maybe (,[]) List.splitAt nl_ind toks
 
 join_logical_lines :: [([Token.LUnprocessedToken], Location.Span)] -> [([Token.LUnprocessedToken], Location.Span)]
+join_logical_lines (([], _) : more) = join_logical_lines more
 join_logical_lines ((cur_line_toks, _) : (next_line_toks, next_line_nl) : more)
     | Location.unlocate (last cur_line_toks) == Token.Backslash () = join_logical_lines $ (init cur_line_toks ++ next_line_toks, next_line_nl) : more
 join_logical_lines (cur_line : more) = cur_line : join_logical_lines more

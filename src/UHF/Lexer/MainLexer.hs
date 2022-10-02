@@ -21,37 +21,27 @@ import qualified Data.Decimal as Decimal
 import Data.Maybe (mapMaybe, fromMaybe)
 import Data.Char (isAlpha, isDigit, isOctDigit, isHexDigit, isSpace, digitToInt)
 
--- datatypes {{{1
-newtype Lexer = Lexer { location :: Location.Location }
-      deriving (Eq)
-
-instance Show Lexer where
-    show l =
-        "Lexer { location = " ++ show (location l) ++ ", " ++
-        show (Text.unpack (Text.reverse (Text.take 5 (rev_passed l)))) ++ " | " ++ show (Text.unpack (Text.take 5 (remaining l))) ++ " }"
-
 -- lexing {{{1
 lex :: File.File -> ([LexError.LexError], [Token.LUnprocessedToken], Token.LNormalToken)
 lex f =
-    let (errs, toks) = run [] [] (new_lexer f)
+    let (errs, toks) = run [] [] (Location.new_location f)
         eof = Location.Located (Location.eof_span f) (Token.EOF ())
     in (errs, toks, eof)
     where
         run errs_acc toks_acc l
-            | Text.null $ remaining l = (errs_acc, toks_acc) -- TODO: somehow encode that the lexer is not at the end in the lex' type signature
+            | Text.null $ remaining l = (errs_acc, toks_acc) -- TODO: somehow encode that the location is not at the end in the lex_one_token type signature
             | otherwise =
-                let (l', e, t) = lex' l
+                let (l', e, t) = lex_one_token l
 
                     next_errs = errs_acc ++ e
                     next_toks = toks_acc ++ t
 
-                in
-                seq next_errs $ -- not sure if this actually helps, needs deep seq?
+                in seq next_errs $ -- not sure if this actually helps, needs deep seq?
                     seq next_toks $
                     run next_errs next_toks l'
--- lex' {{{2
-lex' :: Lexer -> (Lexer, [LexError.LexError], [Token.LUnprocessedToken])
-lex' lexer = head $ mapMaybe (($ lexer) . run_lexfn) lex_choices
+-- lex_one_token {{{2
+lex_one_token :: Location.Location -> (Location.Location, [LexError.LexError], [Token.LUnprocessedToken])
+lex_one_token loc = head $ mapMaybe (($ loc) . run_lexer) lex_choices
     where
         lex_choices =
             [ lex_comment
@@ -66,36 +56,37 @@ lex' lexer = head $ mapMaybe (($ lexer) . run_lexfn) lex_choices
             , make_bad_char
             ]
 -- lexing functions {{{2
--- TODO: replace all explicit calls of LexFn and run_lexfn with combinators
-newtype LexFn a = LexFn { run_lexfn :: Lexer -> Maybe (Lexer, [LexError.LexError], a) }
+-- TODO: replace all explicit calls of Lexer and run_lexer with combinators
+newtype Lexer a = Lexer { run_lexer :: Location.Location -> Maybe (Location.Location, [LexError.LexError], a) }
 
-instance Functor LexFn where
-    fmap f a = LexFn $ \ lexer ->
-        case run_lexfn a lexer of
-            Just (lexer', errs, res) -> Just (lexer', errs, f res)
+instance Functor Lexer where
+    fmap f a = Lexer $ \ loc ->
+        case run_lexer a loc of
+            Just (loc', errs, res) -> Just (loc', errs, f res)
             Nothing -> Nothing
 
-instance Applicative LexFn where
-    pure a = LexFn $ \ lexer -> Just (lexer, [], a)
-    a <*> b = LexFn $ \ lexer ->
-        case run_lexfn a lexer of
-            Just (lexer', errs, ares) ->
-                case run_lexfn b lexer' of
-                    Just (lexer'', errs', bres) -> Just (lexer'', errs ++ errs', ares bres)
+instance Applicative Lexer where
+    pure a = Lexer $ \ loc -> Just (loc, [], a)
+    a <*> b = Lexer $ \ loc ->
+        case run_lexer a loc of
+            Just (loc', errs, ares) ->
+                case run_lexer b loc' of
+                    Just (loc'', errs', bres) -> Just (loc'', errs ++ errs', ares bres)
                     _ -> Nothing
             _ -> Nothing
 
-instance Monad LexFn where
-    a >>= b = LexFn $ \ lexer ->
-        case run_lexfn a lexer of
-            Just (lexer', errs, res) ->
-                case run_lexfn (b res) lexer' of
-                    Just (lexer'', errs', res') -> Just (lexer'', errs ++ errs', res')
+instance Monad Lexer where
+    a >>= b = Lexer $ \ loc ->
+        case run_lexer a loc of
+            Just (loc', errs, res) ->
+                case run_lexer (b res) loc' of
+                    Just (loc'', errs', res') -> Just (loc'', errs ++ errs', res')
                     _ -> Nothing
             _ -> Nothing
 
-lex_comment :: LexFn [Token.LUnprocessedToken]
-lex_comment = LexFn $ \ start_lexer -> -- TODO: figure out a less janky way to do this
+lex_comment :: Lexer [Token.LUnprocessedToken]
+lex_comment =
+    get_loc >>= \ start_loc ->
     let lex_singleline = consume (=='/') >> consume (=='/') >> lex_singleline_body
         lex_singleline_body =
             choice
@@ -109,23 +100,36 @@ lex_comment = LexFn $ \ start_lexer -> -- TODO: figure out a less janky way to d
                 [ consume (=='*') >> consume (=='/') >> pure []
                 , lex_multiline >> lex_multiline_body
                 , consume (const True) >> lex_multiline_body
-                , LexFn $ \ lexer -> Just (lexer, [LexError.UnclosedMComment $ lexer_span_start_and_end start_lexer lexer], [])
+                , get_loc >>= \ loc -> put_error (LexError.UnclosedMComment $ new_span_start_and_end start_loc loc) >> pure []
                 ]
-    in run_lexfn (choice [lex_singleline, lex_multiline]) start_lexer
+    in choice [lex_singleline, lex_multiline]
 
-lex_id_or_kw :: (Char -> Bool) -> (Char -> Bool) -> [(String, Token.UnprocessedToken)] -> (String -> Token.UnprocessedToken) -> LexFn [Token.LUnprocessedToken]
-lex_id_or_kw is_valid_start is_valid_char kws def = LexFn $ \ lexer ->
-    case Text.uncons $ remaining lexer of
+lex_id_or_kw :: (Char -> Bool) -> (Char -> Bool) -> [(String, Token.UnprocessedToken)] -> (String -> Token.UnprocessedToken) -> Lexer [Token.LUnprocessedToken]
+lex_id_or_kw is_valid_start is_valid_char kws def =
+    get_loc >>= \ start_loc ->
+    consume is_valid_start >>= \ first_char ->
+    choice [lex_rest, pure []] >>= \ more ->
+    let full = Location.unlocate <$> first_char : more
+        tok = fromMaybe (def full) (lookup full kws)
+    in get_loc >>= \ end_loc ->
+    pure [Location.Located (new_span_start_and_end start_loc end_loc) tok]
+    where
+        lex_rest = consume is_valid_char >>= \ c -> (c:) <$> choice [lex_rest, pure []]
+
+{-
+    Lexer $ \ loc ->
+    case Text.uncons $ remaining loc of
         Just (first_char, _)
             | is_valid_start first_char ->
-                let (_, more, lexer') = (lexer `seek` 1) `seek_while` is_valid_char
+                let (_, more, loc') = (loc `seek` 1) `seek_while` is_valid_char
                     full = first_char : Text.unpack more
                     tok = fromMaybe (def full) (lookup full kws)
-                in Just (lexer', [], [Location.Located (lexer_span lexer 0 (length full)) tok])
+                in Just (loc', [], [Location.Located (Location.new_span loc 0 (length full)) tok])
 
         _ -> Nothing
+-}
 
-lex_alpha_identifier :: LexFn [Token.LUnprocessedToken]
+lex_alpha_identifier :: Lexer [Token.LUnprocessedToken]
 lex_alpha_identifier =
     lex_id_or_kw
         (\ ch -> isAlpha ch || ch == '_')
@@ -142,7 +146,7 @@ lex_alpha_identifier =
         ]
         Token.AlphaIdentifier
 
-lex_symbol_identifier :: LexFn [Token.LUnprocessedToken]
+lex_symbol_identifier :: Lexer [Token.LUnprocessedToken]
 lex_symbol_identifier =
     lex_id_or_kw
         (`elem` ("~!@#$%^&*+`-=|:./<>?()[]\\{};,\n" :: String))
@@ -164,28 +168,28 @@ lex_symbol_identifier =
         ]
         Token.SymbolIdentifier
 
-lex_str_or_char_lit :: LexFn [Token.LUnprocessedToken]
-lex_str_or_char_lit = LexFn $ \ lexer ->
-    case Text.uncons $ remaining lexer of
+lex_str_or_char_lit :: Lexer [Token.LUnprocessedToken]
+lex_str_or_char_lit = Lexer $ \ loc ->
+    case Text.uncons $ remaining loc of
         Just (open, _) | open == '\'' || open == '"' ->
-            let (_, str_contents, lexer') = (lexer `seek` 1) `seek_while` (\ ch -> ch /= open && ch /= '\n')
-            in if lexer' `matches` [open]
+            let (_, str_contents, loc') = (loc `seek` 1) `seek_while` (\ ch -> ch /= open && ch /= '\n')
+            in if loc' `matches` [open]
                 then
-                    let lit_span = lexer_span lexer 0 (Text.length str_contents + 2)
-                        lexer'' = lexer' `seek` 1
+                    let lit_span = Location.new_span loc 0 (Text.length str_contents + 2)
+                        loc'' = loc' `seek` 1
                     in if open == '\''
                         then if Text.length str_contents /= 1
-                            then Just (lexer'', [LexError.MulticharCharLit lit_span], [])
-                            else Just (lexer'', [], [Location.Located lit_span $ Token.SingleTypeToken $ Token.CharLit $ Text.head str_contents])
-                        else Just (lexer'', [], [Location.Located lit_span $ Token.SingleTypeToken $ Token.StringLit $ Text.unpack str_contents])
+                            then Just (loc'', [LexError.MulticharCharLit lit_span], [])
+                            else Just (loc'', [], [Location.Located lit_span $ Token.SingleTypeToken $ Token.CharLit $ Text.head str_contents])
+                        else Just (loc'', [], [Location.Located lit_span $ Token.SingleTypeToken $ Token.StringLit $ Text.unpack str_contents])
                 else if open == '\''
-                        then Just (lexer', [LexError.UnclosedCharLit $ lexer_span lexer 0 $ Text.length str_contents], [])
-                        else Just (lexer', [LexError.UnclosedStrLit $ lexer_span lexer 0 $ Text.length str_contents], [])
+                        then Just (loc', [LexError.UnclosedCharLit $ Location.new_span loc 0 $ Text.length str_contents], [])
+                        else Just (loc', [LexError.UnclosedStrLit $ Location.new_span loc 0 $ Text.length str_contents], [])
 
         _ -> Nothing
 
-lex_number :: LexFn [Token.LUnprocessedToken]
-lex_number = LexFn $ \ lexer ->
+lex_number :: Lexer [Token.LUnprocessedToken]
+lex_number = Lexer $ \ loc ->
     let lex_base = consume (=='0') >> consume isAlpha
 
         lex_digits = consume isHexDigit >>= \ c -> (c:) <$> (choice [lex_digits, pure []])
@@ -198,12 +202,12 @@ lex_number = LexFn $ \ lexer ->
             choice [lex_float, pure []] >>= \ m_float ->
             pure (m_base, digits, m_float)
 
-    in case run_lexfn lex_whole_thing lexer of
+    in case run_lexer lex_whole_thing loc of
         Nothing -> Nothing
         Just (_, _:_, _) -> error "unreachable"
 
-        Just (lexer', [], (m_base, digits, floats)) ->
-            let num_span = lexer_span_start_and_end lexer lexer'
+        Just (loc', [], (m_base, digits, floats)) ->
+            let num_span = new_span_start_and_end loc loc'
                 ei_tok_base = case m_base of
                     Just (Location.Located _ 'o') -> Right (Token.Oct, 8)
                     Just (Location.Located _ 'x') -> Right (Token.Hex, 16)
@@ -227,98 +231,71 @@ lex_number = LexFn $ \ lexer ->
                         illegal_digits = check_digits digit_legal digits
 
                     in if null illegal_digits
-                        then Just (lexer', [], [Location.Located num_span (Token.SingleTypeToken $ Token.IntLit tok_base (read_digits ((^) :: Integer -> Int -> Integer) base_num (zip [0..] (map Location.unlocate (reverse digits)))))])
-                        else Just (lexer', illegal_digits, [])
+                        then Just (loc', [], [Location.Located num_span (Token.SingleTypeToken $ Token.IntLit tok_base (read_digits ((^) :: Integer -> Int -> Integer) base_num (zip [0..] (map Location.unlocate (reverse digits)))))])
+                        else Just (loc', illegal_digits, [])
 
                 (Right (tok_base, _), _) ->
                     let illegal_digits = check_digits isDigit (digits ++ floats)
                         base_is_dec = if tok_base == Token.Dec then [] else [LexError.NonDecimalFloat num_span]
 
                     in if null illegal_digits && null base_is_dec
-                        then Just (lexer', [], [Location.Located num_span (Token.SingleTypeToken $ Token.FloatLit $ read_digits ((^^) :: Decimal.Decimal -> Int -> Decimal.Decimal) 10 (zip [0..] (map Location.unlocate $ reverse digits) ++ zip [-1, -2..] (map Location.unlocate floats)))])
-                        else Just (lexer', illegal_digits ++ base_is_dec, [])
+                        then Just (loc', [], [Location.Located num_span (Token.SingleTypeToken $ Token.FloatLit $ read_digits ((^^) :: Decimal.Decimal -> Int -> Decimal.Decimal) 10 (zip [0..] (map Location.unlocate $ reverse digits) ++ zip [-1, -2..] (map Location.unlocate floats)))])
+                        else Just (loc', illegal_digits ++ base_is_dec, [])
 
-                (Left err, _) -> Just (lexer', [err], [])
+                (Left err, _) -> Just (loc', [err], [])
 
-lex_space :: LexFn [Token.LUnprocessedToken]
-lex_space = LexFn $ \ lexer ->
-    case Text.uncons $ remaining lexer of
-        Just (x, _) | isSpace x -> Just (lexer `seek` 1, [], [])
-        _ -> Nothing
+lex_space :: Lexer [Token.LUnprocessedToken]
+lex_space = consume isSpace >> pure []
 
-make_bad_char :: LexFn [Token.LUnprocessedToken]
-make_bad_char = LexFn $ \ lexer ->
-    case Text.uncons $ remaining lexer of
-        Nothing -> Nothing
-        Just (x, _) -> Just (lexer `seek` 1, [LexError.BadChar x $ lexer_span lexer 0 1], [])
+make_bad_char :: Lexer [Token.LUnprocessedToken]
+make_bad_char =
+    consume (const True) >>= \ (Location.Located sp c) ->
+    Lexer (\ loc -> Just (loc, [LexError.BadChar c sp], []))
 -- helper functions {{{1
-l_contents :: Lexer -> Text.Text
-l_contents = File.contents . Location.file . location
+remaining :: Location.Location -> Text.Text
+remaining l = Text.drop (Location.ind l) (File.contents $ Location.file l)
 
-l_ind :: Lexer -> Int
-l_ind = Location.ind . location
-
-remaining :: Lexer -> Text.Text
-remaining l = Text.drop (l_ind l) (l_contents l)
-
-passed :: Lexer -> Text.Text
-passed l = Text.take (l_ind l) (l_contents l)
-
-rev_passed :: Lexer -> Text.Text
-rev_passed = Text.reverse . passed
-
-new_lexer :: File.File -> Lexer
-new_lexer f = Lexer (Location.new_location f)
-
-lexer_span :: Lexer -> Int -> Int -> Location.Span
-lexer_span lexer start len = Location.new_span (location lexer) start len
-
-lexer_span_start_and_end :: Lexer -> Lexer -> Location.Span
+new_span_start_and_end :: Location.Location -> Location.Location -> Location.Span
 -- start and end should be in the same file because the lex function never processes more than one file at a time
-lexer_span_start_and_end start end = lexer_span start 0 (l_ind end - l_ind start)
+new_span_start_and_end start end = Location.new_span start 0 (Location.ind end - Location.ind start)
 
-matches :: Lexer -> String -> Bool
+matches :: Location.Location -> String -> Bool
 matches l s = text_matches s (remaining l)
 
 text_matches :: String -> Text.Text -> Bool
 text_matches s t = Text.unpack (Text.take (length s) t) == s
 
-seek_while :: Lexer -> (Char -> Bool) -> (Location.Span, Text.Text, Lexer)
+seek_while :: Location.Location -> (Char -> Bool) -> (Location.Span, Text.Text, Location.Location)
 seek_while l p =
     let fits = Text.takeWhile p (remaining l)
-    in (lexer_span l 0 (Text.length fits), fits, l `seek` Text.length fits)
+    in (Location.new_span l 0 (Text.length fits), fits, l `seek` Text.length fits)
 
-seek :: Lexer -> Int -> Lexer
-seek l n = l { location = Location.seek n (location l) }
+seek :: Location.Location -> Int -> Location.Location
+seek = flip Location.seek
 
-choice :: [LexFn a] -> LexFn a
-choice [] = LexFn $ \ _ -> Nothing
-choice (fn:fns) = LexFn $ \ lexer ->
-    case run_lexfn fn lexer of
-        Nothing -> run_lexfn (choice fns) lexer
+choice :: [Lexer a] -> Lexer a
+choice [] = Lexer $ \ _ -> Nothing
+choice (fn:fns) = Lexer $ \ loc ->
+    case run_lexer fn loc of
+        Nothing -> run_lexer (choice fns) loc
         Just res -> Just res
 
-consume :: (Char -> Bool) -> LexFn (Location.Located Char)
-consume p = LexFn $ \ lexer ->
-    case Text.uncons $ remaining lexer of
+consume :: (Char -> Bool) -> Lexer (Location.Located Char)
+consume p = Lexer $ \ loc ->
+    case Text.uncons $ remaining loc of
         Just (c, _)
-            | p c -> Just (lexer `seek` 1, [], Location.Located (lexer_span lexer 0 1) c)
+            | p c -> Just (loc `seek` 1, [], Location.Located (Location.new_span loc 0 1) c)
         _ -> Nothing
+
+get_loc :: Lexer Location.Location
+get_loc = Lexer $ \ loc -> Just (loc, [], loc)
+
+put_error :: LexError.LexError -> Lexer ()
+put_error err = Lexer $ \ loc -> Just (loc, [err], ())
 -- tests {{{1
 -- TODO: update tests
-case_l_contents :: Assertion
-case_l_contents = "abcdefghijkl" @=? l_contents (Lexer (Location.new_location (File.File "filename" "abcdefghijkl")))
 case_remaining :: Assertion
-case_remaining = "fghijkl" @=? remaining (Lexer (Location.seek 5 $ Location.new_location (File.File "filename" "abcdefghijkl")))
-case_passed :: Assertion
-case_passed = "abcde" @=? passed (Lexer (Location.seek 5 $ Location.new_location (File.File "filename" "abcdefghijkl")))
-case_rev_passed :: Assertion
-case_rev_passed = "edcba" @=? rev_passed (Lexer (Location.seek 5 $ Location.new_location (File.File "filename" "abcdefghijkl")))
-
-case_new_lexer :: Assertion
-case_new_lexer =
-    let f = File.File "a" "abc"
-    in Lexer (Location.new_location f) @=? new_lexer f
+case_remaining = "fghijkl" @=? remaining (Location.seek 5 $ Location.new_location (File.File "filename" "abcdefghijkl"))
 
 case_lex :: Assertion
 case_lex =
@@ -335,20 +312,20 @@ case_lex_empty =
         ([], [], _) -> return ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
-lex_test :: (Lexer -> r) -> Text.Text -> (r -> IO ()) -> IO ()
-lex_test fn input check = check $ fn $ new_lexer $ File.File "a" input
-lex_test' :: LexFn r -> Text.Text -> (Maybe (Lexer, [LexError.LexError], r) -> IO ()) -> IO ()
-lex_test' fn = lex_test (run_lexfn fn)
+lex_test :: (Location.Location -> r) -> Text.Text -> (r -> IO ()) -> IO ()
+lex_test fn input check = check $ fn $ Location.new_location $ File.File "a" input
+lex_test' :: Lexer r -> Text.Text -> (Maybe (Location.Location, [LexError.LexError], r) -> IO ()) -> IO ()
+lex_test' fn = lex_test (run_lexer fn)
 lex_test_fail :: Show r => String -> r -> IO a
 lex_test_fail fn_name res = assertFailure $ "'" ++ fn_name ++ "' lexed incorrectly: returned '" ++ show res ++ "'"
 
-case_lex' :: Assertion
-case_lex' =
-    lex_test lex' "abc" $ \case
+case_lex_one_token :: Assertion
+case_lex_one_token =
+    lex_test lex_one_token "abc" $ \case
         (l, [], [Location.Located _ (Token.AlphaIdentifier "abc")])
             | remaining l == "" -> return ()
 
-        x -> lex_test_fail "lex'" x
+        x -> lex_test_fail "lex_one_token" x
 
 case_lex_comment_single :: Assertion
 case_lex_comment_single =

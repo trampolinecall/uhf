@@ -54,6 +54,7 @@ count_indent_numbers = Maybe.mapMaybe count_indent
             where
                 sp_start = Location.start sp
 
+-- TODO: remove newlines before indents, after semicolons
 insert_indentation_tokens :: [(Int, [Token.LUnprocessedToken], Location.Span)] -> [Token.LTokenWithIndentation]
 insert_indentation_tokens lns = Writer.execWriter $ State.execStateT (mapM do_line lns >> put_final_dedents) [IndentationSensitive 0]
     where
@@ -79,15 +80,11 @@ insert_indentation_tokens lns = Writer.execWriter $ State.execStateT (mapM do_li
                                             State.modify tail >>
                                             pop_if_needed
 
+                                        | il < cur_indent -> error "invalid dedent" -- TODO: make an actual error for this
+
                                     _ -> return ()
 
-                        in pop_if_needed >>
-
-                        head <$> State.get >>= \case
-                            IndentationSensitive il
-                                | il < cur_indent -> error "invalid dedent" -- TODO: make an actual error for this
-
-                            _ -> return ()
+                        in pop_if_needed
 
                 _ -> return ()
 
@@ -225,7 +222,7 @@ case_insert_indentation_tokens_braced_block =
     in
         insert_indentation_tokens
             [(0, [fst <$> ln1, fst <$> obrace], Location.just_span nl1), (4, [fst <$> ln2], Location.just_span nl2), (3, [fst <$> cbrace], Location.just_span nl3)] @?=
-        map (snd <$>) [ln1, obrace, ln2, nl2, cbrace, nl3]
+        map (snd <$>) [ln1, obrace, ln2, cbrace, nl3]
 
 -- TODO: these tests
 

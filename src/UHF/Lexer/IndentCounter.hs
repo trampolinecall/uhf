@@ -148,10 +148,17 @@ generate_lines indents =
     let (f, sps) = SpanHelper.make_spans' "test" "" (concatMap (\ (ln, i) -> [replicate i ' ', "line" ++ show ln, "\n"]) $ zip ([1..] :: [Int]) indents)
     in (f, map
         (\ (ind, ln, [_, line_sp, nl_sp]) -> (ind, Location.Located line_sp $ Token.AlphaIdentifier $ "line" ++ show ln, nl_sp))
-            (zip3
-                indents
-                ([1..] :: [Int])
-                (Split.chunksOf 3 sps)))
+            (zip3 indents ([1..] :: [Int]) (Split.chunksOf 3 sps)))
+
+nl_at :: Location.Span -> Location.Located (Token.BaseToken dc iden eof ind Token.NLLogical bs)
+nl_at sp = Location.Located sp (Token.Newline Token.NLLogical)
+
+indent_at :: Location.Located (Token.BaseToken dc iden eof ind nl bs) -> Location.Located (Token.BaseToken dc' iden' eof' () nl' bs')
+indent_at (Location.Located sp _) = Location.Located (Location.new_span (Location.start sp) 0 1) (Token.Indent ())
+dedent_at :: Location.Located (Token.BaseToken dc iden eof ind nl bs) -> Location.Located (Token.BaseToken dc' iden' eof' () nl' bs')
+dedent_at (Location.Located sp _) = Location.Located (Location.new_span (Location.start sp) 0 1) (Token.Dedent ())
+dedent_e :: Location.Span -> Location.Located (Token.BaseToken dc iden eof () nl bs)
+dedent_e sp = Location.Located sp (Token.Dedent ())
 
 case_split_lines :: Assertion
 case_split_lines =
@@ -218,16 +225,12 @@ case_insert_indentation_tokens_indented_block :: Assertion
 case_insert_indentation_tokens_indented_block =
     let (f, res@[(_, ln1, _), (_, ln2, nl2), (_, ln3, nl3)]) = generate_lines [0, 4, 0]
         eof_sp = Location.eof_span f
-        indent = Location.Located (Location.new_span (Location.start $ Location.just_span ln2) 0 1) (Token.Indent ())
-        dedent = Location.Located (Location.new_span (Location.start $ Location.just_span ln3) 0 1) (Token.Dedent ())
-    in ([], [ln1, indent, ln2, Location.Located nl2 $ Token.Newline Token.NLLogical, dedent, ln3, Location.Located nl3 $ Token.Newline Token.NLLogical]) @=? insert_indentation_tokens eof_sp (map (\ (i, t, nl) -> (i, [t], nl)) res)
+    in ([], [ln1, indent_at ln2, ln2, nl_at nl2, dedent_at ln3, ln3, nl_at nl3]) @=? insert_indentation_tokens eof_sp (map (\ (i, t, nl) -> (i, [t], nl)) res)
 
 case_insert_indentation_tokens_ending_dedents =
     let (f, res@[(_, ln1, _), (_, ln2, nl2)]) = generate_lines [0, 4]
         eof_sp = Location.eof_span f
-        indent = Location.Located (Location.new_span (Location.start $ Location.just_span ln2) 0 1) (Token.Indent ())
-        dedent = Location.Located eof_sp (Token.Dedent ())
-    in ([], [ln1, indent, ln2, Location.Located nl2 $ Token.Newline Token.NLLogical, dedent]) @=? insert_indentation_tokens eof_sp (map (\ (i, t, nl) -> (i, [t], nl)) res)
+    in ([], [ln1, indent_at ln2, ln2, nl_at nl2, dedent_e eof_sp]) @=? insert_indentation_tokens eof_sp (map (\ (i, t, nl) -> (i, [t], nl)) res)
 
 case_insert_indentation_tokens_braced_block :: Assertion
 case_insert_indentation_tokens_braced_block =
@@ -245,35 +248,50 @@ case_insert_indentation_tokens_braced_block =
 
 -- TODO: these tests
 case_insert_indentation_tokens_indented_begin :: Assertion
-case_insert_indentation_tokens_indented_begin = undefined
-{-
-    line1
-line2
--}
+case_insert_indentation_tokens_indented_begin =
+    let (f, res@[(_, ln1, nl1), (_, ln2, nl2)]) = generate_lines [4, 0]
+        eof_sp = Location.eof_span f
+    in ([], [indent_at ln1, ln1, nl_at nl1, dedent_at ln2, ln2, nl_at nl2]) @=? insert_indentation_tokens eof_sp (map (\ (i, t, nl) -> (i, [t], nl)) res)
 
 case_insert_indentation_tokens_nested_indented_blocks :: Assertion
-case_insert_indentation_tokens_nested_indented_blocks = undefined
-{-
-
-line1
-    line2
-        line3
-            line4
-        line5
-line6
-    line7
-        line8
--}
+case_insert_indentation_tokens_nested_indented_blocks =
+    let (f, res@[(_, ln1, _), (_, ln2, _), (_, ln3, _), (_, ln4, nl4), (_, ln5, nl5), (_, ln6, _), (_, ln7, _), (_, ln8, nl8)]) = generate_lines [0, 4, 8, 12, 8, 0, 4, 8]
+        eof_sp = Location.eof_span f
+    in
+        ( [],
+          [ ln1
+          , indent_at ln2, ln2
+          , indent_at ln3, ln3
+          , indent_at ln4, ln4, nl_at nl4
+          , dedent_at ln5, ln5, nl_at nl5
+          , dedent_at ln6, dedent_at ln6, ln6
+          , indent_at ln7, ln7
+          , indent_at ln8, ln8, nl_at nl8
+          , dedent_e eof_sp, dedent_e eof_sp
+          ]
+        ) @=?
+        insert_indentation_tokens eof_sp (map (\ (i, t, nl) -> (i, [t], nl)) res)
 
 case_insert_indentation_tokens_nl_after_semi :: Assertion
-case_insert_indentation_tokens_nl_after_semi = undefined
-
-{-
-"line1;\n"
--}
+case_insert_indentation_tokens_nl_after_semi =
+    let (f, [ln, semi, nl]) = SpanHelper.make_spans_with_show_items' "test" ""
+                [(Token.AlphaIdentifier "line1", Token.AlphaIdentifier "line1"), (Token.Semicolon, Token.Semicolon), (Token.Newline Token.NLPhysical, Token.Newline Token.NLLogical)]
+        eof_sp = Location.eof_span f
+    in ([], [snd <$> ln, snd <$> semi]) @=? insert_indentation_tokens eof_sp [(0, [fst <$> ln, fst <$> semi], Location.just_span nl)]
 
 case_insert_indentation_tokens_semi_before_dedent :: Assertion
-case_insert_indentation_tokens_semi_before_dedent = undefined
+case_insert_indentation_tokens_semi_before_dedent =
+    let (f, [ln1, nl1, ln2, semi2, nl2, ln3, nl3]) = SpanHelper.make_spans_with_show_items' "test" ""
+                [ (Token.AlphaIdentifier "line1", Token.AlphaIdentifier "line1"), (Token.Newline Token.NLPhysical, Token.Newline Token.NLLogical)
+                , (Token.AlphaIdentifier "line2", Token.AlphaIdentifier "line2"), (Token.Semicolon, Token.Semicolon), (Token.Newline Token.NLPhysical, Token.Newline Token.NLLogical)
+                , (Token.AlphaIdentifier "line3", Token.AlphaIdentifier "line3"), (Token.Newline Token.NLPhysical, Token.Newline Token.NLLogical)]
+        eof_sp = Location.eof_span f
+    in ([], [snd <$> ln1, indent_at $ snd <$> ln2, snd <$> ln2, snd <$> semi2, dedent_at $ snd <$> ln3, snd <$> ln3, snd <$> nl3]) @=?
+        insert_indentation_tokens eof_sp
+            [ (0, [fst <$> ln1], Location.just_span nl1)
+            , (4, [fst <$> ln2, fst <$> semi2], Location.just_span nl2)
+            , (0, [fst <$> ln3], Location.just_span nl3)
+            ]
 
 {-
 line1

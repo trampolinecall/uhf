@@ -218,7 +218,7 @@ case_insert_indentation_tokens_ending_dedents =
     let (f, res@[(_, ln1, _), (_, ln2, nl2)]) = generate_lines [0, 4]
         eof_sp = Location.eof_span f
         indent = Location.Located (Location.new_span (Location.start $ Location.just_span ln2) 0 1) (Token.Indent ())
-        dedent = Location.Located (Location.new_span (Location.start nl2) 0 1) (Token.Dedent ())
+        dedent = Location.Located eof_sp (Token.Dedent ())
     in ([], [ln1, indent, ln2, Location.Located nl2 $ Token.Newline Token.NLLogical, dedent]) @=? insert_indentation_tokens eof_sp (map (\ (i, t, nl) -> (i, [t], nl)) res)
 
 case_insert_indentation_tokens_braced_block :: Assertion

@@ -26,7 +26,7 @@ import qualified Control.Monad.Trans.State as State
 import qualified Control.Monad.Trans.Writer as Writer
 import Control.Monad.Trans.Class
 
-data IndentationFrame = IndentationSensitive Int | IndentationInsensitive
+data IFrame = ISensitive Int | IInsensitive
 
 count_indents :: ([Token.LUnprocessedToken], Token.LNormalToken) -> [Token.LTokenWithIndentation]
 count_indents = insert_indentation_tokens . count_indent_numbers . join_logical_lines . split_lines
@@ -56,7 +56,7 @@ count_indent_numbers = Maybe.mapMaybe count_indent
 
 -- TODO: remove newlines before indents, after semicolons
 insert_indentation_tokens :: [(Int, [Token.LUnprocessedToken], Location.Span)] -> [Token.LTokenWithIndentation]
-insert_indentation_tokens lns = Writer.execWriter $ State.execStateT (mapM do_line lns >> put_final_dedents) [IndentationSensitive 0]
+insert_indentation_tokens lns = Writer.execWriter $ State.execStateT (mapM do_line lns >> put_final_dedents) [ISensitive 0]
     where
         do_line (indent_amt, toks, nl) =
             do_indentation indent_amt (Location.start $ Location.just_span $ head toks) >>
@@ -66,15 +66,15 @@ insert_indentation_tokens lns = Writer.execWriter $ State.execStateT (mapM do_li
         do_indentation cur_indent start_loc =
             let indent_token_sp = Location.new_span start_loc 0 1
             in head <$> State.get >>= \case
-                IndentationSensitive last_indent
+                ISensitive last_indent
                     | cur_indent > last_indent ->
                         lift (Writer.tell [Location.Located indent_token_sp (Token.Indent ())]) >>
-                        State.modify (IndentationSensitive cur_indent:)
+                        State.modify (ISensitive cur_indent:)
 
                     | cur_indent < last_indent ->
                         let pop_if_needed =
                                 head <$> State.get >>= \case
-                                    IndentationSensitive il
+                                    ISensitive il
                                         | cur_indent < il ->
                                             lift (Writer.tell [Location.Located indent_token_sp (Token.Dedent ())]) >>
                                             State.modify tail >>
@@ -82,22 +82,22 @@ insert_indentation_tokens lns = Writer.execWriter $ State.execStateT (mapM do_li
 
                                         | il < cur_indent -> error "invalid dedent" -- TODO: make an actual error for this
 
-                                    _ -> return ()
+                                    _ -> error "unreachable: indentatino block inside braced block"
 
                         in pop_if_needed
 
                 _ -> return ()
 
-        put_newline :: Location.Span -> State.StateT [IndentationFrame] (Writer.Writer [Token.LTokenWithIndentation]) ()
+        put_newline :: Location.Span -> State.StateT [IFrame] (Writer.Writer [Token.LTokenWithIndentation]) ()
         put_newline nl_sp =
             head <$> State.get >>= \case
-                IndentationSensitive _ -> lift $ Writer.tell [Location.Located nl_sp (Token.Newline Token.NLLogical)]
+                ISensitive _ -> lift $ Writer.tell [Location.Located nl_sp (Token.Newline Token.NLLogical)]
                 _ -> return ()
 
-        go_through_tokens :: [Token.LUnprocessedToken] -> State.StateT [IndentationFrame] (Writer.Writer [Token.LTokenWithIndentation]) ()
+        go_through_tokens :: [Token.LUnprocessedToken] -> State.StateT [IFrame] (Writer.Writer [Token.LTokenWithIndentation]) ()
         go_through_tokens = mapM_ wtok -- TODO: braces
             where
-                wtok :: Token.LUnprocessedToken -> State.StateT [IndentationFrame] (Writer.Writer [Token.LTokenWithIndentation]) ()
+                wtok :: Token.LUnprocessedToken -> State.StateT [IFrame] (Writer.Writer [Token.LTokenWithIndentation]) ()
                 wtok (Location.Located sp t) = lift $ Writer.tell [Location.Located sp (do_tok t)]
 
                 do_tok :: Token.UnprocessedToken -> Token.TokenWithIndentation
@@ -122,8 +122,8 @@ insert_indentation_tokens lns = Writer.execWriter $ State.execStateT (mapM do_li
             lift (Writer.tell $
                 concatMap
                     (\case
-                        IndentationSensitive _ -> [Location.Located undefined (Token.Dedent ())]
-                        IndentationInsensitive -> [])
+                        ISensitive _ -> [Location.Located undefined (Token.Dedent ())]
+                        IInsensitive -> [])
                     indentation_frames)
 
 -- tests {{{1

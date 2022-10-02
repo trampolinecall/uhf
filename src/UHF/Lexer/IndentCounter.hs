@@ -53,8 +53,7 @@ join_logical_lines [] = []
 count_indent_numbers :: [([Token.LUnprocessedToken], Location.Span)] -> [(Int, [Token.LUnprocessedToken], Location.Span)]
 count_indent_numbers = Maybe.mapMaybe count_indent
     where
-        -- TODO: count tab characters properly
-        count_indent ([], _) = Nothing
+        count_indent ([], _) = error "unreachable"
         count_indent (toks@((Location.Located sp _):_), nl) = Just (count_spaces $ Text.takeWhileEnd (/='\n') $ Text.take (Location.ind sp_start) (File.contents $ Location.file sp_start), toks, nl)
             where
                 sp_start = Location.start sp
@@ -243,7 +242,6 @@ case_insert_indentation_tokens_braced_block =
             [(0, [fst <$> ln1, fst <$> obrace], Location.just_span nl1), (4, [fst <$> ln2], Location.just_span nl2), (3, [fst <$> cbrace], Location.just_span nl3)] @?=
         ([], map (snd <$>) [ln1, obrace, ln2, cbrace, nl3])
 
--- TODO: these tests
 case_insert_indentation_tokens_indented_begin :: Assertion
 case_insert_indentation_tokens_indented_begin =
     let (f, res@[(_, ln1, nl1), (_, ln2, nl2)]) = generate_lines [4, 0]

@@ -116,19 +116,6 @@ lex_id_or_kw is_valid_start is_valid_char kws def =
     where
         lex_rest = consume is_valid_char >>= \ c -> (c:) <$> choice [lex_rest, pure []]
 
-{-
-    Lexer $ \ loc ->
-    case Text.uncons $ remaining loc of
-        Just (first_char, _)
-            | is_valid_start first_char ->
-                let (_, more, loc') = (loc `seek` 1) `seek_while` is_valid_char
-                    full = first_char : Text.unpack more
-                    tok = fromMaybe (def full) (lookup full kws)
-                in Just (loc', [], [Location.Located (Location.new_span loc 0 (length full)) tok])
-
-        _ -> Nothing
--}
-
 lex_alpha_identifier :: Lexer [Token.LUnprocessedToken]
 lex_alpha_identifier =
     lex_id_or_kw

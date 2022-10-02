@@ -103,7 +103,7 @@ lines_shown = map (\ (sp, _, _) -> (Location.file $ Location.start sp, Location.
 get_complete_messages :: [Underline] -> [CompleteMessage]
 get_complete_messages =
     List.sortBy (flip compare `Function.on` cm_start_col) .
-    concatMap (\ (sp, _, msgs) -> map (\ (i, (ty, tx)) -> (i == length msgs - 1, Location.before_end sp, ty, tx)) $ zip [0..] msgs)
+    concatMap (\ (sp, _, msgs) -> zipWith (\ i (ty, tx) -> (i == length msgs - 1, Location.before_end sp, ty, tx)) [0..] msgs)
 
 get_colored_quote_and_underline_line :: File.File -> Int -> [Underline] -> (FormattedString.FormattedString, FormattedString.FormattedString)
 get_colored_quote_and_underline_line fl nr unds =
@@ -116,14 +116,14 @@ get_colored_quote_and_underline_line fl nr unds =
 
         quote = Text.unpack $ Utils.get_quote fl nr
         colored_quote =
-            map
-                (\ (ch, m_und) ->
+            zipWith
+                (\ ch m_und ->
                     case m_und of
                         Nothing -> ([], Text.pack [ch])
                         Just (_, Nothing) -> ([Colors.bold], Text.pack [ch])
                         Just (_, Just ty) -> (type_color ty, Text.pack [ch])
                 )
-                (zip quote underline_for_cols)
+                quote underline_for_cols
 
         underline_line =
             map
@@ -209,13 +209,13 @@ show_multiline (und_sp, und_importance, und_msgs) =
         n_vertical_lines = n_lines `div` 2
         mid_line =
             if odd n_lines
-                then Just $ (Location.file $ Location.start und_sp, (start_line + end_line) `div` 2)
+                then Just (Location.file $ Location.start und_sp, (start_line + end_line) `div` 2)
                 else Nothing
 
         und_imp_char = imp_char und_importance
         rev_und_imp_char = top_imp_char und_importance
 
-        und_sgr = maybe ([Colors.bold]) type_color (fst <$> Safe.headMay und_msgs)
+        und_sgr = maybe [Colors.bold] type_color (fst <$> Safe.headMay und_msgs)
 
     in
         [Line.file_line (Location.file $ Location.start und_sp)] ++
@@ -232,7 +232,7 @@ show_top_lines loc n ch sgr =
         start_quote = Utils.get_quote file start_line
 
         top_lines = [Location.line loc + 1 .. Location.line loc + n - 1]
-        max_col = maximum (map (Text.length . Utils.get_quote (file)) (start_line : top_lines)) + 2
+        max_col = maximum (map (Text.length . Utils.get_quote file) (start_line : top_lines)) + 2
 
         col_diff = max_col - start_col + 1
         n_ch = min 3 col_diff
@@ -243,7 +243,7 @@ show_top_lines loc n ch sgr =
         [ Line.numbered_line start_line $ FormattedString.make_formatted_string
             [([], "  "), ([], Text.take (start_col - 1) start_quote), (sgr, Text.drop (start_col - 1) start_quote), ([], Text.replicate (max_col - Text.length start_quote - 1) " "), ([Colors.bold], "|")]] ++
         map (\ l ->
-            let quote = Utils.get_quote (file) l
+            let quote = Utils.get_quote file l
                 pad = max_col - Text.length quote - 1
             in Line.numbered_line l $ FormattedString.make_formatted_string [([], "  "), (sgr, quote), ([], Text.replicate pad " "), ([Colors.bold], "|")]
         ) top_lines

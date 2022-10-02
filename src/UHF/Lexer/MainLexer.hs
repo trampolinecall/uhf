@@ -134,7 +134,7 @@ lex_symbol_identifier =
         (`elem` ("~!@#$%^&*+`-=|:./<>?()[]\\{};,\n" :: String))
         (`elem` ("~!@#$%^&*+`-=|:./<>?" :: String))
         [ ("->", Token.SingleTypeToken Token.Arrow)
-        , ("::", (Token.DoubleColon ()))
+        , ("::", Token.DoubleColon ())
         , ("(", Token.SingleTypeToken Token.OParen)
         , (")", Token.SingleTypeToken Token.CParen)
         , ("[", Token.SingleTypeToken Token.OBrack)
@@ -176,7 +176,7 @@ lex_number :: Lexer [Token.LUnprocessedToken]
 lex_number =
     get_loc >>= \ start_loc ->
 
-    choice [Just <$> lex_base, pure Nothing] >>= \ (m_base) ->
+    choice [Just <$> lex_base, pure Nothing] >>= \ m_base ->
     lex_digits >>= \ digits ->
     choice [lex_float, pure []] >>= \ floats ->
 
@@ -191,7 +191,7 @@ lex_number =
 
             Just (Location.Located base_sp c) -> Left $ LexError.InvalidIntBase c base_sp
 
-        read_digits power num_base = sum . map (\ (place, value) -> num_base `power` place * (fromIntegral $ digitToInt value))
+        read_digits power num_base = sum . map (\ (place, value) -> num_base `power` place * fromIntegral (digitToInt value))
 
         check_digits verify = mapMaybe (\ (Location.Located sp c) -> if verify c then Nothing else Just $ LexError.InvalidIntDigit c sp)
 

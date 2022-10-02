@@ -176,68 +176,61 @@ lex_str_or_char_lit = Lexer $ \ loc ->
         _ -> Nothing
 
 lex_number :: Lexer [Token.LUnprocessedToken]
-lex_number = Lexer $ \ loc ->
-    let lex_base = consume (=='0') >> consume isAlpha
+lex_number =
+    get_loc >>= \ start_loc ->
 
+    choice [Just <$> lex_base, pure Nothing] >>= \ (m_base) ->
+    lex_digits >>= \ digits ->
+    choice [lex_float, pure []] >>= \ floats ->
+
+    get_loc >>= \ end_loc ->
+
+    let num_span = new_span_start_and_end start_loc end_loc
+        ei_tok_base = case m_base of
+            Just (Location.Located _ 'o') -> Right (Token.Oct, 8)
+            Just (Location.Located _ 'x') -> Right (Token.Hex, 16)
+            Just (Location.Located _ 'b') -> Right (Token.Bin, 2)
+            Nothing -> Right (Token.Dec, 10)
+
+            Just (Location.Located base_sp c) -> Left $ LexError.InvalidIntBase c base_sp
+
+        read_digits power num_base = sum . map (\ (place, value) -> num_base `power` place * (fromIntegral $ digitToInt value))
+
+        check_digits verify = mapMaybe (\ (Location.Located sp c) -> if verify c then Nothing else Just $ LexError.InvalidIntDigit c sp)
+
+    in case (ei_tok_base, floats) of
+        (Right (tok_base, base_num), []) ->
+            let digit_legal = case tok_base of
+                    Token.Oct -> isOctDigit
+                    Token.Hex -> isHexDigit
+                    Token.Bin -> \ c -> c == '0' || c == '1'
+                    Token.Dec -> isDigit
+
+                illegal_digits = check_digits digit_legal digits
+
+            in if null illegal_digits
+                then pure [Location.Located num_span (Token.SingleTypeToken $ Token.IntLit tok_base (read_digits ((^) :: Integer -> Int -> Integer) base_num (zip [0..] (map Location.unlocate (reverse digits)))))]
+                else mapM_ put_error illegal_digits >> pure []
+
+        (Right (tok_base, _), _) ->
+            let illegal_digits = check_digits isDigit (digits ++ floats)
+                base_is_dec = if tok_base == Token.Dec then [] else [LexError.NonDecimalFloat num_span]
+
+            in if null illegal_digits && null base_is_dec
+                then pure [Location.Located num_span (Token.SingleTypeToken $ Token.FloatLit $ read_digits ((^^) :: Decimal.Decimal -> Int -> Decimal.Decimal) 10 (zip [0..] (map Location.unlocate $ reverse digits) ++ zip [-1, -2..] (map Location.unlocate floats)))]
+                else mapM_ put_error (illegal_digits ++ base_is_dec) >> pure []
+
+        (Left err, _) -> put_error err >> pure []
+    where
+        lex_base = consume (=='0') >> consume isAlpha
         lex_digits = consume isHexDigit >>= \ c -> (c:) <$> (choice [lex_digits, pure []])
-
         lex_float = consume (=='.') >> lex_digits
-
-        lex_whole_thing =
-            choice [Just <$> lex_base, pure Nothing] >>= \ (m_base) ->
-            lex_digits >>= \ digits ->
-            choice [lex_float, pure []] >>= \ m_float ->
-            pure (m_base, digits, m_float)
-
-    in case run_lexer lex_whole_thing loc of
-        Nothing -> Nothing
-        Just (_, _:_, _) -> error "unreachable"
-
-        Just (loc', [], (m_base, digits, floats)) ->
-            let num_span = new_span_start_and_end loc loc'
-                ei_tok_base = case m_base of
-                    Just (Location.Located _ 'o') -> Right (Token.Oct, 8)
-                    Just (Location.Located _ 'x') -> Right (Token.Hex, 16)
-                    Just (Location.Located _ 'b') -> Right (Token.Bin, 2)
-                    Nothing -> Right (Token.Dec, 10)
-
-                    Just (Location.Located base_sp c) -> Left $ LexError.InvalidIntBase c base_sp
-
-                read_digits power num_base = sum . map (\ (place, value) -> num_base `power` place * (fromIntegral $ digitToInt value))
-
-                check_digits verify = mapMaybe (\ (Location.Located sp c) -> if verify c then Nothing else Just $ LexError.InvalidIntDigit c sp)
-
-            in case (ei_tok_base, floats) of
-                (Right (tok_base, base_num), []) ->
-                    let digit_legal = case tok_base of
-                            Token.Oct -> isOctDigit
-                            Token.Hex -> isHexDigit
-                            Token.Bin -> \ c -> c == '0' || c == '1'
-                            Token.Dec -> isDigit
-
-                        illegal_digits = check_digits digit_legal digits
-
-                    in if null illegal_digits
-                        then Just (loc', [], [Location.Located num_span (Token.SingleTypeToken $ Token.IntLit tok_base (read_digits ((^) :: Integer -> Int -> Integer) base_num (zip [0..] (map Location.unlocate (reverse digits)))))])
-                        else Just (loc', illegal_digits, [])
-
-                (Right (tok_base, _), _) ->
-                    let illegal_digits = check_digits isDigit (digits ++ floats)
-                        base_is_dec = if tok_base == Token.Dec then [] else [LexError.NonDecimalFloat num_span]
-
-                    in if null illegal_digits && null base_is_dec
-                        then Just (loc', [], [Location.Located num_span (Token.SingleTypeToken $ Token.FloatLit $ read_digits ((^^) :: Decimal.Decimal -> Int -> Decimal.Decimal) 10 (zip [0..] (map Location.unlocate $ reverse digits) ++ zip [-1, -2..] (map Location.unlocate floats)))])
-                        else Just (loc', illegal_digits ++ base_is_dec, [])
-
-                (Left err, _) -> Just (loc', [err], [])
 
 lex_space :: Lexer [Token.LUnprocessedToken]
 lex_space = consume isSpace >> pure []
 
 make_bad_char :: Lexer [Token.LUnprocessedToken]
-make_bad_char =
-    consume (const True) >>= \ (Location.Located sp c) ->
-    Lexer (\ loc -> Just (loc, [LexError.BadChar c sp], []))
+make_bad_char = consume (const True) >>= \ (Location.Located sp c) -> put_error (LexError.BadChar c sp) >> pure []
 -- helper functions {{{1
 remaining :: Location.Location -> Text.Text
 remaining l = Text.drop (Location.ind l) (File.contents $ Location.file l)

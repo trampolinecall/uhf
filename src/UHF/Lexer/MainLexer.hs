@@ -54,7 +54,6 @@ lex_one_token loc = head $ mapMaybe (($ loc) . run_lexer)
             , make_bad_char
             ]
 -- lexing functions {{{2
--- TODO: replace all explicit calls of Lexer and run_lexer with combinators
 newtype Lexer a = Lexer { run_lexer :: Location.Location -> Maybe (Location.Location, [LexError.LexError], a) }
 
 instance Functor Lexer where

@@ -32,10 +32,10 @@ library
       UHF.IO.Location.SpanHelper
       UHF.IO.Path
       UHF.Lexer
+      UHF.Lexer.IdentifierGrouper
       UHF.Lexer.IndentCounter
       UHF.Lexer.LexError
       UHF.Lexer.MainLexer
-      UHF.Lexer.PostProcess
       UHF.Parser
       UHF.Parser.ParseError
       UHF.Parser.Parser

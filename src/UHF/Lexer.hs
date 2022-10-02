@@ -6,7 +6,7 @@ module UHF.Lexer
 
 import qualified UHF.Lexer.LexError as LexError
 import qualified UHF.Lexer.MainLexer as MainLexer
-import qualified UHF.Lexer.PostProcess as PostProcess
+import qualified UHF.Lexer.IdentifierGrouper as IdentifierGrouper
 import qualified UHF.Lexer.IndentCounter as IndentCounter
 
 import qualified UHF.Token as Token
@@ -16,5 +16,5 @@ lex :: File.File -> ([LexError.LexError], [Token.LNormalToken], Token.LNormalTok
 lex f =
     let (errs, toks, eof) = MainLexer.lex f
         (errs', toks') = IndentCounter.count_indents toks eof
-        (errs'', toks'') = PostProcess.group_identifiers toks' -- TODO: use writer monad for this
+        (errs'', toks'') = IdentifierGrouper.group_identifiers toks' -- TODO: use writer monad for this
     in (errs ++ errs' ++ errs'', toks'', eof)

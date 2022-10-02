@@ -54,9 +54,14 @@ count_indent_numbers = Maybe.mapMaybe count_indent
     where
         -- TODO: count tab characters properly
         count_indent ([], _) = Nothing
-        count_indent (toks@((Location.Located sp _):_), nl) = Just (Text.length $ Text.takeWhileEnd (/='\n') $ Text.take (Location.ind sp_start) (File.contents $ Location.file sp_start), toks, nl)
+        count_indent (toks@((Location.Located sp _):_), nl) = Just (count_spaces $ Text.takeWhileEnd (/='\n') $ Text.take (Location.ind sp_start) (File.contents $ Location.file sp_start), toks, nl)
             where
                 sp_start = Location.start sp
+                count_spaces = Text.foldl'
+                    (\ i -> \case
+                        '\t' -> (i `div` 8 + 1) * 8
+                        _ -> i + 1)
+                    0
 
 insert_indentation_tokens :: Location.Span -> [(Int, [Token.LUnprocessedToken], Location.Span)] -> ([LexError.LexError], [Token.LTokenWithIndentation])
 insert_indentation_tokens eof_sp lns =

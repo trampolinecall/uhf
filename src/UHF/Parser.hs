@@ -142,7 +142,7 @@ run_test (ParsingTest construct_name (_, construct_toks) construct_res parsers) 
     testGroup construct_name $
         map
             (\ (p_name, p) ->
-                testCase (p_name ++ " parsing " ++ construct_name) $ Parser.Success construct_res @=? fst <$> (Parser.run_parser p construct_toks))
+                testCase (p_name ++ " parsing " ++ construct_name) $ Parser.Success construct_res @=? fst <$> Parser.run_parser p construct_toks)
             parsers
 
 test_parsing :: [TestTree]

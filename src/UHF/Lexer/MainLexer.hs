@@ -41,9 +41,7 @@ lex f =
                     run next_errs next_toks l'
 -- lex_one_token {{{2
 lex_one_token :: Location.Location -> (Location.Location, [LexError.LexError], [Token.LUnprocessedToken])
-lex_one_token loc = head $ mapMaybe (($ loc) . run_lexer) lex_choices
-    where
-        lex_choices =
+lex_one_token loc = head $ mapMaybe (($ loc) . run_lexer)
             [ lex_comment
 
             , lex_alpha_identifier
@@ -108,13 +106,11 @@ lex_id_or_kw :: (Char -> Bool) -> (Char -> Bool) -> [(String, Token.UnprocessedT
 lex_id_or_kw is_valid_start is_valid_char kws def =
     get_loc >>= \ start_loc ->
     consume is_valid_start >>= \ first_char ->
-    choice [lex_rest, pure []] >>= \ more ->
+    choice [one_or_more $ consume is_valid_char, pure []] >>= \ more ->
     let full = Location.unlocate <$> first_char : more
         tok = fromMaybe (def full) (lookup full kws)
     in get_loc >>= \ end_loc ->
     pure [Location.Located (new_span_start_and_end start_loc end_loc) tok]
-    where
-        lex_rest = consume is_valid_char >>= \ c -> (c:) <$> choice [lex_rest, pure []]
 
 lex_alpha_identifier :: Lexer [Token.LUnprocessedToken]
 lex_alpha_identifier =
@@ -159,8 +155,7 @@ lex_str_or_char_lit :: Lexer [Token.LUnprocessedToken]
 lex_str_or_char_lit =
     get_loc >>= \ start_loc ->
     consume (\ c -> c == '\'' || c == '"') >>= \ (Location.Located _ open) ->
-    let lex_rest = consume (\ ch -> ch /= open && ch /= '\n') >>= \ c -> (Location.unlocate c :) <$> choice [lex_rest, pure []]
-    in lex_rest >>= \ contents ->
+    one_or_more (Location.unlocate <$> consume (\ ch -> ch /= open && ch /= '\n')) >>= \ contents ->
     choice
         [ consume (==open) >>
           get_loc >>= \ end_loc ->
@@ -226,7 +221,7 @@ lex_number =
         (Left err, _) -> put_error err >> pure []
     where
         lex_base = consume (=='0') >> consume isAlpha
-        lex_digits = consume isHexDigit >>= \ c -> (c:) <$> (choice [lex_digits, pure []])
+        lex_digits = one_or_more (consume isHexDigit)
         lex_float = consume (=='.') >> lex_digits
 
 lex_space :: Lexer [Token.LUnprocessedToken]
@@ -264,6 +259,9 @@ get_loc = Lexer $ \ loc -> Just (loc, [], loc)
 
 put_error :: LexError.LexError -> Lexer ()
 put_error err = Lexer $ \ loc -> Just (loc, [err], ())
+
+one_or_more :: Lexer a -> Lexer [a]
+one_or_more a = a >>= \ res -> (res:) <$> choice [one_or_more a, pure []]
 -- tests {{{1
 -- TODO: update tests
 case_remaining :: Assertion

@@ -44,7 +44,7 @@ type TokenPredicate = Token.NormalToken -> Bool
 -- TODO: allow each thing to provide a custom error function
 
 data Parser r =
-    Parser { run_parser :: (TokenStream -> ParseResult (r, TokenStream)) }
+    Parser { run_parser :: TokenStream -> ParseResult (r, TokenStream) }
 
 instance Functor Parser where
     fmap f (Parser parser) =
@@ -137,13 +137,13 @@ alpha_iden :: Token.NormalToken
 alpha_iden = Token.AlphaIdentifier []
 
 peek :: Parser Token.LNormalToken
-peek = Parser $ \ toks -> Success $ (InfList.head toks, toks)
+peek = Parser $ \ toks -> Success (InfList.head toks, toks)
 
 consume :: String -> Token.NormalToken -> Parser Token.LNormalToken
 consume name exp = Parser $
     \ (tok InfList.::: more_toks) ->
         if is_tt (Location.unlocate tok) exp
-            then Success $ (tok, more_toks)
+            then Success (tok, more_toks)
             else Failed [] $ ParseError.BadToken tok exp name
 
 advance :: Parser ()

@@ -37,10 +37,10 @@ instance Diagnostic.IsDiagnostic ParseError where
 
     to_diagnostic (NoneMatched (Location.Located sp tok) errs) =
         Diagnostic.Diagnostic Codes.none_matched (Just sp) $
-            [ Underlines.underlines
+            Underlines.underlines
                 [ sp `Underlines.primary`
-                    [ Underlines.error $ Text.pack $ "no parser matched tokens" ]
+                    [ Underlines.error $ Text.pack "no parser matched tokens" ]
                 ]
-            ] ++
+            :
             -- TODO: make this less janky
             concatMap ((\ (Diagnostic.Diagnostic _ _ sections) -> sections) . Diagnostic.to_diagnostic) errs

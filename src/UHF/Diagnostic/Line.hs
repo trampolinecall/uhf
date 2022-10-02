@@ -48,8 +48,8 @@ compare_line pre sep bindings text sgrs (Line line_pre line_sep line_after) =
 
 compare_many_lines :: [(Char, [ANSI.SGR])] -> [(Text.Text, Char, String, String)] -> [Line] -> Either Int ()
 compare_many_lines bindings line_expectations =
-    let c ((pre, sep, text, sgrs), l) = compare_line pre sep bindings text sgrs l
-    in maybe (Right ()) Left . List.elemIndex False . map c . zip line_expectations
+    let c (pre, sep, text, sgrs) l = compare_line pre sep bindings text sgrs l
+    in maybe (Right ()) Left . List.elemIndex False . zipWith c line_expectations
 
 compare_many_lines' :: [(Char, [ANSI.SGR])] -> [(Text.Text, Char, String, String)] -> [Line] -> Assertion
 compare_many_lines' bindings line_expectations lns =

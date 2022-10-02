@@ -53,7 +53,7 @@ lex_one_token loc = head $ mapMaybe (($ loc) . run_lexer)
             , lex_space
             , make_bad_char
             ]
--- lexing functions {{{2
+-- Lexer {{{2
 newtype Lexer a = Lexer { run_lexer :: Location.Location -> Maybe (Location.Location, [LexError.LexError], a) }
 
 instance Functor Lexer where
@@ -80,7 +80,7 @@ instance Monad Lexer where
                     Just (loc'', errs', res') -> Just (loc'', errs ++ errs', res')
                     _ -> Nothing
             _ -> Nothing
-
+-- lexing functions {{{2
 lex_comment :: Lexer [Token.LUnprocessedToken]
 lex_comment =
     get_loc >>= \ start_loc ->

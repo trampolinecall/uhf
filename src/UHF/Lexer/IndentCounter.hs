@@ -31,16 +31,16 @@ import Control.Monad.Trans.Class
 
 data IFrame = ISensitive Int | IInsensitive
 
-count_indents :: [Token.LUnprocessedToken] -> Token.LNormalToken -> ([LexError.LexError], [Token.LTokenWithIndentation])
-count_indents toks eof =
-    insert_indentation_tokens (Location.just_span eof) $ count_indent_numbers $ join_logical_lines $ split_lines toks eof
+count_indents :: [Token.LUnprocessedToken] -> Location.Span -> ([LexError.LexError], [Token.LTokenWithIndentation])
+count_indents toks eof_span =
+    insert_indentation_tokens eof_span $ count_indent_numbers $ join_logical_lines $ split_lines toks eof_span
 
-split_lines :: [Token.LUnprocessedToken] -> Token.LNormalToken -> [([Token.LUnprocessedToken], Location.Span)]
+split_lines :: [Token.LUnprocessedToken] -> Location.Span -> [([Token.LUnprocessedToken], Location.Span)]
 split_lines [] _ = []
-split_lines toks eof = (one_line, next_nl_span) : split_lines (drop 1 more) eof -- drop the newline, but if there is no newline then it will just be an empty list
+split_lines toks eof_span = (one_line, next_nl_span) : split_lines (drop 1 more) eof_span -- drop the newline, but if there is no newline then it will just be an empty list
     where
         nl_ind = List.findIndex (\ (Location.Located _ t) -> t == Token.Newline Token.NLPhysical) toks
-        next_nl_span = Maybe.fromMaybe (Location.just_span eof) (Location.just_span <$> (toks !!) <$> nl_ind)
+        next_nl_span = Maybe.fromMaybe eof_span (Location.just_span <$> (toks !!) <$> nl_ind)
         (one_line, more) = maybe (,[]) List.splitAt nl_ind toks
 
 join_logical_lines :: [([Token.LUnprocessedToken], Location.Span)] -> [([Token.LUnprocessedToken], Location.Span)]
@@ -164,17 +164,13 @@ case_split_lines :: Assertion
 case_split_lines =
     let (f, toks@[line1, nl, line2]) = SpanHelper.make_spans_with_show_items [Token.AlphaIdentifier "line1", Token.Newline Token.NLPhysical, Token.AlphaIdentifier "line2"]
         eof_sp = Location.eof_span f
-        eof = Location.Located eof_sp (Token.EOF ())
-
-    in [([line1], Location.just_span nl), ([line2], eof_sp)] @=? split_lines toks eof
+    in [([line1], Location.just_span nl), ([line2], eof_sp)] @=? split_lines toks eof_sp
 
 case_split_lines_trailing :: Assertion
 case_split_lines_trailing =
     let (f, toks@[line1, nl1, line2, nl2]) = SpanHelper.make_spans_with_show_items [Token.AlphaIdentifier "line1", Token.Newline Token.NLPhysical, Token.AlphaIdentifier "line2", Token.Newline Token.NLPhysical]
         eof_sp = Location.eof_span f
-        eof = Location.Located eof_sp (Token.EOF ())
-
-    in [([line1], Location.just_span nl1), ([line2], Location.just_span nl2)] @=? split_lines toks eof
+    in [([line1], Location.just_span nl1), ([line2], Location.just_span nl2)] @=? split_lines toks eof_sp
 
 case_join_logical_lines :: Assertion
 case_join_logical_lines =

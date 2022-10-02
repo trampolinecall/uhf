@@ -11,7 +11,6 @@ import qualified UHF.IO.Path (tests)
 
 import qualified UHF.Lexer.MainLexer (tests)
 import qualified UHF.Lexer.PostProcess (tests)
-import qualified UHF.Lexer.DFA (tests)
 import qualified UHF.Lexer.IndentCounter (tests)
 
 import qualified UHF.Parser (tests)
@@ -25,7 +24,6 @@ main = defaultMain $
         , UHF.Diagnostic.Sections.Utils.tests
         , UHF.Lexer.MainLexer.tests
         , UHF.Lexer.PostProcess.tests
-        , UHF.Lexer.DFA.tests
         , UHF.Lexer.IndentCounter.tests
         , UHF.IO.Location.tests
         , UHF.IO.Path.tests

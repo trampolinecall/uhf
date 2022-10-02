@@ -120,7 +120,11 @@ insert_indentation_tokens eof_sp lns =
                 Token.AlphaIdentifier i -> lift $ lift $ Writer.tell [Location.Located sp (Token.AlphaIdentifier i)]
 
                 Token.OBrace -> lift (lift $ Writer.tell [Location.Located sp (Token.OBrace)]) >> State.modify (IInsensitive:)
-                Token.CBrace -> lift (lift $ Writer.tell [Location.Located sp (Token.CBrace)]) >> State.modify (\ (IInsensitive : more) -> more) -- should not be possible to have indentation sensitive on top, TODO: statically ensure this?
+                Token.CBrace ->
+                    lift (lift $ Writer.tell [Location.Located sp (Token.CBrace)]) >>
+                    State.modify (\case
+                        IInsensitive : more -> more
+                        x -> x) -- the parser can handle the stray '}'
                 Token.Semicolon -> lift $ lift $ Writer.tell [Location.Located sp (Token.Semicolon)]
                 Token.Backslash _ -> error "unreachable"
                 Token.Indent i -> Void.absurd i

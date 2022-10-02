@@ -105,25 +105,23 @@ insert_indentation_tokens eof_sp lns =
                 ISensitive _ -> lift $ lift $ Writer.tell [Location.Located nl_sp (Token.Newline Token.NLLogical)]
                 _ -> return ()
 
-        go_through_tokens = mapM_ wtok -- TODO: braces
-            where
-                wtok (Location.Located sp t) = lift $ lift $ Writer.tell [Location.Located sp (do_tok t)]
+        go_through_tokens = mapM_ $ \ (Location.Located sp t) ->
+            case t of
+                Token.SingleTypeToken stt -> lift $ lift $ Writer.tell [Location.Located sp (Token.SingleTypeToken stt)]
 
-                do_tok (Token.SingleTypeToken t) = Token.SingleTypeToken t
+                Token.DoubleColon dc -> lift $ lift $ Writer.tell [Location.Located sp (Token.DoubleColon dc)]
 
-                do_tok (Token.DoubleColon dc) = Token.DoubleColon dc
+                Token.SymbolIdentifier i -> lift $ lift $ Writer.tell [Location.Located sp (Token.SymbolIdentifier i)]
+                Token.AlphaIdentifier i -> lift $ lift $ Writer.tell [Location.Located sp (Token.AlphaIdentifier i)]
 
-                do_tok (Token.SymbolIdentifier i) = Token.SymbolIdentifier i
-                do_tok (Token.AlphaIdentifier i) = Token.AlphaIdentifier i
-
-                do_tok (Token.OBrace) = Token.OBrace
-                do_tok (Token.CBrace) = Token.CBrace
-                do_tok (Token.Semicolon) = Token.Semicolon
-                do_tok (Token.Backslash _) = error "unreachable"
-                do_tok (Token.Indent i) = Void.absurd i
-                do_tok (Token.Dedent i) = Void.absurd i
-                do_tok (Token.Newline _) = error "unreachable"
-                do_tok (Token.EOF e) = Void.absurd e
+                Token.OBrace -> lift (lift $ Writer.tell [Location.Located sp (Token.OBrace)]) >> State.modify (IInsensitive:)
+                Token.CBrace -> lift (lift $ Writer.tell [Location.Located sp (Token.CBrace)]) >> State.modify (\ (IInsensitive : more) -> more) -- should not be possible to have indentation sensitive on top, TODO: statically ensure this?
+                Token.Semicolon -> lift $ lift $ Writer.tell [Location.Located sp (Token.Semicolon)]
+                Token.Backslash _ -> error "unreachable"
+                Token.Indent i -> Void.absurd i
+                Token.Dedent i -> Void.absurd i
+                Token.Newline _ -> error "unreachable"
+                Token.EOF e -> Void.absurd e
 
         put_final_dedents =
             init <$> State.get >>= \ indentation_frames ->

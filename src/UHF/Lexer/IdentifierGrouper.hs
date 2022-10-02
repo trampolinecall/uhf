@@ -1,4 +1,4 @@
-module UHF.Lexer.PostProcess
+module UHF.Lexer.IdentifierGrouper
     ( group_identifiers
 
     , tests

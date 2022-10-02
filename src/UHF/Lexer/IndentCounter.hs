@@ -40,7 +40,7 @@ split_lines [] _ = []
 split_lines toks eof_span = (one_line, next_nl_span) : split_lines (drop 1 more) eof_span -- drop the newline, but if there is no newline then it will just be an empty list
     where
         nl_ind = List.findIndex (\ (Location.Located _ t) -> t == Token.Newline Token.NLPhysical) toks
-        next_nl_span = Maybe.fromMaybe eof_span (Location.just_span <$> (toks !!) <$> nl_ind)
+        next_nl_span = maybe eof_span (Location.just_span . (toks !!)) nl_ind
         (one_line, more) = maybe (,[]) List.splitAt nl_ind toks
 
 join_logical_lines :: [([Token.LUnprocessedToken], Location.Span)] -> [([Token.LUnprocessedToken], Location.Span)]
@@ -70,7 +70,7 @@ insert_indentation_tokens eof_sp lns =
         remove_nls (x:more) = x : remove_nls more
         remove_nls [] = []
     in Arrow.second remove_nls $ Writer.runWriter $ Writer.execWriterT $ State.execStateT
-        (mapM do_line lns >> put_final_dedents)
+        (mapM_ do_line lns >> put_final_dedents)
         [ISensitive 0]
     where
         do_line (indent_amt, toks, nl) =
@@ -119,13 +119,13 @@ insert_indentation_tokens eof_sp lns =
                 Token.SymbolIdentifier i -> lift $ lift $ Writer.tell [Location.Located sp (Token.SymbolIdentifier i)]
                 Token.AlphaIdentifier i -> lift $ lift $ Writer.tell [Location.Located sp (Token.AlphaIdentifier i)]
 
-                Token.OBrace -> lift (lift $ Writer.tell [Location.Located sp (Token.OBrace)]) >> State.modify (IInsensitive:)
+                Token.OBrace -> lift (lift $ Writer.tell [Location.Located sp Token.OBrace]) >> State.modify (IInsensitive:)
                 Token.CBrace ->
-                    lift (lift $ Writer.tell [Location.Located sp (Token.CBrace)]) >>
+                    lift (lift $ Writer.tell [Location.Located sp Token.CBrace]) >>
                     State.modify (\case
                         IInsensitive : more -> more
                         x -> x) -- the parser can handle the stray '}'
-                Token.Semicolon -> lift $ lift $ Writer.tell [Location.Located sp (Token.Semicolon)]
+                Token.Semicolon -> lift $ lift $ Writer.tell [Location.Located sp Token.Semicolon]
                 Token.Backslash _ -> error "unreachable"
                 Token.Indent i -> Void.absurd i
                 Token.Dedent i -> Void.absurd i
@@ -211,10 +211,10 @@ case_count_indent_numbers_tabs =
         [ (8, [ln1], Location.just_span nl1)
         , (8, [ln2], Location.just_span nl2)
         ] @=?
-        (count_indent_numbers
+        count_indent_numbers
             [ ([ln1], Location.just_span nl1)
             , ([ln2], Location.just_span nl2)
-            ])
+            ]
 
 case_insert_indentation_tokens_indented_block :: Assertion
 case_insert_indentation_tokens_indented_block =

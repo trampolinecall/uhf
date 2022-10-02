@@ -28,7 +28,7 @@ data Diagnostic = Diagnostic Code.Code (Maybe Location.Span) [Section]
 class IsDiagnostic d where
     to_diagnostic :: d -> Diagnostic
 
-data Section = Section { section_contents :: [Line.Line] }
+newtype Section = Section { section_contents :: [Line.Line] }
 class ToSection s where
     to_section' :: s -> [Line.Line]
 instance ToSection [Line.Line] where
@@ -76,7 +76,7 @@ report handle (Diagnostic code m_sp sections) =
     in
     p_fmtstr header >>
     IO.hPutStr handle "\n" >>
-    sequence_ (map p_line section_lines) >>
+    mapM_ p_line section_lines >>
     maybe (return ()) (\ f -> IO.hPutStr handle (replicate indent ' ') >> p_fmtstr f >> IO.hPutStr handle "\n") footer
 
 report_diagnostics :: IO.Handle -> [Diagnostic] -> IO ()

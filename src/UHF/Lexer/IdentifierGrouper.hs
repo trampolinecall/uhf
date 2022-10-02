@@ -32,7 +32,7 @@ group_identifiers ((Location.Located start_sp (Token.AlphaIdentifier start_iden)
 
         (iden_found, is_symbol_identifier, more') = find_iden more
         iden_names = start_iden : map fst iden_found
-        iden_sp = start_sp `Location.join_span` (Safe.lastDef start_sp $ map snd iden_found)
+        iden_sp = start_sp `Location.join_span` Safe.lastDef start_sp (map snd iden_found)
 
         iden_tok =
             if is_symbol_identifier
@@ -51,7 +51,7 @@ group_identifiers (other:more) =
 
 group_identifiers [] = ([], [])
 
-convert_raw_token :: Token.LTokenWithIndentation -> Either LexError.LexError (Token.LNormalToken)
+convert_raw_token :: Token.LTokenWithIndentation -> Either LexError.LexError Token.LNormalToken
 convert_raw_token (Location.Located sp (Token.SingleTypeToken t)) = Right $ Location.Located sp (Token.SingleTypeToken t)
 convert_raw_token (Location.Located sp (Token.DoubleColon _)) = Left $ LexError.InvalidDoubleColon sp
 convert_raw_token (Location.Located sp (Token.SymbolIdentifier i)) = Right $ Location.Located sp $ Token.SymbolIdentifier [i]

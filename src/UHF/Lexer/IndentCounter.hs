@@ -40,7 +40,7 @@ split_lines (toks, eof) = (one_line, next_nl_span) : split_lines (drop 1 more, e
         (one_line, more) = maybe (,[]) List.splitAt nl_ind toks
 
 join_logical_lines :: [([Token.LUnprocessedToken], Location.Span)] -> [([Token.LUnprocessedToken], Location.Span)]
-join_logical_lines ((cur_line_toks, cur_line_nl) : (next_line_toks, next_line_nl) : more)
+join_logical_lines ((cur_line_toks, _) : (next_line_toks, next_line_nl) : more)
     | Location.unlocate (last cur_line_toks) == Token.Backslash () = join_logical_lines $ (init cur_line_toks ++ next_line_toks, next_line_nl) : more
 join_logical_lines (cur_line : more) = cur_line : join_logical_lines more
 join_logical_lines [] = []
@@ -132,7 +132,7 @@ insert_indentation_tokens lns = Writer.execWriter $ State.execStateT (mapM do_li
 -- tests {{{1
 generate_lines :: [Int] -> (File.File, [(Int, Location.Located (Token.BaseToken dc String eof ind nl bs), Location.Span)])
 generate_lines indents =
-    let (f, sps) = SpanHelper.make_spans' "test" " " (concatMap (\ (ln, i) -> [replicate i ' ', "line" ++ show ln, "\n"]) $ zip ([1..] :: [Int]) indents)
+    let (f, sps) = SpanHelper.make_spans' "test" "" (concatMap (\ (ln, i) -> [replicate i ' ', "line" ++ show ln, "\n"]) $ zip ([1..] :: [Int]) indents)
     in (f, map
         (\ (ind, ln, [_, line_sp, nl_sp]) -> (ind, Location.Located line_sp $ Token.AlphaIdentifier $ "line" ++ show ln, nl_sp))
             (zip3

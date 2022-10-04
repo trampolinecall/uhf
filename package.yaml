@@ -25,7 +25,6 @@ library:
   dependencies:
     - text
     - safe
-    - Decimal
     - containers
     - template-haskell
     - ansi-terminal

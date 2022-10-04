@@ -17,17 +17,13 @@ module UHF.Token
 
     , IntLitBase(..)
 
-    , Decimal.Decimal
     , format_tok
     ) where
 
 import qualified UHF.IO.Location as Location
 
-import qualified Data.Decimal as Decimal
 import qualified Data.Data as Data
 import qualified Data.Void as Void
-
-deriving instance Data.Data Decimal.Decimal -- TODO: maybe not have an orphan instance
 
 data IntLitBase
     = Dec
@@ -69,7 +65,7 @@ data SingleTypeToken
     | CharLit Char
     | StringLit String
     | IntLit IntLitBase Integer
-    | FloatLit Decimal.Decimal
+    | FloatLit Rational
     | BoolLit Bool
     deriving (Show, Eq, Data.Data)
 

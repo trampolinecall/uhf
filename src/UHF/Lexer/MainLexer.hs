@@ -16,7 +16,6 @@ import qualified UHF.IO.Location as Location
 import qualified UHF.Token as Token
 
 import qualified Data.Text as Text
-import qualified Data.Decimal as Decimal
 
 import Data.Maybe (mapMaybe, fromMaybe)
 import Data.Char (isAlpha, isDigit, isOctDigit, isHexDigit, isSpace, digitToInt)
@@ -214,7 +213,7 @@ lex_number =
                 base_is_dec = if tok_base == Token.Dec then [] else [LexError.NonDecimalFloat num_span]
 
             in if null illegal_digits && null base_is_dec
-                then pure [Location.Located num_span (Token.SingleTypeToken $ Token.FloatLit $ read_digits ((^^) :: Decimal.Decimal -> Int -> Decimal.Decimal) 10 (zip [0..] (map Location.unlocate $ reverse digits) ++ zip [-1, -2..] (map Location.unlocate floats)))]
+                then pure [Location.Located num_span (Token.SingleTypeToken $ Token.FloatLit $ read_digits ((^^) :: Rational -> Int -> Rational) 10 (zip [0..] (map Location.unlocate $ reverse digits) ++ zip [-1, -2..] (map Location.unlocate floats)))]
                 else mapM_ put_error (illegal_digits ++ base_is_dec) >> pure []
 
         (Left err, _) -> put_error err >> pure []

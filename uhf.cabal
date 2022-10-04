@@ -51,8 +51,7 @@ library
       OverloadedStrings
   ghc-options: -Wall -Wextra
   build-depends:
-      Decimal
-    , ansi-terminal
+      ansi-terminal
     , base >=4.13 && <5
     , containers
     , safe

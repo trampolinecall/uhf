@@ -38,7 +38,7 @@ import qualified System.Console.ANSI as ANSI
 import qualified Safe
 
 type UnderlinesSection = [Underline]
-type Underline = (Location.Span, Importance, [(Type, Text.Text)])
+type Underline = (Location.Span, Importance, [(Type, Text)])
 data Importance = Primary | Secondary | Tertiary
 data Type = Error | Warning | Note | Hint deriving (Show, Eq)
 
@@ -57,12 +57,12 @@ top_imp_char Primary = 'v'
 top_imp_char Secondary = '~'
 top_imp_char Tertiary = '-'
 
-primary, secondary, tertiary :: Location.Span -> [(Type, Text.Text)] -> Underline
+primary, secondary, tertiary :: Location.Span -> [(Type, Text)] -> Underline
 primary s m = (s, Primary, m)
 secondary s m = (s, Secondary, m)
 tertiary s m = (s, Tertiary, m)
 
-error, warning, note, hint :: Text.Text -> (Type, Text.Text)
+error, warning, note, hint :: Text -> (Type, Text)
 error = (Error,)
 warning = (Warning,)
 note = (Note,)
@@ -78,7 +78,7 @@ underlines unds =
 
 -- show_singleline {{{1
 -- Message helpers {{{2
-type CompleteMessage = (Bool, Location.Location, Type, Text.Text)
+type CompleteMessage = (Bool, Location.Location, Type, Text)
 
 cm_start_col :: CompleteMessage -> Int
 cm_start_col (_, loc, _, _) = Location.col loc
@@ -87,7 +87,7 @@ cm_start_col (_, loc, _, _) = Location.col loc
 cm_end_col :: CompleteMessage -> Int
 cm_end_col (_, loc, _, text) = Location.col loc + Text.length text + 4
 
-str_message :: Bool -> Type -> Text.Text -> ([ANSI.SGR], Text.Text)
+str_message :: Bool -> Type -> Text -> ([ANSI.SGR], Text)
 str_message is_last ty text = (type_color ty, Text.concat [if is_last then "`" else "|", "-- ", text])
 -- show_singleline {{{2
 show_singleline :: [Underline] -> [Line.Line]
@@ -250,7 +250,7 @@ show_top_lines loc n ch sgr =
             in Line.numbered_line l $ FormattedString.make_formatted_string [([], "  "), (sgr, quote), ([], Text.replicate pad " "), ([Colors.bold], "|")]
         ) top_lines
 
-show_bottom_lines :: Location.Location -> Int -> Char -> [ANSI.SGR] -> [(Type, Text.Text)] -> [Line.Line]
+show_bottom_lines :: Location.Location -> Int -> Char -> [ANSI.SGR] -> [(Type, Text)] -> [Line.Line]
 show_bottom_lines loc n ch sgr msgs =
     let end_col = Location.col loc + 2
         end_line = Location.line loc

@@ -9,9 +9,9 @@ import qualified UHF.Lexer as Lexer
 import qualified UHF.Token as Token
 
 import qualified UHF.Parser as Parser
-import qualified UHF.AST.Decl as AST.Decl
+import qualified UHF.AST as AST
 
-compile :: Phase File.File [AST.Decl.Decl]
+compile :: Phase File.File [AST.Decl]
 compile = lex_phase `link` parse_phase
 
 -- TODO: use Writer to collect diagnostics
@@ -28,7 +28,7 @@ lex_phase file =
     let (diagnostics, res, eof_tok) = Lexer.lex file
     in (map Diagnostic.to_diagnostic diagnostics, (res, eof_tok))
 
-parse_phase :: Phase ([Token.LNormalToken], Token.LNormalToken) [AST.Decl.Decl]
+parse_phase :: Phase ([Token.LNormalToken], Token.LNormalToken) [AST.Decl]
 parse_phase (toks, eof_tok) =
     let (diagnostics, res) = Parser.parse toks eof_tok
     in (map Diagnostic.to_diagnostic diagnostics, res)

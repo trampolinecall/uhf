@@ -12,9 +12,7 @@ build-type:     Simple
 
 library
   exposed-modules:
-      UHF.AST.Decl
-      UHF.AST.Expr
-      UHF.AST.Type
+      UHF.AST
       UHF.Compiler
       UHF.Core
       UHF.Core.Name

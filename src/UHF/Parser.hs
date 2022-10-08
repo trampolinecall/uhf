@@ -21,9 +21,7 @@ import qualified UHF.IO.Location.SpanHelper as SpanHelper
 
 import qualified UHF.Token as Token
 
-import qualified UHF.AST.Decl as Decl
-import qualified UHF.AST.Type as Type
-import qualified UHF.AST.Expr as Expr
+import qualified UHF.AST as AST
 
 import qualified UHF.Util.InfList as InfList
 
@@ -34,16 +32,16 @@ import qualified Control.Monad.Trans.State as State
 
 -- TODO: clean up
 
-parse :: [Token.LNormalToken] -> Token.LNormalToken -> ([ParseError.ParseError], [Decl.Decl])
+parse :: [Token.LNormalToken] -> Token.LNormalToken -> ([ParseError.ParseError], [AST.Decl])
 parse toks eof_tok =
     case State.runStateT parse' (InfList.from_list eof_tok toks) of
         Parser.ParseResult (errs, Right (res, _)) -> (errs, res)
         Parser.ParseResult (errs, Left err) -> (errs ++ [err], [])
 
-parse' :: Parser.Parser [Decl.Decl]
+parse' :: Parser.Parser [AST.Decl]
 parse' = Parser.star decl_parse >>= \ ds -> Parser.consume "end of file" (Token.EOF ()) >> return ds
 -- decls {{{2
-decl_parse :: Parser.Parser Decl.Decl
+decl_parse :: Parser.Parser AST.Decl
 decl_parse =
     Parser.choice
         [ data_parse
@@ -51,17 +49,17 @@ decl_parse =
         , type_sig_or_function_parse
         ]
 
-data_parse :: Parser.Parser Decl.Decl
+data_parse :: Parser.Parser AST.Decl
 data_parse =
     Parser.consume "data declaration" (Token.SingleTypeToken Token.Data) >>= \ data_tok ->
     Parser.return_fail [] (ParseError.NotImpl $ Location.Located (Location.just_span data_tok) "datatype declarations")
 
-under_parse :: Parser.Parser Decl.Decl
+under_parse :: Parser.Parser AST.Decl
 under_parse =
     Parser.consume "under declaration" (Token.SingleTypeToken Token.Under) >>= \ under_tok ->
     Parser.return_fail [] (ParseError.NotImpl $ Location.Located (Location.just_span under_tok) "'under' blocks")
 
-type_sig_or_function_parse :: Parser.Parser Decl.Decl
+type_sig_or_function_parse :: Parser.Parser AST.Decl
 type_sig_or_function_parse =
     Parser.consume "type signature or binding" Parser.alpha_iden >>= \ (Location.Located _ (Token.AlphaIdentifier name)) ->
     Parser.choice
@@ -69,24 +67,24 @@ type_sig_or_function_parse =
         , type_signature_parse name
         ]
 
-binding_parse :: [String] -> Parser.Parser Decl.Decl
+binding_parse :: [String] -> Parser.Parser AST.Decl
 binding_parse decl_name =
     Parser.consume "binding" (Token.SingleTypeToken Token.Equal) >>= \ eq ->
     expr_parse >>= \ ex ->
-    return (Decl.Binding decl_name ex)
+    return (AST.Decl'Binding decl_name ex)
 
-type_signature_parse :: [String] -> Parser.Parser Decl.Decl
+type_signature_parse :: [String] -> Parser.Parser AST.Decl
 type_signature_parse decl_name =
     Parser.consume "type signature" (Token.SingleTypeToken Token.Colon) >>= \ colon ->
     type_parse >>= \ ty ->
-    return (Decl.TypeSignature decl_name ty)
+    return (AST.Decl'TypeSignature decl_name ty)
 -- types {{{2
-type_parse :: Parser.Parser Type.Type
+type_parse :: Parser.Parser AST.Type
 type_parse =
     Parser.consume "type" Parser.alpha_iden >>= \ (Location.Located _ (Token.AlphaIdentifier iden)) ->
-    return (Type.Identifier iden)
+    return (AST.Type'Identifier iden)
 -- exprs {{{2
-expr_parse :: Parser.Parser Expr.Expr
+expr_parse :: Parser.Parser AST.Expr
 expr_parse =
     Parser.peek >>= \ tok ->
     Parser.return_fail [] (ParseError.NotImpl (Location.Located (Location.just_span tok) "expressions")) -- TODO
@@ -103,12 +101,12 @@ parsing_tests :: [ParsingTest]
 parsing_tests =
     [ ParsingTest "function decl"
         (make_token_stream [("x", Token.AlphaIdentifier ["x"]), ("=", Token.SingleTypeToken Token.Equal), ("'c'", Token.SingleTypeToken $ Token.CharLit 'c')])
-        (Decl.Binding ["x"] (Expr.CharLit 'c'))
+        (AST.Decl'Binding ["x"] (AST.Expr'CharLit 'c'))
         [("decl_parse", decl_parse)]
 
     , ParsingTest "type signature"
         (make_token_stream [("x", Token.AlphaIdentifier ["x"]), (":", Token.SingleTypeToken Token.Colon), ("int", Token.AlphaIdentifier ["int"])])
-        (Decl.TypeSignature ["x"] (Type.Identifier ["int"]))
+        (AST.Decl'TypeSignature ["x"] (AST.Type'Identifier ["int"]))
         [("decl_parse", decl_parse)]
 
     , ParsingTest "data decl"

@@ -22,7 +22,6 @@ import qualified UHF.Diagnostic.Line as Line
 import qualified UHF.IO.Location as Location
 
 import qualified Data.Text as Text
-import qualified Data.Text.IO as Text.IO
 import qualified System.IO as IO
 
 data Diagnostic = Diagnostic Code.Code (Maybe Location.Span) [Section]
@@ -39,7 +38,7 @@ instance ToSection [Line.Line] where
 to_section :: ToSection s => s -> Section
 to_section = Section . to_section'
 
-report :: IO.Handle -> Diagnostic -> IO ()
+report :: Handle -> Diagnostic -> IO ()
 report handle (Diagnostic code m_sp sections) =
     let header = FormattedString.make_formatted_string $
             case Code.code_type code of
@@ -70,16 +69,16 @@ report handle (Diagnostic code m_sp sections) =
                 sep = Line.separ l
                 contents = Line.contents l
             in
-            IO.hPutStr handle (replicate (indent - Text.length pre) ' ') >>
-            Text.IO.hPutStr handle pre >>
-            IO.hPutStr handle [' ', sep, ' '] >>
+            hPutStr handle (replicate (indent - Text.length pre) ' ') >>
+            hPutStr handle pre >>
+            hPutStr handle [' ', sep, ' '] >>
             p_fmtstr contents >>
-            IO.hPutStr handle "\n"
+            hPutText handle "\n"
     in
     p_fmtstr header >>
-    IO.hPutStr handle "\n" >>
+    hPutText handle "\n" >>
     mapM_ p_line section_lines >>
-    maybe (pure ()) (\ f -> IO.hPutStr handle (replicate indent ' ') >> p_fmtstr f >> IO.hPutStr handle "\n") footer
+    maybe (pure ()) (\ f -> hPutStr handle (replicate indent ' ') >> p_fmtstr f >> IO.hPutStr handle "\n") footer
 
-report_diagnostics :: IO.Handle -> [Diagnostic] -> IO ()
+report_diagnostics :: Handle -> [Diagnostic] -> IO ()
 report_diagnostics handle = mapM_ (report handle)

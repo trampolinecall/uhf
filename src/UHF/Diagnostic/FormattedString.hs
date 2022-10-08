@@ -14,19 +14,13 @@ module UHF.Diagnostic.FormattedString
 
 import UHF.Util.Prelude
 
-import Test.Tasty.HUnit
-import Test.Tasty.TH
-import Test.Tasty
 
 import qualified UHF.Diagnostic.Colors as Colors
 
 import qualified Data.Text as Text
-import qualified Data.Text.IO as Text.IO
 import qualified Data.Tuple as Tuple
 import qualified Data.Maybe as Maybe
 import qualified System.Console.ANSI as ANSI
-import qualified Data.List as List
-import qualified System.IO as IO
 
 data FormattedString = FormattedString Text [([ANSI.SGR], Int)] deriving (Eq, Show)
 
@@ -35,7 +29,7 @@ data ColorsNeeded = Colors | NoColors | AutoDetect
 make_formatted_string :: [([ANSI.SGR], Text)] -> FormattedString
 make_formatted_string str =
     let (_, formats) =
-            List.mapAccumL
+            mapAccumL
                 (\ start (sgrs, t) ->
                     let len = Text.length t
                         end = start + len
@@ -48,7 +42,7 @@ make_formatted_string str =
 
     in FormattedString (Text.concat $ map snd str) (concat formats)
 
-render_formatted_string :: IO.Handle -> ColorsNeeded -> FormattedString -> IO ()
+render_formatted_string :: Handle -> ColorsNeeded -> FormattedString -> IO ()
 render_formatted_string handle c_needed (FormattedString str formats) =
     case c_needed of
         Colors -> pure True
@@ -57,12 +51,12 @@ render_formatted_string handle c_needed (FormattedString str formats) =
     >>= \ c_needed' ->
 
     let (_, puts) =
-            List.mapAccumL
+            mapAccumL
                 (\ remaining (sgrs, len) ->
                     let (cur, remaining') = Text.splitAt len remaining
                     in (remaining',
                         (if c_needed' then ANSI.hSetSGR handle sgrs else pure ()) >>
-                        Text.IO.hPutStr handle cur)
+                        hPutStr handle cur)
                 )
                 str
                 formats

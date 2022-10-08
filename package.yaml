@@ -16,6 +16,8 @@ default-extensions:
   - LambdaCase
   - TemplateHaskell
   - OverloadedStrings
+# TODO: no implicit prelude
+# TODO: split tests from library, but somehow still allow access to test private functions and things
 
 library:
   source-dirs: src
@@ -23,11 +25,11 @@ library:
   dependencies:
     - text
     - safe
-    - Decimal
     - containers
     - template-haskell
     - ansi-terminal
-    - mtl
+    - transformers
+    - split
 
 executables:
   uhfc:

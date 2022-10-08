@@ -28,11 +28,11 @@ import qualified System.Console.ANSI as ANSI
 import qualified Data.List as List
 import qualified System.IO as IO
 
-data FormattedString = FormattedString Text.Text [([ANSI.SGR], Int)] deriving (Eq, Show)
+data FormattedString = FormattedString Text [([ANSI.SGR], Int)] deriving (Eq, Show)
 
 data ColorsNeeded = Colors | NoColors | AutoDetect
 
-make_formatted_string :: [([ANSI.SGR], Text.Text)] -> FormattedString
+make_formatted_string :: [([ANSI.SGR], Text)] -> FormattedString
 make_formatted_string str =
     let (_, formats) =
             List.mapAccumL

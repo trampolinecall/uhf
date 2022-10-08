@@ -4,6 +4,8 @@ module UHF.Lexer
     , LexError.LexError
     ) where
 
+import UHF.Util.Prelude
+
 import qualified UHF.Lexer.LexError as LexError
 import qualified UHF.Lexer.MainLexer as MainLexer
 import qualified UHF.Lexer.IdentifierGrouper as IdentifierGrouper

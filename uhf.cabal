@@ -38,7 +38,7 @@ library
       UHF.Parser.ParseError
       UHF.Parser.Parser
       UHF.Token
-      UHF.Util.InfList
+      UHF.Util.Prelude
   other-modules:
       Paths_uhf
   hs-source-dirs:
@@ -47,11 +47,13 @@ library
       LambdaCase
       TemplateHaskell
       OverloadedStrings
+      NoImplicitPrelude
   ghc-options: -Wall -Wextra
   build-depends:
       ansi-terminal
     , base >=4.13 && <5
     , containers
+    , inflist
     , safe
     , split
     , tasty
@@ -72,6 +74,7 @@ executable uhfc
       LambdaCase
       TemplateHaskell
       OverloadedStrings
+      NoImplicitPrelude
   ghc-options: -Wall -Wextra -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.13 && <5
@@ -93,6 +96,7 @@ test-suite uhf-test
       LambdaCase
       TemplateHaskell
       OverloadedStrings
+      NoImplicitPrelude
   ghc-options: -Wall -Wextra
   build-depends:
       base >=4.13 && <5

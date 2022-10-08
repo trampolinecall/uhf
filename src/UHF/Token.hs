@@ -15,9 +15,9 @@ module UHF.Token
     , NLPhysical(..), NLLogical(..)
 
     , IntLitBase(..)
-
-    , format_tok
     ) where
+
+import UHF.Util.Prelude
 
 import qualified UHF.IO.Location as Location
 
@@ -35,9 +35,9 @@ type LNormalToken = Location.Located NormalToken
 type LTokenWithIndentation = Location.Located TokenWithIndentation
 type LUnprocessedToken = Location.Located UnprocessedToken
 
-type UnprocessedToken = BaseToken () String Void.Void Void.Void NLPhysical ()
-type TokenWithIndentation = BaseToken () String Void.Void () NLLogical Void.Void
-type NormalToken = BaseToken Void.Void [String] () () NLLogical Void.Void
+type UnprocessedToken = BaseToken () Text Void.Void Void.Void NLPhysical ()
+type TokenWithIndentation = BaseToken () Text Void.Void () NLLogical Void.Void
+type NormalToken = BaseToken Void.Void [Text] () () NLLogical Void.Void
 
 data NLLogical = NLLogical deriving (Show, Eq, Data.Data)
 data NLPhysical = NLPhysical deriving (Show, Eq, Data.Data)
@@ -62,7 +62,7 @@ data SingleTypeToken
     | Case
 
     | CharLit Char
-    | StringLit String
+    | StringLit Text
     | IntLit IntLitBase Integer
     | FloatLit Rational
     | BoolLit Bool
@@ -86,44 +86,44 @@ data BaseToken doublecolon identifier eof indentation newline backslash
     | EOF eof
     deriving (Show, Eq, Data.Data)
 
-format_sttok :: SingleTypeToken -> String
-format_sttok OParen = "'('"
-format_sttok CParen = "')'"
-format_sttok OBrack = "'['"
-format_sttok CBrack = "']'"
-format_sttok Comma = "','"
-format_sttok Equal = "'='"
-format_sttok Colon = "':'"
-format_sttok Arrow = "'->'"
+instance Format SingleTypeToken where
+    format OParen = "'('"
+    format CParen = "')'"
+    format OBrack = "'['"
+    format CBrack = "']'"
+    format Comma = "','"
+    format Equal = "'='"
+    format Colon = "':'"
+    format Arrow = "'->'"
 
-format_sttok Root = "'root'"
-format_sttok Let = "'let'"
-format_sttok Type = "'type'"
-format_sttok Data = "'data'"
-format_sttok Under = "'under'"
-format_sttok If = "'if'"
-format_sttok Else = "'else'"
-format_sttok Case = "'case'"
+    format Root = "'root'"
+    format Let = "'let'"
+    format Type = "'type'"
+    format Data = "'data'"
+    format Under = "'under'"
+    format If = "'if'"
+    format Else = "'else'"
+    format Case = "'case'"
 
-format_sttok (CharLit _) = "character literal"
-format_sttok (StringLit _) = "string literal"
-format_sttok (IntLit _ _) = "integer literal"
-format_sttok (FloatLit _) = "floating point literal"
-format_sttok (BoolLit _) = "bool literal"
+    format (CharLit _) = "character literal"
+    format (StringLit _) = "string literal"
+    format (IntLit _ _) = "integer literal"
+    format (FloatLit _) = "floating point literal"
+    format (BoolLit _) = "bool literal"
 
-format_tok :: BaseToken doublecolon identifier eof indentation newline backslash -> String
-format_tok (SingleTypeToken s) = format_sttok s
+instance Format (BaseToken doublecolon identifier eof indentation newline backslash) where
+    format (SingleTypeToken s) = format s
 
-format_tok (DoubleColon _) = "':'"
+    format (DoubleColon _) = "':'"
 
-format_tok (SymbolIdentifier _) = "symbol identifier"
-format_tok (AlphaIdentifier _) = "alphabetic identifier"
+    format (SymbolIdentifier _) = "symbol identifier"
+    format (AlphaIdentifier _) = "alphabetic identifier"
 
-format_tok OBrace = "'{'"
-format_tok CBrace = "'}'"
-format_tok Semicolon = "';'"
-format_tok (Backslash _) = "'\\'"
-format_tok (Indent _) = "indent"
-format_tok (Dedent _) = "dedent"
-format_tok (Newline _) = "newline"
-format_tok (EOF _) = "end of file"
+    format OBrace = "'{'"
+    format CBrace = "'}'"
+    format Semicolon = "';'"
+    format (Backslash _) = "'\\'"
+    format (Indent _) = "indent"
+    format (Dedent _) = "dedent"
+    format (Newline _) = "newline"
+    format (EOF _) = "end of file"

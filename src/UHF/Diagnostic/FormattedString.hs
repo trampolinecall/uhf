@@ -12,6 +12,8 @@ module UHF.Diagnostic.FormattedString
     , tests
     ) where
 
+import UHF.Util.Prelude
+
 import Test.Tasty.HUnit
 import Test.Tasty.TH
 import Test.Tasty
@@ -49,8 +51,8 @@ make_formatted_string str =
 render_formatted_string :: IO.Handle -> ColorsNeeded -> FormattedString -> IO ()
 render_formatted_string handle c_needed (FormattedString str formats) =
     case c_needed of
-        Colors -> return True
-        NoColors -> return False
+        Colors -> pure True
+        NoColors -> pure False
         AutoDetect -> ANSI.hSupportsANSI handle
     >>= \ c_needed' ->
 
@@ -59,7 +61,7 @@ render_formatted_string handle c_needed (FormattedString str formats) =
                 (\ remaining (sgrs, len) ->
                     let (cur, remaining') = Text.splitAt len remaining
                     in (remaining',
-                        (if c_needed' then ANSI.hSetSGR handle sgrs else return ()) >>
+                        (if c_needed' then ANSI.hSetSGR handle sgrs else pure ()) >>
                         Text.IO.hPutStr handle cur)
                 )
                 str
@@ -67,11 +69,11 @@ render_formatted_string handle c_needed (FormattedString str formats) =
 
     in sequence_ puts
 
-formatted_string_contents_and_formats :: [(Char, [ANSI.SGR])] -> FormattedString -> (String, String)
+formatted_string_contents_and_formats :: [(Char, [ANSI.SGR])] -> FormattedString -> (Text, Text)
 formatted_string_contents_and_formats bindings (FormattedString text formats) =
     let reverse_bindings = ([], ' ') : map Tuple.swap bindings
-    in ( Text.unpack text
-       , concatMap
+    in ( text
+       , Text.pack $ concatMap
            (\ (sgrs, amt) ->
                if amt == 0
                    then ""
@@ -79,7 +81,7 @@ formatted_string_contents_and_formats bindings (FormattedString text formats) =
            formats
        )
 -- for testing
-compare_formatted_string :: [(Char, [ANSI.SGR])] -> String -> String -> FormattedString -> Bool
+compare_formatted_string :: [(Char, [ANSI.SGR])] -> Text -> Text -> FormattedString -> Bool
 compare_formatted_string bindings text sgrs =
     let bindings' = (' ', []) : bindings
         group_sgrs ((ch, sgr_binding):more) =
@@ -93,7 +95,7 @@ compare_formatted_string bindings text sgrs =
 
         group_sgrs [] = []
 
-    in (make_formatted_string (group_sgrs $ zip text sgrs) ==)
+    in (make_formatted_string (group_sgrs $ Text.zip text sgrs) ==)
 
 -- tests {{{1
 case_compare_formatted_string :: Assertion

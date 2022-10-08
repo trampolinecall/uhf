@@ -37,9 +37,8 @@ import qualified Control.Monad.Trans.State as State
 parse :: [Token.LNormalToken] -> Token.LNormalToken -> ([ParseError.ParseError], [Decl.Decl])
 parse toks eof_tok =
     case State.runStateT parse' (InfList.from_list eof_tok toks) of
-        Parser.Success (res, _) -> ([], res)
-        Parser.Failed errs err -> (errs ++ [err], [])
-        Parser.Recoverable errs (res, _) -> (errs, res)
+        Parser.ParseResult (errs, Right (res, _)) -> (errs, res)
+        Parser.ParseResult (errs, Left err) -> (errs ++ [err], [])
 
 parse' :: Parser.Parser [Decl.Decl]
 parse' = Parser.star decl_parse >>= \ ds -> Parser.consume "end of file" (Token.EOF ()) >> return ds
@@ -137,7 +136,7 @@ run_test (ParsingTest construct_name (_, construct_toks) construct_res parsers) 
     testGroup construct_name $
         map
             (\ (p_name, p) ->
-                testCase (p_name ++ " parsing " ++ construct_name) $ Parser.Success construct_res @=? fst <$> State.runStateT p construct_toks)
+                testCase (p_name ++ " parsing " ++ construct_name) $ Parser.ParseResult ([], Right construct_res) @=? fst <$> State.runStateT p construct_toks)
             parsers
 
 test_parsing :: [TestTree]

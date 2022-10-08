@@ -93,8 +93,7 @@ advance = State.StateT $ \ toks -> ParseResult ([], Right ((), InfList.drop1 tok
 -- sequence combinator is >>=
 
 choice :: [Parser a] -> Parser a
-choice choices = State.StateT $ \ toks ->
-    try_choices choices [] toks
+choice choices = State.StateT $ \ toks -> try_choices choices [] toks
     where
         try_choices (c:cs) breaking_acc toks =
             case State.runStateT c toks of

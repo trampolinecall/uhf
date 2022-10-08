@@ -12,8 +12,8 @@ import qualified UHF.Diagnostic.Sections.Underlines as Underlines
 import qualified Data.Text as Text
 
 data ParseError
-    = BadToken Token.LToken Token.Token String
-    | NoneMatched Token.LToken [ParseError]
+    = BadToken Token.LNormalToken Token.NormalToken String
+    | NoneMatched Token.LNormalToken [ParseError]
     | NotImpl (Location.Located String)
     deriving (Eq, Show)
 
@@ -37,10 +37,10 @@ instance Diagnostic.IsDiagnostic ParseError where
 
     to_diagnostic (NoneMatched (Location.Located sp tok) errs) =
         Diagnostic.Diagnostic Codes.none_matched (Just sp) $
-            [ Underlines.underlines
+            Underlines.underlines
                 [ sp `Underlines.primary`
-                    [ Underlines.error $ Text.pack $ "no parser matched tokens" ]
+                    [ Underlines.error $ Text.pack "no parser matched tokens" ]
                 ]
-            ] ++
+            :
             -- TODO: make this less janky
             concatMap ((\ (Diagnostic.Diagnostic _ _ sections) -> sections) . Diagnostic.to_diagnostic) errs

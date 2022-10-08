@@ -6,10 +6,16 @@ module UHF.Lexer
 
 import qualified UHF.Lexer.LexError as LexError
 import qualified UHF.Lexer.MainLexer as MainLexer
-import qualified UHF.Lexer.PostProcess as PostProcess
+import qualified UHF.Lexer.IdentifierGrouper as IdentifierGrouper
+import qualified UHF.Lexer.IndentCounter as IndentCounter
 
 import qualified UHF.Token as Token
 import qualified UHF.IO.File as File
+import qualified UHF.IO.Location as Location
 
-lex :: File.File -> ([LexError.LexError], [Token.LToken], Token.LToken)
-lex = PostProcess.group_identifiers . MainLexer.lex
+lex :: File.File -> ([LexError.LexError], [Token.LNormalToken], Token.LNormalToken)
+lex f =
+    let (errs, toks, eof) = MainLexer.lex f
+        (errs', toks') = IndentCounter.count_indents toks (Location.just_span eof)
+        (errs'', toks'') = IdentifierGrouper.group_identifiers toks' -- TODO: use writer monad for this
+    in (errs ++ errs' ++ errs'', toks'', eof)

@@ -8,7 +8,7 @@ import qualified UHF.Diagnostic as Diagnostic
 
 import qualified System.IO as IO
 
-data Args
+newtype Args
     = Args
       { files :: [String]
       }
@@ -30,8 +30,8 @@ argparser = info (args <**> helper)
 
 main :: IO ()
 main =
-    execParser argparser >>= \ (Args files) ->
-    sequence_ (map compile files)
+    execParser argparser >>= \ (Args f) ->
+    mapM_ compile f
 
 compile :: String -> IO ()
 compile fname =

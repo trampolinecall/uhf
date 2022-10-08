@@ -1,13 +1,8 @@
 module UHF.Diagnostic.FormattedString
-    ( FormattedString
-
+    ( FormattedString(..)
     , ColorsNeeded(..)
 
-    , make_formatted_string
     , render_formatted_string
-    , compare_formatted_string
-
-    , formatted_string_contents_and_formats
 
     , tests
     ) where
@@ -28,34 +23,24 @@ import qualified System.Console.ANSI as ANSI
 import qualified Data.List as List
 import qualified System.IO as IO
 
-data FormattedString = FormattedString Text [([ANSI.SGR], Int)] deriving (Eq, Show)
+data FormattedString
+    = Colored [ANSI.SGR] FormattedString
+    | Join FormattedString FormattedString
+    | Literal Text
 
 data ColorsNeeded = Colors | NoColors | AutoDetect
 
-make_formatted_string :: [([ANSI.SGR], Text)] -> FormattedString
-make_formatted_string str =
-    let (_, formats) =
-            List.mapAccumL
-                (\ start (sgrs, t) ->
-                    let len = Text.length t
-                        end = start + len
-                    in if len == 0
-                        then (end, [])
-                        else (end, [(sgrs, len), ([ANSI.Reset], 0)])
-                )
-                0
-                str
-
-    in FormattedString (Text.concat $ map snd str) (concat formats)
-
 render_formatted_string :: IO.Handle -> ColorsNeeded -> FormattedString -> IO ()
-render_formatted_string handle c_needed (FormattedString str formats) =
+render_formatted_string handle c_needed fs =
     case c_needed of
         Colors -> pure True
         NoColors -> pure False
         AutoDetect -> ANSI.hSupportsANSI handle
     >>= \ c_needed' ->
 
+    render_formatted_string' handle c_needed' [] fs
+
+{-
     let (_, puts) =
             List.mapAccumL
                 (\ remaining (sgrs, len) ->
@@ -68,7 +53,17 @@ render_formatted_string handle c_needed (FormattedString str formats) =
                 formats
 
     in sequence_ puts
+    -}
 
+render_formatted_string' :: IO.Handle -> Bool -> [ANSI.SGR] -> FormattedString -> IO ()
+render_formatted_string' handle c_needed old_sgrs (Colored sgrs text) =
+    ANSI.setSGR [] >> ANSI.hSetSGR handle old_sgrs >> ANSI.setSGR sgrs >>
+    render_formatted_string' handle c_needed (old_sgrs ++ sgrs) text >>
+    ANSI.setSGR [] >> ANSI.hSetSGR handle old_sgrs
+
+render_formatted_string' handle c_needed old_srgs (Join a b) = render_formatted_string' handle c_needed old_srgs a >> render_formatted_string' handle c_needed old_srgs b
+render_formatted_string' handle c_needed _ (Literal t) = hPutStr handle t
+{-
 formatted_string_contents_and_formats :: [(Char, [ANSI.SGR])] -> FormattedString -> (Text, Text)
 formatted_string_contents_and_formats bindings (FormattedString text formats) =
     let reverse_bindings = ([], ' ') : map Tuple.swap bindings
@@ -96,10 +91,12 @@ compare_formatted_string bindings text sgrs =
         group_sgrs [] = []
 
     in (make_formatted_string (group_sgrs $ Text.zip text sgrs) ==)
+-}
 
 -- tests {{{1
-case_compare_formatted_string :: Assertion
-case_compare_formatted_string =
+{-
+-- case_compare_formatted_string :: Assertion
+-- case_compare_formatted_string =
     assertBool "compare_formatted_string failed" $
         compare_formatted_string
             [ ('a', [Colors.fg_bred])
@@ -109,14 +106,7 @@ case_compare_formatted_string =
             "abcdefghijklmnop"
             "a--- --b -c---  "
             (make_formatted_string [([Colors.fg_bred], "abcd"), ([], "efg"), ([Colors.fg_bgreen], "h"), ([], "ij"), ([Colors.fg_bblue], "klmn"), ([], "o"), ([], "p")])
-
-case_make_formatted_string :: Assertion
-case_make_formatted_string =
-    FormattedString "text a b cdef"
-        [([Colors.bold], 5), ([Colors.reset], 0), ([Colors.bg_red], 2), ([Colors.reset], 0), ([Colors.fg_bgreen], 2), ([Colors.reset], 0), ([Colors.fg_blue], 1), ([Colors.reset], 0), ([], 3), ([Colors.reset], 0)]
-            @=?
-    make_formatted_string
-        [([Colors.bold], "text "), ([Colors.bg_red], "a "), ([Colors.fg_bgreen], "b "), ([Colors.fg_blue], "c"), ([], "def")]
+-}
 
 tests :: TestTree
 tests = $(testGroupGenerator)

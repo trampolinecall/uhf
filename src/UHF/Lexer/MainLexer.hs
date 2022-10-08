@@ -229,7 +229,7 @@ lex_space = consume isSpace >> pure []
 make_bad_char :: Lexer [Token.LUnprocessedToken]
 make_bad_char = consume (const True) >>= \ (Location.Located sp c) -> put_error (LexError.BadChar c sp) >> pure []
 -- helper functions {{{1
-remaining :: Location.Location -> Text.Text
+remaining :: Location.Location -> Text
 remaining l = Text.drop (Location.ind l) (File.contents $ Location.file l)
 
 new_span_start_and_end :: Location.Location -> Location.Location -> Location.Span
@@ -278,9 +278,9 @@ case_lex_empty =
         ([], [], _) -> pure ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
-lex_test :: (Location.Location -> r) -> Text.Text -> (r -> IO ()) -> IO ()
+lex_test :: (Location.Location -> r) -> Text -> (r -> IO ()) -> IO ()
 lex_test fn input check = check $ fn $ Location.new_location $ File.File "a" input
-lex_test' :: Lexer r -> Text.Text -> (Maybe (Location.Location, [LexError.LexError], r) -> IO ()) -> IO ()
+lex_test' :: Lexer r -> Text -> (Maybe (Location.Location, [LexError.LexError], r) -> IO ()) -> IO ()
 lex_test' fn = lex_test (run_lexer fn)
 lex_test_fail :: Show r => [Char] -> r -> IO a
 lex_test_fail fn_name res = assertFailure $ "'" ++ fn_name ++ "' lexed incorrectly: returned '" ++ show res ++ "'"

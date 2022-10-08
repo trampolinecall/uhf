@@ -4,10 +4,6 @@ version:             0.0.0
 dependencies:
   - base >= 4.13 && < 5
 
-  - tasty
-  - tasty-hunit
-  - tasty-th
-
 ghc-options:
   - -Wall
   - -Wextra
@@ -32,6 +28,10 @@ library:
     - split
     - inflist
 
+    - tasty
+    - tasty-hunit
+    - tasty-th
+
 executables:
   uhfc:
     main: Main.hs
@@ -53,3 +53,7 @@ tests:
 
     dependencies:
       - uhf
+
+      - tasty
+      - tasty-hunit
+      - tasty-th

@@ -1,6 +1,5 @@
 module UHF.Parser.Parser
     ( TokenStream
-    , TokenPredicate
 
     , Parser
     , run_parser
@@ -38,7 +37,6 @@ import qualified UHF.Util.InfList as InfList
 import qualified Data.Data as Data
 
 type TokenStream = InfList.InfList Token.LNormalToken
-type TokenPredicate = Token.NormalToken -> Bool
 
 -- TODO: also clean up this too
 -- TODO: allow each thing to provide a custom error function
@@ -67,32 +65,13 @@ instance Monad Parser where
         run_parser (b a) toks'
 
 data ParseResult r
-    -- TODO: synchronization predicate
-    = Failed [ParseError.ParseError] ParseError.ParseError -- (Maybe TokenPredicate)
+    = Failed [ParseError.ParseError] ParseError.ParseError
     | Recoverable [ParseError.ParseError] r
     | Success r
     deriving (Show, Eq)
 
-{-
-instance (Eq r) => Eq (ParseResult r) where
-    (Failed es1 e1 {- _ -}) == (Failed es2 e2 {- _ -}) = es1 == es2 && e1 == e2
-    (Recoverable e1 r1) == (Recoverable e2 r2) = e1 == e2 && r1 == r2
-    (Success r1) == (Success r2) = r1 == r2
-    _ == _ = False
-
-instance (Show r) => Show (ParseResult r) where
-    show pr =
-        case pr of
-            (Failed es e {- s -}) -> "Failed " ++ show e -- ++ " " ++ show_sync s
-            (Recoverable e r) -> "Recoverable " ++ show e ++ " " ++ show r
-            (Success r) -> "Success " ++ show r
-        where
-            -- show_sync (Just _) = "<synchronization predicate>"
-            -- show_sync Nothing = "<no synchronization predicate>"
--}
-
 instance Functor ParseResult where
-    fmap _ (Failed es e {- sync -}) = Failed es e {- sync -}
+    fmap _ (Failed es e) = Failed es e
     fmap f (Recoverable es r) = Recoverable es (f r)
     fmap f (Success r) = Success (f r)
 
@@ -101,11 +80,11 @@ instance Applicative ParseResult where
 
     a <*> b =
         case a of
-            Failed a_es a_e {- sync -} -> Failed a_es a_e {- sync -}
+            Failed a_es a_e -> Failed a_es a_e
 
             Recoverable a_es a_v ->
                 case a_v <$> b of
-                    Failed b_es b_e {- sync -} -> Failed (a_es ++ b_es) b_e {- sync -}
+                    Failed b_es b_e -> Failed (a_es ++ b_es) b_e
                     Recoverable b_es b_v -> Recoverable (a_es ++ b_es) b_v
                     Success b_v -> Recoverable a_es b_v
 
@@ -114,11 +93,11 @@ instance Applicative ParseResult where
 instance Monad ParseResult where
     a >>= b =
         case a of
-            Failed a_es a_e {- sync -} -> Failed a_es a_e {- sync -}
+            Failed a_es a_e -> Failed a_es a_e
 
             Recoverable a_es a_v ->
                 case b a_v of
-                    Failed b_es b_e {- sync -} -> Failed (a_es ++ b_es) b_e {- sync -}
+                    Failed b_es b_e -> Failed (a_es ++ b_es) b_e
                     Recoverable b_es b_v -> Recoverable (a_es ++ b_es) b_v
                     Success b_v -> Recoverable a_es b_v
 
@@ -196,28 +175,6 @@ optional a = Parser $ \ toks ->
 
 -- andpred :: Parser a -> Parser ()
 -- notpred :: Parser a -> Parser ()
-
-{- TODO: synchronization (also "synchronization predicate" todo at definition of ParseResult)
-sync :: TokenPredicate -> Parser ()
-sync sync_p =
-    parse_list
-        (\case
-            Token.EOF -> True
-            t -> sync_p t)
-        (consume (const $ Just ()) (error "unreachable")) >> return ()
-m_sync :: Maybe TokenPredicate -> Parser ()
-m_sync Nothing = return ()
-m_sync (Just sync_p) = sync sync_p
--}
-
-{-
--- TODO: use NonEmpty.singleton when a new stack resolver comes out with ghc 9.2.2
---  NonEmpty.singleton is only in base-4.15 or higher, but the only lts stack resolver that has that version of base
---  uses ghc 9.0.2, which is currently missing profiling libraries for base
---  this ghc bug is fixed in ghc 9.2.2, but there is not an lts stack resolver that uses ghc 9.2.2 yet
-nonempty_singleton :: a -> NonEmpty.NonEmpty a
-nonempty_singleton a = a NonEmpty.:| []
--}
 
 -- tests {{{1
 -- TODO: there is probably a way to make this less repetitive

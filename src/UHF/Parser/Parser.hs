@@ -1,3 +1,5 @@
+{-# LANGUAGE TupleSections #-}
+
 module UHF.Parser.Parser
     ( TokenStream
 
@@ -43,51 +45,29 @@ type TokenStream = InfList.InfList Token.LNormalToken
 -- TODO: allow each thing to provide a custom error function
 
 type Parser = State.StateT TokenStream ParseResult
-
-data ParseResult r
-    = Failed [ParseError.ParseError] ParseError.ParseError
-    | Recoverable [ParseError.ParseError] r
-    | Success r
-    deriving (Show, Eq)
+newtype ParseResult r = ParseResult ([ParseError.ParseError], Either ParseError.ParseError r) deriving (Eq, Show)
 
 instance Functor ParseResult where
-    fmap _ (Failed es e) = Failed es e
-    fmap f (Recoverable es r) = Recoverable es (f r)
-    fmap f (Success r) = Success (f r)
+    fmap f (ParseResult (e, ei)) = ParseResult (e, f <$> ei)
 
 instance Applicative ParseResult where
-    pure = Success
-
-    a <*> b =
-        case a of
-            Failed a_es a_e -> Failed a_es a_e
-
-            Recoverable a_es a_v ->
-                case a_v <$> b of
-                    Failed b_es b_e -> Failed (a_es ++ b_es) b_e
-                    Recoverable b_es b_v -> Recoverable (a_es ++ b_es) b_v
-                    Success b_v -> Recoverable a_es b_v
-
-            Success a_v -> a_v <$> b
+    pure = ParseResult . ([], ) . Right
+    ParseResult (a_e, a_ei) <*> ParseResult (b_e, b_ei) = ParseResult (a_e ++ b_e, a_ei <*> b_ei)
 
 instance Monad ParseResult where
-    a >>= b =
-        case a of
-            Failed a_es a_e -> Failed a_es a_e
+    ParseResult (a_e, a_ei) >>= b =
+        case a_ei of
+            Right a ->
+                let ParseResult (b_e, b_ei) = b a
+                in ParseResult (a_e ++ b_e, b_ei)
 
-            Recoverable a_es a_v ->
-                case b a_v of
-                    Failed b_es b_e -> Failed (a_es ++ b_es) b_e
-                    Recoverable b_es b_v -> Recoverable (a_es ++ b_es) b_v
-                    Success b_v -> Recoverable a_es b_v
-
-            Success a_v -> b a_v
+            Left e -> ParseResult (a_e, Left e)
 
 return_fail :: [ParseError.ParseError] -> ParseError.ParseError -> Parser a
-return_fail errs err = State.StateT $ \ _ -> Failed errs err
+return_fail errs err = State.StateT $ \ _ -> ParseResult (errs, Left err)
 
 return_recoverable :: [ParseError.ParseError] -> a -> Parser a
-return_recoverable errs res = State.StateT $ \ toks -> Recoverable errs (res, toks)
+return_recoverable errs res = State.StateT $ \ toks -> ParseResult (errs, Right (res, toks))
 
 is_tt :: Token.NormalToken -> Token.NormalToken -> Bool
 is_tt a b = Data.toConstr a == Data.toConstr b
@@ -96,17 +76,17 @@ alpha_iden :: Token.NormalToken
 alpha_iden = Token.AlphaIdentifier []
 
 peek :: Parser Token.LNormalToken
-peek = State.StateT $ \ toks -> Success (InfList.head toks, toks)
+peek = State.StateT $ \ toks -> ParseResult ([], Right (InfList.head toks, toks))
 
 consume :: String -> Token.NormalToken -> Parser Token.LNormalToken
 consume name exp = State.StateT $
     \ (tok InfList.::: more_toks) ->
         if is_tt (Location.unlocate tok) exp
-            then Success (tok, more_toks)
-            else Failed [] $ ParseError.BadToken tok exp name
+            then ParseResult ([], Right (tok, more_toks))
+            else ParseResult ([], Left $ ParseError.BadToken tok exp name)
 
 advance :: Parser ()
-advance = State.StateT $ \ toks -> Success ((), InfList.drop1 toks)
+advance = State.StateT $ \ toks -> ParseResult ([], Right ((), InfList.drop1 toks))
 
 -- combinators
 
@@ -118,13 +98,10 @@ choice choices = State.StateT $ \ toks ->
     where
         try_choices (c:cs) breaking_acc toks =
             case State.runStateT c toks of
-                Success r -> return r
-                Recoverable es r -> Recoverable es r
-                Failed _ err -> try_choices cs (err:breaking_acc) toks
-                -- ignore recoverable errors because they only apply if the choice could be decided
-                -- e.g. a hypothetical recoverable error like "invalid function name" or something doesn't apply if it can't decide whether or not it is parsing a function or a datatype
+                res@(ParseResult (_, Right _)) -> res
+                ParseResult (_, Left e) -> try_choices cs (e:breaking_acc) toks
 
-        try_choices [] breaking_acc (tok InfList.::: _) = Failed [] (ParseError.NoneMatched tok breaking_acc)
+        try_choices [] breaking_acc (tok InfList.::: _) = ParseResult ([], Left (ParseError.NoneMatched tok breaking_acc))
 
 star :: Parser a -> Parser [a]
 star a = State.StateT $ \ toks ->
@@ -132,13 +109,9 @@ star a = State.StateT $ \ toks ->
     where
         star' err_acc a_acc toks =
             case State.runStateT a toks of
-                Success (r, toks') -> star' err_acc (a_acc ++ [r]) toks'
-                Recoverable es (r, toks') -> star' (err_acc ++ es) (a_acc ++ [r]) toks'
-                Failed _ _ ->
+                ParseResult (es, Right (r, toks')) -> star' (err_acc ++ es) (a_acc ++ [r]) toks'
+                ParseResult (_, Left _) -> ParseResult (err_acc, Right (a_acc, toks))
                 -- both errors do not apply if it doesn't work because that just means the list ends there
-                    if null err_acc
-                        then Success (a_acc, toks)
-                        else Recoverable err_acc (a_acc, toks)
 
 plus :: Parser a -> Parser [a]
 plus a =
@@ -149,9 +122,8 @@ plus a =
 optional :: Parser a -> Parser (Maybe a)
 optional a = State.StateT $ \ toks ->
     case State.runStateT a toks of
-        Success (r, toks') -> Success (Just r, toks')
-        Recoverable e (r, toks') -> Recoverable e (Just r, toks')
-        Failed _ _ -> Success (Nothing, toks)
+        ParseResult (es, Right (r, toks')) -> ParseResult (es, Right (Just r, toks'))
+        ParseResult (_, Left _) -> ParseResult ([], Right (Nothing, toks))
 
 -- andpred :: Parser a -> Parser ()
 -- notpred :: Parser a -> Parser ()

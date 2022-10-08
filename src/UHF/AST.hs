@@ -1,18 +1,20 @@
 module UHF.AST where
 
+import UHF.Util.Prelude
+
 data Decl
-    = Decl'TypeSignature [String] Type
-    | Decl'Binding [String] Expr -- TODO: this should eventually be a pattern
+    = Decl'TypeSignature [Text] Type
+    | Decl'Binding [Text] Expr -- TODO: this should eventually be a pattern
     deriving (Eq, Show)
 
 data Type
-    = Type'Identifier [String]
+    = Type'Identifier [Text]
     deriving (Eq, Show)
 
 data Expr
-    = Expr'Identifier [String]
+    = Expr'Identifier [Text]
     | Expr'CharLit Char
-    | Expr'StringLit String
+    | Expr'StringLit Text
     | Expr'IntLit Integer
     | Expr'FloatLit Rational
     | Expr'BoolLit Bool

@@ -16,7 +16,7 @@ default-extensions:
   - LambdaCase
   - TemplateHaskell
   - OverloadedStrings
-# TODO: no implicit prelude
+  - NoImplicitPrelude
 # TODO: split tests from library, but somehow still allow access to test private functions and things
 
 library:
@@ -30,6 +30,7 @@ library:
     - ansi-terminal
     - transformers
     - split
+    - inflist
 
 executables:
   uhfc:

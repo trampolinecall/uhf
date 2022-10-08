@@ -1,5 +1,7 @@
 module Main where
 
+import UHF.Util.Prelude
+
 import Test.Tasty
 
 import qualified UHF.Diagnostic.FormattedString (tests)

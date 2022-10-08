@@ -15,6 +15,8 @@ module UHF.Diagnostic.Line
 
     ) where
 
+import UHF.Util.Prelude
+
 import Test.Tasty.HUnit
 
 import qualified UHF.Diagnostic.FormattedString as FormattedString
@@ -40,18 +42,18 @@ numbered_line num = Line (Text.pack $ show num) '|'
 other_line :: FormattedString.FormattedString -> Line
 other_line = Line "" '|'
 
-compare_line :: Text.Text -> Char -> [(Char, [ANSI.SGR])] -> String -> String -> Line -> Bool
+compare_line :: Text.Text -> Char -> [(Char, [ANSI.SGR])] -> Text -> Text -> Line -> Bool
 compare_line pre sep bindings text sgrs (Line line_pre line_sep line_after) =
     pre == line_pre &&
     sep == line_sep &&
     FormattedString.compare_formatted_string bindings text sgrs line_after
 
-compare_many_lines :: [(Char, [ANSI.SGR])] -> [(Text.Text, Char, String, String)] -> [Line] -> Either Int ()
+compare_many_lines :: [(Char, [ANSI.SGR])] -> [(Text.Text, Char, Text, Text)] -> [Line] -> Either Int ()
 compare_many_lines bindings line_expectations =
     let c (pre, sep, text, sgrs) = compare_line pre sep bindings text sgrs
     in maybe (Right ()) Left . List.elemIndex False . zipWith c line_expectations
 
-compare_many_lines' :: [(Char, [ANSI.SGR])] -> [(Text.Text, Char, String, String)] -> [Line] -> Assertion
+compare_many_lines' :: [(Char, [ANSI.SGR])] -> [(Text.Text, Char, Text, Text)] -> [Line] -> Assertion
 compare_many_lines' bindings line_expectations lns =
     let expectations_str = concatMap
             (\ (pre, ch, text, formats) ->
@@ -67,5 +69,5 @@ compare_many_lines' bindings line_expectations lns =
 
     in assertBool ("line number mismatch\nexpected\n" ++ expectations_str ++ "got\n" ++ lns_str) (length lns == length line_expectations) >>
     case compare_many_lines bindings line_expectations lns of
-        Right () -> return ()
+        Right () -> pure ()
         Left i -> assertFailure $ "line " ++ show i ++ " does not match\nexpected\n" ++ expectations_str ++ "got\n" ++ lns_str

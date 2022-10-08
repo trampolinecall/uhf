@@ -6,6 +6,8 @@ module UHF.Lexer.IndentCounter
     , tests
     ) where
 
+import UHF.Util.Prelude
+
 import Test.Tasty.HUnit
 import Test.Tasty.TH
 import Test.Tasty
@@ -40,8 +42,8 @@ split_lines [] _ = []
 split_lines toks eof_span = (one_line, next_nl_span) : split_lines (drop 1 more) eof_span -- drop the newline, but if there is no newline then it will just be an empty list
     where
         nl_ind = List.findIndex (\ (Location.Located _ t) -> t == Token.Newline Token.NLPhysical) toks
-        next_nl_span = maybe eof_span (Location.just_span . (toks !!)) nl_ind
         (one_line, more) = maybe (,[]) List.splitAt nl_ind toks
+        next_nl_span = maybe eof_span (Location.just_span . fst) (uncons more)
 
 join_logical_lines :: [([Token.LUnprocessedToken], Location.Span)] -> [([Token.LUnprocessedToken], Location.Span)]
 join_logical_lines (([], _) : more) = join_logical_lines more
@@ -97,18 +99,18 @@ insert_indentation_tokens eof_sp lns =
 
                                         | il < cur_indent -> lift (Writer.tell [LexError.BadDedent indent_token_sp])
 
-                                        | il == cur_indent -> return ()
+                                        | il == cur_indent -> pure ()
 
                                     _ -> error "unreachable: indentation block inside braced block"
 
                         in pop_if_needed
 
-                _ -> return ()
+                _ -> pure ()
 
         put_newline nl_sp =
             head <$> State.get >>= \case
                 ISensitive _ -> lift $ lift $ Writer.tell [Location.Located nl_sp (Token.Newline Token.NLLogical)]
-                _ -> return ()
+                _ -> pure ()
 
         go_through_tokens = mapM_ $ \ (Location.Located sp t) ->
             case t of
@@ -142,11 +144,11 @@ insert_indentation_tokens eof_sp lns =
                     indentation_frames)
 
 -- tests {{{1
-generate_lines :: [Int] -> (File.File, [(Int, Location.Located (Token.BaseToken dc String eof ind nl bs), Location.Span)])
+generate_lines :: [Int] -> (File.File, [(Int, Location.Located (Token.BaseToken dc Text eof ind nl bs), Location.Span)])
 generate_lines indents =
-    let (f, sps) = SpanHelper.make_spans' "test" "" (concatMap (\ (ln, i) -> [replicate i ' ', "line" ++ show ln, "\n"]) $ zip ([1..] :: [Int]) indents)
+    let (f, sps) = SpanHelper.make_spans' "test" "" (concatMap (\ (ln, i) -> [Text.replicate i " ", "line" <> show ln, "\n"]) $ zip ([1..] :: [Int]) indents)
     in (f, map
-        (\ (ind, ln, [_, line_sp, nl_sp]) -> (ind, Location.Located line_sp $ Token.AlphaIdentifier $ "line" ++ show ln, nl_sp))
+        (\ (ind, ln, [_, line_sp, nl_sp]) -> (ind, Location.Located line_sp $ Token.AlphaIdentifier $ "line" <> show ln, nl_sp))
             (zip3 indents ([1..] :: [Int]) (Split.chunksOf 3 sps)))
 
 nl_at :: Location.Span -> Location.Located (Token.BaseToken dc iden eof ind Token.NLLogical bs)

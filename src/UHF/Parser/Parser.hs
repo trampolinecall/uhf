@@ -23,6 +23,8 @@ module UHF.Parser.Parser
     , tests
     ) where
 
+import UHF.Util.Prelude
+
 import Test.Tasty.HUnit
 import Test.Tasty.TH
 import Test.Tasty
@@ -33,7 +35,7 @@ import qualified UHF.IO.Location as Location
 
 import qualified UHF.Token as Token
 
-import qualified UHF.Util.InfList as InfList
+import qualified Data.InfList as InfList
 
 import qualified Data.Data as Data
 
@@ -78,7 +80,7 @@ alpha_iden = Token.AlphaIdentifier []
 peek :: Parser Token.LNormalToken
 peek = State.StateT $ \ toks -> ParseResult ([], Right (InfList.head toks, toks))
 
-consume :: String -> Token.NormalToken -> Parser Token.LNormalToken
+consume :: Text -> Token.NormalToken -> Parser Token.LNormalToken
 consume name exp = State.StateT $
     \ (tok InfList.::: more_toks) ->
         if is_tt (Location.unlocate tok) exp
@@ -86,7 +88,7 @@ consume name exp = State.StateT $
             else ParseResult ([], Left $ ParseError.BadToken tok exp name)
 
 advance :: Parser ()
-advance = State.StateT $ \ toks -> ParseResult ([], Right ((), InfList.drop1 toks))
+advance = State.StateT $ \ toks -> ParseResult ([], Right ((), InfList.tail toks))
 
 -- combinators
 
@@ -116,7 +118,7 @@ plus :: Parser a -> Parser [a]
 plus a =
     a >>= \ a_res ->
     star a >>= \ more_as ->
-    return (a_res : more_as)
+    pure (a_res : more_as)
 
 optional :: Parser a -> Parser (Maybe a)
 optional a = State.StateT $ \ toks ->

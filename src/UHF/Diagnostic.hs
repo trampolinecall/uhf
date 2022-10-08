@@ -12,6 +12,8 @@ module UHF.Diagnostic
     , report_diagnostics
     ) where
 
+import UHF.Util.Prelude
+
 import qualified UHF.Diagnostic.FormattedString as FormattedString
 import qualified UHF.Diagnostic.Codes.Code as Code
 import qualified UHF.Diagnostic.Colors as Colors
@@ -32,7 +34,7 @@ newtype Section = Section { section_contents :: [Line.Line] }
 class ToSection s where
     to_section' :: s -> [Line.Line]
 instance ToSection [Line.Line] where
-    to_section' = id
+    to_section' = identity
 
 to_section :: ToSection s => s -> Section
 to_section = Section . to_section'
@@ -47,7 +49,7 @@ report handle (Diagnostic code m_sp sections) =
                 Code.InternalError -> [(Colors.error, "internal error")]
             ++
             case m_sp of
-                Just sp -> [([], " at "), (Colors.file_path, Text.pack $ Location.fmt_span sp)]
+                Just sp -> [([], " at "), (Colors.file_path, format sp)]
                 Nothing -> []
 
         footer =
@@ -77,7 +79,7 @@ report handle (Diagnostic code m_sp sections) =
     p_fmtstr header >>
     IO.hPutStr handle "\n" >>
     mapM_ p_line section_lines >>
-    maybe (return ()) (\ f -> IO.hPutStr handle (replicate indent ' ') >> p_fmtstr f >> IO.hPutStr handle "\n") footer
+    maybe (pure ()) (\ f -> IO.hPutStr handle (replicate indent ' ') >> p_fmtstr f >> IO.hPutStr handle "\n") footer
 
 report_diagnostics :: IO.Handle -> [Diagnostic] -> IO ()
 report_diagnostics handle = mapM_ (report handle)

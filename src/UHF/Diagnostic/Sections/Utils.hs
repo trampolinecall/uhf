@@ -4,10 +4,6 @@ module UHF.Diagnostic.Sections.Utils where
 
 import UHF.Util.Prelude
 
-import Test.Tasty.HUnit
-import Test.Tasty.TH
-import Test.Tasty
-
 import UHF.IO.Location.SpanHelper
 
 import qualified UHF.Diagnostic.Line as Line
@@ -15,7 +11,6 @@ import qualified UHF.Diagnostic.Line as Line
 import qualified UHF.IO.File as File
 
 import qualified Data.Text as Text
-import qualified Safe
 
 context_lines :: File.File -> Int -> [(File.File, Int)]
 context_lines f n = filter (uncurry line_exists) $ map (f,) [n-2..n+2]
@@ -30,7 +25,7 @@ flnr_comparator (f1, n1) (f2, n2)
     | otherwise = EQ
 
 get_quote :: File.File -> Int -> Text
-get_quote fl nr = Safe.headDef "" $ drop (nr - 1) $ Text.lines $ File.contents fl
+get_quote fl nr = headDef "" $ drop (nr - 1) $ Text.lines $ File.contents fl
 
 file_and_elipsis_lines :: (a -> (File.File, Int)) -> [a] -> [([Line.Line], a)]
 file_and_elipsis_lines convert things =

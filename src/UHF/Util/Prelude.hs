@@ -83,7 +83,7 @@ import Control.Monad as X (Monad, (>>=), (>>))
 
 import System.Exit as X (exitFailure, exitSuccess)
 import System.Environment as X (getArgs, getProgName)
-import System.IO as X (FilePath, Handle, stdin, stdout, stderr) -- TODO: do puts
+import System.IO as X (FilePath, Handle, stdin, stdout, stderr)
 
 import Test.Tasty as X (TestTree, testGroup, defaultMain)
 import Test.Tasty.HUnit as X (Assertion, testCase, (@=?), (@?=), assertBool, assertFailure)

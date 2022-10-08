@@ -30,12 +30,13 @@ import qualified UHF.Util.InfList as InfList
 import qualified Data.List as List
 import qualified Data.List.NonEmpty as NonEmpty
 
+import qualified Control.Monad.Trans.State as State
+
 -- TODO: clean up
 
 parse :: [Token.LNormalToken] -> Token.LNormalToken -> ([ParseError.ParseError], [Decl.Decl])
 parse toks eof_tok =
-    let r_res = Parser.run_parser parse' (InfList.from_list eof_tok toks)
-    in case r_res of
+    case State.runStateT parse' (InfList.from_list eof_tok toks) of
         Parser.Success (res, _) -> ([], res)
         Parser.Failed errs err -> (errs ++ [err], [])
         Parser.Recoverable errs (res, _) -> (errs, res)
@@ -136,7 +137,7 @@ run_test (ParsingTest construct_name (_, construct_toks) construct_res parsers) 
     testGroup construct_name $
         map
             (\ (p_name, p) ->
-                testCase (p_name ++ " parsing " ++ construct_name) $ Parser.Success construct_res @=? fst <$> Parser.run_parser p construct_toks)
+                testCase (p_name ++ " parsing " ++ construct_name) $ Parser.Success construct_res @=? fst <$> State.runStateT p construct_toks)
             parsers
 
 test_parsing :: [TestTree]

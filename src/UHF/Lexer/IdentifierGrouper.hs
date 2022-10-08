@@ -4,6 +4,8 @@ module UHF.Lexer.IdentifierGrouper
     , tests
     ) where
 
+import UHF.Util.Prelude
+
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.TH

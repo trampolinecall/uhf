@@ -1,5 +1,7 @@
 module Main where
 
+import UHF.Util.Prelude
+
 import Options.Applicative
 
 import qualified UHF.Compiler as Compiler
@@ -10,7 +12,7 @@ import qualified System.IO as IO
 
 newtype Args
     = Args
-      { files :: [String]
+      { files :: [FilePath]
       }
 
 argparser :: ParserInfo Args
@@ -33,10 +35,10 @@ main =
     execParser argparser >>= \ (Args f) ->
     mapM_ compile f
 
-compile :: String -> IO ()
+compile :: FilePath -> IO ()
 compile fname =
     File.open_file fname >>= \ f ->
     let (diags, res) = Compiler.compile f
     in Diagnostic.report_diagnostics IO.stderr diags >>
-    return ()
+    pure ()
     -- print res

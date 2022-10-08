@@ -8,6 +8,8 @@ module UHF.Parser
     , tests
     ) where
 
+import UHF.Util.Prelude
+
 import Test.Tasty.HUnit
 import Test.Tasty.TH
 import Test.Tasty
@@ -23,7 +25,7 @@ import qualified UHF.Token as Token
 
 import qualified UHF.AST as AST
 
-import qualified UHF.Util.InfList as InfList
+import qualified Data.InfList as InfList
 
 import qualified Data.List as List
 import qualified Data.List.NonEmpty as NonEmpty
@@ -34,12 +36,12 @@ import qualified Control.Monad.Trans.State as State
 
 parse :: [Token.LNormalToken] -> Token.LNormalToken -> ([ParseError.ParseError], [AST.Decl])
 parse toks eof_tok =
-    case State.runStateT parse' (InfList.from_list eof_tok toks) of
+    case State.runStateT parse' (toks InfList.+++ InfList.repeat eof_tok) of
         Parser.ParseResult (errs, Right (res, _)) -> (errs, res)
         Parser.ParseResult (errs, Left err) -> (errs ++ [err], [])
 
 parse' :: Parser.Parser [AST.Decl]
-parse' = Parser.star decl_parse >>= \ ds -> Parser.consume "end of file" (Token.EOF ()) >> return ds
+parse' = Parser.star decl_parse >>= \ ds -> Parser.consume "end of file" (Token.EOF ()) >> pure ds
 -- decls {{{2
 decl_parse :: Parser.Parser AST.Decl
 decl_parse =
@@ -67,22 +69,22 @@ type_sig_or_function_parse =
         , type_signature_parse name
         ]
 
-binding_parse :: [String] -> Parser.Parser AST.Decl
+binding_parse :: [Text] -> Parser.Parser AST.Decl
 binding_parse decl_name =
     Parser.consume "binding" (Token.SingleTypeToken Token.Equal) >>= \ eq ->
     expr_parse >>= \ ex ->
-    return (AST.Decl'Binding decl_name ex)
+    pure (AST.Decl'Binding decl_name ex)
 
-type_signature_parse :: [String] -> Parser.Parser AST.Decl
+type_signature_parse :: [Text] -> Parser.Parser AST.Decl
 type_signature_parse decl_name =
     Parser.consume "type signature" (Token.SingleTypeToken Token.Colon) >>= \ colon ->
     type_parse >>= \ ty ->
-    return (AST.Decl'TypeSignature decl_name ty)
+    pure (AST.Decl'TypeSignature decl_name ty)
 -- types {{{2
 type_parse :: Parser.Parser AST.Type
 type_parse =
     Parser.consume "type" Parser.alpha_iden >>= \ (Location.Located _ (Token.AlphaIdentifier iden)) ->
-    return (AST.Type'Identifier iden)
+    pure (AST.Type'Identifier iden)
 -- exprs {{{2
 expr_parse :: Parser.Parser AST.Expr
 expr_parse =
@@ -90,12 +92,12 @@ expr_parse =
     Parser.return_fail [] (ParseError.NotImpl (Location.Located (Location.just_span tok) "expressions")) -- TODO
 
 -- tests {{{1
-data ParsingTest = forall r. (Show r, Eq r) => ParsingTest String (File.File, Parser.TokenStream) r [(String, Parser.Parser r)]
-make_token_stream :: [(String, Token.NormalToken)] -> (File.File, Parser.TokenStream)
+data ParsingTest = forall r. (Show r, Eq r) => ParsingTest [Char] (File.File, Parser.TokenStream) r [([Char], Parser.Parser r)]
+make_token_stream :: [(Text, Token.NormalToken)] -> (File.File, Parser.TokenStream)
 make_token_stream things =
     let (file, things') = SpanHelper.make_spans_with_items things
         l = last things'
-    in (file, InfList.from_list l things')
+    in (file, things' InfList.+++ InfList.repeat l)
 
 parsing_tests :: [ParsingTest]
 parsing_tests =

@@ -1,4 +1,6 @@
 module UHF.Core.Name where
 
-data Name = Name String Int
+import UHF.Util.Prelude
+
+data Name = Name Text Int
 

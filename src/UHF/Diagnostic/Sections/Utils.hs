@@ -2,6 +2,8 @@
 
 module UHF.Diagnostic.Sections.Utils where
 
+import UHF.Util.Prelude
+
 import Test.Tasty.HUnit
 import Test.Tasty.TH
 import Test.Tasty
@@ -56,7 +58,7 @@ case_file_and_elipsis_lines =
             , (f2, 20)
             ]
 
-    in [([Line.file_line f1], (f1, 2)), ([Line.file_line f2], (f2, 12)), ([Line.elipsis_line], (f2, 20))] @=? file_and_elipsis_lines id lns
+    in [([Line.file_line f1], (f1, 2)), ([Line.file_line f2], (f2, 12)), ([Line.elipsis_line], (f2, 20))] @=? file_and_elipsis_lines identity lns
 
 tests :: TestTree
 tests = $(testGroupGenerator)

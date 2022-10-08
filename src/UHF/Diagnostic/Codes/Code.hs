@@ -5,6 +5,8 @@ module UHF.Diagnostic.Codes.Code
     , Type(..)
     ) where
 
+import UHF.Util.Prelude
+
 import qualified Data.Text as Text
 import qualified Language.Haskell.TH.Syntax as Syntax
 

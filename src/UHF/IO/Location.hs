@@ -11,12 +11,13 @@ module UHF.IO.Location
     , start, before_end, end
 
     , join_span
-    , fmt_location, fmt_span, fmt_located
     , is_single_line
     , seek
 
     , tests
     ) where
+
+import UHF.Util.Prelude
 
 import Test.Tasty.HUnit ((@=?), Assertion, testCase)
 import Test.Tasty.TH (testGroupGenerator)
@@ -26,19 +27,18 @@ import qualified UHF.IO.File as File
 
 import qualified Data.Text as Text
 import Data.List (minimumBy, maximumBy)
-import Data.Function (on)
-import qualified Safe
 
 -- TODO: test this entire module
 
-data Location = Location { file :: File.File, ind :: Int, row :: Int, col :: Int } deriving Eq
-data Span = Span { start :: Location, before_end :: Location, end :: Location } deriving Eq
+data Location = Location { file :: File.File, ind :: Int, row :: Int, col :: Int } deriving (Show, Eq)
+data Span = Span { start :: Location, before_end :: Location, end :: Location } deriving (Show, Eq)
 
 data Located a = Located { just_span :: Span, unlocate :: a } deriving (Show, Eq)
 
 line :: Location -> Int
 line = row
 
+{- TODO: remove
 instance Show Location where
     show (Location f i r c) =
         let before =
@@ -77,6 +77,7 @@ instance Show Span where
             inside' = Safe.initDef "" $ Safe.tailDef "" $ show inside
 
         in File.path (file s) ++ ":(" ++ show (row s) ++ ":" ++ show (col s) ++ " " ++ show (row e) ++ ":" ++ show (col e) ++ "): " ++ "\"" ++ before' ++ "'" ++ inside' ++ "'" ++ after' ++ "\""
+-}
 
 instance Functor Located where
     fmap f (Located sp v) = Located sp (f v)
@@ -106,14 +107,11 @@ join_span (Span s1 b1 e1) (Span s2 b2 e2) =
 
         else error "join two spans where some locations have different files"
 
-fmt_location :: Location -> String
-fmt_location (Location f _ r c) = File.path f ++ ":" ++ show r ++ ":" ++ show c
+instance Format Location where
+    format (Location f _ r c) = Text.pack (File.path f) <> ":" <> show r <> ":" <> show c
 
-fmt_span :: Span -> String
-fmt_span (Span (Location f1 _ r1 c1) _ (Location _ _ r2 c2)) = File.path f1 ++ ":" ++ show r1 ++ ":" ++ show c1 ++ ":" ++ show r2 ++ ":" ++ show c2
-
-fmt_located :: Show a => Located a -> String
-fmt_located (Located sp a) = "<at " ++ fmt_span sp ++ "> " ++ show a
+instance Format Span where
+    format (Span (Location f1 _ r1 c1) _ (Location _ _ r2 c2)) = Text.pack (File.path f1) <> ":" <> show r1 <> ":" <> show c1 <> ":" <> show r2 <> ":" <> show c2
 
 is_single_line :: Span -> Bool
 is_single_line (Span s be _) = row s == row be
@@ -175,42 +173,6 @@ case_seek_backward_past_newline :: Assertion
 case_seek_backward_past_newline =
     let f = File.File "a" "abcd\nefgh"
     in Location f 3 1 4 @=? seek (-5) (Location f 8 2 4)
-
-case_show_location_near_start :: Assertion
-case_show_location_near_start =
-    let f = File.File "a" "abcde"
-    in "a:1:2: \"a'b'cd\"" @=? show (seek 1 $ new_location f)
-
-case_show_location_near_end :: Assertion
-case_show_location_near_end =
-    let f = File.File "a" "abcde"
-    in "a:1:4: \"bc'd'e\"" @=? show (seek 3 $ new_location f)
-
-case_show_location_in_middle :: Assertion
-case_show_location_in_middle =
-    let f = File.File "a" "abcde"
-    in "a:1:3: \"ab'c'de\"" @=? show (seek 2 $ new_location f)
-
-case_show_span_near_start :: Assertion
-case_show_span_near_start =
-    let f = File.File "a" "abcdefghijkl"
-        l = seek 2 $ new_location f
-        s = new_span l 0 4
-    in "a:(1:3 1:7): \"ab'cdef'ghij\"" @=? show s
-
-case_show_span_near_end :: Assertion
-case_show_span_near_end =
-    let f = File.File "a" "abcdefghijkl"
-        l = seek 6 $ new_location f
-        s = new_span l 0 4
-    in "a:(1:7 1:11): \"cdef'ghij'kl\"" @=? show s
-
-case_show_span_in_middle :: Assertion
-case_show_span_in_middle =
-    let f = File.File "a" "abcdefghijkl"
-        l = seek 4 $ new_location f
-        s = new_span l 0 4
-    in "a:(1:5 1:9): \"abcd'efgh'ijkl\"" @=? show s
 
 tests :: TestTree
 tests = $(testGroupGenerator)

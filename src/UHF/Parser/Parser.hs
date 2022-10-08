@@ -2,7 +2,6 @@ module UHF.Parser.Parser
     ( TokenStream
 
     , Parser
-    , run_parser
     , ParseResult(..)
     , return_fail
     , return_recoverable
@@ -36,33 +35,14 @@ import qualified UHF.Util.InfList as InfList
 
 import qualified Data.Data as Data
 
+import qualified Control.Monad.Trans.State as State
+
 type TokenStream = InfList.InfList Token.LNormalToken
 
 -- TODO: also clean up this too
 -- TODO: allow each thing to provide a custom error function
 
-data Parser r =
-    Parser { run_parser :: TokenStream -> ParseResult (r, TokenStream) }
-
-instance Functor Parser where
-    fmap f (Parser parser) =
-        Parser $ \ toks ->
-            let res = parser toks
-            in (\ (a, toks') -> (f a, toks')) <$> res
-
-instance Applicative Parser where
-    pure a = Parser $ \ toks -> pure (a, toks)
-
-    (Parser parser_f) <*> (Parser parser_v) = Parser $ \ toks ->
-        -- this is actually in the ParseResult monad and not in the Parser monad
-        parser_f toks >>= \ (f, toks') ->
-        parser_v toks' >>= \ (v, toks'') ->
-        Success (f v, toks'')
-
-instance Monad Parser where
-    (Parser parser_a) >>= b = Parser $ \ toks ->
-        parser_a toks >>= \ (a, toks') ->
-        run_parser (b a) toks'
+type Parser = State.StateT TokenStream ParseResult
 
 data ParseResult r
     = Failed [ParseError.ParseError] ParseError.ParseError
@@ -104,10 +84,10 @@ instance Monad ParseResult where
             Success a_v -> b a_v
 
 return_fail :: [ParseError.ParseError] -> ParseError.ParseError -> Parser a
-return_fail errs err = Parser $ \ _ -> Failed errs err
+return_fail errs err = State.StateT $ \ _ -> Failed errs err
 
 return_recoverable :: [ParseError.ParseError] -> a -> Parser a
-return_recoverable errs res = Parser $ \ toks -> Recoverable errs (res, toks)
+return_recoverable errs res = State.StateT $ \ toks -> Recoverable errs (res, toks)
 
 is_tt :: Token.NormalToken -> Token.NormalToken -> Bool
 is_tt a b = Data.toConstr a == Data.toConstr b
@@ -116,28 +96,28 @@ alpha_iden :: Token.NormalToken
 alpha_iden = Token.AlphaIdentifier []
 
 peek :: Parser Token.LNormalToken
-peek = Parser $ \ toks -> Success (InfList.head toks, toks)
+peek = State.StateT $ \ toks -> Success (InfList.head toks, toks)
 
 consume :: String -> Token.NormalToken -> Parser Token.LNormalToken
-consume name exp = Parser $
+consume name exp = State.StateT $
     \ (tok InfList.::: more_toks) ->
         if is_tt (Location.unlocate tok) exp
             then Success (tok, more_toks)
             else Failed [] $ ParseError.BadToken tok exp name
 
 advance :: Parser ()
-advance = Parser $ \ toks -> Success ((), InfList.drop1 toks)
+advance = State.StateT $ \ toks -> Success ((), InfList.drop1 toks)
 
 -- combinators
 
 -- sequence combinator is >>=
 
 choice :: [Parser a] -> Parser a
-choice choices = Parser $ \ toks ->
+choice choices = State.StateT $ \ toks ->
     try_choices choices [] toks
     where
         try_choices (c:cs) breaking_acc toks =
-            case run_parser c toks of
+            case State.runStateT c toks of
                 Success r -> return r
                 Recoverable es r -> Recoverable es r
                 Failed _ err -> try_choices cs (err:breaking_acc) toks
@@ -147,11 +127,11 @@ choice choices = Parser $ \ toks ->
         try_choices [] breaking_acc (tok InfList.::: _) = Failed [] (ParseError.NoneMatched tok breaking_acc)
 
 star :: Parser a -> Parser [a]
-star a = Parser $ \ toks ->
+star a = State.StateT $ \ toks ->
     star' [] [] toks
     where
         star' err_acc a_acc toks =
-            case run_parser a toks of
+            case State.runStateT a toks of
                 Success (r, toks') -> star' err_acc (a_acc ++ [r]) toks'
                 Recoverable es (r, toks') -> star' (err_acc ++ es) (a_acc ++ [r]) toks'
                 Failed _ _ ->
@@ -167,8 +147,8 @@ plus a =
     return (a_res : more_as)
 
 optional :: Parser a -> Parser (Maybe a)
-optional a = Parser $ \ toks ->
-    case run_parser a toks of
+optional a = State.StateT $ \ toks ->
+    case State.runStateT a toks of
         Success (r, toks') -> Success (Just r, toks')
         Recoverable e (r, toks') -> Recoverable e (Just r, toks')
         Failed _ _ -> Success (Nothing, toks)
@@ -178,15 +158,6 @@ optional a = Parser $ \ toks ->
 
 -- tests {{{1
 -- TODO: there is probably a way to make this less repetitive
-
-case_parser_fmap :: Assertion
-case_parser_fmap = Success "ba" @=? fst <$> run_parser (reverse <$> pure "ab") undefined
-
-case_parser_applicative :: Assertion
-case_parser_applicative = Success "ba" @=? fst <$> run_parser (pure reverse <*> pure "ab") undefined
-
-case_parser_monad :: Assertion
-case_parser_monad = Success "ba" @=? fst <$> run_parser (pure "ab" >>= \ a -> pure (reverse a)) undefined
 
 test_parse_result_fmap :: [TestTree]
 test_parse_result_fmap =
@@ -216,10 +187,6 @@ test_parse_result_monad =
     , testCase "success x recoverable" undefined
     , testCase "success x success" undefined
     ]
-
-case_return_fail = undefined
-
-case_return_recoverable = undefined
 
 test_is_tt =
     [ testCase "is_tt same" undefined

@@ -2,10 +2,6 @@ module UHF.IO.Path where
 
 import UHF.Util.Prelude
 
-import Test.Tasty.HUnit
-import Test.Tasty.TH
-import Test.Tasty
-
 replace_extension :: FilePath -> FilePath -> FilePath
 replace_extension ext p =
     let dropped = dropWhile (/= '.') $ reverse p

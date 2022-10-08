@@ -14,7 +14,6 @@ import qualified UHF.IO.File as File
 import qualified UHF.IO.Location as Location
 
 import qualified Data.Text as Text
-import qualified Data.List as List
 
 make_spans :: [Text] -> (File.File, [Location.Span])
 make_spans = make_spans' "<generated span file>" " "
@@ -25,7 +24,7 @@ make_spans' fname intercalation strs =
         file = File.File fname combined
 
         (_, spans) =
-            List.mapAccumL
+            mapAccumL
                 (\ start s ->
                     (Location.seek (Text.length s + Text.length intercalation) start, Location.new_span start 0 (Text.length s))
                 )

@@ -2,7 +2,6 @@ module UHF.IO.File where
 
 import UHF.Util.Prelude
 
-import qualified Data.Text as Text
 import qualified Data.Text.IO as Text.IO
 
 data File = File { path :: FilePath, contents :: Text } deriving (Show, Eq)

@@ -43,12 +43,6 @@ parse toks eof_tok =
 parse' :: Parser.Parser [Decl.Decl]
 parse' = Parser.star decl_parse >>= \ ds -> Parser.consume "end of file" (Token.EOF ()) >> return ds
 -- decls {{{2
-decl_lookahead_matches :: Parser.TokenPredicate
-decl_lookahead_matches (Token.SingleTypeToken Token.Data) = True
-decl_lookahead_matches (Token.SingleTypeToken Token.Under) = True
-decl_lookahead_matches (Token.AlphaIdentifier []) = True
-decl_lookahead_matches _ = False
-
 decl_parse :: Parser.Parser Decl.Decl
 decl_parse =
     Parser.choice

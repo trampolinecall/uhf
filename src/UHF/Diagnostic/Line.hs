@@ -28,7 +28,7 @@ import qualified System.Console.ANSI as ANSI
 import qualified Data.Text as Text
 import qualified Data.List as List
 
-data Line = Line { prefix :: Text.Text, separ :: Char, contents :: FormattedString.FormattedString } deriving (Show, Eq)
+data Line = Line { prefix :: Text, separ :: Char, contents :: FormattedString.FormattedString } deriving (Show, Eq)
 
 file_line :: File.File -> Line
 file_line f = Line "" '>' (FormattedString.make_formatted_string [(Colors.file_path, Text.pack $ File.path f)])
@@ -42,18 +42,18 @@ numbered_line num = Line (Text.pack $ show num) '|'
 other_line :: FormattedString.FormattedString -> Line
 other_line = Line "" '|'
 
-compare_line :: Text.Text -> Char -> [(Char, [ANSI.SGR])] -> Text -> Text -> Line -> Bool
+compare_line :: Text -> Char -> [(Char, [ANSI.SGR])] -> Text -> Text -> Line -> Bool
 compare_line pre sep bindings text sgrs (Line line_pre line_sep line_after) =
     pre == line_pre &&
     sep == line_sep &&
     FormattedString.compare_formatted_string bindings text sgrs line_after
 
-compare_many_lines :: [(Char, [ANSI.SGR])] -> [(Text.Text, Char, Text, Text)] -> [Line] -> Either Int ()
+compare_many_lines :: [(Char, [ANSI.SGR])] -> [(Text, Char, Text, Text)] -> [Line] -> Either Int ()
 compare_many_lines bindings line_expectations =
     let c (pre, sep, text, sgrs) = compare_line pre sep bindings text sgrs
     in maybe (Right ()) Left . List.elemIndex False . zipWith c line_expectations
 
-compare_many_lines' :: [(Char, [ANSI.SGR])] -> [(Text.Text, Char, Text, Text)] -> [Line] -> Assertion
+compare_many_lines' :: [(Char, [ANSI.SGR])] -> [(Text, Char, Text, Text)] -> [Line] -> Assertion
 compare_many_lines' bindings line_expectations lns =
     let expectations_str = concatMap
             (\ (pre, ch, text, formats) ->

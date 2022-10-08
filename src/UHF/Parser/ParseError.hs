@@ -2,6 +2,8 @@ module UHF.Parser.ParseError
     ( ParseError(..)
     ) where
 
+import UHF.Util.Prelude
+
 import qualified UHF.Token as Token
 
 import qualified UHF.IO.Location as Location
@@ -9,12 +11,10 @@ import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Codes as Codes
 import qualified UHF.Diagnostic.Sections.Underlines as Underlines
 
-import qualified Data.Text as Text
-
 data ParseError
-    = BadToken Token.LNormalToken Token.NormalToken String
+    = BadToken Token.LNormalToken Token.NormalToken Text
     | NoneMatched Token.LNormalToken [ParseError]
-    | NotImpl (Location.Located String)
+    | NotImpl (Location.Located Text)
     deriving (Eq, Show)
 
 instance Diagnostic.IsDiagnostic ParseError where
@@ -23,8 +23,8 @@ instance Diagnostic.IsDiagnostic ParseError where
         in Diagnostic.Diagnostic Codes.bad_token (Just sp)
             [ Underlines.underlines
                 [sp `Underlines.primary`
-                    [ Underlines.error $ Text.pack $ "bad " ++ Token.format_tok (Location.unlocate tok)
-                    , Underlines.note $ Text.pack $ construct ++ " expects " ++ Token.format_tok expectation
+                    [ Underlines.error $ "bad " <> format (Location.unlocate tok)
+                    , Underlines.note $ construct <> " expects " <> format expectation
                     ]
                 ]
             ]
@@ -32,14 +32,14 @@ instance Diagnostic.IsDiagnostic ParseError where
     to_diagnostic (NotImpl construct) =
         Diagnostic.Diagnostic Codes.not_implemented (Just $ Location.just_span construct)
             [ Underlines.underlines
-                [Location.just_span construct `Underlines.primary` [Underlines.error $ Text.pack $ Location.unlocate construct ++ " are not implemented yet"]]
+                [Location.just_span construct `Underlines.primary` [Underlines.error $ Location.unlocate construct <> " are not implemented yet"]]
             ]
 
     to_diagnostic (NoneMatched (Location.Located sp tok) errs) =
         Diagnostic.Diagnostic Codes.none_matched (Just sp) $
             Underlines.underlines
                 [ sp `Underlines.primary`
-                    [ Underlines.error $ Text.pack "no parser matched tokens" ]
+                    [ Underlines.error "no parser matched tokens" ]
                 ]
             :
             -- TODO: make this less janky

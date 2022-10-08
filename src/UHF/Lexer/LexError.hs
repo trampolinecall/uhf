@@ -2,6 +2,8 @@ module UHF.Lexer.LexError
     ( LexError(..)
     ) where
 
+import UHF.Util.Prelude
+
 import qualified UHF.IO.Location as Location
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Codes as Codes

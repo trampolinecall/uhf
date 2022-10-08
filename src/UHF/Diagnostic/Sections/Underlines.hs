@@ -13,6 +13,8 @@ module UHF.Diagnostic.Sections.Underlines
     , tests
     ) where
 
+import UHF.Util.Prelude
+
 import Test.Tasty.HUnit
 import Test.Tasty.TH
 import Test.Tasty
@@ -91,7 +93,7 @@ str_message is_last ty text = (type_color ty, Text.concat [if is_last then "`" e
 show_singleline :: [Underline] -> [Line.Line]
 show_singleline unds =
     concatMap (show_line unds) $
-    Utils.file_and_elipsis_lines id $
+    Utils.file_and_elipsis_lines identity $
     List.sortBy Utils.flnr_comparator $
     List.nub $
     concatMap (uncurry Utils.context_lines) $

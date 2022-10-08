@@ -2,3 +2,6 @@ resolver: lts-19.25
 
 packages:
   - .
+
+extra-deps:
+  - inflist-0.0.1

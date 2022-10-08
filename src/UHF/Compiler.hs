@@ -2,6 +2,8 @@ module UHF.Compiler
     ( compile
     ) where
 
+import UHF.Util.Prelude
+
 import qualified UHF.IO.File as File
 import qualified UHF.Diagnostic as Diagnostic
 

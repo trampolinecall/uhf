@@ -8,10 +8,6 @@ module UHF.Lexer.IndentCounter
 
 import UHF.Util.Prelude
 
-import Test.Tasty.HUnit
-import Test.Tasty.TH
-import Test.Tasty
-
 import qualified UHF.IO.File as File
 import qualified UHF.IO.Location as Location
 import qualified UHF.IO.Location.SpanHelper as SpanHelper
@@ -23,13 +19,8 @@ import qualified UHF.Token as Token
 import qualified Data.List as List
 import qualified Data.List.Split as Split
 import qualified Data.Text as Text
-import qualified Data.Void as Void
-import qualified Data.Maybe as Maybe
 
 import qualified Control.Arrow as Arrow
-import qualified Control.Monad.Trans.State as State
-import qualified Control.Monad.Trans.Writer as Writer
-import Control.Monad.Trans.Class
 
 data IFrame = ISensitive Int | IInsensitive
 
@@ -42,7 +33,7 @@ split_lines [] _ = []
 split_lines toks eof_span = (one_line, next_nl_span) : split_lines (drop 1 more) eof_span -- drop the newline, but if there is no newline then it will just be an empty list
     where
         nl_ind = List.findIndex (\ (Location.Located _ t) -> t == Token.Newline Token.NLPhysical) toks
-        (one_line, more) = maybe (,[]) List.splitAt nl_ind toks
+        (one_line, more) = maybe (,[]) splitAt nl_ind toks
         next_nl_span = maybe eof_span (Location.just_span . fst) (uncons more)
 
 join_logical_lines :: [([Token.LUnprocessedToken], Location.Span)] -> [([Token.LUnprocessedToken], Location.Span)]
@@ -53,7 +44,7 @@ join_logical_lines (cur_line : more) = cur_line : join_logical_lines more
 join_logical_lines [] = []
 
 count_indent_numbers :: [([Token.LUnprocessedToken], Location.Span)] -> [(Int, [Token.LUnprocessedToken], Location.Span)]
-count_indent_numbers = Maybe.mapMaybe count_indent
+count_indent_numbers = mapMaybe count_indent
     where
         count_indent ([], _) = error "unreachable"
         count_indent (toks@((Location.Located sp _):_), nl) = Just (count_spaces $ Text.takeWhileEnd (/='\n') $ Text.take (Location.ind sp_start) (File.contents $ Location.file sp_start), toks, nl)
@@ -71,7 +62,7 @@ insert_indentation_tokens eof_sp lns =
         remove_nls (semi@(Location.Located _ Token.Semicolon) : (Location.Located _ (Token.Newline Token.NLLogical)) : more) = semi : remove_nls more
         remove_nls (x:more) = x : remove_nls more
         remove_nls [] = []
-    in Arrow.second remove_nls $ Writer.runWriter $ Writer.execWriterT $ State.execStateT
+    in Arrow.second remove_nls $ runWriter $ execWriterT $ execStateT
         (mapM_ do_line lns >> put_final_dedents)
         [ISensitive 0]
     where
@@ -82,22 +73,22 @@ insert_indentation_tokens eof_sp lns =
 
         do_indentation cur_indent start_loc =
             let indent_token_sp = Location.new_span start_loc 0 1
-            in head <$> State.get >>= \case
+            in head <$> get >>= \case
                 ISensitive last_indent
                     | cur_indent > last_indent ->
-                        lift (lift (Writer.tell [Location.Located indent_token_sp (Token.Indent ())])) >>
-                        State.modify (ISensitive cur_indent:)
+                        lift (lift (tell [Location.Located indent_token_sp (Token.Indent ())])) >>
+                        modify (ISensitive cur_indent:)
 
                     | cur_indent < last_indent ->
                         let pop_if_needed =
-                                head <$> State.get >>= \case
+                                head <$> get >>= \case
                                     ISensitive il
                                         | cur_indent < il ->
-                                            lift (lift (Writer.tell [Location.Located indent_token_sp (Token.Dedent ())])) >>
-                                            State.modify tail >>
+                                            lift (lift (tell [Location.Located indent_token_sp (Token.Dedent ())])) >>
+                                            modify tail >>
                                             pop_if_needed
 
-                                        | il < cur_indent -> lift (Writer.tell [LexError.BadDedent indent_token_sp])
+                                        | il < cur_indent -> lift (tell [LexError.BadDedent indent_token_sp])
 
                                         | il == cur_indent -> pure ()
 
@@ -108,35 +99,35 @@ insert_indentation_tokens eof_sp lns =
                 _ -> pure ()
 
         put_newline nl_sp =
-            head <$> State.get >>= \case
-                ISensitive _ -> lift $ lift $ Writer.tell [Location.Located nl_sp (Token.Newline Token.NLLogical)]
+            head <$> get >>= \case
+                ISensitive _ -> lift $ lift $ tell [Location.Located nl_sp (Token.Newline Token.NLLogical)]
                 _ -> pure ()
 
         go_through_tokens = mapM_ $ \ (Location.Located sp t) ->
             case t of
-                Token.SingleTypeToken stt -> lift $ lift $ Writer.tell [Location.Located sp (Token.SingleTypeToken stt)]
+                Token.SingleTypeToken stt -> lift $ lift $ tell [Location.Located sp (Token.SingleTypeToken stt)]
 
-                Token.DoubleColon dc -> lift $ lift $ Writer.tell [Location.Located sp (Token.DoubleColon dc)]
+                Token.DoubleColon dc -> lift $ lift $ tell [Location.Located sp (Token.DoubleColon dc)]
 
-                Token.SymbolIdentifier i -> lift $ lift $ Writer.tell [Location.Located sp (Token.SymbolIdentifier i)]
-                Token.AlphaIdentifier i -> lift $ lift $ Writer.tell [Location.Located sp (Token.AlphaIdentifier i)]
+                Token.SymbolIdentifier i -> lift $ lift $ tell [Location.Located sp (Token.SymbolIdentifier i)]
+                Token.AlphaIdentifier i -> lift $ lift $ tell [Location.Located sp (Token.AlphaIdentifier i)]
 
-                Token.OBrace -> lift (lift $ Writer.tell [Location.Located sp Token.OBrace]) >> State.modify (IInsensitive:)
+                Token.OBrace -> lift (lift $ tell [Location.Located sp Token.OBrace]) >> modify (IInsensitive:)
                 Token.CBrace ->
-                    lift (lift $ Writer.tell [Location.Located sp Token.CBrace]) >>
-                    State.modify (\case
+                    lift (lift $ tell [Location.Located sp Token.CBrace]) >>
+                    modify (\case
                         IInsensitive : more -> more
                         x -> x) -- the parser can handle the stray '}'
-                Token.Semicolon -> lift $ lift $ Writer.tell [Location.Located sp Token.Semicolon]
+                Token.Semicolon -> lift $ lift $ tell [Location.Located sp Token.Semicolon]
                 Token.Backslash _ -> error "unreachable"
-                Token.Indent i -> Void.absurd i
-                Token.Dedent i -> Void.absurd i
+                Token.Indent i -> absurd i
+                Token.Dedent i -> absurd i
                 Token.Newline _ -> error "unreachable"
-                Token.EOF e -> Void.absurd e
+                Token.EOF e -> absurd e
 
         put_final_dedents =
-            init <$> State.get >>= \ indentation_frames ->
-            lift (lift $ Writer.tell $
+            init <$> get >>= \ indentation_frames ->
+            lift (lift $ tell $
                 concatMap
                     (\case
                         ISensitive _ -> [Location.Located eof_sp (Token.Dedent ())]

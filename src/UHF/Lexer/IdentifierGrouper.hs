@@ -6,19 +6,12 @@ module UHF.Lexer.IdentifierGrouper
 
 import UHF.Util.Prelude
 
-import Test.Tasty
-import Test.Tasty.HUnit
-import Test.Tasty.TH
 import qualified UHF.IO.Location.SpanHelper as SpanHelper
 
 import qualified UHF.Lexer.LexError as LexError
 
 import qualified UHF.Token as Token
 import qualified UHF.IO.Location as Location
-
-import qualified Data.Void as Void
-
-import qualified Safe
 
 group_identifiers :: [Token.LTokenWithIndentation] -> ([LexError.LexError], [Token.LNormalToken])
 group_identifiers ((Location.Located start_sp (Token.AlphaIdentifier start_iden)):more) =
@@ -34,7 +27,7 @@ group_identifiers ((Location.Located start_sp (Token.AlphaIdentifier start_iden)
 
         (iden_found, is_symbol_identifier, more') = find_iden more
         iden_names = start_iden : map fst iden_found
-        iden_sp = start_sp `Location.join_span` Safe.lastDef start_sp (map snd iden_found)
+        iden_sp = start_sp `Location.join_span` lastDef start_sp (map snd iden_found)
 
         iden_tok =
             if is_symbol_identifier
@@ -64,8 +57,8 @@ convert_raw_token (Location.Located sp Token.Semicolon) = Right $ Location.Locat
 convert_raw_token (Location.Located sp (Token.Indent i)) = Right $ Location.Located sp $ Token.Indent i
 convert_raw_token (Location.Located sp (Token.Dedent i)) = Right $ Location.Located sp $ Token.Dedent i
 convert_raw_token (Location.Located sp (Token.Newline nl)) = Right $ Location.Located sp $ Token.Newline nl
-convert_raw_token (Location.Located _ (Token.Backslash v)) = Void.absurd v
-convert_raw_token (Location.Located _ (Token.EOF eof)) = Void.absurd eof
+convert_raw_token (Location.Located _ (Token.Backslash v)) = absurd v
+convert_raw_token (Location.Located _ (Token.EOF eof)) = absurd eof
 
 -- tests {{{1
 case_group_identifiers :: Assertion

@@ -35,9 +35,9 @@ type LNormalToken = Location.Located NormalToken
 type LTokenWithIndentation = Location.Located TokenWithIndentation
 type LUnprocessedToken = Location.Located UnprocessedToken
 
-type UnprocessedToken = BaseToken () Text Void.Void Void.Void NLPhysical ()
-type TokenWithIndentation = BaseToken () Text Void.Void () NLLogical Void.Void
-type NormalToken = BaseToken Void.Void [Text] () () NLLogical Void.Void
+type UnprocessedToken = BaseToken () Text Void Void.Void NLPhysical ()
+type TokenWithIndentation = BaseToken () Text Void () NLLogical Void.Void
+type NormalToken = BaseToken Void [Text] () () NLLogical Void.Void
 
 data NLLogical = NLLogical deriving (Show, Eq, Data.Data)
 data NLPhysical = NLPhysical deriving (Show, Eq, Data.Data)

@@ -53,6 +53,7 @@ import Data.Either as X (Either(..), either, isLeft, isRight)
 import Data.Function as X (const, (.), flip, ($), (&), on)
 
 import Data.Tuple as X
+import Data.Void as X (Void, absurd)
 import Data.List as X ((++), head, last, init, tail, uncons, map, reverse, intersperse, intercalate, iterate, iterate', repeat, replicate, take, drop, splitAt, takeWhile, dropWhile, span, break, lookup, filter, zip, zip3, zipWith, zipWith3) -- TODO: remove head, last, init, tail, lookup, zip, zip3, zipWith, zipWith3, also probabyl just clean it up anyways
 
 import Data.Functor as X (Functor, fmap, (<$>), (<&>))
@@ -65,6 +66,7 @@ import Data.Traversable as X (Traversable(..), for, forM, mapAccumL, mapAccumR)
 
 import Safe as X (headMay, tailMay, initMay, lastMay, headDef, tailDef, initDef, lastDef)
 
+import Data.List.NonEmpty as X (NonEmpty(..))
 import Data.Map as X (Map)
 import Data.Set as X (Set)
 import Data.Sequence as X (Seq)
@@ -77,13 +79,18 @@ import Control.Monad.Trans.State as X (State, state, runState, evalState, execSt
 import Control.Monad.Trans.Writer as X (Writer, writer, runWriter, execWriter, WriterT(..), execWriterT, tell)
 import Control.Monad.Trans.Reader as X (Reader, reader, runReader, ReaderT(..), ask)
 import Control.Monad.Trans.Except as X (Except, except, runExcept, ExceptT(..), runExceptT)
+import Control.Monad.Trans.Class as X (lift)
 
 import Control.Applicative as X (Applicative, pure, (<*>))
 import Control.Monad as X (Monad, (>>=), (>>))
 
 import System.Exit as X (exitFailure, exitSuccess)
 import System.Environment as X (getArgs, getProgName)
-import System.IO as X (FilePath, Handle, stdin, stdout, stderr) -- TODO: do puts
+import System.IO as X (FilePath, Handle, stdin, stdout, stderr)
+
+import Test.Tasty as X (TestTree, testGroup, defaultMain)
+import Test.Tasty.HUnit as X (Assertion, testCase, (@=?), (@?=), assertBool, assertFailure)
+import Test.Tasty.TH as X (testGroupGenerator)
 
 -- these are also mostly taken from the protolude, especially the Print class and the ConvertString class
 

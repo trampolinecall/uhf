@@ -15,10 +15,6 @@ module UHF.Diagnostic.Sections.Underlines
 
 import UHF.Util.Prelude
 
-import Test.Tasty.HUnit
-import Test.Tasty.TH
-import Test.Tasty
-
 import UHF.IO.Location.SpanHelper
 
 import qualified UHF.Diagnostic as Diagnostic
@@ -34,8 +30,6 @@ import qualified Data.Text as Text
 import qualified Data.Function as Function
 import qualified Data.List as List
 import qualified System.Console.ANSI as ANSI
-
-import qualified Safe
 
 type UnderlinesSection = [Underline]
 type Underline = (Location.Span, Importance, [(Type, FormattedString)])
@@ -113,7 +107,7 @@ get_colored_quote_and_underline_line fl nr unds =
         underline_importance_and_color (_, imp, (first_msg_ty, _):_) = (imp, Just first_msg_ty)
         underline_importance_and_color (_, imp, []) = (imp, Nothing)
 
-        underline_for_cols = map (\ c -> underline_importance_and_color <$> List.find (col_in_underline c) unds) [1 .. length quote+1]
+        underline_for_cols = map (\ c -> underline_importance_and_color <$> find (col_in_underline c) unds) [1 .. length quote+1]
 
         quote = Text.unpack $ Utils.get_quote fl nr
         colored_quote =
@@ -181,7 +175,7 @@ assign_messages msgs =
                 msgs
                 (List.inits assignments)
 
-        rows = map (map fst) $ List.groupBy ((==) `Function.on` snd) assignments
+        rows = map (map fst) $ List.groupBy ((==) `on` snd) assignments
         belows = map concat $ drop 1 $ List.tails rows
 
     in zip belows rows
@@ -216,7 +210,7 @@ show_multiline (und_sp, und_importance, und_msgs) =
         und_imp_char = imp_char und_importance
         rev_und_imp_char = top_imp_char und_importance
 
-        und_sgr = maybe [Colors.bold] type_color (fst <$> Safe.headMay und_msgs)
+        und_sgr = maybe [Colors.bold] type_color (fst <$> headMay und_msgs)
 
     in
         [Line.file_line (Location.file $ Location.start und_sp)] ++

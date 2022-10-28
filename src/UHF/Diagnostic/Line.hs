@@ -21,9 +21,7 @@ import qualified UHF.Diagnostic.Colors as Colors
 
 import qualified UHF.IO.File as File
 
-import qualified System.Console.ANSI as ANSI
 import qualified Data.Text as Text
-import qualified Data.List as List
 
 data Line = Line { prefix :: Text, separ :: Char, contents :: FormattedString.FormattedString } deriving (Show, Eq)
 

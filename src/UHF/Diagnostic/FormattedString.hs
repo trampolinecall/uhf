@@ -5,24 +5,12 @@ module UHF.Diagnostic.FormattedString
 
     , render_formatted_string
     , flatten_no_sgr
-
-    , tests
     ) where
 
 import UHF.Util.Prelude
 
-import Test.Tasty.HUnit
-import Test.Tasty.TH
-import Test.Tasty
-
-import qualified UHF.Diagnostic.Colors as Colors
-
 import qualified Data.Text as Text
-import qualified Data.Text.IO as Text.IO
-import qualified Data.Tuple as Tuple
-import qualified Data.Maybe as Maybe
 import qualified System.Console.ANSI as ANSI
-import qualified Data.List as List
 import qualified System.IO as IO
 
 import qualified Data.String (IsString(..))
@@ -58,7 +46,7 @@ render_formatted_string' handle c_needed old_sgrs (Colored sgrs text) =
     ANSI.setSGR [] >> ANSI.hSetSGR handle old_sgrs
 
 render_formatted_string' handle c_needed old_srgs (Join a b) = render_formatted_string' handle c_needed old_srgs a >> render_formatted_string' handle c_needed old_srgs b
-render_formatted_string' handle c_needed _ (Literal t) = hPutStr handle t
+render_formatted_string' handle _ _ (Literal t) = hPutStr handle t
 
 flatten_no_sgr :: FormattedString -> Text
 flatten_no_sgr (Colored _ a) = flatten_no_sgr a

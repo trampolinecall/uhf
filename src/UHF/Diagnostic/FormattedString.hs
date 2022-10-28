@@ -11,11 +11,7 @@ module UHF.Diagnostic.FormattedString
 
 import UHF.Util.Prelude
 
-import qualified UHF.Diagnostic.Colors as Colors
-
 import qualified Data.Text as Text
-import qualified Data.Tuple as Tuple
-import qualified Data.Maybe as Maybe
 import qualified System.Console.ANSI as ANSI
 import qualified System.IO as IO
 

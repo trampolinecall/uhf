@@ -2,7 +2,6 @@ module Main where
 
 import UHF.Util.Prelude
 
-import Test.Tasty
 
 import qualified UHF.Diagnostic.Sections.Underlines (tests)
 import qualified UHF.Diagnostic.Sections.Utils (tests)

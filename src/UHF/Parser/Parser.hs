@@ -25,9 +25,6 @@ module UHF.Parser.Parser
 
 import UHF.Util.Prelude
 
-import Test.Tasty.HUnit
-import Test.Tasty.TH
-import Test.Tasty
 
 import qualified UHF.Parser.ParseError as ParseError
 
@@ -39,14 +36,12 @@ import qualified Data.InfList as InfList
 
 import qualified Data.Data as Data
 
-import qualified Control.Monad.Trans.State as State
-
 type TokenStream = InfList.InfList Token.LNormalToken
 
 -- TODO: also clean up this too
 -- TODO: allow each thing to provide a custom error function
 
-type Parser = State.StateT TokenStream ParseResult
+type Parser = StateT TokenStream ParseResult
 newtype ParseResult r = ParseResult ([ParseError.ParseError], Either ParseError.ParseError r) deriving (Eq, Show)
 
 instance Functor ParseResult where
@@ -66,10 +61,10 @@ instance Monad ParseResult where
             Left e -> ParseResult (a_e, Left e)
 
 return_fail :: [ParseError.ParseError] -> ParseError.ParseError -> Parser a
-return_fail errs err = State.StateT $ \ _ -> ParseResult (errs, Left err)
+return_fail errs err = StateT $ \ _ -> ParseResult (errs, Left err)
 
 return_recoverable :: [ParseError.ParseError] -> a -> Parser a
-return_recoverable errs res = State.StateT $ \ toks -> ParseResult (errs, Right (res, toks))
+return_recoverable errs res = StateT $ \ toks -> ParseResult (errs, Right (res, toks))
 
 is_tt :: Token.NormalToken -> Token.NormalToken -> Bool
 is_tt a b = Data.toConstr a == Data.toConstr b
@@ -78,38 +73,38 @@ alpha_iden :: Token.NormalToken
 alpha_iden = Token.AlphaIdentifier []
 
 peek :: Parser Token.LNormalToken
-peek = State.StateT $ \ toks -> ParseResult ([], Right (InfList.head toks, toks))
+peek = StateT $ \ toks -> ParseResult ([], Right (InfList.head toks, toks))
 
 consume :: Text -> Token.NormalToken -> Parser Token.LNormalToken
-consume name exp = State.StateT $
+consume name exp = StateT $
     \ (tok InfList.::: more_toks) ->
         if is_tt (Location.unlocate tok) exp
             then ParseResult ([], Right (tok, more_toks))
             else ParseResult ([], Left $ ParseError.BadToken tok exp name)
 
 advance :: Parser ()
-advance = State.StateT $ \ toks -> ParseResult ([], Right ((), InfList.tail toks))
+advance = StateT $ \ toks -> ParseResult ([], Right ((), InfList.tail toks))
 
 -- combinators
 
 -- sequence combinator is >>=
 
 choice :: [Parser a] -> Parser a
-choice choices = State.StateT $ \ toks -> try_choices choices [] toks
+choice choices = StateT $ \ toks -> try_choices choices [] toks
     where
         try_choices (c:cs) breaking_acc toks =
-            case State.runStateT c toks of
+            case runStateT c toks of
                 res@(ParseResult (_, Right _)) -> res
                 ParseResult (_, Left e) -> try_choices cs (e:breaking_acc) toks
 
         try_choices [] breaking_acc (tok InfList.::: _) = ParseResult ([], Left (ParseError.NoneMatched tok breaking_acc))
 
 star :: Parser a -> Parser [a]
-star a = State.StateT $ \ toks ->
+star a = StateT $ \ toks ->
     star' [] [] toks
     where
         star' err_acc a_acc toks =
-            case State.runStateT a toks of
+            case runStateT a toks of
                 ParseResult (es, Right (r, toks')) -> star' (err_acc ++ es) (a_acc ++ [r]) toks'
                 ParseResult (_, Left _) -> ParseResult (err_acc, Right (a_acc, toks))
                 -- both errors do not apply if it doesn't work because that just means the list ends there
@@ -121,8 +116,8 @@ plus a =
     pure (a_res : more_as)
 
 optional :: Parser a -> Parser (Maybe a)
-optional a = State.StateT $ \ toks ->
-    case State.runStateT a toks of
+optional a = StateT $ \ toks ->
+    case runStateT a toks of
         ParseResult (es, Right (r, toks')) -> ParseResult (es, Right (Just r, toks'))
         ParseResult (_, Left _) -> ParseResult ([], Right (Nothing, toks))
 

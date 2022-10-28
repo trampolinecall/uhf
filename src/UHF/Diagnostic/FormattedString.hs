@@ -1,6 +1,7 @@
 module UHF.Diagnostic.FormattedString
     ( FormattedString(..)
     , ColorsNeeded(..)
+    , color_text
 
     , render_formatted_string
 
@@ -23,12 +24,21 @@ import qualified System.Console.ANSI as ANSI
 import qualified Data.List as List
 import qualified System.IO as IO
 
+import qualified Data.String (IsString(..))
+
 data FormattedString
     = Colored [ANSI.SGR] FormattedString
     | Join FormattedString FormattedString
     | Literal Text
+    deriving (Show, Eq)
+
+instance Data.String.IsString FormattedString where
+    fromString = Literal . Text.pack
 
 data ColorsNeeded = Colors | NoColors | AutoDetect
+
+color_text :: [ANSI.SGR] -> Text -> FormattedString
+color_text sgr = Colored sgr . Literal
 
 render_formatted_string :: IO.Handle -> ColorsNeeded -> FormattedString -> IO ()
 render_formatted_string handle c_needed fs =
@@ -40,7 +50,7 @@ render_formatted_string handle c_needed fs =
 
     render_formatted_string' handle c_needed' [] fs
 
-{-
+{- TODO: remove
     let (_, puts) =
             List.mapAccumL
                 (\ remaining (sgrs, len) ->

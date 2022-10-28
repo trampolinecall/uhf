@@ -8,11 +8,6 @@ module UHF.Diagnostic.Line
     , elipsis_line
     , numbered_line
     , other_line
-
-    , compare_line
-    , compare_many_lines
-    , compare_many_lines'
-
     ) where
 
 import UHF.Util.Prelude
@@ -31,10 +26,10 @@ import qualified Data.List as List
 data Line = Line { prefix :: Text, separ :: Char, contents :: FormattedString.FormattedString } deriving (Show, Eq)
 
 file_line :: File.File -> Line
-file_line f = Line "" '>' (FormattedString.make_formatted_string [(Colors.file_path, Text.pack $ File.path f)])
+file_line f = Line "" '>' (FormattedString.color_text Colors.file_path $ Text.pack $ File.path f)
 
 elipsis_line :: Line
-elipsis_line = Line "..." '|' (FormattedString.make_formatted_string [([], "...")])
+elipsis_line = Line "..." '|' "..."
 
 numbered_line :: Int -> FormattedString.FormattedString -> Line
 numbered_line num = Line (Text.pack $ show num) '|'
@@ -42,6 +37,7 @@ numbered_line num = Line (Text.pack $ show num) '|'
 other_line :: FormattedString.FormattedString -> Line
 other_line = Line "" '|'
 
+{- TODO: remove
 compare_line :: Text -> Char -> [(Char, [ANSI.SGR])] -> Text -> Text -> Line -> Bool
 compare_line pre sep bindings text sgrs (Line line_pre line_sep line_after) =
     pre == line_pre &&
@@ -71,3 +67,4 @@ compare_many_lines' bindings line_expectations lns =
     case compare_many_lines bindings line_expectations lns of
         Right () -> pure ()
         Left i -> assertFailure $ "line " ++ show i ++ " does not match\nexpected\n" ++ expectations_str ++ "got\n" ++ lns_str
+-}

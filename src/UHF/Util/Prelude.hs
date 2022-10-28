@@ -23,6 +23,7 @@ module UHF.Util.Prelude
 
     , show
 
+    , FormattedString(..)
     , Format(..)
     ) where
 
@@ -33,6 +34,8 @@ import qualified Data.Function (id)
 import qualified Data.Text
 import qualified Data.Text.IO
 import qualified Debug.Trace
+import qualified Data.String (IsString(..))
+import qualified System.Console.ANSI
 import Control.Monad.IO.Class (MonadIO, liftIO)
 
 import GHC.IO as X (IO)
@@ -137,9 +140,25 @@ class ConvertString a b where
 
 instance ConvertString Prelude.String Prelude.String where convert_str = identity
 instance ConvertString Prelude.String Data.Text.Text where convert_str = Data.Text.pack
+instance ConvertString Prelude.String FormattedString where convert_str = Literal . Data.Text.pack
 
 instance ConvertString Data.Text.Text Prelude.String where convert_str = Data.Text.unpack
 instance ConvertString Data.Text.Text Data.Text.Text where convert_str = identity
+instance ConvertString Data.Text.Text FormattedString where convert_str = Literal
+
+-- cannot convert to other 2 string types without losing sgr information
+instance ConvertString FormattedString FormattedString where convert_str = identity
+
+data FormattedString
+    = Colored [System.Console.ANSI.SGR] FormattedString
+    | Join FormattedString FormattedString
+    | Literal Text
+    deriving (Show, Eq)
+
+instance Data.String.IsString FormattedString where
+    fromString = Literal . Data.Text.pack
+instance Semigroup FormattedString where
+    (<>) = Join
 
 class Format a where
-    format :: a -> Data.Text.Text
+    format :: a -> FormattedString

@@ -19,9 +19,6 @@ module UHF.IO.Location
 
 import UHF.Util.Prelude
 
-import Test.Tasty.HUnit ((@=?), Assertion, testCase)
-import Test.Tasty.TH (testGroupGenerator)
-import Test.Tasty (TestTree)
 
 import qualified UHF.IO.File as File
 
@@ -39,47 +36,6 @@ data Located a = Located { just_span :: Span, unlocate :: a } deriving (Show, Eq
 
 line :: Location -> Int
 line = row
-
-{- TODO: remove
-instance Show Location where
-    show (Location f i r c) =
-        let before =
-                let b_start = i - 2
-                    b_end = i
-                    b_start' = max 0 b_start
-                in Text.take (b_end - b_start') $ Text.drop b_start' (File.contents f)
-
-            after = Text.take 2 $ Text.drop (i + 1) (File.contents f)
-            ch = Text.take 1 $ Text.drop i (File.contents f)
-
-            before' = Safe.initDef "" $ Safe.tailDef "" $ show before
-            after' = Safe.initDef "" $ Safe.tailDef "" $ show after
-            ch' = Safe.initDef "" $ Safe.tailDef "" $ show ch
-
-        in File.path f ++ ":" ++ show r ++ ":" ++ show c ++ ": " ++ "\"" ++ before' ++ "'" ++ ch' ++ "'" ++ after' ++ "\""
-
-instance Show Span where
-    show (Span s _ e) =
-        let si = ind s
-            ei = ind e
-
-            contents = File.contents $ file s
-
-            before =
-                let b_start = si - 4
-                    b_end = si
-                    b_start' = max 0 b_start
-                in Text.take (b_end - b_start') $ Text.drop b_start' contents
-
-            after = Text.take 4 $ Text.drop ei contents
-            inside = Text.take (ei - si) $ Text.drop si contents
-
-            before' = Safe.initDef "" $ Safe.tailDef "" $ show before
-            after' = Safe.initDef "" $ Safe.tailDef "" $ show after
-            inside' = Safe.initDef "" $ Safe.tailDef "" $ show inside
-
-        in File.path (file s) ++ ":(" ++ show (row s) ++ ":" ++ show (col s) ++ " " ++ show (row e) ++ ":" ++ show (col e) ++ "): " ++ "\"" ++ before' ++ "'" ++ inside' ++ "'" ++ after' ++ "\""
--}
 
 instance Functor Located where
     fmap f (Located sp v) = Located sp (f v)

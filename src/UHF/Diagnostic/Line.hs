@@ -14,7 +14,6 @@ module UHF.Diagnostic.Line
 
 import UHF.Util.Prelude
 
-import Test.Tasty.HUnit
 
 import qualified UHF.Diagnostic.FormattedString as FormattedString
 import qualified UHF.Diagnostic.Colors as Colors

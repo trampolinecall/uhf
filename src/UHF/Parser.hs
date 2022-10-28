@@ -10,9 +10,6 @@ module UHF.Parser
 
 import UHF.Util.Prelude
 
-import Test.Tasty.HUnit
-import Test.Tasty.TH
-import Test.Tasty
 
 import qualified UHF.Parser.Parser as Parser
 import qualified UHF.Parser.ParseError as ParseError
@@ -36,7 +33,7 @@ import qualified Control.Monad.Trans.State as State
 
 parse :: [Token.LNormalToken] -> Token.LNormalToken -> ([ParseError.ParseError], [AST.Decl])
 parse toks eof_tok =
-    case State.runStateT parse' (toks InfList.+++ InfList.repeat eof_tok) of
+    case runStateT parse' (toks InfList.+++ InfList.repeat eof_tok) of
         Parser.ParseResult (errs, Right (res, _)) -> (errs, res)
         Parser.ParseResult (errs, Left err) -> (errs ++ [err], [])
 
@@ -136,7 +133,7 @@ run_test (ParsingTest construct_name (_, construct_toks) construct_res parsers) 
     testGroup construct_name $
         map
             (\ (p_name, p) ->
-                testCase (p_name ++ " parsing " ++ construct_name) $ Parser.ParseResult ([], Right construct_res) @=? fst <$> State.runStateT p construct_toks)
+                testCase (p_name ++ " parsing " ++ construct_name) $ Parser.ParseResult ([], Right construct_res) @=? fst <$> runStateT p construct_toks)
             parsers
 
 test_parsing :: [TestTree]

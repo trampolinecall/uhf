@@ -11,8 +11,11 @@ module UHF.Diagnostic.FormattedString
 
 import UHF.Util.Prelude
 
-import qualified Data.Text as Text
+import qualified UHF.Diagnostic.Colors as Colors
 
+import qualified Data.Text as Text
+import qualified Data.Tuple as Tuple
+import qualified Data.Maybe as Maybe
 import qualified System.Console.ANSI as ANSI
 import qualified System.IO as IO
 
@@ -28,8 +31,8 @@ render_formatted_string handle c_needed fs =
         NoColors -> pure False
         AutoDetect -> ANSI.hSupportsANSI handle
     >>= \ c_needed' ->
-
     render_formatted_string' handle c_needed' [] fs
+
 
 render_formatted_string' :: IO.Handle -> Bool -> [ANSI.SGR] -> FormattedString -> IO ()
 render_formatted_string' handle c_needed old_sgrs (Colored sgrs text) =

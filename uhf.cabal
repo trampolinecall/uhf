@@ -79,9 +79,6 @@ executable uhfc
   build-depends:
       base >=4.13 && <5
     , optparse-applicative
-    , tasty
-    , tasty-hunit
-    , tasty-th
     , uhf
   default-language: Haskell2010
 

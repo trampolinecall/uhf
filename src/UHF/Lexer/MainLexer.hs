@@ -8,9 +8,6 @@ module UHF.Lexer.MainLexer
 
 import UHF.Util.Prelude
 
-import Test.Tasty.HUnit
-import Test.Tasty.TH
-import Test.Tasty
 
 import qualified UHF.Lexer.LexError as LexError
 import qualified UHF.IO.File as File

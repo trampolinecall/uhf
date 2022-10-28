@@ -280,7 +280,6 @@ show_middle_line :: Maybe (File.File, Int) -> [ANSI.SGR] -> [Line.Line]
 show_middle_line (Just (file, nr)) sgr = [Line.numbered_line nr $ "  " `FormattedString.Join` FormattedString.color_text (sgr) (Utils.get_quote file nr)]
 show_middle_line Nothing _ = []
 -- tests {{{1
-{- TODO: fix
 case_underlines :: Assertion
 case_underlines =
     let (_, [single_sp, multi_sp]) = make_spans ["abc", "def\nghi\njklm\n"]
@@ -289,39 +288,23 @@ case_underlines =
             [ (single_sp, Primary, [(Error, "message 1"), (Hint, "message 2")])
             , (multi_sp, Primary, [(Warning, "message 3")])
             ]
-    in __
-        [('f', Colors.file_path), ('e', Colors.error), ('w', Colors.warning), ('h', Colors.hint), ('b', [Colors.bold])]
-        [ ("", '>',  "<generated span file>",
-                     "f--------------------")
+    in Line.compare_lines
+        [ ("", '>',  "<generated span file>")
+        , ("1", '|', "abc def")
+        , ( "", '|', "^^^     ")
+        , ( "", '|', "  |-- message 1")
+        , ( "", '|', "  `-- message 2")
+        , ("2", '|', "ghi")
+        , ("3", '|', "jklm")
 
-        , ("1", '|', "abc def",
-                     "eee    ")
-        , ( "", '|', "^^^     ",
-                     "eee     ")
-        , ( "", '|', "  |-- message 1",
-                     " -e------------")
-        , ( "", '|', "  `-- message 2",
-                     " -h------------")
-        , ("2", '|', "ghi",
-                     "   ")
-        , ("3", '|', "jklm",
-                     "    ")
+        , ("", '>',  "<generated span file>")
 
-        , ("", '>',  "<generated span file>",
-                     "f--------------------")
-
-        , ( "", '|', "      vvv--",
-                     " -----w--b-")
-        , ("1", '|', "  abc def |",
-                     " - ---w-- b")
-        , ("2", '|', "  ghi",
-                     " -w--")
-        , ("3", '|', "| jklm",
-                     "b-w---")
-        , ( "", '|', "----^^^",
-                     "b---w--")
-        , ( "", '|', "      `-- message 3",
-                     " -----w------------")
+        , ( "", '|', "      vvv--")
+        , ("1", '|', "  abc def |")
+        , ("2", '|', "  ghi")
+        , ("3", '|', "| jklm")
+        , ( "", '|', "----^^^")
+        , ( "", '|', "      `-- message 3")
         ]
         (Diagnostic.section_contents section)
 
@@ -337,46 +320,26 @@ case_show_singleline =
             , (abc2, Tertiary, [(Note, "tertiary note")])
             ]
 
-    in __
-        [('f', Colors.file_path), ('e', Colors.error), ('w', Colors.warning), ('n', Colors.note), ('h', Colors.hint)]
-        [ (   "", '>', "zyx",
-                       "f--")
-        , (  "1", '|', "zyx1",
-                       "eeee")
-        , (   "", '|', "^^^^ ",
-                       "eeee ")
-        , (   "", '|', "   `-- primary error",
-                       " --e----------------")
-        , (   "", '>', "abc",
-                       "f--")
-        , (  "1", '|', "abc1abc2",
-                       "wwwwnnnn")
-        , (   "", '|', "~~~~---- ",
-                       "wwwwnnnn ")
-        , (   "", '|', "   |   `-- tertiary note",
-                       " ------n----------------")
-        , (   "", '|', "   `-- secondary warning",
-                       " --w--------------------")
-        , (  "2", '|', "",
-                       "")
-        , (  "3", '|', "",
-                       "")
-        , ("...", '|', "...",
-                       " --")
-        , (  "6", '|', "context1",
-                       "        ")
-        , (  "7", '|', "context2",
-                       "        ")
-        , (  "8", '|', "abc3",
-                       "hhhh")
-        , (   "", '|', "~~~~~",
-                       "hhhhh")
-        , (   "", '|', "    `-- secondary hint",
-                       " ---h-----------------")
-        , (  "9", '|', "context3",
-                       "        ")
-        , ( "10", '|', "context4",
-                       "        ")
+    in Line.compare_lines
+        [ (   "", '>', "zyx")
+        , (  "1", '|', "zyx1")
+        , (   "", '|', "^^^^ ")
+        , (   "", '|', "   `-- primary error")
+        , (   "", '>', "abc")
+        , (  "1", '|', "abc1abc2")
+        , (   "", '|', "~~~~---- ")
+        , (   "", '|', "   |   `-- tertiary note")
+        , (   "", '|', "   `-- secondary warning")
+        , (  "2", '|', "")
+        , (  "3", '|', "")
+        , ("...", '|', "...")
+        , (  "6", '|', "context1")
+        , (  "7", '|', "context2")
+        , (  "8", '|', "abc3")
+        , (   "", '|', "~~~~~")
+        , (   "", '|', "    `-- secondary hint")
+        , (  "9", '|', "context3")
+        , ( "10", '|', "context4")
         ]
         (show_singleline unds)
 
@@ -393,10 +356,10 @@ case_show_line_other_lines =
     let (f, [_]) = make_spans ["thing"]
         unds = []
 
-        other = Line.numbered_line 2 $ [([], "abcdefghijklmnop")]
+        other = Line.numbered_line 2 "abcdefghijklmnop"
 
     in [ other
-       , Line.numbered_line 1 $ [([], "t"), ([], "h"), ([], "i"), ([], "n"), ([], "g")]
+       , Line.numbered_line 1 ("" `FormattedString.Join` "t" `FormattedString.Join` "h" `FormattedString.Join` "i" `FormattedString.Join` "n" `FormattedString.Join` "g")
        ] @=? show_line unds ([other], (f, 1))
 
 case_show_line_single :: Assertion
@@ -404,14 +367,10 @@ case_show_line_single =
     let (f, [sp]) = make_spans ["sp"]
         unds = [(sp, Primary, [(Error, "message")])]
 
-    in __
-        [('e', Colors.error)]
-        [ ("1", '|', "sp",
-                     "ee")
-        , ( "", '|', "^^ ",
-                     "ee ")
-        , ( "", '|', " `-- message",
-                     " e----------")
+    in Line.compare_lines
+        [ ("1", '|', "sp")
+        , ( "", '|', "^^ ")
+        , ( "", '|', " `-- message")
         ]
         (show_line unds ([], (f, 1)))
 
@@ -420,14 +379,10 @@ case_show_line_multiple =
     let (f, [sp1, _, sp2]) = make_spans ["sp1", "ABCDEFGHIJKLMNOP", "sp2"]
         unds = [(sp1, Primary, [(Error, "a")]), (sp2, Primary, [(Error, "b")])]
 
-    in __
-        [('e', Colors.error)]
-        [ ("1", '|', "sp1 ABCDEFGHIJKLMNOP sp2",
-                     "eee                  eee")
-        , ( "", '|', "^^^                  ^^^ ",
-                     "eee                  eee ")
-        , ( "", '|', "  `-- a                `-- b",
-                     " -e---- ---------------e----")
+    in Line.compare_lines
+        [ ("1", '|', "sp1 ABCDEFGHIJKLMNOP sp2")
+        , ( "", '|', "^^^                  ^^^ ")
+        , ( "", '|', "  `-- a                `-- b")
         ]
         (show_line unds ([], (f, 1)))
 
@@ -436,18 +391,12 @@ case_show_line_multiple_overlapping =
     let (f, [sp1, sp2]) = make_spans ["sp1", "sp2"]
         unds = [(sp1, Primary, [(Error, "message1"), (Error, "message2")]), (sp2, Primary, [(Error, "message3")])]
 
-    in __
-        [('e', Colors.error)]
-        [ ("1", '|', "sp1 sp2",
-                     "eee eee")
-        , ( "", '|', "^^^ ^^^ ",
-                     "eee eee ")
-        , ( "", '|', "  |   `-- message3",
-                     " -----e-----------")
-        , ( "", '|', "  |-- message1",
-                     " -e-----------")
-        , ( "", '|', "  `-- message2",
-                     " -e-----------")
+    in Line.compare_lines
+        [ ("1", '|', "sp1 sp2")
+        , ( "", '|', "^^^ ^^^ ")
+        , ( "", '|', "  |   `-- message3")
+        , ( "", '|', "  |-- message1")
+        , ( "", '|', "  `-- message2")
         ]
         (show_line unds ([], (f, 1)))
 
@@ -455,11 +404,9 @@ case_show_row :: Assertion
 case_show_row =
     let (_, [sp1, _]) = make_spans ["sp1", "sp2"]
         messages = [(True, Location.before_end sp1, Error, "message")]
-    in __
-        [('e', Colors.error)]
+    in Line.compare_lines
                  -- sp1 sp2
-        [("", '|', "  `-- message",
-                   " -e----------")]
+        [("", '|', "  `-- message")]
 
         [show_row [] messages]
 
@@ -467,11 +414,9 @@ case_show_row_message_below :: Assertion
 case_show_row_message_below =
     let (_, [sp1, sp2]) = make_spans ["sp1", "sp2"]
         messages = [(True, Location.before_end sp2, Error, "message")]
-    in __
-        [('e', Colors.error)]
+    in Line.compare_lines
                  -- sp1 sp2
-        [("", '|', "  |   `-- message",
-                   " -----e----------")]
+        [("", '|', "  |   `-- message")]
 
         [show_row [(True, Location.before_end sp1, Error, "message")] messages]
 
@@ -479,11 +424,9 @@ case_show_row_not_last :: Assertion
 case_show_row_not_last =
     let (_, [sp1, _]) = make_spans ["sp1", "sp2"]
         messages = [(False, Location.before_end sp1, Error, "message")]
-    in __
-        [('e', Colors.error)]
+    in Line.compare_lines
                  -- sp1 sp2
-        [("", '|', "  |-- message",
-                   " -e----------")]
+        [("", '|', "  |-- message")]
 
         [show_row [] messages]
 
@@ -491,11 +434,9 @@ case_show_row_multiple :: Assertion
 case_show_row_multiple =
     let (_, [sp1, _, sp2]) = make_spans ["sp1", "ABCDEFGHIJKLMNOP", "sp2"]
         messages = [(True, Location.before_end sp1, Error, "message1"), (True, Location.before_end sp2, Error, "message2")]
-    in __
-        [('e', Colors.error)]
+    in Line.compare_lines
                  -- sp1 ABCDEFGHIJKLMNOP sp2
-        [("", '|', "  `-- message1         `-- message2",
-                   " -e----------- --------e-----------")]
+        [("", '|', "  `-- message1         `-- message2")]
 
         [show_row [] messages]
 
@@ -573,67 +514,35 @@ test_overlapping =
 case_multiline_lines_even :: Assertion
 case_multiline_lines_even =
     let (_, [_, _, sp, _]) = make_spans' "file" "" ["\n", "th", "ing\nthingthing\nthing\nab", "c"]
-    in __
-        [ ('e', Colors.error)
-        , ('w', Colors.warning)
-        , ('b', [Colors.bold])
-        , ('f', Colors.file_path)
-        ]
-        [ ( "", '>', "file",
-                     "f---")
-        , ( "", '|', "    vvv-------",
-                     " ---e--b------")
-        , ("2", '|', "  thing      |",
-                     " - -e-- -----b")
-        , ("3", '|', "  thingthing |",
-                     " -e--------- b")
-        , ("4", '|', "| thing",
-                     "b-e----")
-        , ("5", '|', "| abc",
-                     "b-e- ")
-        , ( "", '|', "-^^^",
-                     "be--")
-        , ( "", '|', "   |-- message 1",
-                     " --e------------")
-        , ( "", '|', "   `-- message 2",
-                     " --w------------")
+    in Line.compare_lines
+        [ ( "", '>', "file")
+        , ( "", '|', "    vvv-------")
+        , ("2", '|', "  thing      |")
+        , ("3", '|', "  thingthing |")
+        , ("4", '|', "| thing")
+        , ("5", '|', "| abc")
+        , ( "", '|', "-^^^")
+        , ( "", '|', "   |-- message 1")
+        , ( "", '|', "   `-- message 2")
         ]
         (show_multiline (sp, Primary, [(Error, "message 1"), (Warning, "message 2")]))
 
 case_multiline_lines_odd :: Assertion
 case_multiline_lines_odd =
     let (_, [_, _, sp, _]) = make_spans' "file" "" ["\n", "th", "ing\nthingthing\nzyx\nthing\nab", "c"]
-    in __
-        [ ('e', Colors.error)
-        , ('w', Colors.warning)
-        , ('b', [Colors.bold])
-        , ('f', Colors.file_path)
-        ]
-        [ ( "", '>', "file",
-                     "f---")
-        , ( "", '|', "    vvv-------",
-                     " ---e--b------")
-        , ("2", '|', "  thing      |",
-                     " - -e-- -----b")
-        , ("3", '|', "  thingthing |",
-                     " -e--------- b")
-        , ("4", '|', "  zyx",
-                     " -e--")
-        , ("5", '|', "| thing",
-                     "b-e----")
-        , ("6", '|', "| abc",
-                     "b-e- ")
-        , ( "", '|', "-^^^",
-                     "be--")
-        , ( "", '|', "   |-- message 1",
-                     " --e------------")
-        , ( "", '|', "   `-- message 2",
-                     " --w------------")
+    in Line.compare_lines
+        [ ( "", '>', "file")
+        , ( "", '|', "    vvv-------")
+        , ("2", '|', "  thing      |")
+        , ("3", '|', "  thingthing |")
+        , ("4", '|', "  zyx")
+        , ("5", '|', "| thing")
+        , ("6", '|', "| abc")
+        , ( "", '|', "-^^^")
+        , ( "", '|', "   |-- message 1")
+        , ( "", '|', "   `-- message 2")
         ]
         (show_multiline (sp, Primary, [(Error, "message 1"), (Warning, "message 2")]))
 
 tests :: TestTree
 tests = $(testGroupGenerator)
--}
-
-tests = undefined

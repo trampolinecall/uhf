@@ -8,6 +8,8 @@ module UHF.Diagnostic.Line
     , elipsis_line
     , numbered_line
     , other_line
+
+    , compare_lines
     ) where
 
 import UHF.Util.Prelude
@@ -37,34 +39,22 @@ numbered_line num = Line (Text.pack $ show num) '|'
 other_line :: FormattedString.FormattedString -> Line
 other_line = Line "" '|'
 
-{- TODO: remove
-compare_line :: Text -> Char -> [(Char, [ANSI.SGR])] -> Text -> Text -> Line -> Bool
-compare_line pre sep bindings text sgrs (Line line_pre line_sep line_after) =
-    pre == line_pre &&
-    sep == line_sep &&
-    FormattedString.compare_formatted_string bindings text sgrs line_after
+compare_lines :: [(Text, Char, Text)] -> [Line] -> Assertion
+compare_lines expect lns =
+    let expectations_str = Text.concat $ map
+            (\ (pre, ch, text) -> pre <> " " <> Text.pack [ch] <> " " <> show text <> "\n")
+            expect
 
-compare_many_lines :: [(Char, [ANSI.SGR])] -> [(Text, Char, Text, Text)] -> [Line] -> Either Int ()
-compare_many_lines bindings line_expectations =
-    let c (pre, sep, text, sgrs) = compare_line pre sep bindings text sgrs
-    in maybe (Right ()) Left . List.elemIndex False . zipWith c line_expectations
-
-compare_many_lines' :: [(Char, [ANSI.SGR])] -> [(Text, Char, Text, Text)] -> [Line] -> Assertion
-compare_many_lines' bindings line_expectations lns =
-    let expectations_str = concatMap
-            (\ (pre, ch, text, formats) ->
-                Text.unpack pre ++ " " ++ [ch] ++ " " ++ show text ++ "\n" ++ replicate (Text.length pre + 3) ' ' ++ show formats ++ "\n")
-            line_expectations
-
-        lns_str = concatMap
+        lns_str = Text.concat $ map
             (\ (Line pre ch fmstr) ->
-                let (fmstr_text, fmstr_formats) = FormattedString.formatted_string_contents_and_formats bindings fmstr
-                in Text.unpack pre ++ " " ++ [ch] ++ " " ++ show fmstr_text ++ "\n" ++ replicate (Text.length pre + 3) ' ' ++ show fmstr_formats ++ "\n"
+                let fmstr_text = FormattedString.flatten_no_sgr fmstr
+                in pre <> " " <> Text.pack [ch] <> " " <> fmstr_text <> "\n"
             )
             lns
 
-    in assertBool ("line number mismatch\nexpected\n" ++ expectations_str ++ "got\n" ++ lns_str) (length lns == length line_expectations) >>
-    case compare_many_lines bindings line_expectations lns of
-        Right () -> pure ()
-        Left i -> assertFailure $ "line " ++ show i ++ " does not match\nexpected\n" ++ expectations_str ++ "got\n" ++ lns_str
--}
+        lns_flattened = map (\ (Line pre ch fmstr) -> (pre, ch, FormattedString.flatten_no_sgr fmstr)) lns
+
+        error_msg = "expected\n" ++ Text.unpack expectations_str ++ "got\n" ++ Text.unpack lns_str
+
+    in assertBool ("number of lines mismatch\n" ++ error_msg) (length lns == length expect) >>
+    assertBool ("mismatch\n" ++ error_msg) (expect == lns_flattened)

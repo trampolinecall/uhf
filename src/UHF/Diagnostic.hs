@@ -48,7 +48,7 @@ report handle (Diagnostic code m_sp sections) =
                 Code.DebugMessage -> FormattedString.color_text Colors.debug_message "debug message"
                 Code.InternalError -> FormattedString.color_text Colors.error "internal error")
             (case m_sp of
-                Just sp -> " at " `FormattedString.Join` FormattedString.color_text Colors.file_path (format sp)
+                Just sp -> " at " `FormattedString.Join` format sp
                 Nothing -> "")
 
         footer =

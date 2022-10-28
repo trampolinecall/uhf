@@ -4,6 +4,7 @@ module UHF.Diagnostic.FormattedString
     , color_text
 
     , render_formatted_string
+    , flatten_no_sgr
 
     , tests
     ) where
@@ -50,21 +51,6 @@ render_formatted_string handle c_needed fs =
 
     render_formatted_string' handle c_needed' [] fs
 
-{- TODO: remove
-    let (_, puts) =
-            List.mapAccumL
-                (\ remaining (sgrs, len) ->
-                    let (cur, remaining') = Text.splitAt len remaining
-                    in (remaining',
-                        (if c_needed' then ANSI.hSetSGR handle sgrs else pure ()) >>
-                        Text.IO.hPutStr handle cur)
-                )
-                str
-                formats
-
-    in sequence_ puts
-    -}
-
 render_formatted_string' :: IO.Handle -> Bool -> [ANSI.SGR] -> FormattedString -> IO ()
 render_formatted_string' handle c_needed old_sgrs (Colored sgrs text) =
     ANSI.setSGR [] >> ANSI.hSetSGR handle old_sgrs >> ANSI.setSGR sgrs >>
@@ -73,50 +59,8 @@ render_formatted_string' handle c_needed old_sgrs (Colored sgrs text) =
 
 render_formatted_string' handle c_needed old_srgs (Join a b) = render_formatted_string' handle c_needed old_srgs a >> render_formatted_string' handle c_needed old_srgs b
 render_formatted_string' handle c_needed _ (Literal t) = hPutStr handle t
-{-
-formatted_string_contents_and_formats :: [(Char, [ANSI.SGR])] -> FormattedString -> (Text, Text)
-formatted_string_contents_and_formats bindings (FormattedString text formats) =
-    let reverse_bindings = ([], ' ') : map Tuple.swap bindings
-    in ( text
-       , Text.pack $ concatMap
-           (\ (sgrs, amt) ->
-               if amt == 0
-                   then ""
-                   else Maybe.fromJust (lookup sgrs reverse_bindings) : replicate (amt - 1) '-')
-           formats
-       )
--- for testing
-compare_formatted_string :: [(Char, [ANSI.SGR])] -> Text -> Text -> FormattedString -> Bool
-compare_formatted_string bindings text sgrs =
-    let bindings' = (' ', []) : bindings
-        group_sgrs ((ch, sgr_binding):more) =
-            let (grabbed_chrs, more') = span ((=='-') . snd) more
-                sgr =
-                    case lookup sgr_binding bindings' of
-                        Just x -> x
-                        Nothing -> error $ "undefined sgr character: '" ++ [sgr_binding] ++ "'"
 
-            in ((sgr, Text.pack $ ch : map fst grabbed_chrs) : group_sgrs more')
-
-        group_sgrs [] = []
-
-    in (make_formatted_string (group_sgrs $ Text.zip text sgrs) ==)
--}
-
--- tests {{{1
-{-
--- case_compare_formatted_string :: Assertion
--- case_compare_formatted_string =
-    assertBool "compare_formatted_string failed" $
-        compare_formatted_string
-            [ ('a', [Colors.fg_bred])
-            , ('b', [Colors.fg_bgreen])
-            , ('c', [Colors.fg_bblue])
-            ]
-            "abcdefghijklmnop"
-            "a--- --b -c---  "
-            (make_formatted_string [([Colors.fg_bred], "abcd"), ([], "efg"), ([Colors.fg_bgreen], "h"), ([], "ij"), ([Colors.fg_bblue], "klmn"), ([], "o"), ([], "p")])
--}
-
-tests :: TestTree
-tests = $(testGroupGenerator)
+flatten_no_sgr :: FormattedString -> Text
+flatten_no_sgr (Colored _ a) = flatten_no_sgr a
+flatten_no_sgr (Join a b) = flatten_no_sgr a <> flatten_no_sgr b
+flatten_no_sgr (Literal t) = t

@@ -24,7 +24,7 @@ instance Diagnostic.IsDiagnostic ParseError where
             [ Underlines.underlines
                 [sp `Underlines.primary`
                     [ Underlines.error $ "bad " <> format (Location.unlocate tok)
-                    , Underlines.note $ construct <> " expects " <> format expectation
+                    , Underlines.note $ Literal construct <> " expects " <> format expectation
                     ]
                 ]
             ]
@@ -32,7 +32,7 @@ instance Diagnostic.IsDiagnostic ParseError where
     to_diagnostic (NotImpl construct) =
         Diagnostic.Diagnostic Codes.not_implemented (Just $ Location.just_span construct)
             [ Underlines.underlines
-                [Location.just_span construct `Underlines.primary` [Underlines.error $ Location.unlocate construct <> " are not implemented yet"]]
+                [Location.just_span construct `Underlines.primary` [Underlines.error $ Literal (Location.unlocate construct) <> " are not implemented yet"]]
             ]
 
     to_diagnostic (NoneMatched (Location.Located sp tok) errs) =

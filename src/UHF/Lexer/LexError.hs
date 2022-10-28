@@ -28,7 +28,7 @@ data LexError
 
 instance Diagnostic.IsDiagnostic LexError where
     to_diagnostic (BadChar ch sp) = Diagnostic.Diagnostic Codes.bad_char (Just sp)
-        [Underlines.underlines [sp `Underlines.primary` [Underlines.error $ "bad character '" `Text.append` Text.singleton ch `Text.append` "'"]]]
+        [Underlines.underlines [sp `Underlines.primary` [Underlines.error $ "bad character '" <> Literal (Text.singleton ch) <> "'"]]]
 
     to_diagnostic (UnclosedMComment sp) = Diagnostic.Diagnostic Codes.unclosed_multiline_comment (Just sp)
         [Underlines.underlines [sp `Underlines.primary` [Underlines.error "unclosed multiline comment"]]]
@@ -43,10 +43,10 @@ instance Diagnostic.IsDiagnostic LexError where
         [Underlines.underlines [sp `Underlines.primary` [Underlines.error "character literal not exactly 1 character long"]]]
 
     to_diagnostic (InvalidIntBase ch sp) = Diagnostic.Diagnostic Codes.invalid_int_base (Just sp)
-        [Underlines.underlines [sp `Underlines.primary` [Underlines.error $ "invalid base '" `Text.append` Text.singleton ch `Text.append` "'"]]]
+        [Underlines.underlines [sp `Underlines.primary` [Underlines.error $ "invalid base '" <> Literal (Text.singleton ch) <> "'"]]]
 
     to_diagnostic (InvalidIntDigit ch sp) = Diagnostic.Diagnostic Codes.invalid_int_digit (Just sp)
-        [Underlines.underlines [sp `Underlines.primary` [Underlines.error $ "invalid digit '" `Text.append` Text.singleton ch `Text.append` "'"]]]
+        [Underlines.underlines [sp `Underlines.primary` [Underlines.error $ "invalid digit '" <> Literal (Text.singleton ch) <> "'"]]]
 
     to_diagnostic (NonDecimalFloat sp) = Diagnostic.Diagnostic Codes.non_decimal_float (Just sp)
         [Underlines.underlines [sp `Underlines.primary` [Underlines.error "floating point literals must be in decimal"]]]

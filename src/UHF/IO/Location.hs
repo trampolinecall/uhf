@@ -25,6 +25,8 @@ import Test.Tasty (TestTree)
 
 import qualified UHF.IO.File as File
 
+import qualified UHF.Diagnostic.Colors as Colors
+
 import qualified Data.Text as Text
 import Data.List (minimumBy, maximumBy)
 
@@ -108,10 +110,10 @@ join_span (Span s1 b1 e1) (Span s2 b2 e2) =
         else error "join two spans where some locations have different files"
 
 instance Format Location where
-    format (Location f _ r c) = Text.pack (File.path f) <> ":" <> show r <> ":" <> show c
+    format (Location f _ r c) = Colored Colors.file_path $ format f <> ":" <> show r <> ":" <> show c
 
 instance Format Span where
-    format (Span (Location f1 _ r1 c1) _ (Location _ _ r2 c2)) = Text.pack (File.path f1) <> ":" <> show r1 <> ":" <> show c1 <> ":" <> show r2 <> ":" <> show c2
+    format (Span (Location f1 _ r1 c1) _ (Location _ _ r2 c2)) = format f1 <> ":" <> show r1 <> ":" <> show c1 <> ":" <> show r2 <> ":" <> show c2
 
 is_single_line :: Span -> Bool
 is_single_line (Span s be _) = row s == row be

@@ -142,7 +142,7 @@ show_row below msgs =
             let start_col = cm_start_col msg
                 end_col = cm_end_col msg
             in ( end_col
-               , FormattedString.Literal (Text.pack $ map (\ c -> if c `elem` below_pipes then '|' else ' ') [last_col..start_col - 1]) `Join` format msg
+               , FormattedString.Literal (Text.pack $ map (\ c -> if c `elem` below_pipes then '|' else ' ') [last_col..start_col - 1]) <> format msg
                )
 
     in Line.other_line $ foldl' FormattedString.Join "" $ snd $ List.mapAccumL render_msg 1 sorted_msgs
@@ -234,13 +234,13 @@ show_top_lines loc n ch sgr =
         n_dash = col_diff - n_ch
 
     in [ Line.other_line $
-            FormattedString.Literal (Text.replicate (start_col + 2 - 1) " ") `FormattedString.Join` FormattedString.color_text sgr (Text.replicate n_ch (Text.pack [ch])) `FormattedString.Join` FormattedString.color_text [Colors.bold] (Text.replicate n_dash "-")] ++
+            FormattedString.Literal (Text.replicate (start_col + 2 - 1) " ") <> FormattedString.color_text sgr (Text.replicate n_ch (Text.pack [ch])) <> FormattedString.color_text [Colors.bold] (Text.replicate n_dash "-")] ++
         [ Line.numbered_line start_line $
-            "  " `FormattedString.Join` FormattedString.Literal (Text.take (start_col - 1) start_quote) `FormattedString.Join` FormattedString.color_text sgr (Text.drop (start_col - 1) start_quote) `FormattedString.Join` FormattedString.Literal (Text.replicate (max_col - Text.length start_quote - 1) " ") `FormattedString.Join` FormattedString.color_text [Colors.bold] "|"] ++
+            "  " <> FormattedString.Literal (Text.take (start_col - 1) start_quote) <> FormattedString.color_text sgr (Text.drop (start_col - 1) start_quote) <> FormattedString.Literal (Text.replicate (max_col - Text.length start_quote - 1) " ") <> FormattedString.color_text [Colors.bold] "|"] ++
         map (\ l ->
             let quote = Utils.get_quote file l
                 pad = max_col - Text.length quote - 1
-            in Line.numbered_line l $ "  " `FormattedString.Join` FormattedString.color_text sgr quote `FormattedString.Join` FormattedString.Literal (Text.replicate pad " ") `FormattedString.Join` FormattedString.color_text [Colors.bold] "|"
+            in Line.numbered_line l $ "  " <> FormattedString.color_text sgr quote <> FormattedString.Literal (Text.replicate pad " ") <> FormattedString.color_text [Colors.bold] "|"
         ) top_lines
 
 show_bottom_lines :: Location.Location -> Int -> Char -> [ANSI.SGR] -> [(Type, FormattedString)] -> [Line.Line]
@@ -258,19 +258,19 @@ show_bottom_lines loc n ch sgr msgs =
 
     in map (\ l ->
             let quote = Utils.get_quote file l
-            in Line.numbered_line l $ FormattedString.color_text [Colors.bold] "| " `FormattedString.Join` FormattedString.color_text sgr quote
+            in Line.numbered_line l $ FormattedString.color_text [Colors.bold] "| " <> FormattedString.color_text sgr quote
         ) bottom_lines ++
         [ Line.numbered_line end_line $
-            FormattedString.color_text [Colors.bold] "| " `FormattedString.Join` FormattedString.color_text (sgr) (Text.take (end_col - 2 ) end_quote) `FormattedString.Join` FormattedString.Literal (Text.drop (end_col - 2) end_quote)] ++
+            FormattedString.color_text [Colors.bold] "| " <> FormattedString.color_text (sgr) (Text.take (end_col - 2 ) end_quote) <> FormattedString.Literal (Text.drop (end_col - 2) end_quote)] ++
         [ Line.other_line $
-            FormattedString.color_text ([Colors.bold]) (Text.replicate n_dash "-") `FormattedString.Join` FormattedString.color_text sgr (Text.replicate n_ch (Text.pack [ch]))] ++
+            FormattedString.color_text ([Colors.bold]) (Text.replicate n_dash "-") <> FormattedString.color_text sgr (Text.replicate n_ch (Text.pack [ch]))] ++
         zipWith (\ i (ty, msg) ->
             Line.other_line $
-                FormattedString.Literal (Text.replicate (end_col - 1) " ") `FormattedString.Join` format (CompleteMessage (i == length msgs - 1, loc, ty, msg))
+                FormattedString.Literal (Text.replicate (end_col - 1) " ") <> format (CompleteMessage (i == length msgs - 1, loc, ty, msg))
         ) [0..] msgs
 
 show_middle_line :: Maybe (File.File, Int) -> [ANSI.SGR] -> [Line.Line]
-show_middle_line (Just (file, nr)) sgr = [Line.numbered_line nr $ "  " `FormattedString.Join` FormattedString.color_text (sgr) (Utils.get_quote file nr)]
+show_middle_line (Just (file, nr)) sgr = [Line.numbered_line nr $ "  " <> FormattedString.color_text (sgr) (Utils.get_quote file nr)]
 show_middle_line Nothing _ = []
 -- tests {{{1
 case_underlines :: Assertion
@@ -351,9 +351,11 @@ case_show_line_other_lines =
 
         other = Line.numbered_line 2 "abcdefghijklmnop"
 
-    in [ other
-       , Line.numbered_line 1 ("" `FormattedString.Join` "t" `FormattedString.Join` "h" `FormattedString.Join` "i" `FormattedString.Join` "n" `FormattedString.Join` "g")
-       ] @=? show_line unds ([other], (f, 1))
+    in Line.compare_lines
+        [ ("2", '|', "abcdefghijklmnop")
+        , ("1", '|', "thing")
+        ]
+        (show_line unds ([other], (f, 1)))
 
 case_show_line_single :: Assertion
 case_show_line_single =

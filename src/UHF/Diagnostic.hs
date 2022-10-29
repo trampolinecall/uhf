@@ -47,12 +47,12 @@ report handle (Diagnostic code m_sp sections) =
                 Code.DebugMessage -> FormattedString.color_text Colors.debug_message "debug message"
                 Code.InternalError -> FormattedString.color_text Colors.error "internal error")
             (case m_sp of
-                Just sp -> " at " `FormattedString.Join` format sp
+                Just sp -> " at " <> format sp
                 Nothing -> "")
 
         footer =
             case Code.code_code_desc code of
-                Just (c, d) -> Just $ "==> [" `FormattedString.Join` FormattedString.color_text Colors.diag_code c `FormattedString.Join` "] " `FormattedString.Join` FormattedString.color_text Colors.diag_desc d
+                Just (c, d) -> Just $ "==> [" <> FormattedString.color_text Colors.diag_code c <> "] " <> FormattedString.color_text Colors.diag_desc d
                 Nothing -> Nothing
 
         section_lines = concatMap (\ (Section l) -> l) sections

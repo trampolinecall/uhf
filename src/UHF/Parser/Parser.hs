@@ -9,7 +9,6 @@ module UHF.Parser.Parser
     , return_recoverable
 
     , is_tt
-    , alpha_iden
 
     , peek
     , consume
@@ -66,19 +65,16 @@ return_fail errs err = StateT $ \ _ -> ParseResult (errs, Left err)
 return_recoverable :: [ParseError.ParseError] -> a -> Parser a
 return_recoverable errs res = StateT $ \ toks -> ParseResult (errs, Right (res, toks))
 
-is_tt :: Token.NormalToken -> Token.NormalToken -> Bool
+is_tt :: Token.TokenType -> Token.NormalToken -> Bool
 is_tt a b = Data.toConstr a == Data.toConstr b
-
-alpha_iden :: Token.NormalToken
-alpha_iden = Token.AlphaIdentifier []
 
 peek :: Parser Token.LNormalToken
 peek = StateT $ \ toks -> ParseResult ([], Right (InfList.head toks, toks))
 
-consume :: Text -> Token.NormalToken -> Parser Token.LNormalToken
+consume :: Text -> Token.TokenType -> Parser Token.LNormalToken
 consume name exp = StateT $
     \ (tok InfList.::: more_toks) ->
-        if is_tt (Location.unlocate tok) exp
+        if is_tt exp (Location.unlocate tok)
             then ParseResult ([], Right (tok, more_toks))
             else ParseResult ([], Left $ ParseError.BadToken tok exp name)
 
@@ -159,11 +155,6 @@ test_parse_result_monad =
 test_is_tt =
     [ testCase "is_tt same" undefined
     , testCase "is_tt different" undefined
-    ]
-
-test_is_alpha_iden =
-    [ testCase "is_alpha_iden alpha identifier" undefined
-    , testCase "is_alpha_iden not alpha identifier" undefined
     ]
 
 case_peek = undefined

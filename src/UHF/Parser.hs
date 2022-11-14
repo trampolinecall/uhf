@@ -60,7 +60,7 @@ under_parse =
 
 type_sig_or_function_parse :: Parser.Parser AST.Decl
 type_sig_or_function_parse =
-    Parser.consume "type signature or binding" Parser.alpha_iden >>= \ (Location.Located _ (Token.AlphaIdentifier name)) ->
+    Parser.consume "type signature or binding" (Token.AlphaIdentifier ()) >>= \ (Location.Located _ (Token.AlphaIdentifier name)) ->
     Parser.choice
         [ binding_parse name
         , type_signature_parse name
@@ -80,7 +80,7 @@ type_signature_parse decl_name =
 -- types {{{2
 type_parse :: Parser.Parser AST.Type
 type_parse =
-    Parser.consume "type" Parser.alpha_iden >>= \ (Location.Located _ (Token.AlphaIdentifier iden)) ->
+    Parser.consume "type" (Token.AlphaIdentifier ()) >>= \ (Location.Located _ (Token.AlphaIdentifier iden)) ->
     pure (AST.Type'Identifier iden)
 -- exprs {{{2
 expr_parse :: Parser.Parser AST.Expr
@@ -99,7 +99,7 @@ make_token_stream things =
 parsing_tests :: [ParsingTest]
 parsing_tests =
     [ ParsingTest "function decl"
-        (make_token_stream [("x", Token.AlphaIdentifier ["x"]), ("=", Token.SingleTypeToken Token.Equal), ("'c'", Token.SingleTypeToken $ Token.CharLit 'c')])
+        (make_token_stream [("x", Token.AlphaIdentifier ["x"]), ("=", Token.SingleTypeToken Token.Equal), ("'c'", Token.CharLit 'c')])
         (AST.Decl'Binding ["x"] (AST.Expr'CharLit 'c'))
         [("decl_parse", decl_parse)]
 
@@ -121,7 +121,7 @@ parsing_tests =
     , ParsingTest "under decl"
         (make_token_stream
             [ ("under", Token.SingleTypeToken Token.Data), ("X", Token.AlphaIdentifier ["X"])
-            , ("indent", Token.Indent ()), ("x", Token.AlphaIdentifier ["x"]), ("=", Token.SingleTypeToken Token.Equal), ("2", Token.SingleTypeToken $ Token.IntLit Token.Dec 2), ("newline", Token.Newline Token.NLLogical)
+            , ("indent", Token.Indent ()), ("x", Token.AlphaIdentifier ["x"]), ("=", Token.SingleTypeToken Token.Equal), ("2", Token.IntLit Token.Dec 2), ("newline", Token.Newline Token.NLLogical)
             , ("dedent", Token.Dedent ())
             ])
         (error "not implemented yet")

@@ -11,6 +11,7 @@ module UHF.Token
     , UnprocessedToken
     , TokenWithIndentation
     , NormalToken
+    , TokenType
 
     , NLPhysical(..), NLLogical(..)
 
@@ -35,9 +36,10 @@ type LNormalToken = Location.Located NormalToken
 type LTokenWithIndentation = Location.Located TokenWithIndentation
 type LUnprocessedToken = Location.Located UnprocessedToken
 
-type UnprocessedToken = BaseToken () Text Void Void.Void NLPhysical ()
-type TokenWithIndentation = BaseToken () Text Void () NLLogical Void.Void
-type NormalToken = BaseToken Void [Text] () () NLLogical Void.Void
+type UnprocessedToken = BaseToken () Text Void Void.Void NLPhysical () Char Text IntLitBase Integer Rational Bool
+type TokenWithIndentation = BaseToken () Text Void () NLLogical Void.Void Char Text IntLitBase Integer Rational Bool
+type NormalToken = BaseToken Void [Text] () () NLLogical Void.Void Char Text IntLitBase Integer Rational Bool
+type TokenType = BaseToken () () () () () () () () () () () ()
 
 data NLLogical = NLLogical deriving (Show, Eq, Data.Data)
 data NLPhysical = NLPhysical deriving (Show, Eq, Data.Data)
@@ -60,16 +62,16 @@ data SingleTypeToken
     | If
     | Else
     | Case
-
-    | CharLit Char
-    | StringLit Text
-    | IntLit IntLitBase Integer
-    | FloatLit Rational
-    | BoolLit Bool
     deriving (Show, Eq, Data.Data)
 
-data BaseToken doublecolon identifier eof indentation newline backslash
+data BaseToken doublecolon identifier eof indentation newline backslash charlit_data stringlit_data intlit_base intlit_data floatlit_data boollit_data
     = SingleTypeToken SingleTypeToken
+
+    | CharLit charlit_data
+    | StringLit stringlit_data
+    | IntLit intlit_base intlit_data
+    | FloatLit floatlit_data
+    | BoolLit boollit_data
 
     | DoubleColon doublecolon
 
@@ -105,14 +107,14 @@ instance Format SingleTypeToken where
     format Else = "'else'"
     format Case = "'case'"
 
+instance Format (BaseToken doublecolon identifier eof indentation newline backslash charlit_data stringlit_data intlit_base intlit_data floatlit_data boollit_data) where
+    format (SingleTypeToken s) = format s
+
     format (CharLit _) = "character literal"
     format (StringLit _) = "string literal"
     format (IntLit _ _) = "integer literal"
     format (FloatLit _) = "floating point literal"
     format (BoolLit _) = "bool literal"
-
-instance Format (BaseToken doublecolon identifier eof indentation newline backslash) where
-    format (SingleTypeToken s) = format s
 
     format (DoubleColon _) = "':'"
 

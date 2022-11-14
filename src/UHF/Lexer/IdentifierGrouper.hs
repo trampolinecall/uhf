@@ -48,6 +48,11 @@ group_identifiers [] = ([], [])
 
 convert_raw_token :: Token.LTokenWithIndentation -> Either LexError.LexError Token.LNormalToken
 convert_raw_token (Location.Located sp (Token.SingleTypeToken t)) = Right $ Location.Located sp (Token.SingleTypeToken t)
+convert_raw_token (Location.Located sp (Token.CharLit ch)) = Right $ Location.Located sp (Token.CharLit ch)
+convert_raw_token (Location.Located sp (Token.StringLit str)) = Right $ Location.Located sp (Token.StringLit str)
+convert_raw_token (Location.Located sp (Token.IntLit b n)) = Right $ Location.Located sp (Token.IntLit b n)
+convert_raw_token (Location.Located sp (Token.FloatLit f)) = Right $ Location.Located sp (Token.FloatLit f)
+convert_raw_token (Location.Located sp (Token.BoolLit b)) = Right $ Location.Located sp (Token.BoolLit b)
 convert_raw_token (Location.Located sp (Token.DoubleColon _)) = Left $ LexError.InvalidDoubleColon sp
 convert_raw_token (Location.Located sp (Token.SymbolIdentifier i)) = Right $ Location.Located sp $ Token.SymbolIdentifier [i]
 convert_raw_token (Location.Located _ (Token.AlphaIdentifier _)) = error "cannot convert raw alpha identiifer to alpha identifier"

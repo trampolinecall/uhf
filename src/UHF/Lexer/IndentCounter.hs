@@ -135,21 +135,21 @@ insert_indentation_tokens eof_sp lns =
                     indentation_frames)
 
 -- tests {{{1
-generate_lines :: [Int] -> (File.File, [(Int, Location.Located (Token.BaseToken dc Text eof ind nl bs), Location.Span)])
+generate_lines :: [Int] -> (File.File, [(Int, Location.Located (Token.BaseToken dc Text eof ind nl bs chl strl intb intl floatl booll), Location.Span)])
 generate_lines indents =
     let (f, sps) = SpanHelper.make_spans' "test" "" (concatMap (\ (ln, i) -> [Text.replicate i " ", "line" <> show ln, "\n"]) $ zip ([1..] :: [Int]) indents)
     in (f, map
         (\ (ind, ln, [_, line_sp, nl_sp]) -> (ind, Location.Located line_sp $ Token.AlphaIdentifier $ "line" <> show ln, nl_sp))
             (zip3 indents ([1..] :: [Int]) (Split.chunksOf 3 sps)))
 
-nl_at :: Location.Span -> Location.Located (Token.BaseToken dc iden eof ind Token.NLLogical bs)
+nl_at :: Location.Span -> Location.Located (Token.BaseToken dc iden eof ind Token.NLLogical bs chl strl intb intl floatl booll)
 nl_at sp = Location.Located sp (Token.Newline Token.NLLogical)
 
-indent_at :: Location.Located (Token.BaseToken dc iden eof ind nl bs) -> Location.Located (Token.BaseToken dc' iden' eof' () nl' bs')
+indent_at :: Location.Located (Token.BaseToken dc iden eof ind nl bs chl strl intb intl floatl booll) -> Location.Located (Token.BaseToken dc' iden' eof' () nl' bs' chl' strl' intb' intl' floatl' booll')
 indent_at (Location.Located sp _) = Location.Located (Location.new_span (Location.start sp) 0 1) (Token.Indent ())
-dedent_at :: Location.Located (Token.BaseToken dc iden eof ind nl bs) -> Location.Located (Token.BaseToken dc' iden' eof' () nl' bs')
+dedent_at :: Location.Located (Token.BaseToken dc iden eof ind nl bs chl strl intb intl floatl booll) -> Location.Located (Token.BaseToken dc' iden' eof' () nl' bs' chl' strl' intb' intl' floatl' booll')
 dedent_at (Location.Located sp _) = Location.Located (Location.new_span (Location.start sp) 0 1) (Token.Dedent ())
-dedent_e :: Location.Span -> Location.Located (Token.BaseToken dc iden eof () nl bs)
+dedent_e :: Location.Span -> Location.Located (Token.BaseToken dc iden eof () nl bs chl strl intb intl floatl booll)
 dedent_e sp = Location.Located sp (Token.Dedent ())
 
 case_split_lines :: Assertion

@@ -12,7 +12,7 @@ import qualified UHF.Diagnostic.Codes as Codes
 import qualified UHF.Diagnostic.Sections.Underlines as Underlines
 
 data ParseError
-    = BadToken Token.LNormalToken Token.NormalToken Text
+    = BadToken Token.LNormalToken Token.TokenType Text
     | NoneMatched Token.LNormalToken [ParseError]
     | NotImpl (Location.Located Text)
     deriving (Eq, Show)

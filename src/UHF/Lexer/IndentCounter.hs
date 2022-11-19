@@ -47,9 +47,8 @@ count_indent_numbers :: [([Token.LUnprocessedToken], Location.Span)] -> [(Int, [
 count_indent_numbers = mapMaybe count_indent
     where
         count_indent ([], _) = error "unreachable"
-        count_indent (toks@((Location.Located sp _):_), nl) = Just (count_spaces $ Text.takeWhileEnd (/='\n') $ Text.take (Location.ind sp_start) (File.contents $ Location.file sp_start), toks, nl)
+        count_indent (toks@((Location.Located sp _):_), nl) = Just (count_spaces $ Text.takeWhileEnd (/='\n') $ Text.take (Location.sp_s_ind sp) (File.contents $ Location.sp_file sp), toks, nl)
             where
-                sp_start = Location.start sp
                 count_spaces = Text.foldl'
                     (\ i -> \case
                         '\t' -> (i `div` 8 + 1) * 8
@@ -67,7 +66,7 @@ insert_indentation_tokens eof_sp lns =
         [ISensitive 0]
     where
         do_line (indent_amt, toks, nl) =
-            do_indentation indent_amt (Location.start $ Location.just_span $ head toks) >>
+            do_indentation indent_amt (Location.sp_s $ Location.just_span $ head toks) >>
             go_through_tokens toks >>
             put_newline nl
 
@@ -146,9 +145,9 @@ nl_at :: Location.Span -> Location.Located (Token.BaseToken dc iden eof ind Toke
 nl_at sp = Location.Located sp (Token.Newline Token.NLLogical)
 
 indent_at :: Location.Located (Token.BaseToken dc iden eof ind nl bs chl strl intb intl floatl booll) -> Location.Located (Token.BaseToken dc' iden' eof' () nl' bs' chl' strl' intb' intl' floatl' booll')
-indent_at (Location.Located sp _) = Location.Located (Location.new_span (Location.start sp) 0 1) (Token.Indent ())
+indent_at (Location.Located sp _) = Location.Located (Location.new_span (Location.sp_s sp) 0 1) (Token.Indent ())
 dedent_at :: Location.Located (Token.BaseToken dc iden eof ind nl bs chl strl intb intl floatl booll) -> Location.Located (Token.BaseToken dc' iden' eof' () nl' bs' chl' strl' intb' intl' floatl' booll')
-dedent_at (Location.Located sp _) = Location.Located (Location.new_span (Location.start sp) 0 1) (Token.Dedent ())
+dedent_at (Location.Located sp _) = Location.Located (Location.new_span (Location.sp_s sp) 0 1) (Token.Dedent ())
 dedent_e :: Location.Span -> Location.Located (Token.BaseToken dc iden eof () nl bs chl strl intb intl floatl booll)
 dedent_e sp = Location.Located sp (Token.Dedent ())
 

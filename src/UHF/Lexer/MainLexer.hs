@@ -227,11 +227,11 @@ make_bad_char :: Lexer [Token.LUnprocessedToken]
 make_bad_char = consume (const True) >>= \ (Location.Located sp c) -> put_error (LexError.BadChar c sp) >> pure []
 -- helper functions {{{1
 remaining :: Location.Location -> Text
-remaining l = Text.drop (Location.ind l) (File.contents $ Location.file l)
+remaining l = Text.drop (Location.loc_ind l) (File.contents $ Location.loc_file l)
 
 new_span_start_and_end :: Location.Location -> Location.Location -> Location.Span
 -- start and end should be in the same file because the lex function never processes more than one file at a time
-new_span_start_and_end start end = Location.new_span start 0 (Location.ind end - Location.ind start)
+new_span_start_and_end start end = Location.new_span start 0 (Location.loc_ind end - Location.loc_ind start)
 
 choice :: [Lexer a] -> Lexer a
 choice [] = Lexer $ \ _ -> Nothing

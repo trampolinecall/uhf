@@ -11,7 +11,7 @@ module UHF.Parser
 import UHF.Util.Prelude
 
 
-import qualified UHF.Parser.Parser as Parser
+import qualified UHF.Parser.PEG as Parser
 import qualified UHF.Parser.ParseError as ParseError
 
 import qualified UHF.IO.Location as Location

@@ -14,7 +14,7 @@ import qualified UHF.Lexer.IdentifierGrouper (tests)
 import qualified UHF.Lexer.IndentCounter (tests)
 
 import qualified UHF.Parser (tests)
-import qualified UHF.Parser.Parser (tests)
+import qualified UHF.Parser.PEG (tests)
 
 main :: IO ()
 main = defaultMain $
@@ -27,5 +27,5 @@ main = defaultMain $
         , UHF.IO.Location.tests
         , UHF.IO.Path.tests
         , UHF.Parser.tests
-        , UHF.Parser.Parser.tests
+        , UHF.Parser.PEG.tests
         ]

@@ -64,16 +64,16 @@ data SingleTypeToken
     | Case
     deriving (Show, Eq, Data.Data)
 
-data BaseToken doublecolon identifier eof indentation newline backslash charlit_data stringlit_data intlit_base intlit_data floatlit_data boollit_data
+data BaseToken double_colon identifier eof indentation newline backslash char_lit_data string_lit_data intlit_base int_lit_data float_lit_data bool_lit_data
     = SingleTypeToken SingleTypeToken
 
-    | CharLit charlit_data
-    | StringLit stringlit_data
-    | IntLit intlit_base intlit_data
-    | FloatLit floatlit_data
-    | BoolLit boollit_data
+    | CharLit char_lit_data
+    | StringLit string_lit_data
+    | IntLit intlit_base int_lit_data
+    | FloatLit float_lit_data
+    | BoolLit bool_lit_data
 
-    | DoubleColon doublecolon
+    | DoubleColon double_colon
 
     | SymbolIdentifier identifier
     | AlphaIdentifier identifier
@@ -107,7 +107,7 @@ instance Format SingleTypeToken where
     format Else = "'else'"
     format Case = "'case'"
 
-instance Format (BaseToken doublecolon identifier eof indentation newline backslash charlit_data stringlit_data intlit_base intlit_data floatlit_data boollit_data) where
+instance Format (BaseToken double_colon identifier eof indentation newline backslash char_lit_data string_lit_data intlit_base int_lit_data float_lit_data bool_lit_data) where
     format (SingleTypeToken s) = format s
 
     format (CharLit _) = "character literal"
@@ -116,7 +116,7 @@ instance Format (BaseToken doublecolon identifier eof indentation newline backsl
     format (FloatLit _) = "floating point literal"
     format (BoolLit _) = "bool literal"
 
-    format (DoubleColon _) = "':'"
+    format (DoubleColon _) = "'::'"
 
     format (SymbolIdentifier _) = "symbol identifier"
     format (AlphaIdentifier _) = "alphabetic identifier"

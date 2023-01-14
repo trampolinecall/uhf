@@ -1,6 +1,6 @@
 {-# LANGUAGE TupleSections #-}
 
-module UHF.Parser.Parser
+module UHF.Parser.PEG
     ( TokenStream
 
     , Parser
@@ -23,7 +23,6 @@ module UHF.Parser.Parser
     ) where
 
 import UHF.Util.Prelude
-
 
 import qualified UHF.Parser.ParseError as ParseError
 

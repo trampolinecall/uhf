@@ -7,6 +7,8 @@ module UHF.IO.Location
     , new_location
     , new_span
     , eof_span
+    , dummy_span -- TODO: use conditional compilation? to make sure this only compiles in tests
+    , dummy_locate -- TODO: use conditional compilation? to make sure this only compiles in tests
 
     , ind, row, col
     , loc_file, lc
@@ -82,6 +84,12 @@ new_span loc@(Location file _) start_i len =
         Location _ b_lc = seek (len - 1) s_l
         Location _ e_lc = seek len s_l
     in Span file s_lc b_lc e_lc
+
+dummy_span :: Span
+dummy_span = Span (File.File "<dummy file for dummy span>" "") (LineCol 0 1 1) (LineCol 0 1 1) (LineCol 0 1 1)
+
+dummy_locate :: a -> Located a
+dummy_locate = Located dummy_span
 
 eof_span :: File.File -> Span
 eof_span f = new_span (seek (Text.length $ File.contents f) $ new_location f) 0 1

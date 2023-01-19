@@ -1,5 +1,7 @@
 module UHF.AST where
 
+-- TODO: rename this to literal ast and make it literally store tokens
+
 import UHF.Util.Prelude
 
 data Decl

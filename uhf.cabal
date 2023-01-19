@@ -35,8 +35,12 @@ library
       UHF.Lexer.LexError
       UHF.Lexer.MainLexer
       UHF.Parser
+      UHF.Parser.Decl
+      UHF.Parser.Expr
       UHF.Parser.ParseError
       UHF.Parser.PEG
+      UHF.Parser.Test
+      UHF.Parser.Type
       UHF.Token
       UHF.Util.Prelude
   other-modules:

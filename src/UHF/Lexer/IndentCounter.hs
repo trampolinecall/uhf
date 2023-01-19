@@ -65,6 +65,7 @@ insert_indentation_tokens eof_sp lns =
         (mapM_ do_line lns >> put_final_dedents)
         [ISensitive 0]
     where
+        -- TODO: make tell_tok, tell_err, ... helpers
         do_line (indent_amt, toks, nl) =
             do_indentation indent_amt (Location.sp_s $ Location.just_span $ head toks) >>
             go_through_tokens toks >>
@@ -105,6 +106,11 @@ insert_indentation_tokens eof_sp lns =
         go_through_tokens = mapM_ $ \ (Location.Located sp t) ->
             case t of
                 Token.SingleTypeToken stt -> lift $ lift $ tell [Location.Located sp (Token.SingleTypeToken stt)]
+
+                Token.CharLit ch -> lift $ lift $ tell [Location.Located sp (Token.CharLit ch)]
+                Token.StringLit s -> lift $ lift $ tell [Location.Located sp (Token.StringLit s)]
+                Token.IntLit base i -> lift $ lift $ tell [Location.Located sp (Token.IntLit base i)]
+                Token.FloatLit f -> lift $ lift $ tell [Location.Located sp (Token.FloatLit f)]
 
                 Token.DoubleColon dc -> lift $ lift $ tell [Location.Located sp (Token.DoubleColon dc)]
 

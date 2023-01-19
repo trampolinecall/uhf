@@ -64,6 +64,7 @@ return_fail errs err = StateT $ \ _ -> ParseResult (errs, Left err)
 return_recoverable :: [ParseError.ParseError] -> a -> Parser a
 return_recoverable errs res = StateT $ \ toks -> ParseResult (errs, Right (res, toks))
 
+-- TODO: this does not work properly because this needs to compare the constructor of SingleTypeToken too
 is_tt :: Token.TokenType -> Token.NormalToken -> Bool
 is_tt a b = Data.toConstr a == Data.toConstr b
 
@@ -120,74 +121,138 @@ optional a = StateT $ \ toks ->
 -- notpred :: Parser a -> Parser ()
 
 -- tests {{{1
--- TODO: there is probably a way to make this less repetitive
-
-test_parse_result_fmap :: [TestTree]
-test_parse_result_fmap =
-    [ testCase "on failed" undefined
-    , testCase "on recoverable" undefined
-    , testCase "on success" undefined
-    ]
-
-test_parse_result_applicative :: [TestTree]
-test_parse_result_applicative =
-    [ testCase "failed x undefined" undefined -- should not crash because Failed first argument short circuits out second argument
-    , testCase "recoverable x failed" undefined
-    , testCase "recoverable x recoverable" undefined
-    , testCase "recoverable x success" undefined
-    , testCase "success x failed" undefined
-    , testCase "success x recoverable" undefined
-    , testCase "success x success" undefined
-    ]
-
-test_parse_result_monad :: [TestTree]
-test_parse_result_monad =
-    [ testCase "failed x undefined" undefined -- same as above
-    , testCase "recoverable x failed" undefined
-    , testCase "recoverable x recoverable" undefined
-    , testCase "recoverable x success" undefined
-    , testCase "success x failed" undefined
-    , testCase "success x recoverable" undefined
-    , testCase "success x success" undefined
-    ]
-
 test_is_tt =
     [ testCase "is_tt same" undefined
     , testCase "is_tt different" undefined
     ]
 
-case_peek = undefined
+dummy_eof = Location.dummy_locate (Token.EOF ())
+add_eofs t = t InfList.+++ InfList.repeat dummy_eof
+
+case_peek =
+    let t = Location.dummy_locate (Token.SingleTypeToken Token.OParen)
+        tokstream = add_eofs [t]
+    in (ParseResult ([], Right t)) @=? evalStateT peek tokstream
 
 test_consume =
-    [ testCase "consume with True" undefined
-    , testCase "consume with False" undefined
-    ]
+    let t = Location.dummy_locate (Token.SingleTypeToken Token.OParen)
+        tokstream = add_eofs [t]
+    in
+        [ testCase "consume with True" $
+            let expect = Token.SingleTypeToken Token.OParen
+            in (ParseResult ([], Right t)) @=? evalStateT (consume "'('" expect) tokstream
+        , testCase "consume with False" $
+            let expect = Token.SingleTypeToken Token.CParen
+            in (ParseResult ([], Left $ ParseError.BadToken t expect "')'")) @=? evalStateT (consume "')'" expect) tokstream
+        ]
 
-case_advance = undefined
+case_advance =
+    let t1 = Location.dummy_locate (Token.SingleTypeToken Token.OParen)
+        t2 = Location.dummy_locate (Token.SingleTypeToken Token.CParen)
+        tokstream = add_eofs [t1, t2]
+
+    in case runStateT advance tokstream of
+        ParseResult ([], Right ((), tokstream'))
+            | tokstream' InfList.!!! 0 == t2 &&
+              tokstream' InfList.!!! 1 == dummy_eof -> pure ()
+
+        ParseResult (recoverable_errors, Right ((), tokstream')) ->
+            assertFailure $ "did not advance correctly, got: " ++ show (InfList.take 5 tokstream') ++ " (only 5 first tokens shown)and recoverable errors " ++ show recoverable_errors
+
+        ParseResult (recoverable_errors, Left errors) ->
+            assertFailure $ "did not advance correctly, got result with Left: errors " ++ show errors ++ " and recoverable errors " ++ show recoverable_errors
+
 
 test_choice =
-    [ testCase "1" undefined
-    , testCase "2" undefined
-    , testCase "not matched" undefined
-    ]
+    let oparen_consume = consume "oparen" (Token.SingleTypeToken Token.OParen)
+        cparen_consume = consume "cparen" (Token.SingleTypeToken Token.CParen)
+
+        parser = choice [oparen_consume, cparen_consume]
+
+    in
+        [ testCase "1" $
+            let oparen = Location.dummy_locate $ Token.SingleTypeToken Token.OParen
+                toks = add_eofs [oparen]
+
+            in ParseResult ([], Right oparen) @=? evalStateT parser toks
+
+        , testCase "2" $
+            let cparen = Location.dummy_locate $ Token.SingleTypeToken Token.CParen
+                toks = add_eofs [cparen]
+
+            in ParseResult ([], Right cparen) @=? evalStateT parser toks
+
+        , testCase "not matched" $
+            let obrace = Location.dummy_locate Token.OBrace
+                toks = add_eofs [obrace]
+
+            in ParseResult ([], Left $ ParseError.NoneMatched obrace [ParseError.BadToken obrace (Token.SingleTypeToken Token.CParen) "cparen", ParseError.BadToken obrace (Token.SingleTypeToken Token.OParen) "oparen"]) @=? evalStateT parser toks
+        ]
 
 test_star =
-    [ testCase "none" undefined
-    , testCase "once" undefined
-    , testCase "multiple" undefined
-    ]
+    let oparen = Location.dummy_locate $ Token.SingleTypeToken Token.OParen
+        oparen_type = Token.SingleTypeToken Token.OParen
+
+        oparen_consume = consume "oparen" (Token.SingleTypeToken Token.OParen)
+
+        parser = star oparen_consume
+
+    in
+        [ testCase "none" $
+            let toks = add_eofs []
+            in ParseResult ([], Right []) @=? evalStateT parser toks
+
+        , testCase "once" $
+            let toks = add_eofs [oparen]
+            in ParseResult ([], Right [oparen]) @=? evalStateT parser toks
+
+        , testCase "multiple" $
+            let toks = add_eofs [oparen, oparen]
+            in ParseResult ([], Right [oparen, oparen]) @=? evalStateT parser toks
+        ]
 
 test_plus =
-    [ testCase "none" undefined
-    , testCase "once" undefined
-    , testCase "multiple" undefined
-    ]
+    let oparen = Location.dummy_locate $ Token.SingleTypeToken Token.OParen
+        oparen_type = Token.SingleTypeToken Token.OParen
+
+        oparen_consume = consume "oparen" (Token.SingleTypeToken Token.OParen)
+
+        parser = plus oparen_consume
+
+    in
+        [ testCase "none" $
+            let toks = add_eofs []
+            in ParseResult ([], Left $ ParseError.BadToken dummy_eof oparen_type "oparen") @=? evalStateT parser toks
+
+        , testCase "once" $
+            let toks = add_eofs [oparen]
+            in ParseResult ([], Right [oparen]) @=? evalStateT parser toks
+
+        , testCase "multiple" $
+            let toks = add_eofs [oparen, oparen]
+            in ParseResult ([], Right [oparen, oparen]) @=? evalStateT parser toks
+        ]
 
 test_optional =
-    [ testCase "none" undefined
-    , testCase "once" undefined
-    , testCase "multiple" undefined
-    ]
+    let oparen = Location.dummy_locate $ Token.SingleTypeToken Token.OParen
+        oparen_type = Token.SingleTypeToken Token.OParen
+
+        oparen_consume = consume "oparen" (Token.SingleTypeToken Token.OParen)
+
+        parser = optional oparen_consume
+    in
+        [ testCase "none" $
+            let toks = add_eofs []
+            in ParseResult ([], Right Nothing) @=? evalStateT parser toks
+
+        , testCase "once" $
+            let toks = add_eofs [oparen]
+            in ParseResult ([], Right $ Just oparen) @=? evalStateT parser toks
+
+        , testCase "multiple" $
+            let toks = add_eofs [oparen, oparen]
+            in ParseResult ([], Right $ Just oparen) @=? evalStateT parser toks
+        ]
 
 tests :: TestTree
 tests = $(testGroupGenerator)

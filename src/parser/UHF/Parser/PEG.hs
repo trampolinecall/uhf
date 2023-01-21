@@ -132,7 +132,7 @@ case_peek :: Assertion
 case_peek =
     let t = Location.dummy_locate (Token.SingleTypeToken Token.OParen)
         tokstream = add_eofs [t]
-    in (ParseResult ([], Right t)) @=? evalStateT peek tokstream
+    in ParseResult ([], Right t) @=? evalStateT peek tokstream
 
 test_consume :: [TestTree]
 test_consume =
@@ -141,10 +141,10 @@ test_consume =
     in
         [ testCase "consume with True" $
             let expect = Token.SingleTypeToken Token.OParen
-            in (ParseResult ([], Right t)) @=? evalStateT (consume "'('" expect) tokstream
+            in ParseResult ([], Right t) @=? evalStateT (consume "'('" expect) tokstream
         , testCase "consume with False" $
             let expect = Token.SingleTypeToken Token.CParen
-            in (ParseResult ([], Left $ ParseError.BadToken t expect "')'")) @=? evalStateT (consume "')'" expect) tokstream
+            in ParseResult ([], Left $ ParseError.BadToken t expect "')'") @=? evalStateT (consume "')'" expect) tokstream
         ]
 
 case_advance :: Assertion

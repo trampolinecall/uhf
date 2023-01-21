@@ -62,8 +62,6 @@ report handle (Diagnostic code m_sp sections) =
                 then 4
                 else maximum $ map (Text.length . Line.prefix) section_lines
 
-        p_fmtstr = FormattedString.render_formatted_string handle FormattedString.AutoDetect
-
         p_line l =
             let pre = Line.prefix l
                 sep = Line.separ l
@@ -72,13 +70,13 @@ report handle (Diagnostic code m_sp sections) =
             hPutStr handle (replicate (indent - Text.length pre) ' ') >>
             hPutStr handle pre >>
             hPutStr handle [' ', sep, ' '] >>
-            p_fmtstr contents >>
+            hPutStr handle contents >>
             hPutText handle "\n"
     in
-    p_fmtstr header >>
+    hPutStr handle header >>
     hPutText handle "\n" >>
     mapM_ p_line section_lines >>
-    maybe (pure ()) (\ f -> hPutStr handle (replicate indent ' ') >> p_fmtstr f >> IO.hPutStr handle "\n") footer
+    maybe (pure ()) (\ f -> hPutStr handle (replicate indent ' ') >> hPutStr handle f >> IO.hPutStr handle "\n") footer
 
 report_diagnostics :: Handle -> [Diagnostic] -> IO ()
 report_diagnostics handle = mapM_ (report handle)

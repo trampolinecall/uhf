@@ -33,7 +33,7 @@ decl =
 data_ :: Parser.Parser AST.Decl
 data_ =
     Parser.consume "data declaration" (Token.SingleTypeToken Token.Data) >>= \ data_tok ->
-    Parser.return_fail [] (ParseError.NotImpl $ Location.Located (Location.just_span data_tok) "datatype declarations") -- TODO
+    Parser.fail [] (ParseError.NotImpl $ Location.Located (Location.just_span data_tok) "datatype declarations") -- TODO
 
 binding :: Parser.Parser AST.Decl
 binding =

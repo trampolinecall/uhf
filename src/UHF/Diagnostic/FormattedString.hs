@@ -29,12 +29,12 @@ render_formatted_string handle c_needed fs =
     >>= \ c_needed' ->
     render_formatted_string' handle c_needed' [] fs
 
-
 render_formatted_string' :: IO.Handle -> Bool -> [ANSI.SGR] -> FormattedString -> IO ()
 render_formatted_string' handle c_needed old_sgrs (Colored sgrs text) =
-    ANSI.setSGR [] >> ANSI.hSetSGR handle old_sgrs >> ANSI.setSGR sgrs >>
+    -- TODO: actually following c_needed
+    ANSI.hSetSGR handle [] >> ANSI.hSetSGR handle old_sgrs >> ANSI.hSetSGR handle sgrs >>
     render_formatted_string' handle c_needed (old_sgrs ++ sgrs) text >>
-    ANSI.setSGR [] >> ANSI.hSetSGR handle old_sgrs
+    ANSI.hSetSGR handle [] >> ANSI.hSetSGR handle old_sgrs
 
 render_formatted_string' handle c_needed old_srgs (Join a b) = render_formatted_string' handle c_needed old_srgs a >> render_formatted_string' handle c_needed old_srgs b
 render_formatted_string' handle _ _ (Literal t) = hPutStr handle t

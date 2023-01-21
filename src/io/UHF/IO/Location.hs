@@ -29,8 +29,6 @@ import UHF.Util.Prelude
 
 import qualified UHF.IO.File as File
 
-import qualified UHF.Diagnostic.Colors as Colors
-
 import qualified Data.Text as Text
 import Data.List (minimumBy, maximumBy)
 
@@ -67,7 +65,7 @@ sp_be_col = loc_col . sp_be
 sp_e_col = loc_col . sp_e
 
 instance Format Location where
-    format (Location f (LineCol _ r c)) = Colored Colors.file_path $ format f <> ":" <> show r <> ":" <> show c
+    format (Location f (LineCol _ r c)) = Colored File.file_path_color $ format f <> ":" <> show r <> ":" <> show c
 
 instance Format Span where
     format (Span f (LineCol _ r1 c1) _ (LineCol _ r2 c2)) = format f <> ":" <> show r1 <> ":" <> show c1 <> ":" <> show r2 <> ":" <> show c2

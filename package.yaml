@@ -4,6 +4,10 @@ version:             0.0.0
 dependencies:
   - base >= 4.13 && < 5
 
+  - tasty
+  - tasty-hunit
+  - tasty-th
+
 ghc-options:
   - -Wall
   - -Wextra
@@ -15,22 +19,91 @@ default-extensions:
   - NoImplicitPrelude
 # TODO: split tests from library, but somehow still allow access to test private functions and things
 
-library:
-  source-dirs: src
+internal-libraries:
+  uhf-ast:
+    source-dirs: src/ast
 
-  dependencies:
-    - text
-    - safe
-    - containers
-    - template-haskell
-    - ansi-terminal
-    - transformers
-    - split
-    - inflist
+    dependencies:
+      - uhf-util
 
-    - tasty
-    - tasty-hunit
-    - tasty-th
+  uhf-core:
+    source-dirs: src/core
+
+    dependencies:
+      - uhf-util
+
+  uhf-diagnostic:
+    source-dirs: src/diagnostic
+
+    dependencies:
+      - uhf-util
+      - uhf-io
+      - uhf-formatted-string
+
+      - text
+      - ansi-terminal
+      - template-haskell
+
+  uhf-formatted-string:
+    source-dirs: src/formatted-string
+
+    dependencies:
+      - text
+      - ansi-terminal
+
+  uhf-io:
+    source-dirs: src/io
+
+    dependencies:
+      - uhf-util
+      - uhf-formatted-string
+
+      - text
+      - ansi-terminal
+
+  uhf-lexer:
+    source-dirs: src/lexer
+
+    dependencies:
+      - uhf-util
+      - uhf-diagnostic
+      - uhf-io
+      - uhf-token
+
+      - text
+
+  uhf-parser:
+    source-dirs: src/parser
+
+    dependencies:
+      - uhf-util
+      - uhf-token
+      - uhf-diagnostic
+      - uhf-io
+      - uhf-ast
+
+      - inflist
+      - transformers
+
+  uhf-token:
+    source-dirs: src/token
+
+    dependencies:
+      - uhf-util
+      - uhf-io
+
+      - text
+
+  uhf-util:
+    source-dirs: src/util
+
+    dependencies:
+      - uhf-formatted-string
+
+      - text
+      - safe
+      - containers
+      - transformers
 
 executables:
   uhfc:
@@ -38,7 +111,14 @@ executables:
     source-dirs: exe/uhfc
 
     dependencies:
-      - uhf
+      - uhf-lexer
+      - uhf-parser
+      - uhf-io
+      - uhf-token
+      - uhf-ast
+      - uhf-util
+      - uhf-diagnostic
+
       - optparse-applicative
 
     ghc-options:
@@ -54,6 +134,3 @@ tests:
     dependencies:
       - uhf
 
-      - tasty
-      - tasty-hunit
-      - tasty-th

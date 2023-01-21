@@ -1,4 +1,4 @@
-cabal-version: 1.12
+cabal-version: 2.0
 
 -- This file has been generated from package.yaml by hpack version 0.34.6.
 --
@@ -10,42 +10,69 @@ license:        MIT
 license-file:   LICENSE
 build-type:     Simple
 
-library
+library uhf-ast
   exposed-modules:
       UHF.AST
+  other-modules:
+      Paths_uhf
+  autogen-modules:
+      Paths_uhf
+  hs-source-dirs:
+      src/ast
+  default-extensions:
+      LambdaCase
+      TemplateHaskell
+      OverloadedStrings
+      NoImplicitPrelude
+  ghc-options: -Wall -Wextra
+  build-depends:
+      base >=4.13 && <5
+    , tasty
+    , tasty-hunit
+    , tasty-th
+    , uhf-util
+  default-language: Haskell2010
+
+library uhf-core
+  exposed-modules:
       UHF.Core
       UHF.Core.Name
+  other-modules:
+      Paths_uhf
+  autogen-modules:
+      Paths_uhf
+  hs-source-dirs:
+      src/core
+  default-extensions:
+      LambdaCase
+      TemplateHaskell
+      OverloadedStrings
+      NoImplicitPrelude
+  ghc-options: -Wall -Wextra
+  build-depends:
+      base >=4.13 && <5
+    , tasty
+    , tasty-hunit
+    , tasty-th
+    , uhf-util
+  default-language: Haskell2010
+
+library uhf-diagnostic
+  exposed-modules:
       UHF.Diagnostic
       UHF.Diagnostic.Codes
       UHF.Diagnostic.Codes.Code
       UHF.Diagnostic.Codes.CodeTH
       UHF.Diagnostic.Colors
-      UHF.Diagnostic.FormattedString
       UHF.Diagnostic.Line
       UHF.Diagnostic.Sections.Underlines
       UHF.Diagnostic.Sections.Utils
-      UHF.Driver
-      UHF.IO.File
-      UHF.IO.Location
-      UHF.IO.Location.SpanHelper
-      UHF.IO.Path
-      UHF.Lexer
-      UHF.Lexer.IdentifierGrouper
-      UHF.Lexer.LexError
-      UHF.Lexer.MainLexer
-      UHF.Parser
-      UHF.Parser.Decl
-      UHF.Parser.Expr
-      UHF.Parser.ParseError
-      UHF.Parser.PEG
-      UHF.Parser.Test
-      UHF.Parser.Type
-      UHF.Token
-      UHF.Util.Prelude
   other-modules:
       Paths_uhf
+  autogen-modules:
+      Paths_uhf
   hs-source-dirs:
-      src
+      src/diagnostic
   default-extensions:
       LambdaCase
       TemplateHaskell
@@ -55,21 +82,192 @@ library
   build-depends:
       ansi-terminal
     , base >=4.13 && <5
-    , containers
-    , inflist
-    , safe
-    , split
     , tasty
     , tasty-hunit
     , tasty-th
     , template-haskell
     , text
+    , uhf-formatted-string
+    , uhf-io
+    , uhf-util
+  default-language: Haskell2010
+
+library uhf-formatted-string
+  exposed-modules:
+      UHF.FormattedString
+  other-modules:
+      Paths_uhf
+  autogen-modules:
+      Paths_uhf
+  hs-source-dirs:
+      src/formatted-string
+  default-extensions:
+      LambdaCase
+      TemplateHaskell
+      OverloadedStrings
+      NoImplicitPrelude
+  ghc-options: -Wall -Wextra
+  build-depends:
+      ansi-terminal
+    , base >=4.13 && <5
+    , tasty
+    , tasty-hunit
+    , tasty-th
+    , text
+  default-language: Haskell2010
+
+library uhf-io
+  exposed-modules:
+      UHF.IO.File
+      UHF.IO.Location
+      UHF.IO.Location.SpanHelper
+      UHF.IO.Path
+  other-modules:
+      Paths_uhf
+  autogen-modules:
+      Paths_uhf
+  hs-source-dirs:
+      src/io
+  default-extensions:
+      LambdaCase
+      TemplateHaskell
+      OverloadedStrings
+      NoImplicitPrelude
+  ghc-options: -Wall -Wextra
+  build-depends:
+      ansi-terminal
+    , base >=4.13 && <5
+    , tasty
+    , tasty-hunit
+    , tasty-th
+    , text
+    , uhf-formatted-string
+    , uhf-util
+  default-language: Haskell2010
+
+library uhf-lexer
+  exposed-modules:
+      UHF.Lexer
+      UHF.Lexer.IdentifierGrouper
+      UHF.Lexer.LexError
+      UHF.Lexer.MainLexer
+  other-modules:
+      Paths_uhf
+  autogen-modules:
+      Paths_uhf
+  hs-source-dirs:
+      src/lexer
+  default-extensions:
+      LambdaCase
+      TemplateHaskell
+      OverloadedStrings
+      NoImplicitPrelude
+  ghc-options: -Wall -Wextra
+  build-depends:
+      base >=4.13 && <5
+    , tasty
+    , tasty-hunit
+    , tasty-th
+    , text
+    , uhf-diagnostic
+    , uhf-io
+    , uhf-token
+    , uhf-util
+  default-language: Haskell2010
+
+library uhf-parser
+  exposed-modules:
+      UHF.Parser
+      UHF.Parser.Decl
+      UHF.Parser.Expr
+      UHF.Parser.ParseError
+      UHF.Parser.PEG
+      UHF.Parser.Test
+      UHF.Parser.Type
+  other-modules:
+      Paths_uhf
+  autogen-modules:
+      Paths_uhf
+  hs-source-dirs:
+      src/parser
+  default-extensions:
+      LambdaCase
+      TemplateHaskell
+      OverloadedStrings
+      NoImplicitPrelude
+  ghc-options: -Wall -Wextra
+  build-depends:
+      base >=4.13 && <5
+    , inflist
+    , tasty
+    , tasty-hunit
+    , tasty-th
     , transformers
+    , uhf-ast
+    , uhf-diagnostic
+    , uhf-io
+    , uhf-token
+    , uhf-util
+  default-language: Haskell2010
+
+library uhf-token
+  exposed-modules:
+      UHF.Token
+  other-modules:
+      Paths_uhf
+  autogen-modules:
+      Paths_uhf
+  hs-source-dirs:
+      src/token
+  default-extensions:
+      LambdaCase
+      TemplateHaskell
+      OverloadedStrings
+      NoImplicitPrelude
+  ghc-options: -Wall -Wextra
+  build-depends:
+      base >=4.13 && <5
+    , tasty
+    , tasty-hunit
+    , tasty-th
+    , text
+    , uhf-io
+    , uhf-util
+  default-language: Haskell2010
+
+library uhf-util
+  exposed-modules:
+      UHF.Util.Prelude
+  other-modules:
+      Paths_uhf
+  autogen-modules:
+      Paths_uhf
+  hs-source-dirs:
+      src/util
+  default-extensions:
+      LambdaCase
+      TemplateHaskell
+      OverloadedStrings
+      NoImplicitPrelude
+  ghc-options: -Wall -Wextra
+  build-depends:
+      base >=4.13 && <5
+    , containers
+    , safe
+    , tasty
+    , tasty-hunit
+    , tasty-th
+    , text
+    , transformers
+    , uhf-formatted-string
   default-language: Haskell2010
 
 executable uhfc
   main-is: Main.hs
   other-modules:
+      Driver
+      Paths_uhf
+  autogen-modules:
       Paths_uhf
   hs-source-dirs:
       exe/uhfc
@@ -82,13 +280,24 @@ executable uhfc
   build-depends:
       base >=4.13 && <5
     , optparse-applicative
-    , uhf
+    , tasty
+    , tasty-hunit
+    , tasty-th
+    , uhf-ast
+    , uhf-diagnostic
+    , uhf-io
+    , uhf-lexer
+    , uhf-parser
+    , uhf-token
+    , uhf-util
   default-language: Haskell2010
 
 test-suite uhf-test
   type: exitcode-stdio-1.0
   main-is: uhf.hs
   other-modules:
+      Paths_uhf
+  autogen-modules:
       Paths_uhf
   hs-source-dirs:
       test/

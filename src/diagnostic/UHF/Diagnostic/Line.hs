@@ -14,9 +14,7 @@ module UHF.Diagnostic.Line
 
 import UHF.Util.Prelude
 
-
-import qualified UHF.Diagnostic.FormattedString as FormattedString
-import qualified UHF.Diagnostic.Colors as Colors
+import qualified UHF.FormattedString as FormattedString
 
 import qualified UHF.IO.File as File
 
@@ -25,7 +23,7 @@ import qualified Data.Text as Text
 data Line = Line { prefix :: Text, separ :: Char, contents :: FormattedString.FormattedString } deriving (Show, Eq)
 
 file_line :: File.File -> Line
-file_line f = Line "" '>' (FormattedString.color_text Colors.file_path $ Text.pack $ File.path f)
+file_line f = Line "" '>' (FormattedString.color_text File.file_path_color $ Text.pack $ File.path f)
 
 elipsis_line :: Line
 elipsis_line = Line "..." '|' "..."

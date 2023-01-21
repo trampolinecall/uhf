@@ -19,7 +19,7 @@ import UHF.IO.Location.SpanHelper
 
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Line as Line
-import qualified UHF.Diagnostic.FormattedString as FormattedString
+import qualified UHF.FormattedString as FormattedString
 import qualified UHF.Diagnostic.Sections.Utils as Utils
 import qualified UHF.Diagnostic.Colors as Colors
 

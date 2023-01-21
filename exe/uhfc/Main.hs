@@ -4,7 +4,8 @@ import UHF.Util.Prelude
 
 import Options.Applicative
 
-import qualified UHF.Driver as Driver
+import qualified Driver as Driver
+
 import qualified UHF.IO.File as File
 import qualified UHF.Diagnostic as Diagnostic
 

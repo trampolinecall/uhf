@@ -14,7 +14,7 @@ module UHF.Diagnostic
 
 import UHF.Util.Prelude
 
-import qualified UHF.Diagnostic.FormattedString as FormattedString
+import qualified UHF.FormattedString as FormattedString
 import qualified UHF.Diagnostic.Codes.Code as Code
 import qualified UHF.Diagnostic.Colors as Colors
 import qualified UHF.Diagnostic.Line as Line
@@ -40,12 +40,13 @@ to_section = Section . to_section'
 
 report :: Handle -> Diagnostic -> IO ()
 report handle (Diagnostic code m_sp sections) =
-    let header = FormattedString.Join
+    let header =
             (case Code.code_type code of
                 Code.Error -> FormattedString.color_text Colors.error "error"
                 Code.Warning -> FormattedString.color_text Colors.warning "warning"
                 Code.DebugMessage -> FormattedString.color_text Colors.debug_message "debug message"
                 Code.InternalError -> FormattedString.color_text Colors.error "internal error")
+            <>
             (case m_sp of
                 Just sp -> " at " <> format sp
                 Nothing -> "")

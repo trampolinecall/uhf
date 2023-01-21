@@ -1,4 +1,4 @@
-module UHF.Driver
+module Driver
     ( compile
     ) where
 

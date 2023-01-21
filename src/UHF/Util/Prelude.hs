@@ -143,11 +143,11 @@ putStrLn :: (Print a, MonadIO m) => a -> m ()
 putStrLn = hPutStrLn stdout
 
 putText :: MonadIO m => Data.Text.Text -> m ()
-putText = putStrLn
+putText = putStr
 {-# SPECIALIZE putText :: Data.Text.Text -> IO () #-}
 
 hPutText :: MonadIO m => Handle -> Data.Text.Text -> m ()
-hPutText = hPutStrLn
+hPutText = hPutStr
 {-# SPECIALIZE putText :: Data.Text.Text -> IO () #-}
 
 show :: (Show a, ConvertString Prelude.String b) => a -> b

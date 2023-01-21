@@ -23,6 +23,8 @@ module UHF.Util.Prelude
     , putText
     , hPutText
 
+    , convert_str
+
     , show
 
     , FormattedString(..)

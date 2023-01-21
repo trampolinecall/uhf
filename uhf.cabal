@@ -269,6 +269,7 @@ library uhf-token
 library uhf-util
   exposed-modules:
       UHF.Util.Prelude
+      UHF.Util.RecursiveTransform
   other-modules:
       Paths_uhf
   autogen-modules:

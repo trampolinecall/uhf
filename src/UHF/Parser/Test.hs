@@ -24,7 +24,7 @@ import qualified Control.Monad.Trans.State as State
 
 data ParsingTest = forall r. (Show r, Eq r) => ParsingTest [Char] (File.File, PEG.TokenStream) r [([Char], PEG.Parser r)]
 
-make_token_stream :: [(Text, Token.NormalToken)] -> (File.File, PEG.TokenStream)
+make_token_stream :: [(Text, Token.Token)] -> (File.File, PEG.TokenStream)
 make_token_stream things =
     let (file, things') = SpanHelper.make_spans_with_items things
         l = last things'

@@ -34,7 +34,7 @@ import qualified Data.InfList as InfList
 
 import qualified Data.Data as Data
 
-type TokenStream = InfList.InfList Token.LNormalToken
+type TokenStream = InfList.InfList Token.LToken
 
 -- TODO: also clean up this too
 -- TODO: allow each thing to provide a custom error function
@@ -65,13 +65,13 @@ return_recoverable :: [ParseError.ParseError] -> a -> Parser a
 return_recoverable errs res = StateT $ \ toks -> ParseResult (errs, Right (res, toks))
 
 -- TODO: this does not work properly because this needs to compare the constructor of SingleTypeToken too
-is_tt :: Token.TokenType -> Token.NormalToken -> Bool
+is_tt :: Token.TokenType -> Token.Token -> Bool
 is_tt a b = Data.toConstr a == Data.toConstr b
 
-peek :: Parser Token.LNormalToken
+peek :: Parser Token.LToken
 peek = StateT $ \ toks -> ParseResult ([], Right (InfList.head toks, toks))
 
-consume :: Text -> Token.TokenType -> Parser Token.LNormalToken
+consume :: Text -> Token.TokenType -> Parser Token.LToken
 consume name exp = StateT $
     \ (tok InfList.::: more_toks) ->
         if is_tt exp (Location.unlocate tok)

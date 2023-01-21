@@ -261,16 +261,16 @@ show_bottom_lines loc n ch sgr msgs =
             in Line.numbered_line l $ FormattedString.color_text [Colors.bold] "| " <> FormattedString.color_text sgr quote
         ) bottom_lines ++
         [ Line.numbered_line end_line $
-            FormattedString.color_text [Colors.bold] "| " <> FormattedString.color_text (sgr) (Text.take (end_col - 2 ) end_quote) <> FormattedString.Literal (Text.drop (end_col - 2) end_quote)] ++
+            FormattedString.color_text [Colors.bold] "| " <> FormattedString.color_text sgr (Text.take (end_col - 2 ) end_quote) <> FormattedString.Literal (Text.drop (end_col - 2) end_quote)] ++
         [ Line.other_line $
-            FormattedString.color_text ([Colors.bold]) (Text.replicate n_dash "-") <> FormattedString.color_text sgr (Text.replicate n_ch (Text.pack [ch]))] ++
+            FormattedString.color_text [Colors.bold] (Text.replicate n_dash "-") <> FormattedString.color_text sgr (Text.replicate n_ch (Text.pack [ch]))] ++
         zipWith (\ i (ty, msg) ->
             Line.other_line $
                 FormattedString.Literal (Text.replicate (end_col - 1) " ") <> format (CompleteMessage (i == length msgs - 1, loc, ty, msg))
         ) [0..] msgs
 
 show_middle_line :: Maybe (File.File, Int) -> [ANSI.SGR] -> [Line.Line]
-show_middle_line (Just (file, nr)) sgr = [Line.numbered_line nr $ "  " <> FormattedString.color_text (sgr) (Utils.get_quote file nr)]
+show_middle_line (Just (file, nr)) sgr = [Line.numbered_line nr $ "  " <> FormattedString.color_text sgr (Utils.get_quote file nr)]
 show_middle_line Nothing _ = []
 -- tests {{{1
 case_underlines :: Assertion

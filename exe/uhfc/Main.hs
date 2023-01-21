@@ -4,17 +4,14 @@ import UHF.Util.Prelude
 
 import Options.Applicative
 
-import qualified Driver as Driver
+import qualified Driver
 
 import qualified UHF.IO.File as File
 import qualified UHF.Diagnostic as Diagnostic
 
 import qualified System.IO as IO
 
-newtype Args
-    = Args
-      { files :: [FilePath]
-      }
+newtype Args = Args [FilePath]
 
 argparser :: ParserInfo Args
 argparser = info (args <**> helper)

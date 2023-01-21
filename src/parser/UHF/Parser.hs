@@ -28,9 +28,10 @@ parse toks eof_tok =
 
 parse' :: Parser.Parser [AST.Decl]
 parse' = Parser.star Decl.decl >>= \ ds -> Parser.consume "end of file" (Token.EOF ()) >> pure ds
+
 -- tests {{{1
 test_parsing :: [TestTree]
-test_parsing = map Test.run_test $ concat [Decl.tests]
+test_parsing = map Test.run_test Decl.tests
 
 tests :: TestTree
 tests = $(testGroupGenerator)

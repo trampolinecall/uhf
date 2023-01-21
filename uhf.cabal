@@ -13,7 +13,6 @@ build-type:     Simple
 library
   exposed-modules:
       UHF.AST
-      UHF.Compiler
       UHF.Core
       UHF.Core.Name
       UHF.Diagnostic
@@ -25,6 +24,7 @@ library
       UHF.Diagnostic.Line
       UHF.Diagnostic.Sections.Underlines
       UHF.Diagnostic.Sections.Utils
+      UHF.Driver
       UHF.IO.File
       UHF.IO.Location
       UHF.IO.Location.SpanHelper

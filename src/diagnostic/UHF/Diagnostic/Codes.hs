@@ -18,3 +18,5 @@ $(code Error 10 "invalid_double_colon")
 $(code Error 100 "not_implemented")
 $(code Error 101 "bad_token")
 $(code Error 102 "none_matched")
+
+$(code Error 200 "symbol_redefinition")

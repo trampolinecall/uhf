@@ -12,7 +12,6 @@ import qualified UHF.Lexer.IdentifierGrouper as IdentifierGrouper
 
 import qualified UHF.Token as Token
 import qualified UHF.IO.File as File
-import qualified UHF.IO.Location as Location
 
 lex :: File.File -> Writer [LexError.LexError] ([Token.LToken], Token.LToken)
 lex f =

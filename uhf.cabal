@@ -30,19 +30,19 @@ library uhf-ast
     , tasty
     , tasty-hunit
     , tasty-th
+    , uhf-io
     , uhf-util
   default-language: Haskell2010
 
-library uhf-core
+library uhf-ast-to-ir
   exposed-modules:
-      UHF.Core
-      UHF.Core.Name
+      UHF.ASTToIR
   other-modules:
       Paths_uhf
   autogen-modules:
       Paths_uhf
   hs-source-dirs:
-      src/core
+      src/ast-to-ir
   default-extensions:
       LambdaCase
       TemplateHaskell
@@ -51,9 +51,14 @@ library uhf-core
   ghc-options: -Wall -Wextra
   build-depends:
       base >=4.13 && <5
+    , containers
     , tasty
     , tasty-hunit
     , tasty-th
+    , uhf-ast
+    , uhf-diagnostic
+    , uhf-io
+    , uhf-ir
     , uhf-util
   default-language: Haskell2010
 
@@ -142,6 +147,32 @@ library uhf-io
     , tasty-th
     , text
     , uhf-formatted-string
+    , uhf-util
+  default-language: Haskell2010
+
+library uhf-ir
+  exposed-modules:
+      UHF.IR.Decl
+      UHF.IR.Expr
+      UHF.IR.Value
+  other-modules:
+      Paths_uhf
+  autogen-modules:
+      Paths_uhf
+  hs-source-dirs:
+      src/ir
+  default-extensions:
+      LambdaCase
+      TemplateHaskell
+      OverloadedStrings
+      NoImplicitPrelude
+  ghc-options: -Wall -Wextra
+  build-depends:
+      base >=4.13 && <5
+    , containers
+    , tasty
+    , tasty-hunit
+    , tasty-th
     , uhf-util
   default-language: Haskell2010
 
@@ -284,8 +315,10 @@ executable uhfc
     , tasty-hunit
     , tasty-th
     , uhf-ast
+    , uhf-ast-to-ir
     , uhf-diagnostic
     , uhf-io
+    , uhf-ir
     , uhf-lexer
     , uhf-parser
     , uhf-token

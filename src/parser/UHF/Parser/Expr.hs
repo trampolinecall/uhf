@@ -20,7 +20,6 @@ import qualified Data.List.NonEmpty as NonEmpty
 
 import qualified Control.Monad.Trans.State as State
 
-
 expr :: Parser.Parser AST.Expr
 expr =
     Parser.choice
@@ -34,8 +33,8 @@ expr =
 
 identifier_expr :: Parser.Parser AST.Expr
 identifier_expr =
-    Parser.consume "identifier" (Token.AlphaIdentifier ()) >>= \ (Location.Located _ (Token.AlphaIdentifier iden)) ->
-    pure (AST.Expr'Identifier iden)
+    Parser.consume "identifier" (Token.AlphaIdentifier ()) >>= \ (Location.Located iden_sp (Token.AlphaIdentifier iden)) ->
+    pure (AST.Expr'Identifier (Location.Located iden_sp iden))
 
 char_lit_expr :: Parser.Parser AST.Expr
 char_lit_expr =

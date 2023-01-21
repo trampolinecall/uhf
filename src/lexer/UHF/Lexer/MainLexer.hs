@@ -8,7 +8,6 @@ module UHF.Lexer.MainLexer
 
 import UHF.Util.Prelude
 
-
 import qualified UHF.Lexer.LexError as LexError
 import qualified UHF.IO.File as File
 import qualified UHF.IO.Location as Location
@@ -98,13 +97,16 @@ lex_comment =
                 ]
     in choice [lex_singleline, lex_multiline]
 
-lex_id_or_kw :: (Char -> Bool) -> (Char -> Bool) -> [(Text, Token.RawToken)] -> (Text -> Token.RawToken) -> Lexer [Token.LRawToken]
+lex_id_or_kw :: (Char -> Bool) -> (Char -> Bool) -> [(Text, Token.RawToken)] -> (Location.Located Text -> Token.RawToken) -> Lexer [Token.LRawToken]
 lex_id_or_kw is_valid_start is_valid_char kws def =
     get_loc >>= \ start_loc ->
     consume is_valid_start >>= \ first_char ->
     choice [one_or_more $ consume is_valid_char, pure []] >>= \ more ->
-    let full = Text.pack $ Location.unlocate <$> first_char : more
-        tok = fromMaybe (def full) (lookup full kws)
+    let full =
+            let chars = first_char : more
+                sp = Location.just_span (head chars) `Location.join_span` Location.just_span (last chars)
+            in Location.Located sp (Text.pack $ Location.unlocate <$> chars)
+        tok = fromMaybe (def full) (lookup (Location.unlocate full) kws)
     in get_loc >>= \ end_loc ->
     pure [Location.Located (new_span_start_and_end start_loc end_loc) tok]
 
@@ -263,7 +265,7 @@ case_lex =
     let src = "abc *&* ( \"adji\n"
         f = File.File "a" src
     in case runWriter $ UHF.Lexer.MainLexer.lex f of
-        (([Location.Located _ (Token.AlphaIdentifier "abc"), Location.Located _ (Token.SymbolIdentifier "*&*"), Location.Located _ (Token.SingleTypeToken Token.OParen)], _), [LexError.UnclosedStrLit _]) -> pure ()
+        (([Location.Located _ (Token.AlphaIdentifier (Location.Located _ "abc")), Location.Located _ (Token.SymbolIdentifier (Location.Located _ "*&*")), Location.Located _ (Token.SingleTypeToken Token.OParen)], _), [LexError.UnclosedStrLit _]) -> pure ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
 case_lex_empty :: Assertion
@@ -283,7 +285,7 @@ lex_test_fail fn_name res = assertFailure $ "'" ++ fn_name ++ "' lexed incorrect
 case_lex_one_token :: Assertion
 case_lex_one_token =
     lex_test lex_one_token "abc" $ \case
-        (l, [], [Location.Located _ (Token.AlphaIdentifier "abc")])
+        (l, [], [Location.Located _ (Token.AlphaIdentifier (Location.Located _ "abc"))])
             | remaining l == "" -> pure ()
 
         x -> lex_test_fail "lex_one_token" x
@@ -327,38 +329,38 @@ case_lex_comment_not_comment =
 case_lex_alpha_identifier :: Assertion
 case_lex_alpha_identifier =
     lex_test' lex_alpha_identifier "a" $ \case
-        Just (l, [], [Location.Located _ (Token.AlphaIdentifier "a")])
+        Just (l, [], [Location.Located _ (Token.AlphaIdentifier (Location.Located _ "a"))])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_alpha_identifier" x
 case_lex_alpha_identifier_with_numbers :: Assertion
 case_lex_alpha_identifier_with_numbers =
     lex_test' lex_alpha_identifier "a12" $ \case
-        Just (l, [], [Location.Located _ (Token.AlphaIdentifier "a12")])
+        Just (l, [], [Location.Located _ (Token.AlphaIdentifier (Location.Located _ "a12"))])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_alpha_identifier" x
 case_lex_alpha_identifier_apostrophes :: Assertion
 case_lex_alpha_identifier_apostrophes =
     lex_test' lex_alpha_identifier "a''" $ \case
-        Just (l, [], [Location.Located _ (Token.AlphaIdentifier "a''")])
+        Just (l, [], [Location.Located _ (Token.AlphaIdentifier (Location.Located _ "a''"))])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_alpha_identifier" x
 case_lex_alpha_identifier_underscore :: Assertion
 case_lex_alpha_identifier_underscore =
     lex_test' lex_alpha_identifier "_a" $ \case
-        Just (l, [], [Location.Located _ (Token.AlphaIdentifier "_a")])
+        Just (l, [], [Location.Located _ (Token.AlphaIdentifier (Location.Located _ "_a"))])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_alpha_identifier" x
 
 case_lex_symbol_identifier :: Assertion
 case_lex_symbol_identifier =
     lex_test' lex_symbol_identifier "*" $ \case
-        Just (l, [], [Location.Located _ (Token.SymbolIdentifier "*")])
+        Just (l, [], [Location.Located _ (Token.SymbolIdentifier (Location.Located _ "*"))])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_alpha_identifier" x
 case_lex_symbol_identifier_multiple :: Assertion
 case_lex_symbol_identifier_multiple =
     lex_test' lex_symbol_identifier "*^&*&" $ \case
-        Just (l, [], [Location.Located _ (Token.SymbolIdentifier "*^&*&")])
+        Just (l, [], [Location.Located _ (Token.SymbolIdentifier (Location.Located _ "*^&*&"))])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_alpha_identifier" x
 case_lex_symbol_identifier_kw :: Assertion

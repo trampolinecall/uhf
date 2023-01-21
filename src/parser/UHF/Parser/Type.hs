@@ -22,5 +22,5 @@ import qualified Control.Monad.Trans.State as State
 
 type_ :: Parser.Parser AST.Type
 type_ =
-    Parser.consume "type" (Token.AlphaIdentifier ()) >>= \ (Location.Located _ (Token.AlphaIdentifier iden)) ->
-    pure (AST.Type'Identifier iden)
+    Parser.consume "type" (Token.AlphaIdentifier ()) >>= \ (Location.Located iden_sp (Token.AlphaIdentifier iden)) ->
+    pure (AST.Type'Identifier (Location.Located iden_sp iden))

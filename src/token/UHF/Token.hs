@@ -31,10 +31,9 @@ data IntLitBase
 type LToken = Location.Located Token
 type LRawToken = Location.Located RawToken
 
-type RawToken = BaseToken () Text Void Char Text IntLitBase Integer Rational Bool
-type Token = BaseToken Void [Text] () Char Text IntLitBase Integer Rational Bool
+type RawToken = BaseToken () (Location.Located Text) Void Char Text IntLitBase Integer Rational Bool
+type Token = BaseToken Void [Location.Located Text] () Char Text IntLitBase Integer Rational Bool
 type TokenType = BaseToken () () () () () () () () ()
-
 
 data SingleTypeToken
     = OParen
@@ -127,8 +126,8 @@ instance Format Token where
 
     format (DoubleColon void) = absurd void
 
-    format (SymbolIdentifier parts) = convert_str $ "symbol identifier '" <> Text.intercalate "::" parts <> "'"
-    format (AlphaIdentifier parts) = convert_str $ "alphabetic identifier '" <> Text.intercalate "::" parts <> "'"
+    format (SymbolIdentifier parts) = convert_str $ "symbol identifier '" <> Text.intercalate "::" (map Location.unlocate parts) <> "'"
+    format (AlphaIdentifier parts) = convert_str $ "alphabetic identifier '" <> Text.intercalate "::" (map Location.unlocate parts) <> "'"
 
     format (EOF _) = "end of file"
 

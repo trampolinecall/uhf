@@ -32,8 +32,6 @@ import qualified UHF.Token as Token
 
 import qualified Data.InfList as InfList
 
-import qualified Data.Data as Data
-
 type TokenStream = InfList.InfList Token.LToken
 
 -- TODO: allow each thing to provide a custom error function
@@ -63,9 +61,8 @@ fail errs err = StateT $ \ _ -> ParseResult (errs, Left err)
 recoverable :: [ParseError.ParseError] -> a -> Parser a
 recoverable errs res = StateT $ \ toks -> ParseResult (errs, Right (res, toks))
 
--- TODO: this does not work properly because this needs to compare the constructor of SingleTypeToken too
 is_tt :: Token.TokenType -> Token.Token -> Bool
-is_tt a b = Data.toConstr a == Data.toConstr b
+is_tt a b = a == Token.to_token_type b
 
 peek :: Parser Token.LToken
 peek = StateT $ \ toks -> ParseResult ([], Right (InfList.head toks, toks))
@@ -120,19 +117,24 @@ optional a = StateT $ \ toks ->
 -- notpred :: Parser a -> Parser ()
 
 -- tests {{{1
+test_is_tt :: [TestTree]
 test_is_tt =
     [ testCase "is_tt same" undefined
     , testCase "is_tt different" undefined
     ]
 
+dummy_eof :: Token.LToken
 dummy_eof = Location.dummy_locate (Token.EOF ())
+add_eofs :: [Token.LToken] -> TokenStream
 add_eofs t = t InfList.+++ InfList.repeat dummy_eof
 
+case_peek :: Assertion
 case_peek =
     let t = Location.dummy_locate (Token.SingleTypeToken Token.OParen)
         tokstream = add_eofs [t]
     in (ParseResult ([], Right t)) @=? evalStateT peek tokstream
 
+test_consume :: [TestTree]
 test_consume =
     let t = Location.dummy_locate (Token.SingleTypeToken Token.OParen)
         tokstream = add_eofs [t]
@@ -145,6 +147,7 @@ test_consume =
             in (ParseResult ([], Left $ ParseError.BadToken t expect "')'")) @=? evalStateT (consume "')'" expect) tokstream
         ]
 
+case_advance :: Assertion
 case_advance =
     let t1 = Location.dummy_locate (Token.SingleTypeToken Token.OParen)
         t2 = Location.dummy_locate (Token.SingleTypeToken Token.CParen)
@@ -162,6 +165,7 @@ case_advance =
             assertFailure $ "did not advance correctly, got result with Left: errors " ++ show errors ++ " and recoverable errors " ++ show recoverable_errors
 
 
+test_choice :: [TestTree]
 test_choice =
     let oparen_consume = consume "oparen" (Token.SingleTypeToken Token.OParen)
         cparen_consume = consume "cparen" (Token.SingleTypeToken Token.CParen)
@@ -188,9 +192,9 @@ test_choice =
             in ParseResult ([], Left $ ParseError.NoneMatched obrace [ParseError.BadToken obrace (Token.SingleTypeToken Token.CParen) "cparen", ParseError.BadToken obrace (Token.SingleTypeToken Token.OParen) "oparen"]) @=? evalStateT parser toks
         ]
 
+test_star :: [TestTree]
 test_star =
     let oparen = Location.dummy_locate $ Token.SingleTypeToken Token.OParen
-        oparen_type = Token.SingleTypeToken Token.OParen
 
         oparen_consume = consume "oparen" (Token.SingleTypeToken Token.OParen)
 
@@ -210,6 +214,7 @@ test_star =
             in ParseResult ([], Right [oparen, oparen]) @=? evalStateT parser toks
         ]
 
+test_plus :: [TestTree]
 test_plus =
     let oparen = Location.dummy_locate $ Token.SingleTypeToken Token.OParen
         oparen_type = Token.SingleTypeToken Token.OParen
@@ -232,6 +237,7 @@ test_plus =
             in ParseResult ([], Right [oparen, oparen]) @=? evalStateT parser toks
         ]
 
+test_optional :: [TestTree]
 test_optional =
     let oparen = Location.dummy_locate $ Token.SingleTypeToken Token.OParen
         oparen_consume = consume "oparen" (Token.SingleTypeToken Token.OParen)

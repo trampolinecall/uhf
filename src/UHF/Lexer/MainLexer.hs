@@ -128,7 +128,7 @@ lex_alpha_identifier =
 lex_symbol_identifier :: Lexer [Token.LRawToken]
 lex_symbol_identifier =
     lex_id_or_kw
-        (`elem` ("~!@#$%^&*+`-=|:./<>?()[]\\{};,\n" :: [Char]))
+        (`elem` ("~!@#$%^&*+`-=|:./<>?()[]\\{};," :: [Char]))
         (`elem` ("~!@#$%^&*+`-=|:./<>?" :: [Char]))
         [ ("->", Token.SingleTypeToken Token.Arrow)
         , ("::", Token.DoubleColon ())
@@ -136,7 +136,7 @@ lex_symbol_identifier =
         , (")", Token.SingleTypeToken Token.CParen)
         , ("[", Token.SingleTypeToken Token.OBrack)
         , ("]", Token.SingleTypeToken Token.CBrack)
-        , ("{", Token.OBrace) -- TODO: these do not join up
+        , ("{", Token.OBrace)
         , ("}", Token.CBrace)
         , (";", Token.Semicolon)
         , (",", Token.SingleTypeToken Token.Comma)

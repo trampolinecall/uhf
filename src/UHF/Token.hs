@@ -5,12 +5,10 @@ module UHF.Token
     ( BaseToken(..)
     , SingleTypeToken(..)
 
-    , LUnprocessedToken
-    , LTokenWithIndentation
-    , LNormalToken
-    , UnprocessedToken
-    , TokenWithIndentation
-    , NormalToken
+    , LRawToken
+    , LToken
+    , RawToken
+    , Token
     , TokenType
 
     , NLPhysical(..), NLLogical(..)
@@ -23,7 +21,6 @@ import UHF.Util.Prelude
 import qualified UHF.IO.Location as Location
 
 import qualified Data.Data as Data
-import qualified Data.Void as Void
 
 data IntLitBase
     = Dec
@@ -32,14 +29,12 @@ data IntLitBase
     | Bin
     deriving (Show, Eq, Data.Data)
 
-type LNormalToken = Location.Located NormalToken
-type LTokenWithIndentation = Location.Located TokenWithIndentation
-type LUnprocessedToken = Location.Located UnprocessedToken
+type LToken = Location.Located Token
+type LRawToken = Location.Located RawToken
 
-type UnprocessedToken = BaseToken () Text Void Void.Void NLPhysical () Char Text IntLitBase Integer Rational Bool
-type TokenWithIndentation = BaseToken () Text Void () NLLogical Void.Void Char Text IntLitBase Integer Rational Bool
-type NormalToken = BaseToken Void [Text] () () NLLogical Void.Void Char Text IntLitBase Integer Rational Bool
-type TokenType = BaseToken () () () () () () () () () () () ()
+type RawToken = BaseToken () Text Void Char Text IntLitBase Integer Rational Bool
+type Token = BaseToken Void [Text] () Char Text IntLitBase Integer Rational Bool
+type TokenType = BaseToken () () () () () () () () ()
 
 data NLLogical = NLLogical deriving (Show, Eq, Data.Data)
 data NLPhysical = NLPhysical deriving (Show, Eq, Data.Data)
@@ -64,7 +59,7 @@ data SingleTypeToken
     | Case
     deriving (Show, Eq, Data.Data)
 
-data BaseToken double_colon identifier eof indentation newline backslash char_lit_data string_lit_data intlit_base int_lit_data float_lit_data bool_lit_data
+data BaseToken double_colon identifier eof char_lit_data string_lit_data intlit_base int_lit_data float_lit_data bool_lit_data
     = SingleTypeToken SingleTypeToken
 
     | CharLit char_lit_data
@@ -81,10 +76,6 @@ data BaseToken double_colon identifier eof indentation newline backslash char_li
     | OBrace
     | CBrace
     | Semicolon
-    | Backslash backslash
-    | Indent indentation
-    | Dedent indentation
-    | Newline newline
     | EOF eof
     deriving (Show, Eq, Data.Data)
 
@@ -107,7 +98,7 @@ instance Format SingleTypeToken where
     format Else = "'else'"
     format Case = "'case'"
 
-instance Format (BaseToken double_colon identifier eof indentation newline backslash char_lit_data string_lit_data intlit_base int_lit_data float_lit_data bool_lit_data) where
+instance Format (BaseToken double_colon identifier eof char_lit_data string_lit_data intlit_base int_lit_data float_lit_data bool_lit_data) where
     format (SingleTypeToken s) = format s
 
     format (CharLit _) = "character literal"
@@ -124,8 +115,4 @@ instance Format (BaseToken double_colon identifier eof indentation newline backs
     format OBrace = "'{'"
     format CBrace = "'}'"
     format Semicolon = "';'"
-    format (Backslash _) = "'\\'"
-    format (Indent _) = "indent"
-    format (Dedent _) = "dedent"
-    format (Newline _) = "newline"
     format (EOF _) = "end of file"

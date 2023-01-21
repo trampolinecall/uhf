@@ -30,7 +30,7 @@ import qualified Data.List.NonEmpty as NonEmpty
 
 import qualified Control.Monad.Trans.State as State
 
-parse :: [Token.LNormalToken] -> Token.LNormalToken -> ([ParseError.ParseError], [AST.Decl])
+parse :: [Token.LToken] -> Token.LToken -> ([ParseError.ParseError], [AST.Decl])
 parse toks eof_tok =
     case runStateT parse' (toks InfList.+++ InfList.repeat eof_tok) of
         Parser.ParseResult (errs, Right (res, _)) -> (errs, res)

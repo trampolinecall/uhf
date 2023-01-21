@@ -183,7 +183,7 @@ test_choice =
             in ParseResult ([], Right cparen) @=? evalStateT parser toks
 
         , testCase "not matched" $
-            let obrace = Location.dummy_locate Token.OBrace
+            let obrace = Location.dummy_locate $ Token.SingleTypeToken Token.OBrace
                 toks = add_eofs [obrace]
 
             in ParseResult ([], Left $ ParseError.NoneMatched obrace [ParseError.BadToken obrace (Token.SingleTypeToken Token.CParen) "cparen", ParseError.BadToken obrace (Token.SingleTypeToken Token.OParen) "oparen"]) @=? evalStateT parser toks

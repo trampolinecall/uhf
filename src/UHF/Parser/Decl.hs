@@ -28,7 +28,6 @@ decl =
     Parser.choice
         [ data_
         , binding
-        , type_signature
         ]
 
 data_ :: Parser.Parser AST.Decl
@@ -43,13 +42,6 @@ binding =
     Expr.expr >>= \ ex ->
     pure (AST.Decl'Binding name ex)
 
-type_signature :: Parser.Parser AST.Decl
-type_signature =
-    Parser.consume "type signature name" (Token.AlphaIdentifier ()) >>= \ (Location.Located _ (Token.AlphaIdentifier name)) ->
-    Parser.consume "':'" (Token.SingleTypeToken Token.Colon) >>= \ colon ->
-    Type.type_ >>= \ ty ->
-    pure (AST.Decl'TypeSignature name ty)
-
 --- tests {{{1
 tests :: [Test.ParsingTest]
 tests =
@@ -57,11 +49,6 @@ tests =
         (Test.make_token_stream [("x", Token.AlphaIdentifier ["x"]), ("=", Token.SingleTypeToken Token.Equal), ("'c'", Token.CharLit 'c')])
         (AST.Decl'Binding ["x"] (AST.Expr'CharLit 'c'))
         [("decl", decl), ("binding", binding)]
-
-    , Test.ParsingTest "type signature"
-        (Test.make_token_stream [("x", Token.AlphaIdentifier ["x"]), (":", Token.SingleTypeToken Token.Colon), ("int", Token.AlphaIdentifier ["int"])])
-        (AST.Decl'TypeSignature ["x"] (AST.Type'Identifier ["int"]))
-        [("decl", decl), ("type_signature", type_signature)]
 
     , Test.ParsingTest "data decl"
         (Test.make_token_stream

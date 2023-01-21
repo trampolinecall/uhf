@@ -5,8 +5,7 @@ module UHF.AST where
 import UHF.Util.Prelude
 
 data Decl
-    = Decl'TypeSignature [Text] Type
-    | Decl'Binding [Text] Expr -- TODO: this should eventually be a pattern
+    = Decl'Binding [Text] Expr -- TODO: this should eventually be a pattern
     deriving (Eq, Show)
 
 data Type

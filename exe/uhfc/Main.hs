@@ -30,12 +30,14 @@ argparser = info (args <**> helper)
 
 main :: IO ()
 main =
-    execParser argparser >>= \ (Args f) ->
-    mapM_ compile f
+    execParser argparser >>= \ (Args files) ->
+    let total_files = length files
+    in mapM_ (\ (num, f) -> compile num total_files f) (zip [1..] files)
 
-compile :: FilePath -> IO ()
-compile fname =
+compile :: Int -> Int -> FilePath -> IO ()
+compile num total fname =
     File.open_file fname >>= \ f ->
+    putStrLn ("[" <> show num <> "/" <> show total <> "]: compiling " <> format f) >>
     let (res, diags) = runWriter $ Driver.compile f
     in Diagnostic.report_diagnostics IO.stderr diags >>
     pure ()

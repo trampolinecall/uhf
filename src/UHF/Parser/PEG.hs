@@ -234,8 +234,6 @@ test_plus =
 
 test_optional =
     let oparen = Location.dummy_locate $ Token.SingleTypeToken Token.OParen
-        oparen_type = Token.SingleTypeToken Token.OParen
-
         oparen_consume = consume "oparen" (Token.SingleTypeToken Token.OParen)
 
         parser = optional oparen_consume

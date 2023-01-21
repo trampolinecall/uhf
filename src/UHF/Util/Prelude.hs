@@ -81,7 +81,7 @@ import Data.IntSet as X (IntSet)
 import Data.Text as X (Text)
 
 import Control.Monad.Trans.State as X (State, state, runState, evalState, execState, StateT(..), evalStateT, execStateT, get, put, modify, modify')
-import Control.Monad.Trans.Writer as X (Writer, writer, runWriter, execWriter, WriterT(..), execWriterT, tell)
+import Control.Monad.Trans.Writer as X (Writer, writer, runWriter, execWriter, mapWriter, WriterT(..), execWriterT, mapWriterT, tell)
 import Control.Monad.Trans.Reader as X (Reader, reader, runReader, ReaderT(..), ask)
 import Control.Monad.Trans.Except as X (Except, except, runExcept, ExceptT(..), runExceptT)
 import Control.Monad.Trans.Class as X (lift)

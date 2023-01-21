@@ -14,8 +14,8 @@ import qualified UHF.Token as Token
 import qualified UHF.IO.File as File
 import qualified UHF.IO.Location as Location
 
-lex :: File.File -> ([LexError.LexError], [Token.LToken], Token.LToken)
+lex :: File.File -> Writer [LexError.LexError] ([Token.LToken], Token.LToken)
 lex f =
-    let (errs, toks, eof) = MainLexer.lex f
-        (errs', toks') = IdentifierGrouper.group_identifiers toks -- TODO: use writer monad for this
-    in (errs ++ errs', toks', eof)
+    MainLexer.lex f >>= \ (toks, eof) ->
+    IdentifierGrouper.group_identifiers toks >>= \ toks' ->
+    pure (toks', eof)

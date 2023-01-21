@@ -98,14 +98,33 @@ instance Format SingleTypeToken where
     format Else = "'else'"
     format Case = "'case'"
 
-instance Format (BaseToken double_colon identifier eof char_lit_data string_lit_data intlit_base int_lit_data float_lit_data bool_lit_data) where
+instance Format TokenType where
     format (SingleTypeToken s) = format s
 
-    format (CharLit _) = "character literal"
-    format (StringLit _) = "string literal"
-    format (IntLit _ _) = "integer literal"
-    format (FloatLit _) = "floating point literal"
-    format (BoolLit _) = "bool literal"
+    format (CharLit ()) = "character literal"
+    format (StringLit ()) = "string literal"
+    format (IntLit () ()) = "integer literal"
+    format (FloatLit ()) = "floating point literal"
+    format (BoolLit ()) = "bool literal"
+
+    format (DoubleColon ()) = "'::'"
+
+    format (SymbolIdentifier ()) = "symbol identifier"
+    format (AlphaIdentifier ()) = "alphabetic identifier"
+
+    format OBrace = "'{'"
+    format CBrace = "'}'"
+    format Semicolon = "';'"
+    format (EOF ()) = "end of file"
+
+instance Format Token where
+    format (SingleTypeToken s) = format s
+
+    format (CharLit c) = "'" <> convert_str [c] <> "'"
+    format (StringLit s) = "'\"" <> convert_str s <> "\"'"
+    format (IntLit _ i) = "'" <> show i <> "'"
+    format (FloatLit f) = "'" <> show f <> "'"
+    format (BoolLit b) = "'" <> if b then "true" else "false" <> "'"
 
     format (DoubleColon _) = "'::'"
 

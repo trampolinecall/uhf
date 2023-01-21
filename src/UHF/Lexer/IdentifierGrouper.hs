@@ -13,7 +13,7 @@ import qualified UHF.Lexer.LexError as LexError
 import qualified UHF.Token as Token
 import qualified UHF.IO.Location as Location
 
-group_identifiers :: [Token.LRawToken] -> ([LexError.LexError], [Token.LToken])
+group_identifiers :: [Token.LRawToken] -> Writer [LexError.LexError] [Token.LToken]
 group_identifiers ((Location.Located start_sp (Token.AlphaIdentifier start_iden)):more) =
     let find_iden ((Location.Located _ (Token.DoubleColon _)) : (Location.Located sp (Token.AlphaIdentifier iden)) : m) =
             let (more_iden, is_symbol, m') = find_iden m
@@ -34,17 +34,16 @@ group_identifiers ((Location.Located start_sp (Token.AlphaIdentifier start_iden)
                 then Token.SymbolIdentifier iden_names
                 else Token.AlphaIdentifier iden_names
 
-        (errs, more'_grouped) = group_identifiers more'
-
-    in (errs, Location.Located iden_sp iden_tok : more'_grouped)
+    in group_identifiers more' >>= \ more'_grouped ->
+    pure (Location.Located iden_sp iden_tok : more'_grouped)
 
 group_identifiers (other:more) =
-    let (errs', more') = group_identifiers more
-    in case convert_raw_token other of
-        Right converted -> (errs', converted : more')
-        Left err -> (err : errs', more')
+    group_identifiers more >>= \ more' ->
+    case convert_raw_token other of
+        Right converted -> pure $ converted : more'
+        Left err -> tell [err] >> pure more'
 
-group_identifiers [] = ([], [])
+group_identifiers [] = pure []
 
 convert_raw_token :: Token.LRawToken -> Either LexError.LexError Token.LToken
 convert_raw_token (Location.Located sp (Token.SingleTypeToken t)) = Right $ Location.Located sp (Token.SingleTypeToken t)
@@ -62,67 +61,67 @@ convert_raw_token (Location.Located _ (Token.EOF eof)) = absurd eof
 case_group_identifiers :: Assertion
 case_group_identifiers =
     let (_, [paren_sp, a_sp, dcolon_sp, b_sp, _]) = SpanHelper.make_spans ["(", "a", "::", "b", "eof"]
-    in ([], [Location.Located paren_sp (Token.SingleTypeToken Token.OParen), Location.Located (a_sp `Location.join_span` b_sp) (Token.AlphaIdentifier ["a", "b"])])
+    in ([Location.Located paren_sp (Token.SingleTypeToken Token.OParen), Location.Located (a_sp `Location.join_span` b_sp) (Token.AlphaIdentifier ["a", "b"])], [])
     @=?
-    group_identifiers
+    runWriter (group_identifiers
         [ Location.Located paren_sp (Token.SingleTypeToken Token.OParen)
         , Location.Located a_sp (Token.AlphaIdentifier "a")
         , Location.Located dcolon_sp (Token.DoubleColon ())
         , Location.Located b_sp (Token.AlphaIdentifier "b")
-        ]
+        ])
 
 case_group_identifiers_single_alpha :: Assertion
 case_group_identifiers_single_alpha =
     let (_, [sp]) = SpanHelper.make_spans ["a"]
-    in ([], [Location.Located sp (Token.AlphaIdentifier ["a"])])
+    in ([Location.Located sp (Token.AlphaIdentifier ["a"])], [])
     @=?
-    group_identifiers [Location.Located sp (Token.AlphaIdentifier "a")]
+    runWriter (group_identifiers [Location.Located sp (Token.AlphaIdentifier "a")])
 
 case_group_identifiers_multiple_alpha :: Assertion
 case_group_identifiers_multiple_alpha =
     let (_, [a, dc1, b, dc2, c]) = SpanHelper.make_spans ["a", "::", "b", "::", "c"]
-    in ([], [Location.Located (a `Location.join_span` c) (Token.AlphaIdentifier ["a", "b", "c"])])
+    in ([Location.Located (a `Location.join_span` c) (Token.AlphaIdentifier ["a", "b", "c"])], [])
     @=?
-    group_identifiers
+    runWriter (group_identifiers
         [ Location.Located a $ Token.AlphaIdentifier "a"
         , Location.Located dc1 (Token.DoubleColon ())
         , Location.Located b $ Token.AlphaIdentifier "b"
         , Location.Located dc2 (Token.DoubleColon ())
         , Location.Located c $ Token.AlphaIdentifier "c"
-        ]
+        ])
 
 case_group_identifiers_single_symbol :: Assertion
 case_group_identifiers_single_symbol =
     let (_, [sp]) = SpanHelper.make_spans ["*"]
-    in ([], [Location.Located sp $ Token.SymbolIdentifier ["*"]])
+    in ([Location.Located sp $ Token.SymbolIdentifier ["*"]], [])
     @=?
-    group_identifiers [Location.Located sp $ Token.SymbolIdentifier "*"]
+    runWriter (group_identifiers [Location.Located sp $ Token.SymbolIdentifier "*"])
 
 case_group_identifiers_multiple_symbol :: Assertion
 case_group_identifiers_multiple_symbol =
     let (_, [a, dc1, b, dc2, star]) = SpanHelper.make_spans ["a", "::", "b", "::", "*"]
-    in ([], [Location.Located (a `Location.join_span` star) $ Token.SymbolIdentifier ["a", "b", "*"]])
+    in ([Location.Located (a `Location.join_span` star) $ Token.SymbolIdentifier ["a", "b", "*"]], [])
     @=?
-    group_identifiers
+    runWriter (group_identifiers
         [ Location.Located a $ Token.AlphaIdentifier "a"
         , Location.Located dc1 (Token.DoubleColon ())
         , Location.Located b $ Token.AlphaIdentifier "b"
         , Location.Located dc2 (Token.DoubleColon ())
         , Location.Located star $ Token.SymbolIdentifier "*"
-        ]
+        ])
 
 case_group_identifiers_symbol_start :: Assertion
 case_group_identifiers_symbol_start =
     let (_, [star, dc1, amper, dc2, dollar]) = SpanHelper.make_spans ["*", "::", "$", "::", "$"]
-    in ([LexError.InvalidDoubleColon dc1, LexError.InvalidDoubleColon dc2], [Location.Located star $ Token.SymbolIdentifier ["*"], Location.Located amper $ Token.SymbolIdentifier ["&"], Location.Located dollar $ Token.SymbolIdentifier ["$"]])
+    in ([Location.Located star $ Token.SymbolIdentifier ["*"], Location.Located amper $ Token.SymbolIdentifier ["&"], Location.Located dollar $ Token.SymbolIdentifier ["$"]], [LexError.InvalidDoubleColon dc1, LexError.InvalidDoubleColon dc2])
     @=?
-    group_identifiers
+    runWriter (group_identifiers
         [ Location.Located star $ Token.SymbolIdentifier "*"
         , Location.Located dc1 (Token.DoubleColon ())
         , Location.Located amper $ Token.SymbolIdentifier "&"
         , Location.Located dc2 (Token.DoubleColon ())
         , Location.Located dollar $ Token.SymbolIdentifier "$"
-        ]
+        ])
 
 tests :: TestTree
 tests = $(testGroupGenerator)

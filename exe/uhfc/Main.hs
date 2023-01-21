@@ -4,7 +4,7 @@ import UHF.Util.Prelude
 
 import Options.Applicative
 
-import qualified UHF.Compiler as Compiler
+import qualified UHF.Driver as Driver
 import qualified UHF.IO.File as File
 import qualified UHF.Diagnostic as Diagnostic
 
@@ -38,7 +38,7 @@ main =
 compile :: FilePath -> IO ()
 compile fname =
     File.open_file fname >>= \ f ->
-    let (diags, res) = Compiler.compile f
+    let (res, diags) = runWriter $ Driver.compile f
     in Diagnostic.report_diagnostics IO.stderr diags >>
     pure ()
     -- print res

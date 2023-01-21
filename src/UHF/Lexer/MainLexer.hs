@@ -19,11 +19,11 @@ import qualified Data.Text as Text
 import Data.Char (isAlpha, isDigit, isOctDigit, isHexDigit, isSpace, digitToInt)
 
 -- lexing {{{1
-lex :: File.File -> ([LexError.LexError], [Token.LRawToken], Token.LToken)
+lex :: File.File -> Writer [LexError.LexError] ([Token.LRawToken], Token.LToken)
 lex f =
     let (errs, toks) = run [] [] (Location.new_location f)
         eof = Location.Located (Location.eof_span f) (Token.EOF ())
-    in (errs, toks, eof)
+    in tell errs >> pure (toks, eof)
     where
         run errs_acc toks_acc l
             | Text.null $ remaining l = (errs_acc, toks_acc) -- TODO: somehow encode that the location is not at the end in the lex_one_token type signature
@@ -262,15 +262,15 @@ case_lex :: Assertion
 case_lex =
     let src = "abc *&* ( \"adji\n"
         f = File.File "a" src
-    in case UHF.Lexer.MainLexer.lex f of
-        ([LexError.UnclosedStrLit _], [Location.Located _ (Token.AlphaIdentifier "abc"), Location.Located _ (Token.SymbolIdentifier "*&*"), Location.Located _ (Token.SingleTypeToken Token.OParen)], _) -> pure ()
+    in case runWriter $ UHF.Lexer.MainLexer.lex f of
+        (([Location.Located _ (Token.AlphaIdentifier "abc"), Location.Located _ (Token.SymbolIdentifier "*&*"), Location.Located _ (Token.SingleTypeToken Token.OParen)], _), [LexError.UnclosedStrLit _]) -> pure ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
 case_lex_empty :: Assertion
 case_lex_empty =
     let f = File.File "a" ""
-    in case UHF.Lexer.MainLexer.lex f of
-        ([], [], _) -> pure ()
+    in case runWriter $ UHF.Lexer.MainLexer.lex f of
+        (([], _), []) -> pure ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
 lex_test :: (Location.Location -> r) -> Text -> (r -> IO ()) -> IO ()

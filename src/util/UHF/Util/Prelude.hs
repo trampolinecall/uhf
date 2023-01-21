@@ -38,9 +38,8 @@ import qualified Data.Function (id)
 import qualified Data.Text
 import qualified Data.Text.IO
 import qualified Debug.Trace
-import qualified Data.String (IsString(..))
-import qualified System.Console.ANSI
 import qualified System.IO
+import qualified UHF.FormattedString
 import Control.Monad.IO.Class (MonadIO, liftIO)
 
 import GHC.IO as X (IO)
@@ -92,6 +91,8 @@ import Control.Monad as X (Monad, (>>=), (>>))
 import System.Exit as X (exitFailure, exitSuccess)
 import System.Environment as X (getArgs, getProgName)
 import System.IO as X (FilePath, Handle, stdin, stdout, stderr)
+
+import UHF.FormattedString as X (FormattedString)
 
 import Test.Tasty as X (TestTree, testGroup, defaultMain)
 import Test.Tasty.HUnit as X (Assertion, testCase, (@=?), (@?=), assertBool, assertFailure)
@@ -160,25 +161,14 @@ class ConvertString a b where
 
 instance ConvertString Prelude.String Prelude.String where convert_str = identity
 instance ConvertString Prelude.String Data.Text.Text where convert_str = Data.Text.pack
-instance ConvertString Prelude.String FormattedString where convert_str = Literal . Data.Text.pack
+instance ConvertString Prelude.String FormattedString where convert_str = UHF.FormattedString.Literal . Data.Text.pack
 
 instance ConvertString Data.Text.Text Prelude.String where convert_str = Data.Text.unpack
 instance ConvertString Data.Text.Text Data.Text.Text where convert_str = identity
-instance ConvertString Data.Text.Text FormattedString where convert_str = Literal
+instance ConvertString Data.Text.Text FormattedString where convert_str = UHF.FormattedString.Literal
 
 -- cannot convert to other 2 string types without losing sgr information
 instance ConvertString FormattedString FormattedString where convert_str = identity
-
-data FormattedString
-    = Colored [System.Console.ANSI.SGR] FormattedString
-    | Join FormattedString FormattedString
-    | Literal Text
-    deriving (Show, Eq)
-
-instance Data.String.IsString FormattedString where
-    fromString = Literal . Data.Text.pack
-instance Semigroup FormattedString where
-    (<>) = Join
 
 class Format a where
     format :: a -> FormattedString

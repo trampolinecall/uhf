@@ -45,9 +45,7 @@ bg_magenta = SetColor Background Dull Magenta
 bg_cyan = SetColor Background Dull Cyan
 bg_white = SetColor Background Dull White
 
-file_path, error, warning, debug_message, note, hint, diag_code, diag_desc :: [SGR]
-
-file_path = [bold, fg_bcyan]
+error, warning, debug_message, note, hint, diag_code, diag_desc :: [SGR]
 
 error = [bold, fg_bred]
 warning = [bold, fg_bmagenta]

@@ -5,8 +5,8 @@ module UHF.Parser.PEG
 
     , Parser
     , ParseResult(..)
-    , return_fail
-    , return_recoverable
+    , fail
+    , recoverable
 
     , is_tt
 
@@ -36,7 +36,6 @@ import qualified Data.Data as Data
 
 type TokenStream = InfList.InfList Token.LToken
 
--- TODO: also clean up this too
 -- TODO: allow each thing to provide a custom error function
 
 type Parser = StateT TokenStream ParseResult
@@ -58,11 +57,11 @@ instance Monad ParseResult where
 
             Left e -> ParseResult (a_e, Left e)
 
-return_fail :: [ParseError.ParseError] -> ParseError.ParseError -> Parser a
-return_fail errs err = StateT $ \ _ -> ParseResult (errs, Left err)
+fail :: [ParseError.ParseError] -> ParseError.ParseError -> Parser a
+fail errs err = StateT $ \ _ -> ParseResult (errs, Left err)
 
-return_recoverable :: [ParseError.ParseError] -> a -> Parser a
-return_recoverable errs res = StateT $ \ toks -> ParseResult (errs, Right (res, toks))
+recoverable :: [ParseError.ParseError] -> a -> Parser a
+recoverable errs res = StateT $ \ toks -> ParseResult (errs, Right (res, toks))
 
 -- TODO: this does not work properly because this needs to compare the constructor of SingleTypeToken too
 is_tt :: Token.TokenType -> Token.Token -> Bool

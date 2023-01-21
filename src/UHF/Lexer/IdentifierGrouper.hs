@@ -56,9 +56,6 @@ convert_raw_token (Location.Located sp (Token.BoolLit b)) = Right $ Location.Loc
 convert_raw_token (Location.Located sp (Token.DoubleColon _)) = Left $ LexError.InvalidDoubleColon sp
 convert_raw_token (Location.Located sp (Token.SymbolIdentifier i)) = Right $ Location.Located sp $ Token.SymbolIdentifier [i]
 convert_raw_token (Location.Located _ (Token.AlphaIdentifier _)) = error "cannot convert raw alpha identiifer to alpha identifier"
-convert_raw_token (Location.Located sp Token.OBrace) = Right $ Location.Located sp Token.OBrace
-convert_raw_token (Location.Located sp Token.CBrace) = Right $ Location.Located sp Token.CBrace
-convert_raw_token (Location.Located sp Token.Semicolon) = Right $ Location.Located sp Token.Semicolon
 convert_raw_token (Location.Located _ (Token.EOF eof)) = absurd eof
 
 -- tests {{{1

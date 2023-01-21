@@ -20,6 +20,7 @@ import UHF.Util.Prelude
 
 import qualified UHF.IO.Location as Location
 
+import qualified Data.Text as Text
 import qualified Data.Data as Data
 
 data IntLitBase
@@ -57,6 +58,10 @@ data SingleTypeToken
     | If
     | Else
     | Case
+
+    | OBrace
+    | CBrace
+    | Semicolon
     deriving (Show, Eq, Data.Data)
 
 data BaseToken double_colon identifier eof char_lit_data string_lit_data intlit_base int_lit_data float_lit_data bool_lit_data
@@ -73,9 +78,6 @@ data BaseToken double_colon identifier eof char_lit_data string_lit_data intlit_
     | SymbolIdentifier identifier
     | AlphaIdentifier identifier
 
-    | OBrace
-    | CBrace
-    | Semicolon
     | EOF eof
     deriving (Show, Eq, Data.Data)
 
@@ -98,6 +100,10 @@ instance Format SingleTypeToken where
     format Else = "'else'"
     format Case = "'case'"
 
+    format OBrace = "'{'"
+    format CBrace = "'}'"
+    format Semicolon = "';'"
+
 instance Format TokenType where
     format (SingleTypeToken s) = format s
 
@@ -112,9 +118,6 @@ instance Format TokenType where
     format (SymbolIdentifier ()) = "symbol identifier"
     format (AlphaIdentifier ()) = "alphabetic identifier"
 
-    format OBrace = "'{'"
-    format CBrace = "'}'"
-    format Semicolon = "';'"
     format (EOF ()) = "end of file"
 
 instance Format Token where
@@ -126,12 +129,9 @@ instance Format Token where
     format (FloatLit f) = "'" <> show f <> "'"
     format (BoolLit b) = "'" <> if b then "true" else "false" <> "'"
 
-    format (DoubleColon _) = "'::'"
+    format (DoubleColon void) = absurd void
 
-    format (SymbolIdentifier _) = "symbol identifier"
-    format (AlphaIdentifier _) = "alphabetic identifier"
+    format (SymbolIdentifier parts) = convert_str $ "symbol identifier '" <> Text.intercalate "::" parts <> "'"
+    format (AlphaIdentifier parts) = convert_str $ "alphabetic identifier '" <> Text.intercalate "::" parts <> "'"
 
-    format OBrace = "'{'"
-    format CBrace = "'}'"
-    format Semicolon = "';'"
     format (EOF _) = "end of file"

@@ -38,7 +38,7 @@ data LineCol = LineCol { ind :: Int, row :: Int, col :: Int } deriving (Show, Eq
 data Location = Location { loc_file :: File.File, lc :: LineCol } deriving (Show, Eq)
 data Span = Span File.File LineCol LineCol LineCol deriving (Show, Eq)
 
-data Located a = Located { just_span :: Span, unlocate :: a } deriving (Show, Eq)
+data Located a = Located { just_span :: Span, unlocate :: a } deriving (Show, Eq) -- TODO: figure out how to do Eq nicely
 
 loc_ind, loc_row, loc_col :: Location -> Int
 loc_ind = ind . lc

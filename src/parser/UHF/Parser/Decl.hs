@@ -38,23 +38,26 @@ data_ =
 binding :: Parser.Parser AST.Decl
 binding =
     Parser.consume "binding name" (Token.AlphaIdentifier ()) >>= \ (Location.Located _ (Token.AlphaIdentifier name)) ->
-    Parser.consume "'='" (Token.SingleTypeToken Token.Equal) >>= \ eq ->
+    let name' = case name of
+            [n] -> n
+            _ -> error "TODO: report error for this"
+    in Parser.consume "'='" (Token.SingleTypeToken Token.Equal) >>= \ eq ->
     Expr.expr >>= \ ex ->
-    pure (AST.Decl'Binding name ex)
+    pure (AST.Decl'Binding name' ex)
 
 --- tests {{{1
 tests :: [Test.ParsingTest]
 tests =
     [ Test.ParsingTest "function decl"
-        (Test.make_token_stream [("x", Token.AlphaIdentifier ["x"]), ("=", Token.SingleTypeToken Token.Equal), ("'c'", Token.CharLit 'c')])
-        (AST.Decl'Binding ["x"] (AST.Expr'CharLit 'c'))
+        (Test.make_token_stream [("x", Token.AlphaIdentifier [Location.dummy_locate "x"]), ("=", Token.SingleTypeToken Token.Equal), ("'c'", Token.CharLit 'c')])
+        (AST.Decl'Binding (Location.dummy_locate "x") (AST.Expr'CharLit 'c'))
         [("decl", decl), ("binding", binding)]
 
     , Test.ParsingTest "data decl"
         (Test.make_token_stream
-            [ ("data", Token.SingleTypeToken Token.Data), ("X", Token.AlphaIdentifier ["X"])
-            , ("{", Token.SingleTypeToken Token.OBrace), ("Y", Token.AlphaIdentifier ["Y"]), ("string", Token.AlphaIdentifier ["string"]), (";", Token.SingleTypeToken Token.Semicolon)
-            , ("Z", Token.AlphaIdentifier ["Z"]), ("X", Token.AlphaIdentifier ["X"]), (";", Token.SingleTypeToken Token.Semicolon)
+            [ ("data", Token.SingleTypeToken Token.Data), ("X", Token.AlphaIdentifier [Location.dummy_locate "X"])
+            , ("{", Token.SingleTypeToken Token.OBrace), ("Y", Token.AlphaIdentifier [Location.dummy_locate "Y"]), ("string", Token.AlphaIdentifier [Location.dummy_locate "string"]), (";", Token.SingleTypeToken Token.Semicolon)
+            , ("Z", Token.AlphaIdentifier [Location.dummy_locate "Z"]), ("X", Token.AlphaIdentifier [Location.dummy_locate "X"]), (";", Token.SingleTypeToken Token.Semicolon)
             , ("}", Token.SingleTypeToken Token.CBrace)
             ])
         (error "not implemented yet")

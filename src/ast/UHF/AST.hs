@@ -4,16 +4,18 @@ module UHF.AST where
 
 import UHF.Util.Prelude
 
+import UHF.IO.Location (Located)
+
 data Decl
-    = Decl'Binding [Text] Expr -- TODO: this should eventually be a pattern
+    = Decl'Binding (Located Text) Expr -- TODO: this should eventually be a pattern
     deriving (Eq, Show)
 
 data Type
-    = Type'Identifier [Text]
+    = Type'Identifier (Located [Located Text])
     deriving (Eq, Show)
 
 data Expr
-    = Expr'Identifier [Text]
+    = Expr'Identifier (Located [Located Text])
     | Expr'CharLit Char
     | Expr'StringLit Text
     | Expr'IntLit Integer

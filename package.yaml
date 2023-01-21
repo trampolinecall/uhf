@@ -25,12 +25,60 @@ internal-libraries:
 
     dependencies:
       - uhf-util
+      - uhf-io
 
-  uhf-core:
-    source-dirs: src/core
+  uhf-token:
+    source-dirs: src/token
 
     dependencies:
       - uhf-util
+      - uhf-io
+
+      - text
+
+  uhf-ir:
+    source-dirs: src/ir
+
+    dependencies:
+      - uhf-util
+
+      - containers
+
+  uhf-lexer:
+    source-dirs: src/lexer
+
+    dependencies:
+      - uhf-util
+      - uhf-diagnostic
+      - uhf-io
+      - uhf-token
+
+      - text
+
+  uhf-parser:
+    source-dirs: src/parser
+
+    dependencies:
+      - uhf-util
+      - uhf-token
+      - uhf-diagnostic
+      - uhf-io
+      - uhf-ast
+
+      - inflist
+      - transformers
+
+  uhf-ast-to-ir:
+    source-dirs: src/ast-to-ir
+
+    dependencies:
+      - uhf-util
+      - uhf-diagnostic
+      - uhf-io
+      - uhf-ast
+      - uhf-ir
+
+      - containers
 
   uhf-diagnostic:
     source-dirs: src/diagnostic
@@ -61,39 +109,6 @@ internal-libraries:
       - text
       - ansi-terminal
 
-  uhf-lexer:
-    source-dirs: src/lexer
-
-    dependencies:
-      - uhf-util
-      - uhf-diagnostic
-      - uhf-io
-      - uhf-token
-
-      - text
-
-  uhf-parser:
-    source-dirs: src/parser
-
-    dependencies:
-      - uhf-util
-      - uhf-token
-      - uhf-diagnostic
-      - uhf-io
-      - uhf-ast
-
-      - inflist
-      - transformers
-
-  uhf-token:
-    source-dirs: src/token
-
-    dependencies:
-      - uhf-util
-      - uhf-io
-
-      - text
-
   uhf-util:
     source-dirs: src/util
 
@@ -111,11 +126,13 @@ executables:
     source-dirs: exe/uhfc
 
     dependencies:
-      - uhf-lexer
-      - uhf-parser
-      - uhf-io
       - uhf-token
       - uhf-ast
+      - uhf-ir
+      - uhf-lexer
+      - uhf-parser
+      - uhf-ast-to-ir
+      - uhf-io
       - uhf-util
       - uhf-diagnostic
 

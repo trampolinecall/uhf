@@ -12,6 +12,8 @@ module UHF.Util.Prelude
     , undefined
     , error
     , trace
+    , trace_show_id
+    , trace_with_message
     , not_implemented
 
     , putStr
@@ -36,6 +38,7 @@ import qualified Data.Text.IO
 import qualified Debug.Trace
 import qualified Data.String (IsString(..))
 import qualified System.Console.ANSI
+import qualified System.IO
 import Control.Monad.IO.Class (MonadIO, liftIO)
 
 import GHC.IO as X (IO)
@@ -109,6 +112,14 @@ error = Prelude.error
 trace :: Prelude.String -> a -> a
 trace = Debug.Trace.trace
 
+{-# WARNING trace_show_id "'trace_show_id'" #-}
+trace_show_id :: Show a => a -> a
+trace_show_id = Debug.Trace.traceShowId
+
+{-# WARNING trace_with_message "'trace_show_id'" #-}
+trace_with_message :: Show a => Prelude.String -> a -> a
+trace_with_message msg a = Debug.Trace.trace (msg ++ ": " ++ show a) a
+
 {-# WARNING not_implemented "'not_implemented'" #-}
 not_implemented :: a
 not_implemented = Prelude.error "not implemented yet"
@@ -122,8 +133,8 @@ instance Print Data.Text.Text where
   hPutStrLn h = liftIO . Data.Text.IO.hPutStrLn h
 
 instance Print [Char] where
-  hPutStr h = liftIO . hPutStr h
-  hPutStrLn h = liftIO . hPutStrLn h
+  hPutStr h = liftIO . System.IO.hPutStr h
+  hPutStrLn h = liftIO . System.IO.hPutStrLn h
 
 putStr :: (Print a, MonadIO m) => a -> m ()
 putStr = hPutStr stdout

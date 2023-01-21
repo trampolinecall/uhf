@@ -13,7 +13,7 @@ import qualified UHF.Lexer.LexError as LexError
 import qualified UHF.Token as Token
 import qualified UHF.IO.Location as Location
 
-group_identifiers :: [Token.LTokenWithIndentation] -> ([LexError.LexError], [Token.LNormalToken])
+group_identifiers :: [Token.LRawToken] -> ([LexError.LexError], [Token.LToken])
 group_identifiers ((Location.Located start_sp (Token.AlphaIdentifier start_iden)):more) =
     let find_iden ((Location.Located _ (Token.DoubleColon _)) : (Location.Located sp (Token.AlphaIdentifier iden)) : m) =
             let (more_iden, is_symbol, m') = find_iden m
@@ -46,7 +46,7 @@ group_identifiers (other:more) =
 
 group_identifiers [] = ([], [])
 
-convert_raw_token :: Token.LTokenWithIndentation -> Either LexError.LexError Token.LNormalToken
+convert_raw_token :: Token.LRawToken -> Either LexError.LexError Token.LToken
 convert_raw_token (Location.Located sp (Token.SingleTypeToken t)) = Right $ Location.Located sp (Token.SingleTypeToken t)
 convert_raw_token (Location.Located sp (Token.CharLit ch)) = Right $ Location.Located sp (Token.CharLit ch)
 convert_raw_token (Location.Located sp (Token.StringLit str)) = Right $ Location.Located sp (Token.StringLit str)
@@ -59,10 +59,6 @@ convert_raw_token (Location.Located _ (Token.AlphaIdentifier _)) = error "cannot
 convert_raw_token (Location.Located sp Token.OBrace) = Right $ Location.Located sp Token.OBrace
 convert_raw_token (Location.Located sp Token.CBrace) = Right $ Location.Located sp Token.CBrace
 convert_raw_token (Location.Located sp Token.Semicolon) = Right $ Location.Located sp Token.Semicolon
-convert_raw_token (Location.Located sp (Token.Indent i)) = Right $ Location.Located sp $ Token.Indent i
-convert_raw_token (Location.Located sp (Token.Dedent i)) = Right $ Location.Located sp $ Token.Dedent i
-convert_raw_token (Location.Located sp (Token.Newline nl)) = Right $ Location.Located sp $ Token.Newline nl
-convert_raw_token (Location.Located _ (Token.Backslash v)) = absurd v
 convert_raw_token (Location.Located _ (Token.EOF eof)) = absurd eof
 
 -- tests {{{1

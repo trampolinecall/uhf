@@ -15,20 +15,10 @@ import qualified UHF.Parser.ParseError as ParseError
 import qualified UHF.Parser.Decl as Decl
 import qualified UHF.Parser.Test as Test
 
-import qualified UHF.IO.Location as Location
-import qualified UHF.IO.File as File
-import qualified UHF.IO.Location.SpanHelper as SpanHelper
-
 import qualified UHF.Token as Token
-
 import qualified UHF.AST as AST
 
 import qualified Data.InfList as InfList
-
-import qualified Data.List as List
-import qualified Data.List.NonEmpty as NonEmpty
-
-import qualified Control.Monad.Trans.State as State
 
 parse :: [Token.LToken] -> Token.LToken -> ([ParseError.ParseError], [AST.Decl])
 parse toks eof_tok =

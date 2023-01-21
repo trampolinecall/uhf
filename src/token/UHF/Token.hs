@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleInstances #-}
 
 module UHF.Token
@@ -11,9 +10,9 @@ module UHF.Token
     , Token
     , TokenType
 
-    , NLPhysical(..), NLLogical(..)
-
     , IntLitBase(..)
+
+    , to_token_type
     ) where
 
 import UHF.Util.Prelude
@@ -21,14 +20,13 @@ import UHF.Util.Prelude
 import qualified UHF.IO.Location as Location
 
 import qualified Data.Text as Text
-import qualified Data.Data as Data
 
 data IntLitBase
     = Dec
     | Oct
     | Hex
     | Bin
-    deriving (Show, Eq, Data.Data)
+    deriving (Show, Eq)
 
 type LToken = Location.Located Token
 type LRawToken = Location.Located RawToken
@@ -37,8 +35,6 @@ type RawToken = BaseToken () Text Void Char Text IntLitBase Integer Rational Boo
 type Token = BaseToken Void [Text] () Char Text IntLitBase Integer Rational Bool
 type TokenType = BaseToken () () () () () () () () ()
 
-data NLLogical = NLLogical deriving (Show, Eq, Data.Data)
-data NLPhysical = NLPhysical deriving (Show, Eq, Data.Data)
 
 data SingleTypeToken
     = OParen
@@ -62,7 +58,7 @@ data SingleTypeToken
     | OBrace
     | CBrace
     | Semicolon
-    deriving (Show, Eq, Data.Data)
+    deriving (Show, Eq)
 
 data BaseToken double_colon identifier eof char_lit_data string_lit_data intlit_base int_lit_data float_lit_data bool_lit_data
     = SingleTypeToken SingleTypeToken
@@ -79,7 +75,7 @@ data BaseToken double_colon identifier eof char_lit_data string_lit_data intlit_
     | AlphaIdentifier identifier
 
     | EOF eof
-    deriving (Show, Eq, Data.Data)
+    deriving (Show, Eq)
 
 instance Format SingleTypeToken where
     format OParen = "'('"
@@ -135,3 +131,19 @@ instance Format Token where
     format (AlphaIdentifier parts) = convert_str $ "alphabetic identifier '" <> Text.intercalate "::" parts <> "'"
 
     format (EOF _) = "end of file"
+
+to_token_type :: BaseToken double_colon identifier eof char_lit_data string_lit_data intlit_base int_lit_data float_lit_data bool_lit_data -> TokenType
+to_token_type (SingleTypeToken stt) = SingleTypeToken stt
+
+to_token_type (CharLit _) = CharLit ()
+to_token_type (StringLit _) = StringLit ()
+to_token_type (IntLit _ _) = IntLit () ()
+to_token_type (FloatLit _) = FloatLit ()
+to_token_type (BoolLit _) = BoolLit ()
+
+to_token_type (DoubleColon _) = DoubleColon ()
+
+to_token_type (SymbolIdentifier _) = SymbolIdentifier ()
+to_token_type (AlphaIdentifier _) = AlphaIdentifier ()
+
+to_token_type (EOF _) = EOF ()

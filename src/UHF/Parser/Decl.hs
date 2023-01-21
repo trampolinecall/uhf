@@ -53,9 +53,9 @@ tests =
     , Test.ParsingTest "data decl"
         (Test.make_token_stream
             [ ("data", Token.SingleTypeToken Token.Data), ("X", Token.AlphaIdentifier ["X"])
-            , ("{", Token.OBrace ), ("Y", Token.AlphaIdentifier ["Y"]), ("string", Token.AlphaIdentifier ["string"]), (";", Token.Semicolon)
-            , ("Z", Token.AlphaIdentifier ["Z"]), ("X", Token.AlphaIdentifier ["X"]), (";", Token.Semicolon)
-            , ("}", Token.CBrace)
+            , ("{", Token.SingleTypeToken Token.OBrace), ("Y", Token.AlphaIdentifier ["Y"]), ("string", Token.AlphaIdentifier ["string"]), (";", Token.SingleTypeToken Token.Semicolon)
+            , ("Z", Token.AlphaIdentifier ["Z"]), ("X", Token.AlphaIdentifier ["X"]), (";", Token.SingleTypeToken Token.Semicolon)
+            , ("}", Token.SingleTypeToken Token.CBrace)
             ])
         (error "not implemented yet")
         [("decl", decl), ("data", data_)]

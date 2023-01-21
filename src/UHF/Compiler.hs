@@ -25,12 +25,12 @@ link phase1 phase2 a =
         (diags2, c) = phase2 b
     in (diags1 ++ diags2, c)
 
-lex_phase :: Phase File.File ([Token.LNormalToken], Token.LNormalToken)
+lex_phase :: Phase File.File ([Token.LToken], Token.LToken)
 lex_phase file =
     let (diagnostics, res, eof_tok) = Lexer.lex file
     in (map Diagnostic.to_diagnostic diagnostics, (res, eof_tok))
 
-parse_phase :: Phase ([Token.LNormalToken], Token.LNormalToken) [AST.Decl]
+parse_phase :: Phase ([Token.LToken], Token.LToken) [AST.Decl]
 parse_phase (toks, eof_tok) =
     let (diagnostics, res) = Parser.parse toks eof_tok
     in (map Diagnostic.to_diagnostic diagnostics, res)

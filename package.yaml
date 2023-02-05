@@ -11,6 +11,7 @@ dependencies:
 ghc-options:
   - -Wall
   - -Wextra
+  - -Wno-name-shadowing
 
 default-extensions:
   - LambdaCase

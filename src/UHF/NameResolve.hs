@@ -82,14 +82,14 @@ resolve_for_expr _ _ (Expr.BoolLit b) = pure $ Expr.BoolLit b
 
 resolve_iden :: UnresolvedDeclArena -> Decl.Key -> Location.Located [Location.Located Text] -> Writer [Error] (Maybe Value.Key)
 resolve_iden decls mod (Location.Located _ [x]) =
-    case get_child decls mod x of
+    case get_value_child decls mod x of
         Right v -> pure (Just v)
         Left e -> tell [e] >> pure Nothing
 
 resolve_iden _ _ i = tell [MultiIden i] >> pure Nothing
 
-get_child :: UnresolvedDeclArena -> Decl.Key -> Location.Located Text -> Either Error Value.Key
-get_child decls thing name =
+get_value_child :: UnresolvedDeclArena -> Decl.Key -> Location.Located Text -> Either Error Value.Key
+get_value_child decls thing name =
     case Arena.get decls thing of
         Decl.Decl'Module (Decl.Module _ children) ->
             case Map.lookup (Location.unlocate name) children of

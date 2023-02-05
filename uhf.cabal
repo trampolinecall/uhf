@@ -1,4 +1,4 @@
-cabal-version: 2.0
+cabal-version: 1.12
 
 -- This file has been generated from package.yaml by hpack version 0.34.6.
 --
@@ -10,84 +10,11 @@ license:        MIT
 license-file:   LICENSE
 build-type:     Simple
 
-library uhf-arena
+library
   exposed-modules:
       Arena
-  other-modules:
-      Paths_uhf
-  autogen-modules:
-      Paths_uhf
-  hs-source-dirs:
-      src/arena
-  default-extensions:
-      LambdaCase
-      TemplateHaskell
-      OverloadedStrings
-      NoImplicitPrelude
-  ghc-options: -Wall -Wextra -Wno-name-shadowing
-  build-depends:
-      base >=4.13 && <5
-    , tasty
-    , tasty-hunit
-    , tasty-th
-    , uhf-util
-  default-language: Haskell2010
-
-library uhf-ast
-  exposed-modules:
       UHF.AST
-  other-modules:
-      Paths_uhf
-  autogen-modules:
-      Paths_uhf
-  hs-source-dirs:
-      src/ast
-  default-extensions:
-      LambdaCase
-      TemplateHaskell
-      OverloadedStrings
-      NoImplicitPrelude
-  ghc-options: -Wall -Wextra -Wno-name-shadowing
-  build-depends:
-      base >=4.13 && <5
-    , tasty
-    , tasty-hunit
-    , tasty-th
-    , uhf-io
-    , uhf-util
-  default-language: Haskell2010
-
-library uhf-ast-to-ir
-  exposed-modules:
       UHF.ASTToIR
-  other-modules:
-      Paths_uhf
-  autogen-modules:
-      Paths_uhf
-  hs-source-dirs:
-      src/ast-to-ir
-  default-extensions:
-      LambdaCase
-      TemplateHaskell
-      OverloadedStrings
-      NoImplicitPrelude
-  ghc-options: -Wall -Wextra -Wno-name-shadowing
-  build-depends:
-      base >=4.13 && <5
-    , containers
-    , tasty
-    , tasty-hunit
-    , tasty-th
-    , uhf-arena
-    , uhf-ast
-    , uhf-diagnostic
-    , uhf-io
-    , uhf-ir
-    , uhf-util
-  default-language: Haskell2010
-
-library uhf-diagnostic
-  exposed-modules:
       UHF.Diagnostic
       UHF.Diagnostic.Codes
       UHF.Diagnostic.Codes.Code
@@ -96,171 +23,19 @@ library uhf-diagnostic
       UHF.Diagnostic.Line
       UHF.Diagnostic.Sections.Underlines
       UHF.Diagnostic.Sections.Utils
-  other-modules:
-      Paths_uhf
-  autogen-modules:
-      Paths_uhf
-  hs-source-dirs:
-      src/diagnostic
-  default-extensions:
-      LambdaCase
-      TemplateHaskell
-      OverloadedStrings
-      NoImplicitPrelude
-  ghc-options: -Wall -Wextra -Wno-name-shadowing
-  build-depends:
-      ansi-terminal
-    , base >=4.13 && <5
-    , tasty
-    , tasty-hunit
-    , tasty-th
-    , template-haskell
-    , text
-    , uhf-formatted-string
-    , uhf-io
-    , uhf-util
-  default-language: Haskell2010
-
-library uhf-formatted-string
-  exposed-modules:
       UHF.FormattedString
-  other-modules:
-      Paths_uhf
-  autogen-modules:
-      Paths_uhf
-  hs-source-dirs:
-      src/formatted-string
-  default-extensions:
-      LambdaCase
-      TemplateHaskell
-      OverloadedStrings
-      NoImplicitPrelude
-  ghc-options: -Wall -Wextra -Wno-name-shadowing
-  build-depends:
-      ansi-terminal
-    , base >=4.13 && <5
-    , tasty
-    , tasty-hunit
-    , tasty-th
-    , text
-  default-language: Haskell2010
-
-library uhf-io
-  exposed-modules:
       UHF.IO.File
       UHF.IO.Location
       UHF.IO.Location.SpanHelper
       UHF.IO.Path
-  other-modules:
-      Paths_uhf
-  autogen-modules:
-      Paths_uhf
-  hs-source-dirs:
-      src/io
-  default-extensions:
-      LambdaCase
-      TemplateHaskell
-      OverloadedStrings
-      NoImplicitPrelude
-  ghc-options: -Wall -Wextra -Wno-name-shadowing
-  build-depends:
-      ansi-terminal
-    , base >=4.13 && <5
-    , tasty
-    , tasty-hunit
-    , tasty-th
-    , text
-    , uhf-formatted-string
-    , uhf-util
-  default-language: Haskell2010
-
-library uhf-ir
-  exposed-modules:
       UHF.IR.Decl
       UHF.IR.Expr
       UHF.IR.Value
-  other-modules:
-      Paths_uhf
-  autogen-modules:
-      Paths_uhf
-  hs-source-dirs:
-      src/ir
-  default-extensions:
-      LambdaCase
-      TemplateHaskell
-      OverloadedStrings
-      NoImplicitPrelude
-  ghc-options: -Wall -Wextra -Wno-name-shadowing
-  build-depends:
-      base >=4.13 && <5
-    , containers
-    , tasty
-    , tasty-hunit
-    , tasty-th
-    , uhf-arena
-    , uhf-util
-  default-language: Haskell2010
-
-library uhf-lexer
-  exposed-modules:
       UHF.Lexer
       UHF.Lexer.IdentifierGrouper
       UHF.Lexer.LexError
       UHF.Lexer.MainLexer
-  other-modules:
-      Paths_uhf
-  autogen-modules:
-      Paths_uhf
-  hs-source-dirs:
-      src/lexer
-  default-extensions:
-      LambdaCase
-      TemplateHaskell
-      OverloadedStrings
-      NoImplicitPrelude
-  ghc-options: -Wall -Wextra -Wno-name-shadowing
-  build-depends:
-      base >=4.13 && <5
-    , tasty
-    , tasty-hunit
-    , tasty-th
-    , text
-    , uhf-diagnostic
-    , uhf-io
-    , uhf-token
-    , uhf-util
-  default-language: Haskell2010
-
-library uhf-name-resolve
-  exposed-modules:
       UHF.NameResolve
-  other-modules:
-      Paths_uhf
-  autogen-modules:
-      Paths_uhf
-  hs-source-dirs:
-      src/name-resolve
-  default-extensions:
-      LambdaCase
-      TemplateHaskell
-      OverloadedStrings
-      NoImplicitPrelude
-  ghc-options: -Wall -Wextra -Wno-name-shadowing
-  build-depends:
-      base >=4.13 && <5
-    , containers
-    , tasty
-    , tasty-hunit
-    , tasty-th
-    , uhf-arena
-    , uhf-diagnostic
-    , uhf-io
-    , uhf-ir
-    , uhf-util
-  default-language: Haskell2010
-
-library uhf-parser
-  exposed-modules:
       UHF.Parser
       UHF.Parser.Decl
       UHF.Parser.Expr
@@ -268,67 +43,13 @@ library uhf-parser
       UHF.Parser.PEG
       UHF.Parser.Test
       UHF.Parser.Type
-  other-modules:
-      Paths_uhf
-  autogen-modules:
-      Paths_uhf
-  hs-source-dirs:
-      src/parser
-  default-extensions:
-      LambdaCase
-      TemplateHaskell
-      OverloadedStrings
-      NoImplicitPrelude
-  ghc-options: -Wall -Wextra -Wno-name-shadowing
-  build-depends:
-      base >=4.13 && <5
-    , inflist
-    , tasty
-    , tasty-hunit
-    , tasty-th
-    , transformers
-    , uhf-ast
-    , uhf-diagnostic
-    , uhf-io
-    , uhf-token
-    , uhf-util
-  default-language: Haskell2010
-
-library uhf-token
-  exposed-modules:
       UHF.Token
-  other-modules:
-      Paths_uhf
-  autogen-modules:
-      Paths_uhf
-  hs-source-dirs:
-      src/token
-  default-extensions:
-      LambdaCase
-      TemplateHaskell
-      OverloadedStrings
-      NoImplicitPrelude
-  ghc-options: -Wall -Wextra -Wno-name-shadowing
-  build-depends:
-      base >=4.13 && <5
-    , tasty
-    , tasty-hunit
-    , tasty-th
-    , text
-    , uhf-io
-    , uhf-util
-  default-language: Haskell2010
-
-library uhf-util
-  exposed-modules:
       UHF.Util.Prelude
       UHF.Util.RecursiveTransform
   other-modules:
       Paths_uhf
-  autogen-modules:
-      Paths_uhf
   hs-source-dirs:
-      src/util
+      src
   default-extensions:
       LambdaCase
       TemplateHaskell
@@ -336,23 +57,23 @@ library uhf-util
       NoImplicitPrelude
   ghc-options: -Wall -Wextra -Wno-name-shadowing
   build-depends:
-      base >=4.13 && <5
+      ansi-terminal
+    , base >=4.13 && <5
     , containers
+    , inflist
     , safe
     , tasty
     , tasty-hunit
     , tasty-th
+    , template-haskell
     , text
     , transformers
-    , uhf-formatted-string
   default-language: Haskell2010
 
 executable uhfc
   main-is: Main.hs
   other-modules:
       Driver
-      Paths_uhf
-  autogen-modules:
       Paths_uhf
   hs-source-dirs:
       exe/uhfc
@@ -365,28 +86,13 @@ executable uhfc
   build-depends:
       base >=4.13 && <5
     , optparse-applicative
-    , tasty
-    , tasty-hunit
-    , tasty-th
-    , uhf-arena
-    , uhf-ast
-    , uhf-ast-to-ir
-    , uhf-diagnostic
-    , uhf-io
-    , uhf-ir
-    , uhf-lexer
-    , uhf-name-resolve
-    , uhf-parser
-    , uhf-token
-    , uhf-util
+    , uhf
   default-language: Haskell2010
 
 test-suite uhf-test
   type: exitcode-stdio-1.0
   main-is: uhf.hs
   other-modules:
-      Paths_uhf
-  autogen-modules:
       Paths_uhf
   hs-source-dirs:
       test/
@@ -398,18 +104,5 @@ test-suite uhf-test
   ghc-options: -Wall -Wextra -Wno-name-shadowing
   build-depends:
       base >=4.13 && <5
-    , tasty
-    , tasty-hunit
-    , tasty-th
-    , uhf-arena
-    , uhf-ast
-    , uhf-ast-to-ir
-    , uhf-diagnostic
-    , uhf-io
-    , uhf-ir
-    , uhf-lexer
-    , uhf-name-resolve
-    , uhf-parser
-    , uhf-token
-    , uhf-util
+    , uhf
   default-language: Haskell2010

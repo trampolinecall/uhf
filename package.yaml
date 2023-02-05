@@ -4,10 +4,6 @@ version:             0.0.0
 dependencies:
   - base >= 4.13 && < 5
 
-  - tasty
-  - tasty-hunit
-  - tasty-th
-
 ghc-options:
   - -Wall
   - -Wextra
@@ -20,126 +16,21 @@ default-extensions:
   - NoImplicitPrelude
 # TODO: split tests from library, but somehow still allow access to test private functions and things
 
-internal-libraries:
-  uhf-ast:
-    source-dirs: src/ast
+library:
+  source-dirs: src
 
-    dependencies:
-      - uhf-util
-      - uhf-io
+  dependencies:
+    - containers
+    - ansi-terminal
+    - text
+    - safe
+    - transformers
+    - template-haskell
+    - inflist
 
-  uhf-token:
-    source-dirs: src/token
-
-    dependencies:
-      - uhf-util
-      - uhf-io
-
-      - text
-
-  uhf-ir:
-    source-dirs: src/ir
-
-    dependencies:
-      - uhf-util
-      - uhf-arena
-
-      - containers
-
-  uhf-lexer:
-    source-dirs: src/lexer
-
-    dependencies:
-      - uhf-util
-      - uhf-diagnostic
-      - uhf-io
-      - uhf-token
-
-      - text
-
-  uhf-parser:
-    source-dirs: src/parser
-
-    dependencies:
-      - uhf-util
-      - uhf-token
-      - uhf-diagnostic
-      - uhf-io
-      - uhf-ast
-
-      - inflist
-      - transformers
-
-  uhf-ast-to-ir:
-    source-dirs: src/ast-to-ir
-
-    dependencies:
-      - uhf-util
-      - uhf-arena
-      - uhf-diagnostic
-      - uhf-io
-      - uhf-ast
-      - uhf-ir
-
-      - containers
-
-  uhf-name-resolve:
-    source-dirs: src/name-resolve
-
-    dependencies:
-      - uhf-util
-      - uhf-diagnostic
-      - uhf-io
-      - uhf-ir
-      - uhf-arena
-
-      - containers
-
-  uhf-diagnostic:
-    source-dirs: src/diagnostic
-
-    dependencies:
-      - uhf-util
-      - uhf-io
-      - uhf-formatted-string
-
-      - text
-      - ansi-terminal
-      - template-haskell
-
-  uhf-formatted-string:
-    source-dirs: src/formatted-string
-
-    dependencies:
-      - text
-      - ansi-terminal
-
-  uhf-io:
-    source-dirs: src/io
-
-    dependencies:
-      - uhf-util
-      - uhf-formatted-string
-
-      - text
-      - ansi-terminal
-
-  uhf-util:
-    source-dirs: src/util
-
-    dependencies:
-      - uhf-formatted-string
-
-      - text
-      - safe
-      - containers
-      - transformers
-
-  uhf-arena:
-    source-dirs: src/arena
-
-    dependencies:
-      - uhf-util
+    - tasty
+    - tasty-hunit
+    - tasty-th
 
 executables:
   uhfc:
@@ -147,17 +38,7 @@ executables:
     source-dirs: exe/uhfc
 
     dependencies:
-      - uhf-token
-      - uhf-ast
-      - uhf-ir
-      - uhf-lexer
-      - uhf-parser
-      - uhf-ast-to-ir
-      - uhf-io
-      - uhf-util
-      - uhf-diagnostic
-      - uhf-name-resolve
-      - uhf-arena
+      - uhf
 
       - optparse-applicative
 
@@ -167,19 +48,9 @@ executables:
       - -with-rtsopts=-N
 
 tests:
-  uhf-test: # TODO: split this into each library
+  uhf-test:
     main: uhf.hs
     source-dirs: test/
 
-    dependencies: # TODO: clean up dependency list
-      - uhf-token
-      - uhf-ast
-      - uhf-ir
-      - uhf-lexer
-      - uhf-parser
-      - uhf-ast-to-ir
-      - uhf-io
-      - uhf-util
-      - uhf-diagnostic
-      - uhf-name-resolve
-      - uhf-arena
+    dependencies:
+      - uhf

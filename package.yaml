@@ -80,6 +80,17 @@ internal-libraries:
 
       - containers
 
+  uhf-name-resolve:
+    source-dirs: src/name-resolve
+
+    dependencies:
+      - uhf-util
+      - uhf-diagnostic
+      - uhf-io
+      - uhf-ir
+
+      - containers
+
   uhf-diagnostic:
     source-dirs: src/diagnostic
 
@@ -135,6 +146,7 @@ executables:
       - uhf-io
       - uhf-util
       - uhf-diagnostic
+      - uhf-name-resolve
 
       - optparse-applicative
 

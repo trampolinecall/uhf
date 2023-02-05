@@ -374,5 +374,14 @@ test-suite uhf-test
     , tasty
     , tasty-hunit
     , tasty-th
-    , uhf
+    , uhf-ast
+    , uhf-ast-to-ir
+    , uhf-diagnostic
+    , uhf-io
+    , uhf-ir
+    , uhf-lexer
+    , uhf-name-resolve
+    , uhf-parser
+    , uhf-token
+    , uhf-util
   default-language: Haskell2010

@@ -62,7 +62,7 @@ recoverable :: [ParseError.ParseError] -> a -> Parser a
 recoverable errs res = StateT $ \ toks -> ParseResult (errs, Right (res, toks))
 
 is_tt :: Token.TokenType -> Token.Token -> Bool
-is_tt a b = a == Token.to_token_type b
+is_tt ty tok = ty == Token.to_token_type tok
 
 peek :: Parser Token.LToken
 peek = StateT $ \ toks -> ParseResult ([], Right (InfList.head toks, toks))
@@ -163,7 +163,6 @@ case_advance =
 
         ParseResult (recoverable_errors, Left errors) ->
             assertFailure $ "did not advance correctly, got result with Left: errors " ++ show errors ++ " and recoverable errors " ++ show recoverable_errors
-
 
 test_choice :: [TestTree]
 test_choice =

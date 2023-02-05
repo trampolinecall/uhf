@@ -206,6 +206,33 @@ library uhf-lexer
     , uhf-util
   default-language: Haskell2010
 
+library uhf-name-resolve
+  exposed-modules:
+      UHF.NameResolve
+  other-modules:
+      Paths_uhf
+  autogen-modules:
+      Paths_uhf
+  hs-source-dirs:
+      src/name-resolve
+  default-extensions:
+      LambdaCase
+      TemplateHaskell
+      OverloadedStrings
+      NoImplicitPrelude
+  ghc-options: -Wall -Wextra
+  build-depends:
+      base >=4.13 && <5
+    , containers
+    , tasty
+    , tasty-hunit
+    , tasty-th
+    , uhf-diagnostic
+    , uhf-io
+    , uhf-ir
+    , uhf-util
+  default-language: Haskell2010
+
 library uhf-parser
   exposed-modules:
       UHF.Parser
@@ -321,6 +348,7 @@ executable uhfc
     , uhf-io
     , uhf-ir
     , uhf-lexer
+    , uhf-name-resolve
     , uhf-parser
     , uhf-token
     , uhf-util

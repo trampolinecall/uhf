@@ -25,7 +25,7 @@ type ErrorAccumulated a = Writer [Diagnostic.Diagnostic] a
 type Tokens = ([Token.LToken], Token.LToken)
 type AST = [AST.Decl]
 type FirstIR = (Arena.Arena IR.Decl.Decl IR.Decl.Key, Arena.Arena (IR.Value.Value (Location.Located [Location.Located Text])) IR.Value.Key, IR.Decl.Key)
-type NRIR = (Arena.Arena IR.Decl.Decl IR.Decl.Key, Arena.Arena (IR.Value.Value ()) IR.Value.Key)
+type NRIR = (Arena.Arena IR.Decl.Decl IR.Decl.Key, Arena.Arena (IR.Value.Value (Maybe IR.Value.Key)) IR.Value.Key)
 
 compile :: File.File -> ErrorAccumulated NRIR
 compile file = lex file >>= parse >>= to_ir >>= name_resolve

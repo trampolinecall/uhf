@@ -20,3 +20,6 @@ $(code Error 101 "bad_token")
 $(code Error 102 "none_matched")
 
 $(code Error 200 "symbol_redefinition")
+
+$(code Error 300 "multi_iden")
+$(code Error 301 "undef_name")

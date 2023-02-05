@@ -3,7 +3,7 @@ module UHF.Parser.Decl(decl, tests) where
 import UHF.Util.Prelude
 
 import qualified UHF.Parser.PEG as Parser
-import qualified UHF.Parser.ParseError as ParseError
+import qualified UHF.Parser.Error as Error
 import qualified UHF.Parser.Type as Type
 import qualified UHF.Parser.Expr as Expr
 import qualified UHF.Parser.Test as Test
@@ -33,7 +33,7 @@ decl =
 data_ :: Parser.Parser AST.Decl
 data_ =
     Parser.consume "data declaration" (Token.SingleTypeToken Token.Data) >>= \ data_tok ->
-    Parser.fail [] (ParseError.NotImpl $ Location.Located (Location.just_span data_tok) "datatype declarations") -- TODO
+    Parser.recoverable  [Error.NotImpl $ Location.Located (Location.just_span data_tok) "datatype declarations"] Nothing -- TODO
 
 binding :: Parser.Parser AST.Decl
 binding =

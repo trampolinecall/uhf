@@ -156,10 +156,18 @@ executables:
       - -with-rtsopts=-N
 
 tests:
-  uhf-test:
+  uhf-test: # TODO: split this into each library
     main: uhf.hs
     source-dirs: test/
 
     dependencies:
-      - uhf
-
+      - uhf-token
+      - uhf-ast
+      - uhf-ir
+      - uhf-lexer
+      - uhf-parser
+      - uhf-ast-to-ir
+      - uhf-io
+      - uhf-util
+      - uhf-diagnostic
+      - uhf-name-resolve

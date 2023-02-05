@@ -5,6 +5,9 @@ module Arena
     , Arena.put
     , Arena.get
 
+    , transform
+    , transformM
+
     , tests
     ) where
 
@@ -30,6 +33,12 @@ put item (Arena items) =
 get :: Key k => Arena a k -> k -> a
 get (Arena items) key = items Data.List.!! (length items - unmake_key key - 1)
 
+transform :: (a -> b) -> Arena a k -> Arena b k
+transform t (Arena items) = Arena $ map t items
+
+transformM :: Monad m => (a -> m b) -> Arena a k -> m (Arena b k)
+transformM t (Arena items) = Arena <$> mapM t items
+
 data TestKey = TestKey Int deriving (Show, Eq)
 instance Key TestKey where
     make_key = TestKey
@@ -49,6 +58,18 @@ case_get =
         (k0, a1) = Arena.put 0 new
         (k1, a2) = Arena.put 1 a1
     in (Arena.get a2 k0 @?= 0) >> (Arena.get a2 k1 @?= 1)
+
+case_transform :: Assertion
+case_transform =
+    let a :: Arena Int TestKey
+        a = Arena [0, 1, 2]
+    in transform (+2) a @?= Arena [2, 3, 4]
+
+case_transformM :: Assertion
+case_transformM =
+    let a :: Arena Int TestKey
+        a = Arena [0, 1, 2]
+    in runWriter (transformM (\ x -> tell [x] >> pure (x + 2)) a) @?= (Arena [2, 3, 4], [0, 1, 2])
 
 tests :: TestTree
 tests = $(testGroupGenerator)

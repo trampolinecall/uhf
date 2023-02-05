@@ -40,4 +40,4 @@ compile num total fname =
     putStrLn ("[" <> show num <> "/" <> show total <> "]: compiling " <> format f) >>
     let (res, diags) = runWriter $ Driver.compile f
     in Diagnostic.report_diagnostics IO.stderr diags >>
-    putText (show res)
+    putTextLn (show res)

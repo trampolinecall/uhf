@@ -24,7 +24,7 @@ library uhf-ast
       TemplateHaskell
       OverloadedStrings
       NoImplicitPrelude
-  ghc-options: -Wall -Wextra
+  ghc-options: -Wall -Wextra -Wno-name-shadowing
   build-depends:
       base >=4.13 && <5
     , tasty
@@ -48,7 +48,7 @@ library uhf-ast-to-ir
       TemplateHaskell
       OverloadedStrings
       NoImplicitPrelude
-  ghc-options: -Wall -Wextra
+  ghc-options: -Wall -Wextra -Wno-name-shadowing
   build-depends:
       base >=4.13 && <5
     , containers
@@ -83,7 +83,7 @@ library uhf-diagnostic
       TemplateHaskell
       OverloadedStrings
       NoImplicitPrelude
-  ghc-options: -Wall -Wextra
+  ghc-options: -Wall -Wextra -Wno-name-shadowing
   build-depends:
       ansi-terminal
     , base >=4.13 && <5
@@ -111,7 +111,7 @@ library uhf-formatted-string
       TemplateHaskell
       OverloadedStrings
       NoImplicitPrelude
-  ghc-options: -Wall -Wextra
+  ghc-options: -Wall -Wextra -Wno-name-shadowing
   build-depends:
       ansi-terminal
     , base >=4.13 && <5
@@ -138,7 +138,7 @@ library uhf-io
       TemplateHaskell
       OverloadedStrings
       NoImplicitPrelude
-  ghc-options: -Wall -Wextra
+  ghc-options: -Wall -Wextra -Wno-name-shadowing
   build-depends:
       ansi-terminal
     , base >=4.13 && <5
@@ -166,7 +166,7 @@ library uhf-ir
       TemplateHaskell
       OverloadedStrings
       NoImplicitPrelude
-  ghc-options: -Wall -Wextra
+  ghc-options: -Wall -Wextra -Wno-name-shadowing
   build-depends:
       base >=4.13 && <5
     , containers
@@ -193,7 +193,7 @@ library uhf-lexer
       TemplateHaskell
       OverloadedStrings
       NoImplicitPrelude
-  ghc-options: -Wall -Wextra
+  ghc-options: -Wall -Wextra -Wno-name-shadowing
   build-depends:
       base >=4.13 && <5
     , tasty
@@ -220,7 +220,7 @@ library uhf-name-resolve
       TemplateHaskell
       OverloadedStrings
       NoImplicitPrelude
-  ghc-options: -Wall -Wextra
+  ghc-options: -Wall -Wextra -Wno-name-shadowing
   build-depends:
       base >=4.13 && <5
     , containers
@@ -253,7 +253,7 @@ library uhf-parser
       TemplateHaskell
       OverloadedStrings
       NoImplicitPrelude
-  ghc-options: -Wall -Wextra
+  ghc-options: -Wall -Wextra -Wno-name-shadowing
   build-depends:
       base >=4.13 && <5
     , inflist
@@ -282,7 +282,7 @@ library uhf-token
       TemplateHaskell
       OverloadedStrings
       NoImplicitPrelude
-  ghc-options: -Wall -Wextra
+  ghc-options: -Wall -Wextra -Wno-name-shadowing
   build-depends:
       base >=4.13 && <5
     , tasty
@@ -308,7 +308,7 @@ library uhf-util
       TemplateHaskell
       OverloadedStrings
       NoImplicitPrelude
-  ghc-options: -Wall -Wextra
+  ghc-options: -Wall -Wextra -Wno-name-shadowing
   build-depends:
       base >=4.13 && <5
     , containers
@@ -335,7 +335,7 @@ executable uhfc
       TemplateHaskell
       OverloadedStrings
       NoImplicitPrelude
-  ghc-options: -Wall -Wextra -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Wextra -Wno-name-shadowing -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.13 && <5
     , optparse-applicative
@@ -368,7 +368,7 @@ test-suite uhf-test
       TemplateHaskell
       OverloadedStrings
       NoImplicitPrelude
-  ghc-options: -Wall -Wextra
+  ghc-options: -Wall -Wextra -Wno-name-shadowing
   build-depends:
       base >=4.13 && <5
     , tasty

@@ -35,8 +35,10 @@ lex file = convert_errors (Lexer.lex file)
 
 parse :: Tokens -> ErrorAccumulated AST
 parse (toks, eof_tok) =
-    let (diagnostics, res) = Parser.parse toks eof_tok
-    in tell (map Diagnostic.to_diagnostic diagnostics) >> pure res
+    let (other_errors, bt_errors, res) = Parser.parse toks eof_tok
+    in tell (map Diagnostic.to_diagnostic other_errors) >>
+    tell [Diagnostic.to_diagnostic bt_errors] >>
+    pure res
 
 to_ir :: AST -> ErrorAccumulated FirstIR
 to_ir decls = convert_errors (ASTToIR.convert decls)

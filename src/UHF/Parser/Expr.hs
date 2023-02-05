@@ -3,7 +3,7 @@ module UHF.Parser.Expr(expr) where
 import UHF.Util.Prelude
 
 import qualified UHF.Parser.PEG as Parser
-import qualified UHF.Parser.ParseError as ParseError
+import qualified UHF.Parser.Error as Error
 
 import qualified UHF.IO.Location as Location
 import qualified UHF.IO.File as File

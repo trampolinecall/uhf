@@ -2,10 +2,17 @@ module UHF.IR.Decl where
 
 import UHF.Util.Prelude
 
+import qualified Arena
+
 import qualified UHF.IR.Value as Value
 
 import qualified Data.Map as Map
 
-data Decl value_identifier = Decl'Module (Module value_identifier) deriving Show
+data Key = Key Int deriving Show
+instance Arena.Key Key where
+    make_key = Key
+    unmake_key (Key i) = i
 
-data Module value_identifier = Module (Map.Map Text (Decl value_identifier)) (Map.Map Text (Value.Value value_identifier)) deriving Show
+data Decl = Decl'Module Module deriving Show
+
+data Module = Module (Map.Map Text Key) (Map.Map Text Value.Key) deriving Show

@@ -4,6 +4,8 @@ module Driver
 
 import UHF.Util.Prelude
 
+import qualified Arena
+
 import qualified UHF.IO.File as File
 import qualified UHF.IO.Location as Location
 import qualified UHF.Diagnostic as Diagnostic
@@ -18,19 +20,29 @@ import qualified UHF.Parser as Parser
 import qualified UHF.ASTToIR as ASTToIR
 import qualified UHF.NameResolve as NameResolve
 
-compile :: File.File -> Writer [Diagnostic.Diagnostic] (IR.Decl.Module (Location.Located IR.Value.ResolvedValue))
+type ErrorAccumulated a = Writer [Diagnostic.Diagnostic] a
+
+type Tokens = ([Token.LToken], Token.LToken)
+type AST = [AST.Decl]
+type FirstIR = (Arena.Arena IR.Decl.Decl IR.Decl.Key, Arena.Arena (IR.Value.Value (Location.Located [Location.Located Text])) IR.Value.Key, IR.Decl.Key)
+type NRIR = (Arena.Arena IR.Decl.Decl IR.Decl.Key, Arena.Arena (IR.Value.Value ()) IR.Value.Key)
+
+compile :: File.File -> ErrorAccumulated NRIR
 compile file = lex file >>= parse >>= to_ir >>= name_resolve
 
-lex :: File.File -> Writer [Diagnostic.Diagnostic] ([Token.LToken], Token.LToken)
-lex file = mapWriter (\ (res, errs) -> (res, map Diagnostic.to_diagnostic errs)) (Lexer.lex file)
+lex :: File.File -> ErrorAccumulated Tokens
+lex file = convert_errors (Lexer.lex file)
 
-parse :: ([Token.LToken], Token.LToken) -> Writer [Diagnostic.Diagnostic] [AST.Decl]
+parse :: Tokens -> ErrorAccumulated AST
 parse (toks, eof_tok) =
     let (diagnostics, res) = Parser.parse toks eof_tok
     in tell (map Diagnostic.to_diagnostic diagnostics) >> pure res
 
-to_ir :: [AST.Decl] -> Writer [Diagnostic.Diagnostic] (IR.Decl.Module (Location.Located [(Location.Located Text)]))
-to_ir decls = mapWriter (\ (res, errs) -> (res, map Diagnostic.to_diagnostic errs)) (ASTToIR.convert decls)
+to_ir :: AST -> ErrorAccumulated FirstIR
+to_ir decls = convert_errors (ASTToIR.convert decls)
 
-name_resolve :: IR.Decl.Module (Location.Located [(Location.Located Text)]) -> Writer [Diagnostic.Diagnostic] (IR.Decl.Module (Location.Located IR.Value.ResolvedValue))
-name_resolve decls = mapWriter (\ (res, errs) -> (res, map Diagnostic.to_diagnostic errs)) (NameResolve.resolve decls)
+name_resolve ::  FirstIR -> ErrorAccumulated NRIR
+name_resolve (decls, values, mod) = convert_errors (NameResolve.resolve (decls, values, mod))
+
+convert_errors :: Diagnostic.IsDiagnostic e => Writer [e] a -> Writer [Diagnostic.Diagnostic] a
+convert_errors = mapWriter (\ (res, errs) -> (res, map Diagnostic.to_diagnostic errs))

@@ -2,6 +2,8 @@ module Main where
 
 import UHF.Util.Prelude
 
+import qualified Arena (tests)
+
 import qualified UHF.Diagnostic.Sections.Underlines (tests)
 import qualified UHF.Diagnostic.Sections.Utils (tests)
 
@@ -25,4 +27,5 @@ main = defaultMain $
         , UHF.IO.Path.tests
         , UHF.Parser.tests
         , UHF.Parser.PEG.tests
+        , Arena.tests
         ]

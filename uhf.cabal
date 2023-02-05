@@ -10,6 +10,29 @@ license:        MIT
 license-file:   LICENSE
 build-type:     Simple
 
+library uhf-arena
+  exposed-modules:
+      Arena
+  other-modules:
+      Paths_uhf
+  autogen-modules:
+      Paths_uhf
+  hs-source-dirs:
+      src/arena
+  default-extensions:
+      LambdaCase
+      TemplateHaskell
+      OverloadedStrings
+      NoImplicitPrelude
+  ghc-options: -Wall -Wextra -Wno-name-shadowing
+  build-depends:
+      base >=4.13 && <5
+    , tasty
+    , tasty-hunit
+    , tasty-th
+    , uhf-util
+  default-language: Haskell2010
+
 library uhf-ast
   exposed-modules:
       UHF.AST
@@ -55,6 +78,7 @@ library uhf-ast-to-ir
     , tasty
     , tasty-hunit
     , tasty-th
+    , uhf-arena
     , uhf-ast
     , uhf-diagnostic
     , uhf-io
@@ -173,6 +197,7 @@ library uhf-ir
     , tasty
     , tasty-hunit
     , tasty-th
+    , uhf-arena
     , uhf-util
   default-language: Haskell2010
 
@@ -227,6 +252,7 @@ library uhf-name-resolve
     , tasty
     , tasty-hunit
     , tasty-th
+    , uhf-arena
     , uhf-diagnostic
     , uhf-io
     , uhf-ir
@@ -342,6 +368,7 @@ executable uhfc
     , tasty
     , tasty-hunit
     , tasty-th
+    , uhf-arena
     , uhf-ast
     , uhf-ast-to-ir
     , uhf-diagnostic
@@ -374,6 +401,7 @@ test-suite uhf-test
     , tasty
     , tasty-hunit
     , tasty-th
+    , uhf-arena
     , uhf-ast
     , uhf-ast-to-ir
     , uhf-diagnostic

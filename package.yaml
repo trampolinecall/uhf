@@ -42,6 +42,7 @@ internal-libraries:
 
     dependencies:
       - uhf-util
+      - uhf-arena
 
       - containers
 
@@ -74,6 +75,7 @@ internal-libraries:
 
     dependencies:
       - uhf-util
+      - uhf-arena
       - uhf-diagnostic
       - uhf-io
       - uhf-ast
@@ -89,6 +91,7 @@ internal-libraries:
       - uhf-diagnostic
       - uhf-io
       - uhf-ir
+      - uhf-arena
 
       - containers
 
@@ -132,6 +135,12 @@ internal-libraries:
       - containers
       - transformers
 
+  uhf-arena:
+    source-dirs: src/arena
+
+    dependencies:
+      - uhf-util
+
 executables:
   uhfc:
     main: Main.hs
@@ -148,6 +157,7 @@ executables:
       - uhf-util
       - uhf-diagnostic
       - uhf-name-resolve
+      - uhf-arena
 
       - optparse-applicative
 
@@ -172,3 +182,4 @@ tests:
       - uhf-util
       - uhf-diagnostic
       - uhf-name-resolve
+      - uhf-arena

@@ -4,9 +4,11 @@ module UHF.Parser.PEG
     ( TokenStream
 
     , Parser
-    , ParseResult(..)
     , fail
     , recoverable
+
+    , eval_parser
+    , run_parser
 
     , is_tt
 
@@ -24,7 +26,7 @@ module UHF.Parser.PEG
 
 import UHF.Util.Prelude
 
-import qualified UHF.Parser.ParseError as ParseError
+import qualified UHF.Parser.Error as Error
 
 import qualified UHF.IO.Location as Location
 
@@ -36,82 +38,101 @@ type TokenStream = InfList.InfList Token.LToken
 
 -- TODO: allow each thing to provide a custom error function
 
-type Parser = StateT TokenStream ParseResult
-newtype ParseResult r = ParseResult ([ParseError.ParseError], Either ParseError.ParseError r) deriving (Eq, Show)
+newtype Parser r = Parser { extract_parser :: ([Error.OtherError] -> [Error.BacktrackingError] -> TokenStream -> ([Error.OtherError], [Error.BacktrackingError], Maybe (Maybe r, TokenStream))) }
 
-instance Functor ParseResult where
-    fmap f (ParseResult (e, ei)) = ParseResult (e, f <$> ei)
+instance Functor Parser where
+    fmap f parser = parser >>= \ res -> pure (f res)
 
-instance Applicative ParseResult where
-    pure = ParseResult . ([], ) . Right
-    ParseResult (a_e, a_ei) <*> ParseResult (b_e, b_ei) = ParseResult (a_e ++ b_e, a_ei <*> b_ei)
+instance Applicative Parser where
+    pure a = Parser $ \ other_errors bt_errors toks -> (other_errors, bt_errors, Just (Just a, toks))
+    op <*> a =
+        op >>= \ op' ->
+        a >>= \ a' ->
+        pure (op' a')
 
-instance Monad ParseResult where
-    ParseResult (a_e, a_ei) >>= b =
-        case a_ei of
-            Right a ->
-                let ParseResult (b_e, b_ei) = b a
-                in ParseResult (a_e ++ b_e, b_ei)
+instance Monad Parser where
+     (Parser a) >>= b = Parser $ \ other_errors bt_errors toks ->
+        let (other_errors', bt_errors', res) = a other_errors bt_errors toks
+        in case res of
+            Just (Just r, toks') -> extract_parser (b r) other_errors' bt_errors' toks'
+            Just (Nothing, toks') -> (other_errors', bt_errors', Just (Nothing, toks'))
+            Nothing -> (other_errors', bt_errors', Nothing)
 
-            Left e -> ParseResult (a_e, Left e)
+run_parser :: Parser a -> TokenStream -> ([Error.OtherError], [Error.BacktrackingError], Maybe (Maybe a, TokenStream))
+run_parser p = extract_parser p [] []
 
-fail :: [ParseError.ParseError] -> ParseError.ParseError -> Parser a
-fail errs err = StateT $ \ _ -> ParseResult (errs, Left err)
+eval_parser :: Parser a -> TokenStream -> ([Error.OtherError], [Error.BacktrackingError], Maybe a)
+eval_parser p toks =
+    let (other_errors, bt_errors, res) = extract_parser p [] [] toks
+    in case res of
+        Just (Just r, _) -> (other_errors, bt_errors, Just r)
+        _ -> (other_errors, bt_errors, Nothing)
 
-recoverable :: [ParseError.ParseError] -> a -> Parser a
-recoverable errs res = StateT $ \ toks -> ParseResult (errs, Right (res, toks))
+-- having an error for every Nothing result is enforced by the fact that in the public interface the only way to create a Nothing result is through these functions
+fail :: [Error.OtherError] -> Error.BacktrackingError -> Parser a
+fail add_other_errors bt_error = Parser $ \ other_errors bt_errors _ -> (other_errors ++ add_other_errors, bt_error : bt_errors, Nothing)
+
+recoverable :: [Error.OtherError] -> Maybe a -> Parser a
+recoverable add_other_errors res = Parser $ \ other_errors bt_errors toks -> (other_errors ++ add_other_errors, bt_errors, Just (res, toks))
 
 is_tt :: Token.TokenType -> Token.Token -> Bool
 is_tt ty tok = ty == Token.to_token_type tok
 
 peek :: Parser Token.LToken
-peek = StateT $ \ toks -> ParseResult ([], Right (InfList.head toks, toks))
+peek = Parser $ \ other_errors bt_errors toks -> (other_errors, bt_errors, Just (Just $ InfList.head toks, toks))
 
 consume :: Text -> Token.TokenType -> Parser Token.LToken
-consume name exp = StateT $
-    \ (tok InfList.::: more_toks) ->
+consume name exp = Parser $
+    \ other_errors bt_errors (tok InfList.::: more_toks) ->
         if is_tt exp (Location.unlocate tok)
-            then ParseResult ([], Right (tok, more_toks))
-            else ParseResult ([], Left $ ParseError.BadToken tok exp name)
+            then (other_errors, bt_errors, Just (Just tok, more_toks))
+            else
+                let err = Error.BadToken tok exp name
+                in (other_errors, err : bt_errors, Nothing)
 
 advance :: Parser ()
-advance = StateT $ \ toks -> ParseResult ([], Right ((), InfList.tail toks))
+advance = Parser $ \ o bt toks -> (o, bt, Just (Just (), InfList.tail toks))
 
 -- combinators
 
 -- sequence combinator is >>=
 
 choice :: [Parser a] -> Parser a
-choice choices = StateT $ \ toks -> try_choices choices [] toks
+choice choices = Parser $ \ other_errors bt_errors toks -> try_choices other_errors bt_errors choices toks
     where
-        try_choices (c:cs) breaking_acc toks =
-            case runStateT c toks of
-                res@(ParseResult (_, Right _)) -> res
-                ParseResult (_, Left e) -> try_choices cs (e:breaking_acc) toks
+        try_choices other_errors bt_errors (choice:more_choices) toks =
+            let (other_errors', bt_errors', res) = extract_parser choice other_errors bt_errors toks
+            in case res of
+                Just r -> (other_errors', bt_errors', Just r)
+                Nothing -> try_choices other_errors' bt_errors' more_choices toks
 
-        try_choices [] breaking_acc (tok InfList.::: _) = ParseResult ([], Left (ParseError.NoneMatched tok breaking_acc))
+        try_choices other_errors bt_errors [] _ = (other_errors, bt_errors, Nothing)
 
-star :: Parser a -> Parser [a]
-star a = StateT $ \ toks ->
-    star' [] [] toks
+star :: Parser a -> Parser [Maybe a]
+star a = star' a []
+
+star' :: Parser a -> [Maybe a] -> Parser [Maybe a]
+star' a acc = Parser $ \ other_errors bt_errors toks ->
+    star'' other_errors bt_errors acc toks
     where
-        star' err_acc a_acc toks =
-            case runStateT a toks of
-                ParseResult (es, Right (r, toks')) -> star' (err_acc ++ es) (a_acc ++ [r]) toks'
-                ParseResult (_, Left _) -> ParseResult (err_acc, Right (a_acc, toks))
-                -- both errors do not apply if it doesn't work because that just means the list ends there
+        star'' other_errors bt_errors a_acc toks =
+            let (other_errors', bt_errors', res) = extract_parser a other_errors bt_errors toks
+            in case res of
+                (Just (r, toks')) -> star'' other_errors' bt_errors' (r:a_acc) toks'
+                Nothing -> (other_errors', bt_errors', Just (Just a_acc, toks))
 
-plus :: Parser a -> Parser [a]
-plus a =
-    a >>= \ a_res ->
-    star a >>= \ more_as ->
-    pure (a_res : more_as)
+plus :: Parser a -> Parser [Maybe a]
+plus a = Parser $ \ other_errors bt_errors toks ->
+    let (other_errors', bt_errors', res) = extract_parser a other_errors bt_errors toks
+    in case res of
+        Just (r, toks') -> extract_parser (star' a [r]) other_errors' bt_errors' toks'
+        Nothing -> (other_errors', bt_errors', Nothing)
 
 optional :: Parser a -> Parser (Maybe a)
-optional a = StateT $ \ toks ->
-    case runStateT a toks of
-        ParseResult (es, Right (r, toks')) -> ParseResult (es, Right (Just r, toks'))
-        ParseResult (_, Left _) -> ParseResult ([], Right (Nothing, toks))
+optional a = Parser $ \ other_errors bt_errors toks ->
+    case extract_parser a other_errors bt_errors toks of
+        (other_errors', bt_errors', Just (r, toks')) -> (other_errors', bt_errors', Just (Just r, toks'))
+        (other_errors', bt_errors', Nothing) -> (other_errors', bt_errors', Just (Just Nothing, toks))
 
 -- andpred :: Parser a -> Parser ()
 -- notpred :: Parser a -> Parser ()
@@ -123,6 +144,8 @@ test_is_tt =
     , testCase "is_tt different" undefined
     ]
 
+-- TODO: test recoverable and other_errors
+
 dummy_eof :: Token.LToken
 dummy_eof = Location.dummy_locate (Token.EOF ())
 add_eofs :: [Token.LToken] -> TokenStream
@@ -132,7 +155,7 @@ case_peek :: Assertion
 case_peek =
     let t = Location.dummy_locate (Token.SingleTypeToken Token.OParen)
         tokstream = add_eofs [t]
-    in ParseResult ([], Right t) @=? evalStateT peek tokstream
+    in ([], [], Just t) @=? eval_parser peek tokstream
 
 test_consume :: [TestTree]
 test_consume =
@@ -141,10 +164,10 @@ test_consume =
     in
         [ testCase "consume with True" $
             let expect = Token.SingleTypeToken Token.OParen
-            in ParseResult ([], Right t) @=? evalStateT (consume "'('" expect) tokstream
+            in ([], [], Just t) @=? eval_parser (consume "'('" expect) tokstream
         , testCase "consume with False" $
             let expect = Token.SingleTypeToken Token.CParen
-            in ParseResult ([], Left $ ParseError.BadToken t expect "')'") @=? evalStateT (consume "')'" expect) tokstream
+            in ([], [Error.BadToken t expect "')'"], Nothing) @=? eval_parser (consume "')'" expect) tokstream
         ]
 
 case_advance :: Assertion
@@ -153,107 +176,120 @@ case_advance =
         t2 = Location.dummy_locate (Token.SingleTypeToken Token.CParen)
         tokstream = add_eofs [t1, t2]
 
-    in case runStateT advance tokstream of
-        ParseResult ([], Right ((), tokstream'))
+    in case run_parser advance tokstream of
+        ([], [], Just (Just (), tokstream'))
             | tokstream' InfList.!!! 0 == t2 &&
               tokstream' InfList.!!! 1 == dummy_eof -> pure ()
 
-        ParseResult (recoverable_errors, Right ((), tokstream')) ->
-            assertFailure $ "did not advance correctly, got: " ++ show (InfList.take 5 tokstream') ++ " (only 5 first tokens shown)and recoverable errors " ++ show recoverable_errors
+        (other_errors, bt_errors, Just (r, tokstream')) ->
+            assertFailure $ "did not advance correctly, got: " ++ show (other_errors, bt_errors, Just (r, InfList.take 5 tokstream')) ++ " (only 5 first tokens shown)"
 
-        ParseResult (recoverable_errors, Left errors) ->
-            assertFailure $ "did not advance correctly, got result with Left: errors " ++ show errors ++ " and recoverable errors " ++ show recoverable_errors
+        res@(_, _, Nothing) ->
+            assertFailure $ "did not advance correctly, got: " ++ show res
 
 test_choice :: [TestTree]
 test_choice =
     let oparen_consume = consume "oparen" (Token.SingleTypeToken Token.OParen)
         cparen_consume = consume "cparen" (Token.SingleTypeToken Token.CParen)
 
+        oparen = Location.dummy_locate $ Token.SingleTypeToken Token.OParen
+        cparen = Location.dummy_locate $ Token.SingleTypeToken Token.CParen
+
+        obrace = Location.dummy_locate $ Token.SingleTypeToken Token.OBrace
+
+        expect_oparen got = Error.BadToken got (Token.SingleTypeToken Token.OParen) "oparen"
+        expect_cparen got = Error.BadToken got (Token.SingleTypeToken Token.CParen) "cparen"
+
         parser = choice [oparen_consume, cparen_consume]
 
     in
-        [ testCase "1" $
-            let oparen = Location.dummy_locate $ Token.SingleTypeToken Token.OParen
-                toks = add_eofs [oparen]
+        [ testCase "(" $
+            let toks = add_eofs [oparen]
 
-            in ParseResult ([], Right oparen) @=? evalStateT parser toks
+            in ([], [], Just oparen) @=? eval_parser parser toks
 
-        , testCase "2" $
-            let cparen = Location.dummy_locate $ Token.SingleTypeToken Token.CParen
-                toks = add_eofs [cparen]
+        , testCase ")" $
+            let toks = add_eofs [cparen]
 
-            in ParseResult ([], Right cparen) @=? evalStateT parser toks
+            in ([], [expect_oparen cparen], Just cparen) @=? eval_parser parser toks
 
         , testCase "not matched" $
-            let obrace = Location.dummy_locate $ Token.SingleTypeToken Token.OBrace
-                toks = add_eofs [obrace]
+            let toks = add_eofs [obrace]
 
-            in ParseResult ([], Left $ ParseError.NoneMatched obrace [ParseError.BadToken obrace (Token.SingleTypeToken Token.CParen) "cparen", ParseError.BadToken obrace (Token.SingleTypeToken Token.OParen) "oparen"]) @=? evalStateT parser toks
+            in ([], [expect_cparen obrace, expect_oparen obrace], Nothing) @=? eval_parser parser toks
         ]
 
 test_star :: [TestTree]
 test_star =
     let oparen = Location.dummy_locate $ Token.SingleTypeToken Token.OParen
+        other = Location.dummy_locate $ Token.SingleTypeToken Token.OBrace
 
         oparen_consume = consume "oparen" (Token.SingleTypeToken Token.OParen)
+
+        expect_oparen got = Error.BadToken got (Token.SingleTypeToken Token.OParen) "oparen"
 
         parser = star oparen_consume
 
     in
         [ testCase "none" $
-            let toks = add_eofs []
-            in ParseResult ([], Right []) @=? evalStateT parser toks
+            let toks = add_eofs [other]
+            in ([], [expect_oparen other], Just []) @=? eval_parser parser toks
 
         , testCase "once" $
-            let toks = add_eofs [oparen]
-            in ParseResult ([], Right [oparen]) @=? evalStateT parser toks
+            let toks = add_eofs [oparen, other]
+            in ([], [expect_oparen other], Just [Just oparen]) @=? eval_parser parser toks
 
         , testCase "multiple" $
-            let toks = add_eofs [oparen, oparen]
-            in ParseResult ([], Right [oparen, oparen]) @=? evalStateT parser toks
+            let toks = add_eofs [oparen, oparen, other]
+            in ([], [expect_oparen other], Just [Just oparen, Just oparen]) @=? eval_parser parser toks
         ]
 
 test_plus :: [TestTree]
 test_plus =
     let oparen = Location.dummy_locate $ Token.SingleTypeToken Token.OParen
-        oparen_type = Token.SingleTypeToken Token.OParen
+        other = Location.dummy_locate $ Token.SingleTypeToken Token.OBrace
 
         oparen_consume = consume "oparen" (Token.SingleTypeToken Token.OParen)
+
+        expect_oparen got = Error.BadToken got (Token.SingleTypeToken Token.OParen) "oparen"
 
         parser = plus oparen_consume
 
     in
         [ testCase "none" $
-            let toks = add_eofs []
-            in ParseResult ([], Left $ ParseError.BadToken dummy_eof oparen_type "oparen") @=? evalStateT parser toks
+            let toks = add_eofs [other]
+            in ([], [expect_oparen other], Nothing) @=? eval_parser parser toks
 
         , testCase "once" $
-            let toks = add_eofs [oparen]
-            in ParseResult ([], Right [oparen]) @=? evalStateT parser toks
+            let toks = add_eofs [oparen, other]
+            in ([], [expect_oparen other], Just [Just oparen]) @=? eval_parser parser toks
 
         , testCase "multiple" $
-            let toks = add_eofs [oparen, oparen]
-            in ParseResult ([], Right [oparen, oparen]) @=? evalStateT parser toks
+            let toks = add_eofs [oparen, oparen, other]
+            in ([], [expect_oparen other], Just [Just oparen, Just oparen]) @=? eval_parser parser toks
         ]
 
 test_optional :: [TestTree]
 test_optional =
     let oparen = Location.dummy_locate $ Token.SingleTypeToken Token.OParen
+        other = Location.dummy_locate $ Token.SingleTypeToken Token.OBrace
         oparen_consume = consume "oparen" (Token.SingleTypeToken Token.OParen)
+
+        expect_oparen got = Error.BadToken got (Token.SingleTypeToken Token.OParen) "oparen"
 
         parser = optional oparen_consume
     in
         [ testCase "none" $
-            let toks = add_eofs []
-            in ParseResult ([], Right Nothing) @=? evalStateT parser toks
+            let toks = add_eofs [other]
+            in ([], [expect_oparen other], Just $ Nothing) @=? eval_parser parser toks
 
         , testCase "once" $
-            let toks = add_eofs [oparen]
-            in ParseResult ([], Right $ Just oparen) @=? evalStateT parser toks
+            let toks = add_eofs [oparen, other]
+            in ([], [], Just $ Just oparen) @=? eval_parser parser toks
 
         , testCase "multiple" $
-            let toks = add_eofs [oparen, oparen]
-            in ParseResult ([], Right $ Just oparen) @=? evalStateT parser toks
+            let toks = add_eofs [oparen, oparen, other]
+            in ([], [], Just $ Just oparen) @=? eval_parser parser toks
         ]
 
 tests :: TestTree

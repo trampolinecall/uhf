@@ -5,7 +5,7 @@ module UHF.Parser.Test (ParsingTest(..), make_token_stream, run_test) where
 import UHF.Util.Prelude
 
 import qualified UHF.Parser.PEG as PEG
-import qualified UHF.Parser.ParseError as ParseError
+import qualified UHF.Parser.Error as Error
 
 import qualified UHF.IO.Location as Location
 import qualified UHF.IO.File as File
@@ -31,7 +31,7 @@ make_token_stream things =
     in (file, things' InfList.+++ InfList.repeat l)
 
 {- TODO:
-check_parser :: [ParseError.ParseError] -> r -> [Token.Token] -> Parser r -> PEG.TokenStream -> IO ()
+check_parser :: [Error.Error] -> r -> [Token.Token] -> Parser r -> PEG.TokenStream -> IO ()
 check_parser expected_recoverable_errors expected_result parser toks =
     let PEG.ParseResult (result_recoverable_errors, result) = runStateT parser toks
     in result_recoverable_errors @?= expected_recoverable_errors >>
@@ -46,5 +46,5 @@ run_test (ParsingTest construct_name (_, construct_toks) construct_res parsers) 
     testGroup construct_name $
         map
             (\ (p_name, p) ->
-                testCase (p_name ++ " parsing " ++ construct_name) $ PEG.ParseResult ([], Right construct_res) @=? evalStateT p construct_toks)
+                testCase (p_name ++ " parsing " ++ construct_name) $ ([], [], Just construct_res) @=? PEG.eval_parser p construct_toks)
             parsers

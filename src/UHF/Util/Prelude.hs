@@ -23,6 +23,8 @@ module UHF.Util.Prelude
     , hPutStrLn
     , putText
     , hPutText
+    , putTextLn
+    , hPutTextLn
 
     , convert_str
 
@@ -162,6 +164,14 @@ putText = putStr
 hPutText :: MonadIO m => Handle -> Data.Text.Text -> m ()
 hPutText = hPutStr
 {-# SPECIALIZE putText :: Data.Text.Text -> IO () #-}
+
+putTextLn :: MonadIO m => Data.Text.Text -> m ()
+putTextLn = putStrLn
+{-# SPECIALIZE putTextLn :: Data.Text.Text -> IO () #-}
+
+hPutTextLn :: MonadIO m => Handle -> Data.Text.Text -> m ()
+hPutTextLn = hPutStrLn
+{-# SPECIALIZE putTextLn :: Data.Text.Text -> IO () #-}
 
 show :: (Show a, ConvertString Prelude.String b) => a -> b
 show = convert_str . Prelude.show

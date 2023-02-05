@@ -1,6 +1,15 @@
-module UHF.NameResolve(resolve) where
+module UHF.NameResolve
+    ( UnresolvedDecl
+    , ResolvedDecl
+    , UnresolvedValue
+    , ResolvedValue
+
+    , resolve
+    ) where
 
 import UHF.Util.Prelude
+
+import qualified Arena
 
 import qualified UHF.IO.Location as Location
 import qualified UHF.Diagnostic as Diagnostic
@@ -9,17 +18,23 @@ import qualified UHF.IR.Decl as Decl
 import qualified UHF.IR.Value as Value
 import qualified UHF.IR.Expr as Expr
 
+type UnresolvedDecl = Decl.Decl
+type ResolvedDecl = Decl.Decl
+type UnresolvedValue = Value.Value (Location.Located [Location.Located Text])
+type ResolvedValue = Value.Value ()
+
 data Error
 
 instance Diagnostic.IsDiagnostic Error where
 
-resolve :: Decl.Module (Location.Located [(Location.Located Text)]) -> Writer [Error] (Decl.Module (Location.Located Value.ResolvedValue))
-resolve = resolve_for_module
+resolve :: (Arena.Arena UnresolvedDecl Decl.Key, Arena.Arena UnresolvedValue Value.Key, Decl.Key) -> Writer [Error] (Arena.Arena ResolvedDecl Decl.Key, Arena.Arena ResolvedValue Value.Key)
+resolve (decls, values, mod) = todo
 
-resolve_for_decl :: Decl.Decl (Location.Located [(Location.Located Text)]) -> Writer [Error] (Decl.Decl (Location.Located Value.ResolvedValue))
+{-
+resolve_for_decl :: Decl.Decl  -> Writer [Error] (Decl.Decl)
 resolve_for_decl (Decl.Decl'Module m) = Decl.Decl'Module <$> resolve_for_module m
 
-resolve_for_module :: Decl.Module (Location.Located [(Location.Located Text)]) -> Writer [Error] (Decl.Module (Location.Located Value.ResolvedValue))
+resolve_for_module :: Decl.Module  -> Writer [Error] (Decl.Module)
 resolve_for_module (Decl.Module decl_children value_children) =
     mapM resolve_for_decl decl_children >>= \ decl_children ->
     mapM resolve_for_value value_children >>= \ value_children ->
@@ -35,3 +50,4 @@ resolve_for_expr (Expr.StringLit s) = pure $ Expr.StringLit s
 resolve_for_expr (Expr.IntLit i) = pure $ Expr.IntLit i
 resolve_for_expr (Expr.FloatLit f) = pure $ Expr.FloatLit f
 resolve_for_expr (Expr.BoolLit b) = pure $ Expr.BoolLit b
+-}

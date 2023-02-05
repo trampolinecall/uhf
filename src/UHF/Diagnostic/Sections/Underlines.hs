@@ -341,7 +341,7 @@ case_lines_shown =
     let (f1, [sp1, sp2, _, sp3]) = make_spans' "f1" "" ["sp1", "sp2", "\n", "sp3"]
         (f2, [sp4]) = make_spans' "f2" "" ["sp4"]
 
-        unds = [(sp1, undefined, undefined), (sp2, undefined, undefined), (sp3, undefined, undefined), (sp4, undefined, undefined)]
+        unds = [(sp1, Primary, []), (sp2, Primary, []), (sp3, Primary, []), (sp4, Primary, [])]
     in [(f1, 1), (f1, 1), (f1, 2), (f2, 1)] @=? lines_shown unds
 
 case_show_line_other_lines :: Assertion -- check concatenates other lines

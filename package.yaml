@@ -160,7 +160,7 @@ tests:
     main: uhf.hs
     source-dirs: test/
 
-    dependencies:
+    dependencies: # TODO: clean up dependency list
       - uhf-token
       - uhf-ast
       - uhf-ir

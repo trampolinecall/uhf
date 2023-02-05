@@ -40,6 +40,7 @@ import qualified Data.Text.IO
 import qualified Debug.Trace
 import qualified System.IO
 import qualified UHF.FormattedString
+import qualified GHC.Stack
 import Control.Monad.IO.Class (MonadIO, liftIO)
 
 import GHC.IO as X (IO)
@@ -104,11 +105,11 @@ identity :: a -> a
 identity = Data.Function.id
 
 {-# WARNING undefined "'undefined'" #-}
-undefined :: a
+undefined :: GHC.Stack.HasCallStack => a
 undefined = Prelude.undefined
 
 {-# WARNING error "'error'" #-}
-error :: Prelude.String -> a
+error :: GHC.Stack.HasCallStack => Prelude.String -> a
 error = Prelude.error
 
 {-# WARNING trace "'trace'" #-}
@@ -124,7 +125,7 @@ trace_with_message :: Show a => Prelude.String -> a -> a
 trace_with_message msg a = Debug.Trace.trace (msg ++ ": " ++ show a) a
 
 {-# WARNING not_implemented "'not_implemented'" #-}
-not_implemented :: a
+not_implemented :: GHC.Stack.HasCallStack => a
 not_implemented = Prelude.error "not implemented yet"
 
 class Print a where

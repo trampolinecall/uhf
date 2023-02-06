@@ -34,7 +34,7 @@ import qualified UHF.Token as Token
 
 import qualified Data.InfList as InfList
 
-type TokenStream = InfList.InfList Token.LToken
+type TokenStream = InfList.InfList (Int, Token.LToken)
 
 -- TODO: allow each thing to provide a custom error function
 
@@ -79,15 +79,15 @@ is_tt :: Token.TokenType -> Token.Token -> Bool
 is_tt ty tok = ty == Token.to_token_type tok
 
 peek :: Parser Token.LToken
-peek = Parser $ \ other_errors bt_errors toks -> (other_errors, bt_errors, Just (Just $ InfList.head toks, toks))
+peek = Parser $ \ other_errors bt_errors toks -> (other_errors, bt_errors, Just (Just $ snd $ InfList.head toks, toks))
 
 consume :: Text -> Token.TokenType -> Parser Token.LToken
 consume name exp = Parser $
-    \ other_errors bt_errors (tok InfList.::: more_toks) ->
+    \ other_errors bt_errors ((tok_i, tok) InfList.::: more_toks) ->
         if is_tt exp (Location.unlocate tok)
             then (other_errors, bt_errors, Just (Just tok, more_toks))
             else
-                let err = Error.BadToken tok exp name
+                let err = Error.BadToken tok_i tok exp name
                 in (other_errors, err : bt_errors, Nothing)
 
 advance :: Parser ()
@@ -149,7 +149,7 @@ test_is_tt =
 dummy_eof :: Token.LToken
 dummy_eof = Location.dummy_locate (Token.EOF ())
 add_eofs :: [Token.LToken] -> TokenStream
-add_eofs t = t InfList.+++ InfList.repeat dummy_eof
+add_eofs t = InfList.zip (InfList.iterate (+1) 0) (t InfList.+++ InfList.repeat dummy_eof)
 
 case_peek :: Assertion
 case_peek =
@@ -167,7 +167,7 @@ test_consume =
             in ([], [], Just t) @=? eval_parser (consume "'('" expect) tokstream
         , testCase "consume with False" $
             let expect = Token.SingleTypeToken Token.CParen
-            in ([], [Error.BadToken t expect "')'"], Nothing) @=? eval_parser (consume "')'" expect) tokstream
+            in ([], [Error.BadToken 0 t expect "')'"], Nothing) @=? eval_parser (consume "')'" expect) tokstream
         ]
 
 case_advance :: Assertion
@@ -178,8 +178,8 @@ case_advance =
 
     in case run_parser advance tokstream of
         ([], [], Just (Just (), tokstream'))
-            | tokstream' InfList.!!! 0 == t2 &&
-              tokstream' InfList.!!! 1 == dummy_eof -> pure ()
+            | tokstream' InfList.!!! 0 == (1, t2) &&
+              tokstream' InfList.!!! 1 == (-1, dummy_eof) -> pure ()
 
         (other_errors, bt_errors, Just (r, tokstream')) ->
             assertFailure $ "did not advance correctly, got: " ++ show (other_errors, bt_errors, Just (r, InfList.take 5 tokstream')) ++ " (only 5 first tokens shown)"
@@ -197,8 +197,8 @@ test_choice =
 
         obrace = Location.dummy_locate $ Token.SingleTypeToken Token.OBrace
 
-        expect_oparen got = Error.BadToken got (Token.SingleTypeToken Token.OParen) "oparen"
-        expect_cparen got = Error.BadToken got (Token.SingleTypeToken Token.CParen) "cparen"
+        expect_oparen got_i got = Error.BadToken got_i got (Token.SingleTypeToken Token.OParen) "oparen"
+        expect_cparen got_i got = Error.BadToken got_i got (Token.SingleTypeToken Token.CParen) "cparen"
 
         parser = choice [oparen_consume, cparen_consume]
 
@@ -211,12 +211,12 @@ test_choice =
         , testCase ")" $
             let toks = add_eofs [cparen]
 
-            in ([], [expect_oparen cparen], Just cparen) @=? eval_parser parser toks
+            in ([], [expect_oparen 0 cparen], Just cparen) @=? eval_parser parser toks
 
         , testCase "not matched" $
             let toks = add_eofs [obrace]
 
-            in ([], [expect_cparen obrace, expect_oparen obrace], Nothing) @=? eval_parser parser toks
+            in ([], [expect_cparen 0 obrace, expect_oparen 0 obrace], Nothing) @=? eval_parser parser toks
         ]
 
 test_star :: [TestTree]
@@ -226,22 +226,22 @@ test_star =
 
         oparen_consume = consume "oparen" (Token.SingleTypeToken Token.OParen)
 
-        expect_oparen got = Error.BadToken got (Token.SingleTypeToken Token.OParen) "oparen"
+        expect_oparen got_ind got = Error.BadToken got_ind got (Token.SingleTypeToken Token.OParen) "oparen"
 
         parser = star oparen_consume
 
     in
         [ testCase "none" $
             let toks = add_eofs [other]
-            in ([], [expect_oparen other], Just []) @=? eval_parser parser toks
+            in ([], [expect_oparen 0 other], Just []) @=? eval_parser parser toks
 
         , testCase "once" $
             let toks = add_eofs [oparen, other]
-            in ([], [expect_oparen other], Just [Just oparen]) @=? eval_parser parser toks
+            in ([], [expect_oparen 1 other], Just [Just oparen]) @=? eval_parser parser toks
 
         , testCase "multiple" $
             let toks = add_eofs [oparen, oparen, other]
-            in ([], [expect_oparen other], Just [Just oparen, Just oparen]) @=? eval_parser parser toks
+            in ([], [expect_oparen 2 other], Just [Just oparen, Just oparen]) @=? eval_parser parser toks
         ]
 
 test_plus :: [TestTree]
@@ -251,22 +251,22 @@ test_plus =
 
         oparen_consume = consume "oparen" (Token.SingleTypeToken Token.OParen)
 
-        expect_oparen got = Error.BadToken got (Token.SingleTypeToken Token.OParen) "oparen"
+        expect_oparen got_ind got = Error.BadToken got_ind got (Token.SingleTypeToken Token.OParen) "oparen"
 
         parser = plus oparen_consume
 
     in
         [ testCase "none" $
             let toks = add_eofs [other]
-            in ([], [expect_oparen other], Nothing) @=? eval_parser parser toks
+            in ([], [expect_oparen 0 other], Nothing) @=? eval_parser parser toks
 
         , testCase "once" $
             let toks = add_eofs [oparen, other]
-            in ([], [expect_oparen other], Just [Just oparen]) @=? eval_parser parser toks
+            in ([], [expect_oparen 1 other], Just [Just oparen]) @=? eval_parser parser toks
 
         , testCase "multiple" $
             let toks = add_eofs [oparen, oparen, other]
-            in ([], [expect_oparen other], Just [Just oparen, Just oparen]) @=? eval_parser parser toks
+            in ([], [expect_oparen 2 other], Just [Just oparen, Just oparen]) @=? eval_parser parser toks
         ]
 
 test_optional :: [TestTree]
@@ -275,13 +275,13 @@ test_optional =
         other = Location.dummy_locate $ Token.SingleTypeToken Token.OBrace
         oparen_consume = consume "oparen" (Token.SingleTypeToken Token.OParen)
 
-        expect_oparen got = Error.BadToken got (Token.SingleTypeToken Token.OParen) "oparen"
+        expect_oparen got_ind got = Error.BadToken got_ind got (Token.SingleTypeToken Token.OParen) "oparen"
 
         parser = optional oparen_consume
     in
         [ testCase "none" $
             let toks = add_eofs [other]
-            in ([], [expect_oparen other], Just $ Nothing) @=? eval_parser parser toks
+            in ([], [expect_oparen 0 other], Just $ Nothing) @=? eval_parser parser toks
 
         , testCase "once" $
             let toks = add_eofs [oparen, other]

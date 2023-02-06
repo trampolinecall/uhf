@@ -28,7 +28,7 @@ make_token_stream :: [(Text, Token.Token)] -> (File.File, PEG.TokenStream)
 make_token_stream things =
     let (file, things') = SpanHelper.make_spans_with_items things
         l = last things'
-    in (file, things' InfList.+++ InfList.repeat l)
+    in (file, InfList.zip (InfList.iterate (1+) 0) (things' InfList.+++ InfList.repeat l))
 
 {- TODO:
 check_parser :: [Error.Error] -> r -> [Token.Token] -> Parser r -> PEG.TokenStream -> IO ()

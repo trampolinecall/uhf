@@ -30,7 +30,7 @@ import qualified UHF.Diagnostic.Sections.Underlines as Underlines
 
 import qualified Data.Map as Map
 
-data Error = Redefinition (Location.Located Text)
+newtype Error = Redefinition (Location.Located Text)
 
 instance Diagnostic.IsError Error where
     to_error (Redefinition (Location.Located sp name)) = Diagnostic.Error Codes.symbol_redefinition $
@@ -77,7 +77,7 @@ convert decls =
     pure (decls, values, mod)
 
 convert_to_maps :: [AST.Decl] -> MakeIRState ChildMaps
-convert_to_maps decls =
+convert_to_maps =
     foldl'
         (\ last_map cur_decl ->
             last_map >>= \ (last_decl_map, last_value_map) ->
@@ -90,7 +90,6 @@ convert_to_maps decls =
                             pure (last_decl_map, Map.insert name new_value last_value_map)
             )
         (pure (Map.empty, Map.empty))
-        decls
 
 convert_expr_to_value :: AST.Expr -> MakeIRState Value.Key
 convert_expr_to_value = put_value . Value.Value . convert_expr

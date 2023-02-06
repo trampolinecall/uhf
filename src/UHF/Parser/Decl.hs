@@ -2,7 +2,7 @@ module UHF.Parser.Decl(decl, tests) where
 
 import UHF.Util.Prelude
 
-import qualified UHF.Parser.PEG as Parser
+import qualified UHF.Parser.PEG as PEG
 import qualified UHF.Parser.Error as Error
 import qualified UHF.Parser.Type as Type
 import qualified UHF.Parser.Expr as Expr
@@ -23,25 +23,25 @@ import qualified Data.List.NonEmpty as NonEmpty
 
 import qualified Control.Monad.Trans.State as State
 
-decl :: Parser.Parser AST.Decl
+decl :: PEG.Parser AST.Decl
 decl =
-    Parser.choice
+    PEG.choice
         [ data_
         , binding
         ]
 
-data_ :: Parser.Parser AST.Decl
+data_ :: PEG.Parser AST.Decl
 data_ =
-    Parser.consume "data declaration" (Token.SingleTypeToken Token.Data) >>= \ data_tok ->
-    Parser.recoverable  [Error.NotImpl $ Location.Located (Location.just_span data_tok) "datatype declarations"] Nothing -- TODO
+    PEG.consume "data declaration" (Token.SingleTypeToken Token.Data) >>= \ data_tok ->
+    PEG.recoverable  [Error.NotImpl $ Location.Located (Location.just_span data_tok) "datatype declarations"] Nothing -- TODO
 
-binding :: Parser.Parser AST.Decl
+binding :: PEG.Parser AST.Decl
 binding =
-    Parser.consume "binding name" (Token.AlphaIdentifier ()) >>= \ (Location.Located _ (Token.AlphaIdentifier name)) ->
-    let name' = case name of
-            [n] -> n
-            _ -> error "TODO: report error for this"
-    in Parser.consume "'='" (Token.SingleTypeToken Token.Equal) >>= \ eq ->
+    PEG.consume "binding name" (Token.AlphaIdentifier ()) >>= \ (Location.Located name_sp (Token.AlphaIdentifier name)) ->
+    (case name of
+        [n] -> pure n
+        _ -> PEG.recoverable [Error.BindToPath (Location.Located name_sp name)] Nothing) >>= \ name' -> -- TODO: parse the rest of it so that it is not in a weird state
+    PEG.consume "'='" (Token.SingleTypeToken Token.Equal) >>= \ eq ->
     Expr.expr >>= \ ex ->
     pure (AST.Decl'Binding name' ex)
 

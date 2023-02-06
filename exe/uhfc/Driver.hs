@@ -20,14 +20,14 @@ import qualified UHF.Parser as Parser
 import qualified UHF.ASTToIR as ASTToIR
 import qualified UHF.NameResolve as NameResolve
 
-type ErrorAccumulated a = Writer [Diagnostic.Diagnostic] a
+type ErrorAccumulated a = Writer [Diagnostic.Error] a -- TODO: allow for warnings too
 
 type Tokens = ([Token.LToken], Token.LToken)
 type AST = [AST.Decl]
 type FirstIR = (Arena.Arena IR.Decl.Decl IR.Decl.Key, Arena.Arena (IR.Value.Value (Location.Located [Location.Located Text])) IR.Value.Key, IR.Decl.Key)
 type NRIR = (Arena.Arena IR.Decl.Decl IR.Decl.Key, Arena.Arena (IR.Value.Value (Maybe IR.Value.Key)) IR.Value.Key)
 
-compile :: File.File -> Either [Diagnostic.Diagnostic] NRIR
+compile :: File.File -> Either [Diagnostic.Error] NRIR
 compile file =
     let (res, diags) = runWriter $ compile' file
     in if null diags
@@ -43,9 +43,9 @@ lex file = convert_errors (Lexer.lex file)
 parse :: Tokens -> ErrorAccumulated AST
 parse (toks, eof_tok) =
     let (other_errors, bt_error, res) = Parser.parse toks eof_tok
-    in tell (map Diagnostic.to_diagnostic other_errors) >>
+    in tell (map Diagnostic.to_error other_errors) >>
     (case bt_error of
-        Just bt_error -> tell [Diagnostic.to_diagnostic bt_error]
+        Just bt_error -> tell [Diagnostic.to_error bt_error]
         Nothing -> pure ()) >>
     pure res
 
@@ -55,5 +55,5 @@ to_ir decls = convert_errors (ASTToIR.convert decls)
 name_resolve ::  FirstIR -> ErrorAccumulated NRIR
 name_resolve (decls, values, mod) = convert_errors (NameResolve.resolve (decls, values, mod))
 
-convert_errors :: Diagnostic.IsDiagnostic e => Writer [e] a -> Writer [Diagnostic.Diagnostic] a
-convert_errors = mapWriter (\ (res, errs) -> (res, map Diagnostic.to_diagnostic errs))
+convert_errors :: Diagnostic.IsError e => Writer [e] a -> Writer [Diagnostic.Error] a
+convert_errors = mapWriter (\ (res, errs) -> (res, map Diagnostic.to_error errs))

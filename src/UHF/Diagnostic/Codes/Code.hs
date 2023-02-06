@@ -1,18 +1,22 @@
 {-# LANGUAGE DeriveLift #-}
 
 module UHF.Diagnostic.Codes.Code
-    ( Code(..)
-    , Type(..)
+    ( Error(..)
+    , Warning(..)
     ) where
 
 import UHF.Util.Prelude
 
 import qualified Language.Haskell.TH.Syntax as Syntax
 
-data Type = Error | Warning | DebugMessage | InternalError deriving Syntax.Lift
-data Code =
-    Code
-    { code_type :: Type
-    , code_code_desc :: Maybe (Text, Text)
+data Error =
+    Error
+    { error_code_desc :: Maybe (Text, Text)
+    }
+    deriving Syntax.Lift
+
+data Warning =
+    Warning
+    { warning_code_desc :: Maybe (Text, Text)
     }
     deriving Syntax.Lift

@@ -26,25 +26,28 @@ data OtherError
 
 instance Diagnostic.IsError (Location.Located [BacktrackingError]) where
     -- TODO
-    to_error (Location.Located sp bits) =
-        Diagnostic.Error Codes.parse_error (Just sp)
-            [ Underlines.underlines $
-                map
-                    (\ (BadToken _ tok expectation construct) ->
-                        Location.just_span tok `Underlines.primary`
-                            [ Underlines.error $ Literal construct <> " expects " <> format expectation <> " but got " <> format (Location.unlocate tok) ])
-                    bits -- TODO: make this better
-            ]
+    to_error (Location.Located sp bits) = Diagnostic.Error Codes.parse_error $
+            Diagnostic.DiagnosticContents
+                (Just sp)
+                [ Underlines.underlines $
+                    map
+                        (\ (BadToken _ tok expectation construct) ->
+                            Location.just_span tok `Underlines.primary`
+                                [ Underlines.error $ Literal construct <> " expects " <> format expectation <> " but got " <> format (Location.unlocate tok) ])
+                        bits -- TODO: make this better
+                ]
 
 instance Diagnostic.IsError OtherError where
-    to_error (NotImpl construct) =
-        Diagnostic.Error Codes.not_implemented (Just $ Location.just_span construct)
+    to_error (NotImpl construct) = Diagnostic.Error Codes.not_implemented $
+        Diagnostic.DiagnosticContents
+            (Just $ Location.just_span construct)
             [ Underlines.underlines
                 [Location.just_span construct `Underlines.primary` [Underlines.error $ Literal (Location.unlocate construct) <> " are not implemented yet"]]
             ]
 
-    to_error (BindToPath (Location.Located sp _)) =
-        Diagnostic.Error Codes.binding_lhs_path (Just sp)
+    to_error (BindToPath (Location.Located sp _)) = Diagnostic.Error Codes.binding_lhs_path $
+        Diagnostic.DiagnosticContents
+            (Just sp)
             [ Underlines.underlines
                 [sp `Underlines.primary` [Underlines.error $ "path in left-hand side of binding"]]
             ]

@@ -50,12 +50,15 @@ data Error
     | UndefName (Maybe (Location.Located Text)) (Location.Located Text)
 
 instance Diagnostic.IsError Error where
-    to_error (MultiIden (Location.Located sp _)) =
-        Diagnostic.Error Diagnostic.Codes.multi_iden (Just sp)
+    to_error (MultiIden (Location.Located sp _)) = Diagnostic.Error Diagnostic.Codes.multi_iden $
+        Diagnostic.DiagnosticContents
+            (Just sp)
             [Underlines.underlines [sp `Underlines.primary` [Underlines.error "paths are not supported yet"]]] -- TODO
 
-    to_error (UndefName _ (Location.Located sp name)) = -- TODO: use prev
-        Diagnostic.Error Diagnostic.Codes.undef_name (Just sp)
+    to_error (UndefName _ (Location.Located sp name)) = Diagnostic.Error Diagnostic.Codes.undef_name $
+        -- TODO: use prev
+        Diagnostic.DiagnosticContents
+            (Just sp)
             [Underlines.underlines [sp `Underlines.primary` [Underlines.error $ "could not find name '" <> convert_str name <> "'"]]]
 
 resolve :: (UnresolvedDeclArena, UnresolvedValueArena, Decl.Key) -> Writer [Error] (ResolvedDeclArena, ResolvedValueArena)

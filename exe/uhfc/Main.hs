@@ -38,6 +38,6 @@ compile :: Int -> Int -> FilePath -> IO ()
 compile num total fname =
     File.open_file fname >>= \ f ->
     putStrLn ("[" <> show num <> "/" <> show total <> "]: compiling " <> format f) >>
-    let (res, diags) = runWriter $ Driver.compile f
-    in Diagnostic.report_diagnostics IO.stderr diags >>
-    putTextLn (show res)
+    case Driver.compile f of
+        Right res -> putTextLn (show res)
+        Left diags -> Diagnostic.report_diagnostics IO.stderr diags

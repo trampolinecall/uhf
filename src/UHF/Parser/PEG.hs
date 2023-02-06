@@ -72,6 +72,7 @@ eval_parser p toks =
 fail :: [Error.OtherError] -> Error.BacktrackingError -> Parser a
 fail add_other_errors bt_error = Parser $ \ other_errors bt_errors _ -> (other_errors ++ add_other_errors, bt_error : bt_errors, Nothing)
 
+-- TODO: come up with a better name for this
 recoverable :: [Error.OtherError] -> Maybe a -> Parser a
 recoverable add_other_errors res = Parser $ \ other_errors bt_errors toks -> (other_errors ++ add_other_errors, bt_errors, Just (res, toks))
 

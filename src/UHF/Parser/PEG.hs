@@ -180,7 +180,7 @@ case_advance =
     in case run_parser advance tokstream of
         ([], [], Just (Just (), tokstream'))
             | tokstream' InfList.!!! 0 == (1, t2) &&
-              tokstream' InfList.!!! 1 == (-1, dummy_eof) -> pure ()
+              tokstream' InfList.!!! 1 == (2, dummy_eof) -> pure ()
 
         (other_errors, bt_errors, Just (r, tokstream')) ->
             assertFailure $ "did not advance correctly, got: " ++ show (other_errors, bt_errors, Just (r, InfList.take 5 tokstream')) ++ " (only 5 first tokens shown)"

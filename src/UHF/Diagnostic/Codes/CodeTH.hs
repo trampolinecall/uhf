@@ -1,4 +1,7 @@
-module UHF.Diagnostic.Codes.CodeTH where
+module UHF.Diagnostic.Codes.CodeTH
+    ( error_code
+    , warning_code
+    ) where
 
 import UHF.Util.Prelude
 
@@ -8,17 +11,10 @@ import qualified UHF.Diagnostic.Codes.Code as Code
 
 import Data.String (String)
 
-code :: Code.Type -> Int -> String -> TH.Q [TH.Dec]
-code ty num var =
+code :: String -> TH.Q TH.Exp -> TH.Q TH.Type -> Int -> String -> TH.Q [TH.Dec]
+code ty_letter code_constr code_ty num var =
     let diag_code =
-            let ty_letter = case ty of
-                    Code.Error -> "E"
-                    Code.Warning -> "W"
-                    Code.DebugMessage -> "DB"
-                    Code.InternalError -> "IE"
-
-                num_str = show num
-
+            let num_str = show num
             in ty_letter ++ replicate (4 - length num_str) '0' ++ num_str
 
         var_name = TH.mkName var
@@ -32,12 +28,18 @@ code ty num var =
         name_lit = pure $ TH.LitE $ TH.StringL diag_name
     in
     [d|
-        $code_var_name_p = Code.Code ty (Just (Text.pack $diag_code_lit, Text.pack $name_lit))
+        $code_var_name_p = $code_constr (Just (Text.pack $diag_code_lit, Text.pack $name_lit))
         $var_name_p = $(pure $ TH.VarE code_var_name)
     |] >>= \ ds ->
-    [t| Code.Code |] >>= \ code_ty ->
+    code_ty >>= \ code_ty ->
     pure (
         [ TH.SigD code_var_name code_ty
         , TH.SigD var_name code_ty
         ] ++ ds
     )
+
+error_code :: Int -> String -> TH.Q [TH.Dec]
+error_code = code "E" [e| Code.Error |] [t| Code.Error |]
+
+warning_code :: Int -> String -> TH.Q [TH.Dec]
+warning_code = code "W" [e| Code.Warning |] [t| Code.Warning |]

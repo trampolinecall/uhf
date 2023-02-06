@@ -40,4 +40,4 @@ compile num total fname =
     putStrLn ("[" <> show num <> "/" <> show total <> "]: compiling " <> format f) >>
     case Driver.compile f of
         Right res -> putTextLn (show res)
-        Left diags -> Diagnostic.report_diagnostics IO.stderr diags
+        Left diags -> mapM_ (Diagnostic.report IO.stderr) diags

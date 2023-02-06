@@ -12,7 +12,6 @@ module UHF.Diagnostic
     , DiagnosticContents(..)
 
     , report
-    , report_diagnostics
     ) where
 
 import UHF.Util.Prelude
@@ -88,6 +87,3 @@ report handle d =
     hPutText handle "\n" >>
     mapM_ p_line section_lines >>
     maybe (pure ()) (\ f -> hPutStr handle (replicate indent ' ') >> hPutStr handle f >> IO.hPutStr handle "\n") footer
-
-report_diagnostics :: IsDiagnostic d => Handle -> [d] -> IO ()
-report_diagnostics handle = mapM_ (report handle)

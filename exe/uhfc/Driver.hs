@@ -28,7 +28,7 @@ type FirstIR = (Arena.Arena IR.Decl.Decl IR.Decl.Key, Arena.Arena (IR.Value.Valu
 type NRIR = (Arena.Arena IR.Decl.Decl IR.Decl.Key, Arena.Arena (IR.Value.Value (Maybe IR.Value.Key)) IR.Value.Key)
 
 compile :: File.File -> ErrorAccumulated NRIR
-compile file = lex file >>= parse >>= to_ir >>= name_resolve
+compile file = lex file >>= parse >>= to_ir >>= name_resolve -- TODO: do not return last result if any errors generated
 
 lex :: File.File -> ErrorAccumulated Tokens
 lex file = convert_errors (Lexer.lex file)

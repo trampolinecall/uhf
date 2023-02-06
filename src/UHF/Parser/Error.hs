@@ -15,7 +15,7 @@ import qualified UHF.Diagnostic.Codes as Codes
 import qualified UHF.Diagnostic.Sections.Underlines as Underlines
 
 data BacktrackingError
-    = BadToken Token.LToken Token.TokenType Text
+    = BadToken Int Token.LToken Token.TokenType Text
     -- | NoneMatched Token.LToken [Error]
     deriving (Eq, Show)
 
@@ -23,30 +23,17 @@ data OtherError
     = NotImpl (Location.Located Text)
     deriving (Eq, Show)
 
-instance Diagnostic.IsDiagnostic [BacktrackingError] where
+instance Diagnostic.IsDiagnostic (Location.Located [BacktrackingError]) where
     -- TODO
-    {-
-    to_diagnostic (BadToken tok expectation construct) =
-        let sp = Location.just_span tok
-        in Diagnostic.Diagnostic Codes.bad_token (Just sp)
-            [ Underlines.underlines
-                [sp `Underlines.primary`
-                    [ Underlines.error $ "bad " <> format (Location.unlocate tok)
-                    , Underlines.note $ Literal construct <> " expects " <> format expectation
-                    ]
-                ]
+    to_diagnostic (Location.Located sp bits) =
+        Diagnostic.Diagnostic Codes.parse_error (Just sp)
+            [ Underlines.underlines $
+                map
+                    (\ (BadToken _ tok expectation construct) ->
+                        Location.just_span tok `Underlines.primary`
+                            [ Underlines.error $ Literal construct <> " expects " <> format expectation <> " but got " <> format (Location.unlocate tok) ])
+                    bits -- TODO: make this better
             ]
-
-    to_diagnostic (NoneMatched (Location.Located sp tok) errs) =
-        Diagnostic.Diagnostic Codes.none_matched (Just sp) $
-            Underlines.underlines
-                [ sp `Underlines.primary`
-                    [ Underlines.error "no parser matched tokens" ]
-                ]
-            :
-            -- TODO: make this less janky
-            concatMap ((\ (Diagnostic.Diagnostic _ _ sections) -> sections) . Diagnostic.to_diagnostic) errs
-    -}
 
 instance Diagnostic.IsDiagnostic OtherError where
     to_diagnostic (NotImpl construct) =

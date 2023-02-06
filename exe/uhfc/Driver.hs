@@ -27,8 +27,15 @@ type AST = [AST.Decl]
 type FirstIR = (Arena.Arena IR.Decl.Decl IR.Decl.Key, Arena.Arena (IR.Value.Value (Location.Located [Location.Located Text])) IR.Value.Key, IR.Decl.Key)
 type NRIR = (Arena.Arena IR.Decl.Decl IR.Decl.Key, Arena.Arena (IR.Value.Value (Maybe IR.Value.Key)) IR.Value.Key)
 
-compile :: File.File -> ErrorAccumulated NRIR
-compile file = lex file >>= parse >>= to_ir >>= name_resolve -- TODO: do not return last result if any errors generated
+compile :: File.File -> Either [Diagnostic.Diagnostic] NRIR
+compile file =
+    let (res, diags) = runWriter $ compile' file
+    in if null diags
+        then Right res
+        else Left diags
+
+compile' :: File.File -> ErrorAccumulated NRIR
+compile' file = lex file >>= parse >>= to_ir >>= name_resolve
 
 lex :: File.File -> ErrorAccumulated Tokens
 lex file = convert_errors (Lexer.lex file)

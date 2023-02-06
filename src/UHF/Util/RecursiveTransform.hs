@@ -46,13 +46,12 @@ instance Applicative (RecursiveTransform a e b) where
 
 instance Monad (RecursiveTransform a e b) where
     (RecursiveTransform a) >>= op = RecursiveTransform $
-        a >>= \ a' ->
-        case a' of
+        a >>= \case
             Ok r ->
                 let (RecursiveTransform r') = op r
                 in r'
-            Err e -> pure $ Err $ e
-            Loop o -> pure $ Loop $ o
+            Err e -> pure $ Err e
+            Loop o -> pure $ Loop o
 
 -- run a computation on an item, retrieving it from the cache if present, and checking not to make infinite recursion
 get :: Ord a => a -> RecursiveTransform a e b b
@@ -61,11 +60,11 @@ get a = RecursiveTransform $
         case Map.lookup a cache of
             Just result -> pure result
             Nothing ->
-                case List.findIndex (==a) stack of
+                case List.elemIndex a stack of
                     Just ind -> pure $ Loop (drop ind stack)
                     Nothing ->
                         -- append the current item to the recursion stack
-                        put (compute, (a:stack), cache) >>
+                        put (compute, a:stack, cache) >>
 
                         -- run the computation
                         let (RecursiveTransform compute_result) = compute a

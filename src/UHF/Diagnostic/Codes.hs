@@ -1,6 +1,5 @@
 module UHF.Diagnostic.Codes where
 
-import UHF.Diagnostic.Codes.Code
 import UHF.Diagnostic.Codes.CodeTH
 
 $(error_code 0000 "bad_char")

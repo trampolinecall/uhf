@@ -38,7 +38,7 @@ type TokenStream = InfList.InfList (Int, Token.LToken)
 
 -- TODO: allow each thing to provide a custom error function
 
-newtype Parser r = Parser { extract_parser :: ([Error.OtherError] -> [Error.BacktrackingError] -> TokenStream -> ([Error.OtherError], [Error.BacktrackingError], Maybe (Maybe r, TokenStream))) }
+newtype Parser r = Parser { extract_parser :: [Error.OtherError] -> [Error.BacktrackingError] -> TokenStream -> ([Error.OtherError], [Error.BacktrackingError], Maybe (Maybe r, TokenStream)) }
 
 instance Functor Parser where
     fmap f parser = parser >>= \ res -> pure (f res)
@@ -282,7 +282,7 @@ test_optional =
     in
         [ testCase "none" $
             let toks = add_eofs [other]
-            in ([], [expect_oparen 0 other], Just $ Nothing) @=? eval_parser parser toks
+            in ([], [expect_oparen 0 other], Just Nothing) @=? eval_parser parser toks
 
         , testCase "once" $
             let toks = add_eofs [oparen, other]

@@ -6,7 +6,7 @@ import qualified Arena
 
 import qualified UHF.IR.Expr as Expr
 
-data Key = Key Int deriving Show
+newtype Key = Key Int deriving Show
 instance Arena.Key Key where
     make_key = Key
     unmake_key (Key i) = i

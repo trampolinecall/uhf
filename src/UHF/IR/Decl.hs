@@ -8,7 +8,7 @@ import qualified UHF.IR.Value as Value
 
 import qualified Data.Map as Map
 
-data Key = Key Int deriving Show
+newtype Key = Key Int deriving Show
 instance Arena.Key Key where
     make_key = Key
     unmake_key (Key i) = i

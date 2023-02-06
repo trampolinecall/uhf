@@ -76,7 +76,7 @@ resolve_for_value :: UnresolvedDeclArena -> Decl.Key -> UnresolvedValue -> Write
 resolve_for_value decls mod (Value.Value initializer) = Value.Value <$> resolve_for_expr decls mod initializer
 
 resolve_for_expr :: UnresolvedDeclArena -> Decl.Key -> UnresolvedExpr -> Writer [Error] ResolvedExpr
-resolve_for_expr decls mod (Expr.Identifier i) = Expr.Identifier <$> (resolve_iden decls mod i)
+resolve_for_expr decls mod (Expr.Identifier i) = Expr.Identifier <$> resolve_iden decls mod i
 resolve_for_expr _ _ (Expr.CharLit c) = pure $ Expr.CharLit c
 resolve_for_expr _ _ (Expr.StringLit s) = pure $ Expr.StringLit s
 resolve_for_expr _ _ (Expr.IntLit i) = pure $ Expr.IntLit i

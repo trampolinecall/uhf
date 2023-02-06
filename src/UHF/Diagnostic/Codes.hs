@@ -16,7 +16,8 @@ $(code Error 9 "bad_dedent")
 $(code Error 10 "invalid_double_colon")
 
 $(code Error 100 "parse_error")
-$(code Error 101 "not_implemented")
+$(code Error 101 "binding_lhs_path")
+$(code Error 102 "not_implemented")
 
 $(code Error 200 "symbol_redefinition")
 

@@ -21,6 +21,7 @@ library
       UHF.Diagnostic.Codes.CodeTH
       UHF.Diagnostic.Colors
       UHF.Diagnostic.Line
+      UHF.Diagnostic.Section
       UHF.Diagnostic.Sections.Underlines
       UHF.Diagnostic.Sections.Utils
       UHF.FormattedString

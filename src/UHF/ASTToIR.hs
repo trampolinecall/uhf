@@ -33,8 +33,9 @@ import qualified Data.Map as Map
 data Error = Redefinition (Location.Located Text)
 
 instance Diagnostic.IsError Error where
-    to_error (Redefinition (Location.Located sp name)) =
-        Diagnostic.Error Codes.symbol_redefinition (Just sp)
+    to_error (Redefinition (Location.Located sp name)) = Diagnostic.Error Codes.symbol_redefinition $
+        Diagnostic.DiagnosticContents
+            (Just sp)
             [Underlines.underlines [sp `Underlines.primary` [Underlines.error $ "redefinition of '" <> convert_str name <> "'"]]]
 
 type Decl = Decl.Decl

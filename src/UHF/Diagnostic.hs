@@ -3,13 +3,14 @@
 module UHF.Diagnostic
     ( Error(..)
     , Warning(..)
-    , Section
-    , section_contents
+    , DebugMessage(..)
+    , InternalError(..)
 
     , IsError(..)
     , IsWarning(..)
-    , ToSection(..)
-    , to_section
+
+    , DiagnosticContents(..)
+
     , report
     , report_diagnostics
     ) where
@@ -19,6 +20,7 @@ import UHF.Util.Prelude
 import qualified UHF.FormattedString as FormattedString
 import qualified UHF.Diagnostic.Codes.Code as Code
 import qualified UHF.Diagnostic.Colors as Colors
+import qualified UHF.Diagnostic.Section as Section
 import qualified UHF.Diagnostic.Line as Line
 
 import qualified UHF.IO.Location as Location
@@ -26,8 +28,12 @@ import qualified UHF.IO.Location as Location
 import qualified Data.Text as Text
 import qualified System.IO as IO
 
-data Error = Error Code.Error (Maybe Location.Span) [Section]
-data Warning = Warning Code.Warning (Maybe Location.Span) [Section]
+data Error = Error Code.Error DiagnosticContents
+data Warning = Warning Code.Warning DiagnosticContents
+data DebugMessage = DebugMessage DiagnosticContents
+data InternalError = InternalError DiagnosticContents
+
+data DiagnosticContents = DiagnosticContents (Maybe Location.Span) [Section.Section]
 
 class IsError e where
     to_error :: e -> Error
@@ -35,33 +41,22 @@ class IsWarning w where
     to_warning :: w -> Warning
 
 class IsDiagnostic d where
-    to_diagnostic :: d -> (FormattedString.FormattedString, Maybe (Text, Text), Maybe Location.Span, [Section])
+    to_diagnostic :: d -> (FormattedString.FormattedString, Maybe (Text, Text), DiagnosticContents)
 
 instance IsDiagnostic Error where
-    to_diagnostic (Error c sp sections) = (FormattedString.color_text Colors.error "error", Code.error_code_desc c, sp, sections)
+    to_diagnostic (Error c contents) = (FormattedString.color_text Colors.error "error", Code.error_code_desc c, contents)
 instance IsDiagnostic Warning where
-    to_diagnostic (Warning c sp sections) = (FormattedString.color_text Colors.warning "warning", Code.warning_code_desc c, sp, sections)
-
-newtype Section = Section { section_contents :: [Line.Line] }
-class ToSection s where
-    to_section' :: s -> [Line.Line]
-instance ToSection [Line.Line] where
-    to_section' = identity
-
-to_section :: ToSection s => s -> Section
-to_section = Section . to_section'
+    to_diagnostic (Warning c contents) = (FormattedString.color_text Colors.warning "warning", Code.warning_code_desc c, contents)
+instance IsDiagnostic DebugMessage where
+    to_diagnostic (DebugMessage contents) = (FormattedString.color_text Colors.debug_message "debug message", Nothing, contents)
+instance IsDiagnostic InternalError where
+    to_diagnostic (InternalError contents) = (FormattedString.color_text Colors.error "internal error", Nothing, contents)
 
 report :: IsDiagnostic d => Handle -> d -> IO ()
 report handle d =
-    let (type_str, code_and_desc, m_sp, sections) = to_diagnostic d
+    let (type_str, code_and_desc, (DiagnosticContents m_sp sections)) = to_diagnostic d
         header =
             type_str
-            {-
-            (case Code.code_type code of
-                Code.Error ->
-                Code.Warning -> FormattedString.color_text Colors.warning "warning"
-                Code.DebugMessage -> FormattedString.color_text Colors.debug_message "debug message"
-                Code.InternalError -> FormattedString.color_text Colors.error "internal error") -}
             <>
             (case m_sp of
                 Just sp -> " at " <> format sp
@@ -72,7 +67,7 @@ report handle d =
                 Just (c, d) -> Just $ "==> [" <> FormattedString.color_text Colors.diag_code c <> "] " <> FormattedString.color_text Colors.diag_desc d
                 Nothing -> Nothing
 
-        section_lines = concatMap (\ (Section l) -> l) sections
+        section_lines = concatMap (\ (Section.Section l) -> l) sections
         indent =
             if null section_lines
                 then 4

@@ -17,11 +17,11 @@ import UHF.Util.Prelude
 
 import UHF.IO.Location.SpanHelper
 
-import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Line as Line
 import qualified UHF.FormattedString as FormattedString
 import qualified UHF.Diagnostic.Sections.Utils as Utils
 import qualified UHF.Diagnostic.Colors as Colors
+import qualified UHF.Diagnostic.Section as Section
 
 import qualified UHF.IO.Location as Location
 import qualified UHF.IO.File as File
@@ -62,13 +62,13 @@ warning = (Warning,)
 note = (Note,)
 hint = (Hint,)
 
-underlines :: UnderlinesSection -> Diagnostic.Section
+underlines :: UnderlinesSection -> Section.Section
 underlines unds =
     let (singleline, multiline) = List.partition (Location.is_single_line . (\ (a, _, _) -> a)) unds
 
         singleline' = show_singleline singleline
         multiline' = concatMap show_multiline multiline
-    in Diagnostic.to_section $ singleline' ++ multiline'
+    in Section.to_section $ singleline' ++ multiline'
 
 -- show_singleline {{{1
 -- Message helpers {{{2
@@ -299,7 +299,7 @@ case_underlines =
         , ( "", '|', "----^^^")
         , ( "", '|', "      `-- message 3")
         ]
-        (Diagnostic.section_contents section)
+        (Section.section_contents section)
 
 case_show_singleline :: Assertion
 case_show_singleline =

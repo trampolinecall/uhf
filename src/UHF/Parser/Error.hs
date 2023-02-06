@@ -49,5 +49,5 @@ instance Diagnostic.IsError OtherError where
         Diagnostic.DiagnosticContents
             (Just sp)
             [ Underlines.underlines
-                [sp `Underlines.primary` [Underlines.error $ "path in left-hand side of binding"]]
+                [sp `Underlines.primary` [Underlines.error "path in left-hand side of binding"]]
             ]

@@ -16,7 +16,7 @@ import UHF.Util.Prelude
 
 import qualified Data.List ((!!))
 
-data Arena a k = Arena [a] deriving (Show, Eq)
+newtype Arena a k = Arena [a] deriving (Show, Eq)
 
 class Key k where
     make_key :: Int -> k
@@ -39,7 +39,7 @@ transform t (Arena items) = Arena $ map t items
 transformM :: Monad m => (a -> m b) -> Arena a k -> m (Arena b k)
 transformM t (Arena items) = Arena <$> mapM t items
 
-data TestKey = TestKey Int deriving (Show, Eq)
+newtype TestKey = TestKey Int deriving (Show, Eq)
 instance Key TestKey where
     make_key = TestKey
     unmake_key (TestKey k) = k

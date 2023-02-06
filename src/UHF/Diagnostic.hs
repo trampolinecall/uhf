@@ -29,8 +29,8 @@ import qualified System.IO as IO
 
 data Error = Error Code.Error DiagnosticContents
 data Warning = Warning Code.Warning DiagnosticContents
-data DebugMessage = DebugMessage DiagnosticContents
-data InternalError = InternalError DiagnosticContents
+newtype DebugMessage = DebugMessage DiagnosticContents
+newtype InternalError = InternalError DiagnosticContents
 
 data DiagnosticContents = DiagnosticContents (Maybe Location.Span) [Section.Section]
 
@@ -53,7 +53,7 @@ instance IsDiagnostic InternalError where
 
 report :: IsDiagnostic d => Handle -> d -> IO ()
 report handle d =
-    let (type_str, code_and_desc, (DiagnosticContents m_sp sections)) = to_diagnostic d
+    let (type_str, code_and_desc, DiagnosticContents m_sp sections) = to_diagnostic d
         header =
             type_str
             <>

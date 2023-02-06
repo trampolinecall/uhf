@@ -24,10 +24,10 @@ data OtherError
     | BindToPath (Location.Located [Location.Located Text])
     deriving (Eq, Show)
 
-instance Diagnostic.IsDiagnostic (Location.Located [BacktrackingError]) where
+instance Diagnostic.IsError (Location.Located [BacktrackingError]) where
     -- TODO
-    to_diagnostic (Location.Located sp bits) =
-        Diagnostic.Diagnostic Codes.parse_error (Just sp)
+    to_error (Location.Located sp bits) =
+        Diagnostic.Error Codes.parse_error (Just sp)
             [ Underlines.underlines $
                 map
                     (\ (BadToken _ tok expectation construct) ->
@@ -36,15 +36,15 @@ instance Diagnostic.IsDiagnostic (Location.Located [BacktrackingError]) where
                     bits -- TODO: make this better
             ]
 
-instance Diagnostic.IsDiagnostic OtherError where
-    to_diagnostic (NotImpl construct) =
-        Diagnostic.Diagnostic Codes.not_implemented (Just $ Location.just_span construct)
+instance Diagnostic.IsError OtherError where
+    to_error (NotImpl construct) =
+        Diagnostic.Error Codes.not_implemented (Just $ Location.just_span construct)
             [ Underlines.underlines
                 [Location.just_span construct `Underlines.primary` [Underlines.error $ Literal (Location.unlocate construct) <> " are not implemented yet"]]
             ]
 
-    to_diagnostic (BindToPath (Location.Located sp _)) =
-        Diagnostic.Diagnostic Codes.binding_lhs_path (Just sp)
+    to_error (BindToPath (Location.Located sp _)) =
+        Diagnostic.Error Codes.binding_lhs_path (Just sp)
             [ Underlines.underlines
                 [sp `Underlines.primary` [Underlines.error $ "path in left-hand side of binding"]]
             ]

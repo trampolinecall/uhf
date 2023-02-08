@@ -13,7 +13,7 @@ import qualified UHF.Lexer.LexError as LexError
 import qualified UHF.Token as Token
 import qualified UHF.IO.Location as Location
 
-group_identifiers :: [Token.LRawToken] -> Writer [LexError.LexError] [Token.LToken]
+group_identifiers :: [Token.LInternalToken] -> Writer [LexError.LexError] [Token.LToken]
 group_identifiers ((Location.Located start_sp (Token.AlphaIdentifier start_iden)):more) =
     let find_iden ((Location.Located _ (Token.DoubleColon _)) : (Location.Located sp (Token.AlphaIdentifier iden)) : m) =
             let (more_iden, is_symbol, m') = find_iden m
@@ -45,7 +45,7 @@ group_identifiers (other:more) =
 
 group_identifiers [] = pure []
 
-convert_raw_token :: Token.LRawToken -> Either LexError.LexError Token.LToken
+convert_raw_token :: Token.LInternalToken -> Either LexError.LexError Token.LToken
 convert_raw_token (Location.Located sp (Token.SingleTypeToken t)) = Right $ Location.Located sp (Token.SingleTypeToken t)
 convert_raw_token (Location.Located sp (Token.CharLit ch)) = Right $ Location.Located sp (Token.CharLit ch)
 convert_raw_token (Location.Located sp (Token.StringLit str)) = Right $ Location.Located sp (Token.StringLit str)

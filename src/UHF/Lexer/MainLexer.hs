@@ -18,7 +18,7 @@ import qualified Data.Text as Text
 import Data.Char (isAlpha, isDigit, isOctDigit, isHexDigit, isSpace, digitToInt)
 
 -- lexing {{{1
-lex :: File.File -> Writer [LexError.LexError] ([Token.LRawToken], Token.LToken)
+lex :: File.File -> Writer [LexError.LexError] ([Token.LInternalToken], Token.LToken)
 lex f =
     let (errs, toks) = run [] [] (Location.new_location f)
         eof = Location.Located (Location.eof_span f) (Token.EOF ())
@@ -36,7 +36,7 @@ lex f =
                     seq next_toks $
                     run next_errs next_toks l'
 -- lex_one_token {{{2
-lex_one_token :: Location.Location -> (Location.Location, [LexError.LexError], [Token.LRawToken])
+lex_one_token :: Location.Location -> (Location.Location, [LexError.LexError], [Token.LInternalToken])
 lex_one_token loc = head $ mapMaybe (($ loc) . run_lexer)
             [ lex_comment
 
@@ -77,7 +77,7 @@ instance Monad Lexer where
                     _ -> Nothing
             _ -> Nothing
 -- lexing functions {{{2
-lex_comment :: Lexer [Token.LRawToken]
+lex_comment :: Lexer [Token.LInternalToken]
 lex_comment =
     get_loc >>= \ start_loc ->
     let lex_singleline = consume (=='/') >> consume (=='/') >> lex_singleline_body
@@ -97,7 +97,7 @@ lex_comment =
                 ]
     in choice [lex_singleline, lex_multiline]
 
-lex_id_or_kw :: (Char -> Bool) -> (Char -> Bool) -> [(Text, Token.RawToken)] -> (Location.Located Text -> Token.RawToken) -> Lexer [Token.LRawToken]
+lex_id_or_kw :: (Char -> Bool) -> (Char -> Bool) -> [(Text, Token.InternalToken)] -> (Location.Located Text -> Token.InternalToken) -> Lexer [Token.LInternalToken]
 lex_id_or_kw is_valid_start is_valid_char kws def =
     get_loc >>= \ start_loc ->
     consume is_valid_start >>= \ first_char ->
@@ -110,13 +110,14 @@ lex_id_or_kw is_valid_start is_valid_char kws def =
     in get_loc >>= \ end_loc ->
     pure [Location.Located (new_span_start_and_end start_loc end_loc) tok]
 
-lex_alpha_identifier :: Lexer [Token.LRawToken]
+lex_alpha_identifier :: Lexer [Token.LInternalToken]
 lex_alpha_identifier =
     lex_id_or_kw
         (\ ch -> isAlpha ch || ch == '_')
         (\ ch -> isAlpha ch || isDigit ch || ch == '_' || ch == '\'')
         [ ("root", Token.SingleTypeToken Token.Root)
         , ("let", Token.SingleTypeToken Token.Let)
+        , ("let'", Token.SingleTypeToken Token.Let')
         , ("data", Token.SingleTypeToken Token.Data)
         , ("under", Token.SingleTypeToken Token.Under)
         , ("if", Token.SingleTypeToken Token.If)
@@ -127,7 +128,7 @@ lex_alpha_identifier =
         ]
         Token.AlphaIdentifier
 
-lex_symbol_identifier :: Lexer [Token.LRawToken]
+lex_symbol_identifier :: Lexer [Token.LInternalToken]
 lex_symbol_identifier =
     lex_id_or_kw
         (`elem` ("~!@#$%^&*+`-=|:./<>?()[]\\{};," :: [Char]))
@@ -147,7 +148,7 @@ lex_symbol_identifier =
         ]
         Token.SymbolIdentifier
 
-lex_str_or_char_lit :: Lexer [Token.LRawToken]
+lex_str_or_char_lit :: Lexer [Token.LInternalToken]
 lex_str_or_char_lit =
     get_loc >>= \ start_loc ->
     consume (\ c -> c == '\'' || c == '"') >>= \ (Location.Located _ open) ->
@@ -169,7 +170,7 @@ lex_str_or_char_lit =
               else put_error (LexError.UnclosedStrLit sp) >> pure []
         ]
 
-lex_number :: Lexer [Token.LRawToken]
+lex_number :: Lexer [Token.LInternalToken]
 lex_number =
     get_loc >>= \ start_loc ->
 
@@ -220,10 +221,10 @@ lex_number =
         lex_digits = one_or_more (consume isHexDigit)
         lex_float = consume (=='.') >> lex_digits
 
-lex_space :: Lexer [Token.LRawToken]
+lex_space :: Lexer [Token.LInternalToken]
 lex_space = consume isSpace >> pure []
 
-make_bad_char :: Lexer [Token.LRawToken]
+make_bad_char :: Lexer [Token.LInternalToken]
 make_bad_char = consume (const True) >>= \ (Location.Located sp c) -> put_error (LexError.BadChar c sp) >> pure []
 -- helper functions {{{1
 remaining :: Location.Location -> Text

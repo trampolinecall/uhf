@@ -4,9 +4,9 @@ module UHF.Token
     ( BaseToken(..)
     , SingleTypeToken(..)
 
-    , LRawToken
+    , LInternalToken
     , LToken
-    , RawToken
+    , InternalToken
     , Token
     , TokenType
 
@@ -29,9 +29,9 @@ data IntLitBase
     deriving (Show, Eq)
 
 type LToken = Location.Located Token
-type LRawToken = Location.Located RawToken
+type LInternalToken = Location.Located InternalToken
 
-type RawToken = BaseToken () (Location.Located Text) Void Char Text IntLitBase Integer Rational Bool
+type InternalToken = BaseToken () (Location.Located Text) Void Char Text IntLitBase Integer Rational Bool
 type Token = BaseToken Void [Location.Located Text] () Char Text IntLitBase Integer Rational Bool
 type TokenType = BaseToken () () () () () () () () ()
 
@@ -47,6 +47,7 @@ data SingleTypeToken
 
     | Root
     | Let
+    | Let'
     | Type
     | Data
     | Under
@@ -88,6 +89,7 @@ instance Format SingleTypeToken where
 
     format Root = "'root'"
     format Let = "'let'"
+    format Let' = "'let''" -- TODO: print this more nicely
     format Type = "'type'"
     format Data = "'data'"
     format Under = "'under'"

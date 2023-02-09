@@ -15,11 +15,11 @@ import qualified UHF.IO.Location as Location
 
 group_identifiers :: [Token.LInternalToken] -> Writer [LexError.LexError] [Token.LToken]
 group_identifiers ((Location.Located start_sp (Token.AlphaIdentifier start_iden)):more) =
-    let find_iden ((Location.Located _ (Token.DoubleColon _)) : (Location.Located sp (Token.AlphaIdentifier iden)) : m) =
+    let find_iden ((Location.Located _ (Token.SingleTypeToken Token.DoubleColon)) : (Location.Located sp (Token.AlphaIdentifier iden)) : m) =
             let (more_iden, is_symbol, m') = find_iden m
             in ((iden, sp):more_iden, is_symbol, m')
 
-        find_iden ((Location.Located _ (Token.DoubleColon _)) : (Location.Located sp (Token.SymbolIdentifier iden)) : m) =
+        find_iden ((Location.Located _ (Token.SingleTypeToken Token.DoubleColon)) : (Location.Located sp (Token.SymbolIdentifier iden)) : m) =
             ([(iden, sp)], True, m)
 
         find_iden t =
@@ -52,7 +52,6 @@ convert_raw_token (Location.Located sp (Token.StringLit str)) = Right $ Location
 convert_raw_token (Location.Located sp (Token.IntLit b n)) = Right $ Location.Located sp (Token.IntLit b n)
 convert_raw_token (Location.Located sp (Token.FloatLit f)) = Right $ Location.Located sp (Token.FloatLit f)
 convert_raw_token (Location.Located sp (Token.BoolLit b)) = Right $ Location.Located sp (Token.BoolLit b)
-convert_raw_token (Location.Located sp (Token.DoubleColon _)) = Left $ LexError.InvalidDoubleColon sp
 convert_raw_token (Location.Located sp (Token.SymbolIdentifier i)) = Right $ Location.Located sp $ Token.SymbolIdentifier [i]
 convert_raw_token (Location.Located _ (Token.AlphaIdentifier _)) = error "cannot convert raw alpha identiifer to alpha identifier"
 convert_raw_token (Location.Located _ (Token.EOF eof)) = absurd eof
@@ -66,7 +65,7 @@ case_group_identifiers =
     runWriter (group_identifiers
         [ Location.Located paren_sp (Token.SingleTypeToken Token.OParen)
         , Location.Located a_sp (Token.AlphaIdentifier (Location.Located a_sp "a"))
-        , Location.Located dcolon_sp (Token.DoubleColon ())
+        , Location.Located dcolon_sp (Token.SingleTypeToken Token.DoubleColon)
         , Location.Located b_sp (Token.AlphaIdentifier (Location.Located b_sp "b"))
         ])
 
@@ -84,9 +83,9 @@ case_group_identifiers_multiple_alpha =
     @=?
     runWriter (group_identifiers
         [ Location.Located a $ Token.AlphaIdentifier (Location.Located a "a")
-        , Location.Located dc1 (Token.DoubleColon ())
+        , Location.Located dc1 (Token.SingleTypeToken Token.DoubleColon)
         , Location.Located b $ Token.AlphaIdentifier (Location.Located b "b")
-        , Location.Located dc2 (Token.DoubleColon ())
+        , Location.Located dc2 (Token.SingleTypeToken Token.DoubleColon)
         , Location.Located c $ Token.AlphaIdentifier (Location.Located c "c")
         ])
 
@@ -104,9 +103,9 @@ case_group_identifiers_multiple_symbol =
     @=?
     runWriter (group_identifiers
         [ Location.Located a $ Token.AlphaIdentifier (Location.Located a "a")
-        , Location.Located dc1 (Token.DoubleColon ())
+        , Location.Located dc1 (Token.SingleTypeToken Token.DoubleColon)
         , Location.Located b $ Token.AlphaIdentifier (Location.Located b "b")
-        , Location.Located dc2 (Token.DoubleColon ())
+        , Location.Located dc2 (Token.SingleTypeToken Token.DoubleColon)
         , Location.Located star $ Token.SymbolIdentifier (Location.Located star "*")
         ])
 
@@ -117,9 +116,9 @@ case_group_identifiers_symbol_start =
     @=?
     runWriter (group_identifiers
         [ Location.Located star $ Token.SymbolIdentifier (Location.Located star "*")
-        , Location.Located dc1 (Token.DoubleColon ())
+        , Location.Located dc1 (Token.SingleTypeToken Token.DoubleColon)
         , Location.Located amper $ Token.SymbolIdentifier (Location.Located amper "&")
-        , Location.Located dc2 (Token.DoubleColon ())
+        , Location.Located dc2 (Token.SingleTypeToken Token.DoubleColon)
         , Location.Located dollar $ Token.SymbolIdentifier (Location.Located dollar "$")
         ])
 

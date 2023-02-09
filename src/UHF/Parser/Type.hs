@@ -22,5 +22,5 @@ import qualified Control.Monad.Trans.State as State
 
 type_ :: PEG.Parser AST.Type
 type_ =
-    PEG.consume "type" (Token.AlphaIdentifier ()) >>= \ (Location.Located iden_sp (Token.AlphaIdentifier iden)) ->
+    PEG.consume' "type" (Token.AlphaIdentifier ()) >>= \ (Location.Located iden_sp (Token.AlphaIdentifier iden)) ->
     pure (AST.Type'Identifier (Location.Located iden_sp iden))

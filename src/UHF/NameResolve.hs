@@ -53,15 +53,16 @@ instance Diagnostic.IsError Error where
             (Just sp)
             [Underlines.underlines [sp `Underlines.primary` [Underlines.error "paths are not supported yet"]]] -- TODO
 
-    to_error (CouldNotFind prev (Location.Located sp name)) = Diagnostic.Error Diagnostic.Codes.undef_name $
+    to_error (CouldNotFind prev (Location.Located sp name)) =
         let message =
                 ("could not find name '" <> convert_str name <> "'")
                     <> case prev of
                         Just (Location.Located _ prev_name) -> "in '" <> convert_str prev_name <> "'"
                         Nothing -> ""
-        in Diagnostic.DiagnosticContents
-            (Just sp)
-            [Underlines.underlines [sp `Underlines.primary` [Underlines.error message]]]
+        in Diagnostic.Error Diagnostic.Codes.undef_name $
+            Diagnostic.DiagnosticContents
+                (Just sp)
+                [Underlines.underlines [sp `Underlines.primary` [Underlines.error message]]]
 
 resolve :: (UnresolvedDeclArena, UnresolvedValueArena, IR.DeclKey) -> Writer [Error] (ResolvedDeclArena, ResolvedValueArena)
 resolve (decls, values, mod) =

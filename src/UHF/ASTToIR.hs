@@ -30,13 +30,22 @@ import qualified UHF.Diagnostic.Sections.Underlines as Underlines
 
 import qualified Data.Map as Map
 
-newtype Error = Redefinition (Location.Located Text)
+data Error
+    = Redefinition (Location.Located Text)
+    | BindToPath (Location.Located [Location.Located Text])
 
 instance Diagnostic.IsError Error where
     to_error (Redefinition (Location.Located sp name)) = Diagnostic.Error Codes.symbol_redefinition $
         Diagnostic.DiagnosticContents
             (Just sp)
             [Underlines.underlines [sp `Underlines.primary` [Underlines.error $ "redefinition of '" <> convert_str name <> "'"]]]
+
+    to_error (BindToPath (Location.Located sp _)) = Diagnostic.Error Codes.binding_lhs_path $
+        Diagnostic.DiagnosticContents
+            (Just sp)
+            [ Underlines.underlines
+                [sp `Underlines.primary` [Underlines.error "path in left-hand side of binding"]]
+            ]
 
 type Decl = Decl.Decl
 type Module = Decl.Module
@@ -83,11 +92,16 @@ convert_to_maps =
             last_map >>= \ (last_decl_map, last_value_map) ->
             case cur_decl of
                 AST.Decl'Binding l_name@(Location.Located _ name) expr ->
-                    case Map.lookup name last_value_map of
-                        Just _ -> tell_err (Redefinition l_name) >> pure (last_decl_map, last_value_map)
+                    case name of
+                        [l_name1@(Location.Located _ name1)] ->
+                            case Map.lookup name1 last_value_map of
+                                Just _ -> tell_err (Redefinition l_name1) >> pure (last_decl_map, last_value_map)
+                                _ ->
+                                    convert_expr_to_value expr >>= \ new_value ->
+                                    pure (last_decl_map, Map.insert name1 new_value last_value_map)
+
                         _ ->
-                            convert_expr_to_value expr >>= \ new_value ->
-                            pure (last_decl_map, Map.insert name new_value last_value_map)
+                            tell_err (BindToPath l_name) >> pure (last_decl_map, last_value_map)
             )
         (pure (Map.empty, Map.empty))
 

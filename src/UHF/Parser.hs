@@ -26,11 +26,11 @@ import qualified Data.InfList as InfList
 parse :: [Token.LToken] -> Token.LToken -> ([Error.OtherError], Maybe (Location.Located [Error.BacktrackingError]), [AST.Decl])
 parse toks eof_tok =
     case PEG.run_parser parse' (InfList.zip (InfList.iterate (1+) 0) (toks InfList.+++ InfList.repeat eof_tok)) of
-        (other_errors, _, Just (Just res, _)) -> (other_errors, Nothing, res)
+        (other_errors, _, Just (res, _)) -> (other_errors, Nothing, res)
         (other_errors, bt_errors, _) -> (other_errors, choose_error bt_errors, [])
 
 parse' :: PEG.Parser [AST.Decl]
-parse' = PEG.star Decl.decl >>= \ ds -> PEG.consume "end of file" (Token.EOF ()) >> pure (catMaybes ds)
+parse' = PEG.star Decl.decl >>= \ ds -> PEG.consume "end of file" (Token.EOF ()) >> pure ds
 
 choose_error :: [Error.BacktrackingError] -> Maybe (Location.Located [Error.BacktrackingError])
 choose_error [] = Nothing

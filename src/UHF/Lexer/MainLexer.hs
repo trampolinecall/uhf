@@ -134,7 +134,7 @@ lex_symbol_identifier =
         (`elem` ("~!@#$%^&*+`-=|:./<>?()[]\\{};," :: [Char]))
         (`elem` ("~!@#$%^&*+`-=|:./<>?" :: [Char]))
         [ ("->", Token.SingleTypeToken Token.Arrow)
-        , ("::", Token.DoubleColon ())
+        , ("::", Token.SingleTypeToken Token.DoubleColon)
         , ("(", Token.SingleTypeToken Token.OParen)
         , (")", Token.SingleTypeToken Token.CParen)
         , ("[", Token.SingleTypeToken Token.OBrack)

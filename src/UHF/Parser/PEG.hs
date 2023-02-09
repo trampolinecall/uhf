@@ -92,7 +92,7 @@ consume' name exp = consume (\ tok_i tok -> Error.BadToken tok_i tok exp name) e
 advance :: Parser ()
 advance = Parser $ \ o bt toks -> (o, bt, Just ((), InfList.tail toks))
 
--- combinators
+-- combinators {{{1
 
 -- sequence combinator is >>=
 
@@ -137,12 +137,6 @@ optional a = Parser $ \ other_errors bt_errors toks ->
 -- notpred :: Parser a -> Parser ()
 
 -- tests {{{1
-test_is_tt :: [TestTree]
-test_is_tt =
-    [ testCase "is_tt same" undefined
-    , testCase "is_tt different" undefined
-    ]
-
 dummy_eof :: Token.LToken
 dummy_eof = Location.dummy_locate (Token.EOF ())
 add_eofs :: [Token.LToken] -> TokenStream

@@ -21,11 +21,9 @@ data BacktrackingError
 
 data OtherError
     = NotImpl (Location.Located Text)
-    | BindToPath (Location.Located [Location.Located Text])
     deriving (Eq, Show)
 
 instance Diagnostic.IsError (Location.Located [BacktrackingError]) where
-    -- TODO
     to_error (Location.Located sp bits) = Diagnostic.Error Codes.parse_error $
             Diagnostic.DiagnosticContents
                 (Just sp)
@@ -43,11 +41,4 @@ instance Diagnostic.IsError OtherError where
             (Just $ Location.just_span construct)
             [ Underlines.underlines
                 [Location.just_span construct `Underlines.primary` [Underlines.error $ Literal (Location.unlocate construct) <> " are not implemented yet"]]
-            ]
-
-    to_error (BindToPath (Location.Located sp _)) = Diagnostic.Error Codes.binding_lhs_path $
-        Diagnostic.DiagnosticContents
-            (Just sp)
-            [ Underlines.underlines
-                [sp `Underlines.primary` [Underlines.error "path in left-hand side of binding"]]
             ]

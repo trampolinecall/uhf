@@ -87,7 +87,7 @@ consume make_err exp = Parser $
             else (other_errors, (make_err tok_i tok) : bt_errors, Nothing)
 
 consume' :: Text -> Token.TokenType -> Parser Token.LToken
-consume' name exp = consume (\ tok_i tok -> Error.BadToken tok_i tok exp name) exp
+consume' name = consume (\ tok_i tok -> Error.BadToken tok_i tok exp name)
 
 advance :: Parser ()
 advance = Parser $ \ o bt toks -> (o, bt, Just ((), InfList.tail toks))

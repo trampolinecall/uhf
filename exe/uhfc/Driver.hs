@@ -12,8 +12,7 @@ import qualified UHF.Diagnostic as Diagnostic
 
 import qualified UHF.Token as Token
 import qualified UHF.AST as AST
-import qualified UHF.IR.Decl as IR.Decl
-import qualified UHF.IR.Value as IR.Value
+import qualified UHF.IR as IR
 
 import qualified UHF.Lexer as Lexer
 import qualified UHF.Parser as Parser
@@ -24,8 +23,8 @@ type ErrorAccumulated a = Writer [Diagnostic.Error] a -- TODO: allow for warning
 
 type Tokens = ([Token.LToken], Token.LToken)
 type AST = [AST.Decl]
-type FirstIR = (Arena.Arena IR.Decl.Decl IR.Decl.Key, Arena.Arena (IR.Value.Value (Location.Located [Location.Located Text])) IR.Value.Key, IR.Decl.Key)
-type NRIR = (Arena.Arena IR.Decl.Decl IR.Decl.Key, Arena.Arena (IR.Value.Value (Maybe IR.Value.Key)) IR.Value.Key)
+type FirstIR = (Arena.Arena IR.Decl IR.DeclKey, Arena.Arena (IR.Value (Location.Located [Location.Located Text])) IR.ValueKey, IR.DeclKey)
+type NRIR = (Arena.Arena IR.Decl IR.DeclKey, Arena.Arena (IR.Value (Maybe IR.ValueKey)) IR.ValueKey)
 
 compile :: File.File -> Either [Diagnostic.Error] NRIR
 compile file =

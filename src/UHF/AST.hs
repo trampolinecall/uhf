@@ -7,7 +7,7 @@ import UHF.Util.Prelude
 import UHF.IO.Location (Located)
 
 data Decl
-    = Decl'Binding (Located Text) Expr -- TODO: this should eventually be a pattern
+    = Decl'Binding (Located [Located Text]) Expr -- TODO: this should eventually be a pattern
     deriving (Eq, Show)
 
 data Type

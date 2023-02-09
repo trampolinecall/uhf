@@ -45,7 +45,7 @@ type ResolvedValueArena = Arena.Arena ResolvedValue IR.ValueKey
 
 data Error
     = MultiIden (Location.Located [Location.Located Text])
-    | UndefName (Maybe (Location.Located Text)) (Location.Located Text)
+    | CouldNotFind (Maybe (Location.Located Text)) (Location.Located Text)
 
 instance Diagnostic.IsError Error where
     to_error (MultiIden (Location.Located sp _)) = Diagnostic.Error Diagnostic.Codes.multi_iden $
@@ -53,11 +53,15 @@ instance Diagnostic.IsError Error where
             (Just sp)
             [Underlines.underlines [sp `Underlines.primary` [Underlines.error "paths are not supported yet"]]] -- TODO
 
-    to_error (UndefName _ (Location.Located sp name)) = Diagnostic.Error Diagnostic.Codes.undef_name $
-        -- TODO: use prev
-        Diagnostic.DiagnosticContents
+    to_error (CouldNotFind prev (Location.Located sp name)) = Diagnostic.Error Diagnostic.Codes.undef_name $
+        let message =
+                ("could not find name '" <> convert_str name <> "'")
+                    <> case prev of
+                        Just (Location.Located _ prev_name) -> "in '" <> convert_str prev_name <> "'"
+                        Nothing -> ""
+        in Diagnostic.DiagnosticContents
             (Just sp)
-            [Underlines.underlines [sp `Underlines.primary` [Underlines.error $ "could not find name '" <> convert_str name <> "'"]]]
+            [Underlines.underlines [sp `Underlines.primary` [Underlines.error message]]]
 
 resolve :: (UnresolvedDeclArena, UnresolvedValueArena, IR.DeclKey) -> Writer [Error] (ResolvedDeclArena, ResolvedValueArena)
 resolve (decls, values, mod) =
@@ -95,5 +99,5 @@ get_value_child decls thing name =
         IR.Decl'Module (IR.Module _ children) ->
             case Map.lookup (Location.unlocate name) children of
                 Just res -> Right res
-                Nothing -> Left $ UndefName Nothing name
+                Nothing -> Left $ CouldNotFind Nothing name
 

@@ -5,7 +5,7 @@ module UHF.Parser.PEG
 
     , Parser
     , fail
-    , recoverable
+    , other_error
 
     , eval_parser
     , run_parser
@@ -38,13 +38,13 @@ type TokenStream = InfList.InfList (Int, Token.LToken)
 
 -- TODO: allow each thing to provide a custom error function
 
-newtype Parser r = Parser { extract_parser :: [Error.OtherError] -> [Error.BacktrackingError] -> TokenStream -> ([Error.OtherError], [Error.BacktrackingError], Maybe (Maybe r, TokenStream)) }
+newtype Parser r = Parser { extract_parser :: [Error.OtherError] -> [Error.BacktrackingError] -> TokenStream -> ([Error.OtherError], [Error.BacktrackingError], Maybe (r, TokenStream)) }
 
 instance Functor Parser where
     fmap f parser = parser >>= \ res -> pure (f res)
 
 instance Applicative Parser where
-    pure a = Parser $ \ other_errors bt_errors toks -> (other_errors, bt_errors, Just (Just a, toks))
+    pure a = Parser $ \ other_errors bt_errors toks -> (other_errors, bt_errors, Just (a, toks))
     op <*> a =
         op >>= \ op' ->
         a >>= \ a' ->
@@ -54,45 +54,43 @@ instance Monad Parser where
      (Parser a) >>= b = Parser $ \ other_errors bt_errors toks ->
         let (other_errors', bt_errors', res) = a other_errors bt_errors toks
         in case res of
-            Just (Just r, toks') -> extract_parser (b r) other_errors' bt_errors' toks'
-            Just (Nothing, toks') -> (other_errors', bt_errors', Just (Nothing, toks'))
+            Just (r, toks') -> extract_parser (b r) other_errors' bt_errors' toks'
             Nothing -> (other_errors', bt_errors', Nothing)
 
-run_parser :: Parser a -> TokenStream -> ([Error.OtherError], [Error.BacktrackingError], Maybe (Maybe a, TokenStream))
+run_parser :: Parser a -> TokenStream -> ([Error.OtherError], [Error.BacktrackingError], Maybe (a, TokenStream))
 run_parser p = extract_parser p [] []
 
 eval_parser :: Parser a -> TokenStream -> ([Error.OtherError], [Error.BacktrackingError], Maybe a)
 eval_parser p toks =
     let (other_errors, bt_errors, res) = extract_parser p [] [] toks
     in case res of
-        Just (Just r, _) -> (other_errors, bt_errors, Just r)
+        Just (r, _) -> (other_errors, bt_errors, Just r)
         _ -> (other_errors, bt_errors, Nothing)
 
 -- having an error for every Nothing result is enforced by the fact that in the public interface the only way to create a Nothing result is through these functions
 fail :: [Error.OtherError] -> Error.BacktrackingError -> Parser a
 fail add_other_errors bt_error = Parser $ \ other_errors bt_errors _ -> (other_errors ++ add_other_errors, bt_error : bt_errors, Nothing)
 
--- TODO: come up with a better name for this
-recoverable :: [Error.OtherError] -> Maybe a -> Parser a
-recoverable add_other_errors res = Parser $ \ other_errors bt_errors toks -> (other_errors ++ add_other_errors, bt_errors, Just (res, toks))
+other_error :: [Error.OtherError] -> Parser ()
+other_error add_other_errors = Parser $ \ other_errors bt_errors toks -> (other_errors ++ add_other_errors, bt_errors, Just ((), toks))
 
 is_tt :: Token.TokenType -> Token.Token -> Bool
 is_tt ty tok = ty == Token.to_token_type tok
 
 peek :: Parser Token.LToken
-peek = Parser $ \ other_errors bt_errors toks -> (other_errors, bt_errors, Just (Just $ snd $ InfList.head toks, toks))
+peek = Parser $ \ other_errors bt_errors toks -> (other_errors, bt_errors, Just (snd $ InfList.head toks, toks))
 
 consume :: Text -> Token.TokenType -> Parser Token.LToken
 consume name exp = Parser $
     \ other_errors bt_errors ((tok_i, tok) InfList.::: more_toks) ->
         if is_tt exp (Location.unlocate tok)
-            then (other_errors, bt_errors, Just (Just tok, more_toks))
+            then (other_errors, bt_errors, Just (tok, more_toks))
             else
                 let err = Error.BadToken tok_i tok exp name
                 in (other_errors, err : bt_errors, Nothing)
 
 advance :: Parser ()
-advance = Parser $ \ o bt toks -> (o, bt, Just (Just (), InfList.tail toks))
+advance = Parser $ \ o bt toks -> (o, bt, Just ((), InfList.tail toks))
 
 -- combinators
 
@@ -109,10 +107,10 @@ choice choices = Parser $ \ other_errors bt_errors toks -> try_choices other_err
 
         try_choices other_errors bt_errors [] _ = (other_errors, bt_errors, Nothing)
 
-star :: Parser a -> Parser [Maybe a]
+star :: Parser a -> Parser [a]
 star a = star' a []
 
-star' :: Parser a -> [Maybe a] -> Parser [Maybe a]
+star' :: Parser a -> [a] -> Parser [a]
 star' a acc = Parser $ \ other_errors bt_errors toks ->
     star'' other_errors bt_errors acc toks
     where
@@ -120,9 +118,9 @@ star' a acc = Parser $ \ other_errors bt_errors toks ->
             let (other_errors', bt_errors', res) = extract_parser a other_errors bt_errors toks
             in case res of
                 (Just (r, toks')) -> star'' other_errors' bt_errors' (r:a_acc) toks'
-                Nothing -> (other_errors', bt_errors', Just (Just a_acc, toks))
+                Nothing -> (other_errors', bt_errors', Just (a_acc, toks))
 
-plus :: Parser a -> Parser [Maybe a]
+plus :: Parser a -> Parser [a]
 plus a = Parser $ \ other_errors bt_errors toks ->
     let (other_errors', bt_errors', res) = extract_parser a other_errors bt_errors toks
     in case res of
@@ -133,7 +131,7 @@ optional :: Parser a -> Parser (Maybe a)
 optional a = Parser $ \ other_errors bt_errors toks ->
     case extract_parser a other_errors bt_errors toks of
         (other_errors', bt_errors', Just (r, toks')) -> (other_errors', bt_errors', Just (Just r, toks'))
-        (other_errors', bt_errors', Nothing) -> (other_errors', bt_errors', Just (Just Nothing, toks))
+        (other_errors', bt_errors', Nothing) -> (other_errors', bt_errors', Just (Nothing, toks))
 
 -- andpred :: Parser a -> Parser ()
 -- notpred :: Parser a -> Parser ()
@@ -144,8 +142,6 @@ test_is_tt =
     [ testCase "is_tt same" undefined
     , testCase "is_tt different" undefined
     ]
-
--- TODO: test recoverable and other_errors
 
 dummy_eof :: Token.LToken
 dummy_eof = Location.dummy_locate (Token.EOF ())
@@ -178,7 +174,7 @@ case_advance =
         tokstream = add_eofs [t1, t2]
 
     in case run_parser advance tokstream of
-        ([], [], Just (Just (), tokstream'))
+        ([], [], Just ((), tokstream'))
             | tokstream' InfList.!!! 0 == (1, t2) &&
               tokstream' InfList.!!! 1 == (2, dummy_eof) -> pure ()
 
@@ -238,11 +234,11 @@ test_star =
 
         , testCase "once" $
             let toks = add_eofs [oparen, other]
-            in ([], [expect_oparen 1 other], Just [Just oparen]) @=? eval_parser parser toks
+            in ([], [expect_oparen 1 other], Just [oparen]) @=? eval_parser parser toks
 
         , testCase "multiple" $
             let toks = add_eofs [oparen, oparen, other]
-            in ([], [expect_oparen 2 other], Just [Just oparen, Just oparen]) @=? eval_parser parser toks
+            in ([], [expect_oparen 2 other], Just [oparen, oparen]) @=? eval_parser parser toks
         ]
 
 test_plus :: [TestTree]
@@ -263,11 +259,11 @@ test_plus =
 
         , testCase "once" $
             let toks = add_eofs [oparen, other]
-            in ([], [expect_oparen 1 other], Just [Just oparen]) @=? eval_parser parser toks
+            in ([], [expect_oparen 1 other], Just [oparen]) @=? eval_parser parser toks
 
         , testCase "multiple" $
             let toks = add_eofs [oparen, oparen, other]
-            in ([], [expect_oparen 2 other], Just [Just oparen, Just oparen]) @=? eval_parser parser toks
+            in ([], [expect_oparen 2 other], Just [oparen, oparen]) @=? eval_parser parser toks
         ]
 
 test_optional :: [TestTree]

@@ -33,24 +33,22 @@ decl =
 data_ :: PEG.Parser AST.Decl
 data_ =
     PEG.consume "data declaration" (Token.SingleTypeToken Token.Data) >>= \ data_tok ->
-    PEG.recoverable  [Error.NotImpl $ Location.Located (Location.just_span data_tok) "datatype declarations"] Nothing -- TODO
+    PEG.other_error [Error.NotImpl $ Location.Located (Location.just_span data_tok) "datatype declarations"] >>
+    pure undefined -- TODO
 
 binding :: PEG.Parser AST.Decl
 binding =
     PEG.consume "binding name" (Token.AlphaIdentifier ()) >>= \ (Location.Located name_sp (Token.AlphaIdentifier name)) ->
-    (case name of
-        [n] -> pure n
-        _ -> PEG.recoverable [Error.BindToPath (Location.Located name_sp name)] Nothing) >>= \ name' -> -- TODO: parse the rest of it so that it is not in a weird state
     PEG.consume "'='" (Token.SingleTypeToken Token.Equal) >>= \ eq ->
     Expr.expr >>= \ ex ->
-    pure (AST.Decl'Binding name' ex)
+    pure (AST.Decl'Binding (Location.Located name_sp name) ex)
 
 --- tests {{{1
 tests :: [Test.ParsingTest]
 tests =
     [ Test.ParsingTest "function decl"
         (Test.make_token_stream [("x", Token.AlphaIdentifier [Location.dummy_locate "x"]), ("=", Token.SingleTypeToken Token.Equal), ("'c'", Token.CharLit 'c')])
-        (AST.Decl'Binding (Location.dummy_locate "x") (AST.Expr'CharLit 'c'))
+        (AST.Decl'Binding (Location.dummy_locate [Location.dummy_locate "x"]) (AST.Expr'CharLit 'c'))
         [("decl", decl), ("binding", binding)]
 
     , Test.ParsingTest "data decl"

@@ -32,14 +32,14 @@ decl =
 
 data_ :: PEG.Parser AST.Decl
 data_ =
-    PEG.consume "data declaration" (Token.SingleTypeToken Token.Data) >>= \ data_tok ->
+    PEG.consume' "data declaration" (Token.SingleTypeToken Token.Data) >>= \ data_tok ->
     PEG.other_error [Error.NotImpl $ Location.Located (Location.just_span data_tok) "datatype declarations"] >>
     pure undefined -- TODO
 
 binding :: PEG.Parser AST.Decl
 binding =
-    PEG.consume "binding name" (Token.AlphaIdentifier ()) >>= \ (Location.Located name_sp (Token.AlphaIdentifier name)) ->
-    PEG.consume "'='" (Token.SingleTypeToken Token.Equal) >>= \ eq ->
+    PEG.consume' "binding name" (Token.AlphaIdentifier ()) >>= \ (Location.Located name_sp (Token.AlphaIdentifier name)) ->
+    PEG.consume' "'='" (Token.SingleTypeToken Token.Equal) >>= \ eq ->
     Expr.expr >>= \ ex ->
     pure (AST.Decl'Binding (Location.Located name_sp name) ex)
 

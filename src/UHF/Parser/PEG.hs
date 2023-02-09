@@ -14,6 +14,7 @@ module UHF.Parser.PEG
 
     , peek
     , consume
+    , consume'
     , advance
 
     , choice
@@ -35,8 +36,6 @@ import qualified UHF.Token as Token
 import qualified Data.InfList as InfList
 
 type TokenStream = InfList.InfList (Int, Token.LToken)
-
--- TODO: allow each thing to provide a custom error function
 
 newtype Parser r = Parser { extract_parser :: [Error.OtherError] -> [Error.BacktrackingError] -> TokenStream -> ([Error.OtherError], [Error.BacktrackingError], Maybe (r, TokenStream)) }
 
@@ -80,14 +79,15 @@ is_tt ty tok = ty == Token.to_token_type tok
 peek :: Parser Token.LToken
 peek = Parser $ \ other_errors bt_errors toks -> (other_errors, bt_errors, Just (snd $ InfList.head toks, toks))
 
-consume :: Text -> Token.TokenType -> Parser Token.LToken
-consume name exp = Parser $
+consume :: (Int -> Token.LToken -> Error.BacktrackingError) -> Token.TokenType -> Parser Token.LToken
+consume make_err exp = Parser $
     \ other_errors bt_errors ((tok_i, tok) InfList.::: more_toks) ->
         if is_tt exp (Location.unlocate tok)
             then (other_errors, bt_errors, Just (tok, more_toks))
-            else
-                let err = Error.BadToken tok_i tok exp name
-                in (other_errors, err : bt_errors, Nothing)
+            else (other_errors, (make_err tok_i tok) : bt_errors, Nothing)
+
+consume' :: Text -> Token.TokenType -> Parser Token.LToken
+consume' name exp = consume (\ tok_i tok -> Error.BadToken tok_i tok exp name) exp
 
 advance :: Parser ()
 advance = Parser $ \ o bt toks -> (o, bt, Just ((), InfList.tail toks))
@@ -161,10 +161,10 @@ test_consume =
     in
         [ testCase "consume with True" $
             let expect = Token.SingleTypeToken Token.OParen
-            in ([], [], Just t) @=? eval_parser (consume "'('" expect) tokstream
+            in ([], [], Just t) @=? eval_parser (consume (\ tok_i tok -> Error.BadToken tok_i tok expect "')'") expect) tokstream
         , testCase "consume with False" $
             let expect = Token.SingleTypeToken Token.CParen
-            in ([], [Error.BadToken 0 t expect "')'"], Nothing) @=? eval_parser (consume "')'" expect) tokstream
+            in ([], [Error.BadToken 0 t expect "')'"], Nothing) @=? eval_parser (consume (\ tok_i tok -> Error.BadToken tok_i tok expect "')'") expect) tokstream
         ]
 
 case_advance :: Assertion
@@ -186,8 +186,8 @@ case_advance =
 
 test_choice :: [TestTree]
 test_choice =
-    let oparen_consume = consume "oparen" (Token.SingleTypeToken Token.OParen)
-        cparen_consume = consume "cparen" (Token.SingleTypeToken Token.CParen)
+    let oparen_consume = consume' "oparen" (Token.SingleTypeToken Token.OParen)
+        cparen_consume = consume' "cparen" (Token.SingleTypeToken Token.CParen)
 
         oparen = Location.dummy_locate $ Token.SingleTypeToken Token.OParen
         cparen = Location.dummy_locate $ Token.SingleTypeToken Token.CParen
@@ -221,7 +221,7 @@ test_star =
     let oparen = Location.dummy_locate $ Token.SingleTypeToken Token.OParen
         other = Location.dummy_locate $ Token.SingleTypeToken Token.OBrace
 
-        oparen_consume = consume "oparen" (Token.SingleTypeToken Token.OParen)
+        oparen_consume = consume' "oparen" (Token.SingleTypeToken Token.OParen)
 
         expect_oparen got_ind got = Error.BadToken got_ind got (Token.SingleTypeToken Token.OParen) "oparen"
 
@@ -246,7 +246,7 @@ test_plus =
     let oparen = Location.dummy_locate $ Token.SingleTypeToken Token.OParen
         other = Location.dummy_locate $ Token.SingleTypeToken Token.OBrace
 
-        oparen_consume = consume "oparen" (Token.SingleTypeToken Token.OParen)
+        oparen_consume = consume' "oparen" (Token.SingleTypeToken Token.OParen)
 
         expect_oparen got_ind got = Error.BadToken got_ind got (Token.SingleTypeToken Token.OParen) "oparen"
 
@@ -270,7 +270,7 @@ test_optional :: [TestTree]
 test_optional =
     let oparen = Location.dummy_locate $ Token.SingleTypeToken Token.OParen
         other = Location.dummy_locate $ Token.SingleTypeToken Token.OBrace
-        oparen_consume = consume "oparen" (Token.SingleTypeToken Token.OParen)
+        oparen_consume = consume' "oparen" (Token.SingleTypeToken Token.OParen)
 
         expect_oparen got_ind got = Error.BadToken got_ind got (Token.SingleTypeToken Token.OParen) "oparen"
 

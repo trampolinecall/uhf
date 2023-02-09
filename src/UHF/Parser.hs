@@ -30,7 +30,7 @@ parse toks eof_tok =
         (other_errors, bt_errors, _) -> (other_errors, choose_error bt_errors, [])
 
 parse' :: PEG.Parser [AST.Decl]
-parse' = PEG.star Decl.decl >>= \ ds -> PEG.consume "end of file" (Token.EOF ()) >> pure ds
+parse' = PEG.star Decl.decl >>= \ ds -> PEG.consume' "end of file" (Token.EOF ()) >> pure ds
 
 choose_error :: [Error.BacktrackingError] -> Maybe (Location.Located [Error.BacktrackingError])
 choose_error [] = Nothing

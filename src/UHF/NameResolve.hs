@@ -25,25 +25,23 @@ import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Codes as Diagnostic.Codes
 import qualified UHF.Diagnostic.Sections.Underlines as Underlines
 
-import qualified UHF.IR.Decl as Decl
-import qualified UHF.IR.Value as Value
-import qualified UHF.IR.Expr as Expr
+import qualified UHF.IR as IR
 
 import qualified Data.Map as Map
 
-type UnresolvedDecl = Decl.Decl
-type ResolvedDecl = Decl.Decl
-type UnresolvedModule = Decl.Module
-type ResolvedModule = Decl.Module
-type UnresolvedValue = Value.Value (Location.Located [Location.Located Text])
-type ResolvedValue = Value.Value (Maybe Value.Key)
-type UnresolvedExpr = Expr.Expr (Location.Located [Location.Located Text])
-type ResolvedExpr = Expr.Expr (Maybe Value.Key)
+type UnresolvedDecl = IR.Decl
+type ResolvedDecl = IR.Decl
+type UnresolvedModule = IR.Module
+type ResolvedModule = IR.Module
+type UnresolvedValue = IR.Value (Location.Located [Location.Located Text])
+type ResolvedValue = IR.Value (Maybe IR.ValueKey)
+type UnresolvedExpr = IR.Expr (Location.Located [Location.Located Text])
+type ResolvedExpr = IR.Expr (Maybe IR.ValueKey)
 
-type UnresolvedDeclArena = Arena.Arena UnresolvedDecl Decl.Key
-type ResolvedDeclArena = Arena.Arena ResolvedDecl Decl.Key
-type UnresolvedValueArena = Arena.Arena UnresolvedValue Value.Key
-type ResolvedValueArena = Arena.Arena ResolvedValue Value.Key
+type UnresolvedDeclArena = Arena.Arena UnresolvedDecl IR.DeclKey
+type ResolvedDeclArena = Arena.Arena ResolvedDecl IR.DeclKey
+type UnresolvedValueArena = Arena.Arena UnresolvedValue IR.ValueKey
+type ResolvedValueArena = Arena.Arena ResolvedValue IR.ValueKey
 
 data Error
     = MultiIden (Location.Located [Location.Located Text])
@@ -61,29 +59,29 @@ instance Diagnostic.IsError Error where
             (Just sp)
             [Underlines.underlines [sp `Underlines.primary` [Underlines.error $ "could not find name '" <> convert_str name <> "'"]]]
 
-resolve :: (UnresolvedDeclArena, UnresolvedValueArena, Decl.Key) -> Writer [Error] (ResolvedDeclArena, ResolvedValueArena)
+resolve :: (UnresolvedDeclArena, UnresolvedValueArena, IR.DeclKey) -> Writer [Error] (ResolvedDeclArena, ResolvedValueArena)
 resolve (decls, values, mod) =
     Arena.transformM (resolve_for_decl decls mod) decls >>= \ decls' ->
     Arena.transformM (resolve_for_value decls mod) values >>= \ values' ->
     pure (decls', values')
 
-resolve_for_decl :: UnresolvedDeclArena -> Decl.Key -> UnresolvedDecl -> Writer [Error] ResolvedDecl
-resolve_for_decl _ _ (Decl.Decl'Module m) = Decl.Decl'Module <$> resolve_for_module m
+resolve_for_decl :: UnresolvedDeclArena -> IR.DeclKey -> UnresolvedDecl -> Writer [Error] ResolvedDecl
+resolve_for_decl _ _ (IR.Decl'Module m) = IR.Decl'Module <$> resolve_for_module m
     where
         resolve_for_module = pure
 
-resolve_for_value :: UnresolvedDeclArena -> Decl.Key -> UnresolvedValue -> Writer [Error] ResolvedValue
-resolve_for_value decls mod (Value.Value initializer) = Value.Value <$> resolve_for_expr decls mod initializer
+resolve_for_value :: UnresolvedDeclArena -> IR.DeclKey -> UnresolvedValue -> Writer [Error] ResolvedValue
+resolve_for_value decls mod (IR.Value initializer) = IR.Value <$> resolve_for_expr decls mod initializer
 
-resolve_for_expr :: UnresolvedDeclArena -> Decl.Key -> UnresolvedExpr -> Writer [Error] ResolvedExpr
-resolve_for_expr decls mod (Expr.Identifier i) = Expr.Identifier <$> resolve_iden decls mod i
-resolve_for_expr _ _ (Expr.CharLit c) = pure $ Expr.CharLit c
-resolve_for_expr _ _ (Expr.StringLit s) = pure $ Expr.StringLit s
-resolve_for_expr _ _ (Expr.IntLit i) = pure $ Expr.IntLit i
-resolve_for_expr _ _ (Expr.FloatLit f) = pure $ Expr.FloatLit f
-resolve_for_expr _ _ (Expr.BoolLit b) = pure $ Expr.BoolLit b
+resolve_for_expr :: UnresolvedDeclArena -> IR.DeclKey -> UnresolvedExpr -> Writer [Error] ResolvedExpr
+resolve_for_expr decls mod (IR.Expr'Identifier i) = IR.Expr'Identifier <$> resolve_iden decls mod i
+resolve_for_expr _ _ (IR.Expr'CharLit c) = pure $ IR.Expr'CharLit c
+resolve_for_expr _ _ (IR.Expr'StringLit s) = pure $ IR.Expr'StringLit s
+resolve_for_expr _ _ (IR.Expr'IntLit i) = pure $ IR.Expr'IntLit i
+resolve_for_expr _ _ (IR.Expr'FloatLit f) = pure $ IR.Expr'FloatLit f
+resolve_for_expr _ _ (IR.Expr'BoolLit b) = pure $ IR.Expr'BoolLit b
 
-resolve_iden :: UnresolvedDeclArena -> Decl.Key -> Location.Located [Location.Located Text] -> Writer [Error] (Maybe Value.Key)
+resolve_iden :: UnresolvedDeclArena -> IR.DeclKey -> Location.Located [Location.Located Text] -> Writer [Error] (Maybe IR.ValueKey)
 resolve_iden decls mod (Location.Located _ [x]) =
     case get_value_child decls mod x of
         Right v -> pure (Just v)
@@ -91,10 +89,10 @@ resolve_iden decls mod (Location.Located _ [x]) =
 
 resolve_iden _ _ i = tell [MultiIden i] >> pure Nothing
 
-get_value_child :: UnresolvedDeclArena -> Decl.Key -> Location.Located Text -> Either Error Value.Key
+get_value_child :: UnresolvedDeclArena -> IR.DeclKey -> Location.Located Text -> Either Error IR.ValueKey
 get_value_child decls thing name =
     case Arena.get decls thing of
-        Decl.Decl'Module (Decl.Module _ children) ->
+        IR.Decl'Module (IR.Module _ children) ->
             case Map.lookup (Location.unlocate name) children of
                 Just res -> Right res
                 Nothing -> Left $ UndefName Nothing name

@@ -29,9 +29,7 @@ library
       UHF.IO.Location
       UHF.IO.Location.SpanHelper
       UHF.IO.Path
-      UHF.IR.Decl
-      UHF.IR.Expr
-      UHF.IR.Value
+      UHF.IR
       UHF.Lexer
       UHF.Lexer.IdentifierGrouper
       UHF.Lexer.LexError

@@ -18,9 +18,7 @@ import UHF.Util.Prelude
 import qualified Arena
 
 import qualified UHF.AST as AST
-import qualified UHF.IR.Decl as Decl
-import qualified UHF.IR.Value as Value
-import qualified UHF.IR.Expr as Expr
+import qualified UHF.IR as IR
 
 import qualified UHF.IO.Location as Location
 
@@ -47,27 +45,27 @@ instance Diagnostic.IsError Error where
                 [sp `Underlines.primary` [Underlines.error "path in left-hand side of binding"]]
             ]
 
-type Decl = Decl.Decl
-type Module = Decl.Module
-type Value = Value.Value (Location.Located [Location.Located Text])
-type Expr = Expr.Expr (Location.Located [Location.Located Text])
+type Decl = IR.Decl
+type Module = IR.Module
+type Value = IR.Value (Location.Located [Location.Located Text])
+type Expr = IR.Expr (Location.Located [Location.Located Text])
 
-type DeclArena = Arena.Arena Decl Decl.Key
-type ValueArena = Arena.Arena Value Value.Key
+type DeclArena = Arena.Arena Decl IR.DeclKey
+type ValueArena = Arena.Arena Value IR.ValueKey
 
-type DeclMap = Map.Map Text Decl.Key
-type ValueMap = Map.Map Text Value.Key
+type DeclMap = Map.Map Text IR.DeclKey
+type ValueMap = Map.Map Text IR.ValueKey
 type ChildMaps = (DeclMap, ValueMap)
 
 type MakeIRState a = StateT (DeclArena, ValueArena) (Writer [Error]) a
 
-put_decl :: Decl -> MakeIRState Decl.Key
+put_decl :: Decl -> MakeIRState IR.DeclKey
 put_decl d =
     state $ \ (decls, values) ->
         let (key, decls') = Arena.put d decls
         in (key, (decls', values))
 
-put_value :: Value -> MakeIRState Value.Key
+put_value :: Value -> MakeIRState IR.ValueKey
 put_value v =
     state $ \ (decls, values) ->
         let (key, values') = Arena.put v values
@@ -76,11 +74,11 @@ put_value v =
 tell_err :: Error -> MakeIRState ()
 tell_err = lift . tell . (:[])
 
-convert :: [AST.Decl] -> Writer [Error] (DeclArena, ValueArena, Decl.Key)
+convert :: [AST.Decl] -> Writer [Error] (DeclArena, ValueArena, IR.DeclKey)
 convert decls =
     let make =
             convert_to_maps decls >>= \ (decl_map, value_map) ->
-            put_decl (Decl.Decl'Module $ Decl.Module decl_map value_map)
+            put_decl (IR.Decl'Module $ IR.Module decl_map value_map)
 
     in runStateT make (Arena.new, Arena.new) >>= \ (mod, (decls, values)) ->
     pure (decls, values, mod)
@@ -105,13 +103,13 @@ convert_to_maps =
             )
         (pure (Map.empty, Map.empty))
 
-convert_expr_to_value :: AST.Expr -> MakeIRState Value.Key
-convert_expr_to_value = put_value . Value.Value . convert_expr
+convert_expr_to_value :: AST.Expr -> MakeIRState IR.ValueKey
+convert_expr_to_value = put_value . IR.Value . convert_expr
 
 convert_expr :: AST.Expr -> Expr
-convert_expr (AST.Expr'Identifier iden) = Expr.Identifier iden
-convert_expr (AST.Expr'CharLit c) = Expr.CharLit c
-convert_expr (AST.Expr'StringLit s) = Expr.StringLit s
-convert_expr (AST.Expr'IntLit i) = Expr.IntLit i
-convert_expr (AST.Expr'FloatLit f) = Expr.FloatLit f
-convert_expr (AST.Expr'BoolLit b) = Expr.BoolLit b
+convert_expr (AST.Expr'Identifier iden) = IR.Expr'Identifier iden
+convert_expr (AST.Expr'CharLit c) = IR.Expr'CharLit c
+convert_expr (AST.Expr'StringLit s) = IR.Expr'StringLit s
+convert_expr (AST.Expr'IntLit i) = IR.Expr'IntLit i
+convert_expr (AST.Expr'FloatLit f) = IR.Expr'FloatLit f
+convert_expr (AST.Expr'BoolLit b) = IR.Expr'BoolLit b

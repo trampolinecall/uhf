@@ -115,9 +115,9 @@ test_decls = map Test.run_test $
 
     , Test.ParsingTest "data decl"
         (Test.make_token_stream
-            [ ("data", Token.SingleTypeToken Token.Data), ("X", Token.AlphaIdentifier [Location.dummy_locate "X"])
-            , ("{", Token.SingleTypeToken Token.OBrace), ("Y", Token.AlphaIdentifier [Location.dummy_locate "Y"]), ("string", Token.AlphaIdentifier [Location.dummy_locate "string"]), (";", Token.SingleTypeToken Token.Semicolon)
-            , ("Z", Token.AlphaIdentifier [Location.dummy_locate "Z"]), ("X", Token.AlphaIdentifier [Location.dummy_locate "X"]), (";", Token.SingleTypeToken Token.Semicolon)
+            [ ("data", Token.SingleTypeToken Token.Data), ("X", Token.AlphaIdentifier [Location.dummy_locate "X"]), ("{", Token.SingleTypeToken Token.OBrace)
+            , ("Y", Token.AlphaIdentifier [Location.dummy_locate "Y"]), ("(", Token.SingleTypeToken Token.OParen), ("string", Token.AlphaIdentifier [Location.dummy_locate "string"]), (")", Token.SingleTypeToken Token.CParen), (";", Token.SingleTypeToken Token.Semicolon)
+            , ("Z", Token.AlphaIdentifier [Location.dummy_locate "Z"]), ("{", Token.SingleTYpeToken Token.OBrace), ("field", Token.AlphaIdentifier [Location.dummy_locate "field"]), (":", Token.SingleTypeToken Token.Colon), ("X", Token.AlphaIdentifier [Location.dummy_locate "X"]) ("}", Token.SingleTYpeToken Token.CBrace), (";", Token.SingleTypeToken Token.Semicolon)
             , ("}", Token.SingleTypeToken Token.CBrace)
             ])
         (error "not implemented yet")

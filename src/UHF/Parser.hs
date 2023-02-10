@@ -188,7 +188,7 @@ expr_let =
     case Location.unlocate let_tok of
         Token.SingleTypeToken Token.Let -> pure $ AST.Expr'Let decls subexpr
         Token.SingleTypeToken Token.LetRec -> pure $ AST.Expr'LetRec decls subexpr
-        _ -> error "unreachable" -- TODO: add this to prelude?
+        _ -> unreachable
 
 expr_binary_ops :: PEG.Parser AST.Expr
 expr_binary_ops =

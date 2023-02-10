@@ -9,13 +9,12 @@ module UHF.Util.Prelude
 
     , identity
 
-    , undefined
     , error
+    , unreachable
+    , todo
     , trace
     , trace_show_id
     , trace_with_message
-    , not_implemented
-    , todo
 
     , putStr
     , putStrLn
@@ -107,13 +106,15 @@ import Test.Tasty.TH as X (testGroupGenerator)
 identity :: a -> a
 identity = Data.Function.id
 
-{-# WARNING undefined "'undefined'" #-}
-undefined :: GHC.Stack.HasCallStack => a
-undefined = Prelude.undefined
-
-{-# WARNING error "'error'" #-}
 error :: GHC.Stack.HasCallStack => Prelude.String -> a
 error = Prelude.error
+
+unreachable :: GHC.Stack.HasCallStack => a
+unreachable = Prelude.error "unreachable code reached"
+
+{-# WARNING todo "'todo'" #-}
+todo :: GHC.Stack.HasCallStack => a
+todo = Prelude.error "not implemented yet"
 
 {-# WARNING trace "'trace'" #-}
 trace :: Prelude.String -> a -> a
@@ -126,14 +127,6 @@ trace_show_id = Debug.Trace.traceShowId
 {-# WARNING trace_with_message "'trace_show_id'" #-}
 trace_with_message :: Show a => Prelude.String -> a -> a
 trace_with_message msg a = Debug.Trace.trace (msg ++ ": " ++ show a) a
-
-{-# WARNING not_implemented "'not_implemented'" #-}
-not_implemented :: GHC.Stack.HasCallStack => a
-not_implemented = Prelude.error "not implemented yet"
-
-{-# WARNING todo "'todo'" #-}
-todo :: GHC.Stack.HasCallStack => a
-todo = not_implemented
 
 class Print a where
   hPutStr :: MonadIO m => Handle -> a -> m ()

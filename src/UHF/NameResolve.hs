@@ -80,11 +80,11 @@ resolve_for_value decls mod (IR.Value initializer) = IR.Value <$> resolve_for_ex
 
 resolve_for_expr :: UnresolvedDeclArena -> IR.DeclKey -> UnresolvedExpr -> Writer [Error] ResolvedExpr
 resolve_for_expr decls mod (IR.Expr'Identifier i) = IR.Expr'Identifier <$> resolve_iden decls mod i
-resolve_for_expr _ _ (IR.Expr'CharLit c) = pure $ IR.Expr'CharLit c
-resolve_for_expr _ _ (IR.Expr'StringLit s) = pure $ IR.Expr'StringLit s
-resolve_for_expr _ _ (IR.Expr'IntLit i) = pure $ IR.Expr'IntLit i
-resolve_for_expr _ _ (IR.Expr'FloatLit f) = pure $ IR.Expr'FloatLit f
-resolve_for_expr _ _ (IR.Expr'BoolLit b) = pure $ IR.Expr'BoolLit b
+resolve_for_expr _ _ (IR.Expr'Char c) = pure $ IR.Expr'Char c
+resolve_for_expr _ _ (IR.Expr'String s) = pure $ IR.Expr'String s
+resolve_for_expr _ _ (IR.Expr'Int i) = pure $ IR.Expr'Int i
+resolve_for_expr _ _ (IR.Expr'Float f) = pure $ IR.Expr'Float f
+resolve_for_expr _ _ (IR.Expr'Bool b) = pure $ IR.Expr'Bool b
 
 resolve_iden :: UnresolvedDeclArena -> IR.DeclKey -> Location.Located [Location.Located Text] -> Writer [Error] (Maybe IR.ValueKey)
 resolve_iden decls mod (Location.Located _ [x]) =

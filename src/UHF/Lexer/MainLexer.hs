@@ -117,14 +117,14 @@ lex_alpha_identifier =
         (\ ch -> isAlpha ch || isDigit ch || ch == '_' || ch == '\'')
         [ ("root", Token.SingleTypeToken Token.Root)
         , ("let", Token.SingleTypeToken Token.Let)
-        , ("let'", Token.SingleTypeToken Token.Let')
+        , ("letrec", Token.SingleTypeToken Token.LetRec)
         , ("data", Token.SingleTypeToken Token.Data)
         , ("under", Token.SingleTypeToken Token.Under)
         , ("if", Token.SingleTypeToken Token.If)
         , ("else", Token.SingleTypeToken Token.Else)
         , ("case", Token.SingleTypeToken Token.Case)
-        , ("true", Token.BoolLit True)
-        , ("false", Token.BoolLit False)
+        , ("true", Token.Bool True)
+        , ("false", Token.Bool False)
         ]
         Token.AlphaIdentifier
 
@@ -159,9 +159,9 @@ lex_str_or_char_lit =
           let sp = new_span_start_and_end start_loc end_loc
           in if open == '\''
               then case contents of
-                    [c] -> pure [Location.Located sp $ Token.CharLit c]
+                    [c] -> pure [Location.Located sp $ Token.Char c]
                     _ -> put_error (LexError.MulticharCharLit sp) >> pure []
-              else pure [Location.Located sp $ Token.StringLit $ Text.pack contents]
+              else pure [Location.Located sp $ Token.String $ Text.pack contents]
 
         , get_loc >>= \ end_loc ->
           let sp = new_span_start_and_end start_loc end_loc
@@ -204,7 +204,7 @@ lex_number =
                 illegal_digits = check_digits digit_legal digits
 
             in if null illegal_digits
-                then pure [Location.Located num_span (Token.IntLit tok_base (read_digits ((^) :: Integer -> Int -> Integer) base_num (zip [0..] (map Location.unlocate (reverse digits)))))]
+                then pure [Location.Located num_span (Token.Int tok_base (read_digits ((^) :: Integer -> Int -> Integer) base_num (zip [0..] (map Location.unlocate (reverse digits)))))]
                 else mapM_ put_error illegal_digits >> pure []
 
         (Right (tok_base, _), _) ->
@@ -212,7 +212,7 @@ lex_number =
                 base_is_dec = if tok_base == Token.Dec then [] else [LexError.NonDecimalFloat num_span]
 
             in if null illegal_digits && null base_is_dec
-                then pure [Location.Located num_span (Token.FloatLit $ read_digits ((^^) :: Rational -> Int -> Rational) 10 (zip [0..] (map Location.unlocate $ reverse digits) ++ zip [-1, -2..] (map Location.unlocate floats)))]
+                then pure [Location.Located num_span (Token.Float $ read_digits ((^^) :: Rational -> Int -> Rational) 10 (zip [0..] (map Location.unlocate $ reverse digits) ++ zip [-1, -2..] (map Location.unlocate floats)))]
                 else mapM_ put_error (illegal_digits ++ base_is_dec) >> pure []
 
         (Left err, _) -> put_error err >> pure []
@@ -380,7 +380,7 @@ case_lex_symbol_identifier_long_kw =
 case_lex_char_lit :: Assertion
 case_lex_char_lit =
     lex_test' lex_str_or_char_lit "'c'" $ \case
-        Just (l, [], [Location.Located _ (Token.CharLit 'c')])
+        Just (l, [], [Location.Located _ (Token.Char 'c')])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_str_or_char_lit" x
 case_lex_char_lit_unclosed :: Assertion
@@ -399,7 +399,7 @@ case_lex_char_lit_multiple =
 case_lex_str_lit :: Assertion
 case_lex_str_lit =
     lex_test' lex_str_or_char_lit "\"abcde\"" $ \case
-        Just (l, [], [Location.Located _ (Token.StringLit "abcde")])
+        Just (l, [], [Location.Located _ (Token.String "abcde")])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_str_or_char_lit" x
 case_lex_str_lit_unclosed :: Assertion
@@ -412,42 +412,42 @@ case_lex_str_lit_unclosed =
 case_lex_number_decimal :: Assertion
 case_lex_number_decimal =
     lex_test' lex_number "1234" $ \case
-        Just (l, [], [Location.Located _ (Token.IntLit Token.Dec 1234)])
+        Just (l, [], [Location.Located _ (Token.Int Token.Dec 1234)])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_decimal_leading_0 :: Assertion
 case_lex_number_decimal_leading_0 =
     lex_test' lex_number "01234" $ \case
-        Just (l, [], [Location.Located _ (Token.IntLit Token.Dec 1234)])
+        Just (l, [], [Location.Located _ (Token.Int Token.Dec 1234)])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_float :: Assertion
 case_lex_number_float =
     lex_test' lex_number "1234.1234" $ \case
-        Just (l, [], [Location.Located _ (Token.FloatLit 1234.1234)])
+        Just (l, [], [Location.Located _ (Token.Float 1234.1234)])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_binary :: Assertion
 case_lex_number_binary =
     lex_test' lex_number "0b101" $ \case
-        Just (l, [], [Location.Located _ (Token.IntLit Token.Bin 5)])
+        Just (l, [], [Location.Located _ (Token.Int Token.Bin 5)])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_hex :: Assertion
 case_lex_number_hex =
     lex_test' lex_number "0xf1abcABC" $ \case
-        Just (l, [], [Location.Located _ (Token.IntLit Token.Hex 4054567612)])
+        Just (l, [], [Location.Located _ (Token.Int Token.Hex 4054567612)])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_octal :: Assertion
 case_lex_number_octal =
     lex_test' lex_number "0o765" $ \case
-        Just (l, [], [Location.Located _ (Token.IntLit Token.Oct 501)])
+        Just (l, [], [Location.Located _ (Token.Int Token.Oct 501)])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_number" x
 
@@ -460,14 +460,14 @@ case_lex_number_leading_point =
 case_lex_number_with_invalid_float :: Assertion
 case_lex_number_with_invalid_float =
     lex_test' lex_number "123.x" $ \case
-        Just (l, [], [Location.Located _ (Token.IntLit Token.Dec 123)])
+        Just (l, [], [Location.Located _ (Token.Int Token.Dec 123)])
             | remaining l == ".x" -> pure ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_no_float_digits :: Assertion
 case_lex_number_no_float_digits =
     lex_test' lex_number "123." $ \case
-        Just (l, [], [Location.Located _ (Token.IntLit Token.Dec 123)])
+        Just (l, [], [Location.Located _ (Token.Int Token.Dec 123)])
             | remaining l == "." -> pure ()
         x -> lex_test_fail "lex_number" x
 

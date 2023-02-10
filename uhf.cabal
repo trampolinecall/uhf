@@ -36,12 +36,9 @@ library
       UHF.Lexer.MainLexer
       UHF.NameResolve
       UHF.Parser
-      UHF.Parser.Decl
       UHF.Parser.Error
-      UHF.Parser.Expr
       UHF.Parser.PEG
       UHF.Parser.Test
-      UHF.Parser.Type
       UHF.Token
       UHF.Util.Prelude
       UHF.Util.RecursiveTransform

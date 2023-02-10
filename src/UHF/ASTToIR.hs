@@ -89,7 +89,7 @@ convert_to_maps =
         (\ last_map cur_decl ->
             last_map >>= \ (last_decl_map, last_value_map) ->
             case cur_decl of
-                AST.Decl'Binding l_name@(Location.Located _ name) expr ->
+                AST.Decl'Value l_name@(Location.Located _ name) expr ->
                     case name of
                         [l_name1@(Location.Located _ name1)] ->
                             case Map.lookup name1 last_value_map of
@@ -108,8 +108,8 @@ convert_expr_to_value = put_value . IR.Value . convert_expr
 
 convert_expr :: AST.Expr -> Expr
 convert_expr (AST.Expr'Identifier iden) = IR.Expr'Identifier iden
-convert_expr (AST.Expr'CharLit c) = IR.Expr'CharLit c
-convert_expr (AST.Expr'StringLit s) = IR.Expr'StringLit s
-convert_expr (AST.Expr'IntLit i) = IR.Expr'IntLit i
-convert_expr (AST.Expr'FloatLit f) = IR.Expr'FloatLit f
-convert_expr (AST.Expr'BoolLit b) = IR.Expr'BoolLit b
+convert_expr (AST.Expr'Char c) = IR.Expr'Char c
+convert_expr (AST.Expr'String s) = IR.Expr'String s
+convert_expr (AST.Expr'Int i) = IR.Expr'Int i
+convert_expr (AST.Expr'Float f) = IR.Expr'Float f
+convert_expr (AST.Expr'Bool b) = IR.Expr'Bool b

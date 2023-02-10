@@ -47,11 +47,11 @@ group_identifiers [] = pure []
 
 convert_raw_token :: Token.LInternalToken -> Either LexError.LexError Token.LToken
 convert_raw_token (Location.Located sp (Token.SingleTypeToken t)) = Right $ Location.Located sp (Token.SingleTypeToken t)
-convert_raw_token (Location.Located sp (Token.CharLit ch)) = Right $ Location.Located sp (Token.CharLit ch)
-convert_raw_token (Location.Located sp (Token.StringLit str)) = Right $ Location.Located sp (Token.StringLit str)
-convert_raw_token (Location.Located sp (Token.IntLit b n)) = Right $ Location.Located sp (Token.IntLit b n)
-convert_raw_token (Location.Located sp (Token.FloatLit f)) = Right $ Location.Located sp (Token.FloatLit f)
-convert_raw_token (Location.Located sp (Token.BoolLit b)) = Right $ Location.Located sp (Token.BoolLit b)
+convert_raw_token (Location.Located sp (Token.Char ch)) = Right $ Location.Located sp (Token.Char ch)
+convert_raw_token (Location.Located sp (Token.String str)) = Right $ Location.Located sp (Token.String str)
+convert_raw_token (Location.Located sp (Token.Int b n)) = Right $ Location.Located sp (Token.Int b n)
+convert_raw_token (Location.Located sp (Token.Float f)) = Right $ Location.Located sp (Token.Float f)
+convert_raw_token (Location.Located sp (Token.Bool b)) = Right $ Location.Located sp (Token.Bool b)
 convert_raw_token (Location.Located sp (Token.SymbolIdentifier i)) = Right $ Location.Located sp $ Token.SymbolIdentifier [i]
 convert_raw_token (Location.Located _ (Token.AlphaIdentifier _)) = error "cannot convert raw alpha identiifer to alpha identifier"
 convert_raw_token (Location.Located _ (Token.EOF eof)) = absurd eof

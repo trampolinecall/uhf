@@ -153,7 +153,26 @@ type_tuple =
     pure (AST.Type'Tuple field_types)
 -- pattern {{{1
 pattern :: PEG.Parser AST.Pattern
-pattern = todo
+pattern = PEG.choice [pattern_tuple, pattern_named, pattern_iden]
+
+pattern_iden :: PEG.Parser AST.Pattern
+pattern_iden =
+    PEG.consume' "pattern" (Token.AlphaIdentifier ()) >>= \ (Location.Located iden_sp (Token.AlphaIdentifier iden)) ->
+    pure (AST.Pattern'Identifier (Location.Located iden_sp iden))
+
+pattern_tuple :: PEG.Parser AST.Pattern
+pattern_tuple =
+    PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ _ ->
+    PEG.delim_star pattern (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ fields ->
+    PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ _ ->
+    pure (AST.Pattern'Tuple fields)
+
+pattern_named :: PEG.Parser AST.Pattern
+pattern_named =
+    PEG.consume' "pattern" (Token.AlphaIdentifier ()) >>= \ (Location.Located iden_sp (Token.AlphaIdentifier iden)) ->
+    PEG.consume' "'@'" (Token.SingleTypeToken Token.At) >>= \ _ ->
+    pattern >>= \ more ->
+    pure (AST.Pattern'Named (Location.Located iden_sp iden) more)
 -- tests {{{1
 test_decls :: [TestTree]
 test_decls = map Test.run_test $

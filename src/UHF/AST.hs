@@ -4,7 +4,7 @@ module UHF.AST where
 
 import UHF.Util.Prelude
 
-import UHF.IO.Location (Located, Span)
+import UHF.IO.Location (Located)
 
 type Identifier = Located [Located Text]
 
@@ -51,8 +51,7 @@ data Expr
     deriving (Eq, Show)
 
 data Pattern
-    = Pattern'Identifier Identifier
-    | Pattern'Tuple Pattern Pattern
+    = Pattern'Identifier Identifier -- TODO: decide whether '_' should be this or a separate variant
+    | Pattern'Tuple [Pattern]
     | Pattern'Named Identifier Pattern
-    | Pattern'Anon Span
     deriving (Eq, Show)

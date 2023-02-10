@@ -145,6 +145,7 @@ lex_symbol_identifier =
         , (",", Token.SingleTypeToken Token.Comma)
         , ("=", Token.SingleTypeToken Token.Equal)
         , (":", Token.SingleTypeToken Token.Colon)
+        , ("@", Token.SingleTypeToken Token.At)
         ]
         Token.SymbolIdentifier
 

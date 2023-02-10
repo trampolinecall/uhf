@@ -75,6 +75,7 @@ decl_data =
                 PEG.consume' "field name" (Token.AlphaIdentifier ()) >>= \ (Location.Located field_name_sp (Token.AlphaIdentifier field_name)) ->
                 PEG.consume' "':'" (Token.SingleTypeToken Token.Colon) >>= \ _ ->
                 type_ >>= \ field_ty ->
+                PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>= \ _ ->
                 pure (Location.Located field_name_sp field_name, field_ty)
             ) >>= \ fields ->
             PEG.consume' "'}'" (Token.SingleTypeToken Token.CBrace) >>= \ _ ->
@@ -189,7 +190,7 @@ test_decls = map Test.run_test $
 
     , Test.ParsingTest "type synonym"
         (Test.make_token_stream [stt Token.Type, alpha_iden1 "Syn", stt Token.Equal, alpha_iden1 "OtherType"])
-        (AST.Decl'TypeSyn (liden1 "x") (AST.Type'Identifier $ liden1 "OtherType"))
+        (AST.Decl'TypeSyn (liden1 "Syn") (AST.Type'Identifier $ liden1 "OtherType"))
         [("decl", decl), ("decl_typesyn", decl_typesyn)]
 
     , Test.ParsingTest "data decl"

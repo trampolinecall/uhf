@@ -118,7 +118,7 @@ star' a acc = Parser $ \ other_errors bt_errors toks ->
         star'' other_errors bt_errors a_acc toks =
             let (other_errors', bt_errors', res) = extract_parser a other_errors bt_errors toks
             in case res of
-                (Just (r, toks')) -> star'' other_errors' bt_errors' (r:a_acc) toks'
+                (Just (r, toks')) -> star'' other_errors' bt_errors' (a_acc ++ [r]) toks'
                 Nothing -> (other_errors', bt_errors', Just (a_acc, toks))
 
 plus :: Parser a -> Parser [a]
@@ -136,9 +136,9 @@ delim_star = delim_star' []
                 Just thing_res ->
                     optional delim >>= \case
                         Just _ ->
-                            delim_star' (thing_res : acc) thing delim -- this may or may not add more elements, allowing for a trailing delimiter
+                            delim_star' (acc ++ [thing_res]) thing delim -- this may or may not add more elements, allowing for a trailing delimiter
 
-                        Nothing -> pure acc -- no delimiter, cannot continue
+                        Nothing -> pure (acc ++ [thing_res]) -- no delimiter, cannot continue
 
                 Nothing -> pure acc
 
@@ -248,6 +248,42 @@ test_star =
         , testCase "multiple" $
             let toks = add_eofs [oparen, oparen, other]
             in ([], [expect_oparen 2 other], Just [oparen, oparen]) @=? eval_parser parser toks
+        ]
+
+test_delim_star :: [TestTree]
+test_delim_star =
+    let oparen = Location.dummy_locate $ Token.SingleTypeToken Token.OParen
+        delim = Location.dummy_locate $ Token.SingleTypeToken Token.Comma
+        other = Location.dummy_locate $ Token.SingleTypeToken Token.OBrace
+
+        oparen_consume = consume' "oparen" (Token.SingleTypeToken Token.OParen)
+        delim_consume = consume' "delim" (Token.SingleTypeToken Token.Comma)
+
+        expect_oparen got_ind got = Error.BadToken got_ind got (Token.SingleTypeToken Token.OParen) "oparen"
+        expect_delim got_ind got = Error.BadToken got_ind got (Token.SingleTypeToken Token.Comma) "delim"
+
+        parser = delim_star oparen_consume delim_consume
+
+    in
+        [ testCase "none" $
+            let toks = add_eofs [other]
+            in ([], [expect_oparen 0 other], Just []) @=? eval_parser parser toks
+
+        , testCase "once" $
+            let toks = add_eofs [oparen, other]
+            in ([], [expect_delim 1 other], Just [oparen]) @=? eval_parser parser toks
+
+        , testCase "once trailing" $
+            let toks = add_eofs [oparen, delim, other]
+            in ([], [expect_oparen 2 other], Just [oparen]) @=? eval_parser parser toks
+
+        , testCase "multiple" $
+            let toks = add_eofs [oparen, delim, oparen, other]
+            in ([], [expect_delim 3 other], Just [oparen, oparen]) @=? eval_parser parser toks
+
+        , testCase "multiple trailing" $
+            let toks = add_eofs [oparen, delim, oparen, delim, other]
+            in ([], [expect_oparen 4 other], Just [oparen, oparen]) @=? eval_parser parser toks
         ]
 
 test_plus :: [TestTree]

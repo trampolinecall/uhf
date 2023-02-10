@@ -282,7 +282,7 @@ case_underlines =
             , (multi_sp, Primary, [(Warning, "message 3")])
             ]
     in Line.compare_lines
-        [ ("", '>',  "<generated span file>")
+        [ ("", '>',  "")
         , ("1", '|', "abc def")
         , ( "", '|', "^^^     ")
         , ( "", '|', "  |-- message 1")
@@ -290,7 +290,7 @@ case_underlines =
         , ("2", '|', "ghi")
         , ("3", '|', "jklm")
 
-        , ("", '>',  "<generated span file>")
+        , ("", '>',  "")
 
         , ( "", '|', "      vvv--")
         , ("1", '|', "  abc def |")

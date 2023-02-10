@@ -50,7 +50,7 @@ data SingleTypeToken
     | Root
     | Let
     | LetRec
-    | Type
+    | Type -- TODO: change to TypeSyn
     | Data
     | Under
     | If

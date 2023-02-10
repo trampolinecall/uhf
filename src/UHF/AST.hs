@@ -12,17 +12,17 @@ data Decl
     = Decl'Value Pattern Expr -- TODO: this should eventually be a pattern
     | Decl'Data Identifier [DataVariant]
     | Decl'TypeSyn Identifier Type
-    | Decl'Import Type -- TODO
+    -- TODO: | Decl'Import Type
     deriving (Eq, Show)
 
 data DataVariant
     = DataVariant'Anon Identifier [Type]
-    | DataVariant'Named Identifier [(Located Text, Type)]
+    | DataVariant'Named Identifier [(Identifier, Type)]
     deriving (Eq, Show)
 
 data Type
     = Type'Identifier Identifier
-    | Type'Tuple Type Type
+    | Type'Tuple [Type] -- TODO: anonymous named products? (ie field names, but no datatype name)
     deriving (Eq, Show)
 
 data Expr

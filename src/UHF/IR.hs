@@ -2,9 +2,15 @@ module UHF.IR
     ( DeclKey
     , Decl(..)
     , Module(..)
-    , ValueKey
-    , Value(..)
+
+    , BoundNameKey
+    , BoundName(..)
+
+    , BindingKey
+    , Binding (..)
+
     , Expr(..)
+    , Pattern(..)
     ) where
 
 import UHF.Util.Prelude
@@ -17,16 +23,20 @@ newtype DeclKey = DeclKey Int deriving Show
 instance Arena.Key DeclKey where
     make_key = DeclKey
     unmake_key (DeclKey i) = i
-
 data Decl = Decl'Module Module deriving Show
-data Module = Module (Map.Map Text DeclKey) (Map.Map Text ValueKey) deriving Show
+data Module = Module (Map.Map Text DeclKey) (Map.Map Text BoundNameKey) deriving Show
 
-newtype ValueKey = ValueKey Int deriving Show
-instance Arena.Key ValueKey where
-    make_key = ValueKey
-    unmake_key (ValueKey i) = i
+newtype BoundNameKey = BoundNameKey Int deriving Show
+instance Arena.Key BoundNameKey where
+    make_key = BoundNameKey
+    unmake_key (BoundNameKey i) = i
+newtype BoundName = BoundName () deriving Show -- TODO: replace with counter instead of arena of ()?
 
-data Value identifier = Value (Expr identifier) deriving Show
+newtype BindingKey = BindingKey Int deriving Show
+instance Arena.Key BindingKey where
+    make_key = BindingKey
+    unmake_key (BindingKey i) = i
+data Binding identifier = Binding (Pattern identifier) (Expr identifier) deriving Show
 
 data Expr identifier
     = Expr'Identifier identifier
@@ -34,5 +44,27 @@ data Expr identifier
     | Expr'String Text
     | Expr'Int Integer
     | Expr'Float Rational
-    | Expr'Bool Bool
-    deriving (Eq, Show)
+    | Expr'Bool Bool -- TODO: replace with identifier exprs
+
+    | Expr'Tuple [(Expr identifier)]
+
+    | Expr'Lambda (Map.Map Text BoundNameKey) [Pattern identifier] (Expr identifier) -- TODO: maps store their parents so that name resolution can go up the stack of names
+
+    | Expr'Let (Map.Map Text DeclKey) (Map.Map Text BoundNameKey) (Expr identifier)
+    | Expr'LetRec (Map.Map Text DeclKey) (Map.Map Text BoundNameKey) (Expr identifier)
+
+    | Expr'BinaryOps (Expr identifier) [(identifier, (Expr identifier))]
+
+    | Expr'Call (Expr identifier) [(Expr identifier)]
+
+    | Expr'If (Expr identifier) (Expr identifier) (Expr identifier)
+    | Expr'Case (Expr identifier) [(Map.Map Text BoundNameKey, Pattern identifier, (Expr identifier))]
+
+    -- TODO: | Expr'TypeAnnotation TypeExpr (Expr identifier)
+    deriving Show
+
+data Pattern identifier
+    = Pattern'Identifier BoundNameKey
+    | Pattern'Tuple [Pattern identifier]
+    | Pattern'Named BoundNameKey (Pattern identifier)
+    deriving Show

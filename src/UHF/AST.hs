@@ -27,7 +27,6 @@ data Type
 
 data Expr
     = Expr'Identifier Identifier
-
     | Expr'Char Char
     | Expr'String Text
     | Expr'Int Integer
@@ -36,7 +35,7 @@ data Expr
 
     | Expr'Tuple [Expr]
 
-    | Expr'Lambda [Identifier] Expr
+    | Expr'Lambda [Pattern] Expr
 
     | Expr'Let [Decl] Expr
     | Expr'LetRec [Decl] Expr
@@ -48,6 +47,7 @@ data Expr
     | Expr'If Expr Expr Expr
     | Expr'Case Expr [(Pattern, Expr)]
 
+    | Expr'TypeAnnotation Type Expr
     deriving (Eq, Show)
 
 data Pattern

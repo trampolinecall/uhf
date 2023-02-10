@@ -129,7 +129,18 @@ plus a = Parser $ \ other_errors bt_errors toks ->
         Nothing -> (other_errors', bt_errors', Nothing)
 
 delim_star :: Parser a -> Parser d -> Parser [a]
-delim_star thing delim = undefined -- TODO
+delim_star = delim_star' []
+    where
+        delim_star' acc thing delim =
+            optional thing >>= \case
+                Just thing_res ->
+                    optional delim >>= \case
+                        Just _ ->
+                            delim_star' (thing_res : acc) thing delim -- this may or may not add more elements, allowing for a trailing delimiter
+
+                        Nothing -> pure acc -- no delimiter, cannot continue
+
+                Nothing -> pure acc
 
 optional :: Parser a -> Parser (Maybe a)
 optional a = Parser $ \ other_errors bt_errors toks ->

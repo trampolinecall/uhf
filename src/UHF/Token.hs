@@ -44,6 +44,7 @@ data SingleTypeToken
     | Equal
     | Colon
     | Arrow
+    | At
 
     | DoubleColon
 
@@ -87,6 +88,7 @@ instance Format SingleTypeToken where
     format Colon = "':'"
     format Arrow = "'->'"
     format DoubleColon = "'::'"
+    format At = "'@'"
 
     format Root = "'root'"
     format Let = "'let'"

@@ -5,7 +5,6 @@ module UHF.Parser.Test (ParsingTest(..), make_token_stream, run_test) where
 import UHF.Util.Prelude
 
 import qualified UHF.Parser.PEG as PEG
-import qualified UHF.Parser.Error as Error
 
 import qualified UHF.IO.Location as Location
 import qualified UHF.IO.File as File
@@ -13,15 +12,9 @@ import qualified UHF.IO.Location.SpanHelper as SpanHelper
 
 import qualified UHF.Token as Token
 
-import qualified UHF.AST as AST
-
 import qualified Data.InfList as InfList
 
-import qualified Data.List as List
 import qualified Data.Text as Text
-import qualified Data.List.NonEmpty as NonEmpty
-
-import qualified Control.Monad.Trans.State as State
 
 data ParsingTest = forall r. (Show r, Eq r) => ParsingTest [Char] (File.File, PEG.TokenStream) r [([Char], PEG.Parser r)]
 
@@ -42,6 +35,7 @@ make_token_stream things =
         token_to_text (Token.SingleTypeToken Token.Equal) = "="
         token_to_text (Token.SingleTypeToken Token.Colon) = ":"
         token_to_text (Token.SingleTypeToken Token.Arrow) = "->"
+        token_to_text (Token.SingleTypeToken Token.At) = "@"
 
         token_to_text (Token.SingleTypeToken Token.DoubleColon) = "::"
 
@@ -69,7 +63,7 @@ make_token_stream things =
         token_to_text (Token.SymbolIdentifier parts) = Text.intercalate "::" (map Location.unlocate parts)
         token_to_text (Token.AlphaIdentifier parts) = Text.intercalate "::" (map Location.unlocate parts)
 
-        token_to_text (Token.EOF eof) = "end of file"
+        token_to_text (Token.EOF _) = "end of file"
 
 {- TODO:
 check_parser :: [Error.Error] -> r -> [Token.Token] -> Parser r -> PEG.TokenStream -> IO ()

@@ -30,9 +30,9 @@ data Value identifier = Value (Expr identifier) deriving Show
 
 data Expr identifier
     = Expr'Identifier identifier
-    | Expr'CharLit Char
-    | Expr'StringLit Text
-    | Expr'IntLit Integer
-    | Expr'FloatLit Rational
-    | Expr'BoolLit Bool
+    | Expr'Char Char
+    | Expr'String Text
+    | Expr'Int Integer
+    | Expr'Float Rational
+    | Expr'Bool Bool
     deriving (Eq, Show)

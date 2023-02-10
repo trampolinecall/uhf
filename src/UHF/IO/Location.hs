@@ -84,7 +84,7 @@ new_span loc@(Location file _) start_i len =
     in Span file s_lc b_lc e_lc
 
 dummy_span :: Span
-dummy_span = Span (File.File "<dummy file for dummy span>" "") (LineCol 0 1 1) (LineCol 0 1 1) (LineCol 0 1 1)
+dummy_span = Span (File.File "" "") (LineCol 0 1 1) (LineCol 0 1 1) (LineCol 0 1 1)
 
 dummy_locate :: a -> Located a
 dummy_locate = Located dummy_span

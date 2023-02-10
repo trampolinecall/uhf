@@ -45,6 +45,7 @@ data SingleTypeToken
     | Colon
     | Arrow
     | At
+    | Backslash
 
     | DoubleColon
 
@@ -55,6 +56,7 @@ data SingleTypeToken
     | Data
     | Under
     | If
+    | Then
     | Else
     | Case
 
@@ -89,6 +91,7 @@ instance Format SingleTypeToken where
     format Arrow = "'->'"
     format DoubleColon = "'::'"
     format At = "'@'"
+    format Backslash = "'\\'"
 
     format Root = "'root'"
     format Let = "'let'"
@@ -97,6 +100,7 @@ instance Format SingleTypeToken where
     format Data = "'data'"
     format Under = "'under'"
     format If = "'if'"
+    format Then = "'then'"
     format Else = "'else'"
     format Case = "'case'"
 

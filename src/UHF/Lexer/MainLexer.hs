@@ -121,6 +121,7 @@ lex_alpha_identifier =
         , ("data", Token.SingleTypeToken Token.Data)
         , ("under", Token.SingleTypeToken Token.Under)
         , ("if", Token.SingleTypeToken Token.If)
+        , ("then", Token.SingleTypeToken Token.Then)
         , ("else", Token.SingleTypeToken Token.Else)
         , ("case", Token.SingleTypeToken Token.Case)
         , ("true", Token.Bool True)
@@ -146,6 +147,7 @@ lex_symbol_identifier =
         , ("=", Token.SingleTypeToken Token.Equal)
         , (":", Token.SingleTypeToken Token.Colon)
         , ("@", Token.SingleTypeToken Token.At)
+        , ("\\", Token.SingleTypeToken Token.Backslash)
         ]
         Token.SymbolIdentifier
 

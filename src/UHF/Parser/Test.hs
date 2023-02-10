@@ -18,17 +18,58 @@ import qualified UHF.AST as AST
 import qualified Data.InfList as InfList
 
 import qualified Data.List as List
+import qualified Data.Text as Text
 import qualified Data.List.NonEmpty as NonEmpty
 
 import qualified Control.Monad.Trans.State as State
 
 data ParsingTest = forall r. (Show r, Eq r) => ParsingTest [Char] (File.File, PEG.TokenStream) r [([Char], PEG.Parser r)]
 
-make_token_stream :: [(Text, Token.Token)] -> (File.File, PEG.TokenStream)
+make_token_stream :: [Token.Token] -> (File.File, PEG.TokenStream)
 make_token_stream things =
-    let (file, things') = SpanHelper.make_spans_with_items things
+    let (file, things') = SpanHelper.make_spans_with_items $ map (\ t -> (token_to_text t, t)) things
         l = last things'
     in (file, InfList.zip (InfList.iterate (1+) 0) (things' InfList.+++ InfList.repeat l))
+
+    where
+        -- TODO: is this necessary? or can this just be replaced with all empty strings
+        token_to_text :: Token.Token -> Text
+        token_to_text (Token.SingleTypeToken Token.OParen) = "("
+        token_to_text (Token.SingleTypeToken Token.CParen) = ")"
+        token_to_text (Token.SingleTypeToken Token.OBrack) = "["
+        token_to_text (Token.SingleTypeToken Token.CBrack) = "]"
+        token_to_text (Token.SingleTypeToken Token.Comma) = ","
+        token_to_text (Token.SingleTypeToken Token.Equal) = "="
+        token_to_text (Token.SingleTypeToken Token.Colon) = ":"
+        token_to_text (Token.SingleTypeToken Token.Arrow) = "->"
+
+        token_to_text (Token.SingleTypeToken Token.DoubleColon) = "::"
+
+        token_to_text (Token.SingleTypeToken Token.Root) = "root"
+        token_to_text (Token.SingleTypeToken Token.Let) = "let"
+        token_to_text (Token.SingleTypeToken Token.LetRec) = "letrec"
+        token_to_text (Token.SingleTypeToken Token.Type) = "type"
+        token_to_text (Token.SingleTypeToken Token.Data) = "data"
+        token_to_text (Token.SingleTypeToken Token.Under) = "under"
+        token_to_text (Token.SingleTypeToken Token.If) = "if"
+        token_to_text (Token.SingleTypeToken Token.Else) = "else"
+        token_to_text (Token.SingleTypeToken Token.Case) = "case"
+
+        token_to_text (Token.SingleTypeToken Token.OBrace) = "{"
+        token_to_text (Token.SingleTypeToken Token.CBrace) = "}"
+        token_to_text (Token.SingleTypeToken Token.Semicolon) = ";"
+
+        token_to_text (Token.Char c) = "'" `Text.snoc` c `Text.append` "'"
+        token_to_text (Token.String s) = "\"" <> s <> "\""
+        token_to_text (Token.Int _ i) = show i
+        token_to_text (Token.Float f) = show f
+        token_to_text (Token.Bool True) = "true"
+        token_to_text (Token.Bool False) = "false"
+
+        token_to_text (Token.SymbolIdentifier parts) = Text.intercalate "::" (map Location.unlocate parts)
+        token_to_text (Token.AlphaIdentifier parts) = Text.intercalate "::" (map Location.unlocate parts)
+
+        token_to_text (Token.EOF eof) = "end of file"
 
 {- TODO:
 check_parser :: [Error.Error] -> r -> [Token.Token] -> Parser r -> PEG.TokenStream -> IO ()

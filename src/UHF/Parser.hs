@@ -6,6 +6,7 @@ module UHF.Parser
 
     , Error.BacktrackingError
     , Error.OtherError
+
     , tests
     ) where
 
@@ -109,16 +110,16 @@ type_ =
 test_decls :: [TestTree]
 test_decls = map Test.run_test $
     [ Test.ParsingTest "binding"
-        (Test.make_token_stream [("x", Token.AlphaIdentifier [Location.dummy_locate "x"]), ("=", Token.SingleTypeToken Token.Equal), ("'c'", Token.Char 'c')])
+        (Test.make_token_stream [(Token.AlphaIdentifier [Location.dummy_locate "x"]), (Token.SingleTypeToken Token.Equal), (Token.Char 'c')])
         (AST.Decl'Value (todo (Location.dummy_locate [Location.dummy_locate "x"])) (AST.Expr'Char 'c'))
         [("decl", decl), ("binding", decl_binding)]
 
     , Test.ParsingTest "data decl"
         (Test.make_token_stream
-            [ ("data", Token.SingleTypeToken Token.Data), ("X", Token.AlphaIdentifier [Location.dummy_locate "X"]), ("{", Token.SingleTypeToken Token.OBrace)
-            , ("Y", Token.AlphaIdentifier [Location.dummy_locate "Y"]), ("(", Token.SingleTypeToken Token.OParen), ("string", Token.AlphaIdentifier [Location.dummy_locate "string"]), (")", Token.SingleTypeToken Token.CParen), (";", Token.SingleTypeToken Token.Semicolon)
-            , ("Z", Token.AlphaIdentifier [Location.dummy_locate "Z"]), ("{", Token.SingleTYpeToken Token.OBrace), ("field", Token.AlphaIdentifier [Location.dummy_locate "field"]), (":", Token.SingleTypeToken Token.Colon), ("X", Token.AlphaIdentifier [Location.dummy_locate "X"]) ("}", Token.SingleTYpeToken Token.CBrace), (";", Token.SingleTypeToken Token.Semicolon)
-            , ("}", Token.SingleTypeToken Token.CBrace)
+            [ (Token.SingleTypeToken Token.Data), (Token.AlphaIdentifier [Location.dummy_locate "X"]), (Token.SingleTypeToken Token.OBrace)
+            , (Token.AlphaIdentifier [Location.dummy_locate "Y"]), (Token.SingleTypeToken Token.OParen), (Token.AlphaIdentifier [Location.dummy_locate "string"]), (Token.SingleTypeToken Token.CParen), (Token.SingleTypeToken Token.Semicolon)
+            , (Token.AlphaIdentifier [Location.dummy_locate "Z"]), (Token.SingleTypeToken Token.OBrace), (Token.AlphaIdentifier [Location.dummy_locate "field"]), (Token.SingleTypeToken Token.Colon), (Token.AlphaIdentifier [Location.dummy_locate "X"]), (Token.SingleTypeToken Token.CBrace), (Token.SingleTypeToken Token.Semicolon)
+            , (Token.SingleTypeToken Token.CBrace)
             ])
         (error "not implemented yet")
         [("decl", decl), ("data", decl_data_)]

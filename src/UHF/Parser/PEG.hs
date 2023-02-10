@@ -19,6 +19,7 @@ module UHF.Parser.PEG
 
     , choice
     , star
+    , delim_star
     , plus
     , optional
 
@@ -126,6 +127,9 @@ plus a = Parser $ \ other_errors bt_errors toks ->
     in case res of
         Just (r, toks') -> extract_parser (star' a [r]) other_errors' bt_errors' toks'
         Nothing -> (other_errors', bt_errors', Nothing)
+
+delim_star :: Parser a -> Parser d -> Parser [a]
+delim_star thing delim = undefined -- TODO
 
 optional :: Parser a -> Parser (Maybe a)
 optional a = Parser $ \ other_errors bt_errors toks ->

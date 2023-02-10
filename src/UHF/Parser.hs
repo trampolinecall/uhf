@@ -23,6 +23,8 @@ import qualified Data.InfList as InfList
 
 import qualified UHF.IO.Location as Location
 
+-- TODO: write tests
+
 -- parse {{{1
 parse :: [Token.LToken] -> Token.LToken -> ([Error.OtherError], Maybe (Location.Located [Error.BacktrackingError]), [AST.Decl])
 parse toks eof_tok =
@@ -99,13 +101,26 @@ decl_typesyn =
 -- expr {{{1
 expr :: PEG.Parser AST.Expr
 expr =
-    PEG.choice
+    PEG.choice -- TODO: precedence is completely wrong
         [ expr_identifier
         , expr_char_lit
         , expr_string_lit
         , expr_int_lit
         , expr_float_lit
         , expr_bool_lit
+
+        , expr_binary_ops
+        , expr_call
+
+        , expr_if
+        , expr_case
+
+        , expr_type_annotation
+
+        , expr_tuple
+        , expr_lambda
+
+        , expr_let
         ]
 
 expr_identifier :: PEG.Parser AST.Expr
@@ -137,6 +152,92 @@ expr_bool_lit :: PEG.Parser AST.Expr
 expr_bool_lit =
     PEG.consume' "bool literal" (Token.Bool ()) >>= \ (Location.Located _ (Token.Bool b)) ->
     pure (AST.Expr'Bool b)
+
+expr_tuple :: PEG.Parser AST.Expr
+expr_tuple =
+    PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ _ ->
+    PEG.delim_star expr (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ items -> -- TODO: parenthesized expressions too
+    PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ _ ->
+    pure (AST.Expr'Tuple items)
+
+expr_lambda :: PEG.Parser AST.Expr
+expr_lambda =
+    PEG.consume' "'\\'" (Token.SingleTypeToken Token.Backslash) >>= \ _ ->
+    PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ _ ->
+    PEG.delim_star pattern (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ params ->
+    PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ _ ->
+    PEG.consume' "'->'" (Token.SingleTypeToken Token.Arrow) >>= \ _ ->
+    expr >>= \ body ->
+    pure (AST.Expr'Lambda params body)
+
+expr_let :: PEG.Parser AST.Expr
+expr_let =
+    PEG.choice
+        [ PEG.consume' "'let'" (Token.SingleTypeToken Token.Let)
+        , PEG.consume' "'letrec'" (Token.SingleTypeToken Token.LetRec)
+        ] >>= \ let_tok ->
+    PEG.choice
+        [ (:[]) <$> decl
+        , PEG.consume' "'{'" (Token.SingleTypeToken Token.OBrace) >>
+            PEG.star decl >>= \ decls ->
+            PEG.consume' "'}'" (Token.SingleTypeToken Token.CBrace) >>
+            pure decls
+        ] >>= \ decls ->
+    -- TODO: 'in'?
+    expr >>= \ subexpr ->
+    case Location.unlocate let_tok of
+        Token.SingleTypeToken Token.Let -> pure $ AST.Expr'Let decls subexpr
+        Token.SingleTypeToken Token.LetRec -> pure $ AST.Expr'LetRec decls subexpr
+        _ -> error "unreachable" -- TODO: add this to prelude?
+
+expr_binary_ops :: PEG.Parser AST.Expr
+expr_binary_ops =
+    expr >>= \ first ->
+    PEG.star (
+        PEG.consume' "operator" (Token.SymbolIdentifier ()) >>= \ (Location.Located op_sp (Token.SymbolIdentifier op)) ->
+        expr >>= \ second ->
+        pure (Location.Located op_sp op, second)
+    ) >>= \ ops ->
+    pure (AST.Expr'BinaryOps first ops)
+
+expr_call :: PEG.Parser AST.Expr
+expr_call =
+    expr >>= \ callee ->
+    PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ _ ->
+    PEG.delim_star expr (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ args ->
+    PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ _ ->
+    pure (AST.Expr'Call callee args)
+
+expr_if :: PEG.Parser AST.Expr
+expr_if =
+    PEG.consume' "'if'" (Token.SingleTypeToken Token.If) >>= \ _ ->
+    expr >>= \ cond ->
+    PEG.consume' "'then'" (Token.SingleTypeToken Token.Then) >>= \ _ ->
+    expr >>= \ true_choice ->
+    PEG.consume' "'else'" (Token.SingleTypeToken Token.Else) >>= \ _ ->
+    expr >>= \ false_choice ->
+    pure (AST.Expr'If cond true_choice false_choice)
+
+expr_case :: PEG.Parser AST.Expr
+expr_case =
+    PEG.consume' "'case'" (Token.SingleTypeToken Token.Case) >>= \ _ ->
+    expr >>= \ e ->
+    PEG.consume' "'{'" (Token.SingleTypeToken Token.OBrace) >>
+    PEG.star (
+        pattern >>= \ pat ->
+        PEG.consume' "'->'" (Token.SingleTypeToken Token.Arrow) >>= \ _ ->
+        expr >>= \ choice ->
+        pure (pat, choice)
+    ) >>= \ arms ->
+    PEG.consume' "'}'" (Token.SingleTypeToken Token.CBrace) >>
+    pure (AST.Expr'Case e arms)
+
+expr_type_annotation :: PEG.Parser AST.Expr
+expr_type_annotation =
+    PEG.consume' "':'" (Token.SingleTypeToken Token.Colon) >>= \ _ ->
+    type_ >>= \ ty -> -- TODO: this probably needs a delimiter because when type applications types can go on
+    expr >>= \ e ->
+    pure (AST.Expr'TypeAnnotation ty e)
 -- type {{{1
 type_ :: PEG.Parser AST.Type
 type_ = PEG.choice [type_iden, type_tuple]

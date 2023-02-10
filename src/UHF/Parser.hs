@@ -8,7 +8,7 @@ module UHF.Parser
     , Error.OtherError
 
     , tests
-    ) where
+   ) where
 
 import UHF.Util.Prelude
 
@@ -44,22 +44,57 @@ parse toks eof_tok =
 decl :: PEG.Parser AST.Decl
 decl =
     PEG.choice
-        [ decl_data_
+        [ decl_data
         , decl_binding
+        , decl_typesyn
         ]
 
-decl_data_ :: PEG.Parser AST.Decl
-decl_data_ =
-    PEG.consume' "data declaration" (Token.SingleTypeToken Token.Data) >>= \ data_tok ->
-    PEG.other_error [Error.NotImpl $ Location.Located (Location.just_span data_tok) "datatype declarations"] >>
-    pure undefined -- TODO
+decl_data :: PEG.Parser AST.Decl
+decl_data =
+    PEG.consume' "data declaration" (Token.SingleTypeToken Token.Data) >>= \ _ ->
+    PEG.consume' "datatype name" (Token.AlphaIdentifier ()) >>= \ (Location.Located name_sp (Token.AlphaIdentifier name)) ->
+    PEG.consume' "'{'" (Token.SingleTypeToken Token.OBrace) >>= \ _ ->
+    PEG.star variant >>= \ variants ->
+    PEG.consume' "'}'" (Token.SingleTypeToken Token.CBrace) >>= \ _ ->
+    pure (AST.Decl'Data (Location.Located name_sp name) variants) -- TODO
+    where
+        variant =
+            PEG.consume' "variant name" (Token.AlphaIdentifier ()) >>= \ (Location.Located name_sp (Token.AlphaIdentifier name)) ->
+            PEG.choice [anon_variant $ Location.Located name_sp name, named_variant $ Location.Located name_sp name]
+
+        anon_variant name =
+            PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ _ ->
+            PEG.delim_star type_ (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ field_types ->
+            PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ _ ->
+            PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>= \ _ ->
+            pure (AST.DataVariant'Anon name field_types)
+
+        named_variant name =
+            PEG.consume' "'{'" (Token.SingleTypeToken Token.OBrace) >>= \ _ ->
+            PEG.star (
+                PEG.consume' "field name" (Token.AlphaIdentifier ()) >>= \ (Location.Located field_name_sp (Token.AlphaIdentifier field_name)) ->
+                PEG.consume' "':'" (Token.SingleTypeToken Token.Colon) >>= \ _ ->
+                type_ >>= \ field_ty ->
+                pure (Location.Located field_name_sp field_name, field_ty)
+            ) >>= \ fields ->
+            PEG.consume' "'}'" (Token.SingleTypeToken Token.CBrace) >>= \ _ ->
+            PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>= \ _ ->
+            pure (AST.DataVariant'Named name fields)
 
 decl_binding :: PEG.Parser AST.Decl
 decl_binding =
-    PEG.consume' "binding name" (Token.AlphaIdentifier ()) >>= \ (Location.Located name_sp (Token.AlphaIdentifier name)) ->
-    PEG.consume' "'='" (Token.SingleTypeToken Token.Equal) >>= \ eq ->
-    expr >>= \ ex ->
-    pure (AST.Decl'Value (todo (Location.Located name_sp name)) ex)
+    pattern >>= \ target ->
+    PEG.consume' "'='" (Token.SingleTypeToken Token.Equal) >>= \ _ ->
+    expr >>= \ val ->
+    pure (AST.Decl'Value target val)
+
+decl_typesyn :: PEG.Parser AST.Decl
+decl_typesyn =
+    PEG.consume' "type synonym" (Token.SingleTypeToken Token.Type) >>= \ _ ->
+    PEG.consume' "type synonym name" (Token.AlphaIdentifier ()) >>= \ (Location.Located name_sp (Token.AlphaIdentifier name)) ->
+    PEG.consume' "'='" (Token.SingleTypeToken Token.Equal) >>= \ _ ->
+    type_ >>= \ ty ->
+    pure (AST.Decl'TypeSyn (Location.Located name_sp name) ty)
 -- expr {{{1
 expr :: PEG.Parser AST.Expr
 expr =
@@ -103,26 +138,68 @@ expr_bool_lit =
     pure (AST.Expr'Bool b)
 -- type {{{1
 type_ :: PEG.Parser AST.Type
-type_ =
+type_ = PEG.choice [type_iden, type_tuple]
+
+type_iden :: PEG.Parser AST.Type
+type_iden =
     PEG.consume' "type" (Token.AlphaIdentifier ()) >>= \ (Location.Located iden_sp (Token.AlphaIdentifier iden)) ->
     pure (AST.Type'Identifier (Location.Located iden_sp iden))
+
+type_tuple :: PEG.Parser AST.Type
+type_tuple =
+    PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ _ ->
+    PEG.delim_star type_ (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ field_types ->
+    PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ _ ->
+    pure (AST.Type'Tuple field_types)
+-- pattern {{{1
+pattern :: PEG.Parser AST.Pattern
+pattern = todo
 -- tests {{{1
 test_decls :: [TestTree]
 test_decls = map Test.run_test $
+    let l = Location.dummy_locate
+        iden1 t = [l t]
+        liden1 = l . iden1
+        alpha_iden1 = Token.AlphaIdentifier . iden1
+        stt = Token.SingleTypeToken
+    in
     [ Test.ParsingTest "binding"
-        (Test.make_token_stream [(Token.AlphaIdentifier [Location.dummy_locate "x"]), (Token.SingleTypeToken Token.Equal), (Token.Char 'c')])
-        (AST.Decl'Value (todo (Location.dummy_locate [Location.dummy_locate "x"])) (AST.Expr'Char 'c'))
-        [("decl", decl), ("binding", decl_binding)]
+        (Test.make_token_stream [(alpha_iden1 "x"), (stt Token.Equal), (Token.Char 'c')])
+        (AST.Decl'Value (AST.Pattern'Identifier (liden1 "x")) (AST.Expr'Char 'c'))
+        [("decl", decl), ("decl_binding", decl_binding)]
+
+    , Test.ParsingTest "type synonym"
+        (Test.make_token_stream [stt Token.Type, alpha_iden1 "Syn", stt Token.Equal, alpha_iden1 "OtherType"])
+        (AST.Decl'TypeSyn (liden1 "x") (AST.Type'Identifier $ liden1 "OtherType"))
+        [("decl", decl), ("decl_typesyn", decl_typesyn)]
 
     , Test.ParsingTest "data decl"
         (Test.make_token_stream
-            [ (Token.SingleTypeToken Token.Data), (Token.AlphaIdentifier [Location.dummy_locate "X"]), (Token.SingleTypeToken Token.OBrace)
-            , (Token.AlphaIdentifier [Location.dummy_locate "Y"]), (Token.SingleTypeToken Token.OParen), (Token.AlphaIdentifier [Location.dummy_locate "string"]), (Token.SingleTypeToken Token.CParen), (Token.SingleTypeToken Token.Semicolon)
-            , (Token.AlphaIdentifier [Location.dummy_locate "Z"]), (Token.SingleTypeToken Token.OBrace), (Token.AlphaIdentifier [Location.dummy_locate "field"]), (Token.SingleTypeToken Token.Colon), (Token.AlphaIdentifier [Location.dummy_locate "X"]), (Token.SingleTypeToken Token.CBrace), (Token.SingleTypeToken Token.Semicolon)
-            , (Token.SingleTypeToken Token.CBrace)
+            [ (stt Token.Data), (alpha_iden1 "Thingy"), (stt Token.OBrace)
+
+                , (alpha_iden1 "Constr1"), (stt Token.OParen)
+                    , (alpha_iden1 "string"), (stt Token.Comma), (alpha_iden1 "int")
+                , (stt Token.CParen), (stt Token.Semicolon)
+
+                , (alpha_iden1 "Constr2"), (stt Token.OBrace)
+                    , (alpha_iden1 "field1"), (stt Token.Colon), (alpha_iden1 "X"), (stt Token.Semicolon)
+                    , (alpha_iden1 "field2"), (stt Token.Colon), (alpha_iden1 "Y"), (stt Token.Semicolon)
+                , (stt Token.CBrace), (stt Token.Semicolon)
+
+            , (stt Token.CBrace)
             ])
-        (error "not implemented yet")
-        [("decl", decl), ("data", decl_data_)]
+
+        (AST.Decl'Data (liden1 "Thingy")
+            [ AST.DataVariant'Anon (liden1 "Constr1")
+                [ AST.Type'Identifier (liden1 "string")
+                , AST.Type'Identifier (liden1 "int")
+                ]
+            , AST.DataVariant'Named (liden1 "Constr2")
+                [ (liden1 "field1", AST.Type'Identifier (liden1 "X"))
+                , (liden1 "field2", AST.Type'Identifier (liden1 "Y"))
+                ]
+            ])
+        [("decl", decl), ("decl_data", decl_data)]
     ]
 
 tests :: TestTree

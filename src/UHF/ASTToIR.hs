@@ -88,6 +88,8 @@ convert_to_maps =
     foldl'
         (\ last_map cur_decl ->
             last_map >>= \ (last_decl_map, last_value_map) ->
+            todo
+            {- TODO
             case cur_decl of
                 AST.Decl'Value l_name@(Location.Located _ name) expr ->
                     case name of
@@ -100,6 +102,7 @@ convert_to_maps =
 
                         _ ->
                             tell_err (BindToPath l_name) >> pure (last_decl_map, last_value_map)
+            -}
             )
         (pure (Map.empty, Map.empty))
 

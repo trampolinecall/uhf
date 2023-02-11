@@ -31,6 +31,8 @@ import qualified Data.Function as Function
 import qualified Data.List as List
 import qualified System.Console.ANSI as ANSI
 
+-- TODO: fix errors on eof where messages arent shown
+
 type UnderlinesSection = [Underline]
 type Underline = (Location.Span, Importance, [(Type, FormattedString)])
 data Importance = Primary | Secondary | Tertiary

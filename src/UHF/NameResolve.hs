@@ -85,7 +85,7 @@ resolve_for_value :: UnresolvedDeclArena -> IR.DeclKey -> UnresolvedBinding -> W
 resolve_for_value decls mod (IR.Binding target expr) = IR.Binding <$> resolve_for_pat decls mod target <*> resolve_for_expr decls mod expr
 
 resolve_for_pat :: UnresolvedDeclArena -> IR.DeclKey -> UnresolvedPattern -> Writer [Error] ResolvedPattern
--- TOOD: this will change when destructuring is implemented beccause that needs to resolve constructor names
+-- TOOD: this will change when destructuring is implemented beccause that needs to resolve constructor names (including constructor names without fields that will look exactly the same as identifier patterns)
 resolve_for_pat _ _ (IR.Pattern'Identifier bnk) = pure $ IR.Pattern'Identifier bnk
 resolve_for_pat decls mod (IR.Pattern'Tuple a b) = IR.Pattern'Tuple <$> resolve_for_pat decls mod a <*> resolve_for_pat decls mod b
 resolve_for_pat decls mod (IR.Pattern'Named bnk subpat) = IR.Pattern'Named bnk <$> resolve_for_pat decls mod subpat
@@ -129,4 +129,3 @@ get_value_child decls thing name =
     in case res of
         Just res -> Right res
         Nothing -> Left $ CouldNotFind Nothing name
-

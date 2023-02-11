@@ -103,8 +103,8 @@ resolve_for_expr decls mod (IR.Expr'Tuple a b) = IR.Expr'Tuple <$> resolve_for_e
 
 resolve_for_expr decls mod (IR.Expr'Lambda bound_names param body) = IR.Expr'Lambda bound_names <$> resolve_for_pat decls mod param <*> resolve_for_expr decls mod body
 
-resolve_for_expr decls mod (IR.Expr'Let decl_map bound_name_map body) = IR.Expr'Let decl_map bound_name_map <$> resolve_for_expr decls mod body
-resolve_for_expr decls mod (IR.Expr'LetRec decl_map bound_name_map body) = IR.Expr'LetRec decl_map bound_name_map <$> resolve_for_expr decls mod body
+resolve_for_expr decls mod (IR.Expr'Let name_context body) = IR.Expr'Let name_context <$> resolve_for_expr decls mod body
+resolve_for_expr decls mod (IR.Expr'LetRec name_context body) = IR.Expr'LetRec name_context <$> resolve_for_expr decls mod body
 
 resolve_for_expr decls mod (IR.Expr'BinaryOps first ops) = IR.Expr'BinaryOps <$> resolve_for_expr decls mod first <*> mapM (\ (iden, rhs) -> (,) <$> resolve_iden decls mod iden <*> resolve_for_expr decls mod rhs) ops
 
@@ -125,8 +125,9 @@ resolve_iden _ _ i = tell [MultiIden i] >> pure Nothing
 
 get_value_child :: UnresolvedDeclArena -> IR.DeclKey -> Location.Located Text -> Either Error IR.BoundNameKey
 get_value_child decls thing name =
+-- TODO: look in parents too
     let res = case Arena.get decls thing of
-            IR.Decl'Module (IR.Module _ children) -> Map.lookup (Location.unlocate name) children
+            IR.Decl'Module (IR.Module (IR.NameContext _ children _)) -> Map.lookup (Location.unlocate name) children
             IR.Decl'Type _ -> Nothing -- TODO: implement children of types through impl blocks
     in case res of
         Just res -> Right res

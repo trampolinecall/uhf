@@ -13,6 +13,8 @@ module UHF.IR
     , BindingKey
     , Binding (..)
 
+    , NameContext (..)
+
     , TypeExpr(..)
     , Type(..)
     , Expr(..)
@@ -33,7 +35,7 @@ data Decl
     = Decl'Module Module
     | Decl'Type NominalTypeKey
     deriving Show
-data Module = Module (Map.Map Text DeclKey) (Map.Map Text BoundNameKey) deriving Show
+data Module = Module NameContext deriving Show
 newtype DeclNominalType = DeclType NominalTypeKey deriving Show
 
 newtype NominalTypeKey = NominalTypeKey Int deriving Show
@@ -61,6 +63,8 @@ instance Arena.Key BindingKey where
     unmake_key (BindingKey i) = i
 data Binding identifier = Binding (Pattern identifier) (Expr identifier) deriving Show
 
+data NameContext = NameContext (Map.Map Text DeclKey) (Map.Map Text BoundNameKey) (Maybe NameContext) deriving Show
+
 data TypeExpr identifier
     = TypeExpr'Identifier identifier
     | TypeExpr'Tuple [TypeExpr identifier]
@@ -81,17 +85,17 @@ data Expr identifier
 
     | Expr'Tuple (Expr identifier) (Expr identifier)
 
-    | Expr'Lambda (Map.Map Text BoundNameKey) (Pattern identifier) (Expr identifier) -- TODO: maps store their parents so that name resolution can go up the stack of names
+    | Expr'Lambda NameContext (Pattern identifier) (Expr identifier) -- TODO: maps store their parents so that name resolution can go up the stack of names
 
-    | Expr'Let (Map.Map Text DeclKey) (Map.Map Text BoundNameKey) (Expr identifier)
-    | Expr'LetRec (Map.Map Text DeclKey) (Map.Map Text BoundNameKey) (Expr identifier)
+    | Expr'Let NameContext (Expr identifier)
+    | Expr'LetRec NameContext (Expr identifier)
 
     | Expr'BinaryOps (Expr identifier) [(identifier, (Expr identifier))]
 
     | Expr'Call (Expr identifier) [(Expr identifier)]
 
     | Expr'If (Expr identifier) (Expr identifier) (Expr identifier)
-    | Expr'Case (Expr identifier) [(Map.Map Text BoundNameKey, Pattern identifier, (Expr identifier))]
+    | Expr'Case (Expr identifier) [(NameContext, Pattern identifier, (Expr identifier))]
 
     | Expr'Poison
 

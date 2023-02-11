@@ -89,12 +89,12 @@ data Expr identifier
     | Expr'Let NameContext (Expr identifier)
     | Expr'LetRec NameContext (Expr identifier)
 
-    | Expr'BinaryOps (Expr identifier) [(identifier, (Expr identifier))]
+    | Expr'BinaryOps (Expr identifier) [(identifier, Expr identifier)]
 
-    | Expr'Call (Expr identifier) [(Expr identifier)]
+    | Expr'Call (Expr identifier) [Expr identifier]
 
     | Expr'If (Expr identifier) (Expr identifier) (Expr identifier)
-    | Expr'Case (Expr identifier) [(NameContext, Pattern identifier, (Expr identifier))]
+    | Expr'Case (Expr identifier) [(NameContext, Pattern identifier, Expr identifier)]
 
     | Expr'Poison
 

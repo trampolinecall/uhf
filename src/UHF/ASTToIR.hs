@@ -143,6 +143,9 @@ new_nominal_type nominal =
         let (key, nominals') = Arena.put nominal nominals
         in (key, (decls, bindings, bound_names, nominals'))
 
+tell_err :: Error -> MakeIRState ()
+tell_err = lift . tell . (:[])
+
 make_name_context :: DeclChildrenList -> BoundNameList -> (Maybe IR.NameContext) -> MakeIRState IR.NameContext
 make_name_context decls bound_names parent =
     let decl_dups = find_dups decls
@@ -163,9 +166,6 @@ make_name_context decls bound_names parent =
                 (\ ((first_name, _):more) ->
                     tell_err $ MultipleDecls first_name (map fst more))
                 dups
-
-tell_err :: Error -> MakeIRState ()
-tell_err = lift . tell . (:[])
 
 make_iden1 :: Location.Located [Location.Located Text] -> Maybe (Location.Located Text)
 make_iden1 (Location.Located _ [iden1]) = Just iden1

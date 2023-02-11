@@ -10,6 +10,8 @@ module UHF.NameResolve
 
     , UnresolvedDeclArena
     , ResolvedDeclArena
+    , UnresolvedNominalTypeArena
+    , ResolvedNominalTypeArena
     , UnresolvedBindingArena
     , ResolvedBindingArena
 
@@ -29,24 +31,31 @@ import qualified UHF.IR as IR
 
 import qualified Data.Map as Map
 
+type UnresolvedTypeIdentifier = (IR.NameContext, Location.Located [Location.Located Text])
 type UnresolvedExprIdentifier = (IR.NameContext, Location.Located [Location.Located Text])
 type UnresolvedDecl = IR.Decl
 type UnresolvedModule = IR.Module
+type UnresolvedNominalType = IR.NominalType UnresolvedType
+type UnresolvedType = IR.TypeExpr UnresolvedTypeIdentifier
 type UnresolvedBinding = IR.Binding UnresolvedExprIdentifier
 type UnresolvedExpr = IR.Expr UnresolvedExprIdentifier
 type UnresolvedPattern = IR.Pattern UnresolvedExprIdentifier
 
 type UnresolvedDeclArena = Arena.Arena UnresolvedDecl IR.DeclKey
 type UnresolvedBindingArena = Arena.Arena UnresolvedBinding IR.BindingKey
+type UnresolvedNominalTypeArena = Arena.Arena UnresolvedNominalType IR.NominalTypeKey
 
 type ResolvedDecl = IR.Decl
 type ResolvedModule = IR.Module
+type ResolvedNominalType = IR.NominalType ResolvedType
+type ResolvedType = IR.TypeExpr (Maybe IR.DeclKey)
 type ResolvedBinding = IR.Binding (Maybe IR.BoundNameKey)
 type ResolvedExpr = IR.Expr (Maybe IR.BoundNameKey)
 type ResolvedPattern = IR.Pattern (Maybe IR.BoundNameKey)
 
 type ResolvedDeclArena = Arena.Arena ResolvedDecl IR.DeclKey
 type ResolvedBindingArena = Arena.Arena ResolvedBinding IR.BindingKey
+type ResolvedNominalTypeArena = Arena.Arena ResolvedNominalType IR.NominalTypeKey
 
 data Error
     = MultiIden (Location.Located [Location.Located Text])
@@ -70,17 +79,22 @@ instance Diagnostic.IsError Error where
                 [Underlines.underlines [sp `Underlines.primary` [Underlines.error message]]]
 
 -- TODO: resolve nominal types
-resolve :: (UnresolvedDeclArena, UnresolvedBindingArena, IR.DeclKey) -> Writer [Error] (ResolvedDeclArena, ResolvedBindingArena)
-resolve (decls, values, mod) =
+resolve :: (UnresolvedDeclArena, UnresolvedNominalTypeArena, UnresolvedBindingArena, IR.DeclKey) -> Writer [Error] (ResolvedDeclArena, ResolvedNominalTypeArena, ResolvedBindingArena)
+resolve (decls, nominals, values, mod) =
     Arena.transformM (resolve_for_decl decls mod) decls >>= \ decls' ->
+    Arena.transformM (resolve_for_nominal_type decls mod) nominals >>= \ nominals' ->
     Arena.transformM (resolve_for_value decls mod) values >>= \ values' ->
-    pure (decls', values')
+    pure (decls', nominals', values')
 
 resolve_for_decl :: UnresolvedDeclArena -> IR.DeclKey -> UnresolvedDecl -> Writer [Error] ResolvedDecl
 resolve_for_decl _ _ (IR.Decl'Module m) = IR.Decl'Module <$> resolve_for_module m
     where
         resolve_for_module = pure
 resolve_for_decl _ _ (IR.Decl'Type t) = pure $ IR.Decl'Type t
+
+resolve_for_nominal_type :: UnresolvedDeclArena -> IR.DeclKey -> UnresolvedNominalType -> Writer [Error] ResolvedNominalType
+resolve_for_nominal_type decls mod (IR.NominalType'Data variants) = todo
+resolve_for_nominal_type decls mod (IR.NominalType'Synonym expansion) = todo
 
 resolve_for_value :: UnresolvedDeclArena -> IR.DeclKey -> UnresolvedBinding -> Writer [Error] ResolvedBinding
 resolve_for_value decls mod (IR.Binding target expr) = IR.Binding <$> resolve_for_pat decls mod target <*> resolve_for_expr decls mod expr

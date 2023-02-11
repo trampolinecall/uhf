@@ -99,6 +99,20 @@ resolve_for_expr _ _ (IR.Expr'Int i) = pure $ IR.Expr'Int i
 resolve_for_expr _ _ (IR.Expr'Float f) = pure $ IR.Expr'Float f
 resolve_for_expr _ _ (IR.Expr'Bool b) = pure $ IR.Expr'Bool b
 
+resolve_for_expr decls mod (IR.Expr'Tuple items) = IR.Expr'Tuple <$> mapM (resolve_for_expr decls mod) items
+
+resolve_for_expr decls mod (IR.Expr'Lambda bound_names params body) = IR.Expr'Lambda bound_names <$> mapM (resolve_for_pat decls mod) params <*> resolve_for_expr decls mod body
+
+resolve_for_expr decls mod (IR.Expr'Let decl_map bound_name_map body) = IR.Expr'Let decl_map bound_name_map <$> resolve_for_expr decls mod body
+resolve_for_expr decls mod (IR.Expr'LetRec decl_map bound_name_map body) = IR.Expr'LetRec decl_map bound_name_map <$> resolve_for_expr decls mod body
+
+resolve_for_expr decls mod (IR.Expr'BinaryOps first ops) = IR.Expr'BinaryOps <$> resolve_for_expr decls mod first <*> mapM (\ (iden, rhs) -> (,) <$> resolve_iden decls mod iden <*> resolve_for_expr decls mod rhs) ops
+
+resolve_for_expr decls mod (IR.Expr'Call callee args) = IR.Expr'Call <$> resolve_for_expr decls mod callee <*> mapM (resolve_for_expr decls mod) args
+
+resolve_for_expr decls mod (IR.Expr'If cond t f) = IR.Expr'If <$> resolve_for_expr decls mod cond <*> resolve_for_expr decls mod t <*> resolve_for_expr decls mod f
+resolve_for_expr decls mod (IR.Expr'Case e arms) = IR.Expr'Case <$> resolve_for_expr decls mod e <*> mapM (\ (bound_names, pat, expr) -> (,,) bound_names <$> resolve_for_pat decls mod pat <*> resolve_for_expr decls mod expr) arms
+
 resolve_iden :: UnresolvedDeclArena -> IR.DeclKey -> Location.Located [Location.Located Text] -> Writer [Error] (Maybe IR.BoundNameKey)
 resolve_iden decls mod (Location.Located _ [x]) =
     case get_value_child decls mod x of

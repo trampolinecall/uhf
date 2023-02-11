@@ -161,10 +161,10 @@ expr_bool_lit =
 
 expr_tuple :: PEG.Parser AST.Expr
 expr_tuple =
-    PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ _ ->
+    PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ (Location.Located o_sp _) ->
     PEG.delim_star expr (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ items -> -- TODO: parenthesized expressions too
-    PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ _ ->
-    pure (AST.Expr'Tuple items)
+    PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ (Location.Located c_sp _) ->
+    pure (AST.Expr'Tuple (o_sp `Location.join_span` c_sp) items)
 
 expr_lambda :: PEG.Parser AST.Expr
 expr_lambda =
@@ -270,10 +270,10 @@ pattern_iden =
 
 pattern_tuple :: PEG.Parser AST.Pattern
 pattern_tuple =
-    PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ _ ->
+    PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ (Location.Located o_sp _) ->
     PEG.delim_star pattern (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ fields ->
-    PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ _ ->
-    pure (AST.Pattern'Tuple fields)
+    PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ (Location.Located c_sp _) ->
+    pure (AST.Pattern'Tuple (o_sp `Location.join_span` c_sp) fields)
 
 pattern_named :: PEG.Parser AST.Pattern
 pattern_named =

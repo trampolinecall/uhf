@@ -93,7 +93,7 @@ transform_identifiers transform_t_iden transform_e_iden nominal_types bindings =
         transform_pat (IR.Pattern'Identifier bnk) = pure $ IR.Pattern'Identifier bnk
         transform_pat (IR.Pattern'Tuple a b) = IR.Pattern'Tuple <$> transform_pat a <*> transform_pat b
         transform_pat (IR.Pattern'Named bnk subpat) = IR.Pattern'Named bnk <$> transform_pat subpat
-        transform_pat (IR.Pattern'Poison) = pure IR.Pattern'Poison
+        transform_pat IR.Pattern'Poison = pure IR.Pattern'Poison
 
         transform_expr (IR.Expr'Identifier i) = IR.Expr'Identifier <$> transform_e_iden i
         transform_expr (IR.Expr'Char c) = pure $ IR.Expr'Char c
@@ -116,17 +116,13 @@ transform_identifiers transform_t_iden transform_e_iden nominal_types bindings =
         transform_expr (IR.Expr'If cond t f) = IR.Expr'If <$> transform_expr cond <*> transform_expr t <*> transform_expr f
         transform_expr (IR.Expr'Case e arms) = IR.Expr'Case <$> transform_expr e <*> mapM (\ (bound_names, pat, expr) -> (,,) bound_names <$> transform_pat pat <*> transform_expr expr) arms
 
-        transform_expr (IR.Expr'Poison) = pure IR.Expr'Poison
+        transform_expr IR.Expr'Poison = pure IR.Expr'Poison
 
 resolve :: (DeclArena, UnresolvedNominalTypeArena, UnresolvedBindingArena) -> Writer [Error] (DeclArena, ResolvedNominalTypeArena, ResolvedBindingArena)
 resolve (decls, nominals, bindings) =
-    let (nominals', bindings') = runIdentity (transform_identifiers (Identity) split_expr_iden nominals bindings)
-    in transform_identifiers (resolve_type_iden decls ) (resolve_expr_iden decls) nominals' bindings' >>= \ (nominals', bindings') ->
+    let (nominals', bindings') = runIdentity (transform_identifiers Identity split_expr_iden nominals bindings)
+    in transform_identifiers (resolve_type_iden decls) (resolve_expr_iden decls) nominals' bindings' >>= \ (nominals', bindings') ->
     pure (decls, nominals', bindings')
-    -- Arena.transformM (resolve_for_decl decls mod) decls >>= \ decls' ->
-    -- Arena.transformM (resolve_for_nominal_type decls mod) nominals >>= \ nominals' ->
-    -- Arena.transformM (resolve_for_binding decls mod) bindings >>= \ bindings' ->
-    -- pure (decls', nominals', bindings')
 
 split_expr_iden :: UnresolvedExprIdentifier -> Identity (IR.NameContext, Maybe [Location.Located Text], Location.Located Text)
 split_expr_iden (_, []) = error "empty identifier"
@@ -139,7 +135,7 @@ resolve_expr_iden decls (nc, Just type_iden, last_segment) =
         MaybeT (resolve_type_iden decls (nc, type_iden)) >>= \ resolved_type ->
         case get_value_child decls resolved_type last_segment of
             Right v -> pure v
-            Left e -> lift (tell [e]) >> (MaybeT $ pure Nothing)
+            Left e -> lift (tell [e]) >> MaybeT (pure Nothing)
 
 resolve_expr_iden _ (nc, Nothing, last_segment) =
     case resolve nc last_segment of

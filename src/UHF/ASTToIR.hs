@@ -258,16 +258,16 @@ convert_expr parent_context (AST.Expr'Lambda params body) = convert_lambda paren
         convert_lambda parent_context (param:more) body =
             convert_pattern param >>= \ (bound_name_list, param) ->
             make_name_context [] bound_name_list (Just parent_context) >>= \ lambda_nc ->
-            IR.Expr'Lambda lambda_nc param <$> convert_lambda lambda_nc more body
+            IR.Expr'Lambda param <$> convert_lambda lambda_nc more body
 
         convert_lambda parent_context [] body = convert_expr parent_context body
 
 convert_expr parent_context (AST.Expr'Let decls subexpr) =
     convert_decls (Just parent_context) decls >>= \ let_context ->
-    IR.Expr'Let let_context <$> convert_expr let_context subexpr -- TODO: actually do sequentially because convert_decls does all at once
+    IR.Expr'Let <$> convert_expr let_context subexpr -- TODO: actually do sequentially because convert_decls does all at once
 convert_expr parent_context (AST.Expr'LetRec decls subexpr) =
     convert_decls (Just parent_context) decls >>= \ let_context ->
-    IR.Expr'LetRec let_context <$> convert_expr let_context subexpr
+    IR.Expr'LetRec <$> convert_expr let_context subexpr
 
 convert_expr parent_context (AST.Expr'BinaryOps first ops) = IR.Expr'BinaryOps <$> convert_expr parent_context first <*> mapM (\ (op, right) -> convert_expr parent_context right >>= \ right' -> pure ((parent_context, Location.unlocate op), right')) ops
 
@@ -283,7 +283,7 @@ convert_expr parent_context (AST.Expr'Case e arms) =
             convert_pattern pat >>= \ (new_bound_names, pat) ->
             make_name_context [] new_bound_names (Just parent_context) >>= \ arm_nc ->
             convert_expr arm_nc choice >>= \ choice ->
-            pure (arm_nc, pat, choice))
+            pure (pat, choice))
         arms
         >>= \ arms ->
     pure (IR.Expr'Case e arms)

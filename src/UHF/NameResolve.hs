@@ -156,32 +156,21 @@ resolve_expr_iden decls mod (nc, Nothing, last_segment) =
 
 resolve_type_iden :: DeclArena -> IR.DeclKey -> UnresolvedTypeIdentifier -> Writer [Error] (Maybe IR.DeclKey)
 resolve_type_iden decls mod (nc, []) = error "empty identifier"
-resolve_type_iden decls mod (nc, segments@(first:_)) =
-    let starting = find_starting_nc nc first
-    in case resolve (Just starting) segments of
-        Right r -> pure $ Just r
+resolve_type_iden decls mod (nc, segments@(first:more)) =
+    case resolve_first nc first of
+        Right first_resolved ->
+            case foldlM (get_decl_child decls) first_resolved more of
+                Right r -> pure $ Just r
+                Left e -> tell [e] >> pure Nothing
         Left e -> tell [e] >> pure Nothing
     where
-        -- this will have to change when children of types are implemented because types do not have name contexts
-        resolve _ [] = error "empty identifier"
-        resolve (Nothing) (x:_) = Left $ CouldNotFind Nothing x -- TODO: put previous segment in error
-        resolve (Just nc) [x] = get_from_nc nc x
-        resolve (Just nc) (first:more) =
-            get_from_nc nc first >>= \ child ->
-            resolve (get_name_context decls child) more
-
-        get_from_nc (IR.NameContext d_children _ _) name =
-            case Map.lookup (Location.unlocate name) d_children of
-                Just res -> Right res
-                Nothing -> Left $ CouldNotFind Nothing name -- TODO: put previous segment in error
-
-        find_starting_nc nc@(IR.NameContext _ _ parent) name =
-            case get_from_nc nc name of
-                Right _ -> nc
-                Left _ ->
+        resolve_first nc@(IR.NameContext d_children _ parent) first =
+            case Map.lookup (Location.unlocate first) d_children of
+                Just decl -> Right decl
+                Nothing ->
                     case parent of
-                        Just parent -> find_starting_nc parent name
-                        Nothing -> nc
+                        Just parent -> resolve_first parent first
+                        Nothing -> Left $ CouldNotFind Nothing first
 
 get_name_context :: DeclArena -> IR.DeclKey -> Maybe IR.NameContext
 get_name_context decls thing = case Arena.get decls thing of
@@ -195,7 +184,7 @@ get_decl_child decls thing name =
             IR.Decl'Type _ -> Nothing -- TODO: implement children of types through impl blocks
     in case res of
         Just res -> Right res
-        Nothing -> Left $ CouldNotFind Nothing name
+        Nothing -> Left $ CouldNotFind Nothing name -- TODO: put previous
 
 get_value_child :: DeclArena -> IR.DeclKey -> Location.Located Text -> Either Error IR.BoundNameKey
 get_value_child decls thing name =
@@ -204,4 +193,4 @@ get_value_child decls thing name =
             IR.Decl'Type _ -> Nothing -- TODO: implement children of types through impl blocks
     in case res of
         Just res -> Right res
-        Nothing -> Left $ CouldNotFind Nothing name
+        Nothing -> Left $ CouldNotFind Nothing name -- TODO: put previous

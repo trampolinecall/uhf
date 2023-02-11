@@ -105,7 +105,7 @@ transform_identifiers transform_t_iden transform_e_iden nominal_types bindings =
 
         transform_expr (IR.Expr'BinaryOps first ops) = IR.Expr'BinaryOps <$> transform_expr first <*> mapM (\ (iden, rhs) -> (,) <$> transform_e_iden iden <*> transform_expr rhs) ops
 
-        transform_expr (IR.Expr'Call callee args) = IR.Expr'Call <$> transform_expr callee <*> mapM transform_expr args
+        transform_expr (IR.Expr'Call callee arg) = IR.Expr'Call <$> transform_expr callee <*> transform_expr arg
 
         transform_expr (IR.Expr'If cond t f) = IR.Expr'If <$> transform_expr cond <*> transform_expr t <*> transform_expr f
         transform_expr (IR.Expr'Case e arms) = IR.Expr'Case <$> transform_expr e <*> mapM (\ (bound_names, pat, expr) -> (,,) bound_names <$> transform_pat pat <*> transform_expr expr) arms

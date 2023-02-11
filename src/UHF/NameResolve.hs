@@ -68,6 +68,7 @@ instance Diagnostic.IsError Error where
                 (Just sp)
                 [Underlines.underlines [sp `Underlines.primary` [Underlines.error message]]]
 
+-- TODO: resolve nominal types
 resolve :: (UnresolvedDeclArena, UnresolvedBindingArena, IR.DeclKey) -> Writer [Error] (ResolvedDeclArena, ResolvedBindingArena)
 resolve (decls, values, mod) =
     Arena.transformM (resolve_for_decl decls mod) decls >>= \ decls' ->
@@ -86,7 +87,7 @@ resolve_for_value decls mod (IR.Binding target expr) = IR.Binding <$> resolve_fo
 resolve_for_pat :: UnresolvedDeclArena -> IR.DeclKey -> UnresolvedPattern -> Writer [Error] ResolvedPattern
 -- TOOD: this will change when destructuring is implemented beccause that needs to resolve constructor names
 resolve_for_pat _ _ (IR.Pattern'Identifier bnk) = pure $ IR.Pattern'Identifier bnk
-resolve_for_pat decls mod (IR.Pattern'Tuple items) = IR.Pattern'Tuple <$> mapM (resolve_for_pat decls mod) items
+resolve_for_pat decls mod (IR.Pattern'Tuple a b) = IR.Pattern'Tuple <$> resolve_for_pat decls mod a <*> resolve_for_pat decls mod b
 resolve_for_pat decls mod (IR.Pattern'Named bnk subpat) = IR.Pattern'Named bnk <$> resolve_for_pat decls mod subpat
 resolve_for_pat _ _ (IR.Pattern'Poison) = pure IR.Pattern'Poison
 
@@ -99,9 +100,9 @@ resolve_for_expr _ _ (IR.Expr'Int i) = pure $ IR.Expr'Int i
 resolve_for_expr _ _ (IR.Expr'Float f) = pure $ IR.Expr'Float f
 resolve_for_expr _ _ (IR.Expr'Bool b) = pure $ IR.Expr'Bool b
 
-resolve_for_expr decls mod (IR.Expr'Tuple items) = IR.Expr'Tuple <$> mapM (resolve_for_expr decls mod) items
+resolve_for_expr decls mod (IR.Expr'Tuple a b) = IR.Expr'Tuple <$> resolve_for_expr decls mod a <*> resolve_for_expr decls mod b
 
-resolve_for_expr decls mod (IR.Expr'Lambda bound_names params body) = IR.Expr'Lambda bound_names <$> mapM (resolve_for_pat decls mod) params <*> resolve_for_expr decls mod body
+resolve_for_expr decls mod (IR.Expr'Lambda bound_names param body) = IR.Expr'Lambda bound_names <$> resolve_for_pat decls mod param <*> resolve_for_expr decls mod body
 
 resolve_for_expr decls mod (IR.Expr'Let decl_map bound_name_map body) = IR.Expr'Let decl_map bound_name_map <$> resolve_for_expr decls mod body
 resolve_for_expr decls mod (IR.Expr'LetRec decl_map bound_name_map body) = IR.Expr'LetRec decl_map bound_name_map <$> resolve_for_expr decls mod body

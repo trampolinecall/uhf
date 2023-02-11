@@ -93,6 +93,8 @@ data Expr identifier
     | Expr'If (Expr identifier) (Expr identifier) (Expr identifier)
     | Expr'Case (Expr identifier) [(Map.Map Text BoundNameKey, Pattern identifier, (Expr identifier))]
 
+    | Expr'Poison
+
     -- TODO: | Expr'TypeAnnotation TypeExpr (Expr identifier)
     deriving Show
 

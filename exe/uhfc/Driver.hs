@@ -18,6 +18,7 @@ import qualified UHF.Lexer as Lexer
 import qualified UHF.Parser as Parser
 import qualified UHF.ASTToIR as ASTToIR
 import qualified UHF.NameResolve as NameResolve
+import qualified UHF.Type as Type
 
 type ErrorAccumulated a = Writer [Diagnostic.Error] a -- TODO: allow for warnings too
 
@@ -25,16 +26,17 @@ type Tokens = ([Token.LToken], Token.LToken)
 type AST = [AST.Decl]
 type FirstIR = (Arena.Arena IR.Decl IR.DeclKey, Arena.Arena (IR.NominalType (IR.TypeExpr (IR.NameContext, [Location.Located Text]))) IR.NominalTypeKey, Arena.Arena (IR.Binding (IR.NameContext, [Location.Located Text]) (IR.TypeExpr (IR.NameContext, [Location.Located Text]))) IR.BindingKey, Arena.Arena IR.BoundName IR.BoundNameKey)
 type NRIR = (Arena.Arena IR.Decl IR.DeclKey, Arena.Arena (IR.NominalType (IR.TypeExpr (Maybe IR.DeclKey))) IR.NominalTypeKey, Arena.Arena (IR.Binding (Maybe IR.BoundNameKey) (IR.TypeExpr (Maybe IR.DeclKey))) IR.BindingKey)
+type TypedIR = (Arena.Arena IR.Decl IR.DeclKey, Arena.Arena (IR.NominalType (IR.Type Void)) IR.NominalTypeKey, Arena.Arena (IR.Binding (Maybe IR.BoundNameKey) (IR.Type Void)) IR.BindingKey)
 
-compile :: File.File -> Either [Diagnostic.Error] NRIR
+compile :: File.File -> Either [Diagnostic.Error] TypedIR
 compile file =
     let (res, diags) = runWriter $ compile' file
     in if null diags
         then Right res
         else Left diags
 
-compile' :: File.File -> ErrorAccumulated NRIR
-compile' file = lex file >>= parse >>= to_ir >>= name_resolve
+compile' :: File.File -> ErrorAccumulated TypedIR
+compile' file = lex file >>= parse >>= to_ir >>= name_resolve >>= type_
 
 lex :: File.File -> ErrorAccumulated Tokens
 lex file = convert_errors (Lexer.lex file)
@@ -50,8 +52,11 @@ parse (toks, eof_tok) =
 to_ir :: AST -> ErrorAccumulated FirstIR
 to_ir decls = convert_errors (ASTToIR.convert decls)
 
-name_resolve ::  FirstIR -> ErrorAccumulated NRIR
+name_resolve :: FirstIR -> ErrorAccumulated NRIR
 name_resolve (decls, nominals, bindings, bound_names) = convert_errors (NameResolve.resolve (decls, nominals, bindings))
+
+type_ :: NRIR -> ErrorAccumulated TypedIR
+type_ (decls, nominals, bindings) = convert_errors $ Type.typecheck (decls, nominals, bindings)
 
 convert_errors :: Diagnostic.IsError e => Writer [e] a -> Writer [Diagnostic.Error] a
 convert_errors = mapWriter (\ (res, errs) -> (res, map Diagnostic.to_error errs))

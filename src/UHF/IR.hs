@@ -60,7 +60,7 @@ newtype BindingKey = BindingKey Int deriving Show
 instance Arena.Key BindingKey where
     make_key = BindingKey
     unmake_key (BindingKey i) = i
-data Binding identifier ty = Binding (Pattern identifier) (Expr identifier ty) deriving Show
+data Binding identifier typeannotation typeinfo = Binding (Pattern identifier typeinfo) (Expr identifier typeannotation typeinfo) deriving Show
 
 data NameContext = NameContext (Map.Map Text DeclKey) (Map.Map Text BoundNameKey) (Maybe NameContext) deriving Show
 
@@ -75,37 +75,37 @@ data Type var
     | Type'Variable var
     deriving Show
 
-data Expr identifier ty
-    = Expr'Identifier identifier
-    | Expr'Char Char
-    | Expr'String Text
-    | Expr'Int Integer
-    | Expr'Float Rational
-    | Expr'Bool Bool -- TODO: replace with identifier exprs
+data Expr identifier typeannotation typeinfo
+    = Expr'Identifier typeinfo identifier
+    | Expr'Char typeinfo Char
+    | Expr'String typeinfo Text
+    | Expr'Int typeinfo Integer
+    | Expr'Float typeinfo Rational
+    | Expr'Bool typeinfo Bool -- TODO: replace with identifier exprs
 
-    | Expr'Tuple (Expr identifier ty) (Expr identifier ty)
+    | Expr'Tuple typeinfo (Expr identifier typeannotation typeinfo) (Expr identifier typeannotation typeinfo)
 
-    | Expr'Lambda (Pattern identifier) (Expr identifier ty) -- TODO: remove name contexts from other places because it is only needed in identifier resolution
+    | Expr'Lambda typeinfo (Pattern identifier typeinfo) (Expr identifier typeannotation typeinfo) -- TODO: remove name contexts from other places because it is only needed in identifier resolution
 
-    | Expr'Let (Expr identifier ty)
-    | Expr'LetRec (Expr identifier ty)
+    | Expr'Let typeinfo (Expr identifier typeannotation typeinfo)
+    | Expr'LetRec typeinfo (Expr identifier typeannotation typeinfo)
 
-    | Expr'BinaryOps (Expr identifier ty) [(identifier, Expr identifier ty)]
+    | Expr'BinaryOps typeinfo (Expr identifier typeannotation typeinfo) [(identifier, Expr identifier typeannotation typeinfo)]
 
-    | Expr'Call (Expr identifier ty) (Expr identifier ty)
+    | Expr'Call typeinfo (Expr identifier typeannotation typeinfo) (Expr identifier typeannotation typeinfo)
 
-    | Expr'If (Expr identifier ty) (Expr identifier ty) (Expr identifier ty)
-    | Expr'Case (Expr identifier ty) [(Pattern identifier, Expr identifier ty)]
+    | Expr'If typeinfo (Expr identifier typeannotation typeinfo) (Expr identifier typeannotation typeinfo) (Expr identifier typeannotation typeinfo)
+    | Expr'Case typeinfo (Expr identifier typeannotation typeinfo) [(Pattern identifier typeinfo, Expr identifier typeannotation typeinfo)]
 
-    | Expr'Poison
+    | Expr'Poison typeinfo
 
-    | Expr'TypeAnnotation ty (Expr identifier ty)
+    | Expr'TypeAnnotation typeinfo typeannotation (Expr identifier typeannotation typeinfo)
     deriving Show
 
-data Pattern identifier
-    = Pattern'Identifier BoundNameKey
-    | Pattern'Tuple (Pattern identifier) (Pattern identifier)
-    | Pattern'Named BoundNameKey (Pattern identifier)
+data Pattern identifier typeinfo
+    = Pattern'Identifier typeinfo BoundNameKey
+    | Pattern'Tuple typeinfo (Pattern identifier typeinfo) (Pattern identifier typeinfo)
+    | Pattern'Named typeinfo BoundNameKey (Pattern identifier typeinfo)
 
-    | Pattern'Poison -- TODO: poisonallowed
+    | Pattern'Poison typeinfo -- TODO: poisonallowed
     deriving Show

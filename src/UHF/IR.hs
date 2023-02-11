@@ -60,7 +60,7 @@ newtype BindingKey = BindingKey Int deriving Show
 instance Arena.Key BindingKey where
     make_key = BindingKey
     unmake_key (BindingKey i) = i
-data Binding identifier = Binding (Pattern identifier) (Expr identifier) deriving Show
+data Binding identifier ty = Binding (Pattern identifier) (Expr identifier ty) deriving Show
 
 data NameContext = NameContext (Map.Map Text DeclKey) (Map.Map Text BoundNameKey) (Maybe NameContext) deriving Show
 
@@ -74,7 +74,7 @@ data Type
     | Type'Tuple [Type]
     deriving Show
 
-data Expr identifier
+data Expr identifier ty
     = Expr'Identifier identifier
     | Expr'Char Char
     | Expr'String Text
@@ -82,23 +82,23 @@ data Expr identifier
     | Expr'Float Rational
     | Expr'Bool Bool -- TODO: replace with identifier exprs
 
-    | Expr'Tuple (Expr identifier) (Expr identifier)
+    | Expr'Tuple (Expr identifier ty) (Expr identifier ty)
 
-    | Expr'Lambda (Pattern identifier) (Expr identifier) -- TODO: remove name contexts from other places because it is only needed in identifier resolution
+    | Expr'Lambda (Pattern identifier) (Expr identifier ty) -- TODO: remove name contexts from other places because it is only needed in identifier resolution
 
-    | Expr'Let (Expr identifier)
-    | Expr'LetRec (Expr identifier)
+    | Expr'Let (Expr identifier ty)
+    | Expr'LetRec (Expr identifier ty)
 
-    | Expr'BinaryOps (Expr identifier) [(identifier, Expr identifier)]
+    | Expr'BinaryOps (Expr identifier ty) [(identifier, Expr identifier ty)]
 
-    | Expr'Call (Expr identifier) (Expr identifier)
+    | Expr'Call (Expr identifier ty) (Expr identifier ty)
 
-    | Expr'If (Expr identifier) (Expr identifier) (Expr identifier)
-    | Expr'Case (Expr identifier) [(Pattern identifier, Expr identifier)]
+    | Expr'If (Expr identifier ty) (Expr identifier ty) (Expr identifier ty)
+    | Expr'Case (Expr identifier ty) [(Pattern identifier, Expr identifier ty)]
 
     | Expr'Poison
 
-    -- TODO: | Expr'TypeAnnotation TypeExpr (Expr identifier)
+    | Expr'TypeAnnotation ty (Expr identifier ty)
     deriving Show
 
 data Pattern identifier

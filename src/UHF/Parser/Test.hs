@@ -38,8 +38,8 @@ run_test (ParsingTest construct_name input_toks expected_res parsers) =
             (\ (p_name, p) ->
                 testCase (p_name ++ " parsing " ++ construct_name) $
                     case PEG.eval_parser p input_toks of
-                        (other_errors, bt_errors, res) ->
-                            if null other_errors && Just expected_res == res
+                        (bt_errors, res) ->
+                            if Just expected_res == res
                                 then pure ()
-                                else assertFailure $ "parse test failed: got other errors " ++ show other_errors ++ ", bt errors " ++ show bt_errors ++ ", and result " ++ show res ++ " but expected " ++ show expected_res)
+                                else assertFailure $ "parse test failed: got errors " ++ show bt_errors ++ ", and result " ++ show res ++ " but expected " ++ show expected_res)
             parsers

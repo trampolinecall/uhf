@@ -15,7 +15,6 @@ $(error_code 0009 "bad_dedent")
 $(error_code 0010 "invalid_double_colon")
 
 $(error_code 0100 "parse_error")
-$(error_code 0101 "not_implemented")
 
 $(error_code 0200 "multiple_decls")
 $(error_code 0201 "binding_lhs_path")

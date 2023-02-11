@@ -217,14 +217,23 @@ convert_expr (AST.Expr'Int i) = pure $ IR.Expr'Int i
 convert_expr (AST.Expr'Float f) = pure $ IR.Expr'Float f
 convert_expr (AST.Expr'Bool b) = pure $ IR.Expr'Bool b
 
-convert_expr (AST.Expr'Tuple items) = IR.Expr'Tuple <$> (mapM convert_expr items) -- TODO: desugar
+convert_expr (AST.Expr'Tuple items) =
+    mapM convert_expr items >>= group_items
+    where
+        group_items (a:b:[]) = pure $ IR.Expr'Tuple a b
+        group_items (a:b:more) = IR.Expr'Tuple a <$> (group_items $ b:more)
+        group_items [_] = error "cannot group tuple of 1 item" -- TODO: report error instead of crashing
+        group_items [] = error "cannot group tuple of 0 items"
 
-convert_expr (AST.Expr'Lambda params body) =
-    mapAccumLM convert_pattern Map.empty params >>= \ (map, params) -> -- TODO: desugar
-    convert_expr body >>= \ body ->
-    pure (IR.Expr'Lambda map params body)
+convert_expr (AST.Expr'Lambda params body) = convert_lambda params body
+    where
+        convert_lambda (param:more) body =
+            convert_pattern Map.empty param >>= \ (map, param) ->
+            (IR.Expr'Lambda map param <$> (convert_lambda more body))
 
-convert_expr (AST.Expr'Let decls subexpr) = convert_to_maps decls >>= \ (d_map, bn_map) -> IR.Expr'Let d_map bn_map <$> (convert_expr subexpr) -- TODO: desugar
+        convert_lambda [] body = convert_expr body
+
+convert_expr (AST.Expr'Let decls subexpr) = convert_to_maps decls >>= \ (d_map, bn_map) -> IR.Expr'Let d_map bn_map <$> (convert_expr subexpr) -- TODO: actually do sequentially because convert_to_maps does all at once
 convert_expr (AST.Expr'LetRec decls subexpr) = convert_to_maps decls >>= \ (d_map, bn_map) -> IR.Expr'LetRec d_map bn_map <$> (convert_expr subexpr)
 
 convert_expr (AST.Expr'BinaryOps first ops) = IR.Expr'BinaryOps <$> convert_expr first <*> mapM (\ (op, right) -> convert_expr right >>= \ right' -> pure (op, right')) ops
@@ -252,7 +261,13 @@ convert_pattern map (AST.Pattern'Identifier iden) =
         Nothing -> pure (map, IR.Pattern'Poison)
 convert_pattern map (AST.Pattern'Tuple subpats) =
     mapAccumLM convert_pattern map subpats >>= \ (map', subpats') ->
-    pure (map', IR.Pattern'Tuple subpats')
+    go subpats' >>= \ subpats_grouped ->
+    pure (map', subpats_grouped)
+    where
+        go (a:b:[]) = pure $ IR.Pattern'Tuple a b
+        go (a:b:more) = IR.Pattern'Tuple a <$> (go $ b:more)
+        go [_] = error "cannot group tuple in pattern of 1 item" -- TODO: report error
+        go [] = error "cannot group tuple in pattern of 0 items"
 convert_pattern map (AST.Pattern'Named iden subpat) =
     add_iden_to_bound_name_map map iden >>= \case
         Just (map, iden) ->

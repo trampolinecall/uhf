@@ -79,9 +79,9 @@ data Expr identifier
     | Expr'Float Rational
     | Expr'Bool Bool -- TODO: replace with identifier exprs
 
-    | Expr'Tuple [(Expr identifier)]
+    | Expr'Tuple (Expr identifier) (Expr identifier)
 
-    | Expr'Lambda (Map.Map Text BoundNameKey) [Pattern identifier] (Expr identifier) -- TODO: maps store their parents so that name resolution can go up the stack of names
+    | Expr'Lambda (Map.Map Text BoundNameKey) (Pattern identifier) (Expr identifier) -- TODO: maps store their parents so that name resolution can go up the stack of names
 
     | Expr'Let (Map.Map Text DeclKey) (Map.Map Text BoundNameKey) (Expr identifier)
     | Expr'LetRec (Map.Map Text DeclKey) (Map.Map Text BoundNameKey) (Expr identifier)
@@ -98,7 +98,7 @@ data Expr identifier
 
 data Pattern identifier
     = Pattern'Identifier BoundNameKey
-    | Pattern'Tuple [Pattern identifier]
+    | Pattern'Tuple (Pattern identifier) (Pattern identifier)
     | Pattern'Named BoundNameKey (Pattern identifier)
 
     | Pattern'Poison -- TODO: poisonallowed

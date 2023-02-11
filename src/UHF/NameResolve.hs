@@ -56,15 +56,9 @@ type Decl = IR.Decl
 type DeclArena = Arena.Arena Decl IR.DeclKey
 
 data Error
-    = MultiIden (Location.Located [Location.Located Text])
-    | CouldNotFind (Maybe (Location.Located Text)) (Location.Located Text)
+    = CouldNotFind (Maybe (Location.Located Text)) (Location.Located Text)
 
 instance Diagnostic.IsError Error where
-    to_error (MultiIden (Location.Located sp _)) = Diagnostic.Error Diagnostic.Codes.multi_iden $
-        Diagnostic.DiagnosticContents
-            (Just sp)
-            [Underlines.underlines [sp `Underlines.primary` [Underlines.error "paths are not supported yet"]]] -- TODO
-
     to_error (CouldNotFind prev (Location.Located sp name)) =
         let message =
                 ("could not find name '" <> convert_str name <> "'")

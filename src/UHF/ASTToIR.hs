@@ -94,16 +94,16 @@ instance Diagnostic.IsError Error where
         Diagnostic.DiagnosticContents
             (Just sp)
             [ Underlines.underlines
-                [sp `Underlines.primary` [Underlines.error "tuple of 0 element"]]
+                [sp `Underlines.primary` [Underlines.error "tuple of 0 elements"]]
             ]
 
 type Identifier = (IR.NameContext, [Location.Located Text])
 type Decl = IR.Decl
 type Module = IR.Module
-type Binding = IR.Binding Identifier
+type Binding = IR.Binding Identifier Type
 type NominalType = IR.NominalType Type
 type Type = IR.TypeExpr Identifier
-type Expr = IR.Expr Identifier
+type Expr = IR.Expr Identifier Type
 type Pattern = IR.Pattern Identifier
 
 type DeclArena = Arena.Arena Decl IR.DeclKey
@@ -288,7 +288,7 @@ convert_expr parent_context (AST.Expr'Case e arms) =
         >>= \ arms ->
     pure (IR.Expr'Case e arms)
 
-convert_expr _ (AST.Expr'TypeAnnotation _ _) = todo -- IR.Expr'TypeAnnotation ty e
+convert_expr nc (AST.Expr'TypeAnnotation ty e) = IR.Expr'TypeAnnotation <$> convert_type nc ty <*> convert_expr nc e
 
 convert_pattern :: AST.Pattern -> MakeIRState (BoundNameList, Pattern)
 convert_pattern (AST.Pattern'Identifier iden) =

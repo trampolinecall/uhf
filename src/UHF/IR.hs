@@ -85,7 +85,7 @@ data Expr identifier
 
     | Expr'Tuple (Expr identifier) (Expr identifier)
 
-    | Expr'Lambda NameContext (Pattern identifier) (Expr identifier)
+    | Expr'Lambda NameContext (Pattern identifier) (Expr identifier) -- TODO: remove name contexts from other places because it is only needed in identifier resolution
 
     | Expr'Let NameContext (Expr identifier)
     | Expr'LetRec NameContext (Expr identifier)

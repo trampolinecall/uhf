@@ -36,7 +36,6 @@ data Decl
     | Decl'Type NominalTypeKey
     deriving Show
 data Module = Module NameContext deriving Show
-newtype DeclNominalType = DeclType NominalTypeKey deriving Show
 
 newtype NominalTypeKey = NominalTypeKey Int deriving Show
 instance Arena.Key NominalTypeKey where

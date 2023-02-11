@@ -85,7 +85,7 @@ consume make_err exp = Parser $
     \ other_errors bt_errors ((tok_i, tok) InfList.::: more_toks) ->
         if is_tt exp (Location.unlocate tok)
             then (other_errors, bt_errors, Just (tok, more_toks))
-            else (other_errors, (make_err tok_i tok) : bt_errors, Nothing)
+            else (other_errors, make_err tok_i tok : bt_errors, Nothing)
 
 consume' :: Text -> Token.TokenType -> Parser Token.LToken
 consume' name exp = consume (\ tok_i tok -> Error.BadToken tok_i tok exp name) exp

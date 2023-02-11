@@ -23,7 +23,7 @@ type ErrorAccumulated a = Writer [Diagnostic.Error] a -- TODO: allow for warning
 
 type Tokens = ([Token.LToken], Token.LToken)
 type AST = [AST.Decl]
-type FirstIR = (Arena.Arena IR.Decl IR.DeclKey, Arena.Arena (IR.NominalType (IR.TypeExpr (IR.NameContext, [Location.Located Text]))) IR.NominalTypeKey, Arena.Arena (IR.Binding (IR.NameContext, [Location.Located Text])) IR.BindingKey, Arena.Arena IR.BoundName IR.BoundNameKey, IR.DeclKey)
+type FirstIR = (Arena.Arena IR.Decl IR.DeclKey, Arena.Arena (IR.NominalType (IR.TypeExpr (IR.NameContext, [Location.Located Text]))) IR.NominalTypeKey, Arena.Arena (IR.Binding (IR.NameContext, [Location.Located Text])) IR.BindingKey, Arena.Arena IR.BoundName IR.BoundNameKey)
 type NRIR = (Arena.Arena IR.Decl IR.DeclKey, Arena.Arena (IR.NominalType (IR.TypeExpr (Maybe IR.DeclKey))) IR.NominalTypeKey, Arena.Arena (IR.Binding (Maybe IR.BoundNameKey)) IR.BindingKey)
 
 compile :: File.File -> Either [Diagnostic.Error] NRIR
@@ -52,7 +52,7 @@ to_ir :: AST -> ErrorAccumulated FirstIR
 to_ir decls = convert_errors (ASTToIR.convert decls)
 
 name_resolve ::  FirstIR -> ErrorAccumulated NRIR
-name_resolve (decls, nominals, bindings, bound_names, mod) = convert_errors (NameResolve.resolve (decls, nominals, bindings, mod))
+name_resolve (decls, nominals, bindings, bound_names) = convert_errors (NameResolve.resolve (decls, nominals, bindings))
 
 convert_errors :: Diagnostic.IsError e => Writer [e] a -> Writer [Diagnostic.Error] a
 convert_errors = mapWriter (\ (res, errs) -> (res, map Diagnostic.to_error errs))

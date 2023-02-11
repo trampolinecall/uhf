@@ -118,10 +118,10 @@ transform_identifiers transform_t_iden transform_e_iden nominal_types bindings =
 
         transform_expr (IR.Expr'Poison) = pure IR.Expr'Poison
 
-resolve :: (DeclArena, UnresolvedNominalTypeArena, UnresolvedBindingArena, IR.DeclKey) -> Writer [Error] (DeclArena, ResolvedNominalTypeArena, ResolvedBindingArena)
-resolve (decls, nominals, bindings, mod) =
+resolve :: (DeclArena, UnresolvedNominalTypeArena, UnresolvedBindingArena) -> Writer [Error] (DeclArena, ResolvedNominalTypeArena, ResolvedBindingArena)
+resolve (decls, nominals, bindings) =
     let (nominals', bindings') = runIdentity (transform_identifiers (Identity) split_expr_iden nominals bindings)
-    in transform_identifiers (resolve_type_iden decls mod) (resolve_expr_iden decls mod) nominals' bindings' >>= \ (nominals', bindings') ->
+    in transform_identifiers (resolve_type_iden decls ) (resolve_expr_iden decls) nominals' bindings' >>= \ (nominals', bindings') ->
     pure (decls, nominals', bindings')
     -- Arena.transformM (resolve_for_decl decls mod) decls >>= \ decls' ->
     -- Arena.transformM (resolve_for_nominal_type decls mod) nominals >>= \ nominals' ->
@@ -129,19 +129,19 @@ resolve (decls, nominals, bindings, mod) =
     -- pure (decls', nominals', bindings')
 
 split_expr_iden :: UnresolvedExprIdentifier -> Identity (IR.NameContext, Maybe [Location.Located Text], Location.Located Text)
-split_expr_iden (nc, []) = error "empty identifier"
+split_expr_iden (_, []) = error "empty identifier"
 split_expr_iden (nc, [x]) = pure (nc, Nothing, x)
 split_expr_iden (nc, x) = pure (nc, Just $ init x, last x)
 
-resolve_expr_iden :: DeclArena -> IR.DeclKey -> (IR.NameContext, Maybe [Location.Located Text], Location.Located Text) -> Writer [Error] (Maybe IR.BoundNameKey)
-resolve_expr_iden decls mod (nc, Just type_iden, last_segment) =
+resolve_expr_iden :: DeclArena -> (IR.NameContext, Maybe [Location.Located Text], Location.Located Text) -> Writer [Error] (Maybe IR.BoundNameKey)
+resolve_expr_iden decls (nc, Just type_iden, last_segment) =
     runMaybeT $
-        MaybeT (resolve_type_iden decls mod (nc, type_iden)) >>= \ resolved_type ->
+        MaybeT (resolve_type_iden decls (nc, type_iden)) >>= \ resolved_type ->
         case get_value_child decls resolved_type last_segment of
             Right v -> pure v
             Left e -> lift (tell [e]) >> (MaybeT $ pure Nothing)
 
-resolve_expr_iden decls mod (nc, Nothing, last_segment) =
+resolve_expr_iden _ (nc, Nothing, last_segment) =
     case resolve nc last_segment of
         Right v -> pure $ Just v
         Left e -> tell [e] >> pure Nothing
@@ -154,9 +154,9 @@ resolve_expr_iden decls mod (nc, Nothing, last_segment) =
                         Just parent -> resolve parent name
                         Nothing -> Left $ CouldNotFind Nothing name -- TODO: put previous segment in error
 
-resolve_type_iden :: DeclArena -> IR.DeclKey -> UnresolvedTypeIdentifier -> Writer [Error] (Maybe IR.DeclKey)
-resolve_type_iden decls mod (nc, []) = error "empty identifier"
-resolve_type_iden decls mod (nc, segments@(first:more)) =
+resolve_type_iden :: DeclArena -> UnresolvedTypeIdentifier -> Writer [Error] (Maybe IR.DeclKey)
+resolve_type_iden _ (_, []) = error "empty identifier"
+resolve_type_iden decls (nc, first:more) =
     case resolve_first nc first of
         Right first_resolved ->
             case foldlM (get_decl_child decls) first_resolved more of
@@ -164,18 +164,13 @@ resolve_type_iden decls mod (nc, segments@(first:more)) =
                 Left e -> tell [e] >> pure Nothing
         Left e -> tell [e] >> pure Nothing
     where
-        resolve_first nc@(IR.NameContext d_children _ parent) first =
+        resolve_first (IR.NameContext d_children _ parent) first =
             case Map.lookup (Location.unlocate first) d_children of
                 Just decl -> Right decl
                 Nothing ->
                     case parent of
                         Just parent -> resolve_first parent first
                         Nothing -> Left $ CouldNotFind Nothing first
-
-get_name_context :: DeclArena -> IR.DeclKey -> Maybe IR.NameContext
-get_name_context decls thing = case Arena.get decls thing of
-    IR.Decl'Module (IR.Module nc) -> Just nc
-    IR.Decl'Type _ -> Nothing -- TODO: implement children of types through impl blocks
 
 get_decl_child :: DeclArena -> IR.DeclKey -> Location.Located Text -> Either Error IR.DeclKey
 get_decl_child decls thing name =

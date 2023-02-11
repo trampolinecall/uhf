@@ -78,12 +78,17 @@ resolve_for_decl :: UnresolvedDeclArena -> IR.DeclKey -> UnresolvedDecl -> Write
 resolve_for_decl _ _ (IR.Decl'Module m) = IR.Decl'Module <$> resolve_for_module m
     where
         resolve_for_module = pure
+resolve_for_decl _ _ (IR.Decl'Type t) = pure $ IR.Decl'Type t
 
 resolve_for_value :: UnresolvedDeclArena -> IR.DeclKey -> UnresolvedBinding -> Writer [Error] ResolvedBinding
 resolve_for_value decls mod (IR.Binding target expr) = IR.Binding <$> resolve_for_pat decls mod target <*> resolve_for_expr decls mod expr
 
 resolve_for_pat :: UnresolvedDeclArena -> IR.DeclKey -> UnresolvedPattern -> Writer [Error] ResolvedPattern
-resolve_for_pat decls mod _ = todo -- TODO
+-- TOOD: this will change when destructuring is implemented beccause that needs to resolve constructor names
+resolve_for_pat _ _ (IR.Pattern'Identifier bnk) = pure $ IR.Pattern'Identifier bnk
+resolve_for_pat decls mod (IR.Pattern'Tuple items) = IR.Pattern'Tuple <$> mapM (resolve_for_pat decls mod) items
+resolve_for_pat decls mod (IR.Pattern'Named bnk subpat) = IR.Pattern'Named bnk <$> resolve_for_pat decls mod subpat
+resolve_for_pat _ _ (IR.Pattern'Poison) = pure IR.Pattern'Poison
 
 resolve_for_expr :: UnresolvedDeclArena -> IR.DeclKey -> UnresolvedExpr -> Writer [Error] ResolvedExpr
 -- TODO: do for rest of exprs
@@ -107,6 +112,10 @@ get_value_child decls thing name =
     case Arena.get decls thing of
         IR.Decl'Module (IR.Module _ children) ->
             case Map.lookup (Location.unlocate name) children of
+                Just res -> Right res
+                Nothing -> Left $ CouldNotFind Nothing name
+        IR.Decl'Type _ ->
+            case Nothing of -- TODO: implement children of types through impl blocks
                 Just res -> Right res
                 Nothing -> Left $ CouldNotFind Nothing name
 

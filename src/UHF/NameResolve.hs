@@ -1,19 +1,17 @@
 module UHF.NameResolve
-    ( UnresolvedDecl
-    , ResolvedDecl
-    , UnresolvedModule
-    , ResolvedModule
-    , UnresolvedBinding
+    ( UnresolvedBinding
     , ResolvedBinding
     , UnresolvedExpr
     , ResolvedExpr
+    , UnresolvedPattern
+    , ResolvedPattern
 
-    , UnresolvedDeclArena
-    , ResolvedDeclArena
     , UnresolvedNominalTypeArena
     , ResolvedNominalTypeArena
     , UnresolvedBindingArena
     , ResolvedBindingArena
+
+    , DeclArena
 
     , resolve
     ) where
@@ -30,32 +28,32 @@ import qualified UHF.Diagnostic.Sections.Underlines as Underlines
 import qualified UHF.IR as IR
 
 import qualified Data.Map as Map
+import Data.Functor.Identity (Identity (Identity, runIdentity))
+import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 
-type UnresolvedTypeIdentifier = (IR.NameContext, Location.Located [Location.Located Text])
-type UnresolvedExprIdentifier = (IR.NameContext, Location.Located [Location.Located Text])
-type UnresolvedDecl = IR.Decl
-type UnresolvedModule = IR.Module
+type UnresolvedTypeIdentifier = (IR.NameContext, [Location.Located Text])
+type UnresolvedExprIdentifier = (IR.NameContext, [Location.Located Text])
 type UnresolvedNominalType = IR.NominalType UnresolvedType
 type UnresolvedType = IR.TypeExpr UnresolvedTypeIdentifier
 type UnresolvedBinding = IR.Binding UnresolvedExprIdentifier
 type UnresolvedExpr = IR.Expr UnresolvedExprIdentifier
 type UnresolvedPattern = IR.Pattern UnresolvedExprIdentifier
 
-type UnresolvedDeclArena = Arena.Arena UnresolvedDecl IR.DeclKey
 type UnresolvedBindingArena = Arena.Arena UnresolvedBinding IR.BindingKey
 type UnresolvedNominalTypeArena = Arena.Arena UnresolvedNominalType IR.NominalTypeKey
 
-type ResolvedDecl = IR.Decl
-type ResolvedModule = IR.Module
 type ResolvedNominalType = IR.NominalType ResolvedType
 type ResolvedType = IR.TypeExpr (Maybe IR.DeclKey)
 type ResolvedBinding = IR.Binding (Maybe IR.BoundNameKey)
 type ResolvedExpr = IR.Expr (Maybe IR.BoundNameKey)
 type ResolvedPattern = IR.Pattern (Maybe IR.BoundNameKey)
 
-type ResolvedDeclArena = Arena.Arena ResolvedDecl IR.DeclKey
 type ResolvedBindingArena = Arena.Arena ResolvedBinding IR.BindingKey
 type ResolvedNominalTypeArena = Arena.Arena ResolvedNominalType IR.NominalTypeKey
+
+type Decl = IR.Decl
+
+type DeclArena = Arena.Arena Decl IR.DeclKey
 
 data Error
     = MultiIden (Location.Located [Location.Located Text])
@@ -78,71 +76,131 @@ instance Diagnostic.IsError Error where
                 (Just sp)
                 [Underlines.underlines [sp `Underlines.primary` [Underlines.error message]]]
 
--- TODO: resolve nominal types
-resolve :: (UnresolvedDeclArena, UnresolvedNominalTypeArena, UnresolvedBindingArena, IR.DeclKey) -> Writer [Error] (ResolvedDeclArena, ResolvedNominalTypeArena, ResolvedBindingArena)
-resolve (decls, nominals, values, mod) =
-    Arena.transformM (resolve_for_decl decls mod) decls >>= \ decls' ->
-    Arena.transformM (resolve_for_nominal_type decls mod) nominals >>= \ nominals' ->
-    Arena.transformM (resolve_for_value decls mod) values >>= \ values' ->
-    pure (decls', nominals', values')
-
-resolve_for_decl :: UnresolvedDeclArena -> IR.DeclKey -> UnresolvedDecl -> Writer [Error] ResolvedDecl
-resolve_for_decl _ _ (IR.Decl'Module m) = IR.Decl'Module <$> resolve_for_module m
+transform_identifiers :: Monad m => (t_iden -> m t_iden') -> (e_iden -> m e_iden') -> Arena.Arena (IR.NominalType (IR.TypeExpr t_iden)) IR.NominalTypeKey -> Arena.Arena (IR.Binding e_iden) IR.BindingKey -> m (Arena.Arena (IR.NominalType (IR.TypeExpr t_iden')) IR.NominalTypeKey, Arena.Arena (IR.Binding e_iden') IR.BindingKey)
+transform_identifiers transform_t_iden transform_e_iden nominal_types bindings = (,) <$> Arena.transformM transform_nominal_type nominal_types <*> Arena.transformM transform_binding bindings
     where
-        resolve_for_module = pure
-resolve_for_decl _ _ (IR.Decl'Type t) = pure $ IR.Decl'Type t
+        transform_nominal_type (IR.NominalType'Data variants) = IR.NominalType'Data <$> mapM transform_variant variants
+            where
+                transform_variant (IR.DataVariant'Named name fields) = IR.DataVariant'Named name <$> mapM (\ (name, ty) -> (,) name <$> transform_type_expr ty) fields
+                transform_variant (IR.DataVariant'Anon name fields) = IR.DataVariant'Anon name <$> mapM transform_type_expr fields
+        transform_nominal_type (IR.NominalType'Synonym expansion) = IR.NominalType'Synonym <$> transform_type_expr expansion
 
-resolve_for_nominal_type :: UnresolvedDeclArena -> IR.DeclKey -> UnresolvedNominalType -> Writer [Error] ResolvedNominalType
-resolve_for_nominal_type decls mod (IR.NominalType'Data variants) = todo
-resolve_for_nominal_type decls mod (IR.NominalType'Synonym expansion) = todo
+        transform_type_expr (IR.TypeExpr'Identifier id) = IR.TypeExpr'Identifier <$> transform_t_iden id
+        transform_type_expr (IR.TypeExpr'Tuple items) = IR.TypeExpr'Tuple <$> mapM transform_type_expr items
 
-resolve_for_value :: UnresolvedDeclArena -> IR.DeclKey -> UnresolvedBinding -> Writer [Error] ResolvedBinding
-resolve_for_value decls mod (IR.Binding target expr) = IR.Binding <$> resolve_for_pat decls mod target <*> resolve_for_expr decls mod expr
+        transform_binding (IR.Binding target expr) = IR.Binding <$> transform_pat target <*> transform_expr expr
 
-resolve_for_pat :: UnresolvedDeclArena -> IR.DeclKey -> UnresolvedPattern -> Writer [Error] ResolvedPattern
--- TOOD: this will change when destructuring is implemented beccause that needs to resolve constructor names (including constructor names without fields that will look exactly the same as identifier patterns)
-resolve_for_pat _ _ (IR.Pattern'Identifier bnk) = pure $ IR.Pattern'Identifier bnk
-resolve_for_pat decls mod (IR.Pattern'Tuple a b) = IR.Pattern'Tuple <$> resolve_for_pat decls mod a <*> resolve_for_pat decls mod b
-resolve_for_pat decls mod (IR.Pattern'Named bnk subpat) = IR.Pattern'Named bnk <$> resolve_for_pat decls mod subpat
-resolve_for_pat _ _ (IR.Pattern'Poison) = pure IR.Pattern'Poison
+        transform_pat (IR.Pattern'Identifier bnk) = pure $ IR.Pattern'Identifier bnk
+        transform_pat (IR.Pattern'Tuple a b) = IR.Pattern'Tuple <$> transform_pat a <*> transform_pat b
+        transform_pat (IR.Pattern'Named bnk subpat) = IR.Pattern'Named bnk <$> transform_pat subpat
+        transform_pat (IR.Pattern'Poison) = pure IR.Pattern'Poison
 
-resolve_for_expr :: UnresolvedDeclArena -> IR.DeclKey -> UnresolvedExpr -> Writer [Error] ResolvedExpr
-resolve_for_expr decls mod (IR.Expr'Identifier i) = IR.Expr'Identifier <$> resolve_expr_iden decls mod i
-resolve_for_expr _ _ (IR.Expr'Char c) = pure $ IR.Expr'Char c
-resolve_for_expr _ _ (IR.Expr'String s) = pure $ IR.Expr'String s
-resolve_for_expr _ _ (IR.Expr'Int i) = pure $ IR.Expr'Int i
-resolve_for_expr _ _ (IR.Expr'Float f) = pure $ IR.Expr'Float f
-resolve_for_expr _ _ (IR.Expr'Bool b) = pure $ IR.Expr'Bool b
+        transform_expr (IR.Expr'Identifier i) = IR.Expr'Identifier <$> transform_e_iden i
+        transform_expr (IR.Expr'Char c) = pure $ IR.Expr'Char c
+        transform_expr (IR.Expr'String s) = pure $ IR.Expr'String s
+        transform_expr (IR.Expr'Int i) = pure $ IR.Expr'Int i
+        transform_expr (IR.Expr'Float f) = pure $ IR.Expr'Float f
+        transform_expr (IR.Expr'Bool b) = pure $ IR.Expr'Bool b
 
-resolve_for_expr decls mod (IR.Expr'Tuple a b) = IR.Expr'Tuple <$> resolve_for_expr decls mod a <*> resolve_for_expr decls mod b
+        transform_expr (IR.Expr'Tuple a b) = IR.Expr'Tuple <$> transform_expr a <*> transform_expr b
 
-resolve_for_expr decls mod (IR.Expr'Lambda bound_names param body) = IR.Expr'Lambda bound_names <$> resolve_for_pat decls mod param <*> resolve_for_expr decls mod body
+        transform_expr (IR.Expr'Lambda bound_names param body) = IR.Expr'Lambda bound_names <$> transform_pat param <*> transform_expr body
 
-resolve_for_expr decls mod (IR.Expr'Let name_context body) = IR.Expr'Let name_context <$> resolve_for_expr decls mod body
-resolve_for_expr decls mod (IR.Expr'LetRec name_context body) = IR.Expr'LetRec name_context <$> resolve_for_expr decls mod body
+        transform_expr (IR.Expr'Let name_context body) = IR.Expr'Let name_context <$> transform_expr body
+        transform_expr (IR.Expr'LetRec name_context body) = IR.Expr'LetRec name_context <$> transform_expr body
 
-resolve_for_expr decls mod (IR.Expr'BinaryOps first ops) = IR.Expr'BinaryOps <$> resolve_for_expr decls mod first <*> mapM (\ (iden, rhs) -> (,) <$> resolve_expr_iden decls mod iden <*> resolve_for_expr decls mod rhs) ops
+        transform_expr (IR.Expr'BinaryOps first ops) = IR.Expr'BinaryOps <$> transform_expr first <*> mapM (\ (iden, rhs) -> (,) <$> transform_e_iden iden <*> transform_expr rhs) ops
 
-resolve_for_expr decls mod (IR.Expr'Call callee args) = IR.Expr'Call <$> resolve_for_expr decls mod callee <*> mapM (resolve_for_expr decls mod) args
+        transform_expr (IR.Expr'Call callee args) = IR.Expr'Call <$> transform_expr callee <*> mapM transform_expr args
 
-resolve_for_expr decls mod (IR.Expr'If cond t f) = IR.Expr'If <$> resolve_for_expr decls mod cond <*> resolve_for_expr decls mod t <*> resolve_for_expr decls mod f
-resolve_for_expr decls mod (IR.Expr'Case e arms) = IR.Expr'Case <$> resolve_for_expr decls mod e <*> mapM (\ (bound_names, pat, expr) -> (,,) bound_names <$> resolve_for_pat decls mod pat <*> resolve_for_expr decls mod expr) arms
+        transform_expr (IR.Expr'If cond t f) = IR.Expr'If <$> transform_expr cond <*> transform_expr t <*> transform_expr f
+        transform_expr (IR.Expr'Case e arms) = IR.Expr'Case <$> transform_expr e <*> mapM (\ (bound_names, pat, expr) -> (,,) bound_names <$> transform_pat pat <*> transform_expr expr) arms
 
-resolve_for_expr _ _ (IR.Expr'Poison) = pure IR.Expr'Poison
+        transform_expr (IR.Expr'Poison) = pure IR.Expr'Poison
 
-resolve_expr_iden :: UnresolvedDeclArena -> IR.DeclKey -> UnresolvedExprIdentifier  -> Writer [Error] (Maybe IR.BoundNameKey)
-resolve_expr_iden decls mod (nc, Location.Located _ [x]) =
-    case get_value_child decls mod x of
-        Right v -> pure (Just v)
+resolve :: (DeclArena, UnresolvedNominalTypeArena, UnresolvedBindingArena, IR.DeclKey) -> Writer [Error] (DeclArena, ResolvedNominalTypeArena, ResolvedBindingArena)
+resolve (decls, nominals, bindings, mod) =
+    let (nominals', bindings') = runIdentity (transform_identifiers (Identity) split_expr_iden nominals bindings)
+    in transform_identifiers (resolve_type_iden decls mod) (resolve_expr_iden decls mod) nominals' bindings' >>= \ (nominals', bindings') ->
+    pure (decls, nominals', bindings')
+    -- Arena.transformM (resolve_for_decl decls mod) decls >>= \ decls' ->
+    -- Arena.transformM (resolve_for_nominal_type decls mod) nominals >>= \ nominals' ->
+    -- Arena.transformM (resolve_for_binding decls mod) bindings >>= \ bindings' ->
+    -- pure (decls', nominals', bindings')
+
+split_expr_iden :: UnresolvedExprIdentifier -> Identity (IR.NameContext, Maybe [Location.Located Text], Location.Located Text)
+split_expr_iden (nc, []) = error "empty identifier"
+split_expr_iden (nc, [x]) = pure (nc, Nothing, x)
+split_expr_iden (nc, x) = pure (nc, Just $ init x, last x)
+
+resolve_expr_iden :: DeclArena -> IR.DeclKey -> (IR.NameContext, Maybe [Location.Located Text], Location.Located Text) -> Writer [Error] (Maybe IR.BoundNameKey)
+resolve_expr_iden decls mod (nc, Just type_iden, last_segment) =
+    runMaybeT $
+        MaybeT (resolve_type_iden decls mod (nc, type_iden)) >>= \ resolved_type ->
+        case get_value_child decls resolved_type last_segment of
+            Right v -> pure v
+            Left e -> lift (tell [e]) >> (MaybeT $ pure Nothing)
+
+resolve_expr_iden decls mod (nc, Nothing, last_segment) =
+    case resolve nc last_segment of
+        Right v -> pure $ Just v
         Left e -> tell [e] >> pure Nothing
+    where
+        resolve (IR.NameContext _ bn_children parent) name =
+            case Map.lookup (Location.unlocate name) bn_children of
+                Just res -> Right res
+                Nothing ->
+                    case parent of
+                        Just parent -> resolve parent name
+                        Nothing -> Left $ CouldNotFind Nothing name -- TODO: put previous segment in error
 
-resolve_expr_iden _ _ (_, i) = tell [MultiIden i] >> pure Nothing
+resolve_type_iden :: DeclArena -> IR.DeclKey -> UnresolvedTypeIdentifier -> Writer [Error] (Maybe IR.DeclKey)
+resolve_type_iden decls mod (nc, []) = error "empty identifier"
+resolve_type_iden decls mod (nc, segments@(first:_)) =
+    let starting = find_starting_nc nc first
+    in case resolve (Just starting) segments of
+        Right r -> pure $ Just r
+        Left e -> tell [e] >> pure Nothing
+    where
+        -- this will have to change when children of types are implemented because types do not have name contexts
+        resolve _ [] = error "empty identifier"
+        resolve (Nothing) (x:_) = Left $ CouldNotFind Nothing x -- TODO: put previous segment in error
+        resolve (Just nc) [x] = get_from_nc nc x
+        resolve (Just nc) (first:more) =
+            get_from_nc nc first >>= \ child ->
+            resolve (get_name_context decls child) more
 
-get_value_child :: UnresolvedDeclArena -> IR.DeclKey -> Location.Located Text -> Either Error IR.BoundNameKey
-get_value_child decls thing name =
--- TODO: look in parents too
+        get_from_nc (IR.NameContext d_children _ _) name =
+            case Map.lookup (Location.unlocate name) d_children of
+                Just res -> Right res
+                Nothing -> Left $ CouldNotFind Nothing name -- TODO: put previous segment in error
+
+        find_starting_nc nc@(IR.NameContext _ _ parent) name =
+            case get_from_nc nc name of
+                Right _ -> nc
+                Left _ ->
+                    case parent of
+                        Just parent -> find_starting_nc parent name
+                        Nothing -> nc
+
+get_name_context :: DeclArena -> IR.DeclKey -> Maybe IR.NameContext
+get_name_context decls thing = case Arena.get decls thing of
+    IR.Decl'Module (IR.Module nc) -> Just nc
+    IR.Decl'Type _ -> Nothing -- TODO: implement children of types through impl blocks
+
+get_decl_child :: DeclArena -> IR.DeclKey -> Location.Located Text -> Either Error IR.DeclKey
+get_decl_child decls thing name =
     let res = case Arena.get decls thing of
-            IR.Decl'Module (IR.Module (IR.NameContext _ children _)) -> Map.lookup (Location.unlocate name) children
+            IR.Decl'Module (IR.Module (IR.NameContext d_children _ _)) -> Map.lookup (Location.unlocate name) d_children
+            IR.Decl'Type _ -> Nothing -- TODO: implement children of types through impl blocks
+    in case res of
+        Just res -> Right res
+        Nothing -> Left $ CouldNotFind Nothing name
+
+get_value_child :: DeclArena -> IR.DeclKey -> Location.Located Text -> Either Error IR.BoundNameKey
+get_value_child decls thing name =
+    let res = case Arena.get decls thing of
+            IR.Decl'Module (IR.Module (IR.NameContext _ v_children _)) -> Map.lookup (Location.unlocate name) v_children
             IR.Decl'Type _ -> Nothing -- TODO: implement children of types through impl blocks
     in case res of
         Just res -> Right res

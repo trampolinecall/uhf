@@ -97,7 +97,7 @@ instance Diagnostic.IsError Error where
                 [sp `Underlines.primary` [Underlines.error "tuple of 0 element"]]
             ]
 
-type Identifier = (IR.NameContext, Location.Located [Location.Located Text])
+type Identifier = (IR.NameContext, [Location.Located Text])
 type Decl = IR.Decl
 type Module = IR.Module
 type Binding = IR.Binding Identifier
@@ -239,11 +239,11 @@ convert_decls parent_context decls =
                     fields
 
 convert_type :: IR.NameContext -> AST.Type -> MakeIRState Type
-convert_type nc (AST.Type'Identifier id) = pure $ IR.TypeExpr'Identifier (nc, id)
+convert_type nc (AST.Type'Identifier id) = pure $ IR.TypeExpr'Identifier (nc, Location.unlocate id)
 convert_type nc (AST.Type'Tuple items) = IR.TypeExpr'Tuple <$> mapM (convert_type nc) items
 
 convert_expr :: IR.NameContext -> AST.Expr -> MakeIRState Expr
-convert_expr nc (AST.Expr'Identifier iden) = pure $ IR.Expr'Identifier (nc, iden)
+convert_expr nc (AST.Expr'Identifier iden) = pure $ IR.Expr'Identifier (nc, Location.unlocate iden)
 convert_expr _ (AST.Expr'Char c) = pure $ IR.Expr'Char c
 convert_expr _ (AST.Expr'String s) = pure $ IR.Expr'String s
 convert_expr _ (AST.Expr'Int i) = pure $ IR.Expr'Int i
@@ -274,7 +274,7 @@ convert_expr parent_context (AST.Expr'LetRec decls subexpr) =
     convert_decls (Just parent_context) decls >>= \ let_context ->
     IR.Expr'LetRec let_context <$> (convert_expr let_context subexpr)
 
-convert_expr parent_context (AST.Expr'BinaryOps first ops) = IR.Expr'BinaryOps <$> convert_expr parent_context first <*> mapM (\ (op, right) -> convert_expr parent_context right >>= \ right' -> pure ((parent_context, op), right')) ops
+convert_expr parent_context (AST.Expr'BinaryOps first ops) = IR.Expr'BinaryOps <$> convert_expr parent_context first <*> mapM (\ (op, right) -> convert_expr parent_context right >>= \ right' -> pure ((parent_context, Location.unlocate op), right')) ops
 
 convert_expr parent_context (AST.Expr'Call callee args) = IR.Expr'Call <$> convert_expr parent_context callee <*> mapM (convert_expr parent_context) args
 

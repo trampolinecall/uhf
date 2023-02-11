@@ -23,7 +23,7 @@ type ErrorAccumulated a = Writer [Diagnostic.Error] a -- TODO: allow for warning
 
 type Tokens = ([Token.LToken], Token.LToken)
 type AST = [AST.Decl]
-type FirstIR = (Arena.Arena IR.Decl IR.DeclKey, Arena.Arena (IR.NominalType (IR.TypeExpr (IR.NameContext, Location.Located [Location.Located Text]))) IR.NominalTypeKey, Arena.Arena (IR.Binding (IR.NameContext, Location.Located [Location.Located Text])) IR.BindingKey, Arena.Arena IR.BoundName IR.BoundNameKey, IR.DeclKey)
+type FirstIR = (Arena.Arena IR.Decl IR.DeclKey, Arena.Arena (IR.NominalType (IR.TypeExpr (IR.NameContext, [Location.Located Text]))) IR.NominalTypeKey, Arena.Arena (IR.Binding (IR.NameContext, [Location.Located Text])) IR.BindingKey, Arena.Arena IR.BoundName IR.BoundNameKey, IR.DeclKey)
 type NRIR = (Arena.Arena IR.Decl IR.DeclKey, Arena.Arena (IR.NominalType (IR.TypeExpr (Maybe IR.DeclKey))) IR.NominalTypeKey, Arena.Arena (IR.Binding (Maybe IR.BoundNameKey)) IR.BindingKey)
 
 compile :: File.File -> Either [Diagnostic.Error] NRIR

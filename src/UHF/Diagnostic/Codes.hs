@@ -25,5 +25,4 @@ $(error_code 0204 "path_in_field_name")
 $(error_code 0205 "tuple0")
 $(error_code 0206 "tuple1")
 
-$(error_code 0300 "multi_iden")
-$(error_code 0301 "undef_name")
+$(error_code 0300 "undef_name")

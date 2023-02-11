@@ -101,16 +101,20 @@ decl_typesyn =
 -- expr {{{1
 expr :: PEG.Parser AST.Expr
 expr =
-    PEG.choice -- TODO: precedence is completely wrong
+    PEG.choice
+        [ expr_binary_ops
+        , expr_call
+        ]
+
+expr_primary :: PEG.Parser AST.Expr
+expr_primary =
+    PEG.choice
         [ expr_identifier
         , expr_char_lit
         , expr_string_lit
         , expr_int_lit
         , expr_float_lit
         , expr_bool_lit
-
-        , expr_binary_ops
-        , expr_call
 
         , expr_if
         , expr_case
@@ -192,17 +196,17 @@ expr_let =
 
 expr_binary_ops :: PEG.Parser AST.Expr
 expr_binary_ops =
-    expr >>= \ first ->
+    expr_primary >>= \ first ->
     PEG.star (
         PEG.consume' "operator" (Token.SymbolIdentifier ()) >>= \ (Location.Located op_sp (Token.SymbolIdentifier op)) ->
-        expr >>= \ second ->
+        expr_primary >>= \ second ->
         pure (Location.Located op_sp op, second)
     ) >>= \ ops ->
     pure (AST.Expr'BinaryOps first ops)
 
 expr_call :: PEG.Parser AST.Expr
 expr_call =
-    expr >>= \ callee ->
+    expr_primary >>= \ callee ->
     PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ _ ->
     PEG.delim_star expr (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ args ->
     PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ _ ->

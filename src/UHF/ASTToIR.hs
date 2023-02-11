@@ -8,6 +8,7 @@ module UHF.ASTToIR
     , DeclArena
     , BoundNameArena
     , BindingArena
+    , NominalTypeArena
 
     , DeclMap
     , BoundNameMap
@@ -31,7 +32,7 @@ import qualified UHF.Diagnostic.Sections.Underlines as Underlines
 
 import qualified Data.Map as Map
 
-import Control.Monad.Trans.Maybe
+import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 
 data Error
     = Redefinition (Location.Located Text)

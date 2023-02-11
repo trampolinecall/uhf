@@ -12,7 +12,7 @@ module UHF.ASTToIR
 
     , DeclMap
     , BoundNameMap
-    , ChildMaps
+    , IR.NameContext
 
     , convert
     ) where
@@ -33,6 +33,7 @@ import qualified UHF.Diagnostic.Sections.Underlines as Underlines
 import qualified Data.Map as Map
 
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
+import Control.Monad.Fix (mfix)
 
 data Error
     = Redefinition (Location.Located Text)
@@ -107,18 +108,17 @@ type NominalTypeArena = Arena.Arena NominalType IR.NominalTypeKey
 
 type DeclMap = Map.Map Text IR.DeclKey
 type BoundNameMap = Map.Map Text IR.BoundNameKey
-type ChildMaps = (DeclMap, BoundNameMap)
 
 type MakeIRState = StateT (DeclArena, BindingArena, BoundNameArena, NominalTypeArena) (Writer [Error])
 
-put_decl :: Decl -> MakeIRState IR.DeclKey
-put_decl d =
+new_decl :: Decl -> MakeIRState IR.DeclKey
+new_decl d =
     state $ \ (decls, bindings, bound_names, nominals) ->
         let (key, decls') = Arena.put d decls
         in (key, (decls', bindings, bound_names, nominals))
 
-put_binding :: Binding -> MakeIRState IR.BindingKey
-put_binding v =
+new_binding :: Binding -> MakeIRState IR.BindingKey
+new_binding v =
     state $ \ (decls, bindings, bound_names, nominals) ->
         let (key, bindings') = Arena.put v bindings
         in (key, (decls, bindings', bound_names, nominals))
@@ -160,53 +160,62 @@ add_iden_to_bound_name_map map l_name =
 
         _ -> tell_err (PathInPattern l_name) >> pure Nothing
 
+add_decl_to_name_context :: IR.NameContext -> Location.Located Text -> IR.DeclKey -> MakeIRState (Maybe IR.NameContext)
+add_decl_to_name_context (IR.NameContext decls bns parent) l_name decl_key =
+    add_iden_to_decl_map decls l_name decl_key >>= \case
+        Just decls -> pure $ Just $ IR.NameContext decls bns parent
+        Nothing -> pure Nothing
+
+add_bound_name_to_name_context :: IR.NameContext -> Location.Located [Location.Located Text] -> MakeIRState (Maybe (IR.NameContext, IR.BoundNameKey))
+add_bound_name_to_name_context (IR.NameContext decls bns parent) l_name =
+    add_iden_to_bound_name_map bns l_name >>= \case
+        Just (bns, bnk) -> pure $ Just (IR.NameContext decls bns parent, bnk)
+        Nothing -> pure Nothing
+
 convert :: [AST.Decl] -> Writer [Error] (DeclArena, NominalTypeArena, BindingArena, BoundNameArena, IR.DeclKey)
 convert decls =
-    let make =
-            convert_to_maps decls >>= \ (decl_map, bound_name_map) ->
-            put_decl (IR.Decl'Module $ IR.Module decl_map bound_name_map)
+    let make = IR.Decl'Module <$> (IR.Module <$> convert_decls Nothing decls) >>= new_decl
+    in runStateT make (Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (mod, (decls, bindings, bound_names, nominals)) ->
+    pure (decls, nominals, bindings, bound_names, mod)
 
-    in runStateT make (Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (mod, (decls, values, bound_names, nominals)) ->
-    pure (decls, nominals, values, bound_names, mod)
+convert_decls :: Maybe IR.NameContext -> [AST.Decl] -> MakeIRState IR.NameContext
+convert_decls parent_context decls =
+    mfix (\ resulting_name_context ->
+        foldlM
+            (\ name_context cur_decl ->
+                case cur_decl of
+                    AST.Decl'Value target expr ->
+                        convert_expr resulting_name_context expr >>= \ expr' ->
+                        convert_pattern name_context target >>= \ (name_context, target') ->
+                        new_binding (IR.Binding target' expr') >>
+                        pure name_context
 
-convert_to_maps :: [AST.Decl] -> MakeIRState ChildMaps
-convert_to_maps =
-    foldl'
-        (\ last_map cur_decl ->
-            last_map >>= \ (decl_map, bound_name_map) ->
-            case cur_decl of
-                AST.Decl'Value target expr ->
-                    convert_expr expr >>= \ expr' ->
-                    convert_pattern bound_name_map target >>= \ (bound_name_map, target') ->
-                    put_binding (IR.Binding target' expr') >>
-                    pure (decl_map, bound_name_map)
+                    AST.Decl'Data name variants ->
+                        runMaybeT (
+                            IR.NominalType'Data <$> mapM convert_variant variants >>= \ datatype ->
 
-                AST.Decl'Data name variants ->
-                    runMaybeT (
-                        IR.NominalType'Data <$> mapM convert_variant variants >>= \ datatype ->
+                            lift (new_nominal_type datatype) >>= \ nominal_type_key ->
+                            lift (new_decl (IR.Decl'Type nominal_type_key)) >>= \ decl_key ->
 
-                        lift (new_nominal_type datatype) >>= \ nominal_type_key ->
-                        lift (put_decl (IR.Decl'Type nominal_type_key)) >>= \ decl_key ->
+                            iden1_for_datatype_name name >>= \ name1 ->
+                            MaybeT (add_decl_to_name_context name_context name1 decl_key)
+                        ) >>= \ name_context' ->
+                        pure (fromMaybe name_context name_context')
 
-                        iden1_for_datatype_name name >>= \ name1 ->
-                        MaybeT (add_iden_to_decl_map decl_map name1 decl_key) >>= \ decl_map' ->
-                        pure (decl_map')
-                    ) >>= \ decl_map' ->
-                    pure (fromMaybe decl_map decl_map', bound_name_map)
+                    AST.Decl'TypeSyn name expansion ->
+                        convert_type expansion >>= \ expansion' ->
+                        new_nominal_type (IR.NominalType'Synonym expansion') >>= \ nominal_type_key ->
+                        new_decl (IR.Decl'Type nominal_type_key) >>= \ decl_key ->
 
-                AST.Decl'TypeSyn name expansion ->
-                    convert_type expansion >>= \ expansion' ->
-                    new_nominal_type (IR.NominalType'Synonym expansion') >>= \ nominal_type_key ->
-                    put_decl (IR.Decl'Type nominal_type_key) >>= \ decl_key ->
-
-                    runMaybeT (
-                        iden1_for_datatype_name name >>= \ name1 ->
-                        MaybeT (add_iden_to_decl_map decl_map name1 decl_key) >>= \ decl_map' ->
-                        pure (decl_map')
-                    ) >>= \ decl_map' ->
-                    pure (fromMaybe decl_map decl_map', bound_name_map)
+                        runMaybeT (
+                            iden1_for_datatype_name name >>= \ name1 ->
+                            MaybeT (add_decl_to_name_context name_context name1 decl_key)
+                        ) >>= \ name_context' ->
+                        pure (fromMaybe name_context name_context')
             )
-        (pure (Map.empty, Map.empty))
+            (IR.NameContext  Map.empty Map.empty parent_context)
+            decls
+        )
     where
         iden1_for_variant_name iden = MaybeT $ case make_iden1 iden of
             Just (Location.Located _ n) -> pure (Just n)
@@ -227,71 +236,75 @@ convert_type :: AST.Type -> MakeIRState Type
 convert_type (AST.Type'Identifier id) = pure $ IR.TypeExpr'Identifier id
 convert_type (AST.Type'Tuple items) = IR.TypeExpr'Tuple <$> mapM convert_type items
 
-convert_expr :: AST.Expr -> MakeIRState Expr
-convert_expr (AST.Expr'Identifier iden) = pure $ IR.Expr'Identifier iden
-convert_expr (AST.Expr'Char c) = pure $ IR.Expr'Char c
-convert_expr (AST.Expr'String s) = pure $ IR.Expr'String s
-convert_expr (AST.Expr'Int i) = pure $ IR.Expr'Int i
-convert_expr (AST.Expr'Float f) = pure $ IR.Expr'Float f
-convert_expr (AST.Expr'Bool b) = pure $ IR.Expr'Bool b
+convert_expr :: IR.NameContext -> AST.Expr -> MakeIRState Expr
+convert_expr _ (AST.Expr'Identifier iden) = pure $ IR.Expr'Identifier iden
+convert_expr _ (AST.Expr'Char c) = pure $ IR.Expr'Char c
+convert_expr _ (AST.Expr'String s) = pure $ IR.Expr'String s
+convert_expr _ (AST.Expr'Int i) = pure $ IR.Expr'Int i
+convert_expr _ (AST.Expr'Float f) = pure $ IR.Expr'Float f
+convert_expr _ (AST.Expr'Bool b) = pure $ IR.Expr'Bool b
 
-convert_expr (AST.Expr'Tuple items) =
-    mapM convert_expr items >>= group_items
+convert_expr parent_context (AST.Expr'Tuple items) =
+    mapM (convert_expr parent_context) items >>= group_items
     where
         group_items (a:b:[]) = pure $ IR.Expr'Tuple a b
         group_items (a:b:more) = IR.Expr'Tuple a <$> (group_items $ b:more)
-        group_items [_] = tell_err (Tuple1 todo)>> pure IR.Expr'Poison
-        group_items [] = tell_err (Tuple0 todo)>> pure IR.Expr'Poison
+        group_items [_] = tell_err (Tuple1 todo) >> pure IR.Expr'Poison
+        group_items [] = tell_err (Tuple0 todo) >> pure IR.Expr'Poison
 
-convert_expr (AST.Expr'Lambda params body) = convert_lambda params body
+convert_expr parent_context (AST.Expr'Lambda params body) = convert_lambda parent_context params body
     where
-        convert_lambda (param:more) body =
-            convert_pattern Map.empty param >>= \ (map, param) ->
-            (IR.Expr'Lambda map param <$> (convert_lambda more body))
+        convert_lambda parent_context (param:more) body =
+            convert_pattern (IR.NameContext Map.empty Map.empty (Just parent_context)) param >>= \ (cur_nc, param) -> -- TODO: parent context
+            (IR.Expr'Lambda cur_nc param <$> convert_lambda cur_nc more body)
 
-        convert_lambda [] body = convert_expr body
+        convert_lambda parent_context [] body = convert_expr parent_context body
 
-convert_expr (AST.Expr'Let decls subexpr) = convert_to_maps decls >>= \ (d_map, bn_map) -> IR.Expr'Let d_map bn_map <$> (convert_expr subexpr) -- TODO: actually do sequentially because convert_to_maps does all at once
-convert_expr (AST.Expr'LetRec decls subexpr) = convert_to_maps decls >>= \ (d_map, bn_map) -> IR.Expr'LetRec d_map bn_map <$> (convert_expr subexpr)
+convert_expr parent_context (AST.Expr'Let decls subexpr) =
+    convert_decls (Just parent_context) decls >>= \ let_context ->
+    IR.Expr'Let let_context <$> (convert_expr let_context subexpr) -- TODO: actually do sequentially because convert_decls does all at once
+convert_expr parent_context (AST.Expr'LetRec decls subexpr) =
+    convert_decls (Just parent_context) decls >>= \ let_context ->
+    IR.Expr'LetRec let_context <$> (convert_expr let_context subexpr)
 
-convert_expr (AST.Expr'BinaryOps first ops) = IR.Expr'BinaryOps <$> convert_expr first <*> mapM (\ (op, right) -> convert_expr right >>= \ right' -> pure (op, right')) ops
+convert_expr parent_context (AST.Expr'BinaryOps first ops) = IR.Expr'BinaryOps <$> convert_expr parent_context first <*> mapM (\ (op, right) -> convert_expr parent_context right >>= \ right' -> pure (op, right')) ops
 
-convert_expr (AST.Expr'Call callee args) = IR.Expr'Call <$> convert_expr callee <*> mapM convert_expr args
+convert_expr parent_context (AST.Expr'Call callee args) = IR.Expr'Call <$> convert_expr parent_context callee <*> mapM (convert_expr parent_context) args
 
-convert_expr (AST.Expr'If cond t f) = IR.Expr'If <$> convert_expr cond <*> convert_expr t <*> convert_expr f
-convert_expr (AST.Expr'Case e arms) =
-    convert_expr e >>= \ e ->
+convert_expr parent_context (AST.Expr'If cond t f) = IR.Expr'If <$> convert_expr parent_context cond <*> convert_expr parent_context t <*> convert_expr parent_context f
+convert_expr parent_context (AST.Expr'Case e arms) =
+    convert_expr parent_context e >>= \ e ->
     mapM
         (\ (pat, choice) ->
-            convert_pattern Map.empty pat >>= \ (bn_map, pat) ->
-            convert_expr choice >>= \ choice ->
-            pure (bn_map, pat, choice))
+            convert_pattern (IR.NameContext Map.empty Map.empty (Just parent_context)) pat >>= \ (nc, pat) -> -- TODO: parent context
+            convert_expr nc choice >>= \ choice ->
+            pure (nc, pat, choice))
         arms
         >>= \ arms ->
     pure (IR.Expr'Case e arms)
 
-convert_expr (AST.Expr'TypeAnnotation _ _) = todo -- IR.Expr'TypeAnnotation ty e
+convert_expr _ (AST.Expr'TypeAnnotation _ _) = todo -- IR.Expr'TypeAnnotation ty e
 
-convert_pattern :: BoundNameMap -> AST.Pattern -> MakeIRState (BoundNameMap, Pattern)
-convert_pattern map (AST.Pattern'Identifier iden) =
-    add_iden_to_bound_name_map map iden >>= \case
-        Just (map', iden') -> pure (map', IR.Pattern'Identifier iden')
-        Nothing -> pure (map, IR.Pattern'Poison)
-convert_pattern map (AST.Pattern'Tuple subpats) =
-    mapAccumLM convert_pattern map subpats >>= \ (map', subpats') ->
+convert_pattern :: IR.NameContext -> AST.Pattern -> MakeIRState (IR.NameContext, Pattern)
+convert_pattern nc (AST.Pattern'Identifier iden) =
+    add_bound_name_to_name_context nc iden >>= \case
+        Just (nc', iden') -> pure (nc', IR.Pattern'Identifier iden')
+        Nothing -> pure (nc, IR.Pattern'Poison)
+convert_pattern nc (AST.Pattern'Tuple subpats) =
+    mapAccumLM convert_pattern nc subpats >>= \ (nc', subpats') ->
     go subpats' >>= \ subpats_grouped ->
-    pure (map', subpats_grouped)
+    pure (nc', subpats_grouped)
     where
         go (a:b:[]) = pure $ IR.Pattern'Tuple a b
         go (a:b:more) = IR.Pattern'Tuple a <$> (go $ b:more)
         go [_] = tell_err (Tuple1 todo) >> pure IR.Pattern'Poison
         go [] = tell_err (Tuple0 todo) >> pure IR.Pattern'Poison
-convert_pattern map (AST.Pattern'Named iden subpat) =
-    add_iden_to_bound_name_map map iden >>= \case
-        Just (map, iden) ->
-            convert_pattern map subpat >>= \ (map, subpat) ->
-            pure (map, IR.Pattern'Named iden subpat)
-        Nothing -> pure (map, IR.Pattern'Poison)
+convert_pattern nc (AST.Pattern'Named iden subpat) =
+    add_bound_name_to_name_context nc iden >>= \case
+        Just (nc, iden) ->
+            convert_pattern nc subpat >>= \ (nc, subpat) ->
+            pure (nc, IR.Pattern'Named iden subpat)
+        Nothing -> pure (nc, IR.Pattern'Poison)
 
 mapAccumLM :: Monad m => (acc -> a -> m (acc, b)) -> acc -> [a] -> m (acc, [b])
 mapAccumLM f acc (x:xs) =

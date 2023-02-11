@@ -110,6 +110,8 @@ transform_identifiers transform_t_iden transform_e_iden nominal_types bindings =
         transform_expr (IR.Expr'If cond t f) = IR.Expr'If <$> transform_expr cond <*> transform_expr t <*> transform_expr f
         transform_expr (IR.Expr'Case e arms) = IR.Expr'Case <$> transform_expr e <*> mapM (\ (pat, expr) -> (,) <$> transform_pat pat <*> transform_expr expr) arms
 
+        transform_expr (IR.Expr'TypeAnnotation ty e) = IR.Expr'TypeAnnotation <$> transform_type_expr ty <*> transform_expr e
+
         transform_expr IR.Expr'Poison = pure IR.Expr'Poison
 
 resolve :: (DeclArena, UnresolvedNominalTypeArena, UnresolvedBindingArena) -> Writer [Error] (DeclArena, ResolvedNominalTypeArena, ResolvedBindingArena)

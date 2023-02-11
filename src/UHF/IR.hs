@@ -55,7 +55,7 @@ newtype BoundNameKey = BoundNameKey Int deriving Show
 instance Arena.Key BoundNameKey where
     make_key = BoundNameKey
     unmake_key (BoundNameKey i) = i
-newtype BoundName = BoundName () deriving Show -- TODO: replace with counter instead of arena of ()?
+newtype BoundName = BoundName () deriving Show -- TODO: replace with counter instead of arena of ()?, also rename to something better because decls are also "bound names", probably change to "bound value"?
 
 newtype BindingKey = BindingKey Int deriving Show
 instance Arena.Key BindingKey where
@@ -85,7 +85,7 @@ data Expr identifier
 
     | Expr'Tuple (Expr identifier) (Expr identifier)
 
-    | Expr'Lambda NameContext (Pattern identifier) (Expr identifier) -- TODO: maps store their parents so that name resolution can go up the stack of names
+    | Expr'Lambda NameContext (Pattern identifier) (Expr identifier)
 
     | Expr'Let NameContext (Expr identifier)
     | Expr'LetRec NameContext (Expr identifier)

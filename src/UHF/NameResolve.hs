@@ -92,7 +92,6 @@ resolve_for_pat decls mod (IR.Pattern'Named bnk subpat) = IR.Pattern'Named bnk <
 resolve_for_pat _ _ (IR.Pattern'Poison) = pure IR.Pattern'Poison
 
 resolve_for_expr :: UnresolvedDeclArena -> IR.DeclKey -> UnresolvedExpr -> Writer [Error] ResolvedExpr
--- TODO: do for rest of exprs
 resolve_for_expr decls mod (IR.Expr'Identifier i) = IR.Expr'Identifier <$> resolve_iden decls mod i
 resolve_for_expr _ _ (IR.Expr'Char c) = pure $ IR.Expr'Char c
 resolve_for_expr _ _ (IR.Expr'String s) = pure $ IR.Expr'String s
@@ -124,13 +123,10 @@ resolve_iden _ _ i = tell [MultiIden i] >> pure Nothing
 
 get_value_child :: UnresolvedDeclArena -> IR.DeclKey -> Location.Located Text -> Either Error IR.BoundNameKey
 get_value_child decls thing name =
-    case Arena.get decls thing of
-        IR.Decl'Module (IR.Module _ children) ->
-            case Map.lookup (Location.unlocate name) children of
-                Just res -> Right res
-                Nothing -> Left $ CouldNotFind Nothing name
-        IR.Decl'Type _ ->
-            case Nothing of -- TODO: implement children of types through impl blocks
-                Just res -> Right res
-                Nothing -> Left $ CouldNotFind Nothing name
+    let res = case Arena.get decls thing of
+            IR.Decl'Module (IR.Module _ children) -> Map.lookup (Location.unlocate name) children
+            IR.Decl'Type _ -> Nothing -- TODO: implement children of types through impl blocks
+    in case res of
+        Just res -> Right res
+        Nothing -> Left $ CouldNotFind Nothing name
 

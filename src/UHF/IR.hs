@@ -3,12 +3,18 @@ module UHF.IR
     , Decl(..)
     , Module(..)
 
+    , NominalTypeKey
+    , NominalType(..)
+    , DataVariant(..)
+
     , BoundNameKey
     , BoundName(..)
 
     , BindingKey
     , Binding (..)
 
+    , TypeExpr(..)
+    , Type(..)
     , Expr(..)
     , Pattern(..)
     ) where
@@ -23,8 +29,25 @@ newtype DeclKey = DeclKey Int deriving Show
 instance Arena.Key DeclKey where
     make_key = DeclKey
     unmake_key (DeclKey i) = i
-data Decl = Decl'Module Module deriving Show
+data Decl
+    = Decl'Module Module
+    | Decl'Type NominalTypeKey
+    deriving Show
 data Module = Module (Map.Map Text DeclKey) (Map.Map Text BoundNameKey) deriving Show
+newtype DeclNominalType = DeclType NominalTypeKey deriving Show
+
+newtype NominalTypeKey = NominalTypeKey Int deriving Show
+instance Arena.Key NominalTypeKey where
+    make_key = NominalTypeKey
+    unmake_key (NominalTypeKey i) = i
+data NominalType ty
+    = NominalType'Data [DataVariant ty]
+    | NominalType'Synonym ty
+    deriving Show
+data DataVariant ty
+    = DataVariant'Named Text [(Text, ty)]
+    | DataVariant'Anon Text [ty]
+    deriving Show
 
 newtype BoundNameKey = BoundNameKey Int deriving Show
 instance Arena.Key BoundNameKey where
@@ -37,6 +60,16 @@ instance Arena.Key BindingKey where
     make_key = BindingKey
     unmake_key (BindingKey i) = i
 data Binding identifier = Binding (Pattern identifier) (Expr identifier) deriving Show
+
+data TypeExpr identifier
+    = TypeExpr'Identifier identifier
+    | TypeExpr'Tuple [TypeExpr identifier]
+    deriving Show
+
+data Type
+    = Type'Nominal NominalTypeKey
+    | Type'Tuple [Type]
+    deriving Show
 
 data Expr identifier
     = Expr'Identifier identifier

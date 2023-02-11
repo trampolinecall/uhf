@@ -245,13 +245,13 @@ convert_expr _ (AST.Expr'Int i) = pure $ IR.Expr'Int i
 convert_expr _ (AST.Expr'Float f) = pure $ IR.Expr'Float f
 convert_expr _ (AST.Expr'Bool b) = pure $ IR.Expr'Bool b
 
-convert_expr parent_context (AST.Expr'Tuple items) =
+convert_expr parent_context (AST.Expr'Tuple sp items) =
     mapM (convert_expr parent_context) items >>= group_items
     where
         group_items [a, b] = pure $ IR.Expr'Tuple a b
         group_items (a:b:more) = IR.Expr'Tuple a <$> group_items (b:more)
-        group_items [_] = tell_err (Tuple1 todo) >> pure IR.Expr'Poison
-        group_items [] = tell_err (Tuple0 todo) >> pure IR.Expr'Poison
+        group_items [_] = tell_err (Tuple1 sp) >> pure IR.Expr'Poison
+        group_items [] = tell_err (Tuple0 sp) >> pure IR.Expr'Poison
 
 convert_expr parent_context (AST.Expr'Lambda params body) = convert_lambda parent_context params body
     where
@@ -298,15 +298,15 @@ convert_pattern (AST.Pattern'Identifier iden) =
             pure ([(l_name, bn)], IR.Pattern'Identifier bn)
 
         Nothing -> pure ([], IR.Pattern'Poison)
-convert_pattern (AST.Pattern'Tuple subpats) =
+convert_pattern (AST.Pattern'Tuple sp subpats) =
     List.unzip <$> mapM convert_pattern subpats >>= \ (bound_names, subpats') ->
     go subpats' >>= \ subpats_grouped ->
     pure (concat bound_names, subpats_grouped)
     where
         go [a, b] = pure $ IR.Pattern'Tuple a b
         go (a:b:more) = IR.Pattern'Tuple a <$> go (b:more)
-        go [_] = tell_err (Tuple1 todo) >> pure IR.Pattern'Poison
-        go [] = tell_err (Tuple0 todo) >> pure IR.Pattern'Poison
+        go [_] = tell_err (Tuple1 sp) >> pure IR.Pattern'Poison
+        go [] = tell_err (Tuple0 sp) >> pure IR.Pattern'Poison
 convert_pattern (AST.Pattern'Named iden subpat) =
     convert_pattern subpat >>= \ (sub_bn, subpat') ->
     make_iden1_with_err PathInPattern iden >>= \case

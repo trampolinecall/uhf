@@ -41,9 +41,8 @@ lex file = convert_errors (Lexer.lex file)
 
 parse :: Tokens -> ErrorAccumulated AST
 parse (toks, eof_tok) =
-    let (other_errors, bt_error, res) = Parser.parse toks eof_tok
-    in tell (map Diagnostic.to_error other_errors) >>
-    (case bt_error of
+    let (bt_error, res) = Parser.parse toks eof_tok
+    in (case bt_error of
         Just bt_error -> tell [Diagnostic.to_error bt_error]
         Nothing -> pure ()) >>
     pure res

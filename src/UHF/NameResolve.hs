@@ -35,8 +35,8 @@ type UnresolvedTypeIdentifier = (IR.NameContext, [Location.Located Text])
 type UnresolvedExprIdentifier = (IR.NameContext, [Location.Located Text])
 type UnresolvedNominalType = IR.NominalType UnresolvedType
 type UnresolvedType = IR.TypeExpr UnresolvedTypeIdentifier
-type UnresolvedBinding = IR.Binding UnresolvedExprIdentifier
-type UnresolvedExpr = IR.Expr UnresolvedExprIdentifier
+type UnresolvedBinding = IR.Binding UnresolvedExprIdentifier UnresolvedType
+type UnresolvedExpr = IR.Expr UnresolvedExprIdentifier UnresolvedType
 type UnresolvedPattern = IR.Pattern UnresolvedExprIdentifier
 
 type UnresolvedBindingArena = Arena.Arena UnresolvedBinding IR.BindingKey
@@ -44,8 +44,8 @@ type UnresolvedNominalTypeArena = Arena.Arena UnresolvedNominalType IR.NominalTy
 
 type ResolvedNominalType = IR.NominalType ResolvedType
 type ResolvedType = IR.TypeExpr (Maybe IR.DeclKey)
-type ResolvedBinding = IR.Binding (Maybe IR.BoundNameKey)
-type ResolvedExpr = IR.Expr (Maybe IR.BoundNameKey)
+type ResolvedBinding = IR.Binding (Maybe IR.BoundNameKey) ResolvedType
+type ResolvedExpr = IR.Expr (Maybe IR.BoundNameKey) ResolvedType
 type ResolvedPattern = IR.Pattern (Maybe IR.BoundNameKey)
 
 type ResolvedBindingArena = Arena.Arena ResolvedBinding IR.BindingKey
@@ -70,7 +70,7 @@ instance Diagnostic.IsError Error where
                 (Just sp)
                 [Underlines.underlines [sp `Underlines.primary` [Underlines.error message]]]
 
-transform_identifiers :: Monad m => (t_iden -> m t_iden') -> (e_iden -> m e_iden') -> Arena.Arena (IR.NominalType (IR.TypeExpr t_iden)) IR.NominalTypeKey -> Arena.Arena (IR.Binding e_iden) IR.BindingKey -> m (Arena.Arena (IR.NominalType (IR.TypeExpr t_iden')) IR.NominalTypeKey, Arena.Arena (IR.Binding e_iden') IR.BindingKey)
+transform_identifiers :: Monad m => (t_iden -> m t_iden') -> (e_iden -> m e_iden') -> Arena.Arena (IR.NominalType (IR.TypeExpr t_iden)) IR.NominalTypeKey -> Arena.Arena (IR.Binding e_iden (IR.TypeExpr t_iden)) IR.BindingKey -> m (Arena.Arena (IR.NominalType (IR.TypeExpr t_iden')) IR.NominalTypeKey, Arena.Arena (IR.Binding e_iden' (IR.TypeExpr t_iden')) IR.BindingKey)
 transform_identifiers transform_t_iden transform_e_iden nominal_types bindings = (,) <$> Arena.transformM transform_nominal_type nominal_types <*> Arena.transformM transform_binding bindings
     where
         transform_nominal_type (IR.NominalType'Data variants) = IR.NominalType'Data <$> mapM transform_variant variants

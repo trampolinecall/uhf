@@ -69,9 +69,10 @@ data TypeExpr identifier
     | TypeExpr'Tuple [TypeExpr identifier]
     deriving Show
 
-data Type
+data Type var
     = Type'Nominal NominalTypeKey
-    | Type'Tuple [Type]
+    | Type'Tuple [Type var]
+    | Type'Variable var
     deriving Show
 
 data Expr identifier ty

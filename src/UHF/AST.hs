@@ -8,8 +8,10 @@ import UHF.IO.Location (Located)
 
 type Identifier = Located [Located Text]
 
+-- TODO: asts store spans
+
 data Decl
-    = Decl'Value Pattern Expr -- TODO: this should eventually be a pattern
+    = Decl'Value Pattern Expr
     | Decl'Data Identifier [DataVariant]
     | Decl'TypeSyn Identifier Type
     -- TODO: | Decl'Import Type

@@ -177,11 +177,11 @@ make_iden1_with_err make_err iden =
         Just res -> pure $ Just res
         Nothing -> tell_err (make_err iden) >> pure Nothing
 
-convert :: [AST.Decl] -> Writer [Error] (DeclArena, NominalTypeArena, BindingArena, BoundNameArena, IR.DeclKey)
+convert :: [AST.Decl] -> Writer [Error] (DeclArena, NominalTypeArena, BindingArena, BoundNameArena)
 convert decls =
     let make = IR.Decl'Module <$> (IR.Module <$> convert_decls Nothing decls) >>= new_decl
-    in runStateT make (Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (mod, (decls, bindings, bound_names, nominals)) ->
-    pure (decls, nominals, bindings, bound_names, mod)
+    in runStateT make (Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (_, (decls, bindings, bound_names, nominals)) ->
+    pure (decls, nominals, bindings, bound_names)
 
 convert_decls :: Maybe IR.NameContext -> [AST.Decl] -> MakeIRState IR.NameContext
 convert_decls parent_context decls =

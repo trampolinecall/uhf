@@ -29,11 +29,12 @@ import qualified UHF.IR as IR
 
 import qualified Data.Map as Map
 
+type UnresolvedExprIdentifier = (IR.NameContext, Location.Located [Location.Located Text])
 type UnresolvedDecl = IR.Decl
 type UnresolvedModule = IR.Module
-type UnresolvedBinding = IR.Binding (Location.Located [Location.Located Text])
-type UnresolvedExpr = IR.Expr (Location.Located [Location.Located Text])
-type UnresolvedPattern = IR.Pattern (Location.Located [Location.Located Text])
+type UnresolvedBinding = IR.Binding UnresolvedExprIdentifier
+type UnresolvedExpr = IR.Expr UnresolvedExprIdentifier
+type UnresolvedPattern = IR.Pattern UnresolvedExprIdentifier
 
 type UnresolvedDeclArena = Arena.Arena UnresolvedDecl IR.DeclKey
 type UnresolvedBindingArena = Arena.Arena UnresolvedBinding IR.BindingKey
@@ -92,7 +93,7 @@ resolve_for_pat decls mod (IR.Pattern'Named bnk subpat) = IR.Pattern'Named bnk <
 resolve_for_pat _ _ (IR.Pattern'Poison) = pure IR.Pattern'Poison
 
 resolve_for_expr :: UnresolvedDeclArena -> IR.DeclKey -> UnresolvedExpr -> Writer [Error] ResolvedExpr
-resolve_for_expr decls mod (IR.Expr'Identifier i) = IR.Expr'Identifier <$> resolve_iden decls mod i
+resolve_for_expr decls mod (IR.Expr'Identifier i) = IR.Expr'Identifier <$> resolve_expr_iden decls mod i
 resolve_for_expr _ _ (IR.Expr'Char c) = pure $ IR.Expr'Char c
 resolve_for_expr _ _ (IR.Expr'String s) = pure $ IR.Expr'String s
 resolve_for_expr _ _ (IR.Expr'Int i) = pure $ IR.Expr'Int i
@@ -106,7 +107,7 @@ resolve_for_expr decls mod (IR.Expr'Lambda bound_names param body) = IR.Expr'Lam
 resolve_for_expr decls mod (IR.Expr'Let name_context body) = IR.Expr'Let name_context <$> resolve_for_expr decls mod body
 resolve_for_expr decls mod (IR.Expr'LetRec name_context body) = IR.Expr'LetRec name_context <$> resolve_for_expr decls mod body
 
-resolve_for_expr decls mod (IR.Expr'BinaryOps first ops) = IR.Expr'BinaryOps <$> resolve_for_expr decls mod first <*> mapM (\ (iden, rhs) -> (,) <$> resolve_iden decls mod iden <*> resolve_for_expr decls mod rhs) ops
+resolve_for_expr decls mod (IR.Expr'BinaryOps first ops) = IR.Expr'BinaryOps <$> resolve_for_expr decls mod first <*> mapM (\ (iden, rhs) -> (,) <$> resolve_expr_iden decls mod iden <*> resolve_for_expr decls mod rhs) ops
 
 resolve_for_expr decls mod (IR.Expr'Call callee args) = IR.Expr'Call <$> resolve_for_expr decls mod callee <*> mapM (resolve_for_expr decls mod) args
 
@@ -115,13 +116,13 @@ resolve_for_expr decls mod (IR.Expr'Case e arms) = IR.Expr'Case <$> resolve_for_
 
 resolve_for_expr _ _ (IR.Expr'Poison) = pure IR.Expr'Poison
 
-resolve_iden :: UnresolvedDeclArena -> IR.DeclKey -> Location.Located [Location.Located Text] -> Writer [Error] (Maybe IR.BoundNameKey)
-resolve_iden decls mod (Location.Located _ [x]) =
+resolve_expr_iden :: UnresolvedDeclArena -> IR.DeclKey -> UnresolvedExprIdentifier  -> Writer [Error] (Maybe IR.BoundNameKey)
+resolve_expr_iden decls mod (nc, Location.Located _ [x]) =
     case get_value_child decls mod x of
         Right v -> pure (Just v)
         Left e -> tell [e] >> pure Nothing
 
-resolve_iden _ _ i = tell [MultiIden i] >> pure Nothing
+resolve_expr_iden _ _ (_, i) = tell [MultiIden i] >> pure Nothing
 
 get_value_child :: UnresolvedDeclArena -> IR.DeclKey -> Location.Located Text -> Either Error IR.BoundNameKey
 get_value_child decls thing name =

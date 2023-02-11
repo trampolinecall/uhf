@@ -58,6 +58,7 @@ decl_data =
     PEG.consume' "'{'" (Token.SingleTypeToken Token.OBrace) >>= \ _ ->
     PEG.star variant >>= \ variants ->
     PEG.consume' "'}'" (Token.SingleTypeToken Token.CBrace) >>= \ _ ->
+    PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>= \ _ ->
     pure (AST.Decl'Data (Location.Located name_sp name) variants) -- TODO
     where
         variant =
@@ -89,6 +90,7 @@ decl_binding =
     pattern >>= \ target ->
     PEG.consume' "'='" (Token.SingleTypeToken Token.Equal) >>= \ _ ->
     expr >>= \ val ->
+    PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>= \ _ ->
     pure (AST.Decl'Value target val)
 
 decl_typesyn :: PEG.Parser AST.Decl
@@ -97,13 +99,14 @@ decl_typesyn =
     PEG.consume' "type synonym name" (Token.AlphaIdentifier ()) >>= \ (Location.Located name_sp (Token.AlphaIdentifier name)) ->
     PEG.consume' "'='" (Token.SingleTypeToken Token.Equal) >>= \ _ ->
     type_ >>= \ ty ->
+    PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>= \ _ ->
     pure (AST.Decl'TypeSyn (Location.Located name_sp name) ty)
 -- expr {{{1
 expr :: PEG.Parser AST.Expr
 expr =
     PEG.choice
-        [ expr_binary_ops
-        , expr_call
+        [ expr_call
+        , expr_binary_ops
         ]
 
 expr_primary :: PEG.Parser AST.Expr

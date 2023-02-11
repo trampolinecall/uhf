@@ -181,7 +181,7 @@ get_decl_child :: DeclArena -> IR.DeclKey -> Location.Located Text -> Either Err
 get_decl_child decls thing name =
     let res = case Arena.get decls thing of
             IR.Decl'Module (IR.Module (IR.NameContext d_children _ _)) -> Map.lookup (Location.unlocate name) d_children
-            IR.Decl'Type _ -> Nothing -- TODO: implement children of types through impl blocks
+            IR.Decl'Type _ -> Nothing -- TODO: implement children of types through impl blocks, this will also need infinite recursion checking
     in case res of
         Just res -> Right res
         Nothing -> Left $ CouldNotFind Nothing name -- TODO: put previous

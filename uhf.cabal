@@ -40,6 +40,7 @@ library
       UHF.Parser.PEG
       UHF.Parser.Test
       UHF.Token
+      UHF.Type
       UHF.Util.Prelude
       UHF.Util.RecursiveTransform
   other-modules:

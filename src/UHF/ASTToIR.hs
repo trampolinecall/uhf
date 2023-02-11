@@ -271,7 +271,9 @@ convert_expr parent_context (AST.Expr'LetRec decls subexpr) =
 
 convert_expr parent_context (AST.Expr'BinaryOps first ops) = IR.Expr'BinaryOps <$> convert_expr parent_context first <*> mapM (\ (op, right) -> convert_expr parent_context right >>= \ right' -> pure ((parent_context, Location.unlocate op), right')) ops
 
-convert_expr parent_context (AST.Expr'Call callee args) = IR.Expr'Call <$> convert_expr parent_context callee <*> mapM (convert_expr parent_context) args
+convert_expr parent_context (AST.Expr'Call callee args) =
+    convert_expr parent_context callee >>= \ callee ->
+    foldlM (\ callee arg -> IR.Expr'Call callee <$> convert_expr parent_context arg) callee args
 
 convert_expr parent_context (AST.Expr'If cond t f) = IR.Expr'If <$> convert_expr parent_context cond <*> convert_expr parent_context t <*> convert_expr parent_context f
 convert_expr parent_context (AST.Expr'Case e arms) =

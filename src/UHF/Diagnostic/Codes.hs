@@ -22,6 +22,8 @@ $(error_code 0201 "binding_lhs_path")
 $(error_code 0202 "path_in_type_name")
 $(error_code 0203 "path_in_variant_name")
 $(error_code 0204 "path_in_field_name")
+$(error_code 0205 "tuple0")
+$(error_code 0206 "tuple1")
 
 $(error_code 0300 "multi_iden")
 $(error_code 0301 "undef_name")

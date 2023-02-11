@@ -41,6 +41,9 @@ data Error
     | PathInVariantName (Location.Located [Location.Located Text])
     | PathInFieldName (Location.Located [Location.Located Text])
 
+    | Tuple1 (Location.Span)
+    | Tuple0 (Location.Span)
+
 instance Diagnostic.IsError Error where
     to_error (Redefinition (Location.Located sp name)) = Diagnostic.Error Codes.symbol_redefinition $
         Diagnostic.DiagnosticContents
@@ -73,6 +76,20 @@ instance Diagnostic.IsError Error where
             (Just sp)
             [ Underlines.underlines
                 [sp `Underlines.primary` [Underlines.error "path in field name"]]
+            ]
+
+    to_error (Tuple1 sp) = Diagnostic.Error Codes.tuple1 $
+        Diagnostic.DiagnosticContents
+            (Just sp)
+            [ Underlines.underlines
+                [sp `Underlines.primary` [Underlines.error "tuple of 1 element"]]
+            ]
+
+    to_error (Tuple0 sp) = Diagnostic.Error Codes.tuple0 $
+        Diagnostic.DiagnosticContents
+            (Just sp)
+            [ Underlines.underlines
+                [sp `Underlines.primary` [Underlines.error "tuple of 0 element"]]
             ]
 
 type Decl = IR.Decl
@@ -223,8 +240,8 @@ convert_expr (AST.Expr'Tuple items) =
     where
         group_items (a:b:[]) = pure $ IR.Expr'Tuple a b
         group_items (a:b:more) = IR.Expr'Tuple a <$> (group_items $ b:more)
-        group_items [_] = error "cannot group tuple of 1 item" -- TODO: report error instead of crashing
-        group_items [] = error "cannot group tuple of 0 items"
+        group_items [_] = tell_err (Tuple1 todo)>> pure IR.Expr'Poison
+        group_items [] = tell_err (Tuple0 todo)>> pure IR.Expr'Poison
 
 convert_expr (AST.Expr'Lambda params body) = convert_lambda params body
     where
@@ -267,8 +284,8 @@ convert_pattern map (AST.Pattern'Tuple subpats) =
     where
         go (a:b:[]) = pure $ IR.Pattern'Tuple a b
         go (a:b:more) = IR.Pattern'Tuple a <$> (go $ b:more)
-        go [_] = error "cannot group tuple in pattern of 1 item" -- TODO: report error
-        go [] = error "cannot group tuple in pattern of 0 items"
+        go [_] = tell_err (Tuple1 todo) >> pure IR.Pattern'Poison
+        go [] = tell_err (Tuple0 todo) >> pure IR.Pattern'Poison
 convert_pattern map (AST.Pattern'Named iden subpat) =
     add_iden_to_bound_name_map map iden >>= \case
         Just (map, iden) ->

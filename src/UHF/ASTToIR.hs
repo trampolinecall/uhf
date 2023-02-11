@@ -249,7 +249,7 @@ convert_pattern :: BoundNameMap -> AST.Pattern -> MakeIRState (BoundNameMap, Pat
 convert_pattern map (AST.Pattern'Identifier iden) =
     add_iden_to_bound_name_map map iden >>= \case
         Just (map', iden') -> pure (map', IR.Pattern'Identifier iden')
-        Nothing -> todo
+        Nothing -> pure (map, IR.Pattern'Poison)
 convert_pattern map (AST.Pattern'Tuple subpats) =
     mapAccumLM convert_pattern map subpats >>= \ (map', subpats') ->
     pure (map', IR.Pattern'Tuple subpats')
@@ -258,7 +258,7 @@ convert_pattern map (AST.Pattern'Named iden subpat) =
         Just (map, iden) ->
             convert_pattern map subpat >>= \ (map, subpat) ->
             pure (map, IR.Pattern'Named iden subpat)
-        Nothing -> todo
+        Nothing -> pure (map, IR.Pattern'Poison)
 
 mapAccumLM :: Monad m => (acc -> a -> m (acc, b)) -> acc -> [a] -> m (acc, [b])
 mapAccumLM f acc (x:xs) =

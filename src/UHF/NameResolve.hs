@@ -113,6 +113,8 @@ resolve_for_expr decls mod (IR.Expr'Call callee args) = IR.Expr'Call <$> resolve
 resolve_for_expr decls mod (IR.Expr'If cond t f) = IR.Expr'If <$> resolve_for_expr decls mod cond <*> resolve_for_expr decls mod t <*> resolve_for_expr decls mod f
 resolve_for_expr decls mod (IR.Expr'Case e arms) = IR.Expr'Case <$> resolve_for_expr decls mod e <*> mapM (\ (bound_names, pat, expr) -> (,,) bound_names <$> resolve_for_pat decls mod pat <*> resolve_for_expr decls mod expr) arms
 
+resolve_for_expr _ _ (IR.Expr'Poison) = pure IR.Expr'Poison
+
 resolve_iden :: UnresolvedDeclArena -> IR.DeclKey -> Location.Located [Location.Located Text] -> Writer [Error] (Maybe IR.BoundNameKey)
 resolve_iden decls mod (Location.Located _ [x]) =
     case get_value_child decls mod x of

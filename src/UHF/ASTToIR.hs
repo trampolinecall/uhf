@@ -170,6 +170,12 @@ make_iden1 :: Location.Located [Location.Located Text] -> Maybe (Location.Locate
 make_iden1 (Location.Located _ [iden1]) = Just iden1
 make_iden1 _ = Nothing
 
+make_iden1_with_err :: (Location.Located [Location.Located Text] -> Error) -> Location.Located [Location.Located Text] -> MakeIRState (Maybe (Location.Located Text))
+make_iden1_with_err make_err iden =
+    case make_iden1 iden of
+        Just res -> pure $ Just res
+        Nothing -> tell_err (make_err iden) >> pure Nothing
+
 convert :: [AST.Decl] -> Writer [Error] (DeclArena, NominalTypeArena, BindingArena, BoundNameArena, IR.DeclKey)
 convert decls =
     let make = IR.Decl'Module <$> (IR.Module <$> convert_decls Nothing decls) >>= new_decl
@@ -178,12 +184,12 @@ convert decls =
 
 convert_decls :: Maybe IR.NameContext -> [AST.Decl] -> MakeIRState IR.NameContext
 convert_decls parent_context decls =
-    mfix (\ resulting_name_context ->
+    mfix (\ final_name_context -> -- mfix needed because the name context to put the expressions into is this one
         List.unzip <$> mapM
             (\ cur_decl ->
                 case cur_decl of
                     AST.Decl'Value target expr ->
-                        convert_expr resulting_name_context expr >>= \ expr' ->
+                        convert_expr final_name_context expr >>= \ expr' ->
                         convert_pattern target >>= \ (new_bound_names, target') -> -- TODO: do this correctly
                         new_binding (IR.Binding target' expr') >>
                         pure ([], new_bound_names)
@@ -195,7 +201,7 @@ convert_decls parent_context decls =
                             lift (new_nominal_type datatype) >>= \ nominal_type_key ->
                             lift (new_decl (IR.Decl'Type nominal_type_key)) >>= \ decl_key ->
 
-                            iden1_for_datatype_name name >>= \ name1 ->
+                            iden1_for_type_name name >>= \ name1 ->
                             pure (name1, decl_key)
                         ) >>= \ new_decl_entry ->
                         pure (Maybe.maybeToList new_decl_entry, [])
@@ -206,7 +212,7 @@ convert_decls parent_context decls =
                         new_decl (IR.Decl'Type nominal_type_key) >>= \ decl_key ->
 
                         runMaybeT (
-                            iden1_for_datatype_name name >>= \ name1 ->
+                            iden1_for_type_name name >>= \ name1 ->
                             pure (name1, decl_key)
                         ) >>= \ new_decl_entry ->
                         pure (Maybe.maybeToList new_decl_entry, [])
@@ -214,20 +220,20 @@ convert_decls parent_context decls =
             decls >>= \ (decl_entries, bound_name_entries) ->
         make_name_context (concat decl_entries) (concat bound_name_entries) parent_context)
     where
-        iden1_for_variant_name iden = MaybeT $ case make_iden1 iden of
-            Just (Location.Located _ n) -> pure (Just n)
-            Nothing -> tell_err (PathInVariantName iden) >> pure Nothing
+        iden1_for_variant_name = MaybeT . make_iden1_with_err PathInVariantName
+        iden1_for_type_name = MaybeT . make_iden1_with_err PathInTypeName
+        iden1_for_field_name = MaybeT . make_iden1_with_err PathInFieldName
 
-        iden1_for_datatype_name iden = MaybeT $ case make_iden1 iden of
-            Just n -> pure (Just n)
-            Nothing -> tell_err (PathInTypeName iden) >> pure Nothing
-
-        iden1_for_field_name iden = MaybeT $ case make_iden1 iden of
-            Just (Location.Located _ n) -> pure (Just n)
-            Nothing -> tell_err (PathInFieldName iden) >> pure Nothing
-
-        convert_variant (AST.DataVariant'Anon name fields) = IR.DataVariant'Anon <$> iden1_for_variant_name name <*> (lift $ mapM convert_type fields)
-        convert_variant (AST.DataVariant'Named name fields) = IR.DataVariant'Named <$> iden1_for_variant_name name <*> mapM (\ (field_name, ty_ast) -> (,) <$> iden1_for_field_name field_name <*> lift (convert_type ty_ast)) fields
+        convert_variant (AST.DataVariant'Anon name fields) = IR.DataVariant'Anon <$> (Location.unlocate <$> iden1_for_variant_name name) <*> (lift $ mapM convert_type fields)
+        convert_variant (AST.DataVariant'Named name fields) =
+            IR.DataVariant'Named
+                <$> (Location.unlocate <$> iden1_for_variant_name name)
+                <*> mapM
+                    (\ (field_name, ty_ast) ->
+                        (,)
+                            <$> (Location.unlocate <$> iden1_for_field_name field_name)
+                            <*> lift (convert_type ty_ast))
+                    fields
 
 convert_type :: AST.Type -> MakeIRState Type
 convert_type (AST.Type'Identifier id) = pure $ IR.TypeExpr'Identifier id
@@ -286,12 +292,12 @@ convert_expr _ (AST.Expr'TypeAnnotation _ _) = todo -- IR.Expr'TypeAnnotation ty
 
 convert_pattern :: AST.Pattern -> MakeIRState (BoundNameList, Pattern)
 convert_pattern (AST.Pattern'Identifier iden) =
-    case make_iden1 iden of
+    make_iden1_with_err PathInPattern iden >>= \case
         Just l_name@(Location.Located _ name) ->
             new_bound_name name >>= \ bn ->
             pure ([(l_name, bn)], IR.Pattern'Identifier bn)
 
-        Nothing -> (tell_err (PathInPattern iden)) >> pure ([], IR.Pattern'Poison)
+        Nothing -> pure ([], IR.Pattern'Poison)
 convert_pattern (AST.Pattern'Tuple subpats) =
     List.unzip <$> mapM convert_pattern subpats >>= \ (bound_names, subpats') ->
     go subpats' >>= \ subpats_grouped ->
@@ -303,10 +309,10 @@ convert_pattern (AST.Pattern'Tuple subpats) =
         go [] = tell_err (Tuple0 todo) >> pure IR.Pattern'Poison
 convert_pattern (AST.Pattern'Named iden subpat) = todo
     convert_pattern subpat >>= \ (sub_bn, subpat') ->
-    case make_iden1 iden of
+    make_iden1_with_err PathInPattern iden >>= \case
         Just l_name@(Location.Located _ name) ->
             new_bound_name name >>= \ bn ->
             pure ((l_name, bn) : sub_bn, IR.Pattern'Named bn subpat')
 
         Nothing ->
-            tell_err (PathInPattern iden) >> pure ([], IR.Pattern'Poison)
+            pure ([], IR.Pattern'Poison)

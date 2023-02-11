@@ -307,7 +307,7 @@ convert_pattern (AST.Pattern'Tuple subpats) =
         go (a:b:more) = IR.Pattern'Tuple a <$> (go $ b:more)
         go [_] = tell_err (Tuple1 todo) >> pure IR.Pattern'Poison
         go [] = tell_err (Tuple0 todo) >> pure IR.Pattern'Poison
-convert_pattern (AST.Pattern'Named iden subpat) = todo
+convert_pattern (AST.Pattern'Named iden subpat) =
     convert_pattern subpat >>= \ (sub_bn, subpat') ->
     make_iden1_with_err PathInPattern iden >>= \case
         Just l_name@(Location.Located _ name) ->

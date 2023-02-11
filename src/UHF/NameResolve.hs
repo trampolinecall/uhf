@@ -35,8 +35,8 @@ type UnresolvedTypeIdentifier = (IR.NameContext, [Location.Located Text])
 type UnresolvedExprIdentifier = (IR.NameContext, [Location.Located Text])
 type UnresolvedNominalType = IR.NominalType UnresolvedType
 type UnresolvedType = IR.TypeExpr UnresolvedTypeIdentifier
-type UnresolvedBinding = IR.Binding UnresolvedExprIdentifier UnresolvedType
-type UnresolvedExpr = IR.Expr UnresolvedExprIdentifier UnresolvedType
+type UnresolvedBinding = IR.Binding UnresolvedExprIdentifier UnresolvedType ()
+type UnresolvedExpr = IR.Expr UnresolvedExprIdentifier UnresolvedType ()
 type UnresolvedPattern = IR.Pattern UnresolvedExprIdentifier
 
 type UnresolvedBindingArena = Arena.Arena UnresolvedBinding IR.BindingKey
@@ -44,8 +44,8 @@ type UnresolvedNominalTypeArena = Arena.Arena UnresolvedNominalType IR.NominalTy
 
 type ResolvedNominalType = IR.NominalType ResolvedType
 type ResolvedType = IR.TypeExpr (Maybe IR.DeclKey)
-type ResolvedBinding = IR.Binding (Maybe IR.BoundNameKey) ResolvedType
-type ResolvedExpr = IR.Expr (Maybe IR.BoundNameKey) ResolvedType
+type ResolvedBinding = IR.Binding (Maybe IR.BoundNameKey) ResolvedType ()
+type ResolvedExpr = IR.Expr (Maybe IR.BoundNameKey) ResolvedType ()
 type ResolvedPattern = IR.Pattern (Maybe IR.BoundNameKey)
 
 type ResolvedBindingArena = Arena.Arena ResolvedBinding IR.BindingKey
@@ -61,7 +61,7 @@ data Error
 instance Diagnostic.IsError Error where
     to_error (CouldNotFind prev (Location.Located sp name)) =
         let message =
-                ("could not find name '" <> convert_str name <> "'")
+                "could not find name '" <> convert_str name <> "'"
                     <> case prev of
                         Just (Location.Located _ prev_name) -> "in '" <> convert_str prev_name <> "'"
                         Nothing -> ""
@@ -70,7 +70,7 @@ instance Diagnostic.IsError Error where
                 (Just sp)
                 [Underlines.underlines [sp `Underlines.primary` [Underlines.error message]]]
 
-transform_identifiers :: Monad m => (t_iden -> m t_iden') -> (e_iden -> m e_iden') -> Arena.Arena (IR.NominalType (IR.TypeExpr t_iden)) IR.NominalTypeKey -> Arena.Arena (IR.Binding e_iden (IR.TypeExpr t_iden)) IR.BindingKey -> m (Arena.Arena (IR.NominalType (IR.TypeExpr t_iden')) IR.NominalTypeKey, Arena.Arena (IR.Binding e_iden' (IR.TypeExpr t_iden')) IR.BindingKey)
+transform_identifiers :: Monad m => (t_iden -> m t_iden') -> (e_iden -> m e_iden') -> Arena.Arena (IR.NominalType (IR.TypeExpr t_iden)) IR.NominalTypeKey -> Arena.Arena (IR.Binding e_iden (IR.TypeExpr t_iden) typeinfo) IR.BindingKey -> m (Arena.Arena (IR.NominalType (IR.TypeExpr t_iden')) IR.NominalTypeKey, Arena.Arena (IR.Binding e_iden' (IR.TypeExpr t_iden') typeinfo) IR.BindingKey)
 transform_identifiers transform_t_iden transform_e_iden nominal_types bindings = (,) <$> Arena.transformM transform_nominal_type nominal_types <*> Arena.transformM transform_binding bindings
     where
         transform_nominal_type (IR.NominalType'Data variants) = IR.NominalType'Data <$> mapM transform_variant variants
@@ -84,35 +84,35 @@ transform_identifiers transform_t_iden transform_e_iden nominal_types bindings =
 
         transform_binding (IR.Binding target expr) = IR.Binding <$> transform_pat target <*> transform_expr expr
 
-        transform_pat (IR.Pattern'Identifier bnk) = pure $ IR.Pattern'Identifier bnk
-        transform_pat (IR.Pattern'Tuple a b) = IR.Pattern'Tuple <$> transform_pat a <*> transform_pat b
-        transform_pat (IR.Pattern'Named bnk subpat) = IR.Pattern'Named bnk <$> transform_pat subpat
-        transform_pat IR.Pattern'Poison = pure IR.Pattern'Poison
+        transform_pat (IR.Pattern'Identifier typeinfo bnk) = pure $ IR.Pattern'Identifier typeinfo  bnk
+        transform_pat (IR.Pattern'Tuple typeinfo a b) = IR.Pattern'Tuple typeinfo <$> transform_pat a <*> transform_pat b
+        transform_pat (IR.Pattern'Named typeinfo bnk subpat) = IR.Pattern'Named typeinfo bnk <$> transform_pat subpat
+        transform_pat (IR.Pattern'Poison typeinfo) = pure $ IR.Pattern'Poison typeinfo
 
-        transform_expr (IR.Expr'Identifier i) = IR.Expr'Identifier <$> transform_e_iden i
-        transform_expr (IR.Expr'Char c) = pure $ IR.Expr'Char c
-        transform_expr (IR.Expr'String s) = pure $ IR.Expr'String s
-        transform_expr (IR.Expr'Int i) = pure $ IR.Expr'Int i
-        transform_expr (IR.Expr'Float f) = pure $ IR.Expr'Float f
-        transform_expr (IR.Expr'Bool b) = pure $ IR.Expr'Bool b
+        transform_expr (IR.Expr'Identifier typeinfo i) = IR.Expr'Identifier typeinfo <$> transform_e_iden i
+        transform_expr (IR.Expr'Char typeinfo c) = pure $ IR.Expr'Char typeinfo c
+        transform_expr (IR.Expr'String typeinfo s) = pure $ IR.Expr'String typeinfo s
+        transform_expr (IR.Expr'Int typeinfo i) = pure $ IR.Expr'Int typeinfo i
+        transform_expr (IR.Expr'Float typeinfo f) = pure $ IR.Expr'Float typeinfo f
+        transform_expr (IR.Expr'Bool typeinfo b) = pure $ IR.Expr'Bool typeinfo b
 
-        transform_expr (IR.Expr'Tuple a b) = IR.Expr'Tuple <$> transform_expr a <*> transform_expr b
+        transform_expr (IR.Expr'Tuple typeinfo a b) = IR.Expr'Tuple typeinfo <$> transform_expr a <*> transform_expr b
 
-        transform_expr (IR.Expr'Lambda param body) = IR.Expr'Lambda <$> transform_pat param <*> transform_expr body
+        transform_expr (IR.Expr'Lambda typeinfo param body) = IR.Expr'Lambda typeinfo <$> transform_pat param <*> transform_expr body
 
-        transform_expr (IR.Expr'Let body) = IR.Expr'Let <$> transform_expr body
-        transform_expr (IR.Expr'LetRec body) = IR.Expr'LetRec <$> transform_expr body
+        transform_expr (IR.Expr'Let typeinfo body) = IR.Expr'Let typeinfo <$> transform_expr body
+        transform_expr (IR.Expr'LetRec typeinfo body) = IR.Expr'LetRec typeinfo <$> transform_expr body
 
-        transform_expr (IR.Expr'BinaryOps first ops) = IR.Expr'BinaryOps <$> transform_expr first <*> mapM (\ (iden, rhs) -> (,) <$> transform_e_iden iden <*> transform_expr rhs) ops
+        transform_expr (IR.Expr'BinaryOps typeinfo first ops) = IR.Expr'BinaryOps typeinfo <$> transform_expr first <*> mapM (\ (iden, rhs) -> (,) <$> transform_e_iden iden <*> transform_expr rhs) ops
 
-        transform_expr (IR.Expr'Call callee arg) = IR.Expr'Call <$> transform_expr callee <*> transform_expr arg
+        transform_expr (IR.Expr'Call typeinfo callee arg) = IR.Expr'Call typeinfo <$> transform_expr callee <*> transform_expr arg
 
-        transform_expr (IR.Expr'If cond t f) = IR.Expr'If <$> transform_expr cond <*> transform_expr t <*> transform_expr f
-        transform_expr (IR.Expr'Case e arms) = IR.Expr'Case <$> transform_expr e <*> mapM (\ (pat, expr) -> (,) <$> transform_pat pat <*> transform_expr expr) arms
+        transform_expr (IR.Expr'If typeinfo cond t f) = IR.Expr'If typeinfo <$> transform_expr cond <*> transform_expr t <*> transform_expr f
+        transform_expr (IR.Expr'Case typeinfo e arms) = IR.Expr'Case typeinfo <$> transform_expr e <*> mapM (\ (pat, expr) -> (,) <$> transform_pat pat <*> transform_expr expr) arms
 
-        transform_expr (IR.Expr'TypeAnnotation ty e) = IR.Expr'TypeAnnotation <$> transform_type_expr ty <*> transform_expr e
+        transform_expr (IR.Expr'TypeAnnotation typeinfo ty e) = IR.Expr'TypeAnnotation typeinfo <$> transform_type_expr ty <*> transform_expr e
 
-        transform_expr IR.Expr'Poison = pure IR.Expr'Poison
+        transform_expr (IR.Expr'Poison typeinfo) = pure $ IR.Expr'Poison typeinfo
 
 resolve :: (DeclArena, UnresolvedNominalTypeArena, UnresolvedBindingArena) -> Writer [Error] (DeclArena, ResolvedNominalTypeArena, ResolvedBindingArena)
 resolve (decls, nominals, bindings) =

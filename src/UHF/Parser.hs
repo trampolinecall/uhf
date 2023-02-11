@@ -4,7 +4,7 @@
 module UHF.Parser
     ( parse
 
-    , Error.BacktrackingError
+    , Error.BacktrackingError -- TODO: rename to just Error
 
     , tests
    ) where

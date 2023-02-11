@@ -100,4 +100,6 @@ data Pattern identifier
     = Pattern'Identifier BoundNameKey
     | Pattern'Tuple [Pattern identifier]
     | Pattern'Named BoundNameKey (Pattern identifier)
+
+    | Pattern'Poison -- TODO: poisonallowed
     deriving Show

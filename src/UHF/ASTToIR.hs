@@ -97,13 +97,14 @@ instance Diagnostic.IsError Error where
                 [sp `Underlines.primary` [Underlines.error "tuple of 0 element"]]
             ]
 
+type Identifier = (IR.NameContext, Location.Located [Location.Located Text])
 type Decl = IR.Decl
 type Module = IR.Module
-type Binding = IR.Binding (Location.Located [Location.Located Text])
+type Binding = IR.Binding Identifier
 type NominalType = IR.NominalType Type
-type Type = IR.TypeExpr (Location.Located [Location.Located Text])
-type Expr = IR.Expr (Location.Located [Location.Located Text])
-type Pattern = IR.Pattern (Location.Located [Location.Located Text])
+type Type = IR.TypeExpr Identifier
+type Expr = IR.Expr Identifier
+type Pattern = IR.Pattern Identifier
 
 type DeclArena = Arena.Arena Decl IR.DeclKey
 type BindingArena = Arena.Arena Binding IR.BindingKey
@@ -196,9 +197,10 @@ convert_decls parent_context decls =
 
                     AST.Decl'Data name variants ->
                         runMaybeT (
-                            IR.NominalType'Data <$> mapM convert_variant variants >>= \ datatype ->
+                            IR.NominalType'Data <$> mapM (convert_variant final_name_context) variants >>= \ datatype ->
 
                             lift (new_nominal_type datatype) >>= \ nominal_type_key ->
+                            -- TODO: add constructors to bound name table
                             lift (new_decl (IR.Decl'Type nominal_type_key)) >>= \ decl_key ->
 
                             iden1_for_type_name name >>= \ name1 ->
@@ -207,7 +209,7 @@ convert_decls parent_context decls =
                         pure (Maybe.maybeToList new_decl_entry, [])
 
                     AST.Decl'TypeSyn name expansion ->
-                        convert_type expansion >>= \ expansion' ->
+                        convert_type final_name_context expansion >>= \ expansion' ->
                         new_nominal_type (IR.NominalType'Synonym expansion') >>= \ nominal_type_key ->
                         new_decl (IR.Decl'Type nominal_type_key) >>= \ decl_key ->
 
@@ -224,23 +226,24 @@ convert_decls parent_context decls =
         iden1_for_type_name = MaybeT . make_iden1_with_err PathInTypeName
         iden1_for_field_name = MaybeT . make_iden1_with_err PathInFieldName
 
-        convert_variant (AST.DataVariant'Anon name fields) = IR.DataVariant'Anon <$> (Location.unlocate <$> iden1_for_variant_name name) <*> (lift $ mapM convert_type fields)
-        convert_variant (AST.DataVariant'Named name fields) =
+        convert_variant name_context (AST.DataVariant'Anon name fields) = IR.DataVariant'Anon <$> (Location.unlocate <$> iden1_for_variant_name name) <*> (lift $ mapM (convert_type name_context) fields)
+        convert_variant name_context (AST.DataVariant'Named name fields) =
+            -- TOOD: making getter functions
             IR.DataVariant'Named
                 <$> (Location.unlocate <$> iden1_for_variant_name name)
                 <*> mapM
                     (\ (field_name, ty_ast) ->
                         (,)
                             <$> (Location.unlocate <$> iden1_for_field_name field_name)
-                            <*> lift (convert_type ty_ast))
+                            <*> lift (convert_type name_context ty_ast))
                     fields
 
-convert_type :: AST.Type -> MakeIRState Type
-convert_type (AST.Type'Identifier id) = pure $ IR.TypeExpr'Identifier id
-convert_type (AST.Type'Tuple items) = IR.TypeExpr'Tuple <$> mapM convert_type items
+convert_type :: IR.NameContext -> AST.Type -> MakeIRState Type
+convert_type nc (AST.Type'Identifier id) = pure $ IR.TypeExpr'Identifier (nc, id)
+convert_type nc (AST.Type'Tuple items) = IR.TypeExpr'Tuple <$> mapM (convert_type nc) items
 
 convert_expr :: IR.NameContext -> AST.Expr -> MakeIRState Expr
-convert_expr _ (AST.Expr'Identifier iden) = pure $ IR.Expr'Identifier iden
+convert_expr nc (AST.Expr'Identifier iden) = pure $ IR.Expr'Identifier (nc, iden)
 convert_expr _ (AST.Expr'Char c) = pure $ IR.Expr'Char c
 convert_expr _ (AST.Expr'String s) = pure $ IR.Expr'String s
 convert_expr _ (AST.Expr'Int i) = pure $ IR.Expr'Int i
@@ -271,7 +274,7 @@ convert_expr parent_context (AST.Expr'LetRec decls subexpr) =
     convert_decls (Just parent_context) decls >>= \ let_context ->
     IR.Expr'LetRec let_context <$> (convert_expr let_context subexpr)
 
-convert_expr parent_context (AST.Expr'BinaryOps first ops) = IR.Expr'BinaryOps <$> convert_expr parent_context first <*> mapM (\ (op, right) -> convert_expr parent_context right >>= \ right' -> pure (op, right')) ops
+convert_expr parent_context (AST.Expr'BinaryOps first ops) = IR.Expr'BinaryOps <$> convert_expr parent_context first <*> mapM (\ (op, right) -> convert_expr parent_context right >>= \ right' -> pure ((parent_context, op), right')) ops
 
 convert_expr parent_context (AST.Expr'Call callee args) = IR.Expr'Call <$> convert_expr parent_context callee <*> mapM (convert_expr parent_context) args
 

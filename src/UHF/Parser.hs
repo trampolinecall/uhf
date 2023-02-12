@@ -212,7 +212,7 @@ expr_call =
     PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ _ ->
     PEG.delim_star expr (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ args ->
     PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ _ ->
-    pure (AST.Expr'Call callee args)
+    pure (AST.Expr'Call (todo `Location.join_span` todo) callee args)
 
 expr_if :: PEG.Parser AST.Expr
 expr_if =
@@ -236,7 +236,7 @@ expr_case =
         pure (pat, choice)
     ) >>= \ arms ->
     PEG.consume' "'}'" (Token.SingleTypeToken Token.CBrace) >>
-    pure (AST.Expr'Case e arms)
+    pure (AST.Expr'Case todo e arms)
 
 expr_type_annotation :: PEG.Parser AST.Expr
 expr_type_annotation =
@@ -280,7 +280,7 @@ pattern_named =
     PEG.consume' "pattern" (Token.AlphaIdentifier ()) >>= \ (Location.Located iden_sp (Token.AlphaIdentifier iden)) ->
     PEG.consume' "'@'" (Token.SingleTypeToken Token.At) >>= \ _ ->
     pattern >>= \ more ->
-    pure (AST.Pattern'Named (Location.Located iden_sp iden) more)
+    pure (AST.Pattern'Named (iden_sp `Location.join_span` todo) (Location.Located iden_sp iden) more)
 -- tests {{{1
 test_decls :: [TestTree]
 test_decls = map Test.run_test $

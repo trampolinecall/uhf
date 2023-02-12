@@ -137,14 +137,14 @@ collect_constraints decls bna (IR.Binding pat expr) =
             in tell [Eq bn_ty (IR.pattern_type subpat)] >>
             pure (IR.Pattern'Named bn_ty bnk subpat)
 
-        collect_for_pat (IR.Pattern'Poison ()) = IR.Pattern'Poison <$> (IR.Type'Variable <$> lift (new_type_variable $ Expr todo))
+        collect_for_pat (IR.Pattern'Poison () sp) = IR.Pattern'Poison <$> (IR.Type'Variable <$> lift (new_type_variable $ Pattern sp)) <*> pure sp
 
-        collect_for_expr (IR.Expr'Identifier () bn) =
+        collect_for_expr (IR.Expr'Identifier () sp bn) =
             (case bn of
                 Just bn -> let (IR.BoundName ty) = Arena.get bna bn in pure ty
-                Nothing -> IR.Type'Variable <$> lift (new_type_variable (Expr todo))) >>= \ ty ->
+                Nothing -> IR.Type'Variable <$> lift (new_type_variable (Expr sp))) >>= \ ty ->
 
-            pure (IR.Expr'Identifier ty bn)
+            pure (IR.Expr'Identifier ty sp bn)
 
         collect_for_expr (IR.Expr'Char () c) = pure (IR.Expr'Char IR.Type'Char c)
         collect_for_expr (IR.Expr'String () t) = pure (IR.Expr'String IR.Type'String t)
@@ -168,14 +168,14 @@ collect_constraints decls bna (IR.Binding pat expr) =
 
         collect_for_expr (IR.Expr'BinaryOps () first ops) = todo -- TODO: group these before this stage so that this does not exist
 
-        collect_for_expr (IR.Expr'Call () callee arg) =
+        collect_for_expr (IR.Expr'Call () sp callee arg) =
             collect_for_expr callee >>= \ callee ->
             collect_for_expr arg >>= \ arg ->
-            lift (new_type_variable (Expr todo)) >>= \ res_ty_var ->
+            lift (new_type_variable (Expr sp)) >>= \ res_ty_var ->
 
             tell [Eq (IR.expr_type callee) (IR.Type'Function (IR.expr_type arg) (IR.Type'Variable res_ty_var))] >>
 
-            pure (IR.Expr'Call (IR.Type'Variable res_ty_var) callee arg)
+            pure (IR.Expr'Call (IR.Type'Variable res_ty_var) sp callee arg)
 
         collect_for_expr (IR.Expr'If () cond true false) =
             collect_for_expr cond >>= \ cond ->
@@ -189,19 +189,19 @@ collect_constraints decls bna (IR.Binding pat expr) =
 
             pure (IR.Expr'If (IR.expr_type true) cond true false)
 
-        collect_for_expr (IR.Expr'Case () testing arms) =
+        collect_for_expr (IR.Expr'Case () sp testing arms) =
             collect_for_expr testing >>= \ testing ->
             mapM (\ (p, e) -> (,) <$> collect_for_pat p <*> collect_for_expr e) arms >>= \ arms ->
-            IR.Type'Variable <$> lift (new_type_variable (Expr todo)) >>= \ result_ty ->
+            IR.Type'Variable <$> lift (new_type_variable (Expr sp)) >>= \ result_ty ->
 
             -- first expr matches all pattern types
             -- all arm types are the same
             tell (map (\ (arm_pat, _) -> Eq (IR.pattern_type arm_pat) (IR.expr_type testing)) arms) >>
             tell (map (\ (_, arm_result) -> Eq (IR.expr_type arm_result) result_ty) arms) >>
 
-            pure (IR.Expr'Case result_ty testing arms)
+            pure (IR.Expr'Case result_ty sp testing arms)
 
-        collect_for_expr (IR.Expr'Poison ()) = IR.Expr'Poison <$> (IR.Type'Variable <$> lift (new_type_variable $ Expr todo))
+        collect_for_expr (IR.Expr'Poison () sp) = IR.Expr'Poison <$> (IR.Type'Variable <$> lift (new_type_variable $ Expr sp)) <*> pure sp
 
         collect_for_expr (IR.Expr'TypeAnnotation () annotation e) =
             lift (convert_type_expr decls annotation) >>= \ annotation ->

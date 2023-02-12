@@ -245,6 +245,7 @@ solve_constraints = mapM_ solve
         unify (IR.Type'Bool) (IR.Type'Bool) = pure ()
         unify (IR.Type'Function a1 r1) (IR.Type'Function a2 r2) = unify a1 a2 >> unify r1 r2
         unify (IR.Type'Tuple a1 b1) (IR.Type'Tuple a2 b2) = unify a1 a2 >> unify b1 b2
+        unify a b = ExceptT (pure $ Left (a, b))
 
         unify_var :: TypeVarKey -> TypeWithVars -> Bool -> ExceptT (TypeWithVars, TypeWithVars) StateWithVars ()
         unify_var var other var_on_right = Arena.get <$> lift get <*> pure var >>= \ case

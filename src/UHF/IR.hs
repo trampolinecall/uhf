@@ -72,8 +72,9 @@ data Binding identifier typeannotation typeinfo = Binding (Pattern identifier ty
 data NameContext = NameContext (Map.Map Text DeclKey) (Map.Map Text BoundNameKey) (Maybe NameContext) deriving Show
 
 data TypeExpr identifier
-    = TypeExpr'Identifier identifier
-    | TypeExpr'Tuple [TypeExpr identifier]
+    = TypeExpr'Identifier Span identifier
+    | TypeExpr'Tuple (TypeExpr identifier) (TypeExpr identifier)
+    | TypeExpr'Poison Span
     deriving Show
 
 data Type var

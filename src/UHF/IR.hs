@@ -19,6 +19,9 @@ module UHF.IR
     , Type(..)
     , Expr(..)
     , Pattern(..)
+
+    , expr_type
+    , pattern_type
     ) where
 
 import UHF.Util.Prelude
@@ -76,7 +79,8 @@ data Type var
     | Type'Char
     | Type'String
     | Type'Bool
-    | Type'Tuple [Type var]
+    | Type'Function (Type var) (Type var)
+    | Type'Tuple (Type var) (Type var)
     | Type'Variable var
     deriving Show
 
@@ -90,7 +94,7 @@ data Expr identifier typeannotation typeinfo
 
     | Expr'Tuple typeinfo (Expr identifier typeannotation typeinfo) (Expr identifier typeannotation typeinfo)
 
-    | Expr'Lambda typeinfo (Pattern identifier typeinfo) (Expr identifier typeannotation typeinfo) -- TODO: remove name contexts from other places because it is only needed in identifier resolution
+    | Expr'Lambda typeinfo (Pattern identifier typeinfo) (Expr identifier typeannotation typeinfo)
 
     | Expr'Let typeinfo (Expr identifier typeannotation typeinfo)
     | Expr'LetRec typeinfo (Expr identifier typeannotation typeinfo)
@@ -114,3 +118,27 @@ data Pattern identifier typeinfo
 
     | Pattern'Poison typeinfo -- TODO: poisonallowed
     deriving Show
+
+expr_type :: Expr identifier typeannotation typeinfo -> typeinfo
+expr_type (Expr'Identifier typeinfo _) = typeinfo
+expr_type (Expr'Char typeinfo _) = typeinfo
+expr_type (Expr'String typeinfo _) = typeinfo
+expr_type (Expr'Int typeinfo _) = typeinfo
+expr_type (Expr'Float typeinfo _) = typeinfo
+expr_type (Expr'Bool typeinfo _) = typeinfo
+expr_type (Expr'Tuple typeinfo _ _) = typeinfo
+expr_type (Expr'Lambda typeinfo _ _) = typeinfo
+expr_type (Expr'Let typeinfo _) = typeinfo
+expr_type (Expr'LetRec typeinfo _) = typeinfo
+expr_type (Expr'BinaryOps typeinfo _ _) = typeinfo
+expr_type (Expr'Call typeinfo _ _) = typeinfo
+expr_type (Expr'If typeinfo _ _ _) = typeinfo
+expr_type (Expr'Case typeinfo _ _) = typeinfo
+expr_type (Expr'Poison typeinfo) = typeinfo
+expr_type (Expr'TypeAnnotation typeinfo _ _) = typeinfo
+
+pattern_type :: Pattern typeannotation typeinfo -> typeinfo
+pattern_type (Pattern'Identifier typeinfo _) = typeinfo
+pattern_type (Pattern'Tuple typeinfo _ _) = typeinfo
+pattern_type (Pattern'Named typeinfo _ _) = typeinfo
+pattern_type (Pattern'Poison typeinfo) = typeinfo

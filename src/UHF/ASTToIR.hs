@@ -239,43 +239,43 @@ convert_type nc (AST.Type'Tuple items) = IR.TypeExpr'Tuple <$> mapM (convert_typ
 
 convert_expr :: IR.NameContext -> AST.Expr -> MakeIRState Expr
 convert_expr nc (AST.Expr'Identifier iden) = pure $ IR.Expr'Identifier () (Location.just_span iden) (nc, Location.unlocate iden)
-convert_expr _ (AST.Expr'Char c) = pure $ IR.Expr'Char () c
-convert_expr _ (AST.Expr'String s) = pure $ IR.Expr'String () s
-convert_expr _ (AST.Expr'Int i) = pure $ IR.Expr'Int () i
-convert_expr _ (AST.Expr'Float f) = pure $ IR.Expr'Float () f
-convert_expr _ (AST.Expr'Bool b) = pure $ IR.Expr'Bool () b
+convert_expr _ (AST.Expr'Char sp c) = pure $ IR.Expr'Char () sp c
+convert_expr _ (AST.Expr'String sp s) = pure $ IR.Expr'String () sp s
+convert_expr _ (AST.Expr'Int sp i) = pure $ IR.Expr'Int () sp i
+convert_expr _ (AST.Expr'Float sp f) = pure $ IR.Expr'Float () sp f
+convert_expr _ (AST.Expr'Bool sp b) = pure $ IR.Expr'Bool () sp b
 
 convert_expr parent_context (AST.Expr'Tuple sp items) =
     mapM (convert_expr parent_context) items >>= group_items
     where
-        group_items [a, b] = pure $ IR.Expr'Tuple () a b
-        group_items (a:b:more) = IR.Expr'Tuple () a <$> group_items (b:more)
+        group_items [a, b] = pure $ IR.Expr'Tuple () sp a b
+        group_items (a:b:more) = IR.Expr'Tuple () sp a <$> group_items (b:more) -- TODO: properly do span of b:more because this just takes the span of the whole thing
         group_items [_] = tell_err (Tuple1 sp) >> pure (IR.Expr'Poison () sp)
         group_items [] = tell_err (Tuple0 sp) >> pure (IR.Expr'Poison () sp)
 
-convert_expr parent_context (AST.Expr'Lambda params body) = convert_lambda parent_context params body
+convert_expr parent_context (AST.Expr'Lambda sp params body) = convert_lambda parent_context params body
     where
         convert_lambda parent_context (param:more) body =
             convert_pattern param >>= \ (bound_name_list, param) ->
             make_name_context [] bound_name_list (Just parent_context) >>= \ lambda_nc ->
-            IR.Expr'Lambda () param <$> convert_lambda lambda_nc more body
+            IR.Expr'Lambda () sp param <$> convert_lambda lambda_nc more body -- TODO: properly do spans of parts because this also just takes the whole span
 
         convert_lambda parent_context [] body = convert_expr parent_context body
 
-convert_expr parent_context (AST.Expr'Let decls subexpr) =
+convert_expr parent_context (AST.Expr'Let sp decls subexpr) =
     convert_decls (Just parent_context) decls >>= \ let_context ->
-    IR.Expr'Let () <$> convert_expr let_context subexpr -- TODO: actually do sequentially because convert_decls does all at once
-convert_expr parent_context (AST.Expr'LetRec decls subexpr) =
+    IR.Expr'Let () sp <$> convert_expr let_context subexpr -- TODO: actually do sequentially because convert_decls does all at once
+convert_expr parent_context (AST.Expr'LetRec sp decls subexpr) =
     convert_decls (Just parent_context) decls >>= \ let_context ->
-    IR.Expr'LetRec () <$> convert_expr let_context subexpr
+    IR.Expr'LetRec () sp <$> convert_expr let_context subexpr
 
-convert_expr parent_context (AST.Expr'BinaryOps first ops) = IR.Expr'BinaryOps () <$> convert_expr parent_context first <*> mapM (\ (op, right) -> convert_expr parent_context right >>= \ right' -> pure ((parent_context, Location.unlocate op), right')) ops
+convert_expr parent_context (AST.Expr'BinaryOps sp first ops) = IR.Expr'BinaryOps () sp <$> convert_expr parent_context first <*> mapM (\ (op, right) -> convert_expr parent_context right >>= \ right' -> pure ((parent_context, Location.unlocate op), right')) ops
 
 convert_expr parent_context (AST.Expr'Call sp callee args) =
     convert_expr parent_context callee >>= \ callee ->
     foldlM (\ callee arg -> IR.Expr'Call () sp callee <$> convert_expr parent_context arg) callee args
 
-convert_expr parent_context (AST.Expr'If cond t f) = IR.Expr'If () <$> convert_expr parent_context cond <*> convert_expr parent_context t <*> convert_expr parent_context f
+convert_expr parent_context (AST.Expr'If sp cond t f) = IR.Expr'If () sp <$> convert_expr parent_context cond <*> convert_expr parent_context t <*> convert_expr parent_context f
 convert_expr parent_context (AST.Expr'Case sp e arms) =
     convert_expr parent_context e >>= \ e ->
     mapM
@@ -288,14 +288,14 @@ convert_expr parent_context (AST.Expr'Case sp e arms) =
         >>= \ arms ->
     pure (IR.Expr'Case () sp e arms)
 
-convert_expr nc (AST.Expr'TypeAnnotation ty e) = IR.Expr'TypeAnnotation () <$> convert_type nc ty <*> convert_expr nc e
+convert_expr nc (AST.Expr'TypeAnnotation sp ty e) = IR.Expr'TypeAnnotation () sp <$> convert_type nc ty <*> convert_expr nc e
 
 convert_pattern :: AST.Pattern -> MakeIRState (BoundNameList, Pattern)
 convert_pattern (AST.Pattern'Identifier iden) =
     make_iden1_with_err PathInPattern iden >>= \case
-        Just l_name@(Location.Located _ name) ->
+        Just l_name@(Location.Located name_sp name) ->
             new_bound_name name >>= \ bn ->
-            pure ([(l_name, bn)], IR.Pattern'Identifier () bn)
+            pure ([(l_name, bn)], IR.Pattern'Identifier () name_sp bn)
 
         Nothing -> pure ([], IR.Pattern'Poison () (Location.just_span iden))
 convert_pattern (AST.Pattern'Tuple sp subpats) =
@@ -303,16 +303,16 @@ convert_pattern (AST.Pattern'Tuple sp subpats) =
     go subpats' >>= \ subpats_grouped ->
     pure (concat bound_names, subpats_grouped)
     where
-        go [a, b] = pure $ IR.Pattern'Tuple () a b
-        go (a:b:more) = IR.Pattern'Tuple () a <$> go (b:more)
+        go [a, b] = pure $ IR.Pattern'Tuple () sp a b
+        go (a:b:more) = IR.Pattern'Tuple () sp a <$> go (b:more)
         go [_] = tell_err (Tuple1 sp) >> pure (IR.Pattern'Poison () sp)
         go [] = tell_err (Tuple0 sp) >> pure (IR.Pattern'Poison () sp)
 convert_pattern (AST.Pattern'Named sp iden subpat) =
     convert_pattern subpat >>= \ (sub_bn, subpat') ->
     make_iden1_with_err PathInPattern iden >>= \case
-        Just l_name@(Location.Located _ name) ->
+        Just l_name@(Location.Located name_sp name) ->
             new_bound_name name >>= \ bn ->
-            pure ((l_name, bn) : sub_bn, IR.Pattern'Named () bn subpat')
+            pure ((l_name, bn) : sub_bn, IR.Pattern'Named () sp (Location.Located name_sp bn) subpat')
 
         Nothing ->
             pure ([], IR.Pattern'Poison () sp)

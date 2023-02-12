@@ -136,28 +136,28 @@ expr_identifier =
 
 expr_char_lit :: PEG.Parser AST.Expr
 expr_char_lit =
-    PEG.consume' "character literal" (Token.Char ()) >>= \ (Location.Located _ (Token.Char ch)) ->
-    pure (AST.Expr'Char ch)
+    PEG.consume' "character literal" (Token.Char ()) >>= \ (Location.Located sp (Token.Char ch)) ->
+    pure (AST.Expr'Char sp ch)
 
 expr_string_lit :: PEG.Parser AST.Expr
 expr_string_lit =
-    PEG.consume' "string literal" (Token.String ()) >>= \ (Location.Located _ (Token.String s)) ->
-    pure (AST.Expr'String s)
+    PEG.consume' "string literal" (Token.String ()) >>= \ (Location.Located sp (Token.String s)) ->
+    pure (AST.Expr'String sp s)
 
 expr_int_lit :: PEG.Parser AST.Expr
 expr_int_lit =
-    PEG.consume' "integer literal" (Token.Int () ()) >>= \ (Location.Located _ (Token.Int _ i)) ->
-    pure (AST.Expr'Int i)
+    PEG.consume' "integer literal" (Token.Int () ()) >>= \ (Location.Located sp (Token.Int _ i)) ->
+    pure (AST.Expr'Int sp i)
 
 expr_float_lit :: PEG.Parser AST.Expr
 expr_float_lit =
-    PEG.consume' "float literal" (Token.Float ()) >>= \ (Location.Located _ (Token.Float f)) ->
-    pure (AST.Expr'Float f)
+    PEG.consume' "float literal" (Token.Float ()) >>= \ (Location.Located sp (Token.Float f)) ->
+    pure (AST.Expr'Float sp f)
 
 expr_bool_lit :: PEG.Parser AST.Expr
 expr_bool_lit =
-    PEG.consume' "bool literal" (Token.Bool ()) >>= \ (Location.Located _ (Token.Bool b)) ->
-    pure (AST.Expr'Bool b)
+    PEG.consume' "bool literal" (Token.Bool ()) >>= \ (Location.Located sp (Token.Bool b)) ->
+    pure (AST.Expr'Bool sp b)
 
 expr_tuple :: PEG.Parser AST.Expr
 expr_tuple =
@@ -168,13 +168,13 @@ expr_tuple =
 
 expr_lambda :: PEG.Parser AST.Expr
 expr_lambda =
-    PEG.consume' "'\\'" (Token.SingleTypeToken Token.Backslash) >>= \ _ ->
+    PEG.consume' "'\\'" (Token.SingleTypeToken Token.Backslash) >>= \ (Location.Located backslash_sp _) ->
     PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ _ ->
     PEG.delim_star pattern (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ params ->
     PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ _ ->
     PEG.consume' "'->'" (Token.SingleTypeToken Token.Arrow) >>= \ _ ->
     expr >>= \ body ->
-    pure (AST.Expr'Lambda params body)
+    pure (AST.Expr'Lambda (backslash_sp `Location.join_span` todo) params body)
 
 expr_let :: PEG.Parser AST.Expr
 expr_let =
@@ -192,8 +192,8 @@ expr_let =
     -- TODO: 'in'?
     expr >>= \ subexpr ->
     case Location.unlocate let_tok of
-        Token.SingleTypeToken Token.Let -> pure $ AST.Expr'Let decls subexpr
-        Token.SingleTypeToken Token.LetRec -> pure $ AST.Expr'LetRec decls subexpr
+        Token.SingleTypeToken Token.Let -> pure $ AST.Expr'Let (Location.just_span let_tok `Location.join_span` todo) decls subexpr
+        Token.SingleTypeToken Token.LetRec -> pure $ AST.Expr'LetRec (Location.just_span let_tok `Location.join_span` todo) decls subexpr
         _ -> unreachable
 
 expr_binary_ops :: PEG.Parser AST.Expr
@@ -206,7 +206,7 @@ expr_binary_ops =
     ) >>= \ ops ->
     if null ops
         then pure first
-        else pure (AST.Expr'BinaryOps first ops)
+        else pure (AST.Expr'BinaryOps todo first ops)
 
 expr_call :: PEG.Parser AST.Expr
 expr_call =
@@ -218,13 +218,13 @@ expr_call =
 
 expr_if :: PEG.Parser AST.Expr
 expr_if =
-    PEG.consume' "'if'" (Token.SingleTypeToken Token.If) >>= \ _ ->
+    PEG.consume' "'if'" (Token.SingleTypeToken Token.If) >>= \ (Location.Located if_sp _) ->
     expr >>= \ cond ->
     PEG.consume' "'then'" (Token.SingleTypeToken Token.Then) >>= \ _ ->
     expr >>= \ true_choice ->
     PEG.consume' "'else'" (Token.SingleTypeToken Token.Else) >>= \ _ ->
     expr >>= \ false_choice ->
-    pure (AST.Expr'If cond true_choice false_choice)
+    pure (AST.Expr'If (if_sp `Location.join_span` todo) cond true_choice false_choice)
 
 expr_case :: PEG.Parser AST.Expr
 expr_case =
@@ -242,10 +242,10 @@ expr_case =
 
 expr_type_annotation :: PEG.Parser AST.Expr
 expr_type_annotation =
-    PEG.consume' "':'" (Token.SingleTypeToken Token.Colon) >>= \ _ ->
+    PEG.consume' "':'" (Token.SingleTypeToken Token.Colon) >>= \ (Location.Located colon_sp _) ->
     type_ >>= \ ty -> -- TODO: this probably needs a delimiter because when type applications types can go on
     expr >>= \ e ->
-    pure (AST.Expr'TypeAnnotation ty e)
+    pure (AST.Expr'TypeAnnotation (colon_sp `Location.join_span` todo) ty e)
 -- type {{{1
 type_ :: PEG.Parser AST.Type
 type_ = PEG.choice [type_iden, type_tuple]
@@ -286,7 +286,8 @@ pattern_named =
 -- tests {{{1
 test_decls :: [TestTree]
 test_decls = map Test.run_test $
-    let l = Location.dummy_locate
+    let dsp = Location.dummy_span
+        l = Location.dummy_locate
         iden1 t = [l t]
         liden1 = l . iden1
         alpha_iden1 = Token.AlphaIdentifier . iden1
@@ -294,7 +295,7 @@ test_decls = map Test.run_test $
     in
     [ Test.ParsingTest "binding"
         (Test.make_token_stream [(alpha_iden1 "x"), (stt Token.Equal), (Token.Char 'c')])
-        (AST.Decl'Value (AST.Pattern'Identifier (liden1 "x")) (AST.Expr'Char 'c'))
+        (AST.Decl'Value (AST.Pattern'Identifier (liden1 "x")) (AST.Expr'Char dsp 'c'))
         [("decl", decl), ("decl_binding", decl_binding)]
 
     , Test.ParsingTest "type synonym"

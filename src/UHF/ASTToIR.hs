@@ -131,10 +131,10 @@ new_binding v =
         let (key, bindings') = Arena.put v bindings
         in (key, (decls, bindings', bound_names, nominals))
 
-new_bound_name :: Text -> MakeIRState IR.BoundNameKey
-new_bound_name _ =
+new_bound_name :: Text -> Location.Span -> MakeIRState IR.BoundNameKey
+new_bound_name _ sp =
     state $ \ (decls, bindings, bound_names, nominals) ->
-        let (key, bound_names') = Arena.put (IR.BoundName ()) bound_names
+        let (key, bound_names') = Arena.put (IR.BoundName () sp) bound_names
         in (key, (decls, bindings, bound_names', nominals))
 
 new_nominal_type :: NominalType -> MakeIRState IR.NominalTypeKey
@@ -294,7 +294,7 @@ convert_pattern :: AST.Pattern -> MakeIRState (BoundNameList, Pattern)
 convert_pattern (AST.Pattern'Identifier iden) =
     make_iden1_with_err PathInPattern iden >>= \case
         Just l_name@(Location.Located name_sp name) ->
-            new_bound_name name >>= \ bn ->
+            new_bound_name name name_sp >>= \ bn ->
             pure ([(l_name, bn)], IR.Pattern'Identifier () name_sp bn)
 
         Nothing -> pure ([], IR.Pattern'Poison () (Location.just_span iden))
@@ -311,7 +311,7 @@ convert_pattern (AST.Pattern'Named sp iden subpat) =
     convert_pattern subpat >>= \ (sub_bn, subpat') ->
     make_iden1_with_err PathInPattern iden >>= \case
         Just l_name@(Location.Located name_sp name) ->
-            new_bound_name name >>= \ bn ->
+            new_bound_name name name_sp >>= \ bn ->
             pure ((l_name, bn) : sub_bn, IR.Pattern'Named () sp (Location.Located name_sp bn) subpat')
 
         Nothing ->

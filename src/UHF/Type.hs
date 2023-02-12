@@ -38,8 +38,8 @@ type TypeWithVars = IR.Type TypeVarKey
 type Type = IR.Type Void
 
 type UntypedNominalType = IR.NominalType TypeExpr
-type UntypedBinding = IR.Binding (Maybe IR.BoundNameKey) TypeExpr ()
-type UntypedExpr = IR.Expr (Maybe IR.BoundNameKey) TypeExpr ()
+type UntypedBinding = IR.Binding (Maybe IR.BoundNameKey) TypeExpr () Void
+type UntypedExpr = IR.Expr (Maybe IR.BoundNameKey) TypeExpr () Void
 type UntypedPattern = IR.Pattern (Maybe IR.BoundNameKey) ()
 type UntypedBoundName = IR.BoundName ()
 
@@ -48,8 +48,8 @@ type UntypedNominalTypeArena = Arena.Arena UntypedNominalType IR.NominalTypeKey
 type UntypedBoundNameArena = Arena.Arena UntypedBoundName IR.BoundNameKey
 
 type TypedWithVarsNominalType = IR.NominalType TypeWithVars
-type TypedWithVarsBinding = IR.Binding (Maybe IR.BoundNameKey) TypeWithVars TypeWithVars
-type TypedWithVarsExpr = IR.Expr (Maybe IR.BoundNameKey) TypeWithVars TypeWithVars
+type TypedWithVarsBinding = IR.Binding (Maybe IR.BoundNameKey) TypeWithVars TypeWithVars Void
+type TypedWithVarsExpr = IR.Expr (Maybe IR.BoundNameKey) TypeWithVars TypeWithVars Void
 type TypedWithVarsPattern = IR.Pattern (Maybe IR.BoundNameKey) TypeWithVars
 type TypedWithVarsBoundName = IR.BoundName TypeWithVars
 
@@ -58,8 +58,8 @@ type TypedWithVarsNominalTypeArena = Arena.Arena TypedWithVarsNominalType IR.Nom
 type TypedWithVarsBoundNameArena = Arena.Arena TypedWithVarsBoundName IR.BoundNameKey
 
 type TypedNominalType = IR.NominalType (Maybe Type)
-type TypedBinding = IR.Binding (Maybe IR.BoundNameKey) (Maybe Type) (Maybe Type)
-type TypedExpr = IR.Expr (Maybe IR.BoundNameKey) (Maybe Type) (Maybe Type)
+type TypedBinding = IR.Binding (Maybe IR.BoundNameKey) (Maybe Type) (Maybe Type) Void
+type TypedExpr = IR.Expr (Maybe IR.BoundNameKey) (Maybe Type) (Maybe Type) Void
 type TypedPattern = IR.Pattern (Maybe IR.BoundNameKey) (Maybe Type)
 type TypedBoundName = IR.BoundName (Maybe Type)
 
@@ -263,7 +263,7 @@ collect_constraints decls bna (IR.Binding pat eq_sp expr) =
             collect_for_expr result >>= \ result ->
             pure (IR.Expr'LetRec (IR.expr_type result) sp result)
 
-        collect_for_expr (IR.Expr'BinaryOps () _ _ _) = todo -- TODO: group these before this stage so that this does not exist
+        collect_for_expr (IR.Expr'BinaryOps void _ _ _ _) = absurd void
 
         collect_for_expr (IR.Expr'Call () sp callee arg) =
             collect_for_expr callee >>= \ callee ->
@@ -405,7 +405,7 @@ remove_vars_from_binding vars (IR.Binding pat eq_sp expr) = IR.Binding <$> remov
         remove_from_expr (IR.Expr'Lambda ty sp param body) = remove_vars vars ty >>= \ ty -> IR.Expr'Lambda ty sp <$> remove_from_pat param <*> remove_from_expr body
         remove_from_expr (IR.Expr'Let ty sp result) = remove_vars vars ty >>= \ ty -> IR.Expr'Let ty sp <$> remove_from_expr result
         remove_from_expr (IR.Expr'LetRec ty sp result) = remove_vars vars ty >>= \ ty -> IR.Expr'LetRec ty sp <$> remove_from_expr result
-        remove_from_expr (IR.Expr'BinaryOps _ _ _ _) = todo
+        remove_from_expr (IR.Expr'BinaryOps void _ _ _ _) = absurd void
         remove_from_expr (IR.Expr'Call ty sp callee arg) = remove_vars vars ty >>= \ ty -> IR.Expr'Call ty sp <$> remove_from_expr callee <*> remove_from_expr arg
         remove_from_expr (IR.Expr'If ty sp if_sp cond true false) = remove_vars vars ty >>= \ ty -> IR.Expr'If ty sp if_sp <$> remove_from_expr cond <*> remove_from_expr true <*> remove_from_expr false
         remove_from_expr (IR.Expr'Case ty sp case_sp testing arms) = remove_vars vars ty >>= \ ty -> IR.Expr'Case ty sp case_sp <$> remove_from_expr testing <*> mapM (\ (p, e) -> (,) <$> remove_from_pat p <*> remove_from_expr e) arms

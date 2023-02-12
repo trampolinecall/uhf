@@ -18,15 +18,16 @@ import qualified UHF.Lexer as Lexer
 import qualified UHF.Parser as Parser
 import qualified UHF.ASTToIR as ASTToIR
 import qualified UHF.NameResolve as NameResolve
+import qualified UHF.InfixGroup as InfixGroup
 import qualified UHF.Type as Type
 
 type ErrorAccumulated a = Writer [Diagnostic.Error] a -- TODO: allow for warnings too
 
 type Tokens = ([Token.LToken], Token.LToken)
 type AST = [AST.Decl]
-type FirstIR = (Arena.Arena IR.Decl IR.DeclKey, Arena.Arena (IR.NominalType (IR.TypeExpr (IR.NameContext, [Location.Located Text]))) IR.NominalTypeKey, Arena.Arena (IR.Binding (IR.NameContext, [Location.Located Text]) (IR.TypeExpr (IR.NameContext, [Location.Located Text])) ()) IR.BindingKey, Arena.Arena (IR.BoundName ()) IR.BoundNameKey)
-type NRIR = (Arena.Arena IR.Decl IR.DeclKey, Arena.Arena (IR.NominalType (IR.TypeExpr (Maybe IR.DeclKey))) IR.NominalTypeKey, Arena.Arena (IR.Binding (Maybe IR.BoundNameKey) (IR.TypeExpr (Maybe IR.DeclKey)) ()) IR.BindingKey, Arena.Arena (IR.BoundName ()) IR.BoundNameKey)
-type TypedIR = (Arena.Arena IR.Decl IR.DeclKey, Arena.Arena (IR.NominalType (Maybe (IR.Type Void))) IR.NominalTypeKey, Arena.Arena (IR.Binding (Maybe IR.BoundNameKey) (Maybe (IR.Type Void)) (Maybe (IR.Type Void))) IR.BindingKey, Arena.Arena (IR.BoundName (Maybe (IR.Type Void))) IR.BoundNameKey)
+type FirstIR = (Arena.Arena IR.Decl IR.DeclKey, Arena.Arena (IR.NominalType (IR.TypeExpr (IR.NameContext, [Location.Located Text]))) IR.NominalTypeKey, Arena.Arena (IR.Binding (IR.NameContext, [Location.Located Text]) (IR.TypeExpr (IR.NameContext, [Location.Located Text])) () ()) IR.BindingKey, Arena.Arena (IR.BoundName ()) IR.BoundNameKey)
+type NRIR = (Arena.Arena IR.Decl IR.DeclKey, Arena.Arena (IR.NominalType (IR.TypeExpr (Maybe IR.DeclKey))) IR.NominalTypeKey, Arena.Arena (IR.Binding (Maybe IR.BoundNameKey) (IR.TypeExpr (Maybe IR.DeclKey)) () ()) IR.BindingKey, Arena.Arena (IR.BoundName ()) IR.BoundNameKey)
+type TypedIR = (Arena.Arena IR.Decl IR.DeclKey, Arena.Arena (IR.NominalType (Maybe (IR.Type Void))) IR.NominalTypeKey, Arena.Arena (IR.Binding (Maybe IR.BoundNameKey) (Maybe (IR.Type Void)) (Maybe (IR.Type Void)) Void) IR.BindingKey, Arena.Arena (IR.BoundName (Maybe (IR.Type Void))) IR.BoundNameKey)
 
 compile :: File.File -> Either [Diagnostic.Error] TypedIR
 compile file =
@@ -44,7 +45,8 @@ compile' file =
         Nothing -> pure ()) >>
     convert_errors (ASTToIR.convert ast) >>= \ (decls, nominal_types, bindings, bound_names) ->
     convert_errors (NameResolve.resolve (decls, nominal_types, bindings)) >>= \ (decls, nominal_types, bindings) ->
-    convert_errors (Type.typecheck (decls, nominal_types, bindings, bound_names))
+    let bindings' = InfixGroup.group bindings
+    in convert_errors (Type.typecheck (decls, nominal_types, bindings', bound_names))
 
 convert_errors :: Diagnostic.IsError e => Writer [e] a -> Writer [Diagnostic.Error] a
 convert_errors = mapWriter (\ (res, errs) -> (res, map Diagnostic.to_error errs))

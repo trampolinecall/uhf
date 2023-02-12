@@ -100,10 +100,10 @@ instance Diagnostic.IsError Error where
 type Identifier = (IR.NameContext, [Location.Located Text])
 type Decl = IR.Decl
 type Module = IR.Module
-type Binding = IR.Binding Identifier TypeExpr ()
+type Binding = IR.Binding Identifier TypeExpr () ()
 type NominalType = IR.NominalType TypeExpr
 type TypeExpr = IR.TypeExpr Identifier
-type Expr = IR.Expr Identifier TypeExpr ()
+type Expr = IR.Expr Identifier TypeExpr () ()
 type Pattern = IR.Pattern Identifier ()
 
 type DeclArena = Arena.Arena Decl IR.DeclKey
@@ -274,7 +274,7 @@ convert_expr parent_context (AST.Expr'LetRec sp decls subexpr) =
     convert_decls (Just parent_context) decls >>= \ let_context ->
     IR.Expr'LetRec () sp <$> convert_expr let_context subexpr
 
-convert_expr parent_context (AST.Expr'BinaryOps sp first ops) = IR.Expr'BinaryOps () sp <$> convert_expr parent_context first <*> mapM (\ (op, right) -> convert_expr parent_context right >>= \ right' -> pure ((parent_context, Location.unlocate op), right')) ops
+convert_expr parent_context (AST.Expr'BinaryOps sp first ops) = IR.Expr'BinaryOps () () sp <$> convert_expr parent_context first <*> mapM (\ (op, right) -> convert_expr parent_context right >>= \ right' -> pure ((parent_context, Location.unlocate op), right')) ops
 
 convert_expr parent_context (AST.Expr'Call sp callee args) =
     convert_expr parent_context callee >>= \ callee ->

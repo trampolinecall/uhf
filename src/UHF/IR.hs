@@ -61,7 +61,7 @@ newtype BoundNameKey = BoundNameKey Int deriving Show
 instance Arena.Key BoundNameKey where
     make_key = BoundNameKey
     unmake_key (BoundNameKey i) = i
-data BoundName typeinfo = BoundName typeinfo deriving Show
+data BoundName typeinfo = BoundName typeinfo Span deriving Show
 
 newtype BindingKey = BindingKey Int deriving Show
 instance Arena.Key BindingKey where

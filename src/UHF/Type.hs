@@ -197,7 +197,7 @@ convert_type_expr decls (IR.TypeExpr'Identifier iden) = case iden of
 convert_type_expr decls (IR.TypeExpr'Tuple items) = IR.Type'Tuple <$> todo <*> todo -- mapM (convert_type_expr decls) items
 
 assign_type_variable_to_bound_name :: UntypedBoundName -> StateWithVars TypedWithVarsBoundName
-assign_type_variable_to_bound_name (IR.BoundName ()) = IR.BoundName <$> (IR.Type'Variable <$> new_type_variable (BoundName todo))
+assign_type_variable_to_bound_name (IR.BoundName () def_span) = IR.BoundName <$> (IR.Type'Variable <$> new_type_variable (BoundName def_span)) <*> pure def_span
 
 collect_constraints :: DeclArena -> TypedWithVarsBoundNameArena -> UntypedBinding -> WriterT [Constraint] StateWithVars TypedWithVarsBinding
 collect_constraints decls bna (IR.Binding pat expr) =
@@ -210,7 +210,7 @@ collect_constraints decls bna (IR.Binding pat expr) =
         loc_expr_type expr = Located (IR.expr_span expr) (IR.expr_type expr)
 
         collect_for_pat (IR.Pattern'Identifier () sp bn) =
-            let (IR.BoundName ty) = Arena.get bna bn
+            let (IR.BoundName ty _) = Arena.get bna bn
             in pure (IR.Pattern'Identifier ty sp bn)
 
         collect_for_pat (IR.Pattern'Tuple () sp l r) =
@@ -220,7 +220,7 @@ collect_constraints decls bna (IR.Binding pat expr) =
 
         collect_for_pat (IR.Pattern'Named () sp bnk subpat) =
             collect_for_pat subpat >>= \ subpat ->
-            let (IR.BoundName bn_ty) = Arena.get bna (unlocate bnk)
+            let (IR.BoundName bn_ty _) = Arena.get bna (unlocate bnk)
             in tell [Eq (Located (just_span bnk) bn_ty) (loc_pat_type subpat)] >>
             pure (IR.Pattern'Named bn_ty sp bnk subpat)
 
@@ -228,7 +228,7 @@ collect_constraints decls bna (IR.Binding pat expr) =
 
         collect_for_expr (IR.Expr'Identifier () sp bn) =
             (case bn of
-                Just bn -> let (IR.BoundName ty) = Arena.get bna bn in pure ty
+                Just bn -> let (IR.BoundName ty _) = Arena.get bna bn in pure ty
                 Nothing -> IR.Type'Variable <$> lift (new_type_variable (UnresolvedIdenExpr sp))) >>= \ ty ->
 
             pure (IR.Expr'Identifier ty sp bn)
@@ -368,7 +368,7 @@ solve_constraints nominal_types = mapM_ solve
         occurs_check v ty = pure () -- TODO
 
 remove_vars_from_bound_name :: TypeVarArena -> TypedWithVarsBoundName -> Writer [Error] TypedBoundName
-remove_vars_from_bound_name vars (IR.BoundName ty) = IR.BoundName <$> remove_vars vars ty
+remove_vars_from_bound_name vars (IR.BoundName ty sp) = IR.BoundName <$> remove_vars vars ty <*> pure sp
 
 remove_vars_from_nominal_type :: TypeVarArena -> TypedWithVarsNominalType -> Writer [Error] TypedNominalType
 remove_vars_from_nominal_type vars (IR.NominalType'Data name variants) = IR.NominalType'Data name <$> mapM remove_from_variant variants
@@ -404,6 +404,7 @@ remove_vars_from_binding vars (IR.Binding pat expr) = IR.Binding <$> remove_from
 
 remove_vars :: TypeVarArena -> TypeWithVars -> Writer [Error] (Maybe Type)
 remove_vars vars ty = runMaybeT $ r ty
+    -- TODO: cache in order to not repeat errors
     where
         r (IR.Type'Int) = pure $ IR.Type'Int
         r (IR.Type'Float) = pure $ IR.Type'Float

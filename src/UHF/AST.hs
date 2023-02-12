@@ -11,7 +11,7 @@ type Identifier = Located [Located Text]
 -- TODO: make all asts store spans (some do right now based on where they are needed in the later phases, but all of them should have one just for consistency)
 
 data Decl
-    = Decl'Value Pattern Expr
+    = Decl'Value Pattern Span Expr
     | Decl'Data Identifier [DataVariant]
     | Decl'TypeSyn Identifier Type
     -- TODO: | Decl'Import Type
@@ -46,8 +46,8 @@ data Expr
 
     | Expr'Call Span Expr [Expr]
 
-    | Expr'If Span Expr Expr Expr
-    | Expr'Case Span Expr [(Pattern, Expr)]
+    | Expr'If Span Span Expr Expr Expr
+    | Expr'Case Span Span Expr [(Pattern, Expr)]
 
     | Expr'TypeAnnotation Span Type Expr
     deriving (Eq, Show)
@@ -55,7 +55,7 @@ data Expr
 data Pattern
     = Pattern'Identifier Identifier -- TODO: decide whether '_' should be this or a separate variant
     | Pattern'Tuple Span [Pattern]
-    | Pattern'Named Span Identifier Pattern
+    | Pattern'Named Span Identifier Span Pattern
     deriving (Eq, Show)
 
 expr_span :: Expr -> Span
@@ -71,11 +71,11 @@ expr_span (Expr'Let sp _ _) = sp
 expr_span (Expr'LetRec sp _ _) = sp
 expr_span (Expr'BinaryOps sp _ _) = sp
 expr_span (Expr'Call sp _ _) = sp
-expr_span (Expr'If sp _ _ _) = sp
-expr_span (Expr'Case sp _ _) = sp
+expr_span (Expr'If sp _ _ _ _) = sp
+expr_span (Expr'Case sp _ _ _) = sp
 expr_span (Expr'TypeAnnotation sp _ _) = sp
 
 pattern_span :: Pattern -> Span
 pattern_span (Pattern'Identifier i) = just_span i
 pattern_span (Pattern'Tuple sp _) = sp
-pattern_span (Pattern'Named sp _ _) = sp
+pattern_span (Pattern'Named sp _ _ _) = sp

@@ -87,10 +87,10 @@ decl_data =
 decl_binding :: PEG.Parser AST.Decl
 decl_binding =
     pattern >>= \ target ->
-    PEG.consume' "'='" (Token.SingleTypeToken Token.Equal) >>= \ _ ->
+    PEG.consume' "'='" (Token.SingleTypeToken Token.Equal) >>= \ (Location.Located eq_sp _) ->
     expr >>= \ val ->
     PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>= \ _ ->
-    pure (AST.Decl'Value target val)
+    pure (AST.Decl'Value target eq_sp val)
 
 decl_typesyn :: PEG.Parser AST.Decl
 decl_typesyn =
@@ -224,7 +224,7 @@ expr_if =
     expr >>= \ true_choice ->
     PEG.consume' "'else'" (Token.SingleTypeToken Token.Else) >>= \ _ ->
     expr >>= \ false_choice ->
-    pure (AST.Expr'If (if_sp `Location.join_span` AST.expr_span false_choice) cond true_choice false_choice)
+    pure (AST.Expr'If (if_sp `Location.join_span` AST.expr_span false_choice) if_sp cond true_choice false_choice)
 
 expr_case :: PEG.Parser AST.Expr
 expr_case =
@@ -238,7 +238,7 @@ expr_case =
         pure (pat, choice)
     ) >>= \ arms ->
     PEG.consume' "'}'" (Token.SingleTypeToken Token.CBrace) >>= \ (Location.Located cb_sp _) ->
-    pure (AST.Expr'Case (case_sp `Location.join_span` cb_sp) e arms)
+    pure (AST.Expr'Case (case_sp `Location.join_span` cb_sp) case_sp e arms)
 
 expr_type_annotation :: PEG.Parser AST.Expr
 expr_type_annotation =
@@ -280,9 +280,9 @@ pattern_tuple =
 pattern_named :: PEG.Parser AST.Pattern
 pattern_named =
     PEG.consume' "pattern" (Token.AlphaIdentifier ()) >>= \ (Location.Located iden_sp (Token.AlphaIdentifier iden)) ->
-    PEG.consume' "'@'" (Token.SingleTypeToken Token.At) >>= \ _ ->
+    PEG.consume' "'@'" (Token.SingleTypeToken Token.At) >>= \ (Location.Located at_sp _) ->
     pattern >>= \ more ->
-    pure (AST.Pattern'Named (iden_sp `Location.join_span` AST.pattern_span more) (Location.Located iden_sp iden) more)
+    pure (AST.Pattern'Named (iden_sp `Location.join_span` AST.pattern_span more) (Location.Located iden_sp iden) at_sp more)
 -- tests {{{1
 test_decls :: [TestTree]
 test_decls = map Test.run_test $
@@ -295,7 +295,7 @@ test_decls = map Test.run_test $
     in
     [ Test.ParsingTest "binding"
         (Test.make_token_stream [(alpha_iden1 "x"), (stt Token.Equal), (Token.Char 'c')])
-        (AST.Decl'Value (AST.Pattern'Identifier (liden1 "x")) (AST.Expr'Char dsp 'c'))
+        (AST.Decl'Value (AST.Pattern'Identifier (liden1 "x")) dsp (AST.Expr'Char dsp 'c'))
         [("decl", decl), ("decl_binding", decl_binding)]
 
     , Test.ParsingTest "type synonym"

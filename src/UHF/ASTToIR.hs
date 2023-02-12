@@ -184,10 +184,10 @@ convert_decls parent_context decls =
     mfix (\ final_name_context -> -- mfix needed because the name context to put the expressions into is this one
         List.unzip <$> mapM
             (\case
-                AST.Decl'Value target expr ->
+                AST.Decl'Value target eq_sp expr ->
                     convert_expr final_name_context expr >>= \ expr' ->
                     convert_pattern target >>= \ (new_bound_names, target') -> -- TODO: do this correctly
-                    new_binding (IR.Binding target' expr') >>
+                    new_binding (IR.Binding target' eq_sp expr') >>
                     pure ([], new_bound_names)
 
                 AST.Decl'Data name variants ->
@@ -275,8 +275,8 @@ convert_expr parent_context (AST.Expr'Call sp callee args) =
     convert_expr parent_context callee >>= \ callee ->
     foldlM (\ callee arg -> IR.Expr'Call () sp callee <$> convert_expr parent_context arg) callee args
 
-convert_expr parent_context (AST.Expr'If sp cond t f) = IR.Expr'If () sp <$> convert_expr parent_context cond <*> convert_expr parent_context t <*> convert_expr parent_context f
-convert_expr parent_context (AST.Expr'Case sp e arms) =
+convert_expr parent_context (AST.Expr'If sp if_sp cond t f) = IR.Expr'If () sp if_sp <$> convert_expr parent_context cond <*> convert_expr parent_context t <*> convert_expr parent_context f
+convert_expr parent_context (AST.Expr'Case sp case_sp e arms) =
     convert_expr parent_context e >>= \ e ->
     mapM
         (\ (pat, choice) ->
@@ -286,7 +286,7 @@ convert_expr parent_context (AST.Expr'Case sp e arms) =
             pure (pat, choice))
         arms
         >>= \ arms ->
-    pure (IR.Expr'Case () sp e arms)
+    pure (IR.Expr'Case () sp case_sp e arms)
 
 convert_expr nc (AST.Expr'TypeAnnotation sp ty e) = IR.Expr'TypeAnnotation () sp <$> convert_type nc ty <*> convert_expr nc e
 
@@ -307,12 +307,12 @@ convert_pattern (AST.Pattern'Tuple sp subpats) =
         go (a:b:more) = IR.Pattern'Tuple () sp a <$> go (b:more)
         go [_] = tell_err (Tuple1 sp) >> pure (IR.Pattern'Poison () sp)
         go [] = tell_err (Tuple0 sp) >> pure (IR.Pattern'Poison () sp)
-convert_pattern (AST.Pattern'Named sp iden subpat) =
+convert_pattern (AST.Pattern'Named sp iden at_sp subpat) =
     convert_pattern subpat >>= \ (sub_bn, subpat') ->
     make_iden1_with_err PathInPattern iden >>= \case
         Just l_name@(Location.Located name_sp name) ->
             new_bound_name name name_sp >>= \ bn ->
-            pure ((l_name, bn) : sub_bn, IR.Pattern'Named () sp (Location.Located name_sp bn) subpat')
+            pure ((l_name, bn) : sub_bn, IR.Pattern'Named () sp at_sp (Location.Located name_sp bn) subpat')
 
         Nothing ->
             pure ([], IR.Pattern'Poison () sp)

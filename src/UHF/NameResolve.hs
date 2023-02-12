@@ -84,35 +84,35 @@ transform_identifiers transform_t_iden transform_e_iden nominal_types bindings =
 
         transform_binding (IR.Binding target expr) = IR.Binding <$> transform_pat target <*> transform_expr expr
 
-        transform_pat (IR.Pattern'Identifier typeinfo bnk) = pure $ IR.Pattern'Identifier typeinfo  bnk
-        transform_pat (IR.Pattern'Tuple typeinfo a b) = IR.Pattern'Tuple typeinfo <$> transform_pat a <*> transform_pat b
-        transform_pat (IR.Pattern'Named typeinfo bnk subpat) = IR.Pattern'Named typeinfo bnk <$> transform_pat subpat
+        transform_pat (IR.Pattern'Identifier typeinfo sp bnk) = pure $ IR.Pattern'Identifier typeinfo sp bnk
+        transform_pat (IR.Pattern'Tuple typeinfo sp a b) = IR.Pattern'Tuple typeinfo sp <$> transform_pat a <*> transform_pat b
+        transform_pat (IR.Pattern'Named typeinfo sp bnk subpat) = IR.Pattern'Named typeinfo sp bnk <$> transform_pat subpat
         transform_pat (IR.Pattern'Poison typeinfo sp) = pure $ IR.Pattern'Poison typeinfo sp
 
         transform_expr (IR.Expr'Identifier typeinfo sp i) = IR.Expr'Identifier typeinfo sp <$> transform_e_iden i
-        transform_expr (IR.Expr'Char typeinfo c) = pure $ IR.Expr'Char typeinfo c
-        transform_expr (IR.Expr'String typeinfo s) = pure $ IR.Expr'String typeinfo s
-        transform_expr (IR.Expr'Int typeinfo i) = pure $ IR.Expr'Int typeinfo i
-        transform_expr (IR.Expr'Float typeinfo f) = pure $ IR.Expr'Float typeinfo f
-        transform_expr (IR.Expr'Bool typeinfo b) = pure $ IR.Expr'Bool typeinfo b
+        transform_expr (IR.Expr'Char typeinfo sp c) = pure $ IR.Expr'Char typeinfo sp c
+        transform_expr (IR.Expr'String typeinfo sp s) = pure $ IR.Expr'String typeinfo sp s
+        transform_expr (IR.Expr'Int typeinfo sp i) = pure $ IR.Expr'Int typeinfo sp i
+        transform_expr (IR.Expr'Float typeinfo sp f) = pure $ IR.Expr'Float typeinfo sp f
+        transform_expr (IR.Expr'Bool typeinfo sp b) = pure $ IR.Expr'Bool typeinfo sp b
 
-        transform_expr (IR.Expr'Tuple typeinfo a b) = IR.Expr'Tuple typeinfo <$> transform_expr a <*> transform_expr b
+        transform_expr (IR.Expr'Tuple typeinfo sp a b) = IR.Expr'Tuple typeinfo sp <$> transform_expr a <*> transform_expr b
 
-        transform_expr (IR.Expr'Lambda typeinfo param body) = IR.Expr'Lambda typeinfo <$> transform_pat param <*> transform_expr body
+        transform_expr (IR.Expr'Lambda typeinfo sp param body) = IR.Expr'Lambda typeinfo sp <$> transform_pat param <*> transform_expr body
 
-        transform_expr (IR.Expr'Let typeinfo body) = IR.Expr'Let typeinfo <$> transform_expr body
-        transform_expr (IR.Expr'LetRec typeinfo body) = IR.Expr'LetRec typeinfo <$> transform_expr body
+        transform_expr (IR.Expr'Let typeinfo sp body) = IR.Expr'Let typeinfo sp <$> transform_expr body
+        transform_expr (IR.Expr'LetRec typeinfo sp body) = IR.Expr'LetRec typeinfo sp <$> transform_expr body
 
-        transform_expr (IR.Expr'BinaryOps typeinfo first ops) = IR.Expr'BinaryOps typeinfo <$> transform_expr first <*> mapM (\ (iden, rhs) -> (,) <$> transform_e_iden iden <*> transform_expr rhs) ops
+        transform_expr (IR.Expr'BinaryOps typeinfo sp first ops) = IR.Expr'BinaryOps typeinfo sp <$> transform_expr first <*> mapM (\ (iden, rhs) -> (,) <$> transform_e_iden iden <*> transform_expr rhs) ops
 
         transform_expr (IR.Expr'Call typeinfo sp callee arg) = IR.Expr'Call typeinfo sp <$> transform_expr callee <*> transform_expr arg
 
-        transform_expr (IR.Expr'If typeinfo cond t f) = IR.Expr'If typeinfo <$> transform_expr cond <*> transform_expr t <*> transform_expr f
+        transform_expr (IR.Expr'If typeinfo sp cond t f) = IR.Expr'If typeinfo sp <$> transform_expr cond <*> transform_expr t <*> transform_expr f
         transform_expr (IR.Expr'Case typeinfo sp e arms) = IR.Expr'Case typeinfo sp <$> transform_expr e <*> mapM (\ (pat, expr) -> (,) <$> transform_pat pat <*> transform_expr expr) arms
 
-        transform_expr (IR.Expr'TypeAnnotation typeinfo ty e) = IR.Expr'TypeAnnotation typeinfo <$> transform_type_expr ty <*> transform_expr e
+        transform_expr (IR.Expr'TypeAnnotation typeinfo sp ty e) = IR.Expr'TypeAnnotation typeinfo sp <$> transform_type_expr ty <*> transform_expr e
 
-        transform_expr (IR.Expr'Poison typeinfo sp ) = pure $ IR.Expr'Poison typeinfo sp
+        transform_expr (IR.Expr'Poison typeinfo sp) = pure $ IR.Expr'Poison typeinfo sp
 
 resolve :: (DeclArena, UnresolvedNominalTypeArena, UnresolvedBindingArena) -> Writer [Error] (DeclArena, ResolvedNominalTypeArena, ResolvedBindingArena)
 resolve (decls, nominals, bindings) =

@@ -25,6 +25,7 @@ library
       UHF.Diagnostic.Sections.Underlines
       UHF.Diagnostic.Sections.Utils
       UHF.FormattedString
+      UHF.InfixGroup
       UHF.IO.File
       UHF.IO.Location
       UHF.IO.Location.SpanHelper

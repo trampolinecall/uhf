@@ -42,7 +42,9 @@ group_expr (IR.Expr'Lambda () sp param body) = IR.Expr'Lambda () sp param (group
 group_expr (IR.Expr'Let () sp body) = IR.Expr'Let () sp (group_expr body)
 group_expr (IR.Expr'LetRec () sp body) = IR.Expr'LetRec () sp (group_expr body)
 
-group_expr (IR.Expr'BinaryOps () () sp first ops) = fst $ g (group_expr first) ops 0
+group_expr (IR.Expr'BinaryOps () () sp first ops) =
+    let (r, a) = g (group_expr first) ops 0
+    in if null a then r else error "internal error: still operations to group after grouping binary ops"
     where
         -- TODO: test this
         g :: GroupedExpr tya -> [(Maybe IR.BoundNameKey, UngroupedExpr tya)] -> Int -> (GroupedExpr tya, [(Maybe IR.BoundNameKey, UngroupedExpr tya)])
@@ -55,6 +57,7 @@ group_expr (IR.Expr'BinaryOps () () sp first ops) = fst $ g (group_expr first) o
                     let (rhs, after) = g (group_expr first_rhs) after_first_op op_prec -- TODO: associativity
                         left' = IR.Expr'Call () todo (IR.Expr'Call () todo (IR.Expr'Identifier () todo first_op) left) rhs
                     in g left' after cur_precedence
+
                 else (left, more)
 
         g left [] _ = (left, [])

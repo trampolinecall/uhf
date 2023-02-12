@@ -21,7 +21,7 @@ instance Arena.Key TypeVarKey where
     unmake_key (TypeVarKey i) = i
 type TypeVarArena = Arena.Arena TypeVar TypeVarKey
 data TypeVar -- = TypeVar TypeVarForWhat TypeVarStatus
-    = BoundValue IR.BoundNameKey
+    = BoundName Span
     | Expr Span
     | Pattern Span
     | TypeExpr Span
@@ -64,7 +64,7 @@ type Decl = IR.Decl
 
 type DeclArena = Arena.Arena Decl IR.DeclKey
 
-data Constraint
+data Constraint = Eq TypeWithVars TypeWithVars
 
 data Error
 instance Diagnostic.IsError Error where
@@ -84,7 +84,7 @@ typecheck (decls, nominal_types, bindings, bound_names) =
         (
             Arena.transformM (convert_type_exprs_in_nominal_types decls) nominal_types >>= \ nominal_types ->
             Arena.transformM assign_type_variable_to_bound_name bound_names >>= \ bound_names ->
-            runWriterT (Arena.transformM collect_constraints bindings) >>= \ (bindings, constraints) ->
+            runWriterT (Arena.transformM (collect_constraints decls bound_names) bindings) >>= \ (bindings, constraints) ->
             solve_constraints constraints >>
             pure (nominal_types, bound_names, bindings)
         )
@@ -110,13 +110,104 @@ convert_type_expr decls (IR.TypeExpr'Identifier iden) = case iden of
         IR.Decl'Module _ -> IR.Type'Variable <$> new_type_variable (TypeExpr todo) -- TODO: report error for this
         IR.Decl'Type ty -> pure $ IR.Type'Nominal ty
     Nothing -> IR.Type'Variable <$> new_type_variable (TypeExpr todo)
-convert_type_expr decls (IR.TypeExpr'Tuple items) = IR.Type'Tuple <$> mapM (convert_type_expr decls) items
+convert_type_expr decls (IR.TypeExpr'Tuple items) = IR.Type'Tuple <$> todo <*> todo -- mapM (convert_type_expr decls) items
 
 assign_type_variable_to_bound_name :: UntypedBoundName -> StateWithVars TypedWithVarsBoundName
-assign_type_variable_to_bound_name (IR.BoundName ()) = todo
+assign_type_variable_to_bound_name (IR.BoundName ()) = IR.BoundName <$> (IR.Type'Variable <$> new_type_variable (BoundName todo))
 
-collect_constraints :: UntypedBinding -> WriterT [Constraint] StateWithVars TypedWithVarsBinding
-collect_constraints = todo
+collect_constraints :: DeclArena -> TypedWithVarsBoundNameArena -> UntypedBinding -> WriterT [Constraint] StateWithVars TypedWithVarsBinding
+collect_constraints decls bna (IR.Binding pat expr) =
+    collect_for_pat pat >>= \ pat ->
+    collect_for_expr expr >>= \ expr ->
+    tell [Eq (IR.pattern_type pat) (IR.expr_type expr)] >>
+    pure (IR.Binding pat expr)
+    where
+        collect_for_pat (IR.Pattern'Identifier () bn) =
+            let (IR.BoundName ty) = Arena.get bna bn
+            in pure (IR.Pattern'Identifier ty bn)
+
+        collect_for_pat (IR.Pattern'Tuple () l r) =
+            collect_for_pat l >>= \ l ->
+            collect_for_pat r >>= \ r ->
+            pure (IR.Pattern'Tuple (IR.Type'Tuple (IR.pattern_type l) (IR.pattern_type r)) l r)
+
+        collect_for_pat (IR.Pattern'Named () bnk subpat) =
+            collect_for_pat subpat >>= \ subpat ->
+            let (IR.BoundName bn_ty) = Arena.get bna bnk
+            in tell [Eq bn_ty (IR.pattern_type subpat)] >>
+            pure (IR.Pattern'Named bn_ty bnk subpat)
+
+        collect_for_pat (IR.Pattern'Poison ()) = IR.Pattern'Poison <$> (IR.Type'Variable <$> lift (new_type_variable $ Expr todo))
+
+        collect_for_expr (IR.Expr'Identifier () bn) =
+            (case bn of
+                Just bn -> let (IR.BoundName ty) = Arena.get bna bn in pure ty
+                Nothing -> IR.Type'Variable <$> lift (new_type_variable (Expr todo))) >>= \ ty ->
+
+            pure (IR.Expr'Identifier ty bn)
+
+        collect_for_expr (IR.Expr'Char () c) = pure (IR.Expr'Char IR.Type'Char c)
+        collect_for_expr (IR.Expr'String () t) = pure (IR.Expr'String IR.Type'String t)
+        collect_for_expr (IR.Expr'Int () i) = pure (IR.Expr'Int IR.Type'Int i)
+        collect_for_expr (IR.Expr'Float () r) = pure (IR.Expr'Float IR.Type'Float r)
+        collect_for_expr (IR.Expr'Bool () b) = pure (IR.Expr'Bool IR.Type'Bool b)
+
+        collect_for_expr (IR.Expr'Tuple () l r) = collect_for_expr l >>= \ l -> collect_for_expr r >>= \ r -> pure (IR.Expr'Tuple (IR.Type'Tuple (IR.expr_type l) (IR.expr_type r)) l r)
+
+        collect_for_expr (IR.Expr'Lambda () param body) =
+            collect_for_pat param >>= \ param ->
+            collect_for_expr body >>= \ body ->
+            pure (IR.Expr'Lambda (IR.Type'Function (IR.pattern_type param) (IR.expr_type body)) param body)
+
+        collect_for_expr (IR.Expr'Let () result) =
+            collect_for_expr result >>= \ result ->
+            pure (IR.Expr'Let (IR.expr_type result) result)
+        collect_for_expr (IR.Expr'LetRec () result) =
+            collect_for_expr result >>= \ result ->
+            pure (IR.Expr'LetRec (IR.expr_type result) result)
+
+        collect_for_expr (IR.Expr'BinaryOps () first ops) = todo -- TODO: group these before this stage so that this does not exist
+
+        collect_for_expr (IR.Expr'Call () callee arg) =
+            collect_for_expr callee >>= \ callee ->
+            collect_for_expr arg >>= \ arg ->
+            lift (new_type_variable (Expr todo)) >>= \ res_ty_var ->
+
+            tell [Eq (IR.expr_type callee) (IR.Type'Function (IR.expr_type arg) (IR.Type'Variable res_ty_var))] >>
+
+            pure (IR.Expr'Call (IR.Type'Variable res_ty_var) callee arg)
+
+        collect_for_expr (IR.Expr'If () cond true false) =
+            collect_for_expr cond >>= \ cond ->
+            collect_for_expr true >>= \ true ->
+            collect_for_expr false >>= \ false ->
+
+            tell
+                [ Eq (IR.expr_type cond) (IR.Type'Bool)
+                , Eq (IR.expr_type true) (IR.expr_type false)
+                ] >>
+
+            pure (IR.Expr'If (IR.expr_type true) cond true false)
+
+        collect_for_expr (IR.Expr'Case () testing arms) =
+            collect_for_expr testing >>= \ testing ->
+            mapM (\ (p, e) -> (,) <$> collect_for_pat p <*> collect_for_expr e) arms >>= \ arms ->
+            IR.Type'Variable <$> lift (new_type_variable (Expr todo)) >>= \ result_ty ->
+
+            -- first expr matches all pattern types
+            -- all arm types are the same
+            tell (map (\ (arm_pat, _) -> Eq (IR.pattern_type arm_pat) (IR.expr_type testing)) arms) >>
+            tell (map (\ (_, arm_result) -> Eq (IR.expr_type arm_result) result_ty) arms) >>
+
+            pure (IR.Expr'Case result_ty testing arms)
+
+        collect_for_expr (IR.Expr'Poison ()) = IR.Expr'Poison <$> (IR.Type'Variable <$> lift (new_type_variable $ Expr todo))
+
+        collect_for_expr (IR.Expr'TypeAnnotation () annotation e) =
+            lift (convert_type_expr decls annotation) >>= \ annotation ->
+            collect_for_expr e >>= \ e ->
+            tell [Eq annotation (IR.expr_type e)] >>
+            pure (IR.Expr'TypeAnnotation annotation annotation e)
 
 solve_constraints :: [Constraint] -> StateWithVars ()
 solve_constraints = todo

@@ -126,7 +126,7 @@ typecheck (decls, nominal_types, bindings, bound_names) =
             Arena.transformM (convert_type_exprs_in_nominal_types decls) nominal_types >>= \ nominal_types ->
             Arena.transformM assign_type_variable_to_bound_name bound_names >>= \ bound_names ->
             runWriterT (Arena.transformM (collect_constraints decls bound_names) bindings) >>= \ (bindings, constraints) ->
-            solve_constraints constraints >>
+            solve_constraints nominal_types constraints >>
             pure (nominal_types, bound_names, bindings)
         )
         Arena.new >>= \ ((nominal_types, bound_names, bindings), vars) ->
@@ -253,8 +253,8 @@ collect_constraints decls bna (IR.Binding pat expr) =
             tell [Expect (loc_expr_type e) annotation] >> -- TODO: use annotation span
             pure (IR.Expr'TypeAnnotation annotation sp annotation e)
 
-solve_constraints :: [Constraint] -> StateWithVars ()
-solve_constraints = mapM_ solve
+solve_constraints :: TypedWithVarsNominalTypeArena -> [Constraint] -> StateWithVars ()
+solve_constraints nominal_types = mapM_ solve
     where
         -- TODO: gracefully figure out how to handle errors because the type variables become ambiguous if they cant be unified
         solve :: Constraint -> StateWithVars ()
@@ -269,7 +269,14 @@ solve_constraints = mapM_ solve
                 Left (got_part, expect_part) -> lift (tell [ExpectError { expect_error_got_whole = got, expect_error_expect_whole = expect, expect_error_got_part = got_part, expect_error_expect_part = expect_part }]) >> pure ()
 
         unify :: TypeWithVars -> TypeWithVars -> ExceptT (TypeWithVars, TypeWithVars) StateWithVars ()
-        unify (IR.Type'Nominal a) (IR.Type'Nominal b) = todo
+        unify a@(IR.Type'Nominal a_nominal_idx) b@(IR.Type'Nominal b_nominal_idx) =
+            case (Arena.get nominal_types a_nominal_idx, Arena.get nominal_types b_nominal_idx) of
+                (IR.NominalType'Synonym a_expansion, _) -> unify a_expansion b
+                (_, IR.NominalType'Synonym b_expansion) -> unify a b_expansion
+                (IR.NominalType'Data _, IR.NominalType'Data _) -> if a_nominal_idx == b_nominal_idx
+                    then pure ()
+                    else ExceptT (pure $ Left (a, b))
+
         unify (IR.Type'Variable a) b = unify_var a b False
         unify a (IR.Type'Variable b) = unify_var b a True
         unify (IR.Type'Int) (IR.Type'Int) = pure ()

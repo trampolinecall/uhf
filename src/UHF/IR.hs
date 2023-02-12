@@ -67,7 +67,7 @@ newtype BindingKey = BindingKey Int deriving Show
 instance Arena.Key BindingKey where
     make_key = BindingKey
     unmake_key (BindingKey i) = i
-data Binding identifier typeannotation typeinfo = Binding (Pattern identifier typeinfo) Span (Expr identifier typeannotation typeinfo) deriving Show
+data Binding identifier typeannotation typeinfo binaryopsallowed = Binding (Pattern identifier typeinfo) Span (Expr identifier typeannotation typeinfo binaryopsallowed) deriving Show
 
 data NameContext = NameContext (Map.Map Text DeclKey) (Map.Map Text BoundNameKey) (Maybe NameContext) deriving Show
 
@@ -89,7 +89,7 @@ data Type var
     | Type'Variable var
     deriving Show
 
-data Expr identifier typeannotation typeinfo
+data Expr identifier typeannotation typeinfo binaryopsallowed
     = Expr'Identifier typeinfo Span identifier
     | Expr'Char typeinfo Span Char
     | Expr'String typeinfo Span Text
@@ -97,23 +97,23 @@ data Expr identifier typeannotation typeinfo
     | Expr'Float typeinfo Span Rational
     | Expr'Bool typeinfo Span Bool -- TODO: replace with identifier exprs
 
-    | Expr'Tuple typeinfo Span (Expr identifier typeannotation typeinfo) (Expr identifier typeannotation typeinfo)
+    | Expr'Tuple typeinfo Span (Expr identifier typeannotation typeinfo binaryopsallowed) (Expr identifier typeannotation typeinfo binaryopsallowed)
 
-    | Expr'Lambda typeinfo Span (Pattern identifier typeinfo) (Expr identifier typeannotation typeinfo)
+    | Expr'Lambda typeinfo Span (Pattern identifier typeinfo) (Expr identifier typeannotation typeinfo binaryopsallowed)
 
-    | Expr'Let typeinfo Span (Expr identifier typeannotation typeinfo)
-    | Expr'LetRec typeinfo Span (Expr identifier typeannotation typeinfo)
+    | Expr'Let typeinfo Span (Expr identifier typeannotation typeinfo binaryopsallowed)
+    | Expr'LetRec typeinfo Span (Expr identifier typeannotation typeinfo binaryopsallowed)
 
-    | Expr'BinaryOps typeinfo Span (Expr identifier typeannotation typeinfo) [(identifier, Expr identifier typeannotation typeinfo)]
+    | Expr'BinaryOps binaryopsallowed typeinfo Span (Expr identifier typeannotation typeinfo binaryopsallowed) [(identifier, Expr identifier typeannotation typeinfo binaryopsallowed)]
 
-    | Expr'Call typeinfo Span (Expr identifier typeannotation typeinfo) (Expr identifier typeannotation typeinfo)
+    | Expr'Call typeinfo Span (Expr identifier typeannotation typeinfo binaryopsallowed) (Expr identifier typeannotation typeinfo binaryopsallowed)
 
-    | Expr'If typeinfo Span Span (Expr identifier typeannotation typeinfo) (Expr identifier typeannotation typeinfo) (Expr identifier typeannotation typeinfo)
-    | Expr'Case typeinfo Span Span (Expr identifier typeannotation typeinfo) [(Pattern identifier typeinfo, Expr identifier typeannotation typeinfo)]
+    | Expr'If typeinfo Span Span (Expr identifier typeannotation typeinfo binaryopsallowed) (Expr identifier typeannotation typeinfo binaryopsallowed) (Expr identifier typeannotation typeinfo binaryopsallowed)
+    | Expr'Case typeinfo Span Span (Expr identifier typeannotation typeinfo binaryopsallowed) [(Pattern identifier typeinfo, Expr identifier typeannotation typeinfo binaryopsallowed)]
 
     | Expr'Poison typeinfo Span
 
-    | Expr'TypeAnnotation typeinfo Span typeannotation (Expr identifier typeannotation typeinfo)
+    | Expr'TypeAnnotation typeinfo Span typeannotation (Expr identifier typeannotation typeinfo binaryopsallowed)
     deriving Show
 
 data Pattern identifier typeinfo
@@ -124,7 +124,7 @@ data Pattern identifier typeinfo
     | Pattern'Poison typeinfo Span -- TODO: poisonallowed
     deriving Show
 
-expr_type :: Expr identifier typeannotation typeinfo -> typeinfo
+expr_type :: Expr identifier typeannotation typeinfo binaryopsallowed -> typeinfo
 expr_type (Expr'Identifier typeinfo _ _) = typeinfo
 expr_type (Expr'Char typeinfo _ _) = typeinfo
 expr_type (Expr'String typeinfo _ _) = typeinfo
@@ -135,14 +135,14 @@ expr_type (Expr'Tuple typeinfo _ _ _) = typeinfo
 expr_type (Expr'Lambda typeinfo _ _ _) = typeinfo
 expr_type (Expr'Let typeinfo _ _) = typeinfo
 expr_type (Expr'LetRec typeinfo _ _) = typeinfo
-expr_type (Expr'BinaryOps typeinfo _ _ _) = typeinfo
+expr_type (Expr'BinaryOps _ typeinfo _ _ _) = typeinfo
 expr_type (Expr'Call typeinfo _ _ _) = typeinfo
 expr_type (Expr'If typeinfo _ _ _ _ _) = typeinfo
 expr_type (Expr'Case typeinfo _ _ _ _) = typeinfo
 expr_type (Expr'Poison typeinfo _) = typeinfo
 expr_type (Expr'TypeAnnotation typeinfo _ _ _) = typeinfo
 
-expr_span :: Expr identifier typeannotation typeinfo -> Span
+expr_span :: Expr identifier typeannotation typeinfo binaryopsallowed -> Span
 expr_span (Expr'Identifier _ sp _) = sp
 expr_span (Expr'Char _ sp _) = sp
 expr_span (Expr'String _ sp _) = sp
@@ -153,7 +153,7 @@ expr_span (Expr'Tuple _ sp _ _) = sp
 expr_span (Expr'Lambda _ sp _ _) = sp
 expr_span (Expr'Let _ sp _) = sp
 expr_span (Expr'LetRec _ sp _) = sp
-expr_span (Expr'BinaryOps _ sp _ _) = sp
+expr_span (Expr'BinaryOps _ _ sp _ _) = sp
 expr_span (Expr'Call _ sp _ _) = sp
 expr_span (Expr'If _ sp _ _ _ _) = sp
 expr_span (Expr'Case _ sp _ _ _) = sp

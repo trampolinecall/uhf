@@ -35,8 +35,8 @@ type UnresolvedTypeIdentifier = (IR.NameContext, [Location.Located Text])
 type UnresolvedExprIdentifier = (IR.NameContext, [Location.Located Text])
 type UnresolvedNominalType = IR.NominalType UnresolvedType
 type UnresolvedType = IR.TypeExpr UnresolvedTypeIdentifier
-type UnresolvedBinding = IR.Binding UnresolvedExprIdentifier UnresolvedType ()
-type UnresolvedExpr = IR.Expr UnresolvedExprIdentifier UnresolvedType ()
+type UnresolvedBinding = IR.Binding UnresolvedExprIdentifier UnresolvedType () ()
+type UnresolvedExpr = IR.Expr UnresolvedExprIdentifier UnresolvedType () ()
 type UnresolvedPattern = IR.Pattern UnresolvedExprIdentifier
 
 type UnresolvedBindingArena = Arena.Arena UnresolvedBinding IR.BindingKey
@@ -44,8 +44,8 @@ type UnresolvedNominalTypeArena = Arena.Arena UnresolvedNominalType IR.NominalTy
 
 type ResolvedNominalType = IR.NominalType ResolvedType
 type ResolvedType = IR.TypeExpr (Maybe IR.DeclKey)
-type ResolvedBinding = IR.Binding (Maybe IR.BoundNameKey) ResolvedType ()
-type ResolvedExpr = IR.Expr (Maybe IR.BoundNameKey) ResolvedType ()
+type ResolvedBinding = IR.Binding (Maybe IR.BoundNameKey) ResolvedType () ()
+type ResolvedExpr = IR.Expr (Maybe IR.BoundNameKey) ResolvedType () ()
 type ResolvedPattern = IR.Pattern (Maybe IR.BoundNameKey)
 
 type ResolvedBindingArena = Arena.Arena ResolvedBinding IR.BindingKey
@@ -70,7 +70,7 @@ instance Diagnostic.IsError Error where
                 (Just sp)
                 [Underlines.underlines [sp `Underlines.primary` [Underlines.error message]]]
 
-transform_identifiers :: Monad m => (t_iden -> m t_iden') -> (e_iden -> m e_iden') -> Arena.Arena (IR.NominalType (IR.TypeExpr t_iden)) IR.NominalTypeKey -> Arena.Arena (IR.Binding e_iden (IR.TypeExpr t_iden) typeinfo) IR.BindingKey -> m (Arena.Arena (IR.NominalType (IR.TypeExpr t_iden')) IR.NominalTypeKey, Arena.Arena (IR.Binding e_iden' (IR.TypeExpr t_iden') typeinfo) IR.BindingKey)
+transform_identifiers :: Monad m => (t_iden -> m t_iden') -> (e_iden -> m e_iden') -> Arena.Arena (IR.NominalType (IR.TypeExpr t_iden)) IR.NominalTypeKey -> Arena.Arena (IR.Binding e_iden (IR.TypeExpr t_iden) typeinfo binaryopsallowed) IR.BindingKey -> m (Arena.Arena (IR.NominalType (IR.TypeExpr t_iden')) IR.NominalTypeKey, Arena.Arena (IR.Binding e_iden' (IR.TypeExpr t_iden') typeinfo binaryopsallowed) IR.BindingKey)
 transform_identifiers transform_t_iden transform_e_iden nominal_types bindings = (,) <$> Arena.transformM transform_nominal_type nominal_types <*> Arena.transformM transform_binding bindings
     where
         transform_nominal_type (IR.NominalType'Data name variants) = IR.NominalType'Data name <$> mapM transform_variant variants
@@ -104,7 +104,7 @@ transform_identifiers transform_t_iden transform_e_iden nominal_types bindings =
         transform_expr (IR.Expr'Let typeinfo sp body) = IR.Expr'Let typeinfo sp <$> transform_expr body
         transform_expr (IR.Expr'LetRec typeinfo sp body) = IR.Expr'LetRec typeinfo sp <$> transform_expr body
 
-        transform_expr (IR.Expr'BinaryOps typeinfo sp first ops) = IR.Expr'BinaryOps typeinfo sp <$> transform_expr first <*> mapM (\ (iden, rhs) -> (,) <$> transform_e_iden iden <*> transform_expr rhs) ops
+        transform_expr (IR.Expr'BinaryOps allowed typeinfo sp first ops) = IR.Expr'BinaryOps allowed typeinfo sp <$> transform_expr first <*> mapM (\ (iden, rhs) -> (,) <$> transform_e_iden iden <*> transform_expr rhs) ops
 
         transform_expr (IR.Expr'Call typeinfo sp callee arg) = IR.Expr'Call typeinfo sp <$> transform_expr callee <*> transform_expr arg
 

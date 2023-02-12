@@ -204,7 +204,9 @@ expr_binary_ops =
         expr_primary >>= \ second ->
         pure (Location.Located op_sp op, second)
     ) >>= \ ops ->
-    pure (AST.Expr'BinaryOps first ops)
+    if null ops
+        then pure first
+        else pure (AST.Expr'BinaryOps first ops)
 
 expr_call :: PEG.Parser AST.Expr
 expr_call =

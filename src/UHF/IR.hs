@@ -44,7 +44,7 @@ data Decl
     deriving Show
 data Module = Module NameContext deriving Show
 
-newtype NominalTypeKey = NominalTypeKey Int deriving Show
+newtype NominalTypeKey = NominalTypeKey Int deriving (Show, Eq)
 instance Arena.Key NominalTypeKey where
     make_key = NominalTypeKey
     unmake_key (NominalTypeKey i) = i

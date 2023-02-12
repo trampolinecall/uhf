@@ -71,14 +71,17 @@ type Decl = IR.Decl
 
 type DeclArena = Arena.Arena Decl IR.DeclKey
 
+data EqForWhat = Assignment | NamedPattern | IfBranches | CasePatterns | CaseArms
 data Constraint
-    = Eq (Located TypeWithVars) (Located TypeWithVars)
+    = Eq EqForWhat Span (Located TypeWithVars) (Located TypeWithVars)
     | Expect (Located TypeWithVars) TypeWithVars
 
 data Error
     = EqError
         { eq_error_nominal_types :: TypedWithVarsNominalTypeArena
         , eq_error_vars :: TypeVarArena
+        , eq_error_for_what :: EqForWhat
+        , eq_error_span :: Span
         , eq_error_a_whole :: Located TypeWithVars
         , eq_error_b_whole :: Located TypeWithVars
         , eq_error_a_part :: TypeWithVars
@@ -91,25 +94,31 @@ data Error
         , expect_error_expect_whole :: TypeWithVars
         , expect_error_got_part :: TypeWithVars
         , expect_error_expect_part :: TypeWithVars
-        } -- TODO: add spans
+        }
 
     | AmbiguousType TypeVarForWhat
 
 instance Diagnostic.IsError Error where
-    to_error (EqError {eq_error_nominal_types = nominal_types, eq_error_vars = vars, ..}) =
-        Diagnostic.Error Diagnostic.Codes.type_mismatch $
+    to_error (EqError nominal_types vars for_what span a_whole b_whole a_part b_part) =
+        let what = case for_what of
+                Assignment -> "assignment"
+                NamedPattern -> "named pattern"
+                IfBranches -> "'if' expression"
+                CasePatterns -> "'case' expression patterns"
+                CaseArms -> "'case' expression arms"
+
+        in Diagnostic.Error Diagnostic.Codes.type_mismatch $
             Diagnostic.DiagnosticContents
-                (Just (just_span eq_error_a_whole))
-                [Underlines.underlines -- TODO
-                    [ just_span eq_error_a_whole `Underlines.primary` [Underlines.error $ convert_str $ print_type nominal_types vars $ unlocate eq_error_a_whole]
-                    , just_span eq_error_b_whole `Underlines.primary` [Underlines.error $ convert_str $ print_type nominal_types vars $ unlocate eq_error_b_whole]
-                    , just_span eq_error_a_whole `Underlines.primary` [Underlines.error $ convert_str $ print_type nominal_types vars eq_error_a_part]
-                    , just_span eq_error_b_whole `Underlines.primary` [Underlines.error $ convert_str $ print_type nominal_types vars eq_error_b_part]
+                (Just span)
+                [Underlines.underlines
+                    [ span `Underlines.primary` [Underlines.error $ convert_str $ "conflicting types in " <> what <> ": '" <> print_type nominal_types vars a_part <> "' vs '" <> print_type nominal_types vars b_part <> "'"]
+                    , just_span a_whole `Underlines.primary` [Underlines.error $ convert_str $ print_type nominal_types vars $ unlocate a_whole]
+                    , just_span b_whole `Underlines.primary` [Underlines.error $ convert_str $ print_type nominal_types vars $ unlocate b_whole]
                     ]
                 ]
 
     to_error (ExpectError {expect_error_nominal_types = nominal_types, expect_error_vars = vars, ..}) =
-        Diagnostic.Error Diagnostic.Codes.type_mismatch $
+        Diagnostic.Error Diagnostic.Codes.type_mismatch $ -- TODO, also TODO change code?
             Diagnostic.DiagnosticContents
                 (Just (just_span expect_error_got_whole))
                 [Underlines.underlines -- TODO
@@ -123,7 +132,7 @@ instance Diagnostic.IsError Error where
     to_error (AmbiguousType for_what) =
         let (sp, name) = case for_what of
                 BoundName sp -> (sp, "binding")
-                UnresolvedIdenExpr sp -> (sp, "identifier") -- TODO: make sure this doesnt happen
+                UnresolvedIdenExpr sp -> (sp, "identifier expression") -- TODO: make sure this doesnt happen
                 CallExpr sp -> (sp, "call expression")
                 CaseExpr sp -> (sp, "case expression")
                 PoisonExpr sp -> (sp, "expression")
@@ -200,11 +209,11 @@ assign_type_variable_to_bound_name :: UntypedBoundName -> StateWithVars TypedWit
 assign_type_variable_to_bound_name (IR.BoundName () def_span) = IR.BoundName <$> (IR.Type'Variable <$> new_type_variable (BoundName def_span)) <*> pure def_span
 
 collect_constraints :: DeclArena -> TypedWithVarsBoundNameArena -> UntypedBinding -> WriterT [Constraint] StateWithVars TypedWithVarsBinding
-collect_constraints decls bna (IR.Binding pat expr) =
+collect_constraints decls bna (IR.Binding pat eq_sp expr) =
     collect_for_pat pat >>= \ pat ->
     collect_for_expr expr >>= \ expr ->
-    tell [Eq (loc_pat_type pat) (loc_expr_type expr)] >>
-    pure (IR.Binding pat expr)
+    tell [Eq Assignment eq_sp (loc_pat_type pat) (loc_expr_type expr)] >>
+    pure (IR.Binding pat eq_sp expr)
     where
         loc_pat_type pat = Located (IR.pattern_span pat) (IR.pattern_type pat)
         loc_expr_type expr = Located (IR.expr_span expr) (IR.expr_type expr)
@@ -218,11 +227,11 @@ collect_constraints decls bna (IR.Binding pat expr) =
             collect_for_pat r >>= \ r ->
             pure (IR.Pattern'Tuple (IR.Type'Tuple (IR.pattern_type l) (IR.pattern_type r)) sp l r)
 
-        collect_for_pat (IR.Pattern'Named () sp bnk subpat) =
+        collect_for_pat (IR.Pattern'Named () sp at_sp bnk subpat) =
             collect_for_pat subpat >>= \ subpat ->
             let (IR.BoundName bn_ty _) = Arena.get bna (unlocate bnk)
-            in tell [Eq (Located (just_span bnk) bn_ty) (loc_pat_type subpat)] >>
-            pure (IR.Pattern'Named bn_ty sp bnk subpat)
+            in tell [Eq NamedPattern at_sp (Located (just_span bnk) bn_ty) (loc_pat_type subpat)] >>
+            pure (IR.Pattern'Named bn_ty sp at_sp bnk subpat)
 
         collect_for_pat (IR.Pattern'Poison () sp) = IR.Pattern'Poison <$> (IR.Type'Variable <$> lift (new_type_variable $ PoisonPattern sp)) <*> pure sp
 
@@ -264,29 +273,29 @@ collect_constraints decls bna (IR.Binding pat expr) =
 
             pure (IR.Expr'Call (IR.Type'Variable res_ty_var) sp callee arg)
 
-        collect_for_expr (IR.Expr'If () sp cond true false) =
+        collect_for_expr (IR.Expr'If () sp if_sp cond true false) =
             collect_for_expr cond >>= \ cond ->
             collect_for_expr true >>= \ true ->
             collect_for_expr false >>= \ false ->
 
             tell
                 [ Expect (loc_expr_type cond) IR.Type'Bool
-                , Eq (loc_expr_type true) (loc_expr_type false)
+                , Eq IfBranches if_sp (loc_expr_type true) (loc_expr_type false)
                 ] >>
 
-            pure (IR.Expr'If (IR.expr_type true) sp cond true false)
+            pure (IR.Expr'If (IR.expr_type true) sp if_sp cond true false)
 
-        collect_for_expr (IR.Expr'Case () case_sp testing arms) =
+        collect_for_expr (IR.Expr'Case () sp case_tok_sp testing arms) =
             collect_for_expr testing >>= \ testing ->
             mapM (\ (p, e) -> (,) <$> collect_for_pat p <*> collect_for_expr e) arms >>= \ arms ->
-            IR.Type'Variable <$> lift (new_type_variable (CaseExpr case_sp)) >>= \ result_ty ->
+            IR.Type'Variable <$> lift (new_type_variable (CaseExpr sp)) >>= \ result_ty ->
 
             -- first expr matches all pattern types
-            tell (map (\ (arm_pat, _) -> Eq (loc_pat_type arm_pat) (loc_expr_type testing)) arms) >>
+            tell (map (\ (arm_pat, _) -> Eq CasePatterns case_tok_sp (loc_pat_type arm_pat) (loc_expr_type testing)) arms) >>
             -- all arm types are the same TODO: find a better way to do this (probably iterate in pairs)
-            tell (map (\ (_, arm_result) -> Eq (loc_expr_type arm_result) (Located case_sp result_ty)) arms) >>
+            tell (map (\ (_, arm_result) -> Eq CaseArms case_tok_sp (loc_expr_type arm_result) (Located sp result_ty)) arms) >>
 
-            pure (IR.Expr'Case result_ty case_sp testing arms)
+            pure (IR.Expr'Case result_ty sp case_tok_sp testing arms)
 
         collect_for_expr (IR.Expr'Poison () sp) = IR.Expr'Poison <$> (IR.Type'Variable <$> lift (new_type_variable $ PoisonExpr sp)) <*> pure sp
 
@@ -301,12 +310,12 @@ solve_constraints nominal_types = mapM_ solve
     where
         -- TODO: gracefully figure out how to handle errors because the type variables become ambiguous if they cant be unified
         solve :: Constraint -> StateWithVars ()
-        solve (Eq a b) =
+        solve (Eq for_what sp a b) =
             runExceptT (unify (unlocate a) (unlocate b)) >>= \case
                 Right () -> pure ()
                 Left (a_part, b_part) ->
                     get >>= \ vars ->
-                    lift (tell [EqError { eq_error_nominal_types = nominal_types, eq_error_vars = vars, eq_error_a_whole = a, eq_error_b_whole = b, eq_error_a_part = a_part, eq_error_b_part = b_part }]) >> pure ()
+                    lift (tell [EqError { eq_error_nominal_types = nominal_types, eq_error_vars = vars, eq_error_for_what = for_what, eq_error_span = sp, eq_error_a_whole = a, eq_error_b_whole = b, eq_error_a_part = a_part, eq_error_b_part = b_part }]) >> pure ()
 
         solve (Expect got expect) =
             runExceptT (unify (unlocate got) expect) >>= \case
@@ -378,11 +387,11 @@ remove_vars_from_nominal_type vars (IR.NominalType'Data name variants) = IR.Nomi
 remove_vars_from_nominal_type vars (IR.NominalType'Synonym name expansion) = IR.NominalType'Synonym name <$> remove_vars vars expansion
 
 remove_vars_from_binding :: TypeVarArena -> TypedWithVarsBinding -> Writer [Error] TypedBinding
-remove_vars_from_binding vars (IR.Binding pat expr) = IR.Binding <$> remove_from_pat pat <*> remove_from_expr expr
+remove_vars_from_binding vars (IR.Binding pat eq_sp expr) = IR.Binding <$> remove_from_pat pat <*> pure eq_sp <*> remove_from_expr expr
     where
         remove_from_pat (IR.Pattern'Identifier ty sp bn) = remove_vars vars ty >>= \ ty -> pure (IR.Pattern'Identifier ty sp bn)
         remove_from_pat (IR.Pattern'Tuple ty sp l r) = remove_vars vars ty >>= \ ty -> IR.Pattern'Tuple ty sp <$> remove_from_pat l <*> remove_from_pat r
-        remove_from_pat (IR.Pattern'Named ty sp bnk subpat) = remove_vars vars ty >>= \ ty -> IR.Pattern'Named ty sp bnk <$> remove_from_pat subpat
+        remove_from_pat (IR.Pattern'Named ty sp at_sp bnk subpat) = remove_vars vars ty >>= \ ty -> IR.Pattern'Named ty sp at_sp bnk <$> remove_from_pat subpat
         remove_from_pat (IR.Pattern'Poison ty sp) = remove_vars vars ty >>= \ ty -> pure (IR.Pattern'Poison ty sp)
 
         remove_from_expr (IR.Expr'Identifier ty sp bn) = remove_vars vars ty >>= \ ty -> pure (IR.Expr'Identifier ty sp bn)
@@ -397,8 +406,8 @@ remove_vars_from_binding vars (IR.Binding pat expr) = IR.Binding <$> remove_from
         remove_from_expr (IR.Expr'LetRec ty sp result) = remove_vars vars ty >>= \ ty -> IR.Expr'LetRec ty sp <$> remove_from_expr result
         remove_from_expr (IR.Expr'BinaryOps ty sp first ops) = todo
         remove_from_expr (IR.Expr'Call ty sp callee arg) = remove_vars vars ty >>= \ ty -> IR.Expr'Call ty sp <$> remove_from_expr callee <*> remove_from_expr arg
-        remove_from_expr (IR.Expr'If ty sp cond true false) = remove_vars vars ty >>= \ ty -> IR.Expr'If ty sp <$> remove_from_expr cond <*> remove_from_expr true <*> remove_from_expr false
-        remove_from_expr (IR.Expr'Case ty case_sp testing arms) = remove_vars vars ty >>= \ ty -> IR.Expr'Case ty case_sp <$> remove_from_expr testing <*> mapM (\ (p, e) -> (,) <$> remove_from_pat p <*> remove_from_expr e) arms
+        remove_from_expr (IR.Expr'If ty sp if_sp cond true false) = remove_vars vars ty >>= \ ty -> IR.Expr'If ty sp if_sp <$> remove_from_expr cond <*> remove_from_expr true <*> remove_from_expr false
+        remove_from_expr (IR.Expr'Case ty sp case_sp testing arms) = remove_vars vars ty >>= \ ty -> IR.Expr'Case ty sp case_sp <$> remove_from_expr testing <*> mapM (\ (p, e) -> (,) <$> remove_from_pat p <*> remove_from_expr e) arms
         remove_from_expr (IR.Expr'Poison ty sp) = remove_vars vars ty >>= \ ty -> pure (IR.Expr'Poison ty sp)
         remove_from_expr (IR.Expr'TypeAnnotation ty sp annotation e) = remove_vars vars ty >>= \ ty -> remove_vars vars annotation >>= \ annotation -> IR.Expr'TypeAnnotation ty sp annotation <$> remove_from_expr e
 

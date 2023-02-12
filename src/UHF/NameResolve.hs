@@ -82,11 +82,11 @@ transform_identifiers transform_t_iden transform_e_iden nominal_types bindings =
         transform_type_expr (IR.TypeExpr'Identifier id) = IR.TypeExpr'Identifier <$> transform_t_iden id
         transform_type_expr (IR.TypeExpr'Tuple items) = IR.TypeExpr'Tuple <$> mapM transform_type_expr items
 
-        transform_binding (IR.Binding target expr) = IR.Binding <$> transform_pat target <*> transform_expr expr
+        transform_binding (IR.Binding target eq_sp expr) = IR.Binding <$> transform_pat target <*> pure eq_sp <*> transform_expr expr
 
         transform_pat (IR.Pattern'Identifier typeinfo sp bnk) = pure $ IR.Pattern'Identifier typeinfo sp bnk
         transform_pat (IR.Pattern'Tuple typeinfo sp a b) = IR.Pattern'Tuple typeinfo sp <$> transform_pat a <*> transform_pat b
-        transform_pat (IR.Pattern'Named typeinfo sp bnk subpat) = IR.Pattern'Named typeinfo sp bnk <$> transform_pat subpat
+        transform_pat (IR.Pattern'Named typeinfo sp at_sp bnk subpat) = IR.Pattern'Named typeinfo sp at_sp bnk <$> transform_pat subpat
         transform_pat (IR.Pattern'Poison typeinfo sp) = pure $ IR.Pattern'Poison typeinfo sp
 
         transform_expr (IR.Expr'Identifier typeinfo sp i) = IR.Expr'Identifier typeinfo sp <$> transform_e_iden i
@@ -107,8 +107,8 @@ transform_identifiers transform_t_iden transform_e_iden nominal_types bindings =
 
         transform_expr (IR.Expr'Call typeinfo sp callee arg) = IR.Expr'Call typeinfo sp <$> transform_expr callee <*> transform_expr arg
 
-        transform_expr (IR.Expr'If typeinfo sp cond t f) = IR.Expr'If typeinfo sp <$> transform_expr cond <*> transform_expr t <*> transform_expr f
-        transform_expr (IR.Expr'Case typeinfo sp e arms) = IR.Expr'Case typeinfo sp <$> transform_expr e <*> mapM (\ (pat, expr) -> (,) <$> transform_pat pat <*> transform_expr expr) arms
+        transform_expr (IR.Expr'If typeinfo sp if_sp cond t f) = IR.Expr'If typeinfo sp if_sp <$> transform_expr cond <*> transform_expr t <*> transform_expr f
+        transform_expr (IR.Expr'Case typeinfo sp case_sp e arms) = IR.Expr'Case typeinfo sp case_sp <$> transform_expr e <*> mapM (\ (pat, expr) -> (,) <$> transform_pat pat <*> transform_expr expr) arms
 
         transform_expr (IR.Expr'TypeAnnotation typeinfo sp ty e) = IR.Expr'TypeAnnotation typeinfo sp <$> transform_type_expr ty <*> transform_expr e
 

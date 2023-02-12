@@ -14,9 +14,11 @@ import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Codes as Diagnostic.Codes
 import qualified UHF.Diagnostic.Sections.Underlines as Underlines
 
+import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
+
 type TypeExpr = IR.TypeExpr (Maybe IR.DeclKey)
 
-newtype TypeVarKey = TypeVarKey Int deriving Show
+newtype TypeVarKey = TypeVarKey Int deriving (Show, Eq)
 instance Arena.Key TypeVarKey where
     make_key = TypeVarKey
     unmake_key (TypeVarKey i) = i
@@ -55,11 +57,11 @@ type TypedWithVarsBindingArena = Arena.Arena TypedWithVarsBinding IR.BindingKey
 type TypedWithVarsNominalTypeArena = Arena.Arena TypedWithVarsNominalType IR.NominalTypeKey
 type TypedWithVarsBoundNameArena = Arena.Arena TypedWithVarsBoundName IR.BoundNameKey
 
-type TypedNominalType = IR.NominalType Type
-type TypedBinding = IR.Binding (Maybe IR.BoundNameKey) Type Type
-type TypedExpr = IR.Expr (Maybe IR.BoundNameKey) Type Type
-type TypedPattern = IR.Pattern (Maybe IR.BoundNameKey) Type
-type TypedBoundName = IR.BoundName Type
+type TypedNominalType = IR.NominalType (Maybe Type)
+type TypedBinding = IR.Binding (Maybe IR.BoundNameKey) (Maybe Type) (Maybe Type)
+type TypedExpr = IR.Expr (Maybe IR.BoundNameKey) (Maybe Type) (Maybe Type)
+type TypedPattern = IR.Pattern (Maybe IR.BoundNameKey) (Maybe Type)
+type TypedBoundName = IR.BoundName (Maybe Type)
 
 type TypedBindingArena = Arena.Arena TypedBinding IR.BindingKey
 type TypedNominalTypeArena = Arena.Arena TypedNominalType IR.NominalTypeKey
@@ -90,6 +92,9 @@ data Error
         , expect_error_got_part :: TypeWithVars
         , expect_error_expect_part :: TypeWithVars
         } -- TODO: add spans
+
+    | AmbiguousType TypeVarForWhat
+
 instance Diagnostic.IsError Error where
     to_error (EqError {eq_error_nominal_types = nominal_types, eq_error_vars = vars, ..}) =
         Diagnostic.Error Diagnostic.Codes.type_mismatch $
@@ -112,6 +117,23 @@ instance Diagnostic.IsError Error where
                     , just_span expect_error_got_whole `Underlines.primary` [Underlines.error $ convert_str $ print_type nominal_types vars expect_error_expect_whole]
                     , just_span expect_error_got_whole `Underlines.primary` [Underlines.error $ convert_str $ print_type nominal_types vars expect_error_got_part]
                     , just_span expect_error_got_whole `Underlines.primary` [Underlines.error $ convert_str $ print_type nominal_types vars expect_error_expect_part]
+                    ]
+                ]
+
+    to_error (AmbiguousType for_what) =
+        let (sp, name) = case for_what of
+                BoundName sp -> (sp, "binding")
+                UnresolvedIdenExpr sp -> (sp, "identifier") -- TODO: make sure this doesnt happen
+                CallExpr sp -> (sp, "call expression")
+                CaseExpr sp -> (sp, "case expression")
+                PoisonExpr sp -> (sp, "expression")
+                PoisonPattern sp -> (sp, "pattern")
+                TypeExpr sp -> (sp, "type expression")
+        in Diagnostic.Error Diagnostic.Codes.ambiguous_type $
+            Diagnostic.DiagnosticContents
+                (Just sp)
+                [Underlines.underlines -- TODO
+                    [ sp `Underlines.primary` [Underlines.error $ "ambiguous type: could not infer the type of this " <> name]
                     ]
                 ]
 
@@ -330,7 +352,10 @@ solve_constraints nominal_types = mapM_ solve
                             TypeVar _ (Substituted other_var_sub) -> unify_var var other_var_sub var_on_right
 
                             -- if the other type is a fresh type variable, both of them are fresh type variables and the only thing that can be done is to unify them
-                            TypeVar _ Fresh -> lift (set_type_var_state var (Substituted other)) -- TODO: check that these are not the same variable
+                            TypeVar _ Fresh ->
+                                if var /= other_var
+                                    then lift (set_type_var_state var (Substituted other))
+                                    else pure ()
 
                     -- if the other type is a type and not a variable
                     _ -> occurs_check var other >> lift (set_type_var_state var (Substituted other))
@@ -377,13 +402,19 @@ remove_vars_from_binding vars (IR.Binding pat expr) = IR.Binding <$> remove_from
         remove_from_expr (IR.Expr'Poison ty sp) = remove_vars vars ty >>= \ ty -> pure (IR.Expr'Poison ty sp)
         remove_from_expr (IR.Expr'TypeAnnotation ty sp annotation e) = remove_vars vars ty >>= \ ty -> remove_vars vars annotation >>= \ annotation -> IR.Expr'TypeAnnotation ty sp annotation <$> remove_from_expr e
 
-remove_vars :: TypeVarArena -> TypeWithVars -> Writer [Error] Type
-remove_vars _ (IR.Type'Int) = pure IR.Type'Int
-remove_vars _ (IR.Type'Float) = pure IR.Type'Float
-remove_vars _ (IR.Type'Char) = pure IR.Type'Char
-remove_vars _ (IR.Type'String) = pure IR.Type'String
-remove_vars _ (IR.Type'Bool) = pure IR.Type'Bool
-remove_vars _ (IR.Type'Nominal n) = pure $ IR.Type'Nominal n
-remove_vars vars (IR.Type'Function a r) = IR.Type'Function <$> remove_vars vars a <*> remove_vars vars r
-remove_vars vars (IR.Type'Tuple a b) = IR.Type'Tuple <$> remove_vars vars a <*> remove_vars vars b
-remove_vars vars (IR.Type'Variable v) = pure $ IR.Type'Variable $ todo v
+remove_vars :: TypeVarArena -> TypeWithVars -> Writer [Error] (Maybe Type)
+remove_vars vars ty = runMaybeT $ r ty
+    where
+        r (IR.Type'Int) = pure $ IR.Type'Int
+        r (IR.Type'Float) = pure $ IR.Type'Float
+        r (IR.Type'Char) = pure $ IR.Type'Char
+        r (IR.Type'String) = pure $ IR.Type'String
+        r (IR.Type'Bool) = pure $ IR.Type'Bool
+        r (IR.Type'Nominal n) = pure $ IR.Type'Nominal n
+        r (IR.Type'Function arg res) = IR.Type'Function <$> r arg <*> r res
+        r (IR.Type'Tuple a b) = IR.Type'Tuple <$> r a <*> r b
+        r (IR.Type'Variable v) =
+            case Arena.get vars v of
+                TypeVar _ (Substituted s) -> r s
+                TypeVar for_what Fresh ->
+                    lift (tell [AmbiguousType for_what]) >> MaybeT (pure Nothing)

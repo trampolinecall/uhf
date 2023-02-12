@@ -73,11 +73,11 @@ instance Diagnostic.IsError Error where
 transform_identifiers :: Monad m => (t_iden -> m t_iden') -> (e_iden -> m e_iden') -> Arena.Arena (IR.NominalType (IR.TypeExpr t_iden)) IR.NominalTypeKey -> Arena.Arena (IR.Binding e_iden (IR.TypeExpr t_iden) typeinfo) IR.BindingKey -> m (Arena.Arena (IR.NominalType (IR.TypeExpr t_iden')) IR.NominalTypeKey, Arena.Arena (IR.Binding e_iden' (IR.TypeExpr t_iden') typeinfo) IR.BindingKey)
 transform_identifiers transform_t_iden transform_e_iden nominal_types bindings = (,) <$> Arena.transformM transform_nominal_type nominal_types <*> Arena.transformM transform_binding bindings
     where
-        transform_nominal_type (IR.NominalType'Data variants) = IR.NominalType'Data <$> mapM transform_variant variants
+        transform_nominal_type (IR.NominalType'Data name variants) = IR.NominalType'Data name <$> mapM transform_variant variants
             where
                 transform_variant (IR.DataVariant'Named name fields) = IR.DataVariant'Named name <$> mapM (\ (name, ty) -> (,) name <$> transform_type_expr ty) fields
                 transform_variant (IR.DataVariant'Anon name fields) = IR.DataVariant'Anon name <$> mapM transform_type_expr fields
-        transform_nominal_type (IR.NominalType'Synonym expansion) = IR.NominalType'Synonym <$> transform_type_expr expansion
+        transform_nominal_type (IR.NominalType'Synonym name expansion) = IR.NominalType'Synonym name <$> transform_type_expr expansion
 
         transform_type_expr (IR.TypeExpr'Identifier id) = IR.TypeExpr'Identifier <$> transform_t_iden id
         transform_type_expr (IR.TypeExpr'Tuple items) = IR.TypeExpr'Tuple <$> mapM transform_type_expr items

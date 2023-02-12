@@ -4,6 +4,7 @@ module Arena
     , new
     , Arena.put
     , Arena.get
+    , Arena.modify
 
     , transform
     , transformM
@@ -33,6 +34,11 @@ put item (Arena items) =
 get :: Key k => Arena a k -> k -> a
 get (Arena items) key = items Data.List.!! (length items - unmake_key key - 1)
 
+modify :: Key k => Arena a k -> k -> (a -> a) -> Arena a k
+modify (Arena items) key change =
+    let (before, old:after) = splitAt (length items - unmake_key key - 1) items
+    in Arena $ before ++ change old : after
+
 transform :: (a -> b) -> Arena a k -> Arena b k
 transform t (Arena items) = Arena $ map t items
 
@@ -58,6 +64,17 @@ case_get =
         (k0, a1) = Arena.put 0 new
         (k1, a2) = Arena.put 1 a1
     in (Arena.get a2 k0 @?= 0) >> (Arena.get a2 k1 @?= 1)
+
+case_modify :: Assertion
+case_modify =
+    let a1 :: Arena Int TestKey
+        (k0, a0) = Arena.put 0 new
+        (k1, a1) = Arena.put 1 a0
+        (k2, a2) = Arena.put 2 a1
+    in
+        (Arena.modify a2 k0 (const 100) @?= (Arena [2, 1, 100])) >>
+        (Arena.modify a2 k1 (const 100) @?= (Arena [2, 100, 0])) >>
+        (Arena.modify a2 k2 (const 100) @?= (Arena [100, 1, 0]))
 
 case_transform :: Assertion
 case_transform =

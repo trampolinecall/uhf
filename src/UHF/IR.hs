@@ -49,8 +49,8 @@ instance Arena.Key NominalTypeKey where
     make_key = NominalTypeKey
     unmake_key (NominalTypeKey i) = i
 data NominalType ty
-    = NominalType'Data [DataVariant ty]
-    | NominalType'Synonym ty
+    = NominalType'Data Text [DataVariant ty]
+    | NominalType'Synonym Text ty
     deriving Show
 data DataVariant ty
     = DataVariant'Named Text [(Text, ty)]

@@ -257,10 +257,10 @@ type_iden =
 
 type_tuple :: PEG.Parser AST.Type
 type_tuple =
-    PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ _ ->
+    PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ (Location.Located op_sp _) ->
     PEG.delim_star type_ (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ field_types ->
-    PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ _ ->
-    pure (AST.Type'Tuple field_types)
+    PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ (Location.Located cp_sp _) ->
+    pure (AST.Type'Tuple (op_sp `Location.join_span` cp_sp) field_types)
 -- pattern {{{1
 pattern :: PEG.Parser AST.Pattern
 pattern = PEG.choice [pattern_tuple, pattern_named, pattern_iden]

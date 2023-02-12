@@ -148,15 +148,15 @@ instance Diagnostic.IsError Error where
 
 print_type :: TypedWithVarsNominalTypeArena -> TypeVarArena -> TypeWithVars -> Text
 -- TODO: construct an ast and print it
-print_type nominals vars (IR.Type'Nominal key) =
+print_type nominals _ (IR.Type'Nominal key) =
     case Arena.get nominals key of
         IR.NominalType'Data name _ -> name
         IR.NominalType'Synonym name _ -> name
-print_type _ vars (IR.Type'Int) = "int"
-print_type _ vars (IR.Type'Float) = "float"
-print_type _ vars (IR.Type'Char) = "char"
-print_type _ vars (IR.Type'String) = "string"
-print_type _ vars (IR.Type'Bool) = "bool"
+print_type _ _ (IR.Type'Int) = "int"
+print_type _ _ (IR.Type'Float) = "float"
+print_type _ _ (IR.Type'Char) = "char"
+print_type _ _ (IR.Type'String) = "string"
+print_type _ _ (IR.Type'Bool) = "bool"
 print_type nominals vars (IR.Type'Function a r) = print_type nominals vars a <> " -> " <> print_type nominals vars r -- TODO: parentheses and grouping
 print_type nominals vars (IR.Type'Tuple a b) = "(" <> print_type nominals vars a <> ", " <> print_type nominals vars b <> ")"
 print_type nominals vars (IR.Type'Variable var) = case Arena.get vars var of
@@ -198,12 +198,13 @@ convert_type_exprs_in_nominal_types decls (IR.NominalType'Data name variants) = 
 convert_type_exprs_in_nominal_types decls (IR.NominalType'Synonym name expansion) = IR.NominalType'Synonym name <$> convert_type_expr decls expansion
 
 convert_type_expr :: DeclArena -> TypeExpr -> StateWithVars TypeWithVars
-convert_type_expr decls (IR.TypeExpr'Identifier iden) = case iden of
+convert_type_expr decls (IR.TypeExpr'Identifier sp iden) = case iden of -- TODO: make poison type variable
     Just i -> case Arena.get decls i of
-        IR.Decl'Module _ -> IR.Type'Variable <$> new_type_variable (TypeExpr todo) -- TODO: report error for this
+        IR.Decl'Module _ -> IR.Type'Variable <$> new_type_variable (TypeExpr sp) -- TODO: report error for this
         IR.Decl'Type ty -> pure $ IR.Type'Nominal ty
-    Nothing -> IR.Type'Variable <$> new_type_variable (TypeExpr todo)
-convert_type_expr decls (IR.TypeExpr'Tuple items) = IR.Type'Tuple <$> todo <*> todo -- mapM (convert_type_expr decls) items
+    Nothing -> IR.Type'Variable <$> new_type_variable (TypeExpr sp)
+convert_type_expr decls (IR.TypeExpr'Tuple a b) = IR.Type'Tuple <$> convert_type_expr decls a <*> convert_type_expr decls b
+convert_type_expr _ (IR.TypeExpr'Poison sp) = IR.Type'Variable <$> new_type_variable (TypeExpr sp)
 
 assign_type_variable_to_bound_name :: UntypedBoundName -> StateWithVars TypedWithVarsBoundName
 assign_type_variable_to_bound_name (IR.BoundName () def_span) = IR.BoundName <$> (IR.Type'Variable <$> new_type_variable (BoundName def_span)) <*> pure def_span
@@ -262,7 +263,7 @@ collect_constraints decls bna (IR.Binding pat eq_sp expr) =
             collect_for_expr result >>= \ result ->
             pure (IR.Expr'LetRec (IR.expr_type result) sp result)
 
-        collect_for_expr (IR.Expr'BinaryOps () sp first ops) = todo -- TODO: group these before this stage so that this does not exist
+        collect_for_expr (IR.Expr'BinaryOps () _ _ _) = todo -- TODO: group these before this stage so that this does not exist
 
         collect_for_expr (IR.Expr'Call () sp callee arg) =
             collect_for_expr callee >>= \ callee ->
@@ -404,7 +405,7 @@ remove_vars_from_binding vars (IR.Binding pat eq_sp expr) = IR.Binding <$> remov
         remove_from_expr (IR.Expr'Lambda ty sp param body) = remove_vars vars ty >>= \ ty -> IR.Expr'Lambda ty sp <$> remove_from_pat param <*> remove_from_expr body
         remove_from_expr (IR.Expr'Let ty sp result) = remove_vars vars ty >>= \ ty -> IR.Expr'Let ty sp <$> remove_from_expr result
         remove_from_expr (IR.Expr'LetRec ty sp result) = remove_vars vars ty >>= \ ty -> IR.Expr'LetRec ty sp <$> remove_from_expr result
-        remove_from_expr (IR.Expr'BinaryOps ty sp first ops) = todo
+        remove_from_expr (IR.Expr'BinaryOps _ _ _ _) = todo
         remove_from_expr (IR.Expr'Call ty sp callee arg) = remove_vars vars ty >>= \ ty -> IR.Expr'Call ty sp <$> remove_from_expr callee <*> remove_from_expr arg
         remove_from_expr (IR.Expr'If ty sp if_sp cond true false) = remove_vars vars ty >>= \ ty -> IR.Expr'If ty sp if_sp <$> remove_from_expr cond <*> remove_from_expr true <*> remove_from_expr false
         remove_from_expr (IR.Expr'Case ty sp case_sp testing arms) = remove_vars vars ty >>= \ ty -> IR.Expr'Case ty sp case_sp <$> remove_from_expr testing <*> mapM (\ (p, e) -> (,) <$> remove_from_pat p <*> remove_from_expr e) arms

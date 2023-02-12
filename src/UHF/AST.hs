@@ -24,7 +24,7 @@ data DataVariant
 
 data Type
     = Type'Identifier Identifier
-    | Type'Tuple [Type] -- TODO: anonymous named products? (ie field names, but no datatype name)
+    | Type'Tuple Span [Type] -- TODO: anonymous named products? (ie field names, but no datatype name)
     deriving (Eq, Show)
 
 data Expr

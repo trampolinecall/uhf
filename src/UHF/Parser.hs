@@ -174,7 +174,7 @@ expr_lambda =
     PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ _ ->
     PEG.consume' "'->'" (Token.SingleTypeToken Token.Arrow) >>= \ _ ->
     expr >>= \ body ->
-    pure (AST.Expr'Lambda (backslash_sp `Location.join_span` todo) params body)
+    pure (AST.Expr'Lambda (backslash_sp `Location.join_span` AST.expr_span body) params body)
 
 expr_let :: PEG.Parser AST.Expr
 expr_let =
@@ -192,8 +192,8 @@ expr_let =
     -- TODO: 'in'?
     expr >>= \ subexpr ->
     case Location.unlocate let_tok of
-        Token.SingleTypeToken Token.Let -> pure $ AST.Expr'Let (Location.just_span let_tok `Location.join_span` todo) decls subexpr
-        Token.SingleTypeToken Token.LetRec -> pure $ AST.Expr'LetRec (Location.just_span let_tok `Location.join_span` todo) decls subexpr
+        Token.SingleTypeToken Token.Let -> pure $ AST.Expr'Let (Location.just_span let_tok `Location.join_span` AST.expr_span subexpr) decls subexpr
+        Token.SingleTypeToken Token.LetRec -> pure $ AST.Expr'LetRec (Location.just_span let_tok `Location.join_span` AST.expr_span subexpr) decls subexpr
         _ -> unreachable
 
 expr_binary_ops :: PEG.Parser AST.Expr
@@ -206,15 +206,15 @@ expr_binary_ops =
     ) >>= \ ops ->
     if null ops
         then pure first
-        else pure (AST.Expr'BinaryOps todo first ops)
+        else pure (AST.Expr'BinaryOps (AST.expr_span first `Location.join_span` AST.expr_span (snd $ last ops)) first ops)
 
 expr_call :: PEG.Parser AST.Expr
 expr_call =
-    expr_primary >>= \ callee ->
+    expr_primary >>= \ callee -> -- TODO: chained calls
     PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ _ ->
     PEG.delim_star expr (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ args ->
-    PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ _ ->
-    pure (AST.Expr'Call (todo `Location.join_span` todo) callee args)
+    PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ (Location.Located cp_sp _) ->
+    pure (AST.Expr'Call (AST.expr_span callee `Location.join_span` cp_sp) callee args)
 
 expr_if :: PEG.Parser AST.Expr
 expr_if =
@@ -224,11 +224,11 @@ expr_if =
     expr >>= \ true_choice ->
     PEG.consume' "'else'" (Token.SingleTypeToken Token.Else) >>= \ _ ->
     expr >>= \ false_choice ->
-    pure (AST.Expr'If (if_sp `Location.join_span` todo) cond true_choice false_choice)
+    pure (AST.Expr'If (if_sp `Location.join_span` AST.expr_span false_choice) cond true_choice false_choice)
 
 expr_case :: PEG.Parser AST.Expr
 expr_case =
-    PEG.consume' "'case'" (Token.SingleTypeToken Token.Case) >>= \ _ ->
+    PEG.consume' "'case'" (Token.SingleTypeToken Token.Case) >>= \ (Location.Located case_sp _) ->
     expr >>= \ e ->
     PEG.consume' "'{'" (Token.SingleTypeToken Token.OBrace) >>
     PEG.star (
@@ -237,15 +237,15 @@ expr_case =
         expr >>= \ choice ->
         pure (pat, choice)
     ) >>= \ arms ->
-    PEG.consume' "'}'" (Token.SingleTypeToken Token.CBrace) >>
-    pure (AST.Expr'Case todo e arms)
+    PEG.consume' "'}'" (Token.SingleTypeToken Token.CBrace) >>= \ (Location.Located cb_sp _) ->
+    pure (AST.Expr'Case (case_sp `Location.join_span` cb_sp) e arms)
 
 expr_type_annotation :: PEG.Parser AST.Expr
 expr_type_annotation =
     PEG.consume' "':'" (Token.SingleTypeToken Token.Colon) >>= \ (Location.Located colon_sp _) ->
     type_ >>= \ ty -> -- TODO: this probably needs a delimiter because when type applications types can go on
     expr >>= \ e ->
-    pure (AST.Expr'TypeAnnotation (colon_sp `Location.join_span` todo) ty e)
+    pure (AST.Expr'TypeAnnotation (colon_sp `Location.join_span` AST.expr_span e) ty e)
 -- type {{{1
 type_ :: PEG.Parser AST.Type
 type_ = PEG.choice [type_iden, type_tuple]
@@ -282,7 +282,7 @@ pattern_named =
     PEG.consume' "pattern" (Token.AlphaIdentifier ()) >>= \ (Location.Located iden_sp (Token.AlphaIdentifier iden)) ->
     PEG.consume' "'@'" (Token.SingleTypeToken Token.At) >>= \ _ ->
     pattern >>= \ more ->
-    pure (AST.Pattern'Named (iden_sp `Location.join_span` todo) (Location.Located iden_sp iden) more)
+    pure (AST.Pattern'Named (iden_sp `Location.join_span` AST.pattern_span more) (Location.Located iden_sp iden) more)
 -- tests {{{1
 test_decls :: [TestTree]
 test_decls = map Test.run_test $

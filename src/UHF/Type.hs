@@ -75,41 +75,62 @@ data Constraint
 
 data Error
     = EqError
-        { eq_error_a_whole :: Located TypeWithVars
+        { eq_error_nominal_types :: TypedWithVarsNominalTypeArena
+        , eq_error_vars :: TypeVarArena
+        , eq_error_a_whole :: Located TypeWithVars
         , eq_error_b_whole :: Located TypeWithVars
         , eq_error_a_part :: TypeWithVars
         , eq_error_b_part :: TypeWithVars
         }
     | ExpectError
-        { expect_error_got_whole :: Located TypeWithVars
+        { expect_error_nominal_types :: TypedWithVarsNominalTypeArena
+        , expect_error_vars :: TypeVarArena
+        , expect_error_got_whole :: Located TypeWithVars
         , expect_error_expect_whole :: TypeWithVars
         , expect_error_got_part :: TypeWithVars
         , expect_error_expect_part :: TypeWithVars
         } -- TODO: add spans
 instance Diagnostic.IsError Error where
-    to_error (EqError {..}) =
+    to_error (EqError {eq_error_nominal_types = nominal_types, eq_error_vars = vars, ..}) =
         Diagnostic.Error Diagnostic.Codes.type_mismatch $
             Diagnostic.DiagnosticContents
                 (Just (just_span eq_error_a_whole))
                 [Underlines.underlines -- TODO
-                    [ just_span eq_error_a_whole `Underlines.primary` [Underlines.error $ show $ unlocate eq_error_a_whole]
-                    , just_span eq_error_b_whole `Underlines.primary` [Underlines.error $ show $ unlocate eq_error_b_whole]
-                    , just_span eq_error_a_whole `Underlines.primary` [Underlines.error $ show eq_error_a_part]
-                    , just_span eq_error_b_whole `Underlines.primary` [Underlines.error $ show eq_error_b_part]
+                    [ just_span eq_error_a_whole `Underlines.primary` [Underlines.error $ convert_str $ print_type nominal_types vars $ unlocate eq_error_a_whole]
+                    , just_span eq_error_b_whole `Underlines.primary` [Underlines.error $ convert_str $ print_type nominal_types vars $ unlocate eq_error_b_whole]
+                    , just_span eq_error_a_whole `Underlines.primary` [Underlines.error $ convert_str $ print_type nominal_types vars eq_error_a_part]
+                    , just_span eq_error_b_whole `Underlines.primary` [Underlines.error $ convert_str $ print_type nominal_types vars eq_error_b_part]
                     ]
                 ]
 
-    to_error (ExpectError {..}) =
+    to_error (ExpectError {expect_error_nominal_types = nominal_types, expect_error_vars = vars, ..}) =
         Diagnostic.Error Diagnostic.Codes.type_mismatch $
             Diagnostic.DiagnosticContents
                 (Just (just_span expect_error_got_whole))
                 [Underlines.underlines -- TODO
-                    [ just_span expect_error_got_whole `Underlines.primary` [Underlines.error $ show $ unlocate expect_error_got_whole]
-                    , just_span expect_error_got_whole `Underlines.primary` [Underlines.error $ show expect_error_expect_whole]
-                    , just_span expect_error_got_whole `Underlines.primary` [Underlines.error $ show expect_error_got_part]
-                    , just_span expect_error_got_whole `Underlines.primary` [Underlines.error $ show expect_error_expect_part]
+                    [ just_span expect_error_got_whole `Underlines.primary` [Underlines.error $ convert_str $ print_type nominal_types vars $ unlocate expect_error_got_whole]
+                    , just_span expect_error_got_whole `Underlines.primary` [Underlines.error $ convert_str $ print_type nominal_types vars expect_error_expect_whole]
+                    , just_span expect_error_got_whole `Underlines.primary` [Underlines.error $ convert_str $ print_type nominal_types vars expect_error_got_part]
+                    , just_span expect_error_got_whole `Underlines.primary` [Underlines.error $ convert_str $ print_type nominal_types vars expect_error_expect_part]
                     ]
                 ]
+
+print_type :: TypedWithVarsNominalTypeArena -> TypeVarArena -> TypeWithVars -> Text
+-- TODO: construct an ast and print it
+print_type nominals vars (IR.Type'Nominal key) =
+    case Arena.get nominals key of
+        IR.NominalType'Data name _ -> name
+        IR.NominalType'Synonym name _ -> name
+print_type _ vars (IR.Type'Int) = "int"
+print_type _ vars (IR.Type'Float) = "float"
+print_type _ vars (IR.Type'Char) = "char"
+print_type _ vars (IR.Type'String) = "string"
+print_type _ vars (IR.Type'Bool) = "bool"
+print_type nominals vars (IR.Type'Function a r) = print_type nominals vars a <> " -> " <> print_type nominals vars r -- TODO: parentheses and grouping
+print_type nominals vars (IR.Type'Tuple a b) = "(" <> print_type nominals vars a <> ", " <> print_type nominals vars b <> ")"
+print_type nominals vars (IR.Type'Variable var) = case Arena.get vars var of
+    TypeVar _ Fresh -> "_"
+    TypeVar _ (Substituted other) -> print_type nominals vars other
 
 type StateWithVars = StateT TypeVarArena (Writer [Error])
 
@@ -138,12 +159,12 @@ typecheck (decls, nominal_types, bindings, bound_names) =
     pure (decls, nominal_types, bindings, bound_names)
 
 convert_type_exprs_in_nominal_types :: DeclArena -> UntypedNominalType -> StateWithVars TypedWithVarsNominalType
-convert_type_exprs_in_nominal_types decls (IR.NominalType'Data variants) = IR.NominalType'Data <$> mapM (convert_variant decls) variants
+convert_type_exprs_in_nominal_types decls (IR.NominalType'Data name variants) = IR.NominalType'Data name <$> mapM (convert_variant decls) variants
     where
         convert_variant decls (IR.DataVariant'Named name fields) = IR.DataVariant'Named name <$> mapM (\ (name, ty) -> (,) name <$> convert_type_expr decls ty) fields
         convert_variant decls (IR.DataVariant'Anon name fields) = IR.DataVariant'Anon name <$> mapM (convert_type_expr decls) fields
 
-convert_type_exprs_in_nominal_types decls (IR.NominalType'Synonym expansion) = IR.NominalType'Synonym <$> convert_type_expr decls expansion
+convert_type_exprs_in_nominal_types decls (IR.NominalType'Synonym name expansion) = IR.NominalType'Synonym name <$> convert_type_expr decls expansion
 
 convert_type_expr :: DeclArena -> TypeExpr -> StateWithVars TypeWithVars
 convert_type_expr decls (IR.TypeExpr'Identifier iden) = case iden of
@@ -261,19 +282,23 @@ solve_constraints nominal_types = mapM_ solve
         solve (Eq a b) =
             runExceptT (unify (unlocate a) (unlocate b)) >>= \case
                 Right () -> pure ()
-                Left (a_part, b_part) -> lift (tell [EqError { eq_error_a_whole = a, eq_error_b_whole = b, eq_error_a_part = a_part, eq_error_b_part = b_part }]) >> pure ()
+                Left (a_part, b_part) ->
+                    get >>= \ vars ->
+                    lift (tell [EqError { eq_error_nominal_types = nominal_types, eq_error_vars = vars, eq_error_a_whole = a, eq_error_b_whole = b, eq_error_a_part = a_part, eq_error_b_part = b_part }]) >> pure ()
 
         solve (Expect got expect) =
             runExceptT (unify (unlocate got) expect) >>= \case
                 Right () -> pure ()
-                Left (got_part, expect_part) -> lift (tell [ExpectError { expect_error_got_whole = got, expect_error_expect_whole = expect, expect_error_got_part = got_part, expect_error_expect_part = expect_part }]) >> pure ()
+                Left (got_part, expect_part) ->
+                    get >>= \ vars ->
+                    lift (tell [ExpectError { expect_error_nominal_types = nominal_types, expect_error_vars = vars, expect_error_got_whole = got, expect_error_expect_whole = expect, expect_error_got_part = got_part, expect_error_expect_part = expect_part }]) >> pure ()
 
         unify :: TypeWithVars -> TypeWithVars -> ExceptT (TypeWithVars, TypeWithVars) StateWithVars ()
         unify a@(IR.Type'Nominal a_nominal_idx) b@(IR.Type'Nominal b_nominal_idx) =
             case (Arena.get nominal_types a_nominal_idx, Arena.get nominal_types b_nominal_idx) of
-                (IR.NominalType'Synonym a_expansion, _) -> unify a_expansion b
-                (_, IR.NominalType'Synonym b_expansion) -> unify a b_expansion
-                (IR.NominalType'Data _, IR.NominalType'Data _) -> if a_nominal_idx == b_nominal_idx
+                (IR.NominalType'Synonym _ a_expansion, _) -> unify a_expansion b
+                (_, IR.NominalType'Synonym _ b_expansion) -> unify a b_expansion
+                (IR.NominalType'Data _ _, IR.NominalType'Data _ _) -> if a_nominal_idx == b_nominal_idx
                     then pure ()
                     else ExceptT (pure $ Left (a, b))
 
@@ -321,11 +346,11 @@ remove_vars_from_bound_name :: TypeVarArena -> TypedWithVarsBoundName -> Writer 
 remove_vars_from_bound_name vars (IR.BoundName ty) = IR.BoundName <$> remove_vars vars ty
 
 remove_vars_from_nominal_type :: TypeVarArena -> TypedWithVarsNominalType -> Writer [Error] TypedNominalType
-remove_vars_from_nominal_type vars (IR.NominalType'Data variants) = IR.NominalType'Data <$> mapM remove_from_variant variants
+remove_vars_from_nominal_type vars (IR.NominalType'Data name variants) = IR.NominalType'Data name <$> mapM remove_from_variant variants
     where
         remove_from_variant (IR.DataVariant'Named name fields) = IR.DataVariant'Named name <$> mapM (\ (name, ty) -> (,) name <$> remove_vars vars ty) fields
         remove_from_variant (IR.DataVariant'Anon name fields) = IR.DataVariant'Anon name <$> mapM (remove_vars vars) fields
-remove_vars_from_in_nominal_types vars (IR.NominalType'Synonym expansion) = IR.NominalType'Synonym <$> remove_vars vars expansion
+remove_vars_from_nominal_type vars (IR.NominalType'Synonym name expansion) = IR.NominalType'Synonym name <$> remove_vars vars expansion
 
 remove_vars_from_binding :: TypeVarArena -> TypedWithVarsBinding -> Writer [Error] TypedBinding
 remove_vars_from_binding vars (IR.Binding pat expr) = IR.Binding <$> remove_from_pat pat <*> remove_from_expr expr

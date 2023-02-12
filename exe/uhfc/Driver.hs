@@ -24,9 +24,9 @@ type ErrorAccumulated a = Writer [Diagnostic.Error] a -- TODO: allow for warning
 
 type Tokens = ([Token.LToken], Token.LToken)
 type AST = [AST.Decl]
-type FirstIR = (Arena.Arena IR.Decl IR.DeclKey, Arena.Arena (IR.NominalType (IR.TypeExpr (IR.NameContext, [Location.Located Text]))) IR.NominalTypeKey, Arena.Arena (IR.Binding (IR.NameContext, [Location.Located Text]) (IR.TypeExpr (IR.NameContext, [Location.Located Text])) ()) IR.BindingKey, Arena.Arena IR.BoundName IR.BoundNameKey)
-type NRIR = (Arena.Arena IR.Decl IR.DeclKey, Arena.Arena (IR.NominalType (IR.TypeExpr (Maybe IR.DeclKey))) IR.NominalTypeKey, Arena.Arena (IR.Binding (Maybe IR.BoundNameKey) (IR.TypeExpr (Maybe IR.DeclKey)) ()) IR.BindingKey)
-type TypedIR = (Arena.Arena IR.Decl IR.DeclKey, Arena.Arena (IR.NominalType (IR.Type Void)) IR.NominalTypeKey, Arena.Arena (IR.Binding (Maybe IR.BoundNameKey) (IR.Type Void) (IR.Type Void)) IR.BindingKey)
+type FirstIR = (Arena.Arena IR.Decl IR.DeclKey, Arena.Arena (IR.NominalType (IR.TypeExpr (IR.NameContext, [Location.Located Text]))) IR.NominalTypeKey, Arena.Arena (IR.Binding (IR.NameContext, [Location.Located Text]) (IR.TypeExpr (IR.NameContext, [Location.Located Text])) ()) IR.BindingKey, Arena.Arena (IR.BoundName ()) IR.BoundNameKey)
+type NRIR = (Arena.Arena IR.Decl IR.DeclKey, Arena.Arena (IR.NominalType (IR.TypeExpr (Maybe IR.DeclKey))) IR.NominalTypeKey, Arena.Arena (IR.Binding (Maybe IR.BoundNameKey) (IR.TypeExpr (Maybe IR.DeclKey)) ()) IR.BindingKey, Arena.Arena (IR.BoundName ()) IR.BoundNameKey)
+type TypedIR = (Arena.Arena IR.Decl IR.DeclKey, Arena.Arena (IR.NominalType (IR.Type Void)) IR.NominalTypeKey, Arena.Arena (IR.Binding (Maybe IR.BoundNameKey) (IR.Type Void) (IR.Type Void)) IR.BindingKey, Arena.Arena (IR.BoundName (IR.Type Void)) IR.BoundNameKey)
 
 compile :: File.File -> Either [Diagnostic.Error] TypedIR
 compile file =
@@ -53,10 +53,10 @@ to_ir :: AST -> ErrorAccumulated FirstIR
 to_ir decls = convert_errors (ASTToIR.convert decls)
 
 name_resolve :: FirstIR -> ErrorAccumulated NRIR
-name_resolve (decls, nominals, bindings, bound_names) = convert_errors (NameResolve.resolve (decls, nominals, bindings))
+name_resolve (decls, nominals, bindings, bound_names) = convert_errors (NameResolve.resolve (decls, nominals, bindings)) >>= \ (decls, nominals, bindings) -> pure (decls, nominals, bindings, bound_names)
 
 type_ :: NRIR -> ErrorAccumulated TypedIR
-type_ (decls, nominals, bindings) = convert_errors $ Type.typecheck (decls, nominals, bindings)
+type_ (decls, nominals, bindings, bound_names) = convert_errors $ Type.typecheck (decls, nominals, bindings, bound_names)
 
 convert_errors :: Diagnostic.IsError e => Writer [e] a -> Writer [Diagnostic.Error] a
 convert_errors = mapWriter (\ (res, errs) -> (res, map Diagnostic.to_error errs))

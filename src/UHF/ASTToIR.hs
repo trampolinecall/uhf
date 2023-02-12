@@ -234,8 +234,13 @@ convert_decls parent_context decls =
                     fields
 
 convert_type :: IR.NameContext -> AST.Type -> MakeIRState TypeExpr
-convert_type nc (AST.Type'Identifier id) = pure $ IR.TypeExpr'Identifier (nc, Location.unlocate id)
-convert_type nc (AST.Type'Tuple items) = IR.TypeExpr'Tuple <$> mapM (convert_type nc) items
+convert_type nc (AST.Type'Identifier id) = pure $ IR.TypeExpr'Identifier (Location.just_span id) (nc, Location.unlocate id)
+convert_type nc (AST.Type'Tuple sp items) = mapM (convert_type nc) items >>= group_items
+    where
+        group_items [a, b] = pure $ IR.TypeExpr'Tuple a b
+        group_items (a:b:more) = IR.TypeExpr'Tuple a <$> group_items (b:more)
+        group_items [_] = tell_err (Tuple1 sp) >> pure (IR.TypeExpr'Poison sp)
+        group_items [] = tell_err (Tuple0 sp) >> pure (IR.TypeExpr'Poison sp)
 
 convert_expr :: IR.NameContext -> AST.Expr -> MakeIRState Expr
 convert_expr nc (AST.Expr'Identifier iden) = pure $ IR.Expr'Identifier () (Location.just_span iden) (nc, Location.unlocate iden)

@@ -79,8 +79,9 @@ transform_identifiers transform_t_iden transform_e_iden nominal_types bindings =
                 transform_variant (IR.DataVariant'Anon name fields) = IR.DataVariant'Anon name <$> mapM transform_type_expr fields
         transform_nominal_type (IR.NominalType'Synonym name expansion) = IR.NominalType'Synonym name <$> transform_type_expr expansion
 
-        transform_type_expr (IR.TypeExpr'Identifier id) = IR.TypeExpr'Identifier <$> transform_t_iden id
-        transform_type_expr (IR.TypeExpr'Tuple items) = IR.TypeExpr'Tuple <$> mapM transform_type_expr items
+        transform_type_expr (IR.TypeExpr'Identifier sp id) = IR.TypeExpr'Identifier sp <$> transform_t_iden id
+        transform_type_expr (IR.TypeExpr'Tuple a b) = IR.TypeExpr'Tuple <$> transform_type_expr a <*> transform_type_expr b
+        transform_type_expr (IR.TypeExpr'Poison sp) = pure $ IR.TypeExpr'Poison sp
 
         transform_binding (IR.Binding target eq_sp expr) = IR.Binding <$> transform_pat target <*> pure eq_sp <*> transform_expr expr
 

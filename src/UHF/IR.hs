@@ -67,7 +67,7 @@ newtype BindingKey = BindingKey Int deriving Show
 instance Arena.Key BindingKey where
     make_key = BindingKey
     unmake_key (BindingKey i) = i
-data Binding identifier typeannotation typeinfo = Binding (Pattern identifier typeinfo) (Expr identifier typeannotation typeinfo) deriving Show
+data Binding identifier typeannotation typeinfo = Binding (Pattern identifier typeinfo) Span (Expr identifier typeannotation typeinfo) deriving Show
 
 data NameContext = NameContext (Map.Map Text DeclKey) (Map.Map Text BoundNameKey) (Maybe NameContext) deriving Show
 
@@ -107,8 +107,8 @@ data Expr identifier typeannotation typeinfo
 
     | Expr'Call typeinfo Span (Expr identifier typeannotation typeinfo) (Expr identifier typeannotation typeinfo)
 
-    | Expr'If typeinfo Span (Expr identifier typeannotation typeinfo) (Expr identifier typeannotation typeinfo) (Expr identifier typeannotation typeinfo)
-    | Expr'Case typeinfo Span (Expr identifier typeannotation typeinfo) [(Pattern identifier typeinfo, Expr identifier typeannotation typeinfo)]
+    | Expr'If typeinfo Span Span (Expr identifier typeannotation typeinfo) (Expr identifier typeannotation typeinfo) (Expr identifier typeannotation typeinfo)
+    | Expr'Case typeinfo Span Span (Expr identifier typeannotation typeinfo) [(Pattern identifier typeinfo, Expr identifier typeannotation typeinfo)]
 
     | Expr'Poison typeinfo Span
 
@@ -118,7 +118,7 @@ data Expr identifier typeannotation typeinfo
 data Pattern identifier typeinfo
     = Pattern'Identifier typeinfo Span BoundNameKey
     | Pattern'Tuple typeinfo Span (Pattern identifier typeinfo) (Pattern identifier typeinfo)
-    | Pattern'Named typeinfo Span (Located BoundNameKey) (Pattern identifier typeinfo)
+    | Pattern'Named typeinfo Span Span (Located BoundNameKey) (Pattern identifier typeinfo)
 
     | Pattern'Poison typeinfo Span -- TODO: poisonallowed
     deriving Show
@@ -136,8 +136,8 @@ expr_type (Expr'Let typeinfo _ _) = typeinfo
 expr_type (Expr'LetRec typeinfo _ _) = typeinfo
 expr_type (Expr'BinaryOps typeinfo _ _ _) = typeinfo
 expr_type (Expr'Call typeinfo _ _ _) = typeinfo
-expr_type (Expr'If typeinfo _ _ _ _) = typeinfo
-expr_type (Expr'Case typeinfo _ _ _) = typeinfo
+expr_type (Expr'If typeinfo _ _ _ _ _) = typeinfo
+expr_type (Expr'Case typeinfo _ _ _ _) = typeinfo
 expr_type (Expr'Poison typeinfo _) = typeinfo
 expr_type (Expr'TypeAnnotation typeinfo _ _ _) = typeinfo
 
@@ -154,19 +154,19 @@ expr_span (Expr'Let _ sp _) = sp
 expr_span (Expr'LetRec _ sp _) = sp
 expr_span (Expr'BinaryOps _ sp _ _) = sp
 expr_span (Expr'Call _ sp _ _) = sp
-expr_span (Expr'If _ sp _ _ _) = sp
-expr_span (Expr'Case _ sp _ _) = sp
+expr_span (Expr'If _ sp _ _ _ _) = sp
+expr_span (Expr'Case _ sp _ _ _) = sp
 expr_span (Expr'Poison _ sp) = sp
 expr_span (Expr'TypeAnnotation _ sp _ _) = sp
 
 pattern_type :: Pattern typeannotation typeinfo -> typeinfo
 pattern_type (Pattern'Identifier typeinfo _ _) = typeinfo
 pattern_type (Pattern'Tuple typeinfo _ _ _) = typeinfo
-pattern_type (Pattern'Named typeinfo _ _ _) = typeinfo
+pattern_type (Pattern'Named typeinfo _ _ _ _) = typeinfo
 pattern_type (Pattern'Poison typeinfo _) = typeinfo
 
 pattern_span :: Pattern spanannotation spaninfo -> Span
 pattern_span (Pattern'Identifier _ sp _) = sp
 pattern_span (Pattern'Tuple _ sp _ _) = sp
-pattern_span (Pattern'Named _ sp _ _) = sp
+pattern_span (Pattern'Named _ sp _ _ _) = sp
 pattern_span (Pattern'Poison _ sp) = sp

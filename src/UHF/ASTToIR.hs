@@ -192,24 +192,24 @@ convert_decls parent_context decls =
 
                 AST.Decl'Data name variants ->
                     runMaybeT (
-                        IR.NominalType'Data <$> mapM (convert_variant final_name_context) variants >>= \ datatype ->
+                        iden1_for_type_name name >>= \ name1 ->
+                        IR.NominalType'Data (Location.unlocate name1) <$> mapM (convert_variant final_name_context) variants >>= \ datatype ->
 
                         lift (new_nominal_type datatype) >>= \ nominal_type_key ->
                         -- TODO: add constructors to bound name table
                         lift (new_decl (IR.Decl'Type nominal_type_key)) >>= \ decl_key ->
 
-                        iden1_for_type_name name >>= \ name1 ->
                         pure (name1, decl_key)
                     ) >>= \ new_decl_entry ->
                     pure (Maybe.maybeToList new_decl_entry, [])
 
                 AST.Decl'TypeSyn name expansion ->
-                    convert_type final_name_context expansion >>= \ expansion' ->
-                    new_nominal_type (IR.NominalType'Synonym expansion') >>= \ nominal_type_key ->
-                    new_decl (IR.Decl'Type nominal_type_key) >>= \ decl_key ->
-
                     runMaybeT (
+                        lift (convert_type final_name_context expansion) >>= \ expansion' ->
                         iden1_for_type_name name >>= \ name1 ->
+                        lift (new_nominal_type (IR.NominalType'Synonym (Location.unlocate name1) expansion')) >>= \ nominal_type_key ->
+                        lift (new_decl (IR.Decl'Type nominal_type_key)) >>= \ decl_key ->
+
                         pure (name1, decl_key)
                     ) >>= \ new_decl_entry ->
                     pure (Maybe.maybeToList new_decl_entry, [])

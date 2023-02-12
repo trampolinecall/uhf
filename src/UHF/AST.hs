@@ -29,27 +29,27 @@ data Type
 
 data Expr
     = Expr'Identifier Identifier
-    | Expr'Char Char
-    | Expr'String Text
-    | Expr'Int Integer
-    | Expr'Float Rational
-    | Expr'Bool Bool -- TODO: replace with identifier exprs
+    | Expr'Char Span Char
+    | Expr'String Span Text
+    | Expr'Int Span Integer
+    | Expr'Float Span Rational
+    | Expr'Bool Span Bool -- TODO: replace with identifier exprs
 
     | Expr'Tuple Span [Expr]
 
-    | Expr'Lambda [Pattern] Expr
+    | Expr'Lambda Span [Pattern] Expr
 
-    | Expr'Let [Decl] Expr
-    | Expr'LetRec [Decl] Expr
+    | Expr'Let Span [Decl] Expr
+    | Expr'LetRec Span [Decl] Expr
 
-    | Expr'BinaryOps Expr [(Identifier, Expr)]
+    | Expr'BinaryOps Span Expr [(Identifier, Expr)]
 
     | Expr'Call Span Expr [Expr]
 
-    | Expr'If Expr Expr Expr
+    | Expr'If Span Expr Expr Expr
     | Expr'Case Span Expr [(Pattern, Expr)]
 
-    | Expr'TypeAnnotation Type Expr
+    | Expr'TypeAnnotation Span Type Expr
     deriving (Eq, Show)
 
 data Pattern

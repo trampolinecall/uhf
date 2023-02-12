@@ -108,7 +108,7 @@ type Pattern = IR.Pattern Identifier ()
 
 type DeclArena = Arena.Arena Decl IR.DeclKey
 type BindingArena = Arena.Arena Binding IR.BindingKey
-type BoundNameArena = Arena.Arena IR.BoundName IR.BoundNameKey
+type BoundNameArena = Arena.Arena (IR.BoundName ()) IR.BoundNameKey
 type NominalTypeArena = Arena.Arena NominalType IR.NominalTypeKey
 
 type DeclMap = Map.Map Text IR.DeclKey

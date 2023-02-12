@@ -96,6 +96,8 @@ data Error
         , expect_error_expect_part :: TypeWithVars
         }
 
+    | OccursCheckError TypedWithVarsNominalTypeArena TypeVarArena Span TypeVarKey TypeWithVars
+
     | AmbiguousType TypeVarForWhat
 
 instance Diagnostic.IsError Error where
@@ -126,6 +128,17 @@ instance Diagnostic.IsError Error where
                     , just_span expect_error_got_whole `Underlines.primary` [Underlines.error $ convert_str $ print_type nominal_types vars expect_error_expect_whole]
                     , just_span expect_error_got_whole `Underlines.primary` [Underlines.error $ convert_str $ print_type nominal_types vars expect_error_got_part]
                     , just_span expect_error_got_whole `Underlines.primary` [Underlines.error $ convert_str $ print_type nominal_types vars expect_error_expect_part]
+                    ]
+                ]
+
+    to_error (OccursCheckError nominal_types vars span var ty) =
+        Diagnostic.Error Diagnostic.Codes.occurs_check $
+            Diagnostic.DiagnosticContents
+                (Just span)
+                [Underlines.underlines
+                    [ span `Underlines.primary` [Underlines.error $ convert_str $ "occurs check failure: infinite type arising from constraint " <> print_type nominal_types vars (IR.Type'Variable var) <> " = " <> print_type nominal_types vars ty]
+                    -- , just_span a_whole `Underlines.secondary` [Underlines.note $ convert_str $ print_type nominal_types vars $ unlocate a_whole]
+                    -- , just_span b_whole `Underlines.secondary` [Underlines.note $ convert_str $ print_type nominal_types vars $ unlocate b_whole]
                     ]
                 ]
 
@@ -160,7 +173,7 @@ print_type _ _ (IR.Type'Bool) = "bool"
 print_type nominals vars (IR.Type'Function a r) = print_type nominals vars a <> " -> " <> print_type nominals vars r -- TODO: parentheses and grouping
 print_type nominals vars (IR.Type'Tuple a b) = "(" <> print_type nominals vars a <> ", " <> print_type nominals vars b <> ")"
 print_type nominals vars (IR.Type'Variable var) = case Arena.get vars var of
-    TypeVar _ Fresh -> "_"
+    TypeVar _ Fresh -> "{type variable " <> show (Arena.unmake_key var) <> "}"
     TypeVar _ (Substituted other) -> print_type nominals vars other
 
 type StateWithVars = StateT TypeVarArena (Writer [Error])
@@ -314,25 +327,39 @@ solve_constraints nominal_types = mapM_ solve
         solve (Eq for_what sp a b) =
             runExceptT (unify (unlocate a) (unlocate b)) >>= \case
                 Right () -> pure ()
-                Left (a_part, b_part) ->
+
+                Left (Left (a_part, b_part)) -> -- mismatch error
                     get >>= \ vars ->
-                    lift (tell [EqError { eq_error_nominal_types = nominal_types, eq_error_vars = vars, eq_error_for_what = for_what, eq_error_span = sp, eq_error_a_whole = a, eq_error_b_whole = b, eq_error_a_part = a_part, eq_error_b_part = b_part }]) >> pure ()
+                    lift (tell [EqError { eq_error_nominal_types = nominal_types, eq_error_vars = vars, eq_error_for_what = for_what, eq_error_span = sp, eq_error_a_whole = a, eq_error_b_whole = b, eq_error_a_part = a_part, eq_error_b_part = b_part }]) >>
+                    pure ()
+
+                Left (Right (var, ty)) -> -- occurs check failure
+                    get >>= \ vars ->
+                    lift (tell [OccursCheckError nominal_types vars sp var ty ]) >>
+                    pure ()
 
         solve (Expect got expect) =
             runExceptT (unify (unlocate got) expect) >>= \case
                 Right () -> pure ()
-                Left (got_part, expect_part) ->
-                    get >>= \ vars ->
-                    lift (tell [ExpectError { expect_error_nominal_types = nominal_types, expect_error_vars = vars, expect_error_got_whole = got, expect_error_expect_whole = expect, expect_error_got_part = got_part, expect_error_expect_part = expect_part }]) >> pure ()
 
-        unify :: TypeWithVars -> TypeWithVars -> ExceptT (TypeWithVars, TypeWithVars) StateWithVars ()
-        unify a@(IR.Type'Nominal a_nominal_idx) b@(IR.Type'Nominal b_nominal_idx) =
-            case (Arena.get nominal_types a_nominal_idx, Arena.get nominal_types b_nominal_idx) of
+                Left (Left (got_part, expect_part)) -> -- mismatch error
+                    get >>= \ vars ->
+                    lift (tell [ExpectError { expect_error_nominal_types = nominal_types, expect_error_vars = vars, expect_error_got_whole = got, expect_error_expect_whole = expect, expect_error_got_part = got_part, expect_error_expect_part = expect_part }]) >>
+                    pure ()
+
+                Left (Right (var, ty)) -> -- occurs check failure
+                    get >>= \ vars ->
+                    lift (tell [OccursCheckError nominal_types vars (just_span got) var ty]) >>
+                    pure ()
+
+        unify :: TypeWithVars -> TypeWithVars -> ExceptT (Either (TypeWithVars, TypeWithVars) (TypeVarKey, TypeWithVars)) StateWithVars ()
+        unify a@(IR.Type'Nominal a_nominal_key) b@(IR.Type'Nominal b_nominal_key) =
+            case (Arena.get nominal_types a_nominal_key, Arena.get nominal_types b_nominal_key) of
                 (IR.NominalType'Synonym _ a_expansion, _) -> unify a_expansion b
                 (_, IR.NominalType'Synonym _ b_expansion) -> unify a b_expansion
-                (IR.NominalType'Data _ _, IR.NominalType'Data _ _) -> if a_nominal_idx == b_nominal_idx
+                (IR.NominalType'Data _ _, IR.NominalType'Data _ _) -> if a_nominal_key == b_nominal_key
                     then pure ()
-                    else ExceptT (pure $ Left (a, b))
+                    else ExceptT (pure $ Left $ Left (a, b))
 
         unify (IR.Type'Variable a) b = unify_var a b False
         unify a (IR.Type'Variable b) = unify_var b a True
@@ -343,9 +370,9 @@ solve_constraints nominal_types = mapM_ solve
         unify (IR.Type'Bool) (IR.Type'Bool) = pure ()
         unify (IR.Type'Function a1 r1) (IR.Type'Function a2 r2) = unify a1 a2 >> unify r1 r2
         unify (IR.Type'Tuple a1 b1) (IR.Type'Tuple a2 b2) = unify a1 a2 >> unify b1 b2
-        unify a b = ExceptT (pure $ Left (a, b))
+        unify a b = ExceptT (pure $ Left $ Left (a, b))
 
-        unify_var :: TypeVarKey -> TypeWithVars -> Bool -> ExceptT (TypeWithVars, TypeWithVars) StateWithVars ()
+        unify_var :: TypeVarKey -> TypeWithVars -> Bool -> ExceptT (Either (TypeWithVars, TypeWithVars) (TypeVarKey, TypeWithVars)) StateWithVars ()
         unify_var var other var_on_right = Arena.get <$> lift get <*> pure var >>= \ case
             -- if this variable can be expanded, unify its expansion
             TypeVar _ (Substituted var_sub) ->
@@ -368,14 +395,37 @@ solve_constraints nominal_types = mapM_ solve
                                     else pure ()
 
                     -- if the other type is a type and not a variable
-                    _ -> occurs_check var other >> lift (set_type_var_state var (Substituted other))
+                    _ -> lift (occurs_check var other) >>= \case
+                        True -> ExceptT (pure $ Left $ Right (var, other))
+                        False -> lift (set_type_var_state var (Substituted other))
 
         set_type_var_state :: TypeVarKey -> TypeVarState -> StateWithVars ()
         set_type_var_state var new_state = modify (\ ty_arena -> Arena.modify ty_arena var (\ (TypeVar for _) -> TypeVar for new_state))
 
-        occurs_check :: TypeVarKey -> TypeWithVars -> ExceptT (TypeWithVars, TypeWithVars) StateWithVars ()
+        occurs_check :: TypeVarKey -> TypeWithVars -> StateWithVars Bool
         -- does the variable v occur anywhere in the type ty?
-        occurs_check v ty = pure () -- TODO
+        occurs_check v ty =
+            case ty of
+                IR.Type'Variable other_v ->
+                    if v == other_v
+                        then pure True
+                        else
+                            Arena.get <$> get <*> pure other_v >>= \case
+                                TypeVar _ (Substituted other_sub) -> occurs_check v other_sub
+                                TypeVar _ Fresh -> pure False
+
+                IR.Type'Nominal nominal_key ->
+                    case Arena.get nominal_types nominal_key of
+                        IR.NominalType'Synonym _ other_expansion -> occurs_check v other_expansion
+                        IR.NominalType'Data _ _ -> pure False -- TODO: check type arguemnts when those are added
+
+                IR.Type'Int -> pure False
+                IR.Type'Float -> pure False
+                IR.Type'Char -> pure False
+                IR.Type'String -> pure False
+                IR.Type'Bool -> pure False
+                IR.Type'Function a r -> (||) <$> occurs_check v a <*> occurs_check v r
+                IR.Type'Tuple a b -> (||) <$> occurs_check v a <*> occurs_check v b
 
 remove_vars_from_bound_name :: TypeVarArena -> TypedWithVarsBoundName -> Writer [Error] TypedBoundName
 remove_vars_from_bound_name vars (IR.BoundName ty sp) = IR.BoundName <$> remove_vars vars ty <*> pure sp

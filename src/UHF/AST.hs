@@ -8,7 +8,7 @@ import UHF.IO.Location (Located, Span)
 
 type Identifier = Located [Located Text]
 
--- TODO: asts store spans
+-- TODO: make all asts store spans (some do right now based on where they are needed in the later phases, but all of them should have one just for consistency)
 
 data Decl
     = Decl'Value Pattern Expr
@@ -44,10 +44,10 @@ data Expr
 
     | Expr'BinaryOps Expr [(Identifier, Expr)]
 
-    | Expr'Call Expr [Expr]
+    | Expr'Call Span Expr [Expr]
 
     | Expr'If Expr Expr Expr
-    | Expr'Case Expr [(Pattern, Expr)]
+    | Expr'Case Span Expr [(Pattern, Expr)]
 
     | Expr'TypeAnnotation Type Expr
     deriving (Eq, Show)
@@ -55,5 +55,5 @@ data Expr
 data Pattern
     = Pattern'Identifier Identifier -- TODO: decide whether '_' should be this or a separate variant
     | Pattern'Tuple Span [Pattern]
-    | Pattern'Named Identifier Pattern
+    | Pattern'Named Span Identifier Pattern
     deriving (Eq, Show)

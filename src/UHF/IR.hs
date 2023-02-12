@@ -30,6 +30,8 @@ import qualified Arena
 
 import qualified Data.Map as Map
 
+import UHF.IO.Location (Span)
+
 newtype DeclKey = DeclKey Int deriving Show
 instance Arena.Key DeclKey where
     make_key = DeclKey
@@ -85,7 +87,7 @@ data Type var
     deriving Show
 
 data Expr identifier typeannotation typeinfo
-    = Expr'Identifier typeinfo identifier
+    = Expr'Identifier typeinfo Span identifier
     | Expr'Char typeinfo Char
     | Expr'String typeinfo Text
     | Expr'Int typeinfo Integer
@@ -101,12 +103,12 @@ data Expr identifier typeannotation typeinfo
 
     | Expr'BinaryOps typeinfo (Expr identifier typeannotation typeinfo) [(identifier, Expr identifier typeannotation typeinfo)]
 
-    | Expr'Call typeinfo (Expr identifier typeannotation typeinfo) (Expr identifier typeannotation typeinfo)
+    | Expr'Call typeinfo Span (Expr identifier typeannotation typeinfo) (Expr identifier typeannotation typeinfo)
 
     | Expr'If typeinfo (Expr identifier typeannotation typeinfo) (Expr identifier typeannotation typeinfo) (Expr identifier typeannotation typeinfo)
-    | Expr'Case typeinfo (Expr identifier typeannotation typeinfo) [(Pattern identifier typeinfo, Expr identifier typeannotation typeinfo)]
+    | Expr'Case typeinfo Span (Expr identifier typeannotation typeinfo) [(Pattern identifier typeinfo, Expr identifier typeannotation typeinfo)]
 
-    | Expr'Poison typeinfo
+    | Expr'Poison typeinfo Span
 
     | Expr'TypeAnnotation typeinfo typeannotation (Expr identifier typeannotation typeinfo)
     deriving Show
@@ -116,11 +118,11 @@ data Pattern identifier typeinfo
     | Pattern'Tuple typeinfo (Pattern identifier typeinfo) (Pattern identifier typeinfo)
     | Pattern'Named typeinfo BoundNameKey (Pattern identifier typeinfo)
 
-    | Pattern'Poison typeinfo -- TODO: poisonallowed
+    | Pattern'Poison typeinfo Span -- TODO: poisonallowed
     deriving Show
 
 expr_type :: Expr identifier typeannotation typeinfo -> typeinfo
-expr_type (Expr'Identifier typeinfo _) = typeinfo
+expr_type (Expr'Identifier typeinfo _ _) = typeinfo
 expr_type (Expr'Char typeinfo _) = typeinfo
 expr_type (Expr'String typeinfo _) = typeinfo
 expr_type (Expr'Int typeinfo _) = typeinfo
@@ -131,14 +133,14 @@ expr_type (Expr'Lambda typeinfo _ _) = typeinfo
 expr_type (Expr'Let typeinfo _) = typeinfo
 expr_type (Expr'LetRec typeinfo _) = typeinfo
 expr_type (Expr'BinaryOps typeinfo _ _) = typeinfo
-expr_type (Expr'Call typeinfo _ _) = typeinfo
+expr_type (Expr'Call typeinfo _ _ _) = typeinfo
 expr_type (Expr'If typeinfo _ _ _) = typeinfo
-expr_type (Expr'Case typeinfo _ _) = typeinfo
-expr_type (Expr'Poison typeinfo) = typeinfo
+expr_type (Expr'Case typeinfo _ _ _) = typeinfo
+expr_type (Expr'Poison typeinfo _) = typeinfo
 expr_type (Expr'TypeAnnotation typeinfo _ _) = typeinfo
 
 pattern_type :: Pattern typeannotation typeinfo -> typeinfo
 pattern_type (Pattern'Identifier typeinfo _) = typeinfo
 pattern_type (Pattern'Tuple typeinfo _ _) = typeinfo
 pattern_type (Pattern'Named typeinfo _ _) = typeinfo
-pattern_type (Pattern'Poison typeinfo) = typeinfo
+pattern_type (Pattern'Poison typeinfo _) = typeinfo

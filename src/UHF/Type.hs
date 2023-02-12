@@ -131,9 +131,9 @@ typecheck (decls, nominal_types, bindings, bound_names) =
         )
         Arena.new >>= \ ((nominal_types, bound_names, bindings), vars) ->
 
-    Arena.transformM (apply_type_vars_to_nominal_type vars) nominal_types >>= \ nominal_types ->
-    Arena.transformM (apply_type_vars_to_bound_name vars) bound_names >>= \ bound_names ->
-    Arena.transformM (apply_type_vars_to_binding vars) bindings >>= \ bindings ->
+    Arena.transformM (remove_vars_from_nominal_type vars) nominal_types >>= \ nominal_types ->
+    Arena.transformM (remove_vars_from_bound_name vars) bound_names >>= \ bound_names ->
+    Arena.transformM (remove_vars_from_binding vars) bindings >>= \ bindings ->
 
     pure (decls, nominal_types, bindings, bound_names)
 
@@ -310,12 +310,48 @@ solve_constraints = mapM_ solve
         -- does the variable v occur anywhere in the type ty?
         occurs_check v ty = pure () -- TODO
 
-apply_type_vars_to_bound_name :: TypeVarArena -> TypedWithVarsBoundName -> Writer [Error] TypedBoundName
-apply_type_vars_to_bound_name = todo
+remove_vars_from_bound_name :: TypeVarArena -> TypedWithVarsBoundName -> Writer [Error] TypedBoundName
+remove_vars_from_bound_name vars (IR.BoundName ty) = IR.BoundName <$> remove_vars vars ty
 
-apply_type_vars_to_nominal_type :: TypeVarArena -> TypedWithVarsNominalType -> Writer [Error] TypedNominalType
-apply_type_vars_to_nominal_type = todo
+remove_vars_from_nominal_type :: TypeVarArena -> TypedWithVarsNominalType -> Writer [Error] TypedNominalType
+remove_vars_from_nominal_type vars (IR.NominalType'Data variants) = IR.NominalType'Data <$> mapM remove_from_variant variants
+    where
+        remove_from_variant (IR.DataVariant'Named name fields) = IR.DataVariant'Named name <$> mapM (\ (name, ty) -> (,) name <$> remove_vars vars ty) fields
+        remove_from_variant (IR.DataVariant'Anon name fields) = IR.DataVariant'Anon name <$> mapM (remove_vars vars) fields
+remove_vars_from_in_nominal_types vars (IR.NominalType'Synonym expansion) = IR.NominalType'Synonym <$> remove_vars vars expansion
 
-apply_type_vars_to_binding :: TypeVarArena -> TypedWithVarsBinding -> Writer [Error] TypedBinding
-apply_type_vars_to_binding = todo
+remove_vars_from_binding :: TypeVarArena -> TypedWithVarsBinding -> Writer [Error] TypedBinding
+remove_vars_from_binding vars (IR.Binding pat expr) = IR.Binding <$> remove_from_pat pat <*> remove_from_expr expr
+    where
+        remove_from_pat (IR.Pattern'Identifier ty sp bn) = remove_vars vars ty >>= \ ty -> pure (IR.Pattern'Identifier ty sp bn)
+        remove_from_pat (IR.Pattern'Tuple ty sp l r) = remove_vars vars ty >>= \ ty -> IR.Pattern'Tuple ty sp <$> remove_from_pat l <*> remove_from_pat r
+        remove_from_pat (IR.Pattern'Named ty sp bnk subpat) = remove_vars vars ty >>= \ ty -> IR.Pattern'Named ty sp bnk <$> remove_from_pat subpat
+        remove_from_pat (IR.Pattern'Poison ty sp) = remove_vars vars ty >>= \ ty -> pure (IR.Pattern'Poison ty sp)
 
+        remove_from_expr (IR.Expr'Identifier ty sp bn) = remove_vars vars ty >>= \ ty -> pure (IR.Expr'Identifier ty sp bn)
+        remove_from_expr (IR.Expr'Char ty sp c) = remove_vars vars ty >>= \ ty -> pure (IR.Expr'Char ty sp c)
+        remove_from_expr (IR.Expr'String ty sp t) = remove_vars vars ty >>= \ ty -> pure (IR.Expr'String ty sp t)
+        remove_from_expr (IR.Expr'Int ty sp i) = remove_vars vars ty >>= \ ty -> pure (IR.Expr'Int ty sp i)
+        remove_from_expr (IR.Expr'Float ty sp r) = remove_vars vars ty >>= \ ty -> pure (IR.Expr'Float ty sp r)
+        remove_from_expr (IR.Expr'Bool ty sp b) = remove_vars vars ty >>= \ ty -> pure (IR.Expr'Bool ty sp b)
+        remove_from_expr (IR.Expr'Tuple ty sp l r) = remove_vars vars ty >>= \ ty -> IR.Expr'Tuple ty sp <$> remove_from_expr l <*> remove_from_expr r
+        remove_from_expr (IR.Expr'Lambda ty sp param body) = remove_vars vars ty >>= \ ty -> IR.Expr'Lambda ty sp <$> remove_from_pat param <*> remove_from_expr body
+        remove_from_expr (IR.Expr'Let ty sp result) = remove_vars vars ty >>= \ ty -> IR.Expr'Let ty sp <$> remove_from_expr result
+        remove_from_expr (IR.Expr'LetRec ty sp result) = remove_vars vars ty >>= \ ty -> IR.Expr'LetRec ty sp <$> remove_from_expr result
+        remove_from_expr (IR.Expr'BinaryOps ty sp first ops) = todo
+        remove_from_expr (IR.Expr'Call ty sp callee arg) = remove_vars vars ty >>= \ ty -> IR.Expr'Call ty sp <$> remove_from_expr callee <*> remove_from_expr arg
+        remove_from_expr (IR.Expr'If ty sp cond true false) = remove_vars vars ty >>= \ ty -> IR.Expr'If ty sp <$> remove_from_expr cond <*> remove_from_expr true <*> remove_from_expr false
+        remove_from_expr (IR.Expr'Case ty case_sp testing arms) = remove_vars vars ty >>= \ ty -> IR.Expr'Case ty case_sp <$> remove_from_expr testing <*> mapM (\ (p, e) -> (,) <$> remove_from_pat p <*> remove_from_expr e) arms
+        remove_from_expr (IR.Expr'Poison ty sp) = remove_vars vars ty >>= \ ty -> pure (IR.Expr'Poison ty sp)
+        remove_from_expr (IR.Expr'TypeAnnotation ty sp annotation e) = remove_vars vars ty >>= \ ty -> remove_vars vars annotation >>= \ annotation -> IR.Expr'TypeAnnotation ty sp annotation <$> remove_from_expr e
+
+remove_vars :: TypeVarArena -> TypeWithVars -> Writer [Error] Type
+remove_vars _ (IR.Type'Int) = pure IR.Type'Int
+remove_vars _ (IR.Type'Float) = pure IR.Type'Float
+remove_vars _ (IR.Type'Char) = pure IR.Type'Char
+remove_vars _ (IR.Type'String) = pure IR.Type'String
+remove_vars _ (IR.Type'Bool) = pure IR.Type'Bool
+remove_vars _ (IR.Type'Nominal n) = pure $ IR.Type'Nominal n
+remove_vars vars (IR.Type'Function a r) = IR.Type'Function <$> remove_vars vars a <*> remove_vars vars r
+remove_vars vars (IR.Type'Tuple a b) = IR.Type'Tuple <$> remove_vars vars a <*> remove_vars vars b
+remove_vars vars (IR.Type'Variable v) = pure $ IR.Type'Variable $ todo v

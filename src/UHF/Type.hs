@@ -34,6 +34,24 @@ data TypeVarForWhat
     | TypeExpr Span
 data TypeVarState = Fresh | Substituted TypeWithVars
 
+type_var_for_what_sp :: TypeVarForWhat -> Span
+type_var_for_what_sp (BoundName sp) = sp
+type_var_for_what_sp (UnresolvedIdenExpr sp) = sp
+type_var_for_what_sp (CallExpr sp) = sp
+type_var_for_what_sp (CaseExpr sp) = sp
+type_var_for_what_sp (PoisonExpr sp) = sp
+type_var_for_what_sp (PoisonPattern sp) = sp
+type_var_for_what_sp (TypeExpr sp) = sp
+
+type_var_for_what_name :: TypeVarForWhat -> Text
+type_var_for_what_name (BoundName _) = "binding"
+type_var_for_what_name (UnresolvedIdenExpr _) = "identifier expression"
+type_var_for_what_name (CallExpr _) = "call expression"
+type_var_for_what_name (CaseExpr _) = "case expression"
+type_var_for_what_name (PoisonExpr _) = "expression"
+type_var_for_what_name (PoisonPattern _) = "pattern"
+type_var_for_what_name (TypeExpr _) = "type expression"
+
 type TypeWithVars = IR.Type TypeVarKey
 type Type = IR.Type Void
 
@@ -131,31 +149,31 @@ instance Diagnostic.IsError Error where
                     ]
                 ]
 
-    to_error (OccursCheckError nominal_types vars span var ty) =
-        Diagnostic.Error Diagnostic.Codes.occurs_check $
+    to_error (OccursCheckError nominal_types vars span var_key ty) =
+        let var_as_type = IR.Type'Variable var_key
+            (TypeVar var_for_what _) = Arena.get vars var_key
+
+            var_sp = type_var_for_what_sp var_for_what
+            var_name = type_var_for_what_name var_for_what
+            var_printed = print_type nominal_types vars var_as_type
+
+        in Diagnostic.Error Diagnostic.Codes.occurs_check $
             Diagnostic.DiagnosticContents
                 (Just span)
                 [Underlines.underlines
-                    [ span `Underlines.primary` [Underlines.error $ convert_str $ "occurs check failure: infinite type arising from constraint " <> print_type nominal_types vars (IR.Type'Variable var) <> " = " <> print_type nominal_types vars ty]
-                    -- , just_span a_whole `Underlines.secondary` [Underlines.note $ convert_str $ print_type nominal_types vars $ unlocate a_whole]
-                    -- , just_span b_whole `Underlines.secondary` [Underlines.note $ convert_str $ print_type nominal_types vars $ unlocate b_whole]
+                    [ span `Underlines.primary` [Underlines.error $ convert_str $ "occurs check failure: infinite cyclic type arising from constraint " <> var_printed <> " = " <> print_type nominal_types vars ty]
+                    , var_sp `Underlines.secondary` [Underlines.note $ convert_str $ "where " <> var_printed <> " is the type of this " <> var_name]
                     ]
                 ]
 
     to_error (AmbiguousType for_what) =
-        let (sp, name) = case for_what of
-                BoundName sp -> (sp, "binding")
-                UnresolvedIdenExpr sp -> (sp, "identifier expression") -- TODO: make sure this doesnt happen
-                CallExpr sp -> (sp, "call expression")
-                CaseExpr sp -> (sp, "case expression")
-                PoisonExpr sp -> (sp, "expression")
-                PoisonPattern sp -> (sp, "pattern")
-                TypeExpr sp -> (sp, "type expression")
+        let sp = type_var_for_what_sp for_what
+            name = type_var_for_what_name for_what
         in Diagnostic.Error Diagnostic.Codes.ambiguous_type $
             Diagnostic.DiagnosticContents
                 (Just sp)
                 [Underlines.underlines -- TODO
-                    [ sp `Underlines.primary` [Underlines.error $ "ambiguous type: could not infer the type of this " <> name]
+                    [ sp `Underlines.primary` [Underlines.error $ convert_str $ "ambiguous type: could not infer the type of this " <> name]
                     ]
                 ]
 

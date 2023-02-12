@@ -54,7 +54,7 @@ newtype BoundNameKey = BoundNameKey Int deriving Show
 instance Arena.Key BoundNameKey where
     make_key = BoundNameKey
     unmake_key (BoundNameKey i) = i
-newtype BoundName = BoundName () deriving Show -- TODO: replace with counter instead of arena of ()?, also rename to something better because decls are also "bound names", probably change to "bound value"?
+data BoundName typeinfo = BoundName typeinfo deriving Show
 
 newtype BindingKey = BindingKey Int deriving Show
 instance Arena.Key BindingKey where
@@ -71,6 +71,11 @@ data TypeExpr identifier
 
 data Type var
     = Type'Nominal NominalTypeKey
+    | Type'Int
+    | Type'Float
+    | Type'Char
+    | Type'String
+    | Type'Bool
     | Type'Tuple [Type var]
     | Type'Variable var
     deriving Show

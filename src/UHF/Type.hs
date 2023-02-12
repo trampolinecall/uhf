@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 module UHF.Type
     ( typecheck
     ) where
@@ -7,7 +8,7 @@ import UHF.Util.Prelude
 import qualified Arena
 import qualified UHF.IR as IR
 
-import UHF.IO.Location (Span)
+import UHF.IO.Location (Span, Located)
 
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Codes as Diagnostic.Codes
@@ -20,12 +21,16 @@ instance Arena.Key TypeVarKey where
     make_key = TypeVarKey
     unmake_key (TypeVarKey i) = i
 type TypeVarArena = Arena.Arena TypeVar TypeVarKey
-data TypeVar -- = TypeVar TypeVarForWhat TypeVarStatus
+data TypeVar = TypeVar TypeVarForWhat TypeVarState
+data TypeVarForWhat
     = BoundName Span
-    | Expr Span
-    | Pattern Span
+    | UnresolvedIdenExpr Span
+    | CallExpr Span
+    | CaseExpr Span
+    | PoisonExpr Span
+    | PoisonPattern Span
     | TypeExpr Span
-    deriving Show
+data TypeVarState = Fresh | Substituted TypeWithVars
 
 type TypeWithVars = IR.Type TypeVarKey
 type Type = IR.Type Void
@@ -67,19 +72,29 @@ type DeclArena = Arena.Arena Decl IR.DeclKey
 data Constraint = Eq TypeWithVars TypeWithVars
 
 data Error
+    = EqError
+        { eq_error_a_whole :: TypeWithVars
+        , eq_error_b_whole :: TypeWithVars
+        , eq_error_a_part :: TypeWithVars
+        , eq_error_b_part :: TypeWithVars
+        } -- TODO: add spans
 instance Diagnostic.IsError Error where
+    to_error (EqError {..}) =
+        Diagnostic.Error Diagnostic.Codes.type_mismatch $ todo
+            -- Diagnostic.DiagnosticContents
+                -- (Just sp)
+                -- [Underlines.underlines [sp `Underlines.primary` []]]
 
 type StateWithVars = StateT TypeVarArena (Writer [Error])
 
-new_type_variable :: TypeVar -> StateWithVars TypeVarKey
-new_type_variable type_var =
+new_type_variable :: TypeVarForWhat -> StateWithVars TypeVarKey
+new_type_variable for_what =
     state $ \ type_vars ->
-        Arena.put type_var type_vars
+        Arena.put (TypeVar for_what Fresh) type_vars
 
 -- also does type inference
 typecheck :: (DeclArena, UntypedNominalTypeArena, UntypedBindingArena, UntypedBoundNameArena) -> Writer [Error] (DeclArena, TypedNominalTypeArena, TypedBindingArena, TypedBoundNameArena)
 typecheck (decls, nominal_types, bindings, bound_names) =
-
     runStateT
         (
             Arena.transformM (convert_type_exprs_in_nominal_types decls) nominal_types >>= \ nominal_types ->
@@ -137,12 +152,12 @@ collect_constraints decls bna (IR.Binding pat expr) =
             in tell [Eq bn_ty (IR.pattern_type subpat)] >>
             pure (IR.Pattern'Named bn_ty bnk subpat)
 
-        collect_for_pat (IR.Pattern'Poison () sp) = IR.Pattern'Poison <$> (IR.Type'Variable <$> lift (new_type_variable $ Pattern sp)) <*> pure sp
+        collect_for_pat (IR.Pattern'Poison () sp) = IR.Pattern'Poison <$> (IR.Type'Variable <$> lift (new_type_variable $ PoisonPattern sp)) <*> pure sp
 
         collect_for_expr (IR.Expr'Identifier () sp bn) =
             (case bn of
                 Just bn -> let (IR.BoundName ty) = Arena.get bna bn in pure ty
-                Nothing -> IR.Type'Variable <$> lift (new_type_variable (Expr sp))) >>= \ ty ->
+                Nothing -> IR.Type'Variable <$> lift (new_type_variable (UnresolvedIdenExpr sp))) >>= \ ty ->
 
             pure (IR.Expr'Identifier ty sp bn)
 
@@ -171,7 +186,7 @@ collect_constraints decls bna (IR.Binding pat expr) =
         collect_for_expr (IR.Expr'Call () sp callee arg) =
             collect_for_expr callee >>= \ callee ->
             collect_for_expr arg >>= \ arg ->
-            lift (new_type_variable (Expr sp)) >>= \ res_ty_var ->
+            lift (new_type_variable (CallExpr sp)) >>= \ res_ty_var ->
 
             tell [Eq (IR.expr_type callee) (IR.Type'Function (IR.expr_type arg) (IR.Type'Variable res_ty_var))] >>
 
@@ -192,7 +207,7 @@ collect_constraints decls bna (IR.Binding pat expr) =
         collect_for_expr (IR.Expr'Case () sp testing arms) =
             collect_for_expr testing >>= \ testing ->
             mapM (\ (p, e) -> (,) <$> collect_for_pat p <*> collect_for_expr e) arms >>= \ arms ->
-            IR.Type'Variable <$> lift (new_type_variable (Expr sp)) >>= \ result_ty ->
+            IR.Type'Variable <$> lift (new_type_variable (CaseExpr sp)) >>= \ result_ty ->
 
             -- first expr matches all pattern types
             -- all arm types are the same
@@ -201,7 +216,7 @@ collect_constraints decls bna (IR.Binding pat expr) =
 
             pure (IR.Expr'Case result_ty sp testing arms)
 
-        collect_for_expr (IR.Expr'Poison () sp) = IR.Expr'Poison <$> (IR.Type'Variable <$> lift (new_type_variable $ Expr sp)) <*> pure sp
+        collect_for_expr (IR.Expr'Poison () sp) = IR.Expr'Poison <$> (IR.Type'Variable <$> lift (new_type_variable $ PoisonExpr sp)) <*> pure sp
 
         collect_for_expr (IR.Expr'TypeAnnotation () annotation e) =
             lift (convert_type_expr decls annotation) >>= \ annotation ->
@@ -210,7 +225,55 @@ collect_constraints decls bna (IR.Binding pat expr) =
             pure (IR.Expr'TypeAnnotation annotation annotation e)
 
 solve_constraints :: [Constraint] -> StateWithVars ()
-solve_constraints = todo
+solve_constraints = mapM_ solve
+    where
+        -- TODO: gracefully figure out how to handle errors because the type variables become ambiguous if they cant be unified
+        solve :: Constraint -> StateWithVars ()
+        solve (Eq a b) =
+            runExceptT (unify a b) >>= \case
+                Right () -> pure ()
+                Left (a_part, b_part) -> lift (tell [EqError { eq_error_a_whole = a, eq_error_b_whole = b, eq_error_a_part = a_part, eq_error_b_part = b_part }]) >> pure ()
+
+        unify :: TypeWithVars -> TypeWithVars -> ExceptT (TypeWithVars, TypeWithVars) StateWithVars ()
+        unify (IR.Type'Nominal a) (IR.Type'Nominal b) = todo
+        unify (IR.Type'Variable a) b = unify_var a b False
+        unify a (IR.Type'Variable b) = unify_var b a True
+        unify (IR.Type'Int) (IR.Type'Int) = pure ()
+        unify (IR.Type'Float) (IR.Type'Float) = pure ()
+        unify (IR.Type'Char) (IR.Type'Char) = pure ()
+        unify (IR.Type'String) (IR.Type'String) = pure ()
+        unify (IR.Type'Bool) (IR.Type'Bool) = pure ()
+        unify (IR.Type'Function a1 r1) (IR.Type'Function a2 r2) = unify a1 a2 >> unify r1 r2
+        unify (IR.Type'Tuple a1 b1) (IR.Type'Tuple a2 b2) = unify a1 a2 >> unify b1 b2
+
+        unify_var :: TypeVarKey -> TypeWithVars -> Bool -> ExceptT (TypeWithVars, TypeWithVars) StateWithVars ()
+        unify_var var other var_on_right = Arena.get <$> lift get <*> pure var >>= \ case
+            -- if this variable can be expanded, unify its expansion
+            TypeVar _ (Substituted var_sub) ->
+                if var_on_right
+                    then unify other var_sub
+                    else unify var_sub other
+
+            -- if this variable has no substitution, what happens depends on the other type
+            TypeVar _ Fresh ->
+                case other of
+                    IR.Type'Variable other_var ->
+                        Arena.get <$> lift get <*> pure other_var >>= \case
+                            -- if the other type is a substituted type variable, unify this variable with the other's expansion
+                            TypeVar _ (Substituted other_var_sub) -> unify_var var other_var_sub var_on_right
+
+                            -- if the other type is a fresh type variable, both of them are fresh type variables and the only thing that can be done is to unify them
+                            TypeVar _ Fresh -> lift (set_type_var_state var (Substituted other)) -- TODO: check that these are not the same variable
+
+                    -- if the other type is a type and not a variable
+                    _ -> occurs_check var other >> lift (set_type_var_state var (Substituted other))
+
+        set_type_var_state :: TypeVarKey -> TypeVarState -> StateWithVars ()
+        set_type_var_state var new_state = modify (\ ty_arena -> Arena.modify ty_arena var (\ (TypeVar for _) -> TypeVar for new_state))
+
+        occurs_check :: TypeVarKey -> TypeWithVars -> ExceptT (TypeWithVars, TypeWithVars) StateWithVars ()
+        -- does the variable v occur anywhere in the type ty?
+        occurs_check v ty = pure () -- TODO
 
 apply_type_vars_to_bound_name :: TypeVarArena -> TypedWithVarsBoundName -> Writer [Error] TypedBoundName
 apply_type_vars_to_bound_name = todo

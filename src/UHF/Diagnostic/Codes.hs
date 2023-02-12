@@ -25,3 +25,5 @@ $(error_code 0205 "tuple0")
 $(error_code 0206 "tuple1")
 
 $(error_code 0300 "undef_name")
+
+$(error_code 0400 "type_mismatch")

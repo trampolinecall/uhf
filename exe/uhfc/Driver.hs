@@ -36,27 +36,15 @@ compile file =
         else Left diags
 
 compile' :: File.File -> ErrorAccumulated TypedIR
-compile' file = lex file >>= parse >>= to_ir >>= name_resolve >>= type_
-
-lex :: File.File -> ErrorAccumulated Tokens
-lex file = convert_errors (Lexer.lex file)
-
-parse :: Tokens -> ErrorAccumulated AST
-parse (toks, eof_tok) =
-    let (bt_error, res) = Parser.parse toks eof_tok
+compile' file =
+    convert_errors (Lexer.lex file) >>= \ (tokens, eof_tok) ->
+    let (bt_error, ast) = Parser.parse tokens eof_tok
     in (case bt_error of
         Just bt_error -> tell [Diagnostic.to_error bt_error]
         Nothing -> pure ()) >>
-    pure res
-
-to_ir :: AST -> ErrorAccumulated FirstIR
-to_ir decls = convert_errors (ASTToIR.convert decls)
-
-name_resolve :: FirstIR -> ErrorAccumulated NRIR
-name_resolve (decls, nominals, bindings, bound_names) = convert_errors (NameResolve.resolve (decls, nominals, bindings)) >>= \ (decls, nominals, bindings) -> pure (decls, nominals, bindings, bound_names)
-
-type_ :: NRIR -> ErrorAccumulated TypedIR
-type_ (decls, nominals, bindings, bound_names) = convert_errors $ Type.typecheck (decls, nominals, bindings, bound_names)
+    convert_errors (ASTToIR.convert ast) >>= \ (decls, nominal_types, bindings, bound_names) ->
+    convert_errors (NameResolve.resolve (decls, nominal_types, bindings)) >>= \ (decls, nominal_types, bindings) ->
+    convert_errors (Type.typecheck (decls, nominal_types, bindings, bound_names))
 
 convert_errors :: Diagnostic.IsError e => Writer [e] a -> Writer [Diagnostic.Error] a
 convert_errors = mapWriter (\ (res, errs) -> (res, map Diagnostic.to_error errs))

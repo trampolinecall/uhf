@@ -64,6 +64,7 @@ type DeclArena = Arena.Arena Decl IR.DeclKey
 data Error
 instance Diagnostic.IsError Error where
 
+-- also does type inference
 typecheck :: (DeclArena, UntypedNominalTypeArena, UntypedBindingArena, UntypedBoundNameArena) -> Writer [Error] (DeclArena, TypedNominalTypeArena, TypedBindingArena, TypedBoundNameArena)
 typecheck = todo
 

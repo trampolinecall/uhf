@@ -4,7 +4,7 @@ module UHF.AST where
 
 import UHF.Util.Prelude
 
-import UHF.IO.Location (Located, Span)
+import UHF.IO.Location (Located(just_span), Span)
 
 type Identifier = Located [Located Text]
 
@@ -57,3 +57,25 @@ data Pattern
     | Pattern'Tuple Span [Pattern]
     | Pattern'Named Span Identifier Pattern
     deriving (Eq, Show)
+
+expr_span :: Expr -> Span
+expr_span (Expr'Identifier iden) = just_span iden
+expr_span (Expr'Char sp _) = sp
+expr_span (Expr'String sp _) = sp
+expr_span (Expr'Int sp _) = sp
+expr_span (Expr'Float sp _) = sp
+expr_span (Expr'Bool sp _) = sp
+expr_span (Expr'Tuple sp _) = sp
+expr_span (Expr'Lambda sp _ _) = sp
+expr_span (Expr'Let sp _ _) = sp
+expr_span (Expr'LetRec sp _ _) = sp
+expr_span (Expr'BinaryOps sp _ _) = sp
+expr_span (Expr'Call sp _ _) = sp
+expr_span (Expr'If sp _ _ _) = sp
+expr_span (Expr'Case sp _ _) = sp
+expr_span (Expr'TypeAnnotation sp _ _) = sp
+
+pattern_span :: Pattern -> Span
+pattern_span (Pattern'Identifier i) = just_span i
+pattern_span (Pattern'Tuple sp _) = sp
+pattern_span (Pattern'Named sp _ _) = sp

@@ -112,8 +112,8 @@ instance Diagnostic.IsError Error where
                 (Just span)
                 [Underlines.underlines
                     [ span `Underlines.primary` [Underlines.error $ convert_str $ "conflicting types in " <> what <> ": '" <> print_type nominal_types vars a_part <> "' vs '" <> print_type nominal_types vars b_part <> "'"]
-                    , just_span a_whole `Underlines.primary` [Underlines.error $ convert_str $ print_type nominal_types vars $ unlocate a_whole]
-                    , just_span b_whole `Underlines.primary` [Underlines.error $ convert_str $ print_type nominal_types vars $ unlocate b_whole]
+                    , just_span a_whole `Underlines.secondary` [Underlines.note $ convert_str $ print_type nominal_types vars $ unlocate a_whole]
+                    , just_span b_whole `Underlines.secondary` [Underlines.note $ convert_str $ print_type nominal_types vars $ unlocate b_whole]
                     ]
                 ]
 

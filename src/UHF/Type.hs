@@ -92,10 +92,22 @@ instance Diagnostic.IsError Error where
             Diagnostic.DiagnosticContents
                 (Just (just_span eq_error_a_whole))
                 [Underlines.underlines -- TODO
-                    [ just_span eq_error_a_whole `Underlines.primary` [Underlines.error $ show eq_error_a_whole]
-                    , just_span eq_error_b_whole `Underlines.primary` [Underlines.error $ show eq_error_b_whole]
+                    [ just_span eq_error_a_whole `Underlines.primary` [Underlines.error $ show $ unlocate eq_error_a_whole]
+                    , just_span eq_error_b_whole `Underlines.primary` [Underlines.error $ show $ unlocate eq_error_b_whole]
                     , just_span eq_error_a_whole `Underlines.primary` [Underlines.error $ show eq_error_a_part]
                     , just_span eq_error_b_whole `Underlines.primary` [Underlines.error $ show eq_error_b_part]
+                    ]
+                ]
+
+    to_error (ExpectError {..}) =
+        Diagnostic.Error Diagnostic.Codes.type_mismatch $
+            Diagnostic.DiagnosticContents
+                (Just (just_span expect_error_got_whole))
+                [Underlines.underlines -- TODO
+                    [ just_span expect_error_got_whole `Underlines.primary` [Underlines.error $ show $ unlocate expect_error_got_whole]
+                    , just_span expect_error_got_whole `Underlines.primary` [Underlines.error $ show expect_error_expect_whole]
+                    , just_span expect_error_got_whole `Underlines.primary` [Underlines.error $ show expect_error_got_part]
+                    , just_span expect_error_got_whole `Underlines.primary` [Underlines.error $ show expect_error_expect_part]
                     ]
                 ]
 

@@ -27,4 +27,5 @@ $(error_code 0206 "tuple1")
 $(error_code 0300 "undef_name")
 
 $(error_code 0400 "type_mismatch")
-$(error_code 0401 "ambiguous_type")
+$(error_code 0401 "occurs_check")
+$(error_code 0402 "ambiguous_type")

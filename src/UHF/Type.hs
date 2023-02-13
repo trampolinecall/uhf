@@ -12,7 +12,7 @@ import UHF.IO.Location (Span, Located (Located, unlocate, just_span))
 
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Codes as Diagnostic.Codes
-import qualified UHF.Diagnostic.Sections.Underlines as Underlines
+import qualified UHF.Diagnostic.Sections.Messages as Messages
 
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 
@@ -131,8 +131,8 @@ instance Diagnostic.IsError Error where
             Diagnostic.DiagnosticContents
                 (Just span)
                 ("conflicting types in " <> what <> ": '" <> print_type nominal_types vars a_part <> "' vs '" <> print_type nominal_types vars b_part <> "'")
-                [ just_span a_whole `Underlines.note` convert_str (print_type nominal_types vars $ unlocate a_whole)
-                , just_span b_whole `Underlines.note` convert_str (print_type nominal_types vars $ unlocate b_whole)
+                [ just_span a_whole `Messages.note` convert_str (print_type nominal_types vars $ unlocate a_whole)
+                , just_span b_whole `Messages.note` convert_str (print_type nominal_types vars $ unlocate b_whole)
                 ]
                 []
 
@@ -141,10 +141,10 @@ instance Diagnostic.IsError Error where
             Diagnostic.DiagnosticContents -- TODO
                 (Just (just_span expect_error_got_whole))
                 ("conflicting types")
-                [ just_span expect_error_got_whole `Underlines.error` (convert_str $ print_type nominal_types vars $ unlocate expect_error_got_whole)
-                , just_span expect_error_got_whole `Underlines.error` (convert_str $ print_type nominal_types vars expect_error_expect_whole)
-                , just_span expect_error_got_whole `Underlines.error` (convert_str $ print_type nominal_types vars expect_error_got_part)
-                , just_span expect_error_got_whole `Underlines.error` (convert_str $ print_type nominal_types vars expect_error_expect_part)
+                [ just_span expect_error_got_whole `Messages.error` (convert_str $ print_type nominal_types vars $ unlocate expect_error_got_whole)
+                , just_span expect_error_got_whole `Messages.error` (convert_str $ print_type nominal_types vars expect_error_expect_whole)
+                , just_span expect_error_got_whole `Messages.error` (convert_str $ print_type nominal_types vars expect_error_got_part)
+                , just_span expect_error_got_whole `Messages.error` (convert_str $ print_type nominal_types vars expect_error_expect_part)
                 ]
                 []
 
@@ -160,7 +160,7 @@ instance Diagnostic.IsError Error where
             Diagnostic.DiagnosticContents
                 (Just span)
                 ("occurs check failure: infinite cyclic type arising from constraint " <> var_printed <> " = " <> print_type nominal_types vars ty)
-                [ var_sp `Underlines.note` (convert_str $ "where " <> var_printed <> " is the type of this " <> var_name)]
+                [ var_sp `Messages.note` (convert_str $ "where " <> var_printed <> " is the type of this " <> var_name)]
                 []
 
     to_error (AmbiguousType for_what) =
@@ -187,7 +187,7 @@ print_type _ _ (IR.Type'Bool) = "bool"
 print_type nominals vars (IR.Type'Function a r) = print_type nominals vars a <> " -> " <> print_type nominals vars r -- TODO: parentheses and grouping
 print_type nominals vars (IR.Type'Tuple a b) = "(" <> print_type nominals vars a <> ", " <> print_type nominals vars b <> ")"
 print_type nominals vars (IR.Type'Variable var) = case Arena.get vars var of
-    TypeVar _ Fresh -> "{type variable " <> show (Arena.unmake_key var) <> "}"
+    TypeVar _ Fresh -> "<unknown " <> show (Arena.unmake_key var) <> ">"
     TypeVar _ (Substituted other) -> print_type nominals vars other
 
 type StateWithVars = StateT TypeVarArena (Writer [Error])

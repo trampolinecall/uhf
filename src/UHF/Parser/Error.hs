@@ -11,7 +11,7 @@ import qualified UHF.Token as Token
 import qualified UHF.IO.Location as Location
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Codes as Codes
-import qualified UHF.Diagnostic.Sections.Underlines as Underlines
+import qualified UHF.Diagnostic.Sections.Messages as Messages
 
 data BacktrackingError
     = BadToken Int Token.LToken Token.TokenType Text
@@ -25,6 +25,6 @@ instance Diagnostic.IsError (Location.Located [BacktrackingError]) where
                 "parse error" -- TODO
                 (map
                     (\ (BadToken _ tok expectation construct) ->
-                        Location.just_span tok `Underlines.error` (convert_str construct <> " expects " <> format expectation <> " but got " <> format (Location.unlocate tok)))
+                        Location.just_span tok `Messages.error` (convert_str construct <> " expects " <> format expectation <> " but got " <> format (Location.unlocate tok)))
                     bits) -- TODO: make this better
                 []

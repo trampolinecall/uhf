@@ -21,7 +21,7 @@ import qualified UHF.FormattedString as FormattedString
 import qualified UHF.Diagnostic.Codes.Code as Code
 import qualified UHF.Diagnostic.Colors as Colors
 import qualified UHF.Diagnostic.Section as Section
-import qualified UHF.Diagnostic.Sections.Underlines as Underlines
+import qualified UHF.Diagnostic.Sections.Messages as Messages
 import qualified UHF.Diagnostic.Line as Line
 
 import qualified UHF.IO.Location as Location
@@ -34,7 +34,7 @@ data Warning = Warning Code.Warning DiagnosticContents
 newtype DebugMessage = DebugMessage DiagnosticContents
 newtype InternalError = InternalError DiagnosticContents
 
-data DiagnosticContents = DiagnosticContents (Maybe Location.Span) Text Underlines.UnderlinesSection [Section.SomeSection]
+data DiagnosticContents = DiagnosticContents (Maybe Location.Span) Text Messages.MessagesSection [Section.SomeSection]
 
 class IsError e where
     to_error :: e -> Error
@@ -42,16 +42,16 @@ class IsWarning w where
     to_warning :: w -> Warning
 
 class IsDiagnostic d where
-    to_diagnostic :: d -> (FormattedString.FormattedString, Maybe (Text, Text), Underlines.Type, DiagnosticContents)
+    to_diagnostic :: d -> (FormattedString.FormattedString, Maybe (Text, Text), Messages.Type, DiagnosticContents)
 
 instance IsDiagnostic Error where
-    to_diagnostic (Error c contents) = (FormattedString.color_text Colors.error "error", Code.error_code_desc c, Underlines.Error, contents)
+    to_diagnostic (Error c contents) = (FormattedString.color_text Colors.error "error", Code.error_code_desc c, Messages.Error, contents)
 instance IsDiagnostic Warning where
-    to_diagnostic (Warning c contents) = (FormattedString.color_text Colors.warning "warning", Code.warning_code_desc c, Underlines.Warning, contents)
+    to_diagnostic (Warning c contents) = (FormattedString.color_text Colors.warning "warning", Code.warning_code_desc c, Messages.Warning, contents)
 instance IsDiagnostic DebugMessage where
-    to_diagnostic (DebugMessage contents) = (FormattedString.color_text Colors.debug_message "debug message", Nothing, Underlines.Note, contents)
+    to_diagnostic (DebugMessage contents) = (FormattedString.color_text Colors.debug_message "debug message", Nothing, Messages.Note, contents)
 instance IsDiagnostic InternalError where
-    to_diagnostic (InternalError contents) = (FormattedString.color_text Colors.error "internal error", Nothing, Underlines.Error, contents)
+    to_diagnostic (InternalError contents) = (FormattedString.color_text Colors.error "internal error", Nothing, Messages.Error, contents)
 
 report :: IsDiagnostic d => Handle -> d -> IO ()
 report handle d =

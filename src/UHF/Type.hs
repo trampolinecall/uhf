@@ -130,24 +130,23 @@ instance Diagnostic.IsError Error where
         in Diagnostic.Error Diagnostic.Codes.type_mismatch $
             Diagnostic.DiagnosticContents
                 (Just span)
-                [Underlines.underlines
-                    [ span `Underlines.primary` [Underlines.error $ convert_str $ "conflicting types in " <> what <> ": '" <> print_type nominal_types vars a_part <> "' vs '" <> print_type nominal_types vars b_part <> "'"]
-                    , just_span a_whole `Underlines.secondary` [Underlines.note $ convert_str $ print_type nominal_types vars $ unlocate a_whole]
-                    , just_span b_whole `Underlines.secondary` [Underlines.note $ convert_str $ print_type nominal_types vars $ unlocate b_whole]
-                    ]
+                ("conflicting types in " <> what <> ": '" <> print_type nominal_types vars a_part <> "' vs '" <> print_type nominal_types vars b_part <> "'")
+                [ just_span a_whole `Underlines.note` convert_str (print_type nominal_types vars $ unlocate a_whole)
+                , just_span b_whole `Underlines.note` convert_str (print_type nominal_types vars $ unlocate b_whole)
                 ]
+                []
 
     to_error (ExpectError {expect_error_nominal_types = nominal_types, expect_error_vars = vars, ..}) =
         Diagnostic.Error Diagnostic.Codes.type_mismatch $ -- TODO, also TODO change code?
-            Diagnostic.DiagnosticContents
+            Diagnostic.DiagnosticContents -- TODO
                 (Just (just_span expect_error_got_whole))
-                [Underlines.underlines -- TODO
-                    [ just_span expect_error_got_whole `Underlines.primary` [Underlines.error $ convert_str $ print_type nominal_types vars $ unlocate expect_error_got_whole]
-                    , just_span expect_error_got_whole `Underlines.primary` [Underlines.error $ convert_str $ print_type nominal_types vars expect_error_expect_whole]
-                    , just_span expect_error_got_whole `Underlines.primary` [Underlines.error $ convert_str $ print_type nominal_types vars expect_error_got_part]
-                    , just_span expect_error_got_whole `Underlines.primary` [Underlines.error $ convert_str $ print_type nominal_types vars expect_error_expect_part]
-                    ]
+                ("conflicting types")
+                [ just_span expect_error_got_whole `Underlines.error` (convert_str $ print_type nominal_types vars $ unlocate expect_error_got_whole)
+                , just_span expect_error_got_whole `Underlines.error` (convert_str $ print_type nominal_types vars expect_error_expect_whole)
+                , just_span expect_error_got_whole `Underlines.error` (convert_str $ print_type nominal_types vars expect_error_got_part)
+                , just_span expect_error_got_whole `Underlines.error` (convert_str $ print_type nominal_types vars expect_error_expect_part)
                 ]
+                []
 
     to_error (OccursCheckError nominal_types vars span var_key ty) =
         let var_as_type = IR.Type'Variable var_key
@@ -160,22 +159,19 @@ instance Diagnostic.IsError Error where
         in Diagnostic.Error Diagnostic.Codes.occurs_check $
             Diagnostic.DiagnosticContents
                 (Just span)
-                [Underlines.underlines
-                    [ span `Underlines.primary` [Underlines.error $ convert_str $ "occurs check failure: infinite cyclic type arising from constraint " <> var_printed <> " = " <> print_type nominal_types vars ty]
-                    , var_sp `Underlines.secondary` [Underlines.note $ convert_str $ "where " <> var_printed <> " is the type of this " <> var_name]
-                    ]
-                ]
+                ("occurs check failure: infinite cyclic type arising from constraint " <> var_printed <> " = " <> print_type nominal_types vars ty)
+                [ var_sp `Underlines.note` (convert_str $ "where " <> var_printed <> " is the type of this " <> var_name)]
+                []
 
     to_error (AmbiguousType for_what) =
         let sp = type_var_for_what_sp for_what
             name = type_var_for_what_name for_what
         in Diagnostic.Error Diagnostic.Codes.ambiguous_type $
             Diagnostic.DiagnosticContents
-                (Just sp)
-                [Underlines.underlines -- TODO
-                    [ sp `Underlines.primary` [Underlines.error $ convert_str $ "ambiguous type: could not infer the type of this " <> name]
-                    ]
-                ]
+                (Just sp) -- TODO
+                ("ambiguous type: could not infer the type of this " <> name) -- TODO: better message
+                []
+                []
 
 print_type :: TypedWithVarsNominalTypeArena -> TypeVarArena -> TypeWithVars -> Text
 -- TODO: construct an ast and print it

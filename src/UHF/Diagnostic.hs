@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ExistentialQuantification #-}
 
 module UHF.Diagnostic
     ( Error(..)
@@ -20,6 +21,7 @@ import qualified UHF.FormattedString as FormattedString
 import qualified UHF.Diagnostic.Codes.Code as Code
 import qualified UHF.Diagnostic.Colors as Colors
 import qualified UHF.Diagnostic.Section as Section
+import qualified UHF.Diagnostic.Sections.Underlines as Underlines
 import qualified UHF.Diagnostic.Line as Line
 
 import qualified UHF.IO.Location as Location
@@ -32,7 +34,7 @@ data Warning = Warning Code.Warning DiagnosticContents
 newtype DebugMessage = DebugMessage DiagnosticContents
 newtype InternalError = InternalError DiagnosticContents
 
-data DiagnosticContents = DiagnosticContents (Maybe Location.Span) [Section.Section]
+data DiagnosticContents = DiagnosticContents (Maybe Location.Span) Text Underlines.UnderlinesSection [Section.SomeSection]
 
 class IsError e where
     to_error :: e -> Error
@@ -40,33 +42,39 @@ class IsWarning w where
     to_warning :: w -> Warning
 
 class IsDiagnostic d where
-    to_diagnostic :: d -> (FormattedString.FormattedString, Maybe (Text, Text), DiagnosticContents)
+    to_diagnostic :: d -> (FormattedString.FormattedString, Maybe (Text, Text), Underlines.Type, DiagnosticContents)
 
 instance IsDiagnostic Error where
-    to_diagnostic (Error c contents) = (FormattedString.color_text Colors.error "error", Code.error_code_desc c, contents)
+    to_diagnostic (Error c contents) = (FormattedString.color_text Colors.error "error", Code.error_code_desc c, Underlines.Error, contents)
 instance IsDiagnostic Warning where
-    to_diagnostic (Warning c contents) = (FormattedString.color_text Colors.warning "warning", Code.warning_code_desc c, contents)
+    to_diagnostic (Warning c contents) = (FormattedString.color_text Colors.warning "warning", Code.warning_code_desc c, Underlines.Warning, contents)
 instance IsDiagnostic DebugMessage where
-    to_diagnostic (DebugMessage contents) = (FormattedString.color_text Colors.debug_message "debug message", Nothing, contents)
+    to_diagnostic (DebugMessage contents) = (FormattedString.color_text Colors.debug_message "debug message", Nothing, Underlines.Note, contents)
 instance IsDiagnostic InternalError where
-    to_diagnostic (InternalError contents) = (FormattedString.color_text Colors.error "internal error", Nothing, contents)
+    to_diagnostic (InternalError contents) = (FormattedString.color_text Colors.error "internal error", Nothing, Underlines.Error, contents)
 
 report :: IsDiagnostic d => Handle -> d -> IO ()
 report handle d =
-    let (type_str, code_and_desc, DiagnosticContents m_sp sections) = to_diagnostic d
+    let (type_str, code_and_desc, diag_message_type, DiagnosticContents m_sp main_message main_section sections) = to_diagnostic d
         header =
             type_str
-            <>
-            (case m_sp of
+            <> (case m_sp of
                 Just sp -> " at " <> format sp
                 Nothing -> "")
+            <> ": "
+            <> convert_str main_message
 
         footer =
             case code_and_desc of
                 Just (c, d) -> Just $ "==> [" <> FormattedString.color_text Colors.diag_code c <> "] " <> FormattedString.color_text Colors.diag_desc d
                 Nothing -> Nothing
 
-        section_lines = concatMap (\ (Section.Section l) -> l) sections
+        section_lines =
+            let main_section' = case m_sp of
+                    Just main_sp -> Section.SomeSection $ (main_sp, diag_message_type, Nothing) : main_section
+                    Nothing -> Section.SomeSection main_section
+            in concatMap Section.render (main_section' : sections)
+
         indent =
             if null section_lines
                 then 4

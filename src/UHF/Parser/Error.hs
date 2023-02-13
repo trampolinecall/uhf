@@ -22,10 +22,9 @@ instance Diagnostic.IsError (Location.Located [BacktrackingError]) where
     to_error (Location.Located sp bits) = Diagnostic.Error Codes.parse_error $
             Diagnostic.DiagnosticContents
                 (Just sp)
-                [ Underlines.underlines $
-                    map
-                        (\ (BadToken _ tok expectation construct) ->
-                            Location.just_span tok `Underlines.primary`
-                                [ Underlines.error $ Literal construct <> " expects " <> format expectation <> " but got " <> format (Location.unlocate tok) ])
-                        bits -- TODO: make this better
-                ]
+                "parse error" -- TODO
+                (map
+                    (\ (BadToken _ tok expectation construct) ->
+                        Location.just_span tok `Underlines.error` (convert_str construct <> " expects " <> format expectation <> " but got " <> format (Location.unlocate tok)))
+                    bits) -- TODO: make this better
+                []

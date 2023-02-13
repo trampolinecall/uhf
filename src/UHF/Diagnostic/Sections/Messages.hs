@@ -1,19 +1,17 @@
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE FlexibleInstances #-}
 
-module UHF.Diagnostic.Sections.Underlines
-    ( UnderlinesSection
+module UHF.Diagnostic.Sections.Messages
+    ( MessagesSection
     , Underline
-    , Importance(..)
     , Type(..)
-    , underlines
 
-    , primary, secondary, tertiary
-    , UHF.Diagnostic.Sections.Underlines.error, warning, note, hint
+    , error, warning, note, hint
 
     , tests
     ) where
 
-import UHF.Util.Prelude
+import UHF.Util.Prelude hiding (error)
 
 import UHF.IO.Location.SpanHelper
 
@@ -27,15 +25,15 @@ import qualified UHF.IO.Location as Location
 import qualified UHF.IO.File as File
 
 import qualified Data.Text as Text
+import qualified Data.Maybe as Maybe
 import qualified Data.Function as Function
 import qualified Data.List as List
 import qualified System.Console.ANSI as ANSI
 
 -- TODO: fix errors on eof where messages arent shown
 
-type UnderlinesSection = [Underline]
-type Underline = (Location.Span, Importance, [(Type, FormattedString)])
-data Importance = Primary | Secondary | Tertiary
+type MessagesSection = [Underline]
+type Underline = (Location.Span, Type, Maybe FormattedString)
 data Type = Error | Warning | Note | Hint deriving (Show, Eq)
 
 type_color :: Type -> [ANSI.SGR]
@@ -44,33 +42,30 @@ type_color Warning = Colors.warning
 type_color Note = Colors.note
 type_color Hint = Colors.hint
 
-imp_char, top_imp_char :: Importance -> Char
-imp_char Primary = '^'
-imp_char Secondary = '~'
-imp_char Tertiary = '-'
+type_char, top_type_char :: Type -> Char
+type_char Error = '^'
+type_char Warning = '^'
+type_char Note = '~'
+type_char Hint = '~'
 
-top_imp_char Primary = 'v'
-top_imp_char Secondary = '~'
-top_imp_char Tertiary = '-'
+top_type_char Error = 'v'
+top_type_char Warning = 'v'
+top_type_char Note = '~'
+top_type_char Hint = '~'
 
-primary, secondary, tertiary :: Location.Span -> [(Type, FormattedString)] -> Underline
-primary s m = (s, Primary, m)
-secondary s m = (s, Secondary, m)
-tertiary s m = (s, Tertiary, m)
+error, warning, note, hint :: Location.Span -> FormattedString -> Underline
+error s m = (s, Error, Just m)
+warning s m = (s, Warning, Just m)
+note s m = (s, Note, Just m)
+hint s m = (s, Hint, Just m)
 
-error, warning, note, hint :: FormattedString -> (Type, FormattedString)
-error = (Error,)
-warning = (Warning,)
-note = (Note,)
-hint = (Hint,)
+instance Section.Section MessagesSection where
+    render unds =
+        let (singleline, multiline) = List.partition (Location.is_single_line . (\ (a, _, _) -> a)) unds
 
-underlines :: UnderlinesSection -> Section.Section
-underlines unds =
-    let (singleline, multiline) = List.partition (Location.is_single_line . (\ (a, _, _) -> a)) unds
-
-        singleline' = show_singleline singleline
-        multiline' = concatMap show_multiline multiline
-    in Section.to_section $ singleline' ++ multiline'
+            singleline' = show_singleline singleline
+            multiline' = concatMap show_multiline multiline
+        in singleline' ++ multiline'
 
 -- show_singleline {{{1
 -- Message helpers {{{2
@@ -87,7 +82,7 @@ cm_end_col (CompleteMessage (_, loc, _, text)) = Location.col (Location.lc loc) 
 -- show_singleline {{{2
 show_singleline :: [Underline] -> [Line.Line]
 show_singleline unds =
-    concatMap (show_line unds) $
+    concatMap (show_line unds) $ -- TODO: rewrite by grouping
     Utils.file_and_elipsis_lines identity $
     List.sortBy Utils.flnr_comparator $
     List.nub $
@@ -100,36 +95,33 @@ lines_shown = map (\ (sp, _, _) -> (Location.sp_file sp, Location.row $ Location
 get_complete_messages :: [Underline] -> [CompleteMessage]
 get_complete_messages =
     List.sortBy (flip compare `Function.on` cm_start_col) .
-    concatMap (\ (sp, _, msgs) -> zipWith (\ i (ty, tx) -> CompleteMessage (i == length msgs - 1, Location.sp_be sp, ty, tx)) [0..] msgs)
+    Maybe.mapMaybe (\ (sp, ty, msg) -> CompleteMessage <$> ((False, Location.sp_be sp, ty,) <$> msg)) -- TODO: figure out what to do with False (probably overhaul / refactor the rendering code)
 
 get_colored_quote_and_underline_line :: File.File -> Int -> [Underline] -> (FormattedString.FormattedString, FormattedString.FormattedString)
 get_colored_quote_and_underline_line fl nr unds =
     let col_in_underline c (sp, _, _) = Location.sp_s_col sp <= c && c <= Location.sp_be_col sp
 
-        underline_importance_and_color (_, imp, (first_msg_ty, _):_) = (imp, Just first_msg_ty)
-        underline_importance_and_color (_, imp, []) = (imp, Nothing)
+        message_type (_, ty, _) = ty
 
-        underline_for_cols = map (\ c -> underline_importance_and_color <$> find (col_in_underline c) unds) [1 .. length quote+1]
+        underline_for_cols = map (\ c -> message_type <$> find (col_in_underline c) unds) [1 .. length quote+1]
 
         quote = Text.unpack $ Utils.get_quote fl nr
         colored_quote =
-            foldl' FormattedString.Join "" $
+            foldl' (<>) "" $
             zipWith
                 (\ ch m_und ->
                     case m_und of
                         Nothing -> FormattedString.Literal $ Text.pack [ch]
-                        Just (_, Nothing) -> FormattedString.color_text [Colors.bold] (Text.pack [ch])
-                        Just (_, Just ty) -> FormattedString.color_text (type_color ty) (Text.pack [ch])
+                        Just ty -> FormattedString.color_text (type_color ty) (Text.pack [ch])
                 )
                 quote underline_for_cols
 
         underline_line =
-            foldl' FormattedString.Join "" $
+            foldl' (<>) "" $
             map
                 (\case
                     Nothing -> " "
-                    Just (imp, Nothing) -> FormattedString.color_text [Colors.bold] (Text.pack [imp_char imp])
-                    Just (imp, Just ty) -> FormattedString.color_text (type_color ty) (Text.pack [imp_char imp])
+                    Just ty -> FormattedString.color_text (type_color ty) (Text.pack [type_char ty])
                 )
                 underline_for_cols
 
@@ -197,7 +189,7 @@ overlapping to_assign assigned =
         assigned
 -- show_multiline {{{1
 show_multiline :: Underline -> [Line.Line]
-show_multiline (und_sp, und_importance, und_msgs) =
+show_multiline (und_sp, und_type, und_msg) = -- TODO: merge messages with the same span
     let
         start_line = Location.sp_s_row und_sp
         end_line = Location.sp_be_row und_sp
@@ -209,16 +201,15 @@ show_multiline (und_sp, und_importance, und_msgs) =
                 then Just (Location.sp_file und_sp, (start_line + end_line) `div` 2)
                 else Nothing
 
-        und_imp_char = imp_char und_importance
-        rev_und_imp_char = top_imp_char und_importance
-
-        und_sgr = maybe [Colors.bold] type_color (fst <$> headMay und_msgs)
+        und_char = type_char und_type
+        rev_und_char = top_type_char und_type
+        sgr = type_color und_type
 
     in
         [Line.file_line (Location.sp_file und_sp)] ++
-        show_top_lines (Location.sp_s und_sp) n_vertical_lines rev_und_imp_char und_sgr ++
-        show_middle_line mid_line und_sgr ++
-        show_bottom_lines (Location.sp_be und_sp) n_vertical_lines und_imp_char und_sgr und_msgs
+        show_top_lines (Location.sp_s und_sp) n_vertical_lines rev_und_char sgr ++
+        show_middle_line mid_line sgr ++
+        show_bottom_lines (Location.sp_be und_sp) n_vertical_lines und_char und_type und_msg -- TODO: see todo at the beginning of this function
 
 show_top_lines :: Location.Location -> Int -> Char -> [ANSI.SGR] -> [Line.Line]
 show_top_lines loc n ch sgr =
@@ -245,8 +236,8 @@ show_top_lines loc n ch sgr =
             in Line.numbered_line l $ "  " <> FormattedString.color_text sgr quote <> FormattedString.Literal (Text.replicate pad " ") <> FormattedString.color_text [Colors.bold] "|"
         ) top_lines
 
-show_bottom_lines :: Location.Location -> Int -> Char -> [ANSI.SGR] -> [(Type, FormattedString)] -> [Line.Line]
-show_bottom_lines loc n ch sgr msgs =
+show_bottom_lines :: Location.Location -> Int -> Char -> Type -> Maybe FormattedString -> [Line.Line]
+show_bottom_lines loc n ch ty msg =
     let end_col = Location.loc_col loc + 2
         end_line = Location.loc_row loc
         file = Location.loc_file loc
@@ -258,6 +249,9 @@ show_bottom_lines loc n ch sgr msgs =
 
         bottom_lines = [Location.loc_row loc - n + 1 .. Location.loc_row loc - 1]
 
+        sgr = type_color ty
+
+        -- TODO: refactor this because this is badly adapted to the message overhaul
     in map (\ l ->
             let quote = Utils.get_quote file l
             in Line.numbered_line l $ FormattedString.color_text [Colors.bold] "| " <> FormattedString.color_text sgr quote
@@ -266,23 +260,30 @@ show_bottom_lines loc n ch sgr msgs =
             FormattedString.color_text [Colors.bold] "| " <> FormattedString.color_text sgr (Text.take (end_col - 2 ) end_quote) <> FormattedString.Literal (Text.drop (end_col - 2) end_quote)] ++
         [ Line.other_line $
             FormattedString.color_text [Colors.bold] (Text.replicate n_dash "-") <> FormattedString.color_text sgr (Text.replicate n_ch (Text.pack [ch]))] ++
-        zipWith (\ i (ty, msg) ->
+        zipWith (\ i msg ->
             Line.other_line $
-                FormattedString.Literal (Text.replicate (end_col - 1) " ") <> format (CompleteMessage (i == length msgs - 1, loc, ty, msg))
-        ) [0..] msgs
+                FormattedString.Literal (Text.replicate (end_col - 1) " ") <> format (CompleteMessage (i == (0 :: Int) {- length msgs - 1 -}, loc, ty, msg))
+        ) [0..] (Maybe.maybeToList msg)
 
 show_middle_line :: Maybe (File.File, Int) -> [ANSI.SGR] -> [Line.Line]
 show_middle_line (Just (file, nr)) sgr = [Line.numbered_line nr $ "  " <> FormattedString.color_text sgr (Utils.get_quote file nr)]
 show_middle_line Nothing _ = []
 -- tests {{{1
-case_underlines :: Assertion
-case_underlines =
+case_empty :: Assertion
+case_empty =
+    let lines = Section.render ([] :: MessagesSection)
+    in Line.compare_lines [] lines
+
+case_messages :: Assertion
+case_messages =
     let (_, [single_sp, multi_sp]) = make_spans ["abc", "def\nghi\njklm\n"]
 
-        section = underlines
-            [ (single_sp, Primary, [(Error, "message 1"), (Hint, "message 2")])
-            , (multi_sp, Primary, [(Warning, "message 3")])
-            ]
+        lines = Section.render
+            (
+                [ error single_sp "message 1", hint single_sp "message 2"
+                , warning multi_sp "message 3"
+                ] :: MessagesSection
+            )
     in Line.compare_lines
         [ ("", '>',  "")
         , ("1", '|', "abc def")
@@ -301,7 +302,7 @@ case_underlines =
         , ( "", '|', "----^^^")
         , ( "", '|', "      `-- message 3")
         ]
-        (Section.section_contents section)
+        lines
 
 case_show_singleline :: Assertion
 case_show_singleline =
@@ -309,22 +310,22 @@ case_show_singleline =
         (_, [zyx1]) = make_spans' "zyx" "" ["zyx1"]
 
         unds =
-            [ (zyx1, Primary, [(Error, "primary error")])
-            , (abc3, Secondary, [(Hint, "secondary hint")])
-            , (abc1, Secondary, [(Warning, "secondary warning")])
-            , (abc2, Tertiary, [(Note, "tertiary note")])
+            [ error zyx1 "error"
+            , hint abc3 "hint"
+            , warning abc1 "warning"
+            , note abc2 "note"
             ]
 
     in Line.compare_lines
         [ (   "", '>', "zyx")
         , (  "1", '|', "zyx1")
         , (   "", '|', "^^^^ ")
-        , (   "", '|', "   `-- primary error")
+        , (   "", '|', "   `-- error")
         , (   "", '>', "abc")
         , (  "1", '|', "abc1abc2")
-        , (   "", '|', "~~~~---- ")
-        , (   "", '|', "   |   `-- tertiary note")
-        , (   "", '|', "   `-- secondary warning")
+        , (   "", '|', "^^^^~~~~ ")
+        , (   "", '|', "   |   `-- note")
+        , (   "", '|', "   `-- warning")
         , (  "2", '|', "")
         , (  "3", '|', "")
         , ("...", '|', "...")
@@ -332,7 +333,7 @@ case_show_singleline =
         , (  "7", '|', "context2")
         , (  "8", '|', "abc3")
         , (   "", '|', "~~~~~")
-        , (   "", '|', "    `-- secondary hint")
+        , (   "", '|', "    `-- hint")
         , (  "9", '|', "context3")
         , ( "10", '|', "context4")
         ]
@@ -343,7 +344,7 @@ case_lines_shown =
     let (f1, [sp1, sp2, _, sp3]) = make_spans' "f1" "" ["sp1", "sp2", "\n", "sp3"]
         (f2, [sp4]) = make_spans' "f2" "" ["sp4"]
 
-        unds = [(sp1, Primary, []), (sp2, Primary, []), (sp3, Primary, []), (sp4, Primary, [])]
+        unds = [(sp1, Error, Nothing), (sp2, Note, Nothing), (sp3, Note, Nothing), (sp4, Note, Nothing)]
     in [(f1, 1), (f1, 1), (f1, 2), (f2, 1)] @=? lines_shown unds
 
 case_show_line_other_lines :: Assertion -- check concatenates other lines
@@ -362,7 +363,7 @@ case_show_line_other_lines =
 case_show_line_single :: Assertion
 case_show_line_single =
     let (f, [sp]) = make_spans ["sp"]
-        unds = [(sp, Primary, [(Error, "message")])]
+        unds = [error sp "message"]
 
     in Line.compare_lines
         [ ("1", '|', "sp")
@@ -374,7 +375,7 @@ case_show_line_single =
 case_show_line_multiple :: Assertion
 case_show_line_multiple =
     let (f, [sp1, _, sp2]) = make_spans ["sp1", "ABCDEFGHIJKLMNOP", "sp2"]
-        unds = [(sp1, Primary, [(Error, "a")]), (sp2, Primary, [(Error, "b")])]
+        unds = [error sp1 "a", error sp2 "b"]
 
     in Line.compare_lines
         [ ("1", '|', "sp1 ABCDEFGHIJKLMNOP sp2")
@@ -386,11 +387,11 @@ case_show_line_multiple =
 case_show_line_multiple_overlapping :: Assertion
 case_show_line_multiple_overlapping =
     let (f, [sp1, sp2]) = make_spans ["sp1", "sp2"]
-        unds = [(sp1, Primary, [(Error, "message1"), (Error, "message2")]), (sp2, Primary, [(Error, "message3")])]
+        unds = [error sp1 "message1", note sp1 "message2", hint sp2 "message3"]
 
     in Line.compare_lines
         [ ("1", '|', "sp1 sp2")
-        , ( "", '|', "^^^ ^^^ ")
+        , ( "", '|', "^^^ --- ")
         , ( "", '|', "  |   `-- message3")
         , ( "", '|', "  |-- message1")
         , ( "", '|', "  `-- message2")
@@ -520,9 +521,9 @@ case_multiline_lines_even =
         , ("5", '|', "| abc")
         , ( "", '|', "-^^^")
         , ( "", '|', "   |-- message 1")
-        , ( "", '|', "   `-- message 2")
+        -- , ( "", '|', "   `-- message 2")
         ]
-        (show_multiline (sp, Primary, [(Error, "message 1"), (Warning, "message 2")]))
+        (show_multiline (error sp "message 1") {-, (Warning, "message 2") -})
 
 case_multiline_lines_odd :: Assertion
 case_multiline_lines_odd =
@@ -537,9 +538,9 @@ case_multiline_lines_odd =
         , ("6", '|', "| abc")
         , ( "", '|', "-^^^")
         , ( "", '|', "   |-- message 1")
-        , ( "", '|', "   `-- message 2")
+        -- , ( "", '|', "   `-- message 2")
         ]
-        (show_multiline (sp, Primary, [(Error, "message 1"), (Warning, "message 2")]))
+        (show_multiline (error sp "message 1") {- warning sp "message 2" -}) -- TODO: grouping multiple together
 
 tests :: TestTree
 tests = $(testGroupGenerator)

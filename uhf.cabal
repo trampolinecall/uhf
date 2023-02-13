@@ -22,7 +22,7 @@ library
       UHF.Diagnostic.Colors
       UHF.Diagnostic.Line
       UHF.Diagnostic.Section
-      UHF.Diagnostic.Sections.Underlines
+      UHF.Diagnostic.Sections.Messages
       UHF.Diagnostic.Sections.Utils
       UHF.FormattedString
       UHF.InfixGroup

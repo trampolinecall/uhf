@@ -235,7 +235,7 @@ expr_case =
         pattern >>= \ pat ->
         PEG.consume' "'->'" (Token.SingleTypeToken Token.Arrow) >>= \ _ ->
         expr >>= \ choice ->
-        pure (pat, choice)
+        pure (pat, choice) -- TODO: separator between cases
     ) >>= \ arms ->
     PEG.consume' "'}'" (Token.SingleTypeToken Token.CBrace) >>= \ (Location.Located cb_sp _) ->
     pure (AST.Expr'Case (case_sp `Location.join_span` cb_sp) case_sp e arms)

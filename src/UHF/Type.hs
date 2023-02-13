@@ -23,8 +23,8 @@ instance Arena.Key TypeVarKey where
     make_key = TypeVarKey
     unmake_key (TypeVarKey i) = i
 type TypeVarArena = Arena.Arena TypeVar TypeVarKey
-data TypeVar = TypeVar TypeVarForWhat TypeVarState
-data TypeVarForWhat
+data TypeVar = TypeVar TypeVarInWhat TypeVarState
+data TypeVarInWhat
     = BoundName Span
     | UnresolvedIdenExpr Span
     | CallExpr Span
@@ -34,7 +34,7 @@ data TypeVarForWhat
     | TypeExpr Span
 data TypeVarState = Fresh | Substituted TypeWithVars
 
-type_var_for_what_sp :: TypeVarForWhat -> Span
+type_var_for_what_sp :: TypeVarInWhat -> Span
 type_var_for_what_sp (BoundName sp) = sp
 type_var_for_what_sp (UnresolvedIdenExpr sp) = sp
 type_var_for_what_sp (CallExpr sp) = sp
@@ -43,7 +43,7 @@ type_var_for_what_sp (PoisonExpr sp) = sp
 type_var_for_what_sp (PoisonPattern sp) = sp
 type_var_for_what_sp (TypeExpr sp) = sp
 
-type_var_for_what_name :: TypeVarForWhat -> Text
+type_var_for_what_name :: TypeVarInWhat -> Text
 type_var_for_what_name (BoundName _) = "binding"
 type_var_for_what_name (UnresolvedIdenExpr _) = "identifier expression"
 type_var_for_what_name (CallExpr _) = "call expression"
@@ -89,16 +89,17 @@ type Decl = IR.Decl
 
 type DeclArena = Arena.Arena Decl IR.DeclKey
 
-data EqForWhat = Assignment | NamedPattern | IfBranches | CasePatterns | CaseArms
+data EqInWhat = InAssignment | InNamedPattern | InIfBranches | InCasePatterns | InCaseArms
+data ExpectInWhat = InTypeAnnotation | InCallExpr | InIfCondition
 data Constraint
-    = Eq EqForWhat Span (Located TypeWithVars) (Located TypeWithVars)
-    | Expect (Located TypeWithVars) TypeWithVars
+    = Eq EqInWhat Span (Located TypeWithVars) (Located TypeWithVars)
+    | Expect ExpectInWhat (Located TypeWithVars) TypeWithVars
 
 data Error
     = EqError
         { eq_error_nominal_types :: TypedWithVarsNominalTypeArena
         , eq_error_vars :: TypeVarArena
-        , eq_error_for_what :: EqForWhat
+        , eq_error_in_what :: EqInWhat
         , eq_error_span :: Span
         , eq_error_a_whole :: Located TypeWithVars
         , eq_error_b_whole :: Located TypeWithVars
@@ -108,6 +109,7 @@ data Error
     | ExpectError
         { expect_error_nominal_types :: TypedWithVarsNominalTypeArena
         , expect_error_vars :: TypeVarArena
+        , expect_error_in_what :: ExpectInWhat
         , expect_error_got_whole :: Located TypeWithVars
         , expect_error_expect_whole :: TypeWithVars
         , expect_error_got_part :: TypeWithVars
@@ -116,36 +118,39 @@ data Error
 
     | OccursCheckError TypedWithVarsNominalTypeArena TypeVarArena Span TypeVarKey TypeWithVars
 
-    | AmbiguousType TypeVarForWhat
+    | AmbiguousType TypeVarInWhat
 
 instance Diagnostic.IsError Error where
-    to_error (EqError nominal_types vars for_what span a_whole b_whole a_part b_part) =
-        let what = case for_what of
-                Assignment -> "assignment"
-                NamedPattern -> "named pattern"
-                IfBranches -> "'if' expression"
-                CasePatterns -> "'case' expression patterns"
-                CaseArms -> "'case' expression arms"
+    to_error (EqError nominal_types vars in_what span a_whole b_whole a_part b_part) =
+        let what = case in_what of
+                InAssignment -> "assignment"
+                InNamedPattern -> "named pattern"
+                InIfBranches -> "'if' expression"
+                InCasePatterns -> "'case' expression patterns"
+                InCaseArms -> "'case' expression arms"
 
         in Diagnostic.Error Diagnostic.Codes.type_mismatch $
             Diagnostic.DiagnosticContents
                 (Just span)
-                ("conflicting types in " <> what <> ": '" <> print_type nominal_types vars a_part <> "' vs '" <> print_type nominal_types vars b_part <> "'")
-                [ just_span a_whole `Messages.note` convert_str (print_type nominal_types vars $ unlocate a_whole)
-                , just_span b_whole `Messages.note` convert_str (print_type nominal_types vars $ unlocate b_whole)
+                ("conflicting types in " <> what <> ": '" <> print_type False nominal_types vars a_part <> "' vs '" <> print_type False nominal_types vars b_part <> "'")
+                [ just_span a_whole `Messages.note` convert_str (print_type False nominal_types vars $ unlocate a_whole)
+                , just_span b_whole `Messages.note` convert_str (print_type False nominal_types vars $ unlocate b_whole)
                 ]
                 []
 
-    to_error (ExpectError {expect_error_nominal_types = nominal_types, expect_error_vars = vars, ..}) =
-        Diagnostic.Error Diagnostic.Codes.type_mismatch $ -- TODO, also TODO change code?
-            Diagnostic.DiagnosticContents -- TODO
-                (Just (just_span expect_error_got_whole))
-                ("conflicting types")
-                [ just_span expect_error_got_whole `Messages.error` (convert_str $ print_type nominal_types vars $ unlocate expect_error_got_whole)
-                , just_span expect_error_got_whole `Messages.error` (convert_str $ print_type nominal_types vars expect_error_expect_whole)
-                , just_span expect_error_got_whole `Messages.error` (convert_str $ print_type nominal_types vars expect_error_got_part)
-                , just_span expect_error_got_whole `Messages.error` (convert_str $ print_type nominal_types vars expect_error_expect_part)
-                ]
+    to_error (ExpectError nominal_types vars in_what got_whole expect_whole got_part expect_part) =
+        let what = case in_what of
+                InTypeAnnotation -> "type annotation"
+                InIfCondition -> "'if' condition"
+                InCallExpr -> "call expression"
+
+            sp = just_span got_whole
+
+        in Diagnostic.Error Diagnostic.Codes.type_mismatch $ -- TODO: change code?
+            Diagnostic.DiagnosticContents
+                (Just sp)
+                (convert_str $ "conflicting types in " <> what <> ": '" <> print_type False nominal_types vars expect_part <> "' vs '" <> print_type False nominal_types vars got_part <> "'")
+                [ sp `Messages.note` convert_str ("expected '" <> print_type False nominal_types vars expect_whole <> "', got '" <> print_type False nominal_types vars (unlocate got_whole) <> "'") ]
                 []
 
     to_error (OccursCheckError nominal_types vars span var_key ty) =
@@ -154,12 +159,12 @@ instance Diagnostic.IsError Error where
 
             var_sp = type_var_for_what_sp var_for_what
             var_name = type_var_for_what_name var_for_what
-            var_printed = print_type nominal_types vars var_as_type
+            var_printed = print_type True nominal_types vars var_as_type
 
         in Diagnostic.Error Diagnostic.Codes.occurs_check $
             Diagnostic.DiagnosticContents
                 (Just span)
-                ("occurs check failure: infinite cyclic type arising from constraint " <> var_printed <> " = " <> print_type nominal_types vars ty)
+                ("occurs check failure: infinite cyclic type arising from constraint '" <> var_printed <> "' = '" <> print_type True nominal_types vars ty <> "'")
                 [ var_sp `Messages.note` (convert_str $ "where " <> var_printed <> " is the type of this " <> var_name)]
                 []
 
@@ -173,26 +178,29 @@ instance Diagnostic.IsError Error where
                 []
                 []
 
-print_type :: TypedWithVarsNominalTypeArena -> TypeVarArena -> TypeWithVars -> Text
+print_type :: Bool -> TypedWithVarsNominalTypeArena -> TypeVarArena -> TypeWithVars -> Text
 -- TODO: construct an ast and print it
-print_type nominals _ (IR.Type'Nominal key) =
+print_type _ nominals _ (IR.Type'Nominal key) =
     case Arena.get nominals key of
         IR.NominalType'Data name _ -> name
         IR.NominalType'Synonym name _ -> name
-print_type _ _ (IR.Type'Int) = "int"
-print_type _ _ (IR.Type'Float) = "float"
-print_type _ _ (IR.Type'Char) = "char"
-print_type _ _ (IR.Type'String) = "string"
-print_type _ _ (IR.Type'Bool) = "bool"
-print_type nominals vars (IR.Type'Function a r) = print_type nominals vars a <> " -> " <> print_type nominals vars r -- TODO: parentheses and grouping
-print_type nominals vars (IR.Type'Tuple a b) = "(" <> print_type nominals vars a <> ", " <> print_type nominals vars b <> ")"
-print_type nominals vars (IR.Type'Variable var) = case Arena.get vars var of
-    TypeVar _ Fresh -> "<unknown " <> show (Arena.unmake_key var) <> ">"
-    TypeVar _ (Substituted other) -> print_type nominals vars other
+print_type _ _ _ (IR.Type'Int) = "int"
+print_type _ _ _ (IR.Type'Float) = "float"
+print_type _ _ _ (IR.Type'Char) = "char"
+print_type _ _ _ (IR.Type'String) = "string"
+print_type _ _ _ (IR.Type'Bool) = "bool"
+print_type vars_show_index nominals vars (IR.Type'Function a r) = print_type vars_show_index nominals vars a <> " -> " <> print_type vars_show_index nominals vars r -- TODO: parentheses and grouping
+print_type vars_show_index nominals vars (IR.Type'Tuple a b) = "(" <> print_type vars_show_index nominals vars a <> ", " <> print_type vars_show_index nominals vars b <> ")"
+print_type vars_show_index nominals vars (IR.Type'Variable var) =
+    case Arena.get vars var of
+        TypeVar _ Fresh
+            | vars_show_index -> "<unknown " <> show (Arena.unmake_key var) <> ">"
+            | otherwise -> "_"
+        TypeVar _ (Substituted other) -> print_type vars_show_index nominals vars other
 
 type StateWithVars = StateT TypeVarArena (Writer [Error])
 
-new_type_variable :: TypeVarForWhat -> StateWithVars TypeVarKey
+new_type_variable :: TypeVarInWhat -> StateWithVars TypeVarKey
 new_type_variable for_what =
     state $ \ type_vars ->
         Arena.put (TypeVar for_what Fresh) type_vars
@@ -240,7 +248,7 @@ collect_constraints :: DeclArena -> TypedWithVarsBoundNameArena -> UntypedBindin
 collect_constraints decls bna (IR.Binding pat eq_sp expr) =
     collect_for_pat pat >>= \ pat ->
     collect_for_expr expr >>= \ expr ->
-    tell [Eq Assignment eq_sp (loc_pat_type pat) (loc_expr_type expr)] >>
+    tell [Eq InAssignment eq_sp (loc_pat_type pat) (loc_expr_type expr)] >>
     pure (IR.Binding pat eq_sp expr)
     where
         loc_pat_type pat = Located (IR.pattern_span pat) (IR.pattern_type pat)
@@ -258,7 +266,7 @@ collect_constraints decls bna (IR.Binding pat eq_sp expr) =
         collect_for_pat (IR.Pattern'Named () sp at_sp bnk subpat) =
             collect_for_pat subpat >>= \ subpat ->
             let (IR.BoundName bn_ty _) = Arena.get bna (unlocate bnk)
-            in tell [Eq NamedPattern at_sp (Located (just_span bnk) bn_ty) (loc_pat_type subpat)] >>
+            in tell [Eq InNamedPattern at_sp (Located (just_span bnk) bn_ty) (loc_pat_type subpat)] >>
             pure (IR.Pattern'Named bn_ty sp at_sp bnk subpat)
 
         collect_for_pat (IR.Pattern'Poison () sp) = IR.Pattern'Poison <$> (IR.Type'Variable <$> lift (new_type_variable $ PoisonPattern sp)) <*> pure sp
@@ -297,7 +305,7 @@ collect_constraints decls bna (IR.Binding pat eq_sp expr) =
             collect_for_expr arg >>= \ arg ->
             lift (new_type_variable (CallExpr sp)) >>= \ res_ty_var ->
 
-            tell [Expect (loc_expr_type callee) (IR.Type'Function (IR.expr_type arg) (IR.Type'Variable res_ty_var))] >>
+            tell [Expect InCallExpr (loc_expr_type callee) (IR.Type'Function (IR.expr_type arg) (IR.Type'Variable res_ty_var))] >>
 
             pure (IR.Expr'Call (IR.Type'Variable res_ty_var) sp callee arg)
 
@@ -307,8 +315,8 @@ collect_constraints decls bna (IR.Binding pat eq_sp expr) =
             collect_for_expr false >>= \ false ->
 
             tell
-                [ Expect (loc_expr_type cond) IR.Type'Bool
-                , Eq IfBranches if_sp (loc_expr_type true) (loc_expr_type false)
+                [ Expect InIfCondition (loc_expr_type cond) IR.Type'Bool
+                , Eq InIfBranches if_sp (loc_expr_type true) (loc_expr_type false)
                 ] >>
 
             pure (IR.Expr'If (IR.expr_type true) sp if_sp cond true false)
@@ -319,9 +327,9 @@ collect_constraints decls bna (IR.Binding pat eq_sp expr) =
             IR.Type'Variable <$> lift (new_type_variable (CaseExpr sp)) >>= \ result_ty ->
 
             -- first expr matches all pattern types
-            tell (map (\ (arm_pat, _) -> Eq CasePatterns case_tok_sp (loc_pat_type arm_pat) (loc_expr_type testing)) arms) >>
+            tell (map (\ (arm_pat, _) -> Eq InCasePatterns case_tok_sp (loc_pat_type arm_pat) (loc_expr_type testing)) arms) >>
             -- all arm types are the same TODO: find a better way to do this (probably iterate in pairs)
-            tell (map (\ (_, arm_result) -> Eq CaseArms case_tok_sp (loc_expr_type arm_result) (Located sp result_ty)) arms) >>
+            tell (map (\ (_, arm_result) -> Eq InCaseArms case_tok_sp (loc_expr_type arm_result) (Located sp result_ty)) arms) >>
 
             pure (IR.Expr'Case result_ty sp case_tok_sp testing arms)
 
@@ -330,7 +338,7 @@ collect_constraints decls bna (IR.Binding pat eq_sp expr) =
         collect_for_expr (IR.Expr'TypeAnnotation () sp annotation e) =
             lift (convert_type_expr decls annotation) >>= \ annotation ->
             collect_for_expr e >>= \ e ->
-            tell [Expect (loc_expr_type e) annotation] >> -- TODO: use annotation span
+            tell [Expect InTypeAnnotation (loc_expr_type e) annotation] >> -- TODO: use annotation span
             pure (IR.Expr'TypeAnnotation annotation sp annotation e)
 
 solve_constraints :: TypedWithVarsNominalTypeArena -> [Constraint] -> StateWithVars ()
@@ -338,13 +346,13 @@ solve_constraints nominal_types = mapM_ solve
     where
         -- TODO: gracefully figure out how to handle errors because the type variables become ambiguous if they cant be unified
         solve :: Constraint -> StateWithVars ()
-        solve (Eq for_what sp a b) =
+        solve (Eq in_what sp a b) =
             runExceptT (unify (unlocate a) (unlocate b)) >>= \case
                 Right () -> pure ()
 
                 Left (Left (a_part, b_part)) -> -- mismatch error
                     get >>= \ vars ->
-                    lift (tell [EqError { eq_error_nominal_types = nominal_types, eq_error_vars = vars, eq_error_for_what = for_what, eq_error_span = sp, eq_error_a_whole = a, eq_error_b_whole = b, eq_error_a_part = a_part, eq_error_b_part = b_part }]) >>
+                    lift (tell [EqError { eq_error_nominal_types = nominal_types, eq_error_vars = vars, eq_error_in_what = in_what, eq_error_span = sp, eq_error_a_whole = a, eq_error_b_whole = b, eq_error_a_part = a_part, eq_error_b_part = b_part }]) >>
                     pure ()
 
                 Left (Right (var, ty)) -> -- occurs check failure
@@ -352,13 +360,13 @@ solve_constraints nominal_types = mapM_ solve
                     lift (tell [OccursCheckError nominal_types vars sp var ty ]) >>
                     pure ()
 
-        solve (Expect got expect) =
+        solve (Expect in_what got expect) =
             runExceptT (unify (unlocate got) expect) >>= \case
                 Right () -> pure ()
 
                 Left (Left (got_part, expect_part)) -> -- mismatch error
                     get >>= \ vars ->
-                    lift (tell [ExpectError { expect_error_nominal_types = nominal_types, expect_error_vars = vars, expect_error_got_whole = got, expect_error_expect_whole = expect, expect_error_got_part = got_part, expect_error_expect_part = expect_part }]) >>
+                    lift (tell [ExpectError { expect_error_nominal_types = nominal_types, expect_error_vars = vars, expect_error_in_what = in_what, expect_error_got_whole = got, expect_error_expect_whole = expect, expect_error_got_part = got_part, expect_error_expect_part = expect_part }]) >>
                     pure ()
 
                 Left (Right (var, ty)) -> -- occurs check failure

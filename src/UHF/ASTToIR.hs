@@ -51,51 +51,22 @@ instance Diagnostic.IsError Error where
     to_error (MultipleDecls (Location.Located first_sp name) more) = Diagnostic.Error Codes.multiple_decls $
         Diagnostic.DiagnosticContents
             (Just first_sp)
-            [Underlines.underlines $
-                (first_sp `Underlines.primary` [Underlines.error $ "multiple declarations of '" <> convert_str name <> "'"])
-                    : map (\ (Location.Located sp _) -> sp `Underlines.primary` []) more]
+            ("multiple declarations of '" <> convert_str name <> "'")
+            (map (\ (Location.Located sp _) -> (sp, Underlines.Error, Nothing)) more)
+            []
 
-    to_error (PathInPattern (Location.Located sp _)) = Diagnostic.Error Codes.binding_lhs_path $
-        Diagnostic.DiagnosticContents
-            (Just sp)
-            [ Underlines.underlines
-                [sp `Underlines.primary` [Underlines.error "path in pattern"]]
-            ]
+    to_error (PathInPattern (Location.Located sp _)) = Diagnostic.Error Codes.binding_lhs_path $ Diagnostic.DiagnosticContents (Just sp) "path in pattern" [] []
 
-    to_error (PathInTypeName (Location.Located sp _)) = Diagnostic.Error Codes.path_in_type_name $
-        Diagnostic.DiagnosticContents
-            (Just sp)
-            [ Underlines.underlines
-                [sp `Underlines.primary` [Underlines.error "path in type name"]]
-            ]
+    to_error (PathInTypeName (Location.Located sp _)) = Diagnostic.Error Codes.path_in_type_name $ Diagnostic.DiagnosticContents (Just sp) "path in type name" [] []
 
-    to_error (PathInVariantName (Location.Located sp _)) = Diagnostic.Error Codes.path_in_variant_name $ -- TODO: remove codes?
-        Diagnostic.DiagnosticContents
-            (Just sp)
-            [ Underlines.underlines
-                [sp `Underlines.primary` [Underlines.error "path in 'data' variant name"]]
-            ]
+    -- TODO: remove codes?
+    to_error (PathInVariantName (Location.Located sp _)) = Diagnostic.Error Codes.path_in_variant_name $ Diagnostic.DiagnosticContents (Just sp) "path in 'data' variant name" [] []
 
-    to_error (PathInFieldName (Location.Located sp _)) = Diagnostic.Error Codes.path_in_field_name $
-        Diagnostic.DiagnosticContents
-            (Just sp)
-            [ Underlines.underlines
-                [sp `Underlines.primary` [Underlines.error "path in field name"]]
-            ]
+    to_error (PathInFieldName (Location.Located sp _)) = Diagnostic.Error Codes.path_in_field_name $ Diagnostic.DiagnosticContents (Just sp) "path in field name" [] []
 
-    to_error (Tuple1 sp) = Diagnostic.Error Codes.tuple1 $
-        Diagnostic.DiagnosticContents
-            (Just sp)
-            [ Underlines.underlines
-                [sp `Underlines.primary` [Underlines.error "tuple of 1 element"]]
-            ]
+    to_error (Tuple1 sp) = Diagnostic.Error Codes.tuple1 $ Diagnostic.DiagnosticContents (Just sp) "tuple of 1 element" [] []
 
-    to_error (Tuple0 sp) = Diagnostic.Error Codes.tuple0 $
-        Diagnostic.DiagnosticContents
-            (Just sp)
-            [ Underlines.underlines
-                [sp `Underlines.primary` [Underlines.error "tuple of 0 elements"]]
-            ]
+    to_error (Tuple0 sp) = Diagnostic.Error Codes.tuple0 $ Diagnostic.DiagnosticContents (Just sp) "tuple of 0 elements" [] []
 
 type Identifier = (IR.NameContext, [Location.Located Text])
 type Decl = IR.Decl

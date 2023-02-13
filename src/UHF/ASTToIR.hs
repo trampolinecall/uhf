@@ -28,7 +28,7 @@ import qualified UHF.IO.Location as Location
 
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Codes as Codes
-import qualified UHF.Diagnostic.Sections.Underlines as Underlines
+import qualified UHF.Diagnostic.Sections.Messages as Messages
 
 import qualified Data.Map as Map
 import qualified Data.List as List
@@ -52,7 +52,7 @@ instance Diagnostic.IsError Error where
         Diagnostic.DiagnosticContents
             (Just first_sp)
             ("multiple declarations of '" <> convert_str name <> "'")
-            (map (\ (Location.Located sp _) -> (sp, Underlines.Error, Nothing)) more)
+            (map (\ (Location.Located sp _) -> (sp, Messages.Error, Nothing)) more)
             []
 
     to_error (PathInPattern (Location.Located sp _)) = Diagnostic.Error Codes.binding_lhs_path $ Diagnostic.DiagnosticContents (Just sp) "path in pattern" [] []

@@ -11,13 +11,18 @@ import qualified UHF.Diagnostic.Line as Line
 import qualified UHF.IO.File as File
 
 import qualified Data.Text as Text
+import qualified Data.List as List
 
 context_lines :: File.File -> Int -> [(File.File, Int)]
-context_lines f n = filter (uncurry line_exists) $ map (f,) [n-2..n+2]
+context_lines f n = filter (uncurry can_be_context_line) $ map (f,) [n-1..n+1]
+    where
+        can_be_context_line fl nr = exists fl nr && not_empty fl nr
 
-line_exists :: File.File -> Int -> Bool
-line_exists fl nr =
-    nr > 0 && nr <= length (Text.lines $ File.contents fl)
+        exists fl nr =
+            nr > 0 && nr <= length (Text.lines $ File.contents fl)
+
+        not_empty fl nr =
+            not $ Text.null $ Text.lines (File.contents fl) List.!! (nr - 1)
 
 flnr_comparator :: (File.File, Int) -> (File.File, Int) -> Ordering
 flnr_comparator (f1, n1) (f2, n2)

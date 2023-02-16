@@ -487,6 +487,7 @@ remove_vars_from_binding vars (IR.Binding pat eq_sp expr) = IR.Binding <$> remov
 remove_vars :: TypeVarArena -> TypeWithVars -> Writer [Error] (Maybe Type)
 remove_vars vars ty = runMaybeT $ r ty
     -- TODO: cache in order to not repeat errors
+    --       needs to happen outside of this function because this function is called multiple times
     where
         r (IR.Type'Int) = pure $ IR.Type'Int
         r (IR.Type'Float) = pure $ IR.Type'Float

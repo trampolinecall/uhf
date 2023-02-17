@@ -4,7 +4,7 @@ import UHF.Util.Prelude
 
 import qualified Arena (tests)
 
-import qualified UHF.Diagnostic.Sections.Underlines (tests)
+import qualified UHF.Diagnostic.Sections.Messages (tests)
 import qualified UHF.Diagnostic.Sections.Utils (tests)
 
 import qualified UHF.IO.Location (tests)
@@ -19,7 +19,7 @@ import qualified UHF.Parser.PEG (tests)
 main :: IO ()
 main = defaultMain $
     testGroup "tests"
-        [ UHF.Diagnostic.Sections.Underlines.tests
+        [ UHF.Diagnostic.Sections.Messages.tests
         , UHF.Diagnostic.Sections.Utils.tests
         , UHF.Lexer.MainLexer.tests
         , UHF.Lexer.IdentifierGrouper.tests

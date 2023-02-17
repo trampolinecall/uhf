@@ -111,7 +111,7 @@ show_line (last, (fl, nr, messages)) =
 
         (quote, underline_line) = get_colored_quote_and_underline_line fl nr messages
 
-    in fromMaybe [] ((\ (lastfl, lastnr, _) -> Utils.file_and_elipsis_lines (lastfl, lastnr) (fl, nr)) <$> last) ++
+    in (Utils.file_and_elipsis_lines ((\ (lastfl, lastnr, _) -> (lastfl, lastnr)) <$> last) (fl, nr)) ++
         [Line.numbered_line nr quote] ++
         (if not $ null messages
             then [Line.other_line underline_line]

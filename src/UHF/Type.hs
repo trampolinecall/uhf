@@ -24,8 +24,8 @@ instance Arena.Key TypeVarKey where
     make_key = TypeVarKey
     unmake_key (TypeVarKey i) = i
 type TypeVarArena = Arena.Arena TypeVar TypeVarKey
-data TypeVar = TypeVar TypeVarInWhat TypeVarState
-data TypeVarInWhat
+data TypeVar = TypeVar TypeVarForWhat TypeVarState
+data TypeVarForWhat
     = BoundName Span
     | UnresolvedIdenExpr Span
     | CallExpr Span
@@ -35,7 +35,7 @@ data TypeVarInWhat
     | TypeExpr Span
 data TypeVarState = Fresh | Substituted TypeWithVars
 
-type_var_for_what_sp :: TypeVarInWhat -> Span
+type_var_for_what_sp :: TypeVarForWhat -> Span
 type_var_for_what_sp (BoundName sp) = sp
 type_var_for_what_sp (UnresolvedIdenExpr sp) = sp
 type_var_for_what_sp (CallExpr sp) = sp
@@ -44,7 +44,7 @@ type_var_for_what_sp (PoisonExpr sp) = sp
 type_var_for_what_sp (PoisonPattern sp) = sp
 type_var_for_what_sp (TypeExpr sp) = sp
 
-type_var_for_what_name :: TypeVarInWhat -> Text
+type_var_for_what_name :: TypeVarForWhat -> Text
 type_var_for_what_name (BoundName _) = "binding"
 type_var_for_what_name (UnresolvedIdenExpr _) = "identifier expression"
 type_var_for_what_name (CallExpr _) = "call expression"
@@ -119,7 +119,7 @@ data Error
 
     | OccursCheckError TypedWithVarsNominalTypeArena TypeVarArena Span TypeVarKey TypeWithVars
 
-    | AmbiguousType TypeVarInWhat
+    | AmbiguousType TypeVarForWhat
 
 instance Diagnostic.IsError Error where
     to_error (EqError nominal_types vars in_what span a_whole b_whole a_part b_part) =
@@ -201,7 +201,7 @@ print_type vars_show_index nominals vars (IR.Type'Variable var) =
 
 type StateWithVars = StateT TypeVarArena (Writer [Error])
 
-new_type_variable :: TypeVarInWhat -> StateWithVars TypeVarKey
+new_type_variable :: TypeVarForWhat -> StateWithVars TypeVarKey
 new_type_variable for_what =
     state $ \ type_vars ->
         Arena.put (TypeVar for_what Fresh) type_vars

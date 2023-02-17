@@ -122,7 +122,7 @@ seek n (Location f (LineCol i r c)) =
 
         c'
             | num_nl == 0 = c + n
-            | otherwise = 1 + Text.length (Text.takeWhile (/='\n') $ Text.reverse $ Text.take (i + n) file_contents)
+            | otherwise = 1 + Text.length (Text.takeWhileEnd (/='\n') $ Text.take (i + n) file_contents)
 
     in Location f (LineCol (i + n) r' c')
 

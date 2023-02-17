@@ -57,12 +57,11 @@ report :: IsDiagnostic d => Handle -> d -> IO ()
 report handle d =
     let (type_str, code_and_desc, diag_message_type, DiagnosticContents m_sp main_message main_section sections) = to_diagnostic d
         header =
-            type_str
-            <> (case m_sp of
-                Just sp -> " at " <> format sp
+            (case m_sp of
+                Just sp -> format (Location.sp_s sp) <> ": "
                 Nothing -> "")
-            <> ": "
-            <> convert_str main_message
+                <> type_str <> ": "
+                <> convert_str main_message
 
         footer =
             case code_and_desc of

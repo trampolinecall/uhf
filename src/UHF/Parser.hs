@@ -46,8 +46,8 @@ decl :: PEG.Parser AST.Decl
 decl =
     PEG.choice
         [ decl_data
-        , decl_binding
         , decl_typesyn
+        , decl_binding
         ]
 
 decl_data :: PEG.Parser AST.Decl

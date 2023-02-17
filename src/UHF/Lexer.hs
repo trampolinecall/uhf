@@ -16,5 +16,5 @@ import qualified UHF.IO.File as File
 lex :: File.File -> Writer [LexError.LexError] ([Token.LToken], Token.LToken)
 lex f =
     MainLexer.lex f >>= \ (toks, eof) ->
-    IdentifierGrouper.group_identifiers toks >>= \ toks' ->
+    IdentifierGrouper.group_identifiers (toList toks) >>= \ toks' ->
     pure (toks', eof)

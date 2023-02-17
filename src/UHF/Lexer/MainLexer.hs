@@ -20,24 +20,20 @@ import Data.Char (isAlpha, isDigit, isOctDigit, isHexDigit, isSpace, digitToInt)
 -- lexing {{{1
 lex :: File.File -> Writer [LexError.LexError] ([Token.LInternalToken], Token.LToken)
 lex f =
-    let (errs, toks) = run [] [] (Location.new_location f)
-        eof = Location.Located (Location.eof_span f) (Token.EOF ())
-    in tell errs >> pure (toks, eof)
+    let eof = Location.Located (Location.eof_span f) (Token.EOF ())
+    in evalStateT (run []) (Location.new_location f) >>= \ toks -> pure (toks, eof)
     where
-        run errs_acc toks_acc l
-            | Text.null $ remaining l = (errs_acc, toks_acc) -- TODO: somehow encode that the location is not at the end in the lex_one_token type signature
-            | otherwise =
-                let (l', e, t) = lex_one_token l
-
-                    next_errs = errs_acc ++ e
-                    next_toks = toks_acc ++ t
-
-                in seq next_errs $ -- not sure if this actually helps, needs deep seq?
-                    seq next_toks $
-                    run next_errs next_toks l'
+        run toks =
+            get >>= \ l ->
+            if Text.null $ remaining l
+                then pure toks
+                else lex_one_token >>= \ more -> run (toks ++ more)
 -- lex_one_token {{{2
-lex_one_token :: Location.Location -> (Location.Location, [LexError.LexError], [Token.LInternalToken])
-lex_one_token loc = head $ mapMaybe (($ loc) . run_lexer)
+lex_one_token :: StateT Location.Location (Writer [LexError.LexError]) [Token.LInternalToken]
+lex_one_token =
+    StateT $ \ loc ->
+        writer $
+            head $ mapMaybe (runWriterT . ($ loc) . runStateT)
             [ lex_comment
 
             , lex_alpha_identifier
@@ -50,32 +46,8 @@ lex_one_token loc = head $ mapMaybe (($ loc) . run_lexer)
             , make_bad_char
             ]
 -- Lexer {{{2
-newtype Lexer a = Lexer { run_lexer :: Location.Location -> Maybe (Location.Location, [LexError.LexError], a) }
+type Lexer = (StateT Location.Location (WriterT [LexError.LexError] Maybe))
 
-instance Functor Lexer where
-    fmap f a = Lexer $ \ loc ->
-        case run_lexer a loc of
-            Just (loc', errs, res) -> Just (loc', errs, f res)
-            Nothing -> Nothing
-
-instance Applicative Lexer where
-    pure a = Lexer $ \ loc -> Just (loc, [], a)
-    a <*> b = Lexer $ \ loc ->
-        case run_lexer a loc of
-            Just (loc', errs, ares) ->
-                case run_lexer b loc' of
-                    Just (loc'', errs', bres) -> Just (loc'', errs ++ errs', ares bres)
-                    _ -> Nothing
-            _ -> Nothing
-
-instance Monad Lexer where
-    a >>= b = Lexer $ \ loc ->
-        case run_lexer a loc of
-            Just (loc', errs, res) ->
-                case run_lexer (b res) loc' of
-                    Just (loc'', errs', res') -> Just (loc'', errs ++ errs', res')
-                    _ -> Nothing
-            _ -> Nothing
 -- lexing functions {{{2
 lex_comment :: Lexer [Token.LInternalToken]
 lex_comment =
@@ -238,24 +210,24 @@ new_span_start_and_end :: Location.Location -> Location.Location -> Location.Spa
 new_span_start_and_end start end = Location.new_span start 0 (Location.loc_ind end - Location.loc_ind start)
 
 choice :: [Lexer a] -> Lexer a
-choice [] = Lexer $ \ _ -> Nothing
-choice (fn:fns) = Lexer $ \ loc ->
-    case run_lexer fn loc of
-        Nothing -> run_lexer (choice fns) loc
-        Just res -> Just res
+choice [] = StateT $ \ _ -> WriterT Nothing
+choice (fn:fns) = StateT $ \ loc -> WriterT $
+    case runWriterT $ runStateT fn loc of
+        Nothing -> runWriterT $ runStateT (choice fns) loc
+        Just res -> Just $ res
 
 consume :: (Char -> Bool) -> Lexer (Location.Located Char)
-consume p = Lexer $ \ loc ->
+consume p = StateT $ \ loc -> WriterT $
     case Text.uncons $ remaining loc of
         Just (c, _)
-            | p c -> Just (Location.seek 1 loc, [], Location.Located (Location.new_span loc 0 1) c)
+            | p c -> Just ((Location.Located (Location.new_span loc 0 1) c, Location.seek 1 loc), [])
         _ -> Nothing
 
 get_loc :: Lexer Location.Location
-get_loc = Lexer $ \ loc -> Just (loc, [], loc)
+get_loc = get
 
 put_error :: LexError.LexError -> Lexer ()
-put_error err = Lexer $ \ loc -> Just (loc, [err], ())
+put_error = lift . tell . (:[])
 
 one_or_more :: Lexer a -> Lexer [a]
 one_or_more a = a >>= \ res -> (res:) <$> choice [one_or_more a, pure []]
@@ -282,14 +254,14 @@ case_lex_empty =
 lex_test :: (Location.Location -> r) -> Text -> (r -> IO ()) -> IO ()
 lex_test fn input check = check $ fn $ Location.new_location $ File.File "a" input
 lex_test' :: Lexer r -> Text -> (Maybe (Location.Location, [LexError.LexError], r) -> IO ()) -> IO ()
-lex_test' fn = lex_test (run_lexer fn)
+lex_test' fn = lex_test (((\ ((r, loc), errs) -> (loc, errs, r)) <$>) . runWriterT . runStateT fn)
 lex_test_fail :: Show r => [Char] -> r -> IO a
 lex_test_fail fn_name res = assertFailure $ "'" ++ fn_name ++ "' lexed incorrectly: returned '" ++ show res ++ "'"
 
 case_lex_one_token :: Assertion
 case_lex_one_token =
-    lex_test lex_one_token "abc" $ \case
-        (l, [], [Location.Located _ (Token.AlphaIdentifier (Location.Located _ "abc"))])
+    lex_test (runWriter . runStateT lex_one_token) "abc" $ \case
+        (([Location.Located _ (Token.AlphaIdentifier (Location.Located _ "abc"))], l), [])
             | remaining l == "" -> pure ()
 
         x -> lex_test_fail "lex_one_token" x

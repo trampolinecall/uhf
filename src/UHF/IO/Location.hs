@@ -68,7 +68,7 @@ instance Format Location where
     format (Location f (LineCol _ r c)) = Colored File.file_path_color $ format f <> ":" <> show r <> ":" <> show c
 
 instance Format Span where
-    format (Span f (LineCol _ r1 c1) _ (LineCol _ r2 c2)) = format f <> ":" <> show r1 <> ":" <> show c1 <> ":" <> show r2 <> ":" <> show c2
+    format (Span f (LineCol _ r1 c1) _ (LineCol _ r2 c2)) = Colored File.file_path_color $ format f <> ":" <> show r1 <> ":" <> show c1 <> ":" <> show r2 <> ":" <> show c2
 
 instance Functor Located where
     fmap f (Located sp v) = Located sp (f v)

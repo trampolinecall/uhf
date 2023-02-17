@@ -97,6 +97,7 @@ lex_alpha_identifier =
         , ("then", Token.SingleTypeToken Token.Then)
         , ("else", Token.SingleTypeToken Token.Else)
         , ("case", Token.SingleTypeToken Token.Case)
+        , ("type", Token.SingleTypeToken Token.Type)
         , ("true", Token.Bool True)
         , ("false", Token.Bool False)
         ]

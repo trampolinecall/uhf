@@ -51,7 +51,7 @@ instance Diagnostic.IsError Error where
     to_error (MultipleDecls (Location.Located first_sp name) more) = Diagnostic.Error Codes.multiple_decls $
         Diagnostic.DiagnosticContents
             (Just first_sp)
-            ("multiple declarations of '" <> convert_str name <> "'")
+            (show (length more + 1) <> " declarations of '" <> convert_str name <> "'")
             (map (\ (Location.Located sp _) -> (sp, Messages.Error, Nothing)) more)
             []
 

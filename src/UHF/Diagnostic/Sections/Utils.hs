@@ -50,12 +50,12 @@ flnr_comparator (f1, n1) (f2, n2)
 get_quote :: File -> Int -> Text
 get_quote fl nr = headDef "" $ drop (nr - 1) $ Text.lines $ File.contents fl
 
-file_and_elipsis_lines :: (File, Int) -> (File, Int) -> [Line.Line]
-file_and_elipsis_lines (lastf, lastn) (curf, curn)
+file_and_elipsis_lines :: Maybe (File, Int) -> (File, Int) -> [Line.Line]
+file_and_elipsis_lines (Just (lastf, lastn)) (curf, curn)
     | lastf /= curf = [Line.file_line curf]
     | lastn + 1 /= curn = [Line.elipsis_line]
     | otherwise = []
-
+file_and_elipsis_lines Nothing (curf, _) = [Line.file_line curf]
 -- tests {{{1
 case_file_and_elipsis_lines :: Assertion
 case_file_and_elipsis_lines =
@@ -63,9 +63,10 @@ case_file_and_elipsis_lines =
         (f2, _) = make_spans ["aobjiwoiejfawoeijf"]
 
     in
-    ([Line.file_line f2] @=? file_and_elipsis_lines (f1, 2) (f2, 12)) >>
-    ([] @=? file_and_elipsis_lines (f2, 12) (f2, 13)) >>
-    ([Line.elipsis_line] @=? file_and_elipsis_lines (f2, 13) (f2, 20))
+    ([Line.file_line f2] @=? file_and_elipsis_lines (Just (f1, 2)) (f2, 12)) >>
+    ([Line.file_line f2] @=? file_and_elipsis_lines Nothing (f2, 12)) >>
+    ([] @=? file_and_elipsis_lines (Just (f2, 12)) (f2, 13)) >>
+    ([Line.elipsis_line] @=? file_and_elipsis_lines (Just (f2, 13)) (f2, 20))
 
 tests :: TestTree
 tests = $(testGroupGenerator)

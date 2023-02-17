@@ -378,11 +378,7 @@ solve_constraints nominal_types = mapM_ solve
 
         unify :: TypeWithVars -> TypeWithVars -> ExceptT (Either (TypeWithVars, TypeWithVars) (TypeVarKey, TypeWithVars)) StateWithVars ()
         unify a@(IR.Type'Nominal a_nominal_key) b@(IR.Type'Nominal b_nominal_key) =
-            -- TODO: fix bug with unifying this
-            -- bug producing sample:
-            --     data X {};
-            --     type Syn = (X, X);
-            --     thing = \ (x) -> :Syn (x, x);
+            -- TODO: fix bug with unifying this: synonyms will not be expanded if for example a is nominal pointing to a synonym b is not a nominal
             case (Arena.get nominal_types a_nominal_key, Arena.get nominal_types b_nominal_key) of
                 (IR.NominalType'Synonym _ a_expansion, _) -> unify a_expansion b
                 (_, IR.NominalType'Synonym _ b_expansion) -> unify a b_expansion

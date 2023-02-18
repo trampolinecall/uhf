@@ -39,6 +39,7 @@ library
       UHF.Parser.Error
       UHF.Parser.PEG
       UHF.Parser.Test
+      UHF.ToGraph
       UHF.Token
       UHF.Type
       UHF.Util.Prelude

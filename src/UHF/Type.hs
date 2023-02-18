@@ -1,7 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
-module UHF.Type
-    ( typecheck
-    ) where
+module UHF.Type (typecheck) where
 
 import UHF.Util.Prelude
 
@@ -57,9 +55,9 @@ type TypeWithVars = IR.Type TypeVarKey
 type Type = IR.Type Void
 
 type UntypedNominalType = IR.NominalType TypeExpr
-type UntypedBinding = IR.Binding (Maybe IR.BoundValueKey) TypeExpr () Void
-type UntypedExpr = IR.Expr (Maybe IR.BoundValueKey) TypeExpr () Void
-type UntypedPattern = IR.Pattern (Maybe IR.BoundValueKey) ()
+type UntypedBinding = IR.Binding (Located (Maybe IR.BoundValueKey)) TypeExpr () Void
+type UntypedExpr = IR.Expr (Located (Maybe IR.BoundValueKey)) TypeExpr () Void
+type UntypedPattern = IR.Pattern (Located (Maybe IR.BoundValueKey)) ()
 type UntypedBoundValue = IR.BoundValue ()
 
 type UntypedBindingArena = Arena.Arena UntypedBinding IR.BindingKey
@@ -67,9 +65,9 @@ type UntypedNominalTypeArena = Arena.Arena UntypedNominalType IR.NominalTypeKey
 type UntypedBoundValueArena = Arena.Arena UntypedBoundValue IR.BoundValueKey
 
 type TypedWithVarsNominalType = IR.NominalType TypeWithVars
-type TypedWithVarsBinding = IR.Binding (Maybe IR.BoundValueKey) TypeWithVars TypeWithVars Void
-type TypedWithVarsExpr = IR.Expr (Maybe IR.BoundValueKey) TypeWithVars TypeWithVars Void
-type TypedWithVarsPattern = IR.Pattern (Maybe IR.BoundValueKey) TypeWithVars
+type TypedWithVarsBinding = IR.Binding (Located (Maybe IR.BoundValueKey)) TypeWithVars TypeWithVars Void
+type TypedWithVarsExpr = IR.Expr (Located (Maybe IR.BoundValueKey)) TypeWithVars TypeWithVars Void
+type TypedWithVarsPattern = IR.Pattern (Located (Maybe IR.BoundValueKey)) TypeWithVars
 type TypedWithVarsBoundValue = IR.BoundValue TypeWithVars
 
 type TypedWithVarsBindingArena = Arena.Arena TypedWithVarsBinding IR.BindingKey
@@ -77,9 +75,9 @@ type TypedWithVarsNominalTypeArena = Arena.Arena TypedWithVarsNominalType IR.Nom
 type TypedWithVarsBoundValueArena = Arena.Arena TypedWithVarsBoundValue IR.BoundValueKey
 
 type TypedNominalType = IR.NominalType (Maybe Type)
-type TypedBinding = IR.Binding (Maybe IR.BoundValueKey) (Maybe Type) (Maybe Type) Void
-type TypedExpr = IR.Expr (Maybe IR.BoundValueKey) (Maybe Type) (Maybe Type) Void
-type TypedPattern = IR.Pattern (Maybe IR.BoundValueKey) (Maybe Type)
+type TypedBinding = IR.Binding (Located (Maybe IR.BoundValueKey)) (Maybe Type) (Maybe Type) Void
+type TypedExpr = IR.Expr (Located (Maybe IR.BoundValueKey)) (Maybe Type) (Maybe Type) Void
+type TypedPattern = IR.Pattern (Located (Maybe IR.BoundValueKey)) (Maybe Type)
 type TypedBoundValue = IR.BoundValue (Maybe Type)
 
 type TypedBindingArena = Arena.Arena TypedBinding IR.BindingKey
@@ -265,6 +263,21 @@ collect_constraints decls bna (IR.Binding pat eq_sp expr) =
     tell [Eq InAssignment eq_sp (loc_pat_type pat) (loc_expr_type expr)] >>
     pure (IR.Binding pat eq_sp expr)
     where
+        -- TODO: sort constraints by priority so that certain weird things dont happen
+        -- for example:
+        -- ```
+        -- test = let x = \ (a) -> :string a;
+        --     x(0)
+        -- ```
+        -- produces "
+        --     scratch.uhf:1:14: error: conflicting types in assignment: 'int' vs 'string'
+        --       > scratch.uhf
+        --     1 | test = let x = \ (a) -> :string a;
+        --       |            ~ ^ ~~~~~~~~~~~~~~~~~~
+        --       |            `-- int -> _         `-- string -> string
+        -- "
+        -- but it really should produce an error at `x(0)` saying that x takes a string and not an int
+
         loc_pat_type pat = Located (IR.pattern_span pat) (IR.pattern_type pat)
         loc_expr_type expr = Located (IR.expr_span expr) (IR.expr_type expr)
 
@@ -286,7 +299,7 @@ collect_constraints decls bna (IR.Binding pat eq_sp expr) =
         collect_for_pat (IR.Pattern'Poison () sp) = IR.Pattern'Poison <$> (IR.Type'Variable <$> lift (new_type_variable $ PoisonPattern sp)) <*> pure sp
 
         collect_for_expr (IR.Expr'Identifier () sp bn) =
-            (case bn of
+            (case unlocate bn of
                 Just bn -> let (IR.BoundValue ty _) = Arena.get bna bn in pure ty
                 Nothing -> IR.Type'Variable <$> lift (new_type_variable (UnresolvedIdenExpr sp))) >>= \ ty ->
 

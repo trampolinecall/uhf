@@ -31,7 +31,9 @@ module UHF.IO.Location
     , tests
     ) where
 
-import UHF.Util.Prelude
+import UHF.Util.Prelude hiding (show)
+
+import GHC.Show (show)
 
 import qualified System.Console.ANSI as ANSI
 
@@ -43,9 +45,12 @@ import Data.List (minimumBy, maximumBy)
 
 -- TODO: test this entire module
 
-data File = File { path :: FilePath, contents :: Text, eof_span :: Span, start_span :: Span } deriving (Show)
+data File = File { path :: FilePath, contents :: Text, eof_span :: Span, start_span :: Span }
 instance Eq File where
     (==) = (==) `on` path -- TODO: remove this entirely
+
+instance Show File where
+    show (File path _ _ _) = "File { path = " ++ show path ++ ", ... }"
 
 file_path_color :: [ANSI.SGR]
 file_path_color = [ANSI.SetConsoleIntensity ANSI.BoldIntensity, ANSI.SetColor ANSI.Foreground ANSI.Vivid ANSI.Cyan]
@@ -99,10 +104,10 @@ sp_be_col = loc_col . sp_be
 sp_e_col = loc_col . sp_e
 
 instance Format Location where
-    format (Location f (LineCol _ r c)) = Colored file_path_color $ format f <> ":" <> show r <> ":" <> show c
+    format (Location f (LineCol _ r c)) = Colored file_path_color $ format f <> ":" <> format r <> ":" <> format c
 
 instance Format Span where
-    format (Span f (LineCol _ r1 c1) _ (LineCol _ r2 c2)) = Colored file_path_color $ format f <> ":" <> show r1 <> ":" <> show c1 <> ":" <> show r2 <> ":" <> show c2
+    format (Span f (LineCol _ r1 c1) _ (LineCol _ r2 c2)) = Colored file_path_color $ format f <> ":" <> format r1 <> ":" <> format c1 <> ":" <> format r2 <> ":" <> format c2
 
 instance Functor Located where
     fmap f (Located sp v) = Located sp (f v)

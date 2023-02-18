@@ -1,12 +1,18 @@
 module UHF.IO.Location
-    ( LineCol
+    ( File
+    , new_file
+    , open_file
+    , write_file -- TODO: use when writing output file
+    , file_path_color
+    , path , contents , eof_span , start_span
+
+    , LineCol
     , Location
     , Span
     , Located (..)
 
     , new_location
     , new_span
-    , eof_span
     , dummy_span -- TODO: use conditional compilation? to make sure this only compiles in tests
     , dummy_locate -- TODO: use conditional compilation? to make sure this only compiles in tests
 
@@ -27,16 +33,44 @@ module UHF.IO.Location
 
 import UHF.Util.Prelude
 
-import qualified UHF.IO.File as File
+import qualified System.Console.ANSI as ANSI
+
+import qualified UHF.FormattedString as FormattedString
 
 import qualified Data.Text as Text
+import qualified Data.Text.IO as Text.IO
 import Data.List (minimumBy, maximumBy)
 
 -- TODO: test this entire module
 
+data File = File { path :: FilePath, contents :: Text, eof_span :: Span, start_span :: Span } deriving (Show)
+instance Eq File where
+    (==) = (==) `on` path -- TODO: remove this entirely
+
+file_path_color :: [ANSI.SGR]
+file_path_color = [ANSI.SetConsoleIntensity ANSI.BoldIntensity, ANSI.SetColor ANSI.Foreground ANSI.Vivid ANSI.Cyan]
+
+instance Format File where
+    format f = FormattedString.color_text file_path_color (Text.pack $ path f)
+
+new_file :: FilePath -> Text -> File
+new_file path contents = let file = File path contents (make_eof_span file) (make_start_span file) in file
+
+open_file :: FilePath -> IO File
+open_file path = Text.IO.readFile path >>= \ contents -> pure $ new_file path contents
+
+make_eof_span :: File -> Span
+make_eof_span f = new_span (seek (Text.length $ contents f) $ new_location f) 0 1
+
+make_start_span :: File -> Span
+make_start_span f = new_span (new_location f) 0 1
+
+write_file :: File -> IO ()
+write_file f = Text.IO.writeFile (path f) (contents f)
+
 data LineCol = LineCol { ind :: Int, row :: Int, col :: Int } deriving (Show, Eq)
-data Location = Location { loc_file :: File.File, lc :: LineCol } deriving (Show, Eq)
-data Span = Span File.File LineCol LineCol LineCol deriving (Show, Eq)
+data Location = Location { loc_file :: File, lc :: LineCol } deriving (Show, Eq)
+data Span = Span File LineCol LineCol LineCol deriving (Show, Eq)
 
 data Located a = Located { just_span :: Span, unlocate :: a } deriving (Show, Eq) -- TODO: figure out how to do Eq nicely
 
@@ -45,7 +79,7 @@ loc_ind = ind . lc
 loc_row = row . lc
 loc_col = col . lc
 
-sp_file :: Span -> File.File
+sp_file :: Span -> File
 sp_file (Span f _ _ _) = f
 
 sp_s, sp_be, sp_e :: Span -> Location
@@ -65,15 +99,15 @@ sp_be_col = loc_col . sp_be
 sp_e_col = loc_col . sp_e
 
 instance Format Location where
-    format (Location f (LineCol _ r c)) = Colored File.file_path_color $ format f <> ":" <> show r <> ":" <> show c
+    format (Location f (LineCol _ r c)) = Colored file_path_color $ format f <> ":" <> show r <> ":" <> show c
 
 instance Format Span where
-    format (Span f (LineCol _ r1 c1) _ (LineCol _ r2 c2)) = Colored File.file_path_color $ format f <> ":" <> show r1 <> ":" <> show c1 <> ":" <> show r2 <> ":" <> show c2
+    format (Span f (LineCol _ r1 c1) _ (LineCol _ r2 c2)) = Colored file_path_color $ format f <> ":" <> show r1 <> ":" <> show c1 <> ":" <> show r2 <> ":" <> show c2
 
 instance Functor Located where
     fmap f (Located sp v) = Located sp (f v)
 
-new_location :: File.File -> Location
+new_location :: File -> Location
 new_location f = Location f (LineCol 0 1 1)
 
 new_span :: Location -> Int -> Int -> Span
@@ -84,13 +118,13 @@ new_span loc@(Location file _) start_i len =
     in Span file s_lc b_lc e_lc
 
 dummy_span :: Span
-dummy_span = Span (File.File "" "") (LineCol 0 1 1) (LineCol 0 1 1) (LineCol 0 1 1)
+dummy_span = Span (new_file "" "") (LineCol 0 1 1) (LineCol 0 1 1) (LineCol 0 1 1)
 
 dummy_locate :: a -> Located a
 dummy_locate = Located dummy_span
 
-eof_span :: File.File -> Span
-eof_span f = new_span (seek (Text.length $ File.contents f) $ new_location f) 0 1
+-- eof_span :: File -> Span
+-- eof_span f = new_span (seek (Text.length $ contents f) $ new_location f) 0 1
 
 join_span :: Span -> Span -> Span
 join_span (Span f1 s1 b1 e1) (Span f2 s2 b2 e2) =
@@ -110,7 +144,7 @@ is_single_line (Span _ s be _) = row s == row be
 seek :: Int -> Location -> Location
 seek 0 loc = loc
 seek n (Location f (LineCol i r c)) =
-    let file_contents = File.contents f
+    let file_contents = contents f
 
         num_nl
             | n < 0 = Text.count "\n" $ Text.take (-n) (Text.drop (i + n) file_contents)
@@ -128,41 +162,41 @@ seek n (Location f (LineCol i r c)) =
 
 case_seek_same :: Assertion
 case_seek_same =
-    let l = new_location $ File.File "a" "abc"
+    let l = new_location $ new_file "a" "abc"
     in l @=? seek 0 l
 
 case_seek_forward_same_line :: Assertion
 case_seek_forward_same_line =
-    let f = File.File "a" "abcd\nefgh"
+    let f = new_file "a" "abcd\nefgh"
     in Location f (LineCol 2 1 3) @=? seek 2 (Location f (LineCol 0 1 1))
 case_seek_forward_up_to_newline :: Assertion
 case_seek_forward_up_to_newline =
-    let f = File.File "a" "abcd\nefgh"
+    let f = new_file "a" "abcd\nefgh"
     in Location f (LineCol 3 1 4) @=? seek 3 (Location f (LineCol 0 1 1))
 case_seek_forward_to_newline :: Assertion
 case_seek_forward_to_newline =
-    let f = File.File "a" "abcd\nefgh"
+    let f = new_file "a" "abcd\nefgh"
     in Location f (LineCol 4 1 5) @=? seek 4 (Location f (LineCol 0 1 1))
 case_seek_forward_past_newline :: Assertion
 case_seek_forward_past_newline =
-    let f = File.File "a" "abcd\nefgh"
+    let f = new_file "a" "abcd\nefgh"
     in Location f (LineCol 5 2 1) @=? seek 5 (Location f (LineCol 0 1 1))
 
 case_seek_backward_same_line :: Assertion
 case_seek_backward_same_line =
-    let f = File.File "a" "abcd\nefgh"
+    let f = new_file "a" "abcd\nefgh"
     in Location f (LineCol 6 2 2) @=? seek (-2) (Location f (LineCol 8 2 4))
 case_seek_backward_up_to_newline :: Assertion
 case_seek_backward_up_to_newline =
-    let f = File.File "a" "abcd\nefgh"
+    let f = new_file "a" "abcd\nefgh"
     in Location f (LineCol 5 2 1) @=? seek (-3) (Location f (LineCol 8 2 4))
 case_seek_backward_to_newline :: Assertion
 case_seek_backward_to_newline =
-    let f = File.File "a" "abcd\nefgh"
+    let f = new_file "a" "abcd\nefgh"
     in Location f (LineCol 4 1 5) @=? seek (-4) (Location f (LineCol 8 2 4))
 case_seek_backward_past_newline :: Assertion
 case_seek_backward_past_newline =
-    let f = File.File "a" "abcd\nefgh"
+    let f = new_file "a" "abcd\nefgh"
     in Location f (LineCol 3 1 4) @=? seek (-5) (Location f (LineCol 8 2 4))
 
 tests :: TestTree

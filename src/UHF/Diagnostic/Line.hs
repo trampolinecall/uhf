@@ -16,14 +16,14 @@ import UHF.Util.Prelude
 
 import qualified UHF.FormattedString as FormattedString
 
-import qualified UHF.IO.File as File
+import qualified UHF.IO.Location as Location
 
 import qualified Data.Text as Text
 
 data Line = Line { prefix :: Text, separ :: Char, contents :: FormattedString.FormattedString } deriving (Show, Eq)
 
-file_line :: File.File -> Line
-file_line f = Line "" '>' (FormattedString.color_text File.file_path_color $ Text.pack $ File.path f)
+file_line :: Location.File -> Line
+file_line f = Line "" '>' (FormattedString.color_text Location.file_path_color $ Text.pack $ Location.path f)
 
 elipsis_line :: Line
 elipsis_line = Line "..." '|' "..."

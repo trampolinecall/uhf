@@ -8,10 +8,8 @@ import UHF.IO.Location.SpanHelper
 
 import qualified UHF.Diagnostic.Line as Line
 
-import qualified UHF.IO.File as File
 import qualified UHF.IO.Location as Location
-import UHF.IO.File (File)
-import UHF.IO.Location (Span)
+import UHF.IO.Location (File, Span)
 
 import qualified Data.Text as Text
 import qualified Data.List as List
@@ -19,9 +17,9 @@ import qualified Data.Map as Map
 
 newtype FileCmpByPath = FileCmpByPath { un_fcbp :: File }
 instance Ord FileCmpByPath where
-    compare = compare `on` (File.path . un_fcbp)
+    compare = compare `on` (Location.path . un_fcbp)
 instance Eq FileCmpByPath where
-    (==) = (==) `on` (File.path . un_fcbp)
+    (==) = (==) `on` (Location.path . un_fcbp)
 
 group_by_spans :: (a -> Span) -> [a] -> Map FileCmpByPath (Map Int [a])
 group_by_spans get_span = Map.map (group_by (Location.sp_s_row . get_span)) . group_by (FileCmpByPath . Location.sp_file . get_span)
@@ -37,10 +35,10 @@ context_lines f n = filter (uncurry can_be_context_line) $ map (f,) [n-1..n+1]
         can_be_context_line fl nr = exists fl nr && not_empty fl nr
 
         exists fl nr =
-            nr > 0 && nr <= length (Text.lines $ File.contents fl)
+            nr > 0 && nr <= length (Text.lines $ Location.contents fl)
 
         not_empty fl nr =
-            not $ Text.null $ Text.lines (File.contents fl) List.!! (nr - 1)
+            not $ Text.null $ Text.lines (Location.contents fl) List.!! (nr - 1)
 
 flnr_comparator :: (File, Int) -> (File, Int) -> Ordering
 flnr_comparator (f1, n1) (f2, n2)
@@ -48,7 +46,7 @@ flnr_comparator (f1, n1) (f2, n2)
     | otherwise = EQ
 
 get_quote :: File -> Int -> Text
-get_quote fl nr = headDef "" $ drop (nr - 1) $ Text.lines $ File.contents fl
+get_quote fl nr = headDef "" $ drop (nr - 1) $ Text.lines $ Location.contents fl
 
 file_and_elipsis_lines :: Maybe (File, Int) -> (File, Int) -> [Line.Line]
 file_and_elipsis_lines (Just (lastf, lastn)) (curf, curn)

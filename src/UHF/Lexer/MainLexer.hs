@@ -106,6 +106,7 @@ lex_alpha_identifier =
 lex_symbol_identifier :: Lexer (Sequence.Seq Token.LInternalToken)
 lex_symbol_identifier =
     lex_id_or_kw
+        -- TODO: fix bug: '(:' is not a symbol identifier but the continuation characters matches the ':' after '('
         (`elem` ("~!@#$%^&*+`-=|:./<>?()[]\\{};," :: [Char]))
         (`elem` ("~!@#$%^&*+`-=|:./<>?" :: [Char]))
         [ ("->", Token.SingleTypeToken Token.Arrow)

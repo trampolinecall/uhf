@@ -7,8 +7,8 @@ module UHF.IR
     , NominalType(..)
     , DataVariant(..)
 
-    , BoundNameKey
-    , BoundName(..)
+    , BoundValueKey
+    , BoundValue(..)
 
     , BindingKey
     , Binding (..)
@@ -57,11 +57,11 @@ data DataVariant ty
     | DataVariant'Anon Text [ty]
     deriving Show
 
-newtype BoundNameKey = BoundNameKey Int deriving Show
-instance Arena.Key BoundNameKey where
-    make_key = BoundNameKey
-    unmake_key (BoundNameKey i) = i
-data BoundName typeinfo = BoundName typeinfo Span deriving Show
+newtype BoundValueKey = BoundValueKey Int deriving Show
+instance Arena.Key BoundValueKey where
+    make_key = BoundValueKey
+    unmake_key (BoundValueKey i) = i
+data BoundValue typeinfo = BoundValue typeinfo Span deriving Show
 
 newtype BindingKey = BindingKey Int deriving Show
 instance Arena.Key BindingKey where
@@ -69,7 +69,7 @@ instance Arena.Key BindingKey where
     unmake_key (BindingKey i) = i
 data Binding identifier typeannotation typeinfo binaryopsallowed = Binding (Pattern identifier typeinfo) Span (Expr identifier typeannotation typeinfo binaryopsallowed) deriving Show
 
-data NameContext = NameContext (Map.Map Text DeclKey) (Map.Map Text BoundNameKey) (Maybe NameContext) deriving Show
+data NameContext = NameContext (Map.Map Text DeclKey) (Map.Map Text BoundValueKey) (Maybe NameContext) deriving Show
 
 data TypeExpr identifier
     = TypeExpr'Identifier Span identifier
@@ -117,9 +117,9 @@ data Expr identifier typeannotation typeinfo binaryopsallowed
     deriving Show
 
 data Pattern identifier typeinfo
-    = Pattern'Identifier typeinfo Span BoundNameKey
+    = Pattern'Identifier typeinfo Span BoundValueKey
     | Pattern'Tuple typeinfo Span (Pattern identifier typeinfo) (Pattern identifier typeinfo)
-    | Pattern'Named typeinfo Span Span (Located BoundNameKey) (Pattern identifier typeinfo)
+    | Pattern'Named typeinfo Span Span (Located BoundValueKey) (Pattern identifier typeinfo)
 
     | Pattern'Poison typeinfo Span -- TODO: poisonallowed
     deriving Show

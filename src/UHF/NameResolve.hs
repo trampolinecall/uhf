@@ -21,6 +21,7 @@ import UHF.Util.Prelude
 import qualified Arena
 
 import qualified UHF.IO.Location as Location
+import UHF.IO.Location (Located (..))
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Codes as Diagnostic.Codes
 
@@ -28,10 +29,9 @@ import qualified UHF.IR as IR
 
 import qualified Data.Map as Map
 import Data.Functor.Identity (Identity (Identity, runIdentity))
-import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 
-type UnresolvedTypeIdentifier = (IR.NameContext, [Location.Located Text])
-type UnresolvedExprIdentifier = (IR.NameContext, [Location.Located Text])
+type UnresolvedTypeIdentifier = (IR.NameContext, [Located Text])
+type UnresolvedExprIdentifier = (IR.NameContext, [Located Text])
 type UnresolvedNominalType = IR.NominalType UnresolvedType
 type UnresolvedType = IR.TypeExpr UnresolvedTypeIdentifier
 type UnresolvedBinding = IR.Binding UnresolvedExprIdentifier UnresolvedType () ()
@@ -43,9 +43,9 @@ type UnresolvedNominalTypeArena = Arena.Arena UnresolvedNominalType IR.NominalTy
 
 type ResolvedNominalType = IR.NominalType ResolvedType
 type ResolvedType = IR.TypeExpr (Maybe IR.DeclKey)
-type ResolvedBinding = IR.Binding (Maybe IR.BoundValueKey) ResolvedType () ()
-type ResolvedExpr = IR.Expr (Maybe IR.BoundValueKey) ResolvedType () ()
-type ResolvedPattern = IR.Pattern (Maybe IR.BoundValueKey)
+type ResolvedBinding = IR.Binding (Located (Maybe IR.BoundValueKey)) ResolvedType () ()
+type ResolvedExpr = IR.Expr (Located (Maybe IR.BoundValueKey)) ResolvedType () ()
+type ResolvedPattern = IR.Pattern (Located (Maybe IR.BoundValueKey))
 
 type ResolvedBindingArena = Arena.Arena ResolvedBinding IR.BindingKey
 type ResolvedNominalTypeArena = Arena.Arena ResolvedNominalType IR.NominalTypeKey
@@ -55,14 +55,14 @@ type Decl = IR.Decl
 type DeclArena = Arena.Arena Decl IR.DeclKey
 
 data Error
-    = CouldNotFind (Maybe (Location.Located Text)) (Location.Located Text)
+    = CouldNotFind (Maybe (Located Text)) (Located Text)
 
 instance Diagnostic.IsError Error where
-    to_error (CouldNotFind prev (Location.Located sp name)) =
+    to_error (CouldNotFind prev (Located sp name)) =
         let message =
                 "could not find name '" <> name <> "'"
                     <> case prev of
-                        Just (Location.Located _ prev_name) -> "in '" <> prev_name <> "'"
+                        Just (Located _ prev_name) -> "in '" <> prev_name <> "'"
                         Nothing -> ""
         in Diagnostic.Error Diagnostic.Codes.undef_name $
             Diagnostic.DiagnosticContents
@@ -122,23 +122,24 @@ resolve (decls, nominals, bindings) =
     in transform_identifiers (resolve_type_iden decls) (resolve_expr_iden decls) nominals' bindings' >>= \ (nominals', bindings') ->
     pure (decls, nominals', bindings')
 
-split_expr_iden :: UnresolvedExprIdentifier -> Identity (IR.NameContext, Maybe [Location.Located Text], Location.Located Text)
+split_expr_iden :: UnresolvedExprIdentifier -> Identity (IR.NameContext, Maybe [Located Text], Located Text)
 split_expr_iden (_, []) = error "empty identifier"
 split_expr_iden (nc, [x]) = pure (nc, Nothing, x)
 split_expr_iden (nc, x) = pure (nc, Just $ init x, last x)
 
-resolve_expr_iden :: DeclArena -> (IR.NameContext, Maybe [Location.Located Text], Location.Located Text) -> Writer [Error] (Maybe IR.BoundValueKey)
+resolve_expr_iden :: DeclArena -> (IR.NameContext, Maybe [Located Text], Located Text) -> Writer [Error] (Located (Maybe IR.BoundValueKey))
 resolve_expr_iden decls (nc, Just type_iden, last_segment) =
-    runMaybeT $
-        MaybeT (resolve_type_iden decls (nc, type_iden)) >>= \ resolved_type ->
-        case get_value_child decls resolved_type last_segment of
-            Right v -> pure v
-            Left e -> lift (tell [e]) >> MaybeT (pure Nothing)
+    let sp = Location.just_span (head type_iden) `Location.join_span` Location.just_span last_segment
+    in resolve_type_iden decls (nc, type_iden) >>= \ resolved_type ->
+    case get_value_child decls <$> resolved_type <*> pure last_segment of
+        Just (Right v) -> pure $ Located sp (Just v)
+        Just (Left e) -> tell [e] >> (pure (Located sp Nothing))
+        Nothing -> pure $ Located sp Nothing
 
-resolve_expr_iden _ (nc, Nothing, last_segment) =
+resolve_expr_iden _ (nc, Nothing, last_segment@(Located last_segment_sp _)) =
     case resolve nc last_segment of
-        Right v -> pure $ Just v
-        Left e -> tell [e] >> pure Nothing
+        Right v -> pure $ Located last_segment_sp (Just v)
+        Left e -> tell [e] >> pure (Located last_segment_sp Nothing)
     where
         resolve (IR.NameContext _ bn_children parent) name =
             case Map.lookup (Location.unlocate name) bn_children of
@@ -166,7 +167,7 @@ resolve_type_iden decls (nc, first:more) =
                         Just parent -> resolve_first parent first
                         Nothing -> Left $ CouldNotFind Nothing first
 
-get_decl_child :: DeclArena -> IR.DeclKey -> Location.Located Text -> Either Error IR.DeclKey
+get_decl_child :: DeclArena -> IR.DeclKey -> Located Text -> Either Error IR.DeclKey
 get_decl_child decls thing name =
     let res = case Arena.get decls thing of
             IR.Decl'Module (IR.Module (IR.NameContext d_children _ _)) -> Map.lookup (Location.unlocate name) d_children
@@ -175,7 +176,7 @@ get_decl_child decls thing name =
         Just res -> Right res
         Nothing -> Left $ CouldNotFind Nothing name -- TODO: put previous
 
-get_value_child :: DeclArena -> IR.DeclKey -> Location.Located Text -> Either Error IR.BoundValueKey
+get_value_child :: DeclArena -> IR.DeclKey -> Located Text -> Either Error IR.BoundValueKey
 get_value_child decls thing name =
     let res = case Arena.get decls thing of
             IR.Decl'Module (IR.Module (IR.NameContext _ v_children _)) -> Map.lookup (Location.unlocate name) v_children

@@ -9,7 +9,6 @@ module UHF.Lexer.MainLexer
 import UHF.Util.Prelude
 
 import qualified UHF.Lexer.LexError as LexError
-import qualified UHF.IO.File as File
 import qualified UHF.IO.Location as Location
 import qualified UHF.Token as Token
 
@@ -19,7 +18,7 @@ import qualified Data.Sequence as Sequence
 import Data.Char (isAlpha, isDigit, isOctDigit, isHexDigit, isSpace, digitToInt)
 
 -- lexing {{{1
-lex :: File.File -> Writer [LexError.LexError] ((Sequence.Seq Token.LInternalToken), Token.LToken)
+lex :: Location.File -> Writer [LexError.LexError] ((Sequence.Seq Token.LInternalToken), Token.LToken)
 lex f =
     let eof = Location.Located (Location.eof_span f) (Token.EOF ())
     in evalStateT (run Sequence.Empty) (Location.new_location f) >>= \ toks -> pure (toks, eof)
@@ -205,7 +204,7 @@ make_bad_char :: Lexer (Sequence.Seq Token.LInternalToken)
 make_bad_char = consume (const True) >>= \ (Location.Located sp c) -> put_error (LexError.BadChar c sp) >> pure Sequence.Empty
 -- helper functions {{{1
 remaining :: Location.Location -> Text
-remaining l = Text.drop (Location.loc_ind l) (File.contents $ Location.loc_file l)
+remaining l = Text.drop (Location.loc_ind l) (Location.contents $ Location.loc_file l)
 
 new_span_start_and_end :: Location.Location -> Location.Location -> Location.Span
 -- start and end should be in the same file because the lex function never processes more than one file at a time
@@ -236,25 +235,25 @@ one_or_more a = a >>= \ res -> (res:) <$> choice [one_or_more a, pure []]
 -- tests {{{1
 -- TODO: update tests
 case_remaining :: Assertion
-case_remaining = "fghijkl" @=? remaining (Location.seek 5 $ Location.new_location (File.File "filename" "abcdefghijkl"))
+case_remaining = "fghijkl" @=? remaining (Location.seek 5 $ Location.new_location (Location.new_file "filename" "abcdefghijkl"))
 
 case_lex :: Assertion
 case_lex =
     let src = "abc *&* ( \"adji\n"
-        f = File.File "a" src
+        f = Location.new_file "a" src
     in case runWriter $ UHF.Lexer.MainLexer.lex f of
         ((Location.Located _ (Token.AlphaIdentifier (Location.Located _ "abc")) Sequence.:<| Location.Located _ (Token.SymbolIdentifier (Location.Located _ "*&*")) Sequence.:<| Location.Located _ (Token.SingleTypeToken Token.OParen) Sequence.:<| Sequence.Empty, _), [LexError.UnclosedStrLit _]) -> pure ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
 case_lex_empty :: Assertion
 case_lex_empty =
-    let f = File.File "a" ""
+    let f = Location.new_file "a" ""
     in case runWriter $ UHF.Lexer.MainLexer.lex f of
         ((Sequence.Empty, _), []) -> pure ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
 lex_test :: (Location.Location -> r) -> Text -> (r -> IO ()) -> IO ()
-lex_test fn input check = check $ fn $ Location.new_location $ File.File "a" input
+lex_test fn input check = check $ fn $ Location.new_location $ Location.new_file "a" input
 lex_test' :: Lexer r -> Text -> (Maybe (Location.Location, [LexError.LexError], r) -> IO ()) -> IO ()
 lex_test' fn = lex_test (((\ ((r, loc), errs) -> (loc, errs, r)) <$>) . runWriterT . runStateT fn)
 lex_test_fail :: Show r => [Char] -> r -> IO a

@@ -238,8 +238,20 @@ convert_type_expr :: DeclArena -> TypeExpr -> StateWithVars TypeWithVars
 convert_type_expr decls (IR.TypeExpr'Identifier sp iden) = case iden of -- TODO: make poison type variable
     Just i -> case Arena.get decls i of
         IR.Decl'Module _ -> IR.Type'Variable <$> new_type_variable (TypeExpr sp) -- TODO: report error for this
-        IR.Decl'Type ty -> pure $ IR.Type'Nominal ty
+        IR.Decl'Type ty -> pure $ void_var_to_key ty
     Nothing -> IR.Type'Variable <$> new_type_variable (TypeExpr sp)
+    where
+        -- basically useless function for converting Type Void to Type(TypeVarKey
+        void_var_to_key (IR.Type'Nominal k) = IR.Type'Nominal k
+        void_var_to_key (IR.Type'Int) = IR.Type'Int
+        void_var_to_key (IR.Type'Float) = IR.Type'Float
+        void_var_to_key (IR.Type'Char) = IR.Type'Char
+        void_var_to_key (IR.Type'String) = IR.Type'String
+        void_var_to_key (IR.Type'Bool) = IR.Type'Bool
+        void_var_to_key (IR.Type'Function a r) = IR.Type'Function (void_var_to_key a) (void_var_to_key r)
+        void_var_to_key (IR.Type'Tuple a b) = IR.Type'Tuple (void_var_to_key a) (void_var_to_key b)
+        void_var_to_key (IR.Type'Variable void) = absurd void
+
 convert_type_expr decls (IR.TypeExpr'Tuple a b) = IR.Type'Tuple <$> convert_type_expr decls a <*> convert_type_expr decls b
 convert_type_expr _ (IR.TypeExpr'Poison sp) = IR.Type'Variable <$> new_type_variable (TypeExpr sp)
 

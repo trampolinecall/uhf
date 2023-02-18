@@ -22,8 +22,7 @@ import qualified UHF.Diagnostic.Colors as Colors
 import qualified UHF.Diagnostic.Section as Section
 
 import qualified UHF.IO.Location as Location
-import UHF.IO.Location (Span)
-import qualified UHF.IO.File as File
+import UHF.IO.Location (File, Span)
 
 import qualified Data.Text as Text
 import qualified Data.Maybe as Maybe
@@ -101,7 +100,7 @@ show_singleline unds =
     -- List.nub $
     -- concatMap (uncurry Utils.context_lines) $
 -- show_line {{{2
-show_line :: (Maybe (File.File, Int, [Message]), (File.File, Int, [Message])) -> [Line.Line]
+show_line :: (Maybe (File, Int, [Message]), (File, Int, [Message])) -> [Line.Line]
 show_line (last, (fl, nr, messages)) =
     let renderable_messages = get_renderable_messages messages
         msg_rows = assign_messages renderable_messages
@@ -121,7 +120,7 @@ get_renderable_messages =
     List.sortBy (flip compare `Function.on` rm_start_col) .
     Maybe.mapMaybe (\ (sp, ty, msg) -> (Location.sp_be sp, ty,) <$> msg)
 
-get_colored_quote_and_underline_line :: File.File -> Int -> [Message] -> (FormattedString.FormattedString, FormattedString.FormattedString)
+get_colored_quote_and_underline_line :: File -> Int -> [Message] -> (FormattedString.FormattedString, FormattedString.FormattedString)
 get_colored_quote_and_underline_line fl nr unds =
     let col_in_underline c (sp, _, _) = Location.sp_s_col sp <= c && c <= Location.sp_be_col sp
 
@@ -274,7 +273,7 @@ show_bottom_lines loc n ch ty msg =
                 FormattedString.Literal (Text.replicate (end_col - 1) " ") <> format_render_message (i == (0 :: Int) {- length msgs #-}) ((loc, ty, msg))
         ) [0..] (Maybe.maybeToList msg)
 
-show_middle_line :: Maybe (File.File, Int) -> [ANSI.SGR] -> [Line.Line]
+show_middle_line :: Maybe (File, Int) -> [ANSI.SGR] -> [Line.Line]
 show_middle_line (Just (file, nr)) sgr = [Line.numbered_line nr $ "  " <> FormattedString.color_text sgr (Utils.get_quote file nr)]
 show_middle_line Nothing _ = []
 -- tests {{{1

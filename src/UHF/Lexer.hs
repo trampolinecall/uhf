@@ -11,9 +11,9 @@ import qualified UHF.Lexer.MainLexer as MainLexer
 import qualified UHF.Lexer.IdentifierGrouper as IdentifierGrouper
 
 import qualified UHF.Token as Token
-import qualified UHF.IO.File as File
+import UHF.IO.Location (File)
 
-lex :: File.File -> Writer [LexError.LexError] ([Token.LToken], Token.LToken)
+lex :: File -> Writer [LexError.LexError] ([Token.LToken], Token.LToken)
 lex f =
     MainLexer.lex f >>= \ (toks, eof) ->
     IdentifierGrouper.group_identifiers (toList toks) >>= \ toks' ->

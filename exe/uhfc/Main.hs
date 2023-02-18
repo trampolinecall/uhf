@@ -6,8 +6,9 @@ import Options.Applicative
 
 import qualified Driver
 
-import qualified UHF.IO.File as File
 import qualified UHF.Diagnostic as Diagnostic
+
+import UHF.IO.Location (open_file) -- TODO: rename this module to something better (open_file in the Location module is a bit weird)
 
 import qualified System.IO as IO
 
@@ -36,7 +37,7 @@ main =
 
 compile :: Int -> Int -> FilePath -> IO ()
 compile num total fname =
-    File.open_file fname >>= \ f ->
+    open_file fname >>= \ f ->
     putStrLn ("[" <> show num <> "/" <> show total <> "]: compiling " <> format f) >>
     case Driver.compile f of
         Right res -> putTextLn (show res)

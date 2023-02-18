@@ -43,9 +43,9 @@ type UnresolvedNominalTypeArena = Arena.Arena UnresolvedNominalType IR.NominalTy
 
 type ResolvedNominalType = IR.NominalType ResolvedType
 type ResolvedType = IR.TypeExpr (Maybe IR.DeclKey)
-type ResolvedBinding = IR.Binding (Maybe IR.BoundNameKey) ResolvedType () ()
-type ResolvedExpr = IR.Expr (Maybe IR.BoundNameKey) ResolvedType () ()
-type ResolvedPattern = IR.Pattern (Maybe IR.BoundNameKey)
+type ResolvedBinding = IR.Binding (Maybe IR.BoundValueKey) ResolvedType () ()
+type ResolvedExpr = IR.Expr (Maybe IR.BoundValueKey) ResolvedType () ()
+type ResolvedPattern = IR.Pattern (Maybe IR.BoundValueKey)
 
 type ResolvedBindingArena = Arena.Arena ResolvedBinding IR.BindingKey
 type ResolvedNominalTypeArena = Arena.Arena ResolvedNominalType IR.NominalTypeKey
@@ -127,7 +127,7 @@ split_expr_iden (_, []) = error "empty identifier"
 split_expr_iden (nc, [x]) = pure (nc, Nothing, x)
 split_expr_iden (nc, x) = pure (nc, Just $ init x, last x)
 
-resolve_expr_iden :: DeclArena -> (IR.NameContext, Maybe [Location.Located Text], Location.Located Text) -> Writer [Error] (Maybe IR.BoundNameKey)
+resolve_expr_iden :: DeclArena -> (IR.NameContext, Maybe [Location.Located Text], Location.Located Text) -> Writer [Error] (Maybe IR.BoundValueKey)
 resolve_expr_iden decls (nc, Just type_iden, last_segment) =
     runMaybeT $
         MaybeT (resolve_type_iden decls (nc, type_iden)) >>= \ resolved_type ->
@@ -175,7 +175,7 @@ get_decl_child decls thing name =
         Just res -> Right res
         Nothing -> Left $ CouldNotFind Nothing name -- TODO: put previous
 
-get_value_child :: DeclArena -> IR.DeclKey -> Location.Located Text -> Either Error IR.BoundNameKey
+get_value_child :: DeclArena -> IR.DeclKey -> Location.Located Text -> Either Error IR.BoundValueKey
 get_value_child decls thing name =
     let res = case Arena.get decls thing of
             IR.Decl'Module (IR.Module (IR.NameContext _ v_children _)) -> Map.lookup (Location.unlocate name) v_children

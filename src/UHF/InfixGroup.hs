@@ -10,13 +10,13 @@ import qualified UHF.IO.Location as Location
 
 import qualified UHF.IR as IR
 
-type UngroupedBinding typeannotation = IR.Binding (Maybe IR.BoundNameKey) typeannotation () ()
-type UngroupedExpr typeannotation = IR.Expr (Maybe IR.BoundNameKey) typeannotation () ()
+type UngroupedBinding typeannotation = IR.Binding (Maybe IR.BoundValueKey) typeannotation () ()
+type UngroupedExpr typeannotation = IR.Expr (Maybe IR.BoundValueKey) typeannotation () ()
 
-type GroupedBinding typeannotation = IR.Binding (Maybe IR.BoundNameKey) typeannotation () Void
-type GroupedExpr typeannotation = IR.Expr (Maybe IR.BoundNameKey) typeannotation () Void
+type GroupedBinding typeannotation = IR.Binding (Maybe IR.BoundValueKey) typeannotation () Void
+type GroupedExpr typeannotation = IR.Expr (Maybe IR.BoundValueKey) typeannotation () Void
 
-type Pattern = IR.Pattern (Maybe IR.BoundNameKey)
+type Pattern = IR.Pattern (Maybe IR.BoundValueKey)
 
 type UngroupedBindingArena typeannotation = Arena.Arena (UngroupedBinding typeannotation) IR.BindingKey
 type GroupedBindingArena typeannotation = Arena.Arena (GroupedBinding typeannotation) IR.BindingKey
@@ -47,7 +47,7 @@ group_expr (IR.Expr'BinaryOps () () sp first ops) =
     in if null a then r else error "internal error: still operations to group after grouping binary ops"
     where
         -- TODO: test this
-        g :: GroupedExpr tya -> [(Maybe IR.BoundNameKey, UngroupedExpr tya)] -> Int -> (GroupedExpr tya, [(Maybe IR.BoundNameKey, UngroupedExpr tya)])
+        g :: GroupedExpr tya -> [(Maybe IR.BoundValueKey, UngroupedExpr tya)] -> Int -> (GroupedExpr tya, [(Maybe IR.BoundValueKey, UngroupedExpr tya)])
         g left more@((first_op, first_rhs):after_first_op) cur_precedence =
             let op_prec = const 1 first_op -- TODO: precedence
             -- for example if the current precedence level is that for +, and first_op is *, this will consume the * and incorporate it into left

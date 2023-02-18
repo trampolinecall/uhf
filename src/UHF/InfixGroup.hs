@@ -6,7 +6,7 @@ import UHF.Util.Prelude
 
 import qualified Arena
 
-import qualified UHF.Diagnostic as Diagnostic
+import qualified UHF.IO.Location as Location
 
 import qualified UHF.IR as IR
 
@@ -55,7 +55,10 @@ group_expr (IR.Expr'BinaryOps () () sp first ops) =
                 then
                     -- continuing the example from above, this will consume all the operators that bind tighetr than *, forming the right side of the * operation
                     let (rhs, after) = g (group_expr first_rhs) after_first_op op_prec -- TODO: associativity
-                        left' = IR.Expr'Call () todo (IR.Expr'Call () todo (IR.Expr'Identifier () todo first_op) left) rhs
+                        lhs_span = IR.expr_span left
+                        rhs_span = IR.expr_span rhs
+                        op_span = todo
+                        left' = IR.Expr'Call () (lhs_span `Location.join_span` rhs_span) (IR.Expr'Call () (lhs_span `Location.join_span` op_span) (IR.Expr'Identifier () op_span first_op) left) rhs
                     in g left' after cur_precedence
 
                 else (left, more)

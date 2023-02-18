@@ -48,7 +48,6 @@ lex_one_token =
             ]
 -- Lexer {{{2
 type Lexer = StateT Location.Location (WriterT [LexError.LexError] Maybe)
-
 -- lexing functions {{{2
 lex_comment :: Lexer (Sequence.Seq Token.LInternalToken)
 lex_comment =

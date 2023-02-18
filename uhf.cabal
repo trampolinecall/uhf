@@ -15,6 +15,8 @@ library
       Arena
       UHF.AST
       UHF.ASTToIR
+      UHF.Compiler
+      UHF.Compiler.DiagnosticSettings
       UHF.Diagnostic
       UHF.Diagnostic.Codes
       UHF.Diagnostic.Codes.Code

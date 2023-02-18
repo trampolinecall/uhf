@@ -26,7 +26,7 @@ instance Arena.Key TypeVarKey where
 type TypeVarArena = Arena.Arena TypeVar TypeVarKey
 data TypeVar = TypeVar TypeVarForWhat TypeVarState
 data TypeVarForWhat
-    = BoundName Span
+    = BoundValue Span
     | UnresolvedIdenExpr Span
     | CallExpr Span
     | CaseExpr Span
@@ -36,7 +36,7 @@ data TypeVarForWhat
 data TypeVarState = Fresh | Substituted TypeWithVars
 
 type_var_for_what_sp :: TypeVarForWhat -> Span
-type_var_for_what_sp (BoundName sp) = sp
+type_var_for_what_sp (BoundValue sp) = sp
 type_var_for_what_sp (UnresolvedIdenExpr sp) = sp
 type_var_for_what_sp (CallExpr sp) = sp
 type_var_for_what_sp (CaseExpr sp) = sp
@@ -45,7 +45,7 @@ type_var_for_what_sp (PoisonPattern sp) = sp
 type_var_for_what_sp (TypeExpr sp) = sp
 
 type_var_for_what_name :: TypeVarForWhat -> Text
-type_var_for_what_name (BoundName _) = "binding"
+type_var_for_what_name (BoundValue _) = "binding"
 type_var_for_what_name (UnresolvedIdenExpr _) = "identifier expression"
 type_var_for_what_name (CallExpr _) = "call expression"
 type_var_for_what_name (CaseExpr _) = "case expression"
@@ -57,34 +57,34 @@ type TypeWithVars = IR.Type TypeVarKey
 type Type = IR.Type Void
 
 type UntypedNominalType = IR.NominalType TypeExpr
-type UntypedBinding = IR.Binding (Maybe IR.BoundNameKey) TypeExpr () Void
-type UntypedExpr = IR.Expr (Maybe IR.BoundNameKey) TypeExpr () Void
-type UntypedPattern = IR.Pattern (Maybe IR.BoundNameKey) ()
-type UntypedBoundName = IR.BoundName ()
+type UntypedBinding = IR.Binding (Maybe IR.BoundValueKey) TypeExpr () Void
+type UntypedExpr = IR.Expr (Maybe IR.BoundValueKey) TypeExpr () Void
+type UntypedPattern = IR.Pattern (Maybe IR.BoundValueKey) ()
+type UntypedBoundValue = IR.BoundValue ()
 
 type UntypedBindingArena = Arena.Arena UntypedBinding IR.BindingKey
 type UntypedNominalTypeArena = Arena.Arena UntypedNominalType IR.NominalTypeKey
-type UntypedBoundNameArena = Arena.Arena UntypedBoundName IR.BoundNameKey
+type UntypedBoundValueArena = Arena.Arena UntypedBoundValue IR.BoundValueKey
 
 type TypedWithVarsNominalType = IR.NominalType TypeWithVars
-type TypedWithVarsBinding = IR.Binding (Maybe IR.BoundNameKey) TypeWithVars TypeWithVars Void
-type TypedWithVarsExpr = IR.Expr (Maybe IR.BoundNameKey) TypeWithVars TypeWithVars Void
-type TypedWithVarsPattern = IR.Pattern (Maybe IR.BoundNameKey) TypeWithVars
-type TypedWithVarsBoundName = IR.BoundName TypeWithVars
+type TypedWithVarsBinding = IR.Binding (Maybe IR.BoundValueKey) TypeWithVars TypeWithVars Void
+type TypedWithVarsExpr = IR.Expr (Maybe IR.BoundValueKey) TypeWithVars TypeWithVars Void
+type TypedWithVarsPattern = IR.Pattern (Maybe IR.BoundValueKey) TypeWithVars
+type TypedWithVarsBoundValue = IR.BoundValue TypeWithVars
 
 type TypedWithVarsBindingArena = Arena.Arena TypedWithVarsBinding IR.BindingKey
 type TypedWithVarsNominalTypeArena = Arena.Arena TypedWithVarsNominalType IR.NominalTypeKey
-type TypedWithVarsBoundNameArena = Arena.Arena TypedWithVarsBoundName IR.BoundNameKey
+type TypedWithVarsBoundValueArena = Arena.Arena TypedWithVarsBoundValue IR.BoundValueKey
 
 type TypedNominalType = IR.NominalType (Maybe Type)
-type TypedBinding = IR.Binding (Maybe IR.BoundNameKey) (Maybe Type) (Maybe Type) Void
-type TypedExpr = IR.Expr (Maybe IR.BoundNameKey) (Maybe Type) (Maybe Type) Void
-type TypedPattern = IR.Pattern (Maybe IR.BoundNameKey) (Maybe Type)
-type TypedBoundName = IR.BoundName (Maybe Type)
+type TypedBinding = IR.Binding (Maybe IR.BoundValueKey) (Maybe Type) (Maybe Type) Void
+type TypedExpr = IR.Expr (Maybe IR.BoundValueKey) (Maybe Type) (Maybe Type) Void
+type TypedPattern = IR.Pattern (Maybe IR.BoundValueKey) (Maybe Type)
+type TypedBoundValue = IR.BoundValue (Maybe Type)
 
 type TypedBindingArena = Arena.Arena TypedBinding IR.BindingKey
 type TypedNominalTypeArena = Arena.Arena TypedNominalType IR.NominalTypeKey
-type TypedBoundNameArena = Arena.Arena TypedBoundName IR.BoundNameKey
+type TypedBoundValueArena = Arena.Arena TypedBoundValue IR.BoundValueKey
 
 type Decl = IR.Decl
 
@@ -207,24 +207,24 @@ new_type_variable for_what =
         Arena.put (TypeVar for_what Fresh) type_vars
 
 -- also does type inference
-typecheck :: (DeclArena, UntypedNominalTypeArena, UntypedBindingArena, UntypedBoundNameArena) -> Writer [Error] (DeclArena, TypedNominalTypeArena, TypedBindingArena, TypedBoundNameArena)
-typecheck (decls, nominal_types, bindings, bound_names) =
+typecheck :: (DeclArena, UntypedNominalTypeArena, UntypedBindingArena, UntypedBoundValueArena) -> Writer [Error] (DeclArena, TypedNominalTypeArena, TypedBindingArena, TypedBoundValueArena)
+typecheck (decls, nominal_types, bindings, bound_values) =
     runStateT
         (
             Arena.transformM (convert_type_exprs_in_nominal_types decls) nominal_types >>= \ nominal_types ->
-            Arena.transformM assign_type_variable_to_bound_name bound_names >>= \ bound_names ->
-            runWriterT (Arena.transformM (collect_constraints decls bound_names) bindings) >>= \ (bindings, constraints) ->
+            Arena.transformM assign_type_variable_to_bound_value bound_values >>= \ bound_values ->
+            runWriterT (Arena.transformM (collect_constraints decls bound_values) bindings) >>= \ (bindings, constraints) ->
             solve_constraints nominal_types constraints >>
-            pure (nominal_types, bound_names, bindings)
+            pure (nominal_types, bound_values, bindings)
         )
-        Arena.new >>= \ ((nominal_types, bound_names, bindings), vars) ->
+        Arena.new >>= \ ((nominal_types, bound_values, bindings), vars) ->
 
     convert_vars vars >>= \ vars ->
     let nominal_types' = Arena.transform (remove_vars_from_nominal_type vars) nominal_types
-        bound_names' = Arena.transform (remove_vars_from_bound_name vars) bound_names
+        bound_values' = Arena.transform (remove_vars_from_bound_value vars) bound_values
         bindings' = Arena.transform (remove_vars_from_binding vars) bindings
     in
-    pure (decls, nominal_types', bindings', bound_names')
+    pure (decls, nominal_types', bindings', bound_values')
 
 convert_type_exprs_in_nominal_types :: DeclArena -> UntypedNominalType -> StateWithVars TypedWithVarsNominalType
 convert_type_exprs_in_nominal_types decls (IR.NominalType'Data name variants) = IR.NominalType'Data name <$> mapM (convert_variant decls) variants
@@ -243,10 +243,10 @@ convert_type_expr decls (IR.TypeExpr'Identifier sp iden) = case iden of -- TODO:
 convert_type_expr decls (IR.TypeExpr'Tuple a b) = IR.Type'Tuple <$> convert_type_expr decls a <*> convert_type_expr decls b
 convert_type_expr _ (IR.TypeExpr'Poison sp) = IR.Type'Variable <$> new_type_variable (TypeExpr sp)
 
-assign_type_variable_to_bound_name :: UntypedBoundName -> StateWithVars TypedWithVarsBoundName
-assign_type_variable_to_bound_name (IR.BoundName () def_span) = IR.BoundName <$> (IR.Type'Variable <$> new_type_variable (BoundName def_span)) <*> pure def_span
+assign_type_variable_to_bound_value :: UntypedBoundValue -> StateWithVars TypedWithVarsBoundValue
+assign_type_variable_to_bound_value (IR.BoundValue () def_span) = IR.BoundValue <$> (IR.Type'Variable <$> new_type_variable (BoundValue def_span)) <*> pure def_span
 
-collect_constraints :: DeclArena -> TypedWithVarsBoundNameArena -> UntypedBinding -> WriterT [Constraint] StateWithVars TypedWithVarsBinding
+collect_constraints :: DeclArena -> TypedWithVarsBoundValueArena -> UntypedBinding -> WriterT [Constraint] StateWithVars TypedWithVarsBinding
 collect_constraints decls bna (IR.Binding pat eq_sp expr) =
     collect_for_pat pat >>= \ pat ->
     collect_for_expr expr >>= \ expr ->
@@ -257,7 +257,7 @@ collect_constraints decls bna (IR.Binding pat eq_sp expr) =
         loc_expr_type expr = Located (IR.expr_span expr) (IR.expr_type expr)
 
         collect_for_pat (IR.Pattern'Identifier () sp bn) =
-            let (IR.BoundName ty _) = Arena.get bna bn
+            let (IR.BoundValue ty _) = Arena.get bna bn
             in pure (IR.Pattern'Identifier ty sp bn)
 
         collect_for_pat (IR.Pattern'Tuple () sp l r) =
@@ -267,7 +267,7 @@ collect_constraints decls bna (IR.Binding pat eq_sp expr) =
 
         collect_for_pat (IR.Pattern'Named () sp at_sp bnk subpat) =
             collect_for_pat subpat >>= \ subpat ->
-            let (IR.BoundName bn_ty _) = Arena.get bna (unlocate bnk)
+            let (IR.BoundValue bn_ty _) = Arena.get bna (unlocate bnk)
             in tell [Eq InNamedPattern at_sp (Located (just_span bnk) bn_ty) (loc_pat_type subpat)] >>
             pure (IR.Pattern'Named bn_ty sp at_sp bnk subpat)
 
@@ -275,7 +275,7 @@ collect_constraints decls bna (IR.Binding pat eq_sp expr) =
 
         collect_for_expr (IR.Expr'Identifier () sp bn) =
             (case bn of
-                Just bn -> let (IR.BoundName ty _) = Arena.get bna bn in pure ty
+                Just bn -> let (IR.BoundValue ty _) = Arena.get bna bn in pure ty
                 Nothing -> IR.Type'Variable <$> lift (new_type_variable (UnresolvedIdenExpr sp))) >>= \ ty ->
 
             pure (IR.Expr'Identifier ty sp bn)
@@ -473,8 +473,8 @@ convert_vars vars =
         convert_var vars_converted (TypeVar _ (Substituted s)) = r vars_converted s
         convert_var _ (TypeVar for_what Fresh) = lift (tell [AmbiguousType for_what]) >> MaybeT (pure Nothing)
 
-remove_vars_from_bound_name :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsBoundName -> TypedBoundName
-remove_vars_from_bound_name vars (IR.BoundName ty sp) = IR.BoundName (remove_vars vars ty) sp
+remove_vars_from_bound_value :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsBoundValue -> TypedBoundValue
+remove_vars_from_bound_value vars (IR.BoundValue ty sp) = IR.BoundValue (remove_vars vars ty) sp
 
 remove_vars_from_nominal_type :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsNominalType -> TypedNominalType
 remove_vars_from_nominal_type vars (IR.NominalType'Data name variants) = IR.NominalType'Data name (map remove_from_variant variants)

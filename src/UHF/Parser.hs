@@ -102,11 +102,30 @@ decl_typesyn =
     pure (AST.Decl'TypeSyn (Location.Located name_sp name) ty)
 -- expr {{{1
 expr :: PEG.Parser AST.Expr
-expr =
-    PEG.choice
-        [ expr_call
-        , expr_binary_ops
-        ]
+expr = expr_binary_ops
+
+expr_binary_ops :: PEG.Parser AST.Expr
+expr_binary_ops =
+    expr_call >>= \ first ->
+    PEG.star (
+        PEG.consume' "operator" (Token.SymbolIdentifier ()) >>= \ (Location.Located op_sp (Token.SymbolIdentifier op)) ->
+        expr_call >>= \ second ->
+        pure (Location.Located op_sp op, second)
+    ) >>= \ ops ->
+    if null ops
+        then pure first
+        else pure (AST.Expr'BinaryOps (AST.expr_span first `Location.join_span` AST.expr_span (snd $ last ops)) first ops)
+
+expr_call :: PEG.Parser AST.Expr
+expr_call =
+    expr_primary >>= \ callee ->
+    PEG.star (
+        PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ _ ->
+        PEG.delim_star expr (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ args ->
+        PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ (Location.Located cp_sp _) ->
+        pure (args, cp_sp)
+    ) >>= \ calls ->
+    pure (foldl' (\ callee (args, cp_sp) -> AST.Expr'Call (AST.expr_span callee `Location.join_span` cp_sp) callee args) callee calls)
 
 expr_primary :: PEG.Parser AST.Expr
 expr_primary =
@@ -196,26 +215,6 @@ expr_let =
         Token.SingleTypeToken Token.LetRec -> pure $ AST.Expr'LetRec (Location.just_span let_tok `Location.join_span` AST.expr_span subexpr) decls subexpr
         _ -> unreachable
 
-expr_binary_ops :: PEG.Parser AST.Expr
-expr_binary_ops =
-    expr_primary >>= \ first ->
-    PEG.star (
-        PEG.consume' "operator" (Token.SymbolIdentifier ()) >>= \ (Location.Located op_sp (Token.SymbolIdentifier op)) ->
-        expr_primary >>= \ second ->
-        pure (Location.Located op_sp op, second)
-    ) >>= \ ops ->
-    if null ops
-        then pure first
-        else pure (AST.Expr'BinaryOps (AST.expr_span first `Location.join_span` AST.expr_span (snd $ last ops)) first ops)
-
-expr_call :: PEG.Parser AST.Expr
-expr_call =
-    expr_primary >>= \ callee -> -- TODO: chained calls
-    PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ _ ->
-    PEG.delim_star expr (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ args ->
-    PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ (Location.Located cp_sp _) ->
-    pure (AST.Expr'Call (AST.expr_span callee `Location.join_span` cp_sp) callee args)
-
 expr_if :: PEG.Parser AST.Expr
 expr_if =
     PEG.consume' "'if'" (Token.SingleTypeToken Token.If) >>= \ (Location.Located if_sp _) ->
@@ -235,6 +234,7 @@ expr_case =
         pattern >>= \ pat ->
         PEG.consume' "'->'" (Token.SingleTypeToken Token.Arrow) >>= \ _ ->
         expr >>= \ choice ->
+        PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>
         pure (pat, choice) -- TODO: separator between cases
     ) >>= \ arms ->
     PEG.consume' "'}'" (Token.SingleTypeToken Token.CBrace) >>= \ (Location.Located cb_sp _) ->

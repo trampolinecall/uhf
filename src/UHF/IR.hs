@@ -20,6 +20,9 @@ module UHF.IR
     , Expr(..)
     , Pattern(..)
 
+    , GraphNodeKey
+    , GraphNode(..)
+
     , expr_type
     , pattern_type
     , expr_span
@@ -33,6 +36,8 @@ import qualified Arena
 import qualified Data.Map as Map
 
 import UHF.IO.Location (Span, Located)
+
+-- TODO: split this into separate modules
 
 newtype DeclKey = DeclKey Int deriving Show
 instance Arena.Key DeclKey where
@@ -57,7 +62,7 @@ data DataVariant ty
     | DataVariant'Anon Text [ty]
     deriving Show
 
-newtype BoundValueKey = BoundValueKey Int deriving Show
+newtype BoundValueKey = BoundValueKey Int deriving (Show, Eq, Ord) -- TODO: remove Eq and Ord when BoundValues store their graph nodes
 instance Arena.Key BoundValueKey where
     make_key = BoundValueKey
     unmake_key (BoundValueKey i) = i
@@ -111,9 +116,9 @@ data Expr identifier typeannotation typeinfo binaryopsallowed
     | Expr'If typeinfo Span Span (Expr identifier typeannotation typeinfo binaryopsallowed) (Expr identifier typeannotation typeinfo binaryopsallowed) (Expr identifier typeannotation typeinfo binaryopsallowed)
     | Expr'Case typeinfo Span Span (Expr identifier typeannotation typeinfo binaryopsallowed) [(Pattern identifier typeinfo, Expr identifier typeannotation typeinfo binaryopsallowed)]
 
-    | Expr'Poison typeinfo Span
-
     | Expr'TypeAnnotation typeinfo Span typeannotation (Expr identifier typeannotation typeinfo binaryopsallowed)
+
+    | Expr'Poison typeinfo Span
     deriving Show
 
 data Pattern identifier typeinfo
@@ -171,3 +176,23 @@ pattern_span (Pattern'Identifier _ sp _) = sp
 pattern_span (Pattern'Tuple _ sp _ _) = sp
 pattern_span (Pattern'Named _ sp _ _ _) = sp
 pattern_span (Pattern'Poison _ sp) = sp
+
+newtype GraphNodeKey = GraphNodeKey Int deriving Show
+instance Arena.Key GraphNodeKey where
+    make_key = GraphNodeKey
+    unmake_key (GraphNodeKey i) = i
+data GraphNode -- TODO: is type information necessary at this stage? (graph is created after typechecking)
+    = GraphNode'Int (Maybe (Type Void)) Integer
+    | GraphNode'Float (Maybe (Type Void)) Rational
+    | GraphNode'Bool (Maybe (Type Void)) Bool
+    | GraphNode'Char (Maybe (Type Void)) Char
+    | GraphNode'String (Maybe (Type Void)) Text
+    | GraphNode'Tuple (Maybe (Type Void)) GraphNodeKey GraphNodeKey -- TODO: replace with call constructor node
+
+    | GraphNode'Call (Maybe (Type Void)) GraphNodeKey GraphNodeKey
+
+    | GraphNode'TupleDestructure1 (Maybe (Type Void)) GraphNodeKey -- TODO: figure out better solution to this
+    | GraphNode'TupleDestructure2 (Maybe (Type Void)) GraphNodeKey
+
+    | GraphNode'Poison (Maybe (Type Void))
+    deriving Show

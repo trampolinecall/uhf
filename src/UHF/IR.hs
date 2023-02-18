@@ -40,7 +40,7 @@ instance Arena.Key DeclKey where
     unmake_key (DeclKey i) = i
 data Decl
     = Decl'Module Module
-    | Decl'Type NominalTypeKey
+    | Decl'Type (Type Void)
     deriving Show
 data Module = Module NameContext deriving Show
 

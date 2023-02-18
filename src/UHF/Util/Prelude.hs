@@ -185,3 +185,6 @@ instance ConvertString FormattedString FormattedString where convert_str = ident
 
 class Format a where
     format :: a -> FormattedString
+
+instance Format Int where
+    format = convert_str . Prelude.show

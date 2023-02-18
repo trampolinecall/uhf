@@ -326,16 +326,15 @@ collect_constraints decls bna (IR.Binding pat eq_sp expr) =
         collect_for_expr (IR.Expr'Case () sp case_tok_sp testing arms) =
             collect_for_expr testing >>= \ testing ->
             mapM (\ (p, e) -> (,) <$> collect_for_pat p <*> collect_for_expr e) arms >>= \ arms ->
-            IR.Type'Variable <$> lift (new_type_variable (CaseExpr sp)) >>= \ result_ty ->
 
             -- first expr matches all pattern types
             tell (map (\ (arm_pat, _) -> Eq InCasePatterns case_tok_sp (loc_pat_type arm_pat) (loc_expr_type testing)) arms) >>
             -- all arm types are the same
             tell (zipWith (\ (_, arm_result_1) (_, arm_result_2) -> Eq InCaseArms case_tok_sp (loc_expr_type arm_result_1) (loc_expr_type arm_result_2)) arms (drop 1 arms)) >>
-            -- first arm type is the same as the case expression type
-            (case arms of
-                (_, first_arm_result):_ -> tell [Eq InCaseArms case_tok_sp (loc_expr_type first_arm_result) (Located sp result_ty)]
-                [] -> pure ()) >>
+
+            (case headMay arms of
+                Just (_, first_arm_result) -> pure $ IR.expr_type first_arm_result
+                Nothing -> IR.Type'Variable <$> lift (new_type_variable (CaseExpr sp))) >>= \ result_ty ->
 
             pure (IR.Expr'Case result_ty sp case_tok_sp testing arms)
 
@@ -470,9 +469,6 @@ convert_vars vars =
         r vars_converted (IR.Type'Function arg res) = IR.Type'Function <$> r vars_converted arg <*> r vars_converted res
         r vars_converted (IR.Type'Tuple a b) = IR.Type'Tuple <$> r vars_converted a <*> r vars_converted b
         r vars_converted (IR.Type'Variable v) = MaybeT $ pure $ Arena.get vars_converted v
-            -- case Arena.get vars v of
-                -- TypeVar _ (Substituted s) -> r s
-                -- TypeVar for_what Fresh ->
 
         convert_var vars_converted (TypeVar _ (Substituted s)) = r vars_converted s
         convert_var _ (TypeVar for_what Fresh) = lift (tell [AmbiguousType for_what]) >> MaybeT (pure Nothing)

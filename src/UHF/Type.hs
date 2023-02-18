@@ -330,8 +330,12 @@ collect_constraints decls bna (IR.Binding pat eq_sp expr) =
 
             -- first expr matches all pattern types
             tell (map (\ (arm_pat, _) -> Eq InCasePatterns case_tok_sp (loc_pat_type arm_pat) (loc_expr_type testing)) arms) >>
-            -- all arm types are the same TODO: find a better way to do this (probably iterate in pairs)
-            tell (map (\ (_, arm_result) -> Eq InCaseArms case_tok_sp (loc_expr_type arm_result) (Located sp result_ty)) arms) >>
+            -- all arm types are the same
+            tell (zipWith (\ (_, arm_result_1) (_, arm_result_2) -> Eq InCaseArms case_tok_sp (loc_expr_type arm_result_1) (loc_expr_type arm_result_2)) arms (drop 1 arms)) >>
+            -- first arm type is the same as the case expression type
+            (case arms of
+                (_, first_arm_result):_ -> tell [Eq InCaseArms case_tok_sp (loc_expr_type first_arm_result) (Located sp result_ty)]
+                [] -> pure ()) >>
 
             pure (IR.Expr'Case result_ty sp case_tok_sp testing arms)
 

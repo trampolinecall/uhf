@@ -17,6 +17,8 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as Text.IO
 import qualified System.IO as IO
 
+import UHF.Compiler.DiagnosticSettings (ColorsNeeded (..))
+
 data FormattedString
     = Colored [ANSI.SGR] FormattedString
     | Join FormattedString FormattedString
@@ -27,8 +29,6 @@ instance IsString FormattedString where
     fromString = Literal . Text.pack
 instance Semigroup FormattedString where
     (<>) = Join
-
-data ColorsNeeded = Colors | NoColors | AutoDetect
 
 color_text :: [ANSI.SGR] -> Text.Text -> FormattedString
 color_text sgr = Colored sgr . Literal

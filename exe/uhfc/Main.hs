@@ -42,6 +42,6 @@ compile num total fname =
     -- putStrLn ("[" <> show num <> "/" <> show total <> "]: compiling " <> format f) >>
     case Driver.compile f of
         Right (Just (res)) -> putTextLn res
-        Right Nothing -> pure () -- TODO: decide what should happen here
-        Left diags -> mapM_ (Diagnostic.report IO.stderr) diags
+        Right Nothing -> exitFailure -- TODO: decide what should happen here
+        Left diags -> mapM_ (Diagnostic.report IO.stderr) diags >> exitFailure
 

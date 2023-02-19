@@ -28,6 +28,7 @@ library:
     - transformers
     - template-haskell
     - inflist
+    - file-embed
 
     - tasty
     - tasty-hunit

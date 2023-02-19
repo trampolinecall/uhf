@@ -47,7 +47,7 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 
 import GHC.IO as X (IO)
 import GHC.Num as X (Num(..), Integer)
-import GHC.Real as X (Rational, Real(..), Integral(..), Fractional(..), RealFrac(..), odd, even, fromIntegral, (^), (^^))
+import GHC.Real as X (Ratio(..), Rational, Real(..), Integral(..), Fractional(..), RealFrac(..), odd, even, fromIntegral, (^), (^^))
 import GHC.Float as X (Float, Double)
 import GHC.Show as X (Show)
 

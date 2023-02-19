@@ -78,5 +78,5 @@ graph_to_dot nodes =
 
                         IR.GraphNode'Poison _ -> ("poison", [])
 
-            in tell ("    " <> key_to_dot_id node_key <> " [label = \"{<name> " <> label <> "|{" <> Text.intercalate "|" (map (\ (port, _) -> "<" <> port <> ">" <> port) connections) <> "}}\"]" <> ";\n") >>
+            in tell ("    " <> key_to_dot_id node_key <> " [label = \"{<name> " <> label <> (if null connections then "" else "|{" <> Text.intercalate "|" (map (\ (port, _) -> "<" <> port <> ">" <> port) connections) <> "}") <> "}\"]" <> ";\n") >>
             mapM_ (\ (this_port, other) -> tell $ "    " <> key_to_dot_id node_key <> ":" <> this_port <> " -> " <> key_to_dot_id other <> ":name;\n") connections

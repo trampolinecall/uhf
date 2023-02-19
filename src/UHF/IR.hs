@@ -181,7 +181,7 @@ newtype GraphNodeKey = GraphNodeKey Int deriving Show
 instance Arena.Key GraphNodeKey where
     make_key = GraphNodeKey
     unmake_key (GraphNodeKey i) = i
-data GraphNode -- TODO: is type information necessary at this stage? (graph is created after typechecking)
+data GraphNode
     = GraphNode'Int (Maybe (Type Void)) Integer
     | GraphNode'Float (Maybe (Type Void)) Rational
     | GraphNode'Bool (Maybe (Type Void)) Bool

@@ -39,6 +39,7 @@ library
       UHF.Parser.Error
       UHF.Parser.PEG
       UHF.Parser.Test
+      UHF.RemovePoison
       UHF.ToGraph
       UHF.Token
       UHF.Type
@@ -49,6 +50,7 @@ library
       src
   default-extensions:
       LambdaCase
+      TupleSections
       TemplateHaskell
       OverloadedStrings
       NoImplicitPrelude
@@ -76,6 +78,7 @@ executable uhfc
       exe/uhfc
   default-extensions:
       LambdaCase
+      TupleSections
       TemplateHaskell
       OverloadedStrings
       NoImplicitPrelude
@@ -96,6 +99,7 @@ test-suite uhf-test
       test/
   default-extensions:
       LambdaCase
+      TupleSections
       TemplateHaskell
       OverloadedStrings
       NoImplicitPrelude

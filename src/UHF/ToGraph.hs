@@ -14,10 +14,14 @@ type Expr = IR.Expr (Located (Maybe IR.BoundValueKey)) (Maybe (IR.Type Void)) (M
 type Pattern = IR.Pattern (Located (Maybe IR.BoundValueKey)) (Maybe (IR.Type Void))
 type Binding = IR.Binding (Located (Maybe IR.BoundValueKey)) (Maybe (IR.Type Void)) (Maybe (IR.Type Void)) Void
 
+type Type = Maybe (IR.Type Void)
+type GraphNode = IR.GraphNode Type ()
+type GraphParam = IR.GraphParam Type
+
 type BindingArena = Arena.Arena Binding IR.BindingKey
 type BoundValueArena = Arena.Arena (IR.BoundValue (Maybe (IR.Type Void))) IR.BoundValueKey
-type GraphArena = Arena.Arena (IR.GraphNode) IR.GraphNodeKey
-type ParamArena = Arena.Arena (IR.GraphParam) IR.GraphParamKey
+type GraphArena = Arena.Arena GraphNode IR.GraphNodeKey
+type ParamArena = Arena.Arena GraphParam IR.GraphParamKey
 
 type BoundValueMap = Map.Map IR.BoundValueKey IR.GraphNodeKey
 
@@ -38,16 +42,16 @@ convert_binding bv_map (IR.Binding target _ expr) =
     convert_expr bv_map expr >>= \ expr ->
     assign_pattern target expr
 
-new_graph_node :: IR.GraphNode -> MakeGraphState IR.GraphNodeKey
+new_graph_node :: GraphNode -> MakeGraphState IR.GraphNodeKey
 new_graph_node node = lift $ state $ \ (g, p) -> let (i, g') = Arena.put node g in (i, (g', p))
-new_param_node :: IR.GraphParam -> MakeGraphState IR.GraphParamKey
+new_param_node :: GraphParam -> MakeGraphState IR.GraphParamKey
 new_param_node node = lift $ state $ \ (g, p) -> let (i, p') = Arena.put node p in (i, (g, p'))
 
 convert_expr :: BoundValueMap -> Expr -> MakeGraphState IR.GraphNodeKey
 convert_expr bv_map (IR.Expr'Identifier ty _ bvkey) =
     case unlocate bvkey of
         Just bvkey -> pure $ bv_map Map.! bvkey
-        Nothing -> new_graph_node (IR.GraphNode'Poison ty)
+        Nothing -> new_graph_node (IR.GraphNode'Poison ty ())
 convert_expr _ (IR.Expr'Char ty _ c) = new_graph_node (IR.GraphNode'Char ty c)
 convert_expr _ (IR.Expr'String ty _ s) = new_graph_node (IR.GraphNode'String ty s)
 convert_expr _ (IR.Expr'Int ty _ i) = new_graph_node (IR.GraphNode'Int ty i)
@@ -75,16 +79,16 @@ convert_expr _ (IR.Expr'Case ty _ _ testing arms) = todo
 
 convert_expr bv_map (IR.Expr'TypeAnnotation _ _ _ e) = convert_expr bv_map e
 
-convert_expr _ (IR.Expr'Poison ty _) = todo
+convert_expr _ (IR.Expr'Poison ty _) = new_graph_node (IR.GraphNode'Poison ty ())
 
 map_bound_value :: IR.BoundValueKey -> IR.GraphNodeKey -> MakeGraphState ()
 map_bound_value k node = tell $ Map.singleton k node
 
 assign_pattern :: Pattern -> IR.GraphNodeKey -> MakeGraphState ()
-assign_pattern (IR.Pattern'Identifier typeinfo _ bvk) initializer = map_bound_value bvk initializer
-assign_pattern (IR.Pattern'Tuple typeinfo _ a b) initializer =
+assign_pattern (IR.Pattern'Identifier _ _ bvk) initializer = map_bound_value bvk initializer
+assign_pattern (IR.Pattern'Tuple _ _ a b) initializer =
     new_graph_node (IR.GraphNode'TupleDestructure1 (IR.pattern_type a) initializer) >>= assign_pattern a >>
     new_graph_node (IR.GraphNode'TupleDestructure2 (IR.pattern_type b) initializer) >>= assign_pattern b
 
-assign_pattern (IR.Pattern'Named typeinfo _ _ bvk subpat) initializer = map_bound_value (unlocate bvk) initializer >> assign_pattern subpat initializer
+assign_pattern (IR.Pattern'Named _ _ _ bvk subpat) initializer = map_bound_value (unlocate bvk) initializer >> assign_pattern subpat initializer
 assign_pattern (IR.Pattern'Poison _ _) _ = pure ()

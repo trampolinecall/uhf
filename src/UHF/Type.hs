@@ -239,7 +239,7 @@ convert_type_expr decls (IR.TypeExpr'Identifier sp iden) = case iden of -- TODO:
         IR.Decl'Type ty -> pure $ void_var_to_key ty
     Nothing -> IR.Type'Variable <$> new_type_variable (TypeExpr sp)
     where
-        -- basically useless function for converting Type Void to Type(TypeVarKey
+        -- basically useless function for converting Type Void to Type TypeVarKey
         void_var_to_key (IR.Type'Nominal k) = IR.Type'Nominal k
         void_var_to_key (IR.Type'Int) = IR.Type'Int
         void_var_to_key (IR.Type'Float) = IR.Type'Float

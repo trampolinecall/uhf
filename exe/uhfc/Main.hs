@@ -8,6 +8,8 @@ import Options.Applicative
 
 import qualified Driver
 
+import qualified Data.Text as Text
+
 import qualified System.IO as IO
 import UHF.IO.Location (open_file) -- TODO: rename this module to something better (open_file in the Location module is a bit weird)
 
@@ -52,27 +54,29 @@ compile num total fname =
 -- TODO: put this somewhere else
 graph_to_dot :: Arena.Arena IR.GraphNode IR.GraphNodeKey -> Text
 graph_to_dot nodes =
-    snd $ runWriter (tell "strict digraph {" >> Arena.transform_with_keyM print_node nodes >> tell "}")
+    snd $ runWriter (tell "strict digraph {\n    node [shape=record];\n" >> Arena.transform_with_keyM print_node nodes >> tell "}\n")
     where
         key_to_dot_id key = "node" <> show (Arena.unmake_key key)
         print_node node_key node =
             let (label, connections) =
                     -- TODO: print types
-                    -- TODO: use records / tables
                     case node of
                         IR.GraphNode'Int _ i -> ("int: " <> show i, [])
                         IR.GraphNode'Float _ f -> ("float: " <> show f, [])
                         IR.GraphNode'Bool _ b -> ("bool: " <> show b, [])
                         IR.GraphNode'Char _ c -> ("char: " <> show c, [])
                         IR.GraphNode'String _ s -> ("string: \\\"" <> s <> "\\\"", [])
-                        IR.GraphNode'Tuple _ a b -> ("tuple", [a, b]) -- TODO: show connections
+                        IR.GraphNode'Tuple _ a b -> ("tuple", [("a", a), ("b", b)])
 
-                        IR.GraphNode'Call _ callee arg -> ("call", [callee, arg])
+                        IR.GraphNode'Param _ -> ("param", [])
+                        IR.GraphNode'Lambda _ param body -> ("lambda", [("param", param), ("body", body)])
 
-                        IR.GraphNode'TupleDestructure1 _ tup -> ("destructure 1", [tup])
-                        IR.GraphNode'TupleDestructure2 _ tup -> ("destructure 2", [tup])
+                        IR.GraphNode'Call _ callee arg -> ("call", [("callee", callee), ("arg", arg)])
+
+                        IR.GraphNode'TupleDestructure1 _ tup -> ("tuple destructure 1", [("tuple", tup)])
+                        IR.GraphNode'TupleDestructure2 _ tup -> ("tuple destructure 2", [("tuple", tup)])
 
                         IR.GraphNode'Poison _ -> ("poison", [])
 
-            in tell (key_to_dot_id node_key <> " [label = \"" <> label <> "\"]" <> ";") >>
-            mapM_ (\ other -> tell $ key_to_dot_id node_key <> " -> " <> key_to_dot_id other) connections
+            in tell ("    " <> key_to_dot_id node_key <> " [label = \"{<name> " <> label <> "|{" <> Text.intercalate "|" (map (\ (port, _) -> "<" <> port <> ">" <> port) connections) <> "}}\"]" <> ";\n") >>
+            mapM_ (\ (this_port, other) -> tell $ "    " <> key_to_dot_id node_key <> ":" <> this_port <> " -> " <> key_to_dot_id other <> ":name;\n") connections

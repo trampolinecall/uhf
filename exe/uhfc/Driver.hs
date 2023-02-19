@@ -23,6 +23,7 @@ import qualified UHF.Type as Type
 import qualified UHF.ToGraph as ToGraph
 import qualified UHF.RemovePoison as RemovePoison
 import qualified UHF.ToDot as ToDot
+import qualified UHF.TSBackend as TSBackend
 
 type ErrorAccumulated a = Writer [Diagnostic.Error] a -- TODO: allow for warnings too
 
@@ -34,16 +35,18 @@ type TypedIR = (Arena.Arena IR.Decl IR.DeclKey, Arena.Arena (IR.NominalType (May
 type GraphIR = (Arena.Arena IR.Decl IR.DeclKey, Arena.Arena (IR.NominalType (Maybe (IR.Type Void))) IR.NominalTypeKey, Arena.Arena (IR.GraphNode (Maybe (IR.Type Void)) ()) IR.GraphNodeKey, Arena.Arena (IR.GraphParam (Maybe (IR.Type Void))) IR.GraphParamKey, Arena.Arena (IR.BoundValue (Maybe (IR.Type Void))) IR.BoundValueKey)
 type NoPoisonIR = (Arena.Arena IR.Decl IR.DeclKey, Arena.Arena (IR.NominalType (IR.Type Void)) IR.NominalTypeKey, Arena.Arena (IR.GraphNode (IR.Type Void) Void) IR.GraphNodeKey, Arena.Arena (IR.GraphParam (IR.Type Void)) IR.GraphParamKey, Arena.Arena (IR.BoundValue (IR.Type Void)) IR.BoundValueKey)
 type Dot = Text
+type TS = Text
 
-compile :: File -> Either [Diagnostic.Error] (Maybe Dot)
+compile :: File -> Either [Diagnostic.Error] (Maybe TS)
 compile file =
     let (res, diags) = runWriter $ compile' file
     in if null diags
         then Right res
         else Left diags
 
-compile' :: File -> ErrorAccumulated (Maybe Dot)
+compile' :: File -> ErrorAccumulated (Maybe TS)
 compile' file =
+    -- TODO: clean up
     convert_errors (Lexer.lex file) >>= \ (tokens, eof_tok) ->
     let (bt_error, ast) = Parser.parse tokens eof_tok
     in (case bt_error of
@@ -54,11 +57,17 @@ compile' file =
     let bindings' = InfixGroup.group bindings
     in convert_errors (Type.typecheck (decls, nominal_types, bindings', bound_values)) >>= \ (decls, nominal_types, bindings, bound_values) ->
     let (nodes, params) = (ToGraph.to_graph bound_values bindings)
+        no_poison = RemovePoison.remove_poison (decls, nominal_types, nodes, params, bound_values)
         dot =
-            case RemovePoison.remove_poison (decls, nominal_types, nodes, params, bound_values) of
+            case no_poison of
                 Just (decls', nominal_types', nodes', params', bound_values') -> Just $ ToDot.to_dot decls' nominal_types' nodes' params'
                 Nothing -> Nothing
-    in pure dot
+
+        ts =
+            case no_poison of
+                Just (decls', nominal_types', nodes', params', bound_values') -> Just $ TSBackend.lower decls' nominal_types' nodes' params'
+                Nothing -> Nothing
+    in pure ts
 
 convert_errors :: Diagnostic.IsError e => Writer [e] a -> Writer [Diagnostic.Error] a
 convert_errors = mapWriter (\ (res, errs) -> (res, map Diagnostic.to_error errs))

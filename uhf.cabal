@@ -40,6 +40,7 @@ library
       UHF.Parser.PEG
       UHF.Parser.Test
       UHF.RemovePoison
+      UHF.ToDot
       UHF.ToGraph
       UHF.Token
       UHF.Type

@@ -1,4 +1,3 @@
-
 module UHF.Diagnostic.Sections.Utils where
 
 import UHF.Util.Prelude

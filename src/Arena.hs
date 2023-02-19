@@ -47,7 +47,7 @@ transformM :: (Key k, Monad m) => (a -> m b) -> Arena a k -> m (Arena b k)
 transformM t (Arena items) = Arena <$> mapM t items
 
 transform_with_keyM :: (Key k, Monad m) => (k -> a -> m b) -> Arena a k -> m (Arena b k)
-transform_with_keyM t (Arena items) = Arena <$> mapM (uncurry t) (zip (map make_key $ reverse [0 .. length items - 1]) items)
+transform_with_keyM t (Arena items) = Arena <$> zipWithM t (map make_key $ reverse [0 .. length items - 1]) items
 
 newtype TestKey = TestKey Int deriving (Show, Eq)
 instance Key TestKey where
@@ -76,9 +76,9 @@ case_modify =
         (k1, a1) = Arena.put 1 a0
         (k2, a2) = Arena.put 2 a1
     in
-        (Arena.modify a2 k0 (const 100) @?= (Arena [2, 1, 100])) >>
-        (Arena.modify a2 k1 (const 100) @?= (Arena [2, 100, 0])) >>
-        (Arena.modify a2 k2 (const 100) @?= (Arena [100, 1, 0]))
+        (Arena.modify a2 k0 (const 100) @?= Arena [2, 1, 100]) >>
+        (Arena.modify a2 k1 (const 100) @?= Arena [2, 100, 0]) >>
+        (Arena.modify a2 k2 (const 100) @?= Arena [100, 1, 0])
 
 case_transform :: Assertion
 case_transform =

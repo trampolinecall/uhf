@@ -53,7 +53,11 @@ convert_expr bv_map (IR.Expr'Bool ty _ b) = new_node (IR.GraphNode'Bool ty b)
 
 convert_expr bv_map (IR.Expr'Tuple ty _ a b) = IR.GraphNode'Tuple ty <$> convert_expr bv_map a <*> convert_expr bv_map b >>= new_node
 
-convert_expr bv_map (IR.Expr'Lambda ty _ param body) = todo
+convert_expr bv_map (IR.Expr'Lambda ty _ param body) =
+    new_node (IR.GraphNode'Param (IR.pattern_type param)) >>= \ param_node ->
+    assign_pattern param param_node >>
+    convert_expr bv_map body >>= \ body ->
+    new_node (IR.GraphNode'Lambda ty param_node body)
 
 convert_expr bv_map (IR.Expr'Let ty _ e) = convert_expr bv_map e
 convert_expr bv_map (IR.Expr'LetRec ty _ e) = convert_expr bv_map e
@@ -79,3 +83,4 @@ assign_pattern (IR.Pattern'Tuple typeinfo _ a b) initializer =
     new_node (IR.GraphNode'TupleDestructure2 (IR.pattern_type b) initializer) >>= assign_pattern b
 
 assign_pattern (IR.Pattern'Named typeinfo _ _ bvk subpat) initializer = map_bound_value (unlocate bvk) initializer >> assign_pattern subpat initializer
+assign_pattern (IR.Pattern'Poison _ _) _ = pure ()

@@ -75,11 +75,11 @@ format_render_message :: Bool -> RenderMessage -> FormattedString
 format_render_message is_last (_, ty, text) = FormattedString.Colored (type_color ty) ((if is_last then "`" else "|") <> "-- " <> text)
 
 rm_start_col :: RenderMessage -> Int
-rm_start_col ((loc, _, _)) = Location.col $ Location.lc loc
+rm_start_col (loc, _, _) = Location.col $ Location.lc loc
 rm_end_col :: RenderMessage -> Int
 -- `-- message
 -- 4 ('`-- ') + length of message
-rm_end_col ((loc, _, text)) = Location.col (Location.lc loc) + FormattedString.length text + 4
+rm_end_col (loc, _, text) = Location.col (Location.lc loc) + FormattedString.length text + 4
 -- show_singleline {{{2
 show_singleline :: [Message] -> [Line.Line]
 show_singleline unds =
@@ -106,7 +106,7 @@ show_line (last, (fl, nr, messages)) =
 
         (quote, underline_line) = get_colored_quote_and_underline_line fl nr messages
 
-    in (Utils.file_and_elipsis_lines ((\ (lastfl, lastnr, _) -> (lastfl, lastnr)) <$> last) (fl, nr)) ++
+    in Utils.file_and_elipsis_lines ((\ (lastfl, lastnr, _) -> (lastfl, lastnr)) <$> last) (fl, nr) ++
         [Line.numbered_line nr quote] ++
         (if not $ null messages
             then [Line.other_line underline_line]
@@ -159,7 +159,7 @@ show_msg_row below msgs =
                 end_col = rm_end_col msg
             in ( end_col
                , FormattedString.Literal (Text.pack $ map (\ c -> if c `elem` below_pipes then '|' else ' ') [last_col..start_col - 1])
-                   <> format_render_message (not $ start_col `elem` below_pipes) msg
+                   <> format_render_message (start_col `notElem` below_pipes) msg
                )
 
     in Line.other_line $ foldl' (<>) "" $ snd $ List.mapAccumL render_msg 1 sorted_msgs
@@ -269,7 +269,7 @@ show_bottom_lines loc n ch ty msg =
             FormattedString.color_text [Colors.bold] (Text.replicate n_dash "-") <> FormattedString.color_text sgr (Text.replicate n_ch (Text.pack [ch]))] ++
         zipWith (\ i msg ->
             Line.other_line $
-                FormattedString.Literal (Text.replicate (end_col - 1) " ") <> format_render_message (i == (0 :: Int) {- length msgs #-}) ((loc, ty, msg))
+                FormattedString.Literal (Text.replicate (end_col - 1) " ") <> format_render_message (i == (0 :: Int) {- length msgs -}) (loc, ty, msg)
         ) [0..] (Maybe.maybeToList msg)
 
 show_middle_line :: Maybe (File, Int) -> [ANSI.SGR] -> [Line.Line]
@@ -356,7 +356,7 @@ case_show_line_single =
         , ( "", '|', "^^ ")
         , ( "", '|', " `-- message")
         ]
-        (show_line (Nothing, ((f, 1, [error sp "message"]))))
+        (show_line (Nothing, (f, 1, [error sp "message"])))
 
 case_show_line_multiple :: Assertion
 case_show_line_multiple =
@@ -368,7 +368,7 @@ case_show_line_multiple =
         , ( "", '|', "^^^                  ^^^ ")
         , ( "", '|', "  `-- a                `-- b")
         ]
-        (show_line (Nothing, ((f, 1, [error sp1 "a", error sp2 "b"]))))
+        (show_line (Nothing, (f, 1, [error sp1 "a", error sp2 "b"])))
 
 case_show_line_multiple_overlapping :: Assertion
 case_show_line_multiple_overlapping =
@@ -381,7 +381,7 @@ case_show_line_multiple_overlapping =
         , ( "", '|', "  |-- message1")
         , ( "", '|', "  `-- message2")
         ]
-        (show_line (Nothing, ((f, 1, [error sp1 "message1", note sp1 "message2", hint sp2 "message3"]))))
+        (show_line (Nothing, (f, 1, [error sp1 "message1", note sp1 "message2", hint sp2 "message3"])))
 
 case_show_msg_row :: Assertion
 case_show_msg_row =

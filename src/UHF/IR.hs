@@ -179,11 +179,11 @@ pattern_span (Pattern'Tuple _ sp _ _) = sp
 pattern_span (Pattern'Named _ sp _ _ _) = sp
 pattern_span (Pattern'Poison _ sp) = sp
 
-newtype GraphNodeKey = GraphNodeKey Int deriving Show
+newtype GraphNodeKey = GraphNodeKey Int deriving (Show, Eq, Ord) -- TODO: figure out better solution in ts backend than to use ord instance
 instance Arena.Key GraphNodeKey where
     make_key = GraphNodeKey
     unmake_key (GraphNodeKey i) = i
-newtype GraphParamKey = GraphParamKey Int deriving Show
+newtype GraphParamKey = GraphParamKey Int deriving (Show, Eq, Ord) -- TODO: figure out better solution in ts backend than to use ord instance for ordering parameters
 instance Arena.Key GraphParamKey where
     make_key = GraphParamKey
     unmake_key (GraphParamKey i) = i

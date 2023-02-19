@@ -1,4 +1,3 @@
-{-# LANGUAGE TupleSections #-}
 
 module UHF.Diagnostic.Sections.Utils where
 

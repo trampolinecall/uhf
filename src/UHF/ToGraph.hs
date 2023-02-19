@@ -54,7 +54,7 @@ convert_expr bv_map (IR.Expr'Int ty _ i) = new_graph_node (IR.GraphNode'Int ty i
 convert_expr bv_map (IR.Expr'Float ty _ f) = new_graph_node (IR.GraphNode'Float ty f)
 convert_expr bv_map (IR.Expr'Bool ty _ b) = new_graph_node (IR.GraphNode'Bool ty b)
 
-convert_expr bv_map (IR.Expr'Tuple ty _ a b) = new_graph_node =<< IR.GraphNode'Tuple ty <$> convert_expr bv_map a <*> convert_expr bv_map b
+convert_expr bv_map (IR.Expr'Tuple ty _ a b) = IR.GraphNode'Tuple ty <$> convert_expr bv_map a <*> convert_expr bv_map b >>= new_graph_node
 
 convert_expr bv_map (IR.Expr'Lambda ty _ param body) =
     new_param_node (IR.GraphParam (IR.pattern_type param)) >>= \ graph_param ->

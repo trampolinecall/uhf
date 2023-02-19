@@ -189,6 +189,9 @@ data GraphNode -- TODO: is type information necessary at this stage? (graph is c
     | GraphNode'String (Maybe (Type Void)) Text
     | GraphNode'Tuple (Maybe (Type Void)) GraphNodeKey GraphNodeKey -- TODO: replace with call constructor node
 
+    | GraphNode'Lambda (Maybe (Type Void)) GraphNodeKey GraphNodeKey -- TODO: this probably doesnt work well
+    | GraphNode'Param (Maybe (Type Void))
+
     | GraphNode'Call (Maybe (Type Void)) GraphNodeKey GraphNodeKey
 
     | GraphNode'TupleDestructure1 (Maybe (Type Void)) GraphNodeKey -- TODO: figure out better solution to this

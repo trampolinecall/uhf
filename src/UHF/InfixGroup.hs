@@ -15,8 +15,6 @@ type UngroupedExpr typeannotation = IR.Expr (Located (Maybe IR.BoundValueKey)) t
 type GroupedBinding typeannotation = IR.Binding (Located (Maybe IR.BoundValueKey)) typeannotation () Void
 type GroupedExpr typeannotation = IR.Expr (Located (Maybe IR.BoundValueKey)) typeannotation () Void
 
-type Pattern = IR.Pattern (Located (Maybe IR.BoundValueKey))
-
 type UngroupedBindingArena typeannotation = Arena.Arena (UngroupedBinding typeannotation) IR.BindingKey
 type GroupedBindingArena typeannotation = Arena.Arena (GroupedBinding typeannotation) IR.BindingKey
 

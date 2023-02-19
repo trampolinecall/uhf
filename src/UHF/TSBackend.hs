@@ -156,7 +156,7 @@ stringify_ts_lambda (TSLambda key arg result body_key) =
 stringify_ts_evaluator :: TSEvaluator -> IRReader Text
 stringify_ts_evaluator (TSEvaluator key ty fields evaluation) =
     refer_type_raw ty >>= \ ty ->
-    Text.intercalate ", " <$> (mapM (\ (field_name, field_type) -> refer_type field_type >>= \ field_type -> pure ("public " <> field_name <> ": " <> field_type)) fields) >>= \ constructor_params ->
+    Text.intercalate ", " <$> mapM (\ (field_name, field_type) -> refer_type field_type >>= \ field_type -> pure ("public " <> field_name <> ": " <> field_type)) fields >>= \ constructor_params ->
     pure ("class " <> mangle_graph_node_as_evaluator key <> " implements Evaluator<" <> ty <> "> {\n"
         <> "    constructor(" <> constructor_params <> ") {}\n"
         <> "    evaluate(): " <> ty <> " {\n"
@@ -171,11 +171,11 @@ refer_type_raw (IR.Type'Nominal ntk) =
         IR.NominalType'Data _ _ -> pure $ mangle_nominal_type ntk
         IR.NominalType'Synonym _ expansion -> refer_type expansion
 
-refer_type_raw (IR.Type'Int) = pure "number"
-refer_type_raw (IR.Type'Float) = pure "number"
-refer_type_raw (IR.Type'Char) = pure "char"
-refer_type_raw (IR.Type'String) = pure "string"
-refer_type_raw (IR.Type'Bool) = pure "bool"
+refer_type_raw IR.Type'Int = pure "number"
+refer_type_raw IR.Type'Float = pure "number"
+refer_type_raw IR.Type'Char = pure "char"
+refer_type_raw IR.Type'String = pure "string"
+refer_type_raw IR.Type'Bool = pure "bool"
 refer_type_raw (IR.Type'Function a r) = refer_type a >>= \ a -> refer_type r >>= \ r -> pure ("Lambda<" <> a <> ", " <> r <> ">")
 refer_type_raw (IR.Type'Tuple a b) = refer_type a >>= \ a -> refer_type b >>= \ b -> pure ("[" <> a <> ", " <> b <> "]")
 refer_type_raw (IR.Type'Variable void) = absurd void
@@ -222,7 +222,7 @@ define_graph_node_evaluator key (IR.GraphNode'String ty s) = tell_evaluator $ TS
 define_graph_node_evaluator key (IR.GraphNode'Tuple ty a b) =
     lift (node_type a) >>= \ a_ty ->
     lift (node_type b) >>= \ b_ty ->
-    tell_evaluator $ TSEvaluator key ty [("a", a_ty), ("b", b_ty)] ("return [this.a, this.b];\n")
+    tell_evaluator $ TSEvaluator key ty [("a", a_ty), ("b", b_ty)] "return [this.a, this.b];\n"
 
 define_graph_node_evaluator key (IR.GraphNode'Lambda ty param body) = -- TODO: annotate with captures
     lift (get_param param) >>= \ (IR.GraphParam param_ty) ->
@@ -263,10 +263,10 @@ define_graph_node_evaluator _ (IR.GraphNode'Param _ _) = pure () -- params do no
 define_graph_node_evaluator key (IR.GraphNode'Call ty callee arg) =
     lift (node_type callee) >>= \ callee_type ->
     lift (node_type arg) >>= \ arg_type ->
-    tell_evaluator $ TSEvaluator key ty [("callee", callee_type), ("arg", arg_type)] ("return this.callee.get_value().call(this.arg).get_value();\n")
+    tell_evaluator $ TSEvaluator key ty [("callee", callee_type), ("arg", arg_type)] "return this.callee.get_value().call(this.arg).get_value();\n"
 
-define_graph_node_evaluator key (IR.GraphNode'TupleDestructure1 ty tup) = lift (node_type tup) >>= \ tup_ty -> tell_evaluator $ TSEvaluator key ty [("tup", tup_ty)] ("return this.tup.get_value()[0].get_value();\n")
-define_graph_node_evaluator key (IR.GraphNode'TupleDestructure2 ty tup) = lift (node_type tup) >>= \ tup_ty -> tell_evaluator $ TSEvaluator key ty [("tup", tup_ty)] ("return this.tup.get_value()[1].get_value();\n")
+define_graph_node_evaluator key (IR.GraphNode'TupleDestructure1 ty tup) = lift (node_type tup) >>= \ tup_ty -> tell_evaluator $ TSEvaluator key ty [("tup", tup_ty)] "return this.tup.get_value()[0].get_value();\n"
+define_graph_node_evaluator key (IR.GraphNode'TupleDestructure2 ty tup) = lift (node_type tup) >>= \ tup_ty -> tell_evaluator $ TSEvaluator key ty [("tup", tup_ty)] "return this.tup.get_value()[1].get_value();\n"
 
 define_graph_node_evaluator _ (IR.GraphNode'Poison _ void) = absurd void
 

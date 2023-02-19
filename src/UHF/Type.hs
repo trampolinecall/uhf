@@ -1,4 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
 module UHF.Type (typecheck) where
 
 import UHF.Util.Prelude
@@ -164,7 +163,7 @@ instance Diagnostic.IsError Error where
             Diagnostic.DiagnosticContents
                 (Just span)
                 ("occurs check failure: infinite cyclic type arising from constraint '" <> var_printed <> "' = '" <> print_type True nominal_types vars ty <> "'")
-                [ var_sp `Messages.note` (convert_str $ "where " <> var_printed <> " is the type of this " <> var_name)]
+                [ var_sp `Messages.note` convert_str ("where " <> var_printed <> " is the type of this " <> var_name)]
                 []
 
     to_error (AmbiguousType for_what) =
@@ -183,11 +182,11 @@ print_type _ nominals _ (IR.Type'Nominal key) =
     case Arena.get nominals key of
         IR.NominalType'Data name _ -> name
         IR.NominalType'Synonym name _ -> name
-print_type _ _ _ (IR.Type'Int) = "int"
-print_type _ _ _ (IR.Type'Float) = "float"
-print_type _ _ _ (IR.Type'Char) = "char"
-print_type _ _ _ (IR.Type'String) = "string"
-print_type _ _ _ (IR.Type'Bool) = "bool"
+print_type _ _ _ IR.Type'Int = "int"
+print_type _ _ _ IR.Type'Float = "float"
+print_type _ _ _ IR.Type'Char = "char"
+print_type _ _ _ IR.Type'String = "string"
+print_type _ _ _ IR.Type'Bool = "bool"
 print_type vars_show_index nominals vars (IR.Type'Function a r) = print_type vars_show_index nominals vars a <> " -> " <> print_type vars_show_index nominals vars r -- TODO: parentheses and grouping
 print_type vars_show_index nominals vars (IR.Type'Tuple a b) = "(" <> print_type vars_show_index nominals vars a <> ", " <> print_type vars_show_index nominals vars b <> ")"
 print_type vars_show_index nominals vars (IR.Type'Variable var) =
@@ -241,11 +240,11 @@ convert_type_expr decls (IR.TypeExpr'Identifier sp iden) = case iden of -- TODO:
     where
         -- basically useless function for converting Type Void to Type TypeVarKey
         void_var_to_key (IR.Type'Nominal k) = IR.Type'Nominal k
-        void_var_to_key (IR.Type'Int) = IR.Type'Int
-        void_var_to_key (IR.Type'Float) = IR.Type'Float
-        void_var_to_key (IR.Type'Char) = IR.Type'Char
-        void_var_to_key (IR.Type'String) = IR.Type'String
-        void_var_to_key (IR.Type'Bool) = IR.Type'Bool
+        void_var_to_key IR.Type'Int = IR.Type'Int
+        void_var_to_key IR.Type'Float = IR.Type'Float
+        void_var_to_key IR.Type'Char = IR.Type'Char
+        void_var_to_key IR.Type'String = IR.Type'String
+        void_var_to_key IR.Type'Bool = IR.Type'Bool
         void_var_to_key (IR.Type'Function a r) = IR.Type'Function (void_var_to_key a) (void_var_to_key r)
         void_var_to_key (IR.Type'Tuple a b) = IR.Type'Tuple (void_var_to_key a) (void_var_to_key b)
         void_var_to_key (IR.Type'Variable void) = absurd void
@@ -416,11 +415,11 @@ solve_constraints nominal_types = mapM_ solve
 
         unify (IR.Type'Variable a) b = unify_var a b False
         unify a (IR.Type'Variable b) = unify_var b a True
-        unify (IR.Type'Int) (IR.Type'Int) = pure ()
-        unify (IR.Type'Float) (IR.Type'Float) = pure ()
-        unify (IR.Type'Char) (IR.Type'Char) = pure ()
-        unify (IR.Type'String) (IR.Type'String) = pure ()
-        unify (IR.Type'Bool) (IR.Type'Bool) = pure ()
+        unify IR.Type'Int IR.Type'Int = pure ()
+        unify IR.Type'Float IR.Type'Float = pure ()
+        unify IR.Type'Char IR.Type'Char = pure ()
+        unify IR.Type'String IR.Type'String = pure ()
+        unify IR.Type'Bool IR.Type'Bool = pure ()
         unify (IR.Type'Function a1 r1) (IR.Type'Function a2 r2) = unify a1 a2 >> unify r1 r2
         unify (IR.Type'Tuple a1 b1) (IR.Type'Tuple a2 b2) = unify a1 a2 >> unify b1 b2
         unify a b = ExceptT (pure $ Left $ Left (a, b))
@@ -485,11 +484,11 @@ convert_vars vars =
     -- infinite recursion is not possible because occurs check prevents loops in substitution
     mfix (\ vars_converted -> Arena.transformM (runMaybeT . convert_var vars_converted) vars)
     where
-        r _ (IR.Type'Int) = pure $ IR.Type'Int
-        r _ (IR.Type'Float) = pure $ IR.Type'Float
-        r _ (IR.Type'Char) = pure $ IR.Type'Char
-        r _ (IR.Type'String) = pure $ IR.Type'String
-        r _ (IR.Type'Bool) = pure $ IR.Type'Bool
+        r _ IR.Type'Int = pure IR.Type'Int
+        r _ IR.Type'Float = pure IR.Type'Float
+        r _ IR.Type'Char = pure IR.Type'Char
+        r _ IR.Type'String = pure IR.Type'String
+        r _ IR.Type'Bool = pure IR.Type'Bool
         r _ (IR.Type'Nominal n) = pure $ IR.Type'Nominal n
         r vars_converted (IR.Type'Function arg res) = IR.Type'Function <$> r vars_converted arg <*> r vars_converted res
         r vars_converted (IR.Type'Tuple a b) = IR.Type'Tuple <$> r vars_converted a <*> r vars_converted b
@@ -534,13 +533,13 @@ remove_vars_from_binding vars (IR.Binding pat eq_sp expr) = IR.Binding (remove_f
         remove_from_expr (IR.Expr'TypeAnnotation ty sp annotation e) = IR.Expr'TypeAnnotation (remove_vars vars ty) sp (remove_vars vars annotation) (remove_from_expr e)
 
 remove_vars :: Arena.Arena (Maybe Type) TypeVarKey -> TypeWithVars -> Maybe Type
-remove_vars vars ty = r ty
+remove_vars vars = r
     where
-        r (IR.Type'Int) = pure $ IR.Type'Int
-        r (IR.Type'Float) = pure $ IR.Type'Float
-        r (IR.Type'Char) = pure $ IR.Type'Char
-        r (IR.Type'String) = pure $ IR.Type'String
-        r (IR.Type'Bool) = pure $ IR.Type'Bool
+        r IR.Type'Int = pure IR.Type'Int
+        r IR.Type'Float = pure IR.Type'Float
+        r IR.Type'Char = pure IR.Type'Char
+        r IR.Type'String = pure IR.Type'String
+        r IR.Type'Bool = pure IR.Type'Bool
         r (IR.Type'Nominal n) = pure $ IR.Type'Nominal n
         r (IR.Type'Function arg res) = IR.Type'Function <$> r arg <*> r res
         r (IR.Type'Tuple a b) = IR.Type'Tuple <$> r a <*> r b

@@ -90,8 +90,8 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph main_key included_nodes included
         <> "}\n")
     where
         mangle_graph_node_as_local_thunk, mangle_graph_node_as_local_evaluator :: IR.GraphNodeKey -> Text
-        mangle_graph_node_as_local_thunk key = "graph_node_made_thunk" <> show (Arena.unmake_key key)
-        mangle_graph_node_as_local_evaluator key = "graph_node_made_evaluator" <> show (Arena.unmake_key key)
+        mangle_graph_node_as_local_thunk key = "thunk" <> show (Arena.unmake_key key)
+        mangle_graph_node_as_local_evaluator key = "evaluator" <> show (Arena.unmake_key key)
 
         stringify_param param_key =
             get_param param_key >>= \ (IR.GraphParam param_ty) ->
@@ -100,7 +100,7 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph main_key included_nodes included
 
         stringify_node_decl node_key =
             node_type node_key >>= refer_type >>= \ cur_node_type ->
-            let let_evaluator evaluator_args = "let " <> mangle_graph_node_as_local_evaluator node_key <> ": Evaluator" <> mangle_graph_node node_key <> " = " <> "new Evaluator" <> mangle_graph_node node_key <> "(" <> evaluator_args <> ")" <> ";"
+            let let_evaluator evaluator_args = "let " <> mangle_graph_node_as_local_evaluator node_key <> ": " <> mangle_graph_node_as_evaluator node_key <> " = " <> "new " <> mangle_graph_node_as_evaluator node_key <> "(" <> evaluator_args <> ")" <> ";"
                 let_thunk :: Text -> Text
                 let_thunk initializer = "let " <> mangle_graph_node_as_local_thunk node_key <> ": " <> (cur_node_type :: Text) <> " = " <> initializer <> ";"
                 default_let_thunk = let_thunk ("new Thunk(" <> mangle_graph_node_as_local_evaluator node_key <> ")")
@@ -157,7 +157,7 @@ stringify_ts_evaluator :: TSEvaluator -> IRReader Text
 stringify_ts_evaluator (TSEvaluator key ty fields evaluation) =
     refer_type_raw ty >>= \ ty ->
     Text.intercalate ", " <$> (mapM (\ (field_name, field_type) -> refer_type field_type >>= \ field_type -> pure ("public " <> field_name <> ": " <> field_type)) fields) >>= \ constructor_params ->
-    pure ("class Evaluator" <> mangle_graph_node key <> " implements Evaluator<" <> ty <> "> {\n"
+    pure ("class " <> mangle_graph_node_as_evaluator key <> " implements Evaluator<" <> ty <> "> {\n"
         <> "    constructor(" <> constructor_params <> ") {}\n"
         <> "    evaluate(): " <> ty <> " {\n"
         <> "        " <> evaluation
@@ -273,13 +273,13 @@ define_graph_node_evaluator _ (IR.GraphNode'Poison _ void) = absurd void
 -- mangling {{{2
 -- TODO: better mangling and unified mangling for everything
 mangle_nominal_type :: IR.NominalTypeKey -> Text
-mangle_nominal_type key = "nominal_type" <> show (Arena.unmake_key key)
+mangle_nominal_type key = "NominalType" <> show (Arena.unmake_key key)
 
 mangle_graph_node_as_lambda :: IR.GraphNodeKey -> Text
-mangle_graph_node_as_lambda key = "graph_node_lambda" <> show (Arena.unmake_key key)
+mangle_graph_node_as_lambda key = "Lambda" <> show (Arena.unmake_key key)
 
 mangle_graph_node_as_make_thunk_graph :: IR.GraphNodeKey -> Text
-mangle_graph_node_as_make_thunk_graph key = "graph_node_make_thunk_graph" <> show (Arena.unmake_key key)
+mangle_graph_node_as_make_thunk_graph key = "make_thunk_graph" <> show (Arena.unmake_key key)
 
-mangle_graph_node :: IR.GraphNodeKey -> Text
-mangle_graph_node key = "graph_node" <> show (Arena.unmake_key key)
+mangle_graph_node_as_evaluator :: IR.GraphNodeKey -> Text
+mangle_graph_node_as_evaluator key = "Evaluator" <> show (Arena.unmake_key key)

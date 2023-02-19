@@ -19,16 +19,16 @@ module UHF.IR
     , Type(..)
     , Expr(..)
     , Pattern(..)
+    , expr_type
+    , pattern_type
+    , expr_span
+    , pattern_span
 
     , GraphNodeKey
     , GraphParamKey
     , GraphParam(..)
     , GraphNode(..)
-
-    , expr_type
-    , pattern_type
-    , expr_span
-    , pattern_span
+    , graph_node_type
     ) where
 
 import UHF.Util.Prelude
@@ -208,3 +208,21 @@ data GraphNode ty poison_allowed
 
     | GraphNode'Poison ty poison_allowed
     deriving Show
+
+graph_node_type :: GraphNode ty poison_allowed -> ty
+graph_node_type (GraphNode'Int ty _) = ty
+graph_node_type (GraphNode'Float ty _) = ty
+graph_node_type (GraphNode'Bool ty _) = ty
+graph_node_type (GraphNode'Char ty _) = ty
+graph_node_type (GraphNode'String ty _) = ty
+graph_node_type (GraphNode'Tuple ty _ _) = ty
+
+graph_node_type (GraphNode'Lambda ty _ _) = ty
+graph_node_type (GraphNode'Param ty _) = ty
+
+graph_node_type (GraphNode'Call ty _ _) = ty
+
+graph_node_type (GraphNode'TupleDestructure1 ty _) = ty
+graph_node_type (GraphNode'TupleDestructure2 ty _) = ty
+
+graph_node_type (GraphNode'Poison ty _) = ty

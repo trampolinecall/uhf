@@ -43,6 +43,7 @@ library
       UHF.ToDot
       UHF.ToGraph
       UHF.Token
+      UHF.TSBackend
       UHF.Type
       UHF.Util.Prelude
   other-modules:
@@ -60,6 +61,7 @@ library
       ansi-terminal
     , base >=4.13 && <5
     , containers
+    , file-embed
     , inflist
     , safe
     , tasty

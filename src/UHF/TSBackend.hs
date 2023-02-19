@@ -81,6 +81,7 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph main_key included_nodes included
     concat <$> mapM stringify_node_decl (Set.toList included_nodes) >>= \ node_decls ->
     concat <$> mapM stringify_node_set_fields (Set.toList included_nodes) >>= \ node_set_fields ->
     -- TODO: dont use GraphParamKey Ord instance to decide parameter order (not deterministic across compiles)
+    -- also TODO: dont use unmake_key anywhere (probably including outside of this module too)
 
     pure ("function " <> mangle_graph_node_as_make_thunk_graph main_key <> "(" <> Text.intercalate ", " params_stringified <> "): " <> main_node_type <> " {\n" -- TODO: captures
         <> Text.unlines node_decls

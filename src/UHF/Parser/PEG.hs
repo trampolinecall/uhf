@@ -1,5 +1,3 @@
-{-# LANGUAGE TupleSections #-}
-
 module UHF.Parser.PEG
     ( TokenStream
 

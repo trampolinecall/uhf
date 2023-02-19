@@ -128,7 +128,7 @@ data Pattern identifier typeinfo
     | Pattern'Tuple typeinfo Span (Pattern identifier typeinfo) (Pattern identifier typeinfo)
     | Pattern'Named typeinfo Span Span (Located BoundValueKey) (Pattern identifier typeinfo)
 
-    | Pattern'Poison typeinfo Span -- TODO: poisonallowed
+    | Pattern'Poison typeinfo Span
     deriving Show
 
 expr_type :: Expr identifier typeannotation typeinfo binaryopsallowed -> typeinfo
@@ -188,23 +188,23 @@ instance Arena.Key GraphParamKey where
     make_key = GraphParamKey
     unmake_key (GraphParamKey i) = i
 
-newtype GraphParam = GraphParam (Maybe (Type Void)) -- TODO: probably figure out better solution than to use arena of ()
+newtype GraphParam ty = GraphParam ty -- TODO: should there be more information associated with this?
 
-data GraphNode
-    = GraphNode'Int (Maybe (Type Void)) Integer
-    | GraphNode'Float (Maybe (Type Void)) Rational
-    | GraphNode'Bool (Maybe (Type Void)) Bool
-    | GraphNode'Char (Maybe (Type Void)) Char
-    | GraphNode'String (Maybe (Type Void)) Text
-    | GraphNode'Tuple (Maybe (Type Void)) GraphNodeKey GraphNodeKey -- TODO: replace with call constructor node
+data GraphNode ty poison_allowed
+    = GraphNode'Int ty Integer
+    | GraphNode'Float ty Rational
+    | GraphNode'Bool ty Bool
+    | GraphNode'Char ty Char
+    | GraphNode'String ty Text
+    | GraphNode'Tuple ty GraphNodeKey GraphNodeKey -- TODO: replace with call constructor node
 
-    | GraphNode'Lambda (Maybe (Type Void)) GraphParamKey GraphNodeKey
-    | GraphNode'Param (Maybe (Type Void)) GraphParamKey
+    | GraphNode'Lambda ty GraphParamKey GraphNodeKey
+    | GraphNode'Param ty GraphParamKey
 
-    | GraphNode'Call (Maybe (Type Void)) GraphNodeKey GraphNodeKey
+    | GraphNode'Call ty GraphNodeKey GraphNodeKey
 
-    | GraphNode'TupleDestructure1 (Maybe (Type Void)) GraphNodeKey -- TODO: figure out better solution to this
-    | GraphNode'TupleDestructure2 (Maybe (Type Void)) GraphNodeKey
+    | GraphNode'TupleDestructure1 ty GraphNodeKey -- TODO: figure out better solution to this
+    | GraphNode'TupleDestructure2 ty GraphNodeKey
 
-    | GraphNode'Poison (Maybe (Type Void))
+    | GraphNode'Poison ty poison_allowed
     deriving Show

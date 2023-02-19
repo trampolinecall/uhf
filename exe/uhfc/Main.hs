@@ -47,12 +47,13 @@ compile num total fname =
     open_file fname >>= \ f ->
     -- putStrLn ("[" <> show num <> "/" <> show total <> "]: compiling " <> format f) >>
     case Driver.compile f of
-        Right res@(_, _, graph_nodes, params, _) -> -- putTextLn (show res) >>
+        Right (Just (res@(_, _, graph_nodes, params, _))) -> -- putTextLn (show res) >>
             putTextLn (graph_to_dot graph_nodes params)
+        Right Nothing -> pure () -- TODO: decide what should happen here
         Left diags -> mapM_ (Diagnostic.report IO.stderr) diags
 
 -- TODO: put this somewhere else
-graph_to_dot :: Arena.Arena IR.GraphNode IR.GraphNodeKey -> Arena.Arena IR.GraphParam IR.GraphParamKey -> Text
+graph_to_dot :: Arena.Arena (IR.GraphNode (IR.Type Void) Void) IR.GraphNodeKey -> Arena.Arena (IR.GraphParam (IR.Type Void))  IR.GraphParamKey -> Text
 graph_to_dot nodes params =
     snd $ runWriter (
             tell "strict digraph {\n" >>
@@ -92,7 +93,7 @@ graph_to_dot nodes params =
                         IR.GraphNode'TupleDestructure1 _ tup -> ("tuple destructure 1", [("tuple", tup)], [])
                         IR.GraphNode'TupleDestructure2 _ tup -> ("tuple destructure 2", [("tuple", tup)], [])
 
-                        IR.GraphNode'Poison _ -> ("poison", [], [])
+                        IR.GraphNode'Poison _ void -> absurd void
 
                 make_port (name, _) = "<" <> name <> ">" <> name
                 ports = if null graph_connections && null param_connections

@@ -1,5 +1,3 @@
-{-# LANGUAGE TupleSections #-}
-
 module UHF.Lexer.MainLexer
     ( UHF.Lexer.MainLexer.lex
 

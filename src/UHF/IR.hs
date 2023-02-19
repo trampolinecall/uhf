@@ -21,6 +21,8 @@ module UHF.IR
     , Pattern(..)
 
     , GraphNodeKey
+    , GraphParamKey
+    , GraphParam(..)
     , GraphNode(..)
 
     , expr_type
@@ -181,6 +183,13 @@ newtype GraphNodeKey = GraphNodeKey Int deriving Show
 instance Arena.Key GraphNodeKey where
     make_key = GraphNodeKey
     unmake_key (GraphNodeKey i) = i
+newtype GraphParamKey = GraphParamKey Int deriving Show
+instance Arena.Key GraphParamKey where
+    make_key = GraphParamKey
+    unmake_key (GraphParamKey i) = i
+
+newtype GraphParam = GraphParam (Maybe (Type Void)) -- TODO: probably figure out better solution than to use arena of ()
+
 data GraphNode
     = GraphNode'Int (Maybe (Type Void)) Integer
     | GraphNode'Float (Maybe (Type Void)) Rational
@@ -189,8 +198,8 @@ data GraphNode
     | GraphNode'String (Maybe (Type Void)) Text
     | GraphNode'Tuple (Maybe (Type Void)) GraphNodeKey GraphNodeKey -- TODO: replace with call constructor node
 
-    | GraphNode'Lambda (Maybe (Type Void)) GraphNodeKey GraphNodeKey -- TODO: this probably doesnt work well
-    | GraphNode'Param (Maybe (Type Void))
+    | GraphNode'Lambda (Maybe (Type Void)) GraphParamKey GraphNodeKey
+    | GraphNode'Param (Maybe (Type Void)) GraphParamKey
 
     | GraphNode'Call (Maybe (Type Void)) GraphNodeKey GraphNodeKey
 

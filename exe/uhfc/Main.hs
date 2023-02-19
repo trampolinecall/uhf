@@ -47,36 +47,61 @@ compile num total fname =
     open_file fname >>= \ f ->
     -- putStrLn ("[" <> show num <> "/" <> show total <> "]: compiling " <> format f) >>
     case Driver.compile f of
-        Right res@(_, _, graph, _) -> -- putTextLn (show res) >>
-            putTextLn (graph_to_dot graph)
+        Right res@(_, _, graph_nodes, params, _) -> -- putTextLn (show res) >>
+            putTextLn (graph_to_dot graph_nodes params)
         Left diags -> mapM_ (Diagnostic.report IO.stderr) diags
 
 -- TODO: put this somewhere else
-graph_to_dot :: Arena.Arena IR.GraphNode IR.GraphNodeKey -> Text
-graph_to_dot nodes =
-    snd $ runWriter (tell "strict digraph {\n    node [shape=record];\n" >> Arena.transform_with_keyM print_node nodes >> tell "}\n")
+graph_to_dot :: Arena.Arena IR.GraphNode IR.GraphNodeKey -> Arena.Arena IR.GraphParam IR.GraphParamKey -> Text
+graph_to_dot nodes params =
+    snd $ runWriter (
+            tell "strict digraph {\n" >>
+            tell "    node [shape=record];\n" >>
+            tell "    subgraph cluster_params {\n" >>
+            Arena.transform_with_keyM print_param_node params >>
+            tell "    }\n" >>
+            Arena.transform_with_keyM print_graph_node nodes >>
+            tell "}\n"
+        )
     where
-        key_to_dot_id key = "node" <> show (Arena.unmake_key key)
-        print_node node_key node =
-            let (label, connections) =
+        node_key_to_dot_id :: IR.GraphNodeKey -> Text
+        node_key_to_dot_id key = "node" <> show (Arena.unmake_key key)
+
+        param_key_to_dot_id :: IR.GraphParamKey -> Text
+        param_key_to_dot_id key = "param" <> show (Arena.unmake_key key)
+
+        print_param_node key _ =
+            tell ("    " <> param_key_to_dot_id key <> " [label = \"<name> param\"]\n")
+
+        print_graph_node cur_key node =
+            let (name, graph_connections, param_connections) =
                     -- TODO: print types
                     case node of
-                        IR.GraphNode'Int _ i -> ("int: " <> show i, [])
-                        IR.GraphNode'Float _ f -> ("float: " <> show f, [])
-                        IR.GraphNode'Bool _ b -> ("bool: " <> show b, [])
-                        IR.GraphNode'Char _ c -> ("char: " <> show c, [])
-                        IR.GraphNode'String _ s -> ("string: \\\"" <> s <> "\\\"", [])
-                        IR.GraphNode'Tuple _ a b -> ("tuple", [("a", a), ("b", b)])
+                        IR.GraphNode'Int _ i -> ("int: " <> show i, [], [])
+                        IR.GraphNode'Float _ f -> ("float: " <> show f, [], [])
+                        IR.GraphNode'Bool _ b -> ("bool: " <> show b, [], [])
+                        IR.GraphNode'Char _ c -> ("char: " <> show c, [], [])
+                        IR.GraphNode'String _ s -> ("string: \\\"" <> s <> "\\\"", [], [])
+                        IR.GraphNode'Tuple _ a b -> ("tuple", [("a", a), ("b", b)], [])
 
-                        IR.GraphNode'Param _ -> ("param", [])
-                        IR.GraphNode'Lambda _ param body -> ("lambda", [("param", param), ("body", body)])
+                        IR.GraphNode'Lambda _ param body -> ("lambda", [("body", body)], [("param", param)])
+                        IR.GraphNode'Param _ param -> ("param", [], [("p", param)])
 
-                        IR.GraphNode'Call _ callee arg -> ("call", [("callee", callee), ("arg", arg)])
+                        IR.GraphNode'Call _ callee arg -> ("call", [("callee", callee), ("arg", arg)], [])
 
-                        IR.GraphNode'TupleDestructure1 _ tup -> ("tuple destructure 1", [("tuple", tup)])
-                        IR.GraphNode'TupleDestructure2 _ tup -> ("tuple destructure 2", [("tuple", tup)])
+                        IR.GraphNode'TupleDestructure1 _ tup -> ("tuple destructure 1", [("tuple", tup)], [])
+                        IR.GraphNode'TupleDestructure2 _ tup -> ("tuple destructure 2", [("tuple", tup)], [])
 
-                        IR.GraphNode'Poison _ -> ("poison", [])
+                        IR.GraphNode'Poison _ -> ("poison", [], [])
 
-            in tell ("    " <> key_to_dot_id node_key <> " [label = \"{<name> " <> label <> (if null connections then "" else "|{" <> Text.intercalate "|" (map (\ (port, _) -> "<" <> port <> ">" <> port) connections) <> "}") <> "}\"]" <> ";\n") >>
-            mapM_ (\ (this_port, other) -> tell $ "    " <> key_to_dot_id node_key <> ":" <> this_port <> " -> " <> key_to_dot_id other <> ":name;\n") connections
+                make_port (name, _) = "<" <> name <> ">" <> name
+                ports = if null graph_connections && null param_connections
+                        then ""
+                        else "|{" <> Text.intercalate "|" (map make_port graph_connections ++ map make_port param_connections) <> "}"
+                label = "{<name> " <> name <> ports <> "}"
+
+                make_connection to_dot_id (this_port, other) = "    " <> node_key_to_dot_id cur_key <> ":" <> this_port <> " -> " <> to_dot_id other <> ":name;\n"
+
+            in tell ("    " <> node_key_to_dot_id cur_key <> " [label = \"" <> label <> "\"];\n") >>
+            mapM_ (tell . make_connection node_key_to_dot_id) graph_connections >>
+            mapM_ (tell . make_connection param_key_to_dot_id) param_connections

@@ -133,7 +133,7 @@ resolve_expr_iden decls (nc, Just type_iden, last_segment) =
     in resolve_type_iden decls (nc, type_iden) >>= \ resolved_type ->
     case get_value_child decls <$> resolved_type <*> pure last_segment of
         Just (Right v) -> pure $ Located sp (Just v)
-        Just (Left e) -> tell [e] >> (pure (Located sp Nothing))
+        Just (Left e) -> tell [e] >> pure (Located sp Nothing)
         Nothing -> pure $ Located sp Nothing
 
 resolve_expr_iden _ (nc, Nothing, last_segment@(Located last_segment_sp _)) =

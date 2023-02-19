@@ -16,7 +16,7 @@ import qualified Data.Sequence as Sequence
 import Data.Char (isAlpha, isDigit, isOctDigit, isHexDigit, isSpace, digitToInt)
 
 -- lexing {{{1
-lex :: Location.File -> Writer [LexError.LexError] ((Sequence.Seq Token.LInternalToken), Token.LToken)
+lex :: Location.File -> Writer [LexError.LexError] (Sequence.Seq Token.LInternalToken, Token.LToken)
 lex f =
     let eof = Location.Located (Location.eof_span f) (Token.EOF ())
     in evalStateT (run Sequence.Empty) (Location.new_location f) >>= \ toks -> pure (toks, eof)
@@ -213,7 +213,7 @@ choice [] = StateT $ \ _ -> WriterT Nothing
 choice (fn:fns) = StateT $ \ loc -> WriterT $
     case runWriterT $ runStateT fn loc of
         Nothing -> runWriterT $ runStateT (choice fns) loc
-        Just res -> Just $ res
+        Just res -> Just res
 
 consume :: (Char -> Bool) -> Lexer (Location.Located Char)
 consume p = StateT $ \ loc -> WriterT $

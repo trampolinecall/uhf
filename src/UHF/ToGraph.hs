@@ -48,11 +48,11 @@ convert_expr bv_map (IR.Expr'Identifier ty _ bvkey) =
     case unlocate bvkey of
         Just bvkey -> pure $ bv_map Map.! bvkey
         Nothing -> new_graph_node (IR.GraphNode'Poison ty)
-convert_expr bv_map (IR.Expr'Char ty _ c) = new_graph_node (IR.GraphNode'Char ty c)
-convert_expr bv_map (IR.Expr'String ty _ s) = new_graph_node (IR.GraphNode'String ty s)
-convert_expr bv_map (IR.Expr'Int ty _ i) = new_graph_node (IR.GraphNode'Int ty i)
-convert_expr bv_map (IR.Expr'Float ty _ f) = new_graph_node (IR.GraphNode'Float ty f)
-convert_expr bv_map (IR.Expr'Bool ty _ b) = new_graph_node (IR.GraphNode'Bool ty b)
+convert_expr _ (IR.Expr'Char ty _ c) = new_graph_node (IR.GraphNode'Char ty c)
+convert_expr _ (IR.Expr'String ty _ s) = new_graph_node (IR.GraphNode'String ty s)
+convert_expr _ (IR.Expr'Int ty _ i) = new_graph_node (IR.GraphNode'Int ty i)
+convert_expr _ (IR.Expr'Float ty _ f) = new_graph_node (IR.GraphNode'Float ty f)
+convert_expr _ (IR.Expr'Bool ty _ b) = new_graph_node (IR.GraphNode'Bool ty b)
 
 convert_expr bv_map (IR.Expr'Tuple ty _ a b) = IR.GraphNode'Tuple ty <$> convert_expr bv_map a <*> convert_expr bv_map b >>= new_graph_node
 
@@ -66,16 +66,16 @@ convert_expr bv_map (IR.Expr'Lambda ty _ param body) =
 convert_expr bv_map (IR.Expr'Let ty _ e) = convert_expr bv_map e
 convert_expr bv_map (IR.Expr'LetRec ty _ e) = convert_expr bv_map e
 
-convert_expr bv_map (IR.Expr'BinaryOps void _ _ _ _) = absurd void
+convert_expr _ (IR.Expr'BinaryOps void _ _ _ _) = absurd void
 
 convert_expr bv_map (IR.Expr'Call ty _ callee arg) = IR.GraphNode'Call ty <$> convert_expr bv_map callee <*> convert_expr bv_map arg >>= new_graph_node
 
-convert_expr bv_map (IR.Expr'If ty _ _ cond true false) = todo
-convert_expr bv_map (IR.Expr'Case ty _ _ testing arms) = todo
+convert_expr _ (IR.Expr'If ty _ _ cond true false) = todo
+convert_expr _ (IR.Expr'Case ty _ _ testing arms) = todo
 
 convert_expr bv_map (IR.Expr'TypeAnnotation _ _ _ e) = convert_expr bv_map e
 
-convert_expr bv_map (IR.Expr'Poison ty _) = todo
+convert_expr _ (IR.Expr'Poison ty _) = todo
 
 map_bound_value :: IR.BoundValueKey -> IR.GraphNodeKey -> MakeGraphState ()
 map_bound_value k node = tell $ Map.singleton k node

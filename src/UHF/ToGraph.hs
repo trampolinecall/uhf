@@ -2,7 +2,7 @@ module UHF.ToGraph (to_graph) where
 
 import UHF.Util.Prelude
 
-import UHF.IO.Location (Located, unlocate)
+import UHF.IO.Located (Located (unlocate))
 
 import qualified Arena
 

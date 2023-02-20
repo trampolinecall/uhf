@@ -37,7 +37,8 @@ import qualified Arena
 
 import qualified Data.Map as Map
 
-import UHF.IO.Location (Span, Located)
+import UHF.IO.Span (Span)
+import UHF.IO.Located (Located)
 
 -- TODO: split this into separate modules
 

@@ -48,9 +48,9 @@ run_compiler (Compiler r) diag_settings =
         then pure $ Just result
         else pure Nothing
 
-error :: Diagnostic.IsError e => e -> Compiler ()
+error :: Diagnostic.ToError e => e -> Compiler ()
 error e = Compiler $ tell (Diagnostics [Diagnostic.to_error e] [])
-errors :: Diagnostic.IsError e => [e] -> Compiler ()
+errors :: Diagnostic.ToError e => [e] -> Compiler ()
 errors es = Compiler $ tell (Diagnostics (map Diagnostic.to_error es) [])
 warning :: Diagnostic.IsWarning w => w -> Compiler ()
 warning w = Compiler $ tell (Diagnostics [] [Diagnostic.to_warning w])

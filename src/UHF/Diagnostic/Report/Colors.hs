@@ -1,4 +1,4 @@
-module UHF.Diagnostic.Colors where
+module UHF.Diagnostic.Report.Colors where
 
 import System.Console.ANSI
 

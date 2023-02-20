@@ -11,7 +11,6 @@ import UHF.IO.Location (Span, Located (Located, unlocate, just_span))
 
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Codes as Diagnostic.Codes
-import qualified UHF.Diagnostic.Sections.Messages as Messages
 
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Control.Monad.Fix (mfix)
@@ -120,7 +119,7 @@ data Error
 
     | AmbiguousType TypeVarForWhat
 
-instance Diagnostic.IsError Error where
+instance Diagnostic.ToError Error where
     to_error (EqError nominal_types vars in_what span a_whole b_whole a_part b_part) =
         let what = case in_what of
                 InAssignment -> "assignment"
@@ -129,12 +128,11 @@ instance Diagnostic.IsError Error where
                 InCasePatterns -> "'case' expression patterns"
                 InCaseArms -> "'case' expression arms"
 
-        in Diagnostic.Error Diagnostic.Codes.type_mismatch $
-            Diagnostic.DiagnosticContents
+        in Diagnostic.Error Diagnostic.Codes.type_mismatch
                 (Just span)
                 ("conflicting types in " <> what <> ": '" <> print_type False nominal_types vars a_part <> "' vs '" <> print_type False nominal_types vars b_part <> "'")
-                [ just_span a_whole `Messages.note` convert_str (print_type False nominal_types vars $ unlocate a_whole)
-                , just_span b_whole `Messages.note` convert_str (print_type False nominal_types vars $ unlocate b_whole)
+                [ just_span a_whole `Diagnostic.msg_note` convert_str (print_type False nominal_types vars $ unlocate a_whole)
+                , just_span b_whole `Diagnostic.msg_note` convert_str (print_type False nominal_types vars $ unlocate b_whole)
                 ]
                 []
 
@@ -146,11 +144,10 @@ instance Diagnostic.IsError Error where
 
             sp = just_span got_whole
 
-        in Diagnostic.Error Diagnostic.Codes.type_mismatch $ -- TODO: change code?
-            Diagnostic.DiagnosticContents
+        in Diagnostic.Error Diagnostic.Codes.type_mismatch -- TODO: change code?
                 (Just sp)
                 (convert_str $ "conflicting types in " <> what <> ": '" <> print_type False nominal_types vars expect_part <> "' vs '" <> print_type False nominal_types vars got_part <> "'")
-                [ sp `Messages.note` convert_str ("expected '" <> print_type False nominal_types vars expect_whole <> "', got '" <> print_type False nominal_types vars (unlocate got_whole) <> "'") ]
+                [ sp `Diagnostic.msg_note` convert_str ("expected '" <> print_type False nominal_types vars expect_whole <> "', got '" <> print_type False nominal_types vars (unlocate got_whole) <> "'") ]
                 []
 
     to_error (OccursCheckError nominal_types vars span var_key ty) =
@@ -161,18 +158,16 @@ instance Diagnostic.IsError Error where
             var_name = type_var_for_what_name var_for_what
             var_printed = print_type True nominal_types vars var_as_type
 
-        in Diagnostic.Error Diagnostic.Codes.occurs_check $
-            Diagnostic.DiagnosticContents
+        in Diagnostic.Error Diagnostic.Codes.occurs_check
                 (Just span)
                 ("occurs check failure: infinite cyclic type arising from constraint '" <> var_printed <> "' = '" <> print_type True nominal_types vars ty <> "'")
-                [ var_sp `Messages.note` convert_str ("where " <> var_printed <> " is the type of this " <> var_name)]
+                [ var_sp `Diagnostic.msg_note` convert_str ("where " <> var_printed <> " is the type of this " <> var_name)]
                 []
 
     to_error (AmbiguousType for_what) =
         let sp = type_var_for_what_sp for_what
             name = type_var_for_what_name for_what
-        in Diagnostic.Error Diagnostic.Codes.ambiguous_type $
-            Diagnostic.DiagnosticContents
+        in Diagnostic.Error Diagnostic.Codes.ambiguous_type
                 (Just sp) -- TODO
                 ("ambiguous type: could not infer the type of this " <> name) -- TODO: better message
                 []

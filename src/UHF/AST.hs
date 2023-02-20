@@ -4,7 +4,8 @@ module UHF.AST where
 
 import UHF.Util.Prelude
 
-import UHF.IO.Location (Located(just_span), Span)
+import UHF.IO.Span (Span)
+import UHF.IO.Located (Located (..))
 
 type Identifier = Located [Located Text]
 

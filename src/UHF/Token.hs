@@ -17,7 +17,8 @@ module UHF.Token
 
 import UHF.Util.Prelude
 
-import qualified UHF.IO.Location as Location
+import qualified UHF.IO.Located as Located
+import UHF.IO.Located (Located)
 
 import qualified Data.Text as Text
 
@@ -28,11 +29,11 @@ data IntBase
     | Bin
     deriving (Show, Eq)
 
-type LToken = Location.Located Token
-type LInternalToken = Location.Located InternalToken
+type LToken = Located Token
+type LInternalToken = Located InternalToken
 
-type InternalToken = BaseToken (Location.Located Text) Void Char Text IntBase Integer Rational Bool
-type Token = BaseToken [Location.Located Text] () Char Text IntBase Integer Rational Bool
+type InternalToken = BaseToken (Located Text) Void Char Text IntBase Integer Rational Bool
+type Token = BaseToken [Located Text] () Char Text IntBase Integer Rational Bool
 type TokenType = BaseToken () () () () () () () ()
 
 data SingleTypeToken
@@ -131,8 +132,8 @@ instance Format Token where
     format (Float f) = "'" <> show f <> "'"
     format (Bool b) = "'" <> if b then "true" else "false" <> "'"
 
-    format (SymbolIdentifier parts) = convert_str $ "symbol identifier '" <> Text.intercalate "::" (map Location.unlocate parts) <> "'"
-    format (AlphaIdentifier parts) = convert_str $ "alphabetic identifier '" <> Text.intercalate "::" (map Location.unlocate parts) <> "'"
+    format (SymbolIdentifier parts) = convert_str $ "symbol identifier '" <> Text.intercalate "::" (map Located.unlocate parts) <> "'"
+    format (AlphaIdentifier parts) = convert_str $ "alphabetic identifier '" <> Text.intercalate "::" (map Located.unlocate parts) <> "'"
 
     format (EOF ()) = "end of file"
 

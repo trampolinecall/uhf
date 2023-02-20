@@ -22,8 +22,9 @@ import qualified Arena
 
 import qualified UHF.Compiler as Compiler
 
-import qualified UHF.IO.Location as Location
-import UHF.IO.Location (Located (..))
+import qualified UHF.IO.Span as Span
+import qualified UHF.IO.Located as Located
+import UHF.IO.Located (Located (Located))
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Codes as Diagnostic.Codes
 
@@ -130,7 +131,7 @@ split_expr_iden (nc, x) = pure (nc, Just $ init x, last x)
 
 resolve_expr_iden :: DeclArena -> (IR.NameContext, Maybe [Located Text], Located Text) -> Writer [Error] (Located (Maybe IR.BoundValueKey))
 resolve_expr_iden decls (nc, Just type_iden, last_segment) =
-    let sp = Location.just_span (head type_iden) `Location.join_span` Location.just_span last_segment
+    let sp = Located.just_span (head type_iden) `Span.join` Located.just_span last_segment
     in resolve_type_iden decls (nc, type_iden) >>= \ resolved_type ->
     case get_value_child decls <$> resolved_type <*> pure last_segment of
         Just (Right v) -> pure $ Located sp (Just v)
@@ -143,7 +144,7 @@ resolve_expr_iden _ (nc, Nothing, last_segment@(Located last_segment_sp _)) =
         Left e -> tell [e] >> pure (Located last_segment_sp Nothing)
     where
         resolve (IR.NameContext _ bn_children parent) name =
-            case Map.lookup (Location.unlocate name) bn_children of
+            case Map.lookup (Located.unlocate name) bn_children of
                 Just res -> Right res
                 Nothing ->
                     case parent of
@@ -161,7 +162,7 @@ resolve_type_iden decls (nc, first:more) =
         Left e -> tell [e] >> pure Nothing
     where
         resolve_first (IR.NameContext d_children _ parent) first =
-            case Map.lookup (Location.unlocate first) d_children of
+            case Map.lookup (Located.unlocate first) d_children of
                 Just decl -> Right decl
                 Nothing ->
                     case parent of
@@ -171,7 +172,7 @@ resolve_type_iden decls (nc, first:more) =
 get_decl_child :: DeclArena -> IR.DeclKey -> Located Text -> Either Error IR.DeclKey
 get_decl_child decls thing name =
     let res = case Arena.get decls thing of
-            IR.Decl'Module (IR.Module (IR.NameContext d_children _ _)) -> Map.lookup (Location.unlocate name) d_children
+            IR.Decl'Module (IR.Module (IR.NameContext d_children _ _)) -> Map.lookup (Located.unlocate name) d_children
             IR.Decl'Type _ -> Nothing -- TODO: implement children of types through impl blocks, this will also need infinite recursion checking
     in case res of
         Just res -> Right res
@@ -180,7 +181,7 @@ get_decl_child decls thing name =
 get_value_child :: DeclArena -> IR.DeclKey -> Located Text -> Either Error IR.BoundValueKey
 get_value_child decls thing name =
     let res = case Arena.get decls thing of
-            IR.Decl'Module (IR.Module (IR.NameContext _ v_children _)) -> Map.lookup (Location.unlocate name) v_children
+            IR.Decl'Module (IR.Module (IR.NameContext _ v_children _)) -> Map.lookup (Located.unlocate name) v_children
             IR.Decl'Type _ -> Nothing -- TODO: implement children of types through impl blocks
     in case res of
         Just res -> Right res

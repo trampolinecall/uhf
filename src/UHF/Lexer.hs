@@ -11,7 +11,7 @@ import qualified UHF.Lexer.MainLexer as MainLexer
 import qualified UHF.Lexer.IdentifierGrouper as IdentifierGrouper
 
 import qualified UHF.Token as Token
-import UHF.IO.Location (File)
+import UHF.IO.File (File)
 
 import qualified UHF.Compiler as Compiler
 

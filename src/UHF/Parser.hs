@@ -26,6 +26,7 @@ import UHF.IO.Located (Located (Located))
 import qualified UHF.Compiler as Compiler
 
 -- TODO: write tests
+-- TODO: improve parser errors
 
 -- parse {{{1
 parse :: [Token.LToken] -> Token.LToken -> Compiler.Compiler [AST.Decl]
@@ -100,7 +101,7 @@ decl_binding =
 
 decl_typesyn :: PEG.Parser AST.Decl
 decl_typesyn =
-    PEG.consume' "type synonym" (Token.SingleTypeToken Token.Type) >>= \ _ ->
+    PEG.consume' "type synonym" (Token.SingleTypeToken Token.TypeSyn) >>= \ _ ->
     PEG.consume' "type synonym name" (Token.AlphaIdentifier ()) >>= \ (Located name_sp (Token.AlphaIdentifier name)) ->
     PEG.consume' "'='" (Token.SingleTypeToken Token.Equal) >>= \ _ ->
     type_ >>= \ ty ->

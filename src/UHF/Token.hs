@@ -54,9 +54,9 @@ data SingleTypeToken
     | Root
     | Let
     | LetRec
-    | Type -- TODO: change to TypeSyn
+    | TypeSyn
     | Data
-    | Under
+    | Impl
     | If
     | Then
     | Else
@@ -99,9 +99,9 @@ instance Format SingleTypeToken where
     format Root = "'root'"
     format Let = "'let'"
     format LetRec = "'letrec'"
-    format Type = "'type'"
+    format TypeSyn = "'typesy
     format Data = "'data'"
-    format Under = "'under'"
+    format Impl = "'impl'"
     format If = "'if'"
     format Then = "'then'"
     format Else = "'else'"

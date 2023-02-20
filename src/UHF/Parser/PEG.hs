@@ -27,7 +27,7 @@ import UHF.Util.Prelude
 
 import qualified UHF.Parser.Error as Error
 
-import qualified UHF.IO.Location as Location
+import qualified UHF.IO.Located as Located
 
 import qualified UHF.Token as Token
 
@@ -77,7 +77,7 @@ peek = Parser $ \ bt_errors toks -> (bt_errors, Just (snd $ InfList.head toks, t
 consume :: (Int -> Token.LToken -> Error.BacktrackingError) -> Token.TokenType -> Parser Token.LToken
 consume make_err exp = Parser $
     \ bt_errors ((tok_i, tok) InfList.::: more_toks) ->
-        if is_tt exp (Location.unlocate tok)
+        if is_tt exp (Located.unlocate tok)
             then (bt_errors, Just (tok, more_toks))
             else (make_err tok_i tok : bt_errors, Nothing)
 
@@ -147,19 +147,19 @@ optional a = Parser $ \ bt_errors toks ->
 
 -- tests {{{1
 dummy_eof :: Token.LToken
-dummy_eof = Location.dummy_locate (Token.EOF ())
+dummy_eof = Located.dummy_locate (Token.EOF ())
 add_eofs :: [Token.LToken] -> TokenStream
 add_eofs t = InfList.zip (InfList.iterate (+1) 0) (t InfList.+++ InfList.repeat dummy_eof)
 
 case_peek :: Assertion
 case_peek =
-    let t = Location.dummy_locate (Token.SingleTypeToken Token.OParen)
+    let t = Located.dummy_locate (Token.SingleTypeToken Token.OParen)
         tokstream = add_eofs [t]
     in ([], Just t) @=? eval_parser peek tokstream
 
 test_consume :: [TestTree]
 test_consume =
-    let t = Location.dummy_locate (Token.SingleTypeToken Token.OParen)
+    let t = Located.dummy_locate (Token.SingleTypeToken Token.OParen)
         tokstream = add_eofs [t]
     in
         [ testCase "consume with True" $
@@ -172,8 +172,8 @@ test_consume =
 
 case_advance :: Assertion
 case_advance =
-    let t1 = Location.dummy_locate (Token.SingleTypeToken Token.OParen)
-        t2 = Location.dummy_locate (Token.SingleTypeToken Token.CParen)
+    let t1 = Located.dummy_locate (Token.SingleTypeToken Token.OParen)
+        t2 = Located.dummy_locate (Token.SingleTypeToken Token.CParen)
         tokstream = add_eofs [t1, t2]
 
     in case run_parser advance tokstream of
@@ -192,10 +192,10 @@ test_choice =
     let oparen_consume = consume' "oparen" (Token.SingleTypeToken Token.OParen)
         cparen_consume = consume' "cparen" (Token.SingleTypeToken Token.CParen)
 
-        oparen = Location.dummy_locate $ Token.SingleTypeToken Token.OParen
-        cparen = Location.dummy_locate $ Token.SingleTypeToken Token.CParen
+        oparen = Located.dummy_locate $ Token.SingleTypeToken Token.OParen
+        cparen = Located.dummy_locate $ Token.SingleTypeToken Token.CParen
 
-        obrace = Location.dummy_locate $ Token.SingleTypeToken Token.OBrace
+        obrace = Located.dummy_locate $ Token.SingleTypeToken Token.OBrace
 
         expect_oparen got_i got = Error.BadToken got_i got (Token.SingleTypeToken Token.OParen) "oparen"
         expect_cparen got_i got = Error.BadToken got_i got (Token.SingleTypeToken Token.CParen) "cparen"
@@ -221,8 +221,8 @@ test_choice =
 
 test_star :: [TestTree]
 test_star =
-    let oparen = Location.dummy_locate $ Token.SingleTypeToken Token.OParen
-        other = Location.dummy_locate $ Token.SingleTypeToken Token.OBrace
+    let oparen = Located.dummy_locate $ Token.SingleTypeToken Token.OParen
+        other = Located.dummy_locate $ Token.SingleTypeToken Token.OBrace
 
         oparen_consume = consume' "oparen" (Token.SingleTypeToken Token.OParen)
 
@@ -246,9 +246,9 @@ test_star =
 
 test_delim_star :: [TestTree]
 test_delim_star =
-    let oparen = Location.dummy_locate $ Token.SingleTypeToken Token.OParen
-        delim = Location.dummy_locate $ Token.SingleTypeToken Token.Comma
-        other = Location.dummy_locate $ Token.SingleTypeToken Token.OBrace
+    let oparen = Located.dummy_locate $ Token.SingleTypeToken Token.OParen
+        delim = Located.dummy_locate $ Token.SingleTypeToken Token.Comma
+        other = Located.dummy_locate $ Token.SingleTypeToken Token.OBrace
 
         oparen_consume = consume' "oparen" (Token.SingleTypeToken Token.OParen)
         delim_consume = consume' "delim" (Token.SingleTypeToken Token.Comma)
@@ -282,8 +282,8 @@ test_delim_star =
 
 test_plus :: [TestTree]
 test_plus =
-    let oparen = Location.dummy_locate $ Token.SingleTypeToken Token.OParen
-        other = Location.dummy_locate $ Token.SingleTypeToken Token.OBrace
+    let oparen = Located.dummy_locate $ Token.SingleTypeToken Token.OParen
+        other = Located.dummy_locate $ Token.SingleTypeToken Token.OBrace
 
         oparen_consume = consume' "oparen" (Token.SingleTypeToken Token.OParen)
 
@@ -307,8 +307,8 @@ test_plus =
 
 test_optional :: [TestTree]
 test_optional =
-    let oparen = Location.dummy_locate $ Token.SingleTypeToken Token.OParen
-        other = Location.dummy_locate $ Token.SingleTypeToken Token.OBrace
+    let oparen = Located.dummy_locate $ Token.SingleTypeToken Token.OParen
+        other = Located.dummy_locate $ Token.SingleTypeToken Token.OBrace
         oparen_consume = consume' "oparen" (Token.SingleTypeToken Token.OParen)
 
         expect_oparen got_ind got = Error.BadToken got_ind got (Token.SingleTypeToken Token.OParen) "oparen"

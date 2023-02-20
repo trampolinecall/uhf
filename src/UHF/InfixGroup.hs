@@ -4,8 +4,9 @@ import UHF.Util.Prelude
 
 import qualified Arena
 
-import UHF.IO.Location (Located)
-import qualified UHF.IO.Location as Location
+import qualified UHF.IO.Span as Span
+import qualified UHF.IO.Located as Located
+import UHF.IO.Located (Located)
 
 import qualified UHF.IR as IR
 
@@ -54,8 +55,8 @@ group_expr (IR.Expr'BinaryOps () () _ first ops) =
                     let (rhs, after) = g (group_expr first_rhs) after_first_op op_prec -- TODO: associativity
                         lhs_span = IR.expr_span left
                         rhs_span = IR.expr_span rhs
-                        op_span = Location.just_span first_op
-                        left' = IR.Expr'Call () (lhs_span `Location.join_span` rhs_span) (IR.Expr'Call () (lhs_span `Location.join_span` op_span) (IR.Expr'Identifier () op_span first_op) left) rhs
+                        op_span = Located.just_span first_op
+                        left' = IR.Expr'Call () (lhs_span `Span.join` rhs_span) (IR.Expr'Call () (lhs_span `Span.join` op_span) (IR.Expr'Identifier () op_span first_op) left) rhs
                     in g left' after cur_precedence
 
                 else (left, more)

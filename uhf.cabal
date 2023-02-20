@@ -28,10 +28,13 @@ library
       UHF.Diagnostic.Report.Utils
       UHF.Diagnostic.Settings
       UHF.InfixGroup
+      UHF.IO.File
       UHF.IO.FormattedString
+      UHF.IO.Located
       UHF.IO.Location
       UHF.IO.Location.SpanHelper
       UHF.IO.Path
+      UHF.IO.Span
       UHF.IR
       UHF.Lexer
       UHF.Lexer.IdentifierGrouper

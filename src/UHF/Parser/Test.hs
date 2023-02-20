@@ -6,7 +6,7 @@ import UHF.Util.Prelude
 
 import qualified UHF.Parser.PEG as PEG
 
-import qualified UHF.IO.Location as Location
+import qualified UHF.IO.Located as Located
 
 import qualified UHF.Token as Token
 
@@ -16,7 +16,7 @@ data ParsingTest = forall r. (Show r, Eq r) => ParsingTest [Char] PEG.TokenStrea
 
 make_token_stream :: [Token.Token] -> PEG.TokenStream
 make_token_stream toks =
-    let toks' = map Location.dummy_locate toks
+    let toks' = map Located.dummy_locate toks
         l = last toks'
     in InfList.zip (InfList.iterate (1+) 0) (toks' InfList.+++ InfList.repeat l)
 

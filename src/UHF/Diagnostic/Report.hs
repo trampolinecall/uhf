@@ -11,8 +11,8 @@ import qualified UHF.Diagnostic.Codes.Code as Code
 import qualified UHF.Diagnostic.Settings as Settings
 
 import qualified UHF.IO.FormattedString as FormattedString
-import qualified UHF.IO.Location as Location
-import UHF.IO.Location (Span)
+import qualified UHF.IO.Span as Span
+import UHF.IO.Span (Span)
 
 import qualified Data.Text as Text
 import qualified System.IO as IO
@@ -34,7 +34,7 @@ report handle c_needed (Settings.Settings) d = -- TODO: use diagnostic settings
     let (type_str, code_and_desc, main_message_type, m_sp, main_message, main_section, sections) = to_diagnostic d
         header =
             (case m_sp of
-                Just sp -> convert_str (FormattedString.color_text Colors.file_path_color (format (Location.sp_s sp))) <> ": "
+                Just sp -> convert_str (FormattedString.color_text Colors.file_path_color (format $ Span.start sp)) <> ": "
                 Nothing -> "")
                 <> type_str <> ": "
                 <> convert_str main_message

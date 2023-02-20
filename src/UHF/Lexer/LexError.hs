@@ -4,25 +4,25 @@ module UHF.Lexer.LexError
 
 import UHF.Util.Prelude
 
-import qualified UHF.IO.Location as Location
+import UHF.IO.Span (Span)
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Codes as Codes
 
 import qualified Data.Text as Text
 
 data LexError
-    = BadChar Char Location.Span
-    | UnclosedMComment Location.Span
-    | UnclosedStrLit Location.Span
-    | UnclosedCharLit Location.Span
-    | MulticharCharLit Location.Span
-    | InvalidIntBase Char Location.Span
-    | InvalidIntDigit Char Location.Span
-    | NonDecimalFloat Location.Span
-    | MissingDigits Location.Span
+    = BadChar Char Span
+    | UnclosedMComment Span
+    | UnclosedStrLit Span
+    | UnclosedCharLit Span
+    | MulticharCharLit Span
+    | InvalidIntBase Char Span
+    | InvalidIntDigit Char Span
+    | NonDecimalFloat Span
+    | MissingDigits Span
     -- TODO: add 4 fields: new indent level, before indent level, two closest indentation levels
-    | BadDedent Location.Span
-    | InvalidDoubleColon Location.Span
+    | BadDedent Span
+    | InvalidDoubleColon Span
     deriving (Eq, Show)
 
 instance Diagnostic.ToError LexError where

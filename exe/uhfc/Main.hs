@@ -8,7 +8,7 @@ import Options.Applicative
 
 import qualified Driver
 
-import UHF.IO.Location (open_file) -- TODO: rename this module to something better (open_file in the Location module is a bit weird)
+import qualified UHF.IO.File as File
 
 import qualified UHF.Compiler as Compiler
 
@@ -55,7 +55,7 @@ main =
 
 compile :: FormattedString.ColorsNeeded -> DiagnosticSettings.Settings -> Int -> Int -> FilePath -> IO ()
 compile c_needed diagnostic_settings num total fname =
-    open_file fname >>= \ f ->
+    File.open fname >>= \ f -> -- TODO: put this in driver
     -- putStrLn ("[" <> show num <> "/" <> show total <> "]: compiling " <> format f) >>
     Compiler.run_compiler (Driver.compile f) c_needed diagnostic_settings >>= \case
         Just (Just res) -> putTextLn res -- TODO: get rid of double Maybe

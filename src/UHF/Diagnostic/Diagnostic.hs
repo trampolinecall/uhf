@@ -22,7 +22,7 @@ import UHF.Util.Prelude
 
 import qualified UHF.Diagnostic.Codes.Code as Code
 
-import UHF.IO.Location (Span)
+import UHF.IO.Span (Span)
 
 data Error = Error Code.Error (Maybe Span) Text MessagesSection [OtherSection]
 data Warning = Warning Code.Warning (Maybe Span) Text MessagesSection [OtherSection]

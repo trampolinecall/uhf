@@ -5,6 +5,8 @@ import UHF.Util.Prelude
 import qualified Arena
 import qualified UHF.IR as IR
 
+import qualified UHF.Compiler as Compiler
+
 import UHF.IO.Location (Span, Located (Located, unlocate, just_span))
 
 import qualified UHF.Diagnostic as Diagnostic
@@ -204,24 +206,28 @@ new_type_variable for_what =
         Arena.put (TypeVar for_what Fresh) type_vars
 
 -- also does type inference
-typecheck :: (DeclArena, UntypedNominalTypeArena, UntypedBindingArena, UntypedBoundValueArena) -> Writer [Error] (DeclArena, TypedNominalTypeArena, TypedBindingArena, TypedBoundValueArena)
+typecheck :: (DeclArena, UntypedNominalTypeArena, UntypedBindingArena, UntypedBoundValueArena) -> Compiler.Compiler (DeclArena, TypedNominalTypeArena, TypedBindingArena, TypedBoundValueArena)
 typecheck (decls, nominal_types, bindings, bound_values) =
-    runStateT
-        (
-            Arena.transformM (convert_type_exprs_in_nominal_types decls) nominal_types >>= \ nominal_types ->
-            Arena.transformM assign_type_variable_to_bound_value bound_values >>= \ bound_values ->
-            runWriterT (Arena.transformM (collect_constraints decls bound_values) bindings) >>= \ (bindings, constraints) ->
-            solve_constraints nominal_types constraints >>
-            pure (nominal_types, bound_values, bindings)
-        )
-        Arena.new >>= \ ((nominal_types, bound_values, bindings), vars) ->
+    let (res, errs) =
+            runWriter (
+                runStateT
+                    (
+                        Arena.transformM (convert_type_exprs_in_nominal_types decls) nominal_types >>= \ nominal_types ->
+                        Arena.transformM assign_type_variable_to_bound_value bound_values >>= \ bound_values ->
+                        runWriterT (Arena.transformM (collect_constraints decls bound_values) bindings) >>= \ (bindings, constraints) ->
+                        solve_constraints nominal_types constraints >>
+                        pure (nominal_types, bound_values, bindings)
+                    )
+                    Arena.new >>= \ ((nominal_types, bound_values, bindings), vars) ->
 
-    convert_vars vars >>= \ vars ->
-    let nominal_types' = Arena.transform (remove_vars_from_nominal_type vars) nominal_types
-        bound_values' = Arena.transform (remove_vars_from_bound_value vars) bound_values
-        bindings' = Arena.transform (remove_vars_from_binding vars) bindings
-    in
-    pure (decls, nominal_types', bindings', bound_values')
+                convert_vars vars >>= \ vars ->
+                let nominal_types' = Arena.transform (remove_vars_from_nominal_type vars) nominal_types
+                    bound_values' = Arena.transform (remove_vars_from_bound_value vars) bound_values
+                    bindings' = Arena.transform (remove_vars_from_binding vars) bindings
+                in
+                pure (decls, nominal_types', bindings', bound_values')
+            )
+    in Compiler.errors errs >> pure res
 
 convert_type_exprs_in_nominal_types :: DeclArena -> UntypedNominalType -> StateWithVars TypedWithVarsNominalType
 convert_type_exprs_in_nominal_types decls (IR.NominalType'Data name variants) = IR.NominalType'Data name <$> mapM (convert_variant decls) variants

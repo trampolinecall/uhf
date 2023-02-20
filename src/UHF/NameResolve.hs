@@ -20,6 +20,8 @@ import UHF.Util.Prelude
 
 import qualified Arena
 
+import qualified UHF.Compiler as Compiler
+
 import qualified UHF.IO.Location as Location
 import UHF.IO.Location (Located (..))
 import qualified UHF.Diagnostic as Diagnostic
@@ -116,11 +118,15 @@ transform_identifiers transform_t_iden transform_e_iden nominal_types bindings =
 
         transform_expr (IR.Expr'Poison typeinfo sp) = pure $ IR.Expr'Poison typeinfo sp
 
-resolve :: (DeclArena, UnresolvedNominalTypeArena, UnresolvedBindingArena) -> Writer [Error] (DeclArena, ResolvedNominalTypeArena, ResolvedBindingArena)
+resolve :: (DeclArena, UnresolvedNominalTypeArena, UnresolvedBindingArena) -> Compiler.Compiler (DeclArena, ResolvedNominalTypeArena, ResolvedBindingArena)
 resolve (decls, nominals, bindings) =
-    let (nominals', bindings') = runIdentity (transform_identifiers Identity split_expr_iden nominals bindings)
-    in transform_identifiers (resolve_type_iden decls) (resolve_expr_iden decls) nominals' bindings' >>= \ (nominals', bindings') ->
-    pure (decls, nominals', bindings')
+    let (res, errs) =
+            runWriter (
+                let (nominals', bindings') = runIdentity (transform_identifiers Identity split_expr_iden nominals bindings)
+                in transform_identifiers (resolve_type_iden decls) (resolve_expr_iden decls) nominals' bindings' >>= \ (nominals', bindings') ->
+                pure (decls, nominals', bindings')
+            )
+    in Compiler.errors errs >> pure res
 
 split_expr_iden :: UnresolvedExprIdentifier -> Identity (IR.NameContext, Maybe [Located Text], Located Text)
 split_expr_iden (_, []) = error "empty identifier"

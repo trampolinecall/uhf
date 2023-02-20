@@ -1,5 +1,5 @@
 module UHF.Lexer.MainLexer
-    ( UHF.Lexer.MainLexer.lex
+    ( lex
 
     , tests
     ) where
@@ -32,17 +32,17 @@ lex_one_token =
     StateT $ \ loc ->
         writer $
             head $ mapMaybe (runWriterT . ($ loc) . runStateT)
-            [ lex_comment
+                [ lex_comment
 
-            , lex_alpha_identifier
-            , lex_symbol_identifier
+                , lex_alpha_identifier
+                , lex_symbol_identifier
 
-            , lex_str_or_char_lit
-            , lex_number
+                , lex_str_or_char_lit
+                , lex_number
 
-            , lex_space
-            , make_bad_char
-            ]
+                , lex_space
+                , make_bad_char
+                ]
 -- Lexer {{{2
 type Lexer = StateT Location.Location (WriterT [LexError.LexError] Maybe)
 -- lexing functions {{{2
@@ -239,14 +239,14 @@ case_lex :: Assertion
 case_lex =
     let src = "abc *&* ( \"adji\n"
         f = Location.new_file "a" src
-    in case runWriter $ UHF.Lexer.MainLexer.lex f of
+    in case runWriter $ lex f of
         ((Location.Located _ (Token.AlphaIdentifier (Location.Located _ "abc")) Sequence.:<| Location.Located _ (Token.SymbolIdentifier (Location.Located _ "*&*")) Sequence.:<| Location.Located _ (Token.SingleTypeToken Token.OParen) Sequence.:<| Sequence.Empty, _), [LexError.UnclosedStrLit _]) -> pure ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
 case_lex_empty :: Assertion
 case_lex_empty =
     let f = Location.new_file "a" ""
-    in case runWriter $ UHF.Lexer.MainLexer.lex f of
+    in case runWriter $ lex f of
         ((Sequence.Empty, _), []) -> pure ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 

@@ -24,6 +24,8 @@ import qualified UHF.Diagnostic.Section as Section
 import qualified UHF.Diagnostic.Sections.Messages as Messages
 import qualified UHF.Diagnostic.Line as Line
 
+import qualified UHF.Diagnostic.Settings as Settings
+
 import qualified UHF.IO.Location as Location
 
 import qualified Data.Text as Text
@@ -53,8 +55,8 @@ instance IsDiagnostic DebugMessage where
 instance IsDiagnostic InternalError where
     to_diagnostic (InternalError contents) = (FormattedString.color_text Colors.error "internal error", Nothing, Messages.Error, contents)
 
-report :: IsDiagnostic d => Handle -> d -> IO ()
-report handle d =
+report :: IsDiagnostic d => Handle -> Settings.Settings -> d -> IO ()
+report handle diag_settings d = -- TODO: use diagnostic settings
     let (type_str, code_and_desc, diag_message_type, DiagnosticContents m_sp main_message main_section sections) = to_diagnostic d
         header =
             (case m_sp of

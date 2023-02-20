@@ -22,25 +22,30 @@ import qualified Data.InfList as InfList
 
 import qualified UHF.IO.Location as Location
 
+import qualified UHF.Compiler as Compiler
+
 -- TODO: write tests
 
 -- parse {{{1
-parse :: [Token.LToken] -> Token.LToken -> (Maybe (Location.Located [Error.BacktrackingError]), [AST.Decl])
+parse :: [Token.LToken] -> Token.LToken -> Compiler.Compiler [AST.Decl]
 parse toks eof_tok =
     case PEG.run_parser parse' (InfList.zip (InfList.iterate (1+) 0) (toks InfList.+++ InfList.repeat eof_tok)) of
-        (_, Just (res, _)) -> (Nothing, res)
-        (bt_errors, _) -> (choose_error bt_errors, [])
+        (_, Just (res, _)) -> pure res
+        (bt_errors, _) ->
+            choose_error bt_errors >>
+            pure []
     where
         parse' :: PEG.Parser [AST.Decl]
         parse' = PEG.star decl >>= \ ds -> PEG.consume' "end of file" (Token.EOF ()) >> pure ds
 
-        choose_error :: [Error.BacktrackingError] -> Maybe (Location.Located [Error.BacktrackingError])
-        choose_error [] = Nothing
+        -- TODO: remove duplicate clauses
+        choose_error :: [Error.BacktrackingError] -> Compiler.Compiler ()
+        choose_error [] = pure ()
         choose_error errs =
             let max_ind = maximum $ map (\ (Error.BadToken ind _ _ _) -> ind) errs
                 latest_errors = filter (\ (Error.BadToken ind _ _ _) -> ind == max_ind) errs
                 (Error.BadToken _ (Location.Located latest_span _) _ _) = head latest_errors
-            in Just $ Location.Located latest_span latest_errors
+            in Compiler.error (Location.Located latest_span latest_errors) >> pure ()
 -- decl {{{1
 decl :: PEG.Parser AST.Decl
 decl =

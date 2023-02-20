@@ -15,7 +15,7 @@ module UHF.Diagnostic.Report.Line
 import UHF.Util.Prelude
 
 import qualified UHF.Diagnostic.Report.Colors as Colors
-import qualified UHF.FormattedString as FormattedString
+import qualified UHF.IO.FormattedString as FormattedString
 
 import qualified UHF.IO.Location as Location
 

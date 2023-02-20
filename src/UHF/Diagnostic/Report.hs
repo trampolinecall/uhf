@@ -2,7 +2,6 @@ module UHF.Diagnostic.Report (report) where
 
 import UHF.Util.Prelude
 
-import qualified UHF.FormattedString as FormattedString
 import qualified UHF.Diagnostic.Report.Colors as Colors
 import qualified UHF.Diagnostic.Report.Line as Line
 import qualified UHF.Diagnostic.Diagnostic as Diagnostic
@@ -11,6 +10,7 @@ import qualified UHF.Diagnostic.Codes.Code as Code
 
 import qualified UHF.Diagnostic.Settings as Settings
 
+import qualified UHF.IO.FormattedString as FormattedString
 import qualified UHF.IO.Location as Location
 import UHF.IO.Location (Span)
 
@@ -29,12 +29,12 @@ instance ToDiagnostic Diagnostic.DebugMessage where
 instance ToDiagnostic Diagnostic.InternalError where
     to_diagnostic (Diagnostic.InternalError sp main_message messages sections) = (FormattedString.color_text Colors.error "internal error", Nothing, Diagnostic.MsgError, sp, main_message, messages, sections)
 
-report :: ToDiagnostic d => Handle -> Settings.Settings -> d -> IO ()
-report handle diag_settings d = -- TODO: use diagnostic settings
+report :: ToDiagnostic d => Handle -> FormattedString.ColorsNeeded -> Settings.Settings -> d -> IO ()
+report handle c_needed (Settings.Settings) d = -- TODO: use diagnostic settings
     let (type_str, code_and_desc, main_message_type, m_sp, main_message, main_section, sections) = to_diagnostic d
         header =
             (case m_sp of
-                Just sp -> convert_str (FormattedString.color_text Colors.file_path_color (format (Location.sp_s sp))) <> ": " -- TODO: move file path color out
+                Just sp -> convert_str (FormattedString.color_text Colors.file_path_color (format (Location.sp_s sp))) <> ": "
                 Nothing -> "")
                 <> type_str <> ": "
                 <> convert_str main_message
@@ -63,12 +63,12 @@ report handle diag_settings d = -- TODO: use diagnostic settings
             hPutStr handle (replicate (indent - Text.length pre) ' ') >>
             hPutStr handle pre >>
             hPutStr handle [' ', sep, ' '] >>
-            hPutStr handle contents >>
+            FormattedString.render handle c_needed contents >>
             hPutText handle "\n"
-    in hPutStr handle header >> hPutText handle "\n" >>
+    in FormattedString.render handle c_needed header >> hPutText handle "\n" >>
     mapM_ p_line section_lines >>
     case footer of
-        Just footer -> hPutStr handle (replicate indent ' ') >> hPutStr handle footer >> IO.hPutStr handle "\n"
+        Just footer -> hPutStr handle (replicate indent ' ') >> FormattedString.render handle c_needed footer >> IO.hPutStr handle "\n"
         Nothing -> pure ()
 
 render_section :: Diagnostic.OtherSection -> [Line.Line]

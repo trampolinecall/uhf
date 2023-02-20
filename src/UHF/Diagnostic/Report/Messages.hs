@@ -11,10 +11,10 @@ import UHF.IO.Location.SpanHelper
 
 import qualified UHF.Diagnostic.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Report.Line as Line
-import qualified UHF.FormattedString as FormattedString
 import qualified UHF.Diagnostic.Report.Utils as Utils
 import qualified UHF.Diagnostic.Report.Colors as Colors
 
+import qualified UHF.IO.FormattedString as FormattedString
 import qualified UHF.IO.Location as Location
 import UHF.IO.Location (File, Span)
 
@@ -54,17 +54,17 @@ render msgs =
 
 -- show_singleline {{{1
 -- Message helpers {{{2
-type RenderMessage = (Location.Location, Diagnostic.MessageType, FormattedString)
+type RenderMessage = (Location.Location, Diagnostic.MessageType, Text)
 
-format_render_message :: Bool -> RenderMessage -> FormattedString
-format_render_message is_last (_, ty, text) = FormattedString.Colored (type_color ty) ((if is_last then "`" else "|") <> "-- " <> text)
+format_render_message :: Bool -> RenderMessage -> FormattedString.FormattedString
+format_render_message is_last (_, ty, text) = FormattedString.color_text (type_color ty) ((if is_last then "`" else "|") <> "-- " <> text)
 
 rm_start_col :: RenderMessage -> Int
 rm_start_col (loc, _, _) = Location.col $ Location.lc loc
 rm_end_col :: RenderMessage -> Int
 -- `-- message
 -- 4 ('`-- ') + length of message
-rm_end_col (loc, _, text) = Location.col (Location.lc loc) + FormattedString.length text + 4
+rm_end_col (loc, _, text) = Location.col (Location.lc loc) + Text.length text + 4
 -- show_singleline {{{2
 show_singleline :: [Diagnostic.Message] -> [Line.Line]
 show_singleline unds =
@@ -228,7 +228,7 @@ show_top_lines loc n ch sgr =
             in Line.numbered_line l $ "  " <> FormattedString.color_text sgr quote <> FormattedString.Literal (Text.replicate pad " ") <> FormattedString.color_text [Colors.bold] "|"
         ) top_lines
 
-show_bottom_lines :: Location.Location -> Int -> Char -> Diagnostic.MessageType -> Maybe FormattedString -> [Line.Line]
+show_bottom_lines :: Location.Location -> Int -> Char -> Diagnostic.MessageType -> Maybe Text -> [Line.Line]
 show_bottom_lines loc n ch ty msg =
     let end_col = Location.loc_col loc + 2
         end_line = Location.loc_row loc

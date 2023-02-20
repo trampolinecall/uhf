@@ -15,11 +15,12 @@ import qualified UHF.IR as IR
 
 import UHF.IO.Span (Span)
 
-newtype TypeVarKey = TypeVarKey Int deriving (Show, Eq)
+newtype TypeVarKey = TypeVarKey Int deriving (Show, Eq, Ord)
 instance Arena.Key TypeVarKey where
     make_key = TypeVarKey
     unmake_key (TypeVarKey i) = i
 type TypeVarArena = Arena.Arena TypeVar TypeVarKey
+
 data TypeVar = TypeVar TypeVarForWhat TypeVarState
 data TypeVarForWhat
     = BoundValue Span

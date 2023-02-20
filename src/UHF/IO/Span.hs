@@ -26,7 +26,7 @@ import UHF.IO.Location (Location)
 import Data.List (maximumBy, minimumBy)
 import qualified Data.Text as Text
 
-data Span = Span Location.Location Location.Location Location.Location deriving (Show, Eq)
+data Span = Span Location.Location Location.Location Location.Location deriving (Show, Eq) -- TODO: remove Eq
 
 instance Format Span where
     format (Span l1 _ l2) = format (Location.loc_file l1) <> ":" <> format (Location.lc_row $ Location.lc l1) <> ":" <> format (Location.lc_col $ Location.lc l1) <> ":" <> format (Location.lc_row $ Location.lc l2) <> ":" <> format (Location.lc_col $ Location.lc l2)
@@ -63,11 +63,11 @@ start_of_file f = new (Location.new f) 0 1
 end_of_file :: File -> Span
 end_of_file f = new (Location.seek (Text.length $ File.contents f) $ Location.new f) 0 1
 
-dummy :: Span
-dummy =
-    let f = File.new "" ""
-        l = Location.new f
-    in Span l l l
+dummy :: IO Span
+dummy = -- TODO: this cannot be joined with any other spans
+    File.new "" "" >>= \ f ->
+    let l = Location.new f
+    in pure $ Span l l l
 
 join :: Span -> Span -> Span
 join (Span s1 b1 e1) (Span s2 b2 e2) =

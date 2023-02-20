@@ -58,42 +58,43 @@ seek n (Location f (LineCol i r c)) =
 -- tests {{{1
 case_seek_same :: Assertion
 case_seek_same =
-    let l = new $ File.new "a" "abc"
+    File.new "a" "abc" >>= \ f ->
+    let l = new f
     in l @=? seek 0 l
 
 case_seek_forward_same_line :: Assertion
 case_seek_forward_same_line =
-    let f = File.new "a" "abcd\nefgh"
-    in Location f (LineCol 2 1 3) @=? seek 2 (Location f (LineCol 0 1 1))
+    File.new "a" "abcd\nefgh" >>= \ f ->
+    Location f (LineCol 2 1 3) @=? seek 2 (Location f (LineCol 0 1 1))
 case_seek_forward_up_to_newline :: Assertion
 case_seek_forward_up_to_newline =
-    let f = File.new "a" "abcd\nefgh"
-    in Location f (LineCol 3 1 4) @=? seek 3 (Location f (LineCol 0 1 1))
+    File.new "a" "abcd\nefgh" >>= \ f ->
+    Location f (LineCol 3 1 4) @=? seek 3 (Location f (LineCol 0 1 1))
 case_seek_forward_to_newline :: Assertion
 case_seek_forward_to_newline =
-    let f = File.new "a" "abcd\nefgh"
-    in Location f (LineCol 4 1 5) @=? seek 4 (Location f (LineCol 0 1 1))
+    File.new "a" "abcd\nefgh" >>= \ f ->
+    Location f (LineCol 4 1 5) @=? seek 4 (Location f (LineCol 0 1 1))
 case_seek_forward_past_newline :: Assertion
 case_seek_forward_past_newline =
-    let f = File.new "a" "abcd\nefgh"
-    in Location f (LineCol 5 2 1) @=? seek 5 (Location f (LineCol 0 1 1))
+    File.new "a" "abcd\nefgh" >>= \ f ->
+    Location f (LineCol 5 2 1) @=? seek 5 (Location f (LineCol 0 1 1))
 
 case_seek_backward_same_line :: Assertion
 case_seek_backward_same_line =
-    let f = File.new "a" "abcd\nefgh"
-    in Location f (LineCol 6 2 2) @=? seek (-2) (Location f (LineCol 8 2 4))
+    File.new "a" "abcd\nefgh" >>= \ f ->
+    Location f (LineCol 6 2 2) @=? seek (-2) (Location f (LineCol 8 2 4))
 case_seek_backward_up_to_newline :: Assertion
 case_seek_backward_up_to_newline =
-    let f = File.new "a" "abcd\nefgh"
-    in Location f (LineCol 5 2 1) @=? seek (-3) (Location f (LineCol 8 2 4))
+    File.new "a" "abcd\nefgh" >>= \ f ->
+    Location f (LineCol 5 2 1) @=? seek (-3) (Location f (LineCol 8 2 4))
 case_seek_backward_to_newline :: Assertion
 case_seek_backward_to_newline =
-    let f = File.new "a" "abcd\nefgh"
-    in Location f (LineCol 4 1 5) @=? seek (-4) (Location f (LineCol 8 2 4))
+    File.new "a" "abcd\nefgh" >>= \ f ->
+    Location f (LineCol 4 1 5) @=? seek (-4) (Location f (LineCol 8 2 4))
 case_seek_backward_past_newline :: Assertion
 case_seek_backward_past_newline =
-    let f = File.new "a" "abcd\nefgh"
-    in Location f (LineCol 3 1 4) @=? seek (-5) (Location f (LineCol 8 2 4))
+    File.new "a" "abcd\nefgh" >>= \ f ->
+    Location f (LineCol 3 1 4) @=? seek (-5) (Location f (LineCol 8 2 4))
 
 tests :: TestTree
 tests = $(testGroupGenerator)

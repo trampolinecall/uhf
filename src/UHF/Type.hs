@@ -135,8 +135,8 @@ instance Diagnostic.ToError Error where
         in Diagnostic.Error Diagnostic.Codes.type_mismatch
                 (Just span)
                 ("conflicting types in " <> what <> ": '" <> print_type False nominal_types vars a_part <> "' vs '" <> print_type False nominal_types vars b_part <> "'")
-                [ just_span a_whole `Diagnostic.msg_note` convert_str (print_type False nominal_types vars $ unlocate a_whole)
-                , just_span b_whole `Diagnostic.msg_note` convert_str (print_type False nominal_types vars $ unlocate b_whole)
+                [ just_span a_whole `Diagnostic.msg_note_at` convert_str (print_type False nominal_types vars $ unlocate a_whole)
+                , just_span b_whole `Diagnostic.msg_note_at` convert_str (print_type False nominal_types vars $ unlocate b_whole)
                 ]
                 []
 
@@ -151,7 +151,7 @@ instance Diagnostic.ToError Error where
         in Diagnostic.Error Diagnostic.Codes.type_mismatch -- TODO: change code?
                 (Just sp)
                 (convert_str $ "conflicting types in " <> what <> ": '" <> print_type False nominal_types vars expect_part <> "' vs '" <> print_type False nominal_types vars got_part <> "'")
-                [ sp `Diagnostic.msg_note` convert_str ("expected '" <> print_type False nominal_types vars expect_whole <> "', got '" <> print_type False nominal_types vars (unlocate got_whole) <> "'") ]
+                [ sp `Diagnostic.msg_note_at` convert_str ("expected '" <> print_type False nominal_types vars expect_whole <> "', got '" <> print_type False nominal_types vars (unlocate got_whole) <> "'") ]
                 []
 
     to_error (OccursCheckError nominal_types vars span var_key ty) =
@@ -165,7 +165,7 @@ instance Diagnostic.ToError Error where
         in Diagnostic.Error Diagnostic.Codes.occurs_check
                 (Just span)
                 ("occurs check failure: infinite cyclic type arising from constraint '" <> var_printed <> "' = '" <> print_type True nominal_types vars ty <> "'")
-                [ var_sp `Diagnostic.msg_note` convert_str ("where " <> var_printed <> " is the type of this " <> var_name)]
+                [ var_sp `Diagnostic.msg_note_at` convert_str ("where " <> var_printed <> " is the type of this " <> var_name)]
                 []
 
     to_error (AmbiguousType for_what) =

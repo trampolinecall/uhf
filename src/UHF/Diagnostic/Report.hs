@@ -46,7 +46,7 @@ report handle c_needed Settings.Settings d = -- TODO: use diagnostic settings
 
         section_lines =
             let main_section' = case m_sp of
-                    Just main_sp -> Diagnostic.Section'Messages $ (main_sp, main_message_type, Nothing) : main_section
+                    Just main_sp -> Diagnostic.Section'Messages $ (Just main_sp, main_message_type, Nothing) : main_section
                     Nothing -> Diagnostic.Section'Messages main_section
             in concatMap render_section (main_section' : sections)
 

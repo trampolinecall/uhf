@@ -29,7 +29,7 @@ import qualified Data.Map as Map
 import qualified System.Console.ANSI as ANSI
 
 -- TODO: fix errors on eof where messages arent shown
---
+
 type MessageWithSpan = (Span, Diagnostic.MessageType, Maybe Text)
 
 type_color :: Diagnostic.MessageType -> [ANSI.SGR]
@@ -64,7 +64,7 @@ render msgs =
         multiline' = concatMap show_multiline multiline
         nospan' =
             concatMap (\case
-                    (ty, Just msg) -> [Line.other_line $ FormattedString.color_text (type_color ty) msg] -- TODO: use '\' separator
+                    (ty, Just msg) -> [Line.heading_line $ FormattedString.color_text (type_color ty) msg]
                     (_, Nothing) -> []
                 )
                 nospan -- TODO: refactor this as well as the whole module and all the reporting code

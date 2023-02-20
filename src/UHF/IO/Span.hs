@@ -11,8 +11,6 @@ module UHF.IO.Span
     , start_of_file
     , end_of_file
 
-    , join
-
     , is_single_line
     ) where
 
@@ -69,17 +67,17 @@ dummy = -- TODO: this cannot be joined with any other spans
     let l = Location.new f
     in pure $ Span l l l
 
-join :: Span -> Span -> Span
-join (Span s1 b1 e1) (Span s2 b2 e2) =
-    if Location.loc_file s1 == Location.loc_file s2
-        then
-            let comparator = compare `on` Location.loc_ind
-                minstart = minimumBy comparator [s1, s2]
-                maxbefore = maximumBy comparator [b1, b2]
-                maxend = maximumBy comparator [e1, e2]
-            in Span minstart maxbefore maxend
+instance Semigroup Span where
+    (Span s1 b1 e1) <> (Span s2 b2 e2) =
+        if Location.loc_file s1 == Location.loc_file s2
+            then
+                let comparator = compare `on` Location.loc_ind
+                    minstart = minimumBy comparator [s1, s2]
+                    maxbefore = maximumBy comparator [b1, b2]
+                    maxend = maximumBy comparator [e1, e2]
+                in Span minstart maxbefore maxend
 
-        else error "join two spans where some locations have different files"
+            else error "join two spans where some locations have different files"
 
 is_single_line :: Span -> Bool
 is_single_line (Span start before_end _) = Location.loc_row start == Location.loc_row before_end

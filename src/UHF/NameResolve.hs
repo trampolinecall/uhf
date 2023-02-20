@@ -131,7 +131,7 @@ split_expr_iden (nc, x) = pure (nc, Just $ init x, last x)
 
 resolve_expr_iden :: DeclArena -> (IR.NameContext, Maybe [Located Text], Located Text) -> Writer [Error] (Located (Maybe IR.BoundValueKey))
 resolve_expr_iden decls (nc, Just type_iden, last_segment) =
-    let sp = Located.just_span (head type_iden) `Span.join` Located.just_span last_segment
+    let sp = Located.just_span (head type_iden) <> Located.just_span last_segment
     in resolve_type_iden decls (nc, type_iden) >>= \ resolved_type ->
     case get_value_child decls <$> resolved_type <*> pure last_segment of
         Just (Right v) -> pure $ Located sp (Just v)

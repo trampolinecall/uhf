@@ -56,7 +56,7 @@ group_expr (IR.Expr'BinaryOps () () _ first ops) =
                         lhs_span = IR.expr_span left
                         rhs_span = IR.expr_span rhs
                         op_span = Located.just_span first_op
-                        left' = IR.Expr'Call () (lhs_span `Span.join` rhs_span) (IR.Expr'Call () (lhs_span `Span.join` op_span) (IR.Expr'Identifier () op_span first_op) left) rhs
+                        left' = IR.Expr'Call () (lhs_span <> rhs_span) (IR.Expr'Call () (lhs_span <> op_span) (IR.Expr'Identifier () op_span first_op) left) rhs
                     in g left' after cur_precedence
 
                 else (left, more)

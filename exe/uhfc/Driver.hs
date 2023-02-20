@@ -10,6 +10,8 @@ import qualified UHF.IO.Location as Location
 import UHF.IO.Location (File, Located)
 import qualified UHF.Diagnostic as Diagnostic
 
+import qualified UHF.Compiler as Compiler
+
 import qualified UHF.Token as Token
 import qualified UHF.AST as AST
 import qualified UHF.IR as IR
@@ -25,8 +27,6 @@ import qualified UHF.RemovePoison as RemovePoison
 import qualified UHF.ToDot as ToDot
 import qualified UHF.TSBackend as TSBackend
 
-type ErrorAccumulated a = Writer [Diagnostic.Error] a -- TODO: allow for warnings too
-
 type Tokens = ([Token.LToken], Token.LToken)
 type AST = [AST.Decl]
 type FirstIR = (Arena.Arena IR.Decl IR.DeclKey, Arena.Arena (IR.NominalType (IR.TypeExpr (IR.NameContext, [Location.Located Text]))) IR.NominalTypeKey, Arena.Arena (IR.Binding (IR.NameContext, [Location.Located Text]) (IR.TypeExpr (IR.NameContext, [Location.Located Text])) () ()) IR.BindingKey, Arena.Arena (IR.BoundValue ()) IR.BoundValueKey)
@@ -37,25 +37,15 @@ type NoPoisonIR = (Arena.Arena IR.Decl IR.DeclKey, Arena.Arena (IR.NominalType (
 type Dot = Text
 type TS = Text
 
-compile :: File -> Either [Diagnostic.Error] (Maybe TS)
+compile :: File -> Compiler.Compiler (Maybe TS)
 compile file =
-    let (res, diags) = runWriter $ compile' file
-    in if null diags
-        then Right res
-        else Left diags
-
-compile' :: File -> ErrorAccumulated (Maybe TS)
-compile' file =
     -- TODO: clean up
-    convert_errors (Lexer.lex file) >>= \ (tokens, eof_tok) ->
-    let (bt_error, ast) = Parser.parse tokens eof_tok
-    in (case bt_error of
-        Just bt_error -> tell [Diagnostic.to_error bt_error]
-        Nothing -> pure ()) >>
-    convert_errors (ASTToIR.convert file ast) >>= \ (decls, nominal_types, bindings, bound_values) ->
-    convert_errors (NameResolve.resolve (decls, nominal_types, bindings)) >>= \ (decls, nominal_types, bindings) ->
+    Lexer.lex file >>= \ (tokens, eof_tok) ->
+    Parser.parse tokens eof_tok >>= \ ast ->
+    ASTToIR.convert file ast >>= \ (decls, nominal_types, bindings, bound_values) ->
+    NameResolve.resolve (decls, nominal_types, bindings) >>= \ (decls, nominal_types, bindings) ->
     let bindings' = InfixGroup.group bindings
-    in convert_errors (Type.typecheck (decls, nominal_types, bindings', bound_values)) >>= \ (decls, nominal_types, bindings, bound_values) ->
+    in Type.typecheck (decls, nominal_types, bindings', bound_values) >>= \ (decls, nominal_types, bindings, bound_values) ->
     let (nodes, params) = (ToGraph.to_graph bound_values bindings)
         no_poison = RemovePoison.remove_poison (decls, nominal_types, nodes, params, bound_values)
         dot =
@@ -68,6 +58,3 @@ compile' file =
                 Just (decls', nominal_types', nodes', params', bound_values') -> Just $ TSBackend.lower decls' nominal_types' nodes' params'
                 Nothing -> Nothing
     in pure ts
-
-convert_errors :: Diagnostic.IsError e => Writer [e] a -> Writer [Diagnostic.Error] a
-convert_errors = mapWriter (\ (res, errs) -> (res, map Diagnostic.to_error errs))

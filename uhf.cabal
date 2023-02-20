@@ -15,6 +15,7 @@ library
       Arena
       UHF.AST
       UHF.ASTToIR
+      UHF.Compiler
       UHF.Diagnostic
       UHF.Diagnostic.Codes
       UHF.Diagnostic.Codes.Code
@@ -24,6 +25,7 @@ library
       UHF.Diagnostic.Section
       UHF.Diagnostic.Sections.Messages
       UHF.Diagnostic.Sections.Utils
+      UHF.Diagnostic.Settings
       UHF.FormattedString
       UHF.InfixGroup
       UHF.IO.Location

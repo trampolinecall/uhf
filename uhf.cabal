@@ -20,11 +20,12 @@ library
       UHF.Diagnostic.Codes
       UHF.Diagnostic.Codes.Code
       UHF.Diagnostic.Codes.CodeTH
-      UHF.Diagnostic.Colors
-      UHF.Diagnostic.Line
-      UHF.Diagnostic.Section
-      UHF.Diagnostic.Sections.Messages
-      UHF.Diagnostic.Sections.Utils
+      UHF.Diagnostic.Diagnostic
+      UHF.Diagnostic.Report
+      UHF.Diagnostic.Report.Colors
+      UHF.Diagnostic.Report.Line
+      UHF.Diagnostic.Report.Messages
+      UHF.Diagnostic.Report.Utils
       UHF.Diagnostic.Settings
       UHF.FormattedString
       UHF.InfixGroup

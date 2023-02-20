@@ -1,4 +1,4 @@
-module UHF.Diagnostic.Line
+module UHF.Diagnostic.Report.Line
     ( Line
     , prefix
     , separ

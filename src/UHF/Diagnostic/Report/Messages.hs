@@ -269,9 +269,9 @@ case_empty =
 
 case_messages :: Assertion
 case_messages =
-    let (_, [single_sp, multi_sp]) = make_spans ["abc", "def\nghi\njklm\n"]
+    make_spans ["abc", "def\nghi\njklm\n"] >>= \ (_, [single_sp, multi_sp]) ->
 
-        lines = render
+    let lines = render
             (
                 [ Diagnostic.msg_error single_sp "message 1", Diagnostic.msg_hint single_sp "message 2"
                 , Diagnostic.msg_warning multi_sp "message 3"
@@ -299,10 +299,10 @@ case_messages =
 
 case_show_singleline :: Assertion
 case_show_singleline =
-    let (_, [abc1, abc2, _, _, _, _, _, _, _, abc3, _, _]) = make_spans' "abc" "" ["abc1", "abc2", "\n", "\n", "\n", "\n", "\n", "context1\n", "context2\n", "abc3\n", "context3\n", "context4\n"]
-        (_, [zyx1]) = make_spans' "zyx" "" ["zyx1"]
+    make_spans' "abc" "" ["abc1", "abc2", "\n", "\n", "\n", "\n", "\n", "context1\n", "context2\n", "abc3\n", "context3\n", "context4\n"] >>= \ (_, [abc1, abc2, _, _, _, _, _, _, _, abc3, _, _]) ->
+    make_spans' "zyx" "" ["zyx1"] >>= \ (_, [zyx1]) ->
 
-        unds =
+    let unds =
             [ Diagnostic.msg_error zyx1 "error"
             , Diagnostic.msg_hint abc3 "hint"
             , Diagnostic.msg_warning abc1 "warning"
@@ -334,9 +334,9 @@ case_show_singleline =
 
 case_show_line_single :: Assertion
 case_show_line_single =
-    let (f, [sp]) = make_spans ["sp"]
+     make_spans ["sp"] >>= \ (f, [sp]) ->
 
-    in Line.compare_lines
+    Line.compare_lines
         [ ( "", '>', "")
         , ("1", '|', "sp")
         , ( "", '|', "^^ ")
@@ -346,9 +346,9 @@ case_show_line_single =
 
 case_show_line_multiple :: Assertion
 case_show_line_multiple =
-    let (f, [sp1, _, sp2]) = make_spans ["sp1", "ABCDEFGHIJKLMNOP", "sp2"]
+     make_spans ["sp1", "ABCDEFGHIJKLMNOP", "sp2"] >>= \ (f, [sp1, _, sp2]) ->
 
-    in Line.compare_lines
+    Line.compare_lines
         [ ( "", '>', "")
         , ("1", '|', "sp1 ABCDEFGHIJKLMNOP sp2")
         , ( "", '|', "^^^                  ^^^ ")
@@ -358,9 +358,9 @@ case_show_line_multiple =
 
 case_show_line_multiple_overlapping :: Assertion
 case_show_line_multiple_overlapping =
-    let (f, [sp1, sp2]) = make_spans ["sp1", "sp2"]
+     make_spans ["sp1", "sp2"] >>= \ (f, [sp1, sp2]) ->
 
-    in Line.compare_lines
+    Line.compare_lines
         [ ("1", '|', "sp1 sp2")
         , ( "", '|', "^^^ --- ")
         , ( "", '|', "  |   `-- message3")
@@ -371,8 +371,8 @@ case_show_line_multiple_overlapping =
 
 case_show_msg_row :: Assertion
 case_show_msg_row =
-    let (_, [sp1, _]) = make_spans ["sp1", "sp2"]
-        messages = [(Span.before_end sp1, Diagnostic.MsgError, "message")]
+    make_spans ["sp1", "sp2"] >>= \ (_, [sp1, _]) ->
+    let messages = [(Span.before_end sp1, Diagnostic.MsgError, "message")]
     in Line.compare_lines
                  -- sp1 sp2
         [("", '|', "  `-- message")]
@@ -381,8 +381,8 @@ case_show_msg_row =
 
 case_show_msg_row_message_below :: Assertion
 case_show_msg_row_message_below =
-    let (_, [sp1, sp2]) = make_spans ["sp1", "sp2"]
-        messages = [(Span.before_end sp2, Diagnostic.MsgError, "message")]
+    make_spans ["sp1", "sp2"] >>= \ (_, [sp1, sp2]) ->
+    let messages = [(Span.before_end sp2, Diagnostic.MsgError, "message")]
     in Line.compare_lines
                  -- sp1 sp2
         [("", '|', "  |   `-- message")]
@@ -391,8 +391,8 @@ case_show_msg_row_message_below =
 
 case_show_msg_row_multiple :: Assertion
 case_show_msg_row_multiple =
-    let (_, [sp1, _, sp2]) = make_spans ["sp1", "ABCDEFGHIJKLMNOP", "sp2"]
-        messages = [(Span.before_end sp1, Diagnostic.MsgError, "message1"), (Span.before_end sp2, Diagnostic.MsgError, "message2")]
+    make_spans ["sp1", "ABCDEFGHIJKLMNOP", "sp2"] >>= \ (_, [sp1, _, sp2]) ->
+    let messages = [(Span.before_end sp1, Diagnostic.MsgError, "message1"), (Span.before_end sp2, Diagnostic.MsgError, "message2")]
     in Line.compare_lines
                  -- sp1 ABCDEFGHIJKLMNOP sp2
         [("", '|', "  `-- message1         `-- message2")]
@@ -401,18 +401,18 @@ case_show_msg_row_multiple =
 
 case_assign_message_non_overlapping :: Assertion
 case_assign_message_non_overlapping =
-    let (_, [sp1, _, sp2]) = make_spans ["sp1", "                ", "sp2"]
+    make_spans ["sp1", "                ", "sp2"] >>= \ (_, [sp1, _, sp2]) ->
 
-        msg1 = (Span.before_end sp1, Diagnostic.MsgError, "message 1")
+    let msg1 = (Span.before_end sp1, Diagnostic.MsgError, "message 1")
         msg2 = (Span.before_end sp2, Diagnostic.MsgError, "message 2")
 
     in [([], [msg2, msg1])] @=? assign_messages [msg2, msg1]
 
 case_assign_message_overlapping :: Assertion
 case_assign_message_overlapping =
-    let (_, [sp1, sp2]) = make_spans ["sp1", "sp2"]
+    make_spans ["sp1", "sp2"] >>= \ (_, [sp1, sp2]) ->
 
-        msg1 = (Span.before_end sp1, Diagnostic.MsgError, "message 1")
+    let msg1 = (Span.before_end sp1, Diagnostic.MsgError, "message 1")
         msg2 = (Span.before_end sp2, Diagnostic.MsgError, "message 2")
 
     in [([msg1], [msg2]), ([], [msg1])] @=? assign_messages [msg2, msg1]
@@ -432,9 +432,9 @@ case_assign_message_with_no_space_between =
       |    `-- b
       `-- a
     -}
-    let (_, [sp1, _, sp2]) = make_spans' "f" "" ["sp1", "AB", "sp2"]
+    make_spans' "f" "" ["sp1", "AB", "sp2"] >>= \ (_, [sp1, _, sp2]) ->
 
-        msg1 = (Span.before_end sp1, Diagnostic.MsgError, "a")
+    let msg1 = (Span.before_end sp1, Diagnostic.MsgError, "a")
         msg2 = (Span.before_end sp2, Diagnostic.MsgError, "b")
 
     in [([msg1], [msg2]), ([], [msg1])] @=? assign_messages [msg2, msg1]
@@ -442,11 +442,11 @@ case_assign_message_with_no_space_between =
 test_overlapping :: [TestTree]
 test_overlapping =
     let make_test_case name spacing expected =
-            let (_, [sp1, _, sp2]) = make_spans' "f" "" ["sp1", spacing, "sp2"]
-
-                msg2 = (Span.before_end sp2, Diagnostic.MsgError, "b")
-                msg1 = (Span.before_end sp1, Diagnostic.MsgError, "message 1")
-            in testCase name $ expected @=? overlapping msg1 [msg2]
+            testCase name $
+                make_spans' "f" "" ["sp1", spacing, "sp2"] >>= \ (_, [sp1, _, sp2]) ->
+                let msg2 = (Span.before_end sp2, Diagnostic.MsgError, "b")
+                    msg1 = (Span.before_end sp1, Diagnostic.MsgError, "message 1")
+                in expected @=? overlapping msg1 [msg2]
 
     in
         [ make_test_case "end left" "ABCDEFGHIJK" False
@@ -472,8 +472,8 @@ test_overlapping =
 
 case_multiline_lines_even :: Assertion
 case_multiline_lines_even =
-    let (_, [_, _, sp, _]) = make_spans' "file" "" ["\n", "th", "ing\nthingthing\nthing\nab", "c"]
-    in Line.compare_lines
+    make_spans' "file" "" ["\n", "th", "ing\nthingthing\nthing\nab", "c"] >>= \ (_, [_, _, sp, _]) ->
+    Line.compare_lines
         [ ( "", '>', "file")
         , ( "", '|', "    vvv-------")
         , ("2", '|', "  thing      |")
@@ -488,8 +488,8 @@ case_multiline_lines_even =
 
 case_multiline_lines_odd :: Assertion
 case_multiline_lines_odd =
-    let (_, [_, _, sp, _]) = make_spans' "file" "" ["\n", "th", "ing\nthingthing\nzyx\nthing\nab", "c"]
-    in Line.compare_lines
+     make_spans' "file" "" ["\n", "th", "ing\nthingthing\nzyx\nthing\nab", "c"] >>= \ (_, [_, _, sp, _]) ->
+    Line.compare_lines
         [ ( "", '>', "file")
         , ( "", '|', "    vvv-------")
         , ("2", '|', "  thing      |")

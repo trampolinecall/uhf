@@ -8,23 +8,33 @@ module UHF.IO.File
     , write -- TODO: use when writing output file
     ) where
 
-import UHF.Util.Prelude
+import UHF.Util.Prelude hiding (show)
+
+import GHC.Show (show)
 
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text.IO
 
-data File = File { path :: FilePath, contents :: Text } deriving (Show)
+import Data.Unique
+
+data File = File { uniq :: Unique, path :: FilePath, contents :: Text }
+
+instance Show File where
+    show (File _ path _) = "File { path = " <> path <> ", ... }"
+
 instance Eq File where
-    (==) = (==) `on` path -- TODO: remove this entirely / replace with comparison on Unique
+    (==) = (==) `on` uniq
 
 instance Format File where
     format f = Text.pack $ path f
 
-new :: FilePath -> Text -> File
-new path contents = File path contents
+new :: FilePath -> Text -> IO File
+new path contents =
+    newUnique >>= \ u ->
+    pure (File u path contents)
 
 open :: FilePath -> IO File
-open path = Text.IO.readFile path >>= \ contents -> pure $ new path contents
+open path = Text.IO.readFile path >>= \ contents -> new path contents
 
 write :: File -> IO ()
 write f = Text.IO.writeFile (path f) (contents f)

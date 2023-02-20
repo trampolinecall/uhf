@@ -13,7 +13,7 @@ data Located a = Located { just_span :: Span, unlocate :: a } deriving (Show, Eq
 instance Functor Located where
     fmap f (Located sp v) = Located sp (f v)
 
-dummy_locate :: a -> Located a
-dummy_locate = Located Span.dummy
+dummy_locate :: a -> IO (Located a)
+dummy_locate a = Span.dummy >>= \ sp -> pure (Located sp a)
 
 

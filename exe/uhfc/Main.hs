@@ -6,10 +6,10 @@ import Options.Applicative
 
 import qualified Driver
 
-import qualified UHF.IO.File as File
-import qualified UHF.Diagnostic as Diagnostic
+import qualified UHF.Compiler as Compiler
+import qualified UHF.Compiler.DiagnosticSettings as DiagnosticSettings
 
-import qualified System.IO as IO
+import qualified UHF.IO.File as File
 
 newtype Args = Args [FilePath]
 
@@ -38,6 +38,6 @@ compile :: Int -> Int -> FilePath -> IO ()
 compile num total fname =
     File.open_file fname >>= \ f ->
     putStrLn ("[" <> show num <> "/" <> show total <> "]: compiling " <> format f) >>
-    case Driver.compile f of
-        Right res -> putTextLn (show res)
-        Left diags -> mapM_ (Diagnostic.report IO.stderr) diags
+    Compiler.run_compiler (Driver.compile f) DiagnosticSettings.AutoDetect >>= \case
+        Just res -> putTextLn (show res)
+        Nothing -> pure ()

@@ -59,19 +59,14 @@ type DeclArena = Arena.Arena Decl IR.DeclKey
 data Error
     = CouldNotFind (Maybe (Located Text)) (Located Text)
 
-instance Diagnostic.IsError Error where
+instance Diagnostic.ToError Error where
     to_error (CouldNotFind prev (Located sp name)) =
         let message =
                 "could not find name '" <> name <> "'"
                     <> case prev of
                         Just (Located _ prev_name) -> "in '" <> prev_name <> "'"
                         Nothing -> ""
-        in Diagnostic.Error Diagnostic.Codes.undef_name $
-            Diagnostic.DiagnosticContents
-                (Just sp)
-                message
-                []
-                []
+        in Diagnostic.Error Diagnostic.Codes.undef_name (Just sp) message [] []
 
 transform_identifiers :: Monad m => (t_iden -> m t_iden') -> (e_iden -> m e_iden') -> Arena.Arena (IR.NominalType (IR.TypeExpr t_iden)) IR.NominalTypeKey -> Arena.Arena (IR.Binding e_iden (IR.TypeExpr t_iden) typeinfo binaryopsallowed) IR.BindingKey -> m (Arena.Arena (IR.NominalType (IR.TypeExpr t_iden')) IR.NominalTypeKey, Arena.Arena (IR.Binding e_iden' (IR.TypeExpr t_iden') typeinfo binaryopsallowed) IR.BindingKey)
 transform_identifiers transform_t_iden transform_e_iden nominal_types bindings = (,) <$> Arena.transformM transform_nominal_type nominal_types <*> Arena.transformM transform_binding bindings

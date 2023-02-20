@@ -17,7 +17,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as Text.IO
 import qualified System.IO as IO
 
-import UHF.Compiler.DiagnosticSettings (ColorsNeeded (..))
+import UHF.Diagnostic.Settings (ColorsNeeded (..))
 
 data FormattedString
     = Colored [ANSI.SGR] FormattedString

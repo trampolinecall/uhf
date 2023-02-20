@@ -1,7 +1,7 @@
 module UHF.Lexer
     ( UHF.Lexer.lex
 
-    , LexError.LexError
+    , LexError.Error
     ) where
 
 import UHF.Util.Prelude
@@ -19,7 +19,7 @@ lex :: File -> Compiler.Compiler ([Token.LToken], Token.LToken)
 lex f =
     let (res, errs) = runWriter (
                 MainLexer.lex f >>= \ (toks, eof) ->
-                IdentifierGrouper.group_identifiers (toList toks) >>= \ toks' ->
-                pure (toks', eof)
+                let toks' = IdentifierGrouper.group_identifiers (toList toks)
+                in pure (toks', eof)
             )
     in Compiler.errors errs >> pure res

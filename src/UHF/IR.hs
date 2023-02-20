@@ -189,7 +189,7 @@ instance Arena.Key GraphParamKey where
     make_key = GraphParamKey
     unmake_key (GraphParamKey i) = i
 
-newtype GraphParam ty = GraphParam ty deriving Show -- TODO: should there be more information associated with this?
+newtype GraphParam ty = GraphParam ty deriving Show
 
 data GraphNode ty poison_allowed
     = GraphNode'Int ty Integer

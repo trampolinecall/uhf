@@ -22,7 +22,6 @@ import qualified Arena
 
 import qualified UHF.Compiler as Compiler
 
-import qualified UHF.IO.Span as Span
 import qualified UHF.IO.Located as Located
 import UHF.IO.Located (Located (Located))
 import qualified UHF.Diagnostic as Diagnostic

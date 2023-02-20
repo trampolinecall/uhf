@@ -14,7 +14,7 @@ module UHF.Diagnostic.Diagnostic
     , Message
     , MessageType(..)
     , msg_error_at, msg_warning_at, msg_note_at, msg_hint_at
-    , msg_error_noloc, msg_warning_noloc, msg_note_noloc, msg_hint_noloc
+    , msg_error, msg_warning, msg_note, msg_hint
 
     , OtherSection(..)
     ) where
@@ -42,11 +42,11 @@ msg_error_at s m = (Just s, MsgError, Just m)
 msg_warning_at s m = (Just s, MsgWarning, Just m)
 msg_note_at s m = (Just s, MsgNote, Just m)
 msg_hint_at s m = (Just s, MsgHint, Just m)
-msg_error_noloc, msg_warning_noloc, msg_note_noloc, msg_hint_noloc :: Text -> Message
-msg_error_noloc m = (Nothing, MsgError, Just m)
-msg_warning_noloc m = (Nothing, MsgWarning, Just m)
-msg_note_noloc m = (Nothing, MsgNote, Just m)
-msg_hint_noloc m = (Nothing, MsgHint, Just m)
+msg_error, msg_warning, msg_note, msg_hint :: Text -> Message
+msg_error m = (Nothing, MsgError, Just m)
+msg_warning m = (Nothing, MsgWarning, Just m)
+msg_note m = (Nothing, MsgNote, Just m)
+msg_hint m = (Nothing, MsgHint, Just m)
 
 data OtherSection
     = Section'Messages MessagesSection

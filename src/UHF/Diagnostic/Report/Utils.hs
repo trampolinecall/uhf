@@ -57,10 +57,8 @@ file_and_elipsis_lines Nothing (curf, _) = [Line.file_line curf]
 -- tests {{{1
 case_file_and_elipsis_lines :: Assertion
 case_file_and_elipsis_lines =
-    let (f1, _) = make_spans ["ajfowiejf"]
-        (f2, _) = make_spans ["aobjiwoiejfawoeijf"]
-
-    in
+    make_spans ["ajfowiejf"] >>= \ (f1, _) ->
+    make_spans ["aobjiwoiejfawoeijf"] >>= \ (f2, _) ->
     ([Line.file_line f2] @=? file_and_elipsis_lines (Just (f1, 2)) (f2, 12)) >>
     ([Line.file_line f2] @=? file_and_elipsis_lines Nothing (f2, 12)) >>
     ([] @=? file_and_elipsis_lines (Just (f2, 12)) (f2, 13)) >>

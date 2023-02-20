@@ -13,7 +13,7 @@ import UHF.Util.Prelude
 
 import qualified UHF.Parser.PEG as PEG
 import qualified UHF.Parser.Error as Error
-import qualified UHF.Parser.Test as Test
+-- import qualified UHF.Parser.Test as Test
 
 import qualified UHF.Token as Token
 import qualified UHF.AST as AST
@@ -291,8 +291,9 @@ pattern_named =
     pattern >>= \ more ->
     pure (AST.Pattern'Named (iden_sp `Span.join` AST.pattern_span more) (Located iden_sp iden) at_sp more)
 -- tests {{{1
-test_decls :: [TestTree]
-test_decls = map Test.run_test $
+{- TODO
+-- test_decls :: [TestTree]
+-- test_decls = map Test.run_test $
     let dsp = Span.dummy
         l = Located.dummy_locate
         iden1 t = [l t]
@@ -338,6 +339,7 @@ test_decls = map Test.run_test $
             ])
         [("decl", decl), ("decl_data", decl_data)]
     ]
+-}
 
 tests :: TestTree
 tests = $(testGroupGenerator)

@@ -146,37 +146,42 @@ optional a = Parser $ \ errors toks ->
 -- notpred :: Parser a -> Parser ()
 
 -- tests {{{1
-dummy_eof :: Token.LToken
+dummy_eof :: IO Token.LToken
 dummy_eof = Located.dummy_locate (Token.EOF ())
-add_eofs :: [Token.LToken] -> TokenStream
-add_eofs t = InfList.zip (InfList.iterate (+1) 0) (t InfList.+++ InfList.repeat dummy_eof)
+add_eofs :: [Token.LToken] -> IO TokenStream
+add_eofs t = dummy_eof >>= \ dummy_eof -> pure (InfList.zip (InfList.iterate (+1) 0) (t InfList.+++ InfList.repeat dummy_eof))
+
+-- TODO: all the dummy spans do not compare equal to each other
 
 case_peek :: Assertion
 case_peek =
-    let t = Located.dummy_locate (Token.SingleTypeToken Token.OParen)
-        tokstream = add_eofs [t]
-    in ([], Just t) @=? eval_parser peek tokstream
+    Located.dummy_locate (Token.SingleTypeToken Token.OParen) >>= \ t ->
+    add_eofs [t] >>= \ tokstream ->
+    ([], Just t) @=? eval_parser peek tokstream
 
 test_consume :: [TestTree]
 test_consume =
     let t = Located.dummy_locate (Token.SingleTypeToken Token.OParen)
-        tokstream = add_eofs [t]
     in
         [ testCase "consume with True" $
+            t >>= \ t -> add_eofs [t] >>= \ tokstream ->
             let expect = Token.SingleTypeToken Token.OParen
             in ([], Just t) @=? eval_parser (consume (\ tok_i tok -> Error.BadToken tok_i tok expect "')'") expect) tokstream
         , testCase "consume with False" $
+            t >>= \ t -> add_eofs [t] >>= \ tokstream ->
             let expect = Token.SingleTypeToken Token.CParen
             in ([Error.BadToken 0 t expect "')'"], Nothing) @=? eval_parser (consume (\ tok_i tok -> Error.BadToken tok_i tok expect "')'") expect) tokstream
         ]
 
 case_advance :: Assertion
 case_advance =
-    let t1 = Located.dummy_locate (Token.SingleTypeToken Token.OParen)
-        t2 = Located.dummy_locate (Token.SingleTypeToken Token.CParen)
-        tokstream = add_eofs [t1, t2]
+    Located.dummy_locate (Token.SingleTypeToken Token.OParen) >>= \ t1 ->
+    Located.dummy_locate (Token.SingleTypeToken Token.CParen) >>= \ t2 ->
+    dummy_eof >>= \ dummy_eof ->
 
-    in case run_parser advance tokstream of
+    add_eofs [t1, t2] >>= \ tokstream ->
+
+    case run_parser advance tokstream of
         ([], Just ((), tokstream'))
             | tokstream' InfList.!!! 0 == (1, t2) &&
               tokstream' InfList.!!! 1 == (2, dummy_eof) -> pure ()
@@ -204,19 +209,19 @@ test_choice =
 
     in
         [ testCase "(" $
-            let toks = add_eofs [oparen]
-
-            in ([], Just oparen) @=? eval_parser parser toks
+            oparen >>= \ oparen ->
+            add_eofs [oparen] >>= \ toks ->
+            ([], Just oparen) @=? eval_parser parser toks
 
         , testCase ")" $
-            let toks = add_eofs [cparen]
-
-            in ([expect_oparen 0 cparen], Just cparen) @=? eval_parser parser toks
+            cparen >>= \ cparen ->
+            add_eofs [cparen] >>= \ toks ->
+            ([expect_oparen 0 cparen], Just cparen) @=? eval_parser parser toks
 
         , testCase "not matched" $
-            let toks = add_eofs [obrace]
-
-            in ([expect_cparen 0 obrace, expect_oparen 0 obrace], Nothing) @=? eval_parser parser toks
+            obrace >>= \ obrace ->
+            add_eofs [obrace] >>= \ toks ->
+            ([expect_cparen 0 obrace, expect_oparen 0 obrace], Nothing) @=? eval_parser parser toks
         ]
 
 test_star :: [TestTree]
@@ -232,16 +237,21 @@ test_star =
 
     in
         [ testCase "none" $
-            let toks = add_eofs [other]
-            in ([expect_oparen 0 other], Just []) @=? eval_parser parser toks
+            other >>= \ other ->
+            add_eofs [other] >>= \ toks ->
+            ([expect_oparen 0 other], Just []) @=? eval_parser parser toks
 
         , testCase "once" $
-            let toks = add_eofs [oparen, other]
-            in ([expect_oparen 1 other], Just [oparen]) @=? eval_parser parser toks
+            oparen >>= \ oparen ->
+            other >>= \ other ->
+            add_eofs [oparen, other] >>= \ toks ->
+            ([expect_oparen 1 other], Just [oparen]) @=? eval_parser parser toks
 
         , testCase "multiple" $
-            let toks = add_eofs [oparen, oparen, other]
-            in ([expect_oparen 2 other], Just [oparen, oparen]) @=? eval_parser parser toks
+            oparen >>= \ oparen ->
+            other >>= \ other ->
+            add_eofs [oparen, oparen, other] >>= \ toks ->
+            ([expect_oparen 2 other], Just [oparen, oparen]) @=? eval_parser parser toks
         ]
 
 test_delim_star :: [TestTree]
@@ -260,24 +270,36 @@ test_delim_star =
 
     in
         [ testCase "none" $
-            let toks = add_eofs [other]
-            in ([expect_oparen 0 other], Just []) @=? eval_parser parser toks
+            other >>= \ other ->
+            add_eofs [other] >>= \ toks ->
+            ([expect_oparen 0 other], Just []) @=? eval_parser parser toks
 
         , testCase "once" $
-            let toks = add_eofs [oparen, other]
-            in ([expect_delim 1 other], Just [oparen]) @=? eval_parser parser toks
+            oparen >>= \ oparen ->
+            other >>= \ other ->
+            add_eofs [oparen, other] >>= \ toks ->
+            ([expect_delim 1 other], Just [oparen]) @=? eval_parser parser toks
 
         , testCase "once trailing" $
-            let toks = add_eofs [oparen, delim, other]
-            in ([expect_oparen 2 other], Just [oparen]) @=? eval_parser parser toks
+            oparen >>= \ oparen ->
+            delim >>= \ delim ->
+            other >>= \ other ->
+            add_eofs [oparen, delim, other] >>= \ toks ->
+            ([expect_oparen 2 other], Just [oparen]) @=? eval_parser parser toks
 
         , testCase "multiple" $
-            let toks = add_eofs [oparen, delim, oparen, other]
-            in ([expect_delim 3 other], Just [oparen, oparen]) @=? eval_parser parser toks
+            oparen >>= \ oparen ->
+            delim >>= \ delim ->
+            other >>= \ other ->
+            add_eofs [oparen, delim, oparen, other] >>= \ toks ->
+            ([expect_delim 3 other], Just [oparen, oparen]) @=? eval_parser parser toks
 
         , testCase "multiple trailing" $
-            let toks = add_eofs [oparen, delim, oparen, delim, other]
-            in ([expect_oparen 4 other], Just [oparen, oparen]) @=? eval_parser parser toks
+            oparen >>= \ oparen ->
+            delim >>= \ delim ->
+            other >>= \ other ->
+            add_eofs [oparen, delim, oparen, delim, other] >>= \ toks ->
+            ([expect_oparen 4 other], Just [oparen, oparen]) @=? eval_parser parser toks
         ]
 
 test_plus :: [TestTree]
@@ -293,16 +315,21 @@ test_plus =
 
     in
         [ testCase "none" $
-            let toks = add_eofs [other]
-            in ([expect_oparen 0 other], Nothing) @=? eval_parser parser toks
+            other >>= \ other ->
+            add_eofs [other] >>= \ toks ->
+            ([expect_oparen 0 other], Nothing) @=? eval_parser parser toks
 
         , testCase "once" $
-            let toks = add_eofs [oparen, other]
-            in ([expect_oparen 1 other], Just [oparen]) @=? eval_parser parser toks
+            oparen >>= \ oparen ->
+            other >>= \ other ->
+            add_eofs [oparen, other] >>= \ toks ->
+            ([expect_oparen 1 other], Just [oparen]) @=? eval_parser parser toks
 
         , testCase "multiple" $
-            let toks = add_eofs [oparen, oparen, other]
-            in ([expect_oparen 2 other], Just [oparen, oparen]) @=? eval_parser parser toks
+            oparen >>= \ oparen ->
+            other >>= \ other ->
+            add_eofs [oparen, oparen, other] >>= \ toks ->
+            ([expect_oparen 2 other], Just [oparen, oparen]) @=? eval_parser parser toks
         ]
 
 test_optional :: [TestTree]
@@ -316,16 +343,21 @@ test_optional =
         parser = optional oparen_consume
     in
         [ testCase "none" $
-            let toks = add_eofs [other]
-            in ([expect_oparen 0 other], Just Nothing) @=? eval_parser parser toks
+            other >>= \ other ->
+            add_eofs [other] >>= \ toks ->
+            ([expect_oparen 0 other], Just Nothing) @=? eval_parser parser toks
 
         , testCase "once" $
-            let toks = add_eofs [oparen, other]
-            in ([], Just $ Just oparen) @=? eval_parser parser toks
+            oparen >>= \ oparen ->
+            other >>= \ other ->
+            add_eofs [oparen, other] >>= \ toks ->
+            ([], Just $ Just oparen) @=? eval_parser parser toks
 
         , testCase "multiple" $
-            let toks = add_eofs [oparen, oparen, other]
-            in ([], Just $ Just oparen) @=? eval_parser parser toks
+            oparen >>= \ oparen ->
+            other >>= \ other ->
+            add_eofs [oparen, oparen, other] >>= \ toks ->
+            ([], Just $ Just oparen) @=? eval_parser parser toks
         ]
 
 tests :: TestTree

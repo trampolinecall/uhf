@@ -240,25 +240,25 @@ one_or_more a = a >>= \ res -> (res:) <$> choice [one_or_more a, pure []]
 -- tests {{{1
 -- TODO: update tests
 case_remaining :: Assertion
-case_remaining = "fghijkl" @=? remaining (Location.seek 5 $ Location.new (File.new "filename" "abcdefghijkl"))
+case_remaining = File.new "filename" "abcdefghijkl" >>= \ f -> "fghijkl" @=? remaining (Location.seek 5 $ Location.new f)
 
 case_lex :: Assertion
 case_lex =
     let src = "abc *&* ( \"adji\n"
-        f = File.new "a" src
-    in case runWriter $ lex f of
+    in File.new "a" src >>= \ f ->
+    case runWriter $ lex f of
         ((Located _ (Token.AlphaIdentifier (Located _ "abc")) Sequence.:<| Located _ (Token.SymbolIdentifier (Located _ "*&*")) Sequence.:<| Located _ (Token.SingleTypeToken Token.OParen) Sequence.:<| Sequence.Empty, _), [LexError.UnclosedStrLit _]) -> pure ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
 case_lex_empty :: Assertion
 case_lex_empty =
-    let f = File.new "a" ""
-    in case runWriter $ lex f of
+    File.new "a" "" >>= \ f ->
+    case runWriter $ lex f of
         ((Sequence.Empty, _), []) -> pure ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
 lex_test :: (Location -> r) -> Text -> (r -> IO ()) -> IO ()
-lex_test fn input check = check $ fn $ Location.new $ File.new "a" input
+lex_test fn input check = File.new "a" input >>= \ f -> check $ fn $ Location.new f
 lex_test' :: Lexer r -> Text -> (Maybe (Location, [LexError.Error], r) -> IO ()) -> IO ()
 lex_test' fn = lex_test (((\ ((r, loc), errs) -> (loc, errs, r)) <$>) . runWriterT . runStateT fn)
 lex_test_fail :: Show r => [Char] -> r -> IO a

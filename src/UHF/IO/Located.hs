@@ -8,7 +8,7 @@ import UHF.Util.Prelude
 import qualified UHF.IO.Span as Span
 import UHF.IO.Span (Span)
 
-data Located a = Located { just_span :: Span, unlocate :: a } deriving (Show, Eq) -- TODO: figure out how to do Eq nicely
+data Located a = Located { just_span :: Span, unlocate :: a } deriving (Show, Eq) -- TODO: figure out how to do Eq nicely (probably make it accept another type parameter specifying the span with a choice between a dummy unit span and an actual span)
 
 instance Functor Located where
     fmap f (Located sp v) = Located sp (f v)

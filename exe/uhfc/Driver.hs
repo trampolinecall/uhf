@@ -31,17 +31,9 @@ type TypedIR = (Arena.Arena IR.Decl IR.DeclKey, Arena.Arena (IR.NominalType (May
 
 compile :: File.File -> Compiler.Compiler TypedIR
 compile file =
-    convert_errors (Lexer.lex file) >>= \ (tokens, eof_tok) ->
-    let (bt_error, ast) = Parser.parse tokens eof_tok
-    in (case bt_error of
-        Just bt_error -> tell [Diagnostic.to_error bt_error]
-        Nothing -> pure ()) >>
-    convert_errors (ASTToIR.convert ast) >>= \ (decls, nominal_types, bindings, bound_names) ->
-    convert_errors (NameResolve.resolve (decls, nominal_types, bindings)) >>= \ (decls, nominal_types, bindings) ->
+    Lexer.lex file >>= \ (tokens, eof_tok) ->
+    Parser.parse tokens eof_tok >>= \ ast ->
+    ASTToIR.convert ast >>= \ (decls, nominal_types, bindings, bound_names) ->
+    NameResolve.resolve (decls, nominal_types, bindings) >>= \ (decls, nominal_types, bindings) ->
     let bindings' = InfixGroup.group bindings
-    in convert_errors (Type.typecheck (decls, nominal_types, bindings', bound_names))
-
--- convert_errors :: Diagnostic.IsError e => Writer [e] a -> Writer [Diagnostic.Error] a
--- convert_errors = mapWriter (\ (res, errs) -> (res, map Diagnostic.to_error errs))
-
-convert_errors = identity
+    in Type.typecheck (decls, nominal_types, bindings', bound_names)

@@ -269,12 +269,17 @@ type_tuple =
     pure (AST.Type'Tuple (op_sp <> cp_sp) field_types)
 -- pattern {{{1
 pattern :: PEG.Parser AST.Pattern
-pattern = PEG.choice [pattern_tuple, pattern_named, pattern_iden]
+pattern = PEG.choice [pattern_tuple, pattern_named, pattern_wild, pattern_iden]
 
 pattern_iden :: PEG.Parser AST.Pattern
 pattern_iden =
     PEG.consume' "pattern" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
     pure (AST.Pattern'Identifier (Located iden_sp iden))
+
+pattern_wild :: PEG.Parser AST.Pattern
+pattern_wild =
+    PEG.consume' "pattern" (Token.SingleTypeToken Token.Underscore) >>= \ (Located sp _) ->
+    pure (AST.Pattern'Wildcard sp)
 
 pattern_tuple :: PEG.Parser AST.Pattern
 pattern_tuple =

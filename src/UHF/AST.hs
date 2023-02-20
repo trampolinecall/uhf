@@ -54,9 +54,10 @@ data Expr
     deriving (Eq, Show)
 
 data Pattern
-    = Pattern'Identifier Identifier -- TODO: decide whether '_' should be this or a separate variant
+    = Pattern'Identifier Identifier
+    | Pattern'Wildcard Span
     | Pattern'Tuple Span [Pattern]
-    | Pattern'Named Span Identifier Span Pattern
+    | Pattern'Named Span Identifier Span Pattern -- TODO: merge with Identifier?
     deriving (Eq, Show)
 
 expr_span :: Expr -> Span
@@ -78,5 +79,6 @@ expr_span (Expr'TypeAnnotation sp _ _) = sp
 
 pattern_span :: Pattern -> Span
 pattern_span (Pattern'Identifier i) = just_span i
+pattern_span (Pattern'Wildcard sp) = sp
 pattern_span (Pattern'Tuple sp _) = sp
 pattern_span (Pattern'Named sp _ _ _) = sp

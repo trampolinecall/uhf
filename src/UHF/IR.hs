@@ -126,6 +126,7 @@ data Expr identifier typeannotation typeinfo binaryopsallowed
 
 data Pattern identifier typeinfo
     = Pattern'Identifier typeinfo Span BoundValueKey
+    | Pattern'Wildcard typeinfo Span
     | Pattern'Tuple typeinfo Span (Pattern identifier typeinfo) (Pattern identifier typeinfo)
     | Pattern'Named typeinfo Span Span (Located BoundValueKey) (Pattern identifier typeinfo)
 
@@ -170,12 +171,14 @@ expr_span (Expr'TypeAnnotation _ sp _ _) = sp
 
 pattern_type :: Pattern typeannotation typeinfo -> typeinfo
 pattern_type (Pattern'Identifier typeinfo _ _) = typeinfo
+pattern_type (Pattern'Wildcard typeinfo _) = typeinfo
 pattern_type (Pattern'Tuple typeinfo _ _ _) = typeinfo
 pattern_type (Pattern'Named typeinfo _ _ _ _) = typeinfo
 pattern_type (Pattern'Poison typeinfo _) = typeinfo
 
 pattern_span :: Pattern spanannotation spaninfo -> Span
 pattern_span (Pattern'Identifier _ sp _) = sp
+pattern_span (Pattern'Wildcard _ sp) = sp
 pattern_span (Pattern'Tuple _ sp _ _) = sp
 pattern_span (Pattern'Named _ sp _ _ _) = sp
 pattern_span (Pattern'Poison _ sp) = sp

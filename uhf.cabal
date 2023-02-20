@@ -27,6 +27,7 @@ library
       UHF.Diagnostic.Report.Style
       UHF.Diagnostic.Report.Utils
       UHF.Diagnostic.Settings
+      UHF.Driver
       UHF.InfixGroup
       UHF.IO.File
       UHF.IO.FormattedString
@@ -81,7 +82,6 @@ library
 executable uhfc
   main-is: Main.hs
   other-modules:
-      Driver
       Paths_uhf
   hs-source-dirs:
       exe/uhfc

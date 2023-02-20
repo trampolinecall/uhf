@@ -12,13 +12,14 @@ import qualified UHF.Token as Token
 
 import qualified Data.InfList as InfList
 
-data ParsingTest = forall r. (Show r, Eq r) => ParsingTest [Char] PEG.TokenStream r [([Char], PEG.Parser r)]
+data ParsingTest = forall r. (Show r, Eq r) => ParsingTest [Char] (IO PEG.TokenStream) r [([Char], PEG.Parser r)]
 
-make_token_stream :: [Token.Token] -> PEG.TokenStream
+make_token_stream :: [IO Token.Token] -> IO PEG.TokenStream
 make_token_stream toks =
-    let toks' = map Located.dummy_locate toks
-        l = last toks'
-    in InfList.zip (InfList.iterate (1+) 0) (toks' InfList.+++ InfList.repeat l)
+    sequence toks >>= \ toks ->
+    mapM Located.dummy_locate toks >>=  \ toks ->
+    let l = last toks
+    in pure (InfList.zip (InfList.iterate (1+) 0) (toks InfList.+++ InfList.repeat l))
 
 {- TODO:
 check_parser :: [Error.Error] -> r -> [Token.Token] -> Parser r -> PEG.TokenStream -> IO ()
@@ -37,6 +38,7 @@ run_test (ParsingTest construct_name input_toks expected_res parsers) =
         map
             (\ (p_name, p) ->
                 testCase (p_name ++ " parsing " ++ construct_name) $
+                    input_toks >>= \ input_toks ->
                     case PEG.eval_parser p input_toks of
                         (bt_errors, res) ->
                             if Just expected_res == res

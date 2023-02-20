@@ -53,5 +53,8 @@ debug_message = [bold]
 note = [bold, fg_bgreen]
 hint = [bold, fg_bblue]
 
+file_path_color :: [SGR]
+file_path_color = [bold, fg_bcyan]
+
 diag_code = [bold]
 diag_desc = [bold]

@@ -80,7 +80,7 @@ lex_id_or_kw is_valid_start is_valid_char kws def =
     choice [one_or_more $ consume is_valid_char, pure []] >>= \ more ->
     let full =
             let chars = first_char : more
-                sp = Located.just_span (head chars) `Span.join` Located.just_span (last chars)
+                sp = Located.just_span (head chars) <> Located.just_span (last chars)
             in Located sp (Text.pack $ Located.unlocate <$> chars)
         tok = fromMaybe (def full) (lookup (Located.unlocate full) kws)
     in get_loc >>= \ end_loc ->

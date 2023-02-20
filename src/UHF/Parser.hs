@@ -121,7 +121,7 @@ expr_binary_ops =
     ) >>= \ ops ->
     if null ops
         then pure first
-        else pure (AST.Expr'BinaryOps (AST.expr_span first `Span.join` AST.expr_span (snd $ last ops)) first ops)
+        else pure (AST.Expr'BinaryOps (AST.expr_span first <> AST.expr_span (snd $ last ops)) first ops)
 
 expr_call :: PEG.Parser AST.Expr
 expr_call =
@@ -132,7 +132,7 @@ expr_call =
         PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ (Located cp_sp _) ->
         pure (args, cp_sp)
     ) >>= \ calls ->
-    pure (foldl' (\ callee (args, cp_sp) -> AST.Expr'Call (AST.expr_span callee `Span.join` cp_sp) callee args) callee calls)
+    pure (foldl' (\ callee (args, cp_sp) -> AST.Expr'Call (AST.expr_span callee <> cp_sp) callee args) callee calls)
 
 expr_primary :: PEG.Parser AST.Expr
 expr_primary =
@@ -190,7 +190,7 @@ expr_tuple =
     PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ (Located o_sp _) ->
     PEG.delim_star expr (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ items -> -- TODO: parenthesized expressions too
     PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ (Located c_sp _) ->
-    pure (AST.Expr'Tuple (o_sp `Span.join` c_sp) items)
+    pure (AST.Expr'Tuple (o_sp <> c_sp) items)
 
 expr_lambda :: PEG.Parser AST.Expr
 expr_lambda =
@@ -200,7 +200,7 @@ expr_lambda =
     PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ _ ->
     PEG.consume' "'->'" (Token.SingleTypeToken Token.Arrow) >>= \ _ ->
     expr >>= \ body ->
-    pure (AST.Expr'Lambda (backslash_sp `Span.join` AST.expr_span body) params body)
+    pure (AST.Expr'Lambda (backslash_sp <> AST.expr_span body) params body)
 
 expr_let :: PEG.Parser AST.Expr
 expr_let =
@@ -218,8 +218,8 @@ expr_let =
     -- TODO: 'in'?
     expr >>= \ subexpr ->
     case Located.unlocate let_tok of
-        Token.SingleTypeToken Token.Let -> pure $ AST.Expr'Let (Located.just_span let_tok `Span.join` AST.expr_span subexpr) decls subexpr
-        Token.SingleTypeToken Token.LetRec -> pure $ AST.Expr'LetRec (Located.just_span let_tok `Span.join` AST.expr_span subexpr) decls subexpr
+        Token.SingleTypeToken Token.Let -> pure $ AST.Expr'Let (Located.just_span let_tok <> AST.expr_span subexpr) decls subexpr
+        Token.SingleTypeToken Token.LetRec -> pure $ AST.Expr'LetRec (Located.just_span let_tok <> AST.expr_span subexpr) decls subexpr
         _ -> unreachable
 
 expr_if :: PEG.Parser AST.Expr
@@ -230,7 +230,7 @@ expr_if =
     expr >>= \ true_choice ->
     PEG.consume' "'else'" (Token.SingleTypeToken Token.Else) >>= \ _ ->
     expr >>= \ false_choice ->
-    pure (AST.Expr'If (if_sp `Span.join` AST.expr_span false_choice) if_sp cond true_choice false_choice)
+    pure (AST.Expr'If (if_sp <> AST.expr_span false_choice) if_sp cond true_choice false_choice)
 
 expr_case :: PEG.Parser AST.Expr
 expr_case =
@@ -245,14 +245,14 @@ expr_case =
         pure (pat, choice)
     ) >>= \ arms ->
     PEG.consume' "'}'" (Token.SingleTypeToken Token.CBrace) >>= \ (Located cb_sp _) ->
-    pure (AST.Expr'Case (case_sp `Span.join` cb_sp) case_sp e arms)
+    pure (AST.Expr'Case (case_sp <> cb_sp) case_sp e arms)
 
 expr_type_annotation :: PEG.Parser AST.Expr
 expr_type_annotation =
     PEG.consume' "':'" (Token.SingleTypeToken Token.Colon) >>= \ (Located colon_sp _) ->
     type_ >>= \ ty -> -- TODO: this probably needs a delimiter because when type applications types can go on
     expr >>= \ e ->
-    pure (AST.Expr'TypeAnnotation (colon_sp `Span.join` AST.expr_span e) ty e)
+    pure (AST.Expr'TypeAnnotation (colon_sp <> AST.expr_span e) ty e)
 -- type {{{1
 type_ :: PEG.Parser AST.Type
 type_ = PEG.choice [type_iden, type_tuple]
@@ -267,7 +267,7 @@ type_tuple =
     PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ (Located op_sp _) ->
     PEG.delim_star type_ (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ field_types ->
     PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ (Located cp_sp _) ->
-    pure (AST.Type'Tuple (op_sp `Span.join` cp_sp) field_types)
+    pure (AST.Type'Tuple (op_sp <> cp_sp) field_types)
 -- pattern {{{1
 pattern :: PEG.Parser AST.Pattern
 pattern = PEG.choice [pattern_tuple, pattern_named, pattern_iden]
@@ -282,14 +282,14 @@ pattern_tuple =
     PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ (Located o_sp _) ->
     PEG.delim_star pattern (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ fields ->
     PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ (Located c_sp _) ->
-    pure (AST.Pattern'Tuple (o_sp `Span.join` c_sp) fields)
+    pure (AST.Pattern'Tuple (o_sp <> c_sp) fields)
 
 pattern_named :: PEG.Parser AST.Pattern
 pattern_named =
     PEG.consume' "pattern" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
     PEG.consume' "'@'" (Token.SingleTypeToken Token.At) >>= \ (Located at_sp _) ->
     pattern >>= \ more ->
-    pure (AST.Pattern'Named (iden_sp `Span.join` AST.pattern_span more) (Located iden_sp iden) at_sp more)
+    pure (AST.Pattern'Named (iden_sp <> AST.pattern_span more) (Located iden_sp iden) at_sp more)
 -- tests {{{1
 {- TODO
 -- test_decls :: [TestTree]

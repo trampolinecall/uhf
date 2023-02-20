@@ -114,8 +114,7 @@ instance Diagnostic.ToError Error where
                     print_type False nominal_types vars (unlocate got_whole) >>= \ got_whole_printed ->
                     pure (expect_part_printed, got_part_printed, expect_whole_printed, got_whole_printed)
 
-        in
-        Diagnostic.Error Diagnostic.Codes.type_mismatch -- TODO: change code?
+        in Diagnostic.Error Diagnostic.Codes.type_mismatch -- TODO: change code?
             (Just sp)
             (convert_str $ "conflicting types in " <> what <> ": '" <> expect_part_printed <> "' vs '" <> got_part_printed <> "'")
             ([ sp `Diagnostic.msg_note_at` convert_str ("expected '" <> expect_whole_printed <> "', got '" <> got_whole_printed <> "'") ] ++ make_var_name_messages vars var_names)
@@ -129,9 +128,7 @@ instance Diagnostic.ToError Error where
                     print_type True nominal_types vars ty >>= \ ty_printed ->
                     print_type True nominal_types vars var_as_type >>= \ var_printed ->
                     pure (ty_printed, var_printed)
-        in
-
-        Diagnostic.Error Diagnostic.Codes.occurs_check
+        in Diagnostic.Error Diagnostic.Codes.occurs_check
             (Just span)
             ("occurs check failure: infinite cyclic type arising from constraint '" <> var_printed <> " = " <> ty_printed <> "'")
             (make_var_name_messages vars var_names)

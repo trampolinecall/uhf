@@ -1,21 +1,4 @@
-module UHF.ASTToIR
-    ( Decl
-    , Module
-    , Binding
-    , Expr
-    , Pattern
-
-    , DeclArena
-    , BoundValueArena
-    , BindingArena
-    , NominalTypeArena
-
-    , DeclMap
-    , BoundValueMap
-    , IR.NameContext
-
-    , convert
-    ) where
+module UHF.ASTToIR (convert) where
 
 import UHF.Util.Prelude
 
@@ -62,9 +45,9 @@ instance Diagnostic.ToError Error where
             []
         where
             decl_at_span (DeclAt sp) = Just sp
-            decl_at_span (ImplicitPrim) = Nothing
+            decl_at_span ImplicitPrim = Nothing
             decl_at_message _ (DeclAt _) = Nothing
-            decl_at_message n (ImplicitPrim) = Just $ "'" <> convert_str n <> "' is implicitly declared as a primitive" -- TODO: reword this message (ideally when it is declared through the prelude import the message would be something like 'implicitly declared by implicit import of prelude')
+            decl_at_message n ImplicitPrim = Just $ "'" <> convert_str n <> "' is implicitly declared as a primitive" -- TODO: reword this message (ideally when it is declared through the prelude import the message would be something like 'implicitly declared by implicit import of prelude')
 
     to_error (PathInPattern (Located sp _)) = Diagnostic.Error Codes.binding_lhs_path (Just sp) "path in pattern" [] []
 
@@ -80,7 +63,6 @@ instance Diagnostic.ToError Error where
 
 type Identifier = (IR.NameContext, [Located Text])
 type Decl = IR.Decl
-type Module = IR.Module
 type Binding = IR.Binding Identifier TypeExpr () ()
 type NominalType = IR.NominalType TypeExpr
 type TypeExpr = IR.TypeExpr Identifier
@@ -91,9 +73,6 @@ type DeclArena = Arena.Arena Decl IR.DeclKey
 type BindingArena = Arena.Arena Binding IR.BindingKey
 type BoundValueArena = Arena.Arena (IR.BoundValue ()) IR.BoundValueKey
 type NominalTypeArena = Arena.Arena NominalType IR.NominalTypeKey
-
-type DeclMap = Map.Map Text IR.DeclKey
-type BoundValueMap = Map.Map Text IR.BoundValueKey
 
 type DeclChildrenList = [(Text, DeclAt, IR.DeclKey)]
 type BoundValueList = [(Text, DeclAt, IR.BoundValueKey)]
@@ -183,7 +162,7 @@ convert decls =
                     (
                         primitive_decls >>= \ primitive_decls ->
                         primitive_values >>= \ primitive_values ->
-                        IR.Decl'Module <$> (IR.Module <$> convert_decls Nothing primitive_decls primitive_values decls) >>= new_decl
+                        IR.Decl'Module <$> convert_decls Nothing primitive_decls primitive_values decls >>= new_decl
                     )
                     (Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (_, (decls, bindings, bound_values, nominals)) ->
                 pure (decls, nominals, bindings, bound_values)

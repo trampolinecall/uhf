@@ -47,6 +47,6 @@ main :: IO ()
 main =
     execParser argparser >>= \ (Args files c_needed diagnostic_settings) ->
     mapM (Driver.compile c_needed diagnostic_settings) files >>= \ results ->
-    if any (isLeft) results
+    if any isLeft results
        then exitFailure
        else pure ()

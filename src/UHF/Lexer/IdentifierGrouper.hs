@@ -9,7 +9,6 @@ import UHF.Util.Prelude
 import qualified UHF.IO.Location.SpanHelper as SpanHelper
 
 import qualified UHF.Token as Token
-import qualified UHF.IO.Span as Span
 import UHF.IO.Located (Located (..))
 
 group_identifiers :: [Token.LInternalToken] -> [Token.LToken]
@@ -26,7 +25,7 @@ group_identifiers ((Located start_sp (Token.AlphaIdentifier start_iden)):more) =
 
         (iden_found, is_symbol_identifier, more') = find_iden more
         iden_names = start_iden : map fst iden_found
-        iden_sp = start_sp `Span.join` lastDef start_sp (map snd iden_found)
+        iden_sp = start_sp <> lastDef start_sp (map snd iden_found)
 
         iden_tok =
             if is_symbol_identifier
@@ -57,7 +56,7 @@ convert_raw_token (Located _ (Token.EOF eof)) = absurd eof
 case_group_identifiers :: Assertion
 case_group_identifiers =
     SpanHelper.make_spans ["(", "a", "::", "b", "eof"] >>= \ (_, [paren_sp, a_sp, dcolon_sp, b_sp, _]) ->
-    ([Located paren_sp (Token.SingleTypeToken Token.OParen), Located (a_sp `Span.join` b_sp) (Token.AlphaIdentifier [Located a_sp "a", Located b_sp "b"])])
+    ([Located paren_sp (Token.SingleTypeToken Token.OParen), Located (a_sp <> b_sp) (Token.AlphaIdentifier [Located a_sp "a", Located b_sp "b"])])
     @=?
     (group_identifiers
         [ Located paren_sp (Token.SingleTypeToken Token.OParen)
@@ -76,7 +75,7 @@ case_group_identifiers_single_alpha =
 case_group_identifiers_multiple_alpha :: Assertion
 case_group_identifiers_multiple_alpha =
     SpanHelper.make_spans ["a", "::", "b", "::", "c"] >>= \ (_, [a, dc1, b, dc2, c]) ->
-    ([Located (a `Span.join` c) (Token.AlphaIdentifier [Located a "a", Located b "b", Located c "c"])])
+    ([Located (a <> c) (Token.AlphaIdentifier [Located a "a", Located b "b", Located c "c"])])
     @=?
     (group_identifiers
         [ Located a $ Token.AlphaIdentifier (Located a "a")
@@ -96,7 +95,7 @@ case_group_identifiers_single_symbol =
 case_group_identifiers_multiple_symbol :: Assertion
 case_group_identifiers_multiple_symbol =
     SpanHelper.make_spans ["a", "::", "b", "::", "*"] >>= \ (_, [a, dc1, b, dc2, star]) ->
-    ([Located (a `Span.join` star) $ Token.SymbolIdentifier [Located a "a", Located b "b", Located star "*"]])
+    ([Located (a <> star) $ Token.SymbolIdentifier [Located a "a", Located b "b", Located star "*"]])
     @=?
     (group_identifiers
         [ Located a $ Token.AlphaIdentifier (Located a "a")

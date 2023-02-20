@@ -1,7 +1,6 @@
 module UHF.IR
     ( DeclKey
     , Decl(..)
-    , Module(..)
 
     , NominalTypeKey
     , NominalType(..)
@@ -47,10 +46,9 @@ instance Arena.Key DeclKey where
     make_key = DeclKey
     unmake_key (DeclKey i) = i
 data Decl
-    = Decl'Module Module
+    = Decl'Module NameContext
     | Decl'Type (Type Void)
     deriving Show
-data Module = Module NameContext deriving Show
 
 newtype NominalTypeKey = NominalTypeKey Int deriving (Show, Eq)
 instance Arena.Key NominalTypeKey where

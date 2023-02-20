@@ -33,7 +33,7 @@ class ToError e where to_error :: e -> Error
 class IsWarning w where to_warning :: w -> Warning
 
 type MessagesSection = [Message]
-type Message = (Span, MessageType, Maybe FormattedString)
+type Message = (Span, MessageType, Maybe FormattedString) -- TODO: change to text and search for all other usages of FormattedString
 data MessageType = MsgError | MsgWarning | MsgNote | MsgHint deriving (Show, Eq)
 
 msg_error, msg_warning, msg_note, msg_hint :: Span -> FormattedString -> Message

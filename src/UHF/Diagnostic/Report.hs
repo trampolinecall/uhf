@@ -12,7 +12,7 @@ import qualified UHF.Diagnostic.Codes.Code as Code
 import qualified UHF.Diagnostic.Settings as Settings
 
 import qualified UHF.IO.Location as Location
-import UHF.IO.Location (File, Span)
+import UHF.IO.Location (Span)
 
 import qualified Data.Text as Text
 import qualified System.IO as IO
@@ -34,7 +34,7 @@ report handle diag_settings d = -- TODO: use diagnostic settings
     let (type_str, code_and_desc, main_message_type, m_sp, main_message, main_section, sections) = to_diagnostic d
         header =
             (case m_sp of
-                Just sp -> format (Location.sp_s sp) <> ": "
+                Just sp -> convert_str (FormattedString.color_text Colors.file_path_color (format (Location.sp_s sp))) <> ": " -- TODO: move file path color out
                 Nothing -> "")
                 <> type_str <> ": "
                 <> convert_str main_message
@@ -65,11 +65,11 @@ report handle diag_settings d = -- TODO: use diagnostic settings
             hPutStr handle [' ', sep, ' '] >>
             hPutStr handle contents >>
             hPutText handle "\n"
-    in
-    hPutStr handle header >>
-    hPutText handle "\n" >>
+    in hPutStr handle header >> hPutText handle "\n" >>
     mapM_ p_line section_lines >>
-    maybe (pure ()) (\ f -> hPutStr handle (replicate indent ' ') >> hPutStr handle f >> IO.hPutStr handle "\n") footer
+    case footer of
+        Just footer -> hPutStr handle (replicate indent ' ') >> hPutStr handle footer >> IO.hPutStr handle "\n"
+        Nothing -> pure ()
 
 render_section :: Diagnostic.OtherSection -> [Line.Line]
 render_section (Diagnostic.Section'Messages m) = Messages.render m

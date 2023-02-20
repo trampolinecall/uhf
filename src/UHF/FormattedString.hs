@@ -19,6 +19,7 @@ import qualified System.IO as IO
 
 import UHF.Diagnostic.Settings (ColorsNeeded (..))
 
+-- TODO: move to io library
 data FormattedString
     = Colored [ANSI.SGR] FormattedString
     | Join FormattedString FormattedString

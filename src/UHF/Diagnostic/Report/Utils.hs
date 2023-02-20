@@ -1,10 +1,10 @@
-module UHF.Diagnostic.Sections.Utils where
+module UHF.Diagnostic.Report.Utils where
 
 import UHF.Util.Prelude
 
 import UHF.IO.Location.SpanHelper
 
-import qualified UHF.Diagnostic.Line as Line
+import qualified UHF.Diagnostic.Report.Line as Line
 
 import qualified UHF.IO.Location as Location
 import UHF.IO.Location (File, Span)

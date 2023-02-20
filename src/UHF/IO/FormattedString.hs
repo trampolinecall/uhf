@@ -3,8 +3,6 @@ module UHF.IO.FormattedString
     , ColorsNeeded(..)
     , color_text
 
-    , UHF.IO.FormattedString.length -- TODO: is this used anywhere?
-
     , render
     , flatten_no_sgr
     ) where
@@ -54,9 +52,6 @@ render' handle _ _ (Literal t) = Text.IO.hPutStr handle t
 maybe_set_sgr :: Bool -> IO.Handle -> [ANSI.SGR] -> IO ()
 maybe_set_sgr False _ _ = pure ()
 maybe_set_sgr True handle sgrs = ANSI.hSetSGR handle sgrs
-
-length :: FormattedString -> Int
-length = Text.length . flatten_no_sgr
 
 flatten_no_sgr :: FormattedString -> Text.Text
 flatten_no_sgr (Colored _ a) = flatten_no_sgr a

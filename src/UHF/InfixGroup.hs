@@ -4,7 +4,6 @@ import UHF.Util.Prelude
 
 import qualified Arena
 
-import qualified UHF.IO.Span as Span
 import qualified UHF.IO.Located as Located
 import UHF.IO.Located (Located)
 

@@ -1,4 +1,4 @@
-module Driver
+module UHF.Driver
     ( compile
     ) where
 
@@ -7,7 +7,11 @@ import UHF.Util.Prelude
 import qualified Arena
 
 import UHF.IO.File (File)
+import qualified UHF.IO.File as File
 import UHF.IO.Located (Located)
+
+import qualified UHF.IO.FormattedString as FormattedString
+import qualified UHF.Diagnostic.Settings as DiagnosticSettings
 
 import qualified UHF.Compiler as Compiler
 
@@ -36,8 +40,16 @@ type NoPoisonIR = (Arena.Arena IR.Decl IR.DeclKey, Arena.Arena (IR.NominalType (
 type Dot = Text
 type TS = Text
 
-compile :: File -> Compiler.Compiler (Maybe TS)
-compile file =
+compile :: FormattedString.ColorsNeeded -> DiagnosticSettings.Settings -> FilePath -> IO (Either () ())
+compile c_needed diagnostic_settings path =
+    File.open path >>= \ file ->
+    Compiler.run_compiler (compile' file) c_needed diagnostic_settings >>= \case
+        Just (Just res) -> putTextLn res >> pure (Right ()) -- TODO: get rid of double Maybe
+        Just Nothing -> pure (Left ()) -- TODO: decide what should happen here
+        Nothing -> pure (Left ())
+
+compile' :: File -> Compiler.Compiler (Maybe TS)
+compile' file =
     -- TODO: clean up
     Lexer.lex file >>= \ (tokens, eof_tok) ->
     Parser.parse tokens eof_tok >>= \ ast ->

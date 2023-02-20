@@ -56,7 +56,7 @@ convert_raw_token (Located _ (Token.EOF eof)) = absurd eof
 case_group_identifiers :: Assertion
 case_group_identifiers =
     SpanHelper.make_spans ["(", "a", "::", "b", "eof"] >>= \ (_, [paren_sp, a_sp, dcolon_sp, b_sp, _]) ->
-    ([Located paren_sp (Token.SingleTypeToken Token.OParen), Located (a_sp <> b_sp) (Token.AlphaIdentifier [Located a_sp "a", Located b_sp "b"])])
+    [Located paren_sp (Token.SingleTypeToken Token.OParen), Located (a_sp <> b_sp) (Token.AlphaIdentifier [Located a_sp "a", Located b_sp "b"])]
     @=?
     (group_identifiers
         [ Located paren_sp (Token.SingleTypeToken Token.OParen)
@@ -68,14 +68,14 @@ case_group_identifiers =
 case_group_identifiers_single_alpha :: Assertion
 case_group_identifiers_single_alpha =
     SpanHelper.make_spans ["a"] >>= \ (_, [sp]) ->
-    ([Located sp (Token.AlphaIdentifier [Located sp "a"])])
+    [Located sp (Token.AlphaIdentifier [Located sp "a"])]
     @=?
-    (group_identifiers [Located sp (Token.AlphaIdentifier (Located sp "a"))])
+    group_identifiers [Located sp (Token.AlphaIdentifier (Located sp "a"))]
 
 case_group_identifiers_multiple_alpha :: Assertion
 case_group_identifiers_multiple_alpha =
     SpanHelper.make_spans ["a", "::", "b", "::", "c"] >>= \ (_, [a, dc1, b, dc2, c]) ->
-    ([Located (a <> c) (Token.AlphaIdentifier [Located a "a", Located b "b", Located c "c"])])
+    [Located (a <> c) (Token.AlphaIdentifier [Located a "a", Located b "b", Located c "c"])]
     @=?
     (group_identifiers
         [ Located a $ Token.AlphaIdentifier (Located a "a")
@@ -88,14 +88,14 @@ case_group_identifiers_multiple_alpha =
 case_group_identifiers_single_symbol :: Assertion
 case_group_identifiers_single_symbol =
     SpanHelper.make_spans ["*"] >>= \ (_, [sp]) ->
-    ([Located sp $ Token.SymbolIdentifier [Located sp "*"]])
+    [Located sp $ Token.SymbolIdentifier [Located sp "*"]]
     @=?
-    (group_identifiers [Located sp $ Token.SymbolIdentifier (Located sp "*")])
+    group_identifiers [Located sp $ Token.SymbolIdentifier (Located sp "*")]
 
 case_group_identifiers_multiple_symbol :: Assertion
 case_group_identifiers_multiple_symbol =
     SpanHelper.make_spans ["a", "::", "b", "::", "*"] >>= \ (_, [a, dc1, b, dc2, star]) ->
-    ([Located (a <> star) $ Token.SymbolIdentifier [Located a "a", Located b "b", Located star "*"]])
+    [Located (a <> star) $ Token.SymbolIdentifier [Located a "a", Located b "b", Located star "*"]]
     @=?
     (group_identifiers
         [ Located a $ Token.AlphaIdentifier (Located a "a")
@@ -108,7 +108,7 @@ case_group_identifiers_multiple_symbol =
 case_group_identifiers_symbol_start :: Assertion
 case_group_identifiers_symbol_start =
     SpanHelper.make_spans ["*", "::", "$", "::", "$"] >>= \ (_, [star, dc1, amper, dc2, dollar]) ->
-    ([Located star $ Token.SymbolIdentifier [Located star "*"], Located dc1 (Token.SingleTypeToken Token.DoubleColon), Located amper $ Token.SymbolIdentifier [Located amper "&"], Located dc1 (Token.SingleTypeToken Token.DoubleColon), Located dollar $ Token.SymbolIdentifier [Located dollar "$"]])
+    [Located star $ Token.SymbolIdentifier [Located star "*"], Located dc1 (Token.SingleTypeToken Token.DoubleColon), Located amper $ Token.SymbolIdentifier [Located amper "&"], Located dc1 (Token.SingleTypeToken Token.DoubleColon), Located dollar $ Token.SymbolIdentifier [Located dollar "$"]]
     @=?
     (group_identifiers
         [ Located star $ Token.SymbolIdentifier (Located star "*")

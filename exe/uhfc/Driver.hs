@@ -41,7 +41,7 @@ compile file =
     -- TODO: clean up
     Lexer.lex file >>= \ (tokens, eof_tok) ->
     Parser.parse tokens eof_tok >>= \ ast ->
-    ASTToIR.convert file ast >>= \ (decls, nominal_types, bindings, bound_values) ->
+    ASTToIR.convert ast >>= \ (decls, nominal_types, bindings, bound_values) ->
     NameResolve.resolve (decls, nominal_types, bindings) >>= \ (decls, nominal_types, bindings) ->
     let bindings' = InfixGroup.group bindings
     in Type.typecheck (decls, nominal_types, bindings', bound_values) >>= \ (decls, nominal_types, bindings, bound_values) ->

@@ -17,16 +17,20 @@ import qualified UHF.Diagnostic.Report.Colors as Colors
 import qualified UHF.IO.FormattedString as FormattedString
 import UHF.IO.File (File)
 import qualified UHF.IO.Location as Location
+import UHF.IO.Span (Span)
 import qualified UHF.IO.Span as Span
 
 import qualified Data.Text as Text
 import qualified Data.Maybe as Maybe
+import qualified Data.Either as Either
 import qualified Data.Function as Function
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified System.Console.ANSI as ANSI
 
 -- TODO: fix errors on eof where messages arent shown
+--
+type MessageWithSpan = (Span, Diagnostic.MessageType, Maybe Text)
 
 type_color :: Diagnostic.MessageType -> [ANSI.SGR]
 type_color Diagnostic.MsgError = Colors.error
@@ -47,11 +51,19 @@ top_type_char Diagnostic.MsgHint = '~'
 
 render :: Diagnostic.MessagesSection -> [Line.Line]
 render msgs =
-    let (singleline, multiline) = List.partition (Span.is_single_line . (\ (a, _, _) -> a)) msgs
+    let (nospan, withspan) =
+            Either.partitionEithers $
+            map (\case
+                    (Just s, ty, msg) -> Right (s, ty, msg)
+                    (Nothing, ty, msg) -> Left (ty, msg)
+                )
+                msgs
+        (singleline, multiline) = List.partition (Span.is_single_line . (\ (a, _, _) -> a)) withspan
 
         singleline' = show_singleline singleline
         multiline' = concatMap show_multiline multiline
-    in singleline' ++ multiline'
+        nospan' = map todo nospan -- TODO
+    in singleline' ++ multiline' ++ nospan'
 
 -- show_singleline {{{1
 -- Message helpers {{{2
@@ -67,7 +79,7 @@ rm_end_col :: RenderMessage -> Int
 -- 4 ('`-- ') + length of message
 rm_end_col (loc, _, text) = Location.loc_col loc + Text.length text + 4
 -- show_singleline {{{2
-show_singleline :: [Diagnostic.Message] -> [Line.Line]
+show_singleline :: [MessageWithSpan] -> [Line.Line]
 show_singleline unds =
     let grouped = Utils.group_by_spans (\ (sp, _, _) -> sp) unds
         flattened =
@@ -85,7 +97,7 @@ show_singleline unds =
     -- List.nub $
     -- concatMap (uncurry Utils.context_lines) $
 -- show_line {{{2
-show_line :: (Maybe (File, Int, [Diagnostic.Message]), (File, Int, [Diagnostic.Message])) -> [Line.Line]
+show_line :: (Maybe (File, Int, [MessageWithSpan]), (File, Int, [MessageWithSpan])) -> [Line.Line]
 show_line (last, (fl, nr, messages)) =
     let renderable_messages = get_renderable_messages messages
         msg_rows = assign_messages renderable_messages
@@ -100,12 +112,12 @@ show_line (last, (fl, nr, messages)) =
 
         map (uncurry show_msg_row) msg_rows
 
-get_renderable_messages :: [Diagnostic.Message] -> [RenderMessage]
+get_renderable_messages :: [MessageWithSpan] -> [RenderMessage]
 get_renderable_messages =
     List.sortBy (flip compare `Function.on` rm_start_col) .
     Maybe.mapMaybe (\ (sp, ty, msg) -> (Span.before_end sp, ty,) <$> msg)
 
-get_colored_quote_and_underline_line :: File -> Int -> [Diagnostic.Message] -> (FormattedString.FormattedString, FormattedString.FormattedString)
+get_colored_quote_and_underline_line :: File -> Int -> [MessageWithSpan] -> (FormattedString.FormattedString, FormattedString.FormattedString)
 get_colored_quote_and_underline_line fl nr unds =
     let col_in_underline c (sp, _, _) = Span.start_col sp <= c && c <= Span.before_end_col sp
 
@@ -181,7 +193,7 @@ overlapping to_assign assigned =
         )
         assigned
 -- show_multiline {{{1
-show_multiline :: Diagnostic.Message -> [Line.Line]
+show_multiline :: MessageWithSpan -> [Line.Line]
 show_multiline (und_sp, und_type, und_msg) = -- TODO: merge messages with the same span
     let
         start_line = Span.start_row und_sp
@@ -273,9 +285,9 @@ case_messages =
 
     let lines = render
             (
-                [ Diagnostic.msg_error single_sp "message 1", Diagnostic.msg_hint single_sp "message 2"
-                , Diagnostic.msg_warning multi_sp "message 3"
-                ] :: Diagnostic.MessagesSection
+                [ (Just single_sp, Diagnostic.MsgError, Just "message 1"), (Just single_sp, Diagnostic.MsgHint, Just "message 2")
+                , (Just multi_sp, Diagnostic.MsgWarning, Just "message 3")
+                ] :: Diagnostic.MessagesSection -- TODO: test no span messages and no message messages
             )
     in Line.compare_lines
         [ ("", '>',  "")
@@ -303,10 +315,10 @@ case_show_singleline =
     make_spans' "zyx" "" ["zyx1"] >>= \ (_, [zyx1]) ->
 
     let unds =
-            [ Diagnostic.msg_error zyx1 "error"
-            , Diagnostic.msg_hint abc3 "hint"
-            , Diagnostic.msg_warning abc1 "warning"
-            , Diagnostic.msg_note abc2 "note"
+            [ (zyx1, Diagnostic.MsgError, Just "error")
+            , (abc3, Diagnostic.MsgHint, Just "hint")
+            , (abc1, Diagnostic.MsgWarning, Just "warning")
+            , (abc2, Diagnostic.MsgNote, Just "note")
             ]
 
     in Line.compare_lines
@@ -342,7 +354,7 @@ case_show_line_single =
         , ( "", '|', "^^ ")
         , ( "", '|', " `-- message")
         ]
-        (show_line (Nothing, (f, 1, [Diagnostic.msg_error sp "message"])))
+        (show_line (Nothing, (f, 1, [(sp, Diagnostic.MsgError, Just "message")])))
 
 case_show_line_multiple :: Assertion
 case_show_line_multiple =
@@ -354,7 +366,7 @@ case_show_line_multiple =
         , ( "", '|', "^^^                  ^^^ ")
         , ( "", '|', "  `-- a                `-- b")
         ]
-        (show_line (Nothing, (f, 1, [Diagnostic.msg_error sp1 "a", Diagnostic.msg_error sp2 "b"])))
+        (show_line (Nothing, (f, 1, [(sp1, Diagnostic.MsgError, Just "a"), (sp2, Diagnostic.MsgError, Just "b")])))
 
 case_show_line_multiple_overlapping :: Assertion
 case_show_line_multiple_overlapping =
@@ -367,7 +379,7 @@ case_show_line_multiple_overlapping =
         , ( "", '|', "  |-- message1")
         , ( "", '|', "  `-- message2")
         ]
-        (show_line (Nothing, (f, 1, [Diagnostic.msg_error sp1 "message1", Diagnostic.msg_note sp1 "message2", Diagnostic.msg_hint sp2 "message3"])))
+        (show_line (Nothing, (f, 1, [(sp1, Diagnostic.MsgError, Just "message1"), (sp1, Diagnostic.MsgNote, Just "message2"), (sp2, Diagnostic.MsgHint, Just "message3")])))
 
 case_show_msg_row :: Assertion
 case_show_msg_row =
@@ -484,7 +496,7 @@ case_multiline_lines_even =
         , ( "", '|', "   |-- message 1")
         -- , ( "", '|', "   `-- message 2")
         ]
-        (show_multiline (Diagnostic.msg_error sp "message 1") {-, (Warning, "message 2") -})
+        (show_multiline ((sp, Diagnostic.MsgError, Just "message 1")) {-, (Warning, Just "message 2") -})
 
 case_multiline_lines_odd :: Assertion
 case_multiline_lines_odd =
@@ -501,7 +513,7 @@ case_multiline_lines_odd =
         , ( "", '|', "   |-- message 1")
         -- , ( "", '|', "   `-- message 2")
         ]
-        (show_multiline (Diagnostic.msg_error sp "message 1") {- Diagnostic.msg_warning sp "message 2" -}) -- TODO: grouping multiple together
+        (show_multiline ((sp, Diagnostic.MsgError, Just "message 1")) {- (sp, Diagnostic.MsgWarning, "message 2") -}) -- TODO: grouping multiple together
 
 tests :: TestTree
 tests = $(testGroupGenerator)

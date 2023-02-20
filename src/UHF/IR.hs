@@ -203,7 +203,7 @@ data GraphNode ty poison_allowed
 
     | GraphNode'Call ty GraphNodeKey GraphNodeKey
 
-    | GraphNode'TupleDestructure1 ty GraphNodeKey -- TODO: figure out better solution to this
+    | GraphNode'TupleDestructure1 ty GraphNodeKey -- TODO: figure out better solution to this (probably general destructure node for any type)
     | GraphNode'TupleDestructure2 ty GraphNodeKey
 
     | GraphNode'Poison ty poison_allowed

@@ -148,7 +148,7 @@ resolve_expr_iden _ (nc, Nothing, last_segment@(Located last_segment_sp _)) =
                 Nothing ->
                     case parent of
                         Just parent -> resolve parent name
-                        Nothing -> Left $ CouldNotFind Nothing name -- TODO: put previous segment in error
+                        Nothing -> Left $ CouldNotFind Nothing name
 
 resolve_type_iden :: DeclArena -> UnresolvedTypeIdentifier -> Writer [Error] (Maybe IR.DeclKey)
 resolve_type_iden _ (_, []) = error "empty identifier"
@@ -166,7 +166,7 @@ resolve_type_iden decls (nc, first:more) =
                 Nothing ->
                     case parent of
                         Just parent -> resolve_first parent first
-                        Nothing -> Left $ CouldNotFind Nothing first
+                        Nothing -> Left $ CouldNotFind Nothing first -- TODO: put previous in error
 
 get_decl_child :: DeclArena -> IR.DeclKey -> Located Text -> Either Error IR.DeclKey
 get_decl_child decls thing name =

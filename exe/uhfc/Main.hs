@@ -12,9 +12,10 @@ import UHF.IO.Location (open_file) -- TODO: rename this module to something bett
 
 import qualified UHF.Compiler as Compiler
 
+import qualified UHF.IO.FormattedString as FormattedString
 import qualified UHF.Diagnostic.Settings as DiagnosticSettings
 
-data Args = Args [FilePath] DiagnosticSettings.Settings
+data Args = Args [FilePath] FormattedString.ColorsNeeded DiagnosticSettings.Settings
 
 argparser :: ParserInfo Args
 argparser =
@@ -31,32 +32,32 @@ argparser =
                         <> help "files to compile"
                         )
                 )
-            <*> (DiagnosticSettings.Settings
-                    <$> option
-                        (eitherReader $ \case
-                            "always" -> Right DiagnosticSettings.Colors
-                            "never" -> Right DiagnosticSettings.NoColors
-                            "auto" -> Right DiagnosticSettings.AutoDetect
-                            _ -> Left "invalid option: must be one of 'always', 'never', or 'auto'" -- TODO: figure out how to do this better
-                        )
-                        (long "colors"
-                            <> metavar "COLORS"
-                            <> value (DiagnosticSettings.AutoDetect)
-                            <> help "when to print colors in diagnostics"
-                        )
+            <*> (option
+                    (eitherReader $ \case
+                        "always" -> Right FormattedString.Colors
+                        "never" -> Right FormattedString.NoColors
+                        "auto" -> Right FormattedString.AutoDetect
+                        _ -> Left "invalid option: must be one of 'always', 'never', or 'auto'" -- TODO: figure out how to do this better
+                    )
+                    (long "colors"
+                        <> metavar "COLORS"
+                        <> value FormattedString.AutoDetect
+                        <> help "when to print colors in diagnostics"
+                    )
                 )
+            <*> pure DiagnosticSettings.Settings
 
 main :: IO ()
 main =
-    execParser argparser >>= \ (Args files diagnostic_settings) ->
+    execParser argparser >>= \ (Args files c_needed diagnostic_settings) ->
     let total_files = length files
-    in mapM_ (\ (num, f) -> compile diagnostic_settings num total_files f) (zip [1..] files)
+    in mapM_ (\ (num, f) -> compile c_needed diagnostic_settings num total_files f) (zip [1..] files)
 
-compile :: DiagnosticSettings.Settings -> Int -> Int -> FilePath -> IO ()
-compile diagnostic_settings num total fname =
+compile :: FormattedString.ColorsNeeded -> DiagnosticSettings.Settings -> Int -> Int -> FilePath -> IO ()
+compile c_needed diagnostic_settings num total fname =
     open_file fname >>= \ f ->
     -- putStrLn ("[" <> show num <> "/" <> show total <> "]: compiling " <> format f) >>
-    Compiler.run_compiler (Driver.compile f) diagnostic_settings >>= \case
+    Compiler.run_compiler (Driver.compile f) c_needed diagnostic_settings >>= \case
         Just (Just res) -> putTextLn res -- TODO: get rid of double Maybe
         Just Nothing -> exitFailure -- TODO: decide what should happen here
         Nothing -> exitFailure

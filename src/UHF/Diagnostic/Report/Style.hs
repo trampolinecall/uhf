@@ -21,6 +21,7 @@ data Style
         , multiline_other_char, multiline_vertical_char, multiline_tr_char, multiline_bl_char :: Char
         , file_line_char, header_line_char, other_line_char :: Char
 
+        , message_below_char :: Char
         , message_prefix_line, message_prefix_last :: Char
         , message_prefix :: Text
 
@@ -54,6 +55,7 @@ default_style = Style
     , header_line_char = '\\'
     , other_line_char = '|'
 
+    , message_below_char = '|'
     , message_prefix_line = '|'
     , message_prefix_last = '`'
     , message_prefix = "--"
@@ -88,6 +90,7 @@ unicode_style = Style
     , header_line_char = '╞'
     , other_line_char = '│'
 
+    , message_below_char = '│'
     , message_prefix_line = '├'
     , message_prefix_last = '╰'
     , message_prefix = "──"

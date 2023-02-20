@@ -52,6 +52,10 @@ library
       UHF.Token
       UHF.TSBackend
       UHF.Type
+      UHF.Type.Aliases
+      UHF.Type.Constraint
+      UHF.Type.Error
+      UHF.Type.Var
       UHF.Util.Prelude
   other-modules:
       Paths_uhf

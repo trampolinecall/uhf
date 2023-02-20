@@ -17,6 +17,9 @@ import qualified UHF.Compiler as Compiler
 
 lex :: File.File -> Compiler.Compiler ([Token.LToken], Token.LToken)
 lex f =
-    MainLexer.lex f >>= \ (toks, eof) ->
-    IdentifierGrouper.group_identifiers (toList toks) >>= \ toks' ->
-    pure (toks', eof)
+    let (res, errs) = runWriter (
+                MainLexer.lex f >>= \ (toks, eof) ->
+                IdentifierGrouper.group_identifiers (toList toks) >>= \ toks' ->
+                pure (toks', eof)
+            )
+    in Compiler.errors errs >> pure res

@@ -24,8 +24,6 @@ import qualified Arena
 import qualified UHF.AST as AST
 import qualified UHF.IR as IR
 
-import UHF.IO.File (File)
-import qualified UHF.IO.Span as Span
 import UHF.IO.Span (Span)
 import UHF.IO.Located (Located (..))
 
@@ -51,21 +49,22 @@ data Error
     | Tuple1 Span
     | Tuple0 Span
 
-data DeclAt = DeclAt Span | ImplicitPrim Span
+data DeclAt = DeclAt Span | ImplicitPrim
 
 instance Diagnostic.ToError Error where
-    to_error (MultipleDecls name decl_ats@(first_decl:_)) = Diagnostic.Error
-        Codes.multiple_decls
-        (Just $ decl_at_span first_decl)
-        (show (length decl_ats) <> " declarations of '" <> convert_str name <> "'")
-        (map (\ at -> (decl_at_span at, Diagnostic.MsgError, decl_at_message name at)) decl_ats)
-        []
+    to_error (MultipleDecls name decl_ats) =
+        let last_decl = last decl_ats
+        in Diagnostic.Error
+            Codes.multiple_decls
+            (decl_at_span last_decl)
+            (show (length decl_ats) <> " declarations of '" <> convert_str name <> "'")
+            (map (\ at -> (decl_at_span at, Diagnostic.MsgError, decl_at_message name at)) decl_ats)
+            []
         where
-            decl_at_span (DeclAt sp) = sp
-            decl_at_span (ImplicitPrim sp) = sp
+            decl_at_span (DeclAt sp) = Just sp
+            decl_at_span (ImplicitPrim) = Nothing
             decl_at_message _ (DeclAt _) = Nothing
-            decl_at_message n (ImplicitPrim _) = Just $ "'" <> convert_str n <> "' is implicitly declared as a primitive" -- TODO: reword this message (ideally when it is declared through the prelude import the message would be something like 'implicitly declared by implicit import of prelude')
-    to_error (MultipleDecls _ []) = error "cannot make multiple decls error with no decls"
+            decl_at_message n (ImplicitPrim) = Just $ "'" <> convert_str n <> "' is implicitly declared as a primitive" -- TODO: reword this message (ideally when it is declared through the prelude import the message would be something like 'implicitly declared by implicit import of prelude')
 
     to_error (PathInPattern (Located sp _)) = Diagnostic.Error Codes.binding_lhs_path (Just sp) "path in pattern" [] []
 
@@ -159,31 +158,31 @@ make_iden1_with_err make_err iden =
         Just res -> pure $ Just res
         Nothing -> tell_err (make_err iden) >> pure Nothing
 
-primitive_decls :: Span -> MakeIRState DeclChildrenList
-primitive_decls prim_span =
+primitive_decls :: MakeIRState DeclChildrenList
+primitive_decls =
     new_decl (IR.Decl'Type IR.Type'Int) >>= \ int ->
     new_decl (IR.Decl'Type IR.Type'Float) >>= \ float ->
     new_decl (IR.Decl'Type IR.Type'Char) >>= \ char ->
     new_decl (IR.Decl'Type IR.Type'String) >>= \ string ->
     new_decl (IR.Decl'Type IR.Type'Bool) >>= \ bool ->
     pure
-        [ ("int", ImplicitPrim prim_span, int)
-        , ("float", ImplicitPrim prim_span, float)
-        , ("char", ImplicitPrim prim_span, char)
-        , ("string", ImplicitPrim prim_span, string)
-        , ("bool", ImplicitPrim prim_span, bool)
+        [ ("int", ImplicitPrim, int)
+        , ("float", ImplicitPrim, float)
+        , ("char", ImplicitPrim, char)
+        , ("string", ImplicitPrim, string)
+        , ("bool", ImplicitPrim, bool)
         ]
-primitive_values :: Span -> MakeIRState BoundValueList
-primitive_values _ = pure []
+primitive_values :: MakeIRState BoundValueList
+primitive_values = pure []
 
-convert :: File -> [AST.Decl] -> Compiler.Compiler (DeclArena, NominalTypeArena, BindingArena, BoundValueArena)
-convert file decls =
-    let prim_span = Span.start_of_file file
+convert :: [AST.Decl] -> Compiler.Compiler (DeclArena, NominalTypeArena, BindingArena, BoundValueArena)
+convert decls =
+    let -- prim_span = Span.start_of_file file TODO: remove this function
         (res, errs) = runWriter (
                 runStateT
                     (
-                        primitive_decls prim_span >>= \ primitive_decls ->
-                        primitive_values prim_span >>= \ primitive_values ->
+                        primitive_decls >>= \ primitive_decls ->
+                        primitive_values >>= \ primitive_values ->
                         IR.Decl'Module <$> (IR.Module <$> convert_decls Nothing primitive_decls primitive_values decls) >>= new_decl
                     )
                     (Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (_, (decls, bindings, bound_values, nominals)) ->

@@ -133,7 +133,7 @@ instance Diagnostic.ToError Error where
 
         Diagnostic.Error Diagnostic.Codes.occurs_check
             (Just span)
-            ("occurs check failure: infinite cyclic type arising from constraint '" <> var_printed <> "' = '" <> ty_printed <> "'")
+            ("occurs check failure: infinite cyclic type arising from constraint '" <> var_printed <> " = " <> ty_printed <> "'")
             (make_var_name_messages vars var_names)
             []
 

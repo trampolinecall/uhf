@@ -27,8 +27,8 @@ library
       UHF.Diagnostic.Report.Messages
       UHF.Diagnostic.Report.Utils
       UHF.Diagnostic.Settings
-      UHF.FormattedString
       UHF.InfixGroup
+      UHF.IO.FormattedString
       UHF.IO.Location
       UHF.IO.Location.SpanHelper
       UHF.IO.Path

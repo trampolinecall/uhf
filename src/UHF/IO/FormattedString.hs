@@ -1,11 +1,11 @@
-module UHF.FormattedString
+module UHF.IO.FormattedString
     ( FormattedString(..)
     , ColorsNeeded(..)
     , color_text
 
-    , UHF.FormattedString.length
+    , UHF.IO.FormattedString.length -- TODO: is this used anywhere?
 
-    , render_formatted_string
+    , render
     , flatten_no_sgr
     ) where
 
@@ -17,9 +17,8 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as Text.IO
 import qualified System.IO as IO
 
-import UHF.Diagnostic.Settings (ColorsNeeded (..))
+data ColorsNeeded = Colors | NoColors | AutoDetect
 
--- TODO: move to io library
 data FormattedString
     = Colored [ANSI.SGR] FormattedString
     | Join FormattedString FormattedString
@@ -34,24 +33,27 @@ instance Semigroup FormattedString where
 color_text :: [ANSI.SGR] -> Text.Text -> FormattedString
 color_text sgr = Colored sgr . Literal
 
-render_formatted_string :: IO.Handle -> ColorsNeeded -> FormattedString -> IO ()
-render_formatted_string handle c_needed fs =
+render :: IO.Handle -> ColorsNeeded -> FormattedString -> IO ()
+render handle c_needed fs =
     case c_needed of
         Colors -> pure True
         NoColors -> pure False
         AutoDetect -> ANSI.hSupportsANSI handle
     >>= \ c_needed' ->
-    render_formatted_string' handle c_needed' [] fs
+    render' handle c_needed' [] fs
 
-render_formatted_string' :: IO.Handle -> Bool -> [ANSI.SGR] -> FormattedString -> IO ()
-render_formatted_string' handle c_needed old_sgrs (Colored sgrs text) =
-    -- TODO: actually following c_needed
-    ANSI.hSetSGR handle [] >> ANSI.hSetSGR handle old_sgrs >> ANSI.hSetSGR handle sgrs >>
-    render_formatted_string' handle c_needed (old_sgrs ++ sgrs) text >>
-    ANSI.hSetSGR handle [] >> ANSI.hSetSGR handle old_sgrs
+render' :: IO.Handle -> Bool -> [ANSI.SGR] -> FormattedString -> IO ()
+render' handle c_needed old_sgrs (Colored sgrs text) =
+    maybe_set_sgr c_needed handle [] >> maybe_set_sgr c_needed handle old_sgrs >> maybe_set_sgr c_needed handle sgrs >>
+    render' handle c_needed (old_sgrs ++ sgrs) text >>
+    maybe_set_sgr c_needed handle [] >> maybe_set_sgr c_needed handle old_sgrs
 
-render_formatted_string' handle c_needed old_srgs (Join a b) = render_formatted_string' handle c_needed old_srgs a >> render_formatted_string' handle c_needed old_srgs b
-render_formatted_string' handle _ _ (Literal t) = Text.IO.hPutStr handle t
+render' handle c_needed old_srgs (Join a b) = render' handle c_needed old_srgs a >> render' handle c_needed old_srgs b
+render' handle _ _ (Literal t) = Text.IO.hPutStr handle t
+
+maybe_set_sgr :: Bool -> IO.Handle -> [ANSI.SGR] -> IO ()
+maybe_set_sgr False _ _ = pure ()
+maybe_set_sgr True handle sgrs = ANSI.hSetSGR handle sgrs
 
 length :: FormattedString -> Int
 length = Text.length . flatten_no_sgr

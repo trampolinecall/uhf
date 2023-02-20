@@ -63,7 +63,7 @@ decl_data =
     PEG.star variant >>= \ variants ->
     PEG.consume' "'}'" (Token.SingleTypeToken Token.CBrace) >>= \ _ ->
     PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>= \ _ ->
-    pure (AST.Decl'Data (Location.Located name_sp name) variants) -- TODO
+    pure (AST.Decl'Data (Location.Located name_sp name) variants)
     where
         variant =
             PEG.consume' "variant name" (Token.AlphaIdentifier ()) >>= \ (Location.Located name_sp (Token.AlphaIdentifier name)) ->
@@ -240,7 +240,7 @@ expr_case =
         PEG.consume' "'->'" (Token.SingleTypeToken Token.Arrow) >>= \ _ ->
         expr >>= \ choice ->
         PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>
-        pure (pat, choice) -- TODO: separator between cases
+        pure (pat, choice)
     ) >>= \ arms ->
     PEG.consume' "'}'" (Token.SingleTypeToken Token.CBrace) >>= \ (Location.Located cb_sp _) ->
     pure (AST.Expr'Case (case_sp `Location.join_span` cb_sp) case_sp e arms)

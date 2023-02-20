@@ -69,7 +69,6 @@ instance Diagnostic.ToError Error where
 
     to_error (PathInTypeName (Located sp _)) = Diagnostic.Error Codes.path_in_type_name (Just sp) "path in type name" [] []
 
-    -- TODO: remove codes?
     to_error (PathInVariantName (Located sp _)) = Diagnostic.Error Codes.path_in_variant_name (Just sp) "path in 'data' variant name" [] []
 
     to_error (PathInFieldName (Located sp _)) = Diagnostic.Error Codes.path_in_field_name (Just sp) "path in field name" [] []
@@ -197,7 +196,7 @@ convert_decls parent_context prev_decl_entries prev_bv_entries decls =
             (\case
                 AST.Decl'Value target eq_sp expr ->
                     convert_expr final_name_context expr >>= \ expr' ->
-                    convert_pattern target >>= \ (new_bound_values, target') -> -- TODO: do this correctly
+                    convert_pattern target >>= \ (new_bound_values, target') ->
                     new_binding (IR.Binding target' eq_sp expr') >>
                     pure ([], new_bound_values)
 

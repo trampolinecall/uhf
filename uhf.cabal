@@ -22,9 +22,9 @@ library
       UHF.Diagnostic.Codes.CodeTH
       UHF.Diagnostic.Diagnostic
       UHF.Diagnostic.Report
-      UHF.Diagnostic.Report.Colors
       UHF.Diagnostic.Report.Line
       UHF.Diagnostic.Report.Messages
+      UHF.Diagnostic.Report.Style
       UHF.Diagnostic.Report.Utils
       UHF.Diagnostic.Settings
       UHF.InfixGroup

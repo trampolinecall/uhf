@@ -62,7 +62,12 @@ render msgs =
 
         singleline' = show_singleline singleline
         multiline' = concatMap show_multiline multiline
-        nospan' = map todo nospan -- TODO
+        nospan' =
+            concatMap (\case
+                    (ty, Just msg) -> [Line.other_line $ FormattedString.color_text (type_color ty) msg] -- TODO: use '\' separator
+                    (_, Nothing) -> []
+                )
+                nospan -- TODO: refactor this as well as the whole module and all the reporting code
     in singleline' ++ multiline' ++ nospan'
 
 -- show_singleline {{{1

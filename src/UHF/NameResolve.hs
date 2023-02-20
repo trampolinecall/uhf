@@ -84,6 +84,7 @@ transform_identifiers transform_t_iden transform_e_iden nominal_types bindings =
         transform_binding (IR.Binding target eq_sp expr) = IR.Binding <$> transform_pat target <*> pure eq_sp <*> transform_expr expr
 
         transform_pat (IR.Pattern'Identifier typeinfo sp bnk) = pure $ IR.Pattern'Identifier typeinfo sp bnk
+        transform_pat (IR.Pattern'Wildcard typeinfo sp) = pure $ IR.Pattern'Wildcard typeinfo sp
         transform_pat (IR.Pattern'Tuple typeinfo sp a b) = IR.Pattern'Tuple typeinfo sp <$> transform_pat a <*> transform_pat b
         transform_pat (IR.Pattern'Named typeinfo sp at_sp bnk subpat) = IR.Pattern'Named typeinfo sp at_sp bnk <$> transform_pat subpat
         transform_pat (IR.Pattern'Poison typeinfo sp) = pure $ IR.Pattern'Poison typeinfo sp

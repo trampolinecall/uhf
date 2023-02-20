@@ -32,6 +32,7 @@ data TypeVarForWhat
     | PoisonExpr Span
     | PoisonPattern Span
     | TypeExpr Span
+    | WildcardPattern Span
 data TypeVarState = Fresh | Substituted TypeWithVars
 
 type_var_for_what_sp :: TypeVarForWhat -> Span
@@ -42,6 +43,7 @@ type_var_for_what_sp (CaseExpr sp) = sp
 type_var_for_what_sp (PoisonExpr sp) = sp
 type_var_for_what_sp (PoisonPattern sp) = sp
 type_var_for_what_sp (TypeExpr sp) = sp
+type_var_for_what_sp (WildcardPattern sp) = sp
 
 type_var_for_what_name :: TypeVarForWhat -> Text
 type_var_for_what_name (BoundValue _) = "binding"
@@ -51,6 +53,7 @@ type_var_for_what_name (CaseExpr _) = "case expression"
 type_var_for_what_name (PoisonExpr _) = "expression"
 type_var_for_what_name (PoisonPattern _) = "pattern"
 type_var_for_what_name (TypeExpr _) = "type expression"
+type_var_for_what_name (WildcardPattern _) = "wildcard pattern"
 
 type TypeWithVars = IR.Type TypeVarKey
 type Type = IR.Type Void
@@ -286,6 +289,10 @@ collect_constraints decls bna (IR.Binding pat eq_sp expr) =
             let (IR.BoundValue ty _) = Arena.get bna bn
             in pure (IR.Pattern'Identifier ty sp bn)
 
+        collect_for_pat (IR.Pattern'Wildcard () sp) =
+            lift (IR.Type'Variable <$> new_type_variable (WildcardPattern sp)) >>= \ ty ->
+            pure (IR.Pattern'Wildcard ty sp)
+
         collect_for_pat (IR.Pattern'Tuple () sp l r) =
             collect_for_pat l >>= \ l ->
             collect_for_pat r >>= \ r ->
@@ -513,6 +520,7 @@ remove_vars_from_binding :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVars
 remove_vars_from_binding vars (IR.Binding pat eq_sp expr) = IR.Binding (remove_from_pat pat) eq_sp (remove_from_expr expr)
     where
         remove_from_pat (IR.Pattern'Identifier ty sp bn) = IR.Pattern'Identifier (remove_vars vars ty) sp bn
+        remove_from_pat (IR.Pattern'Wildcard ty sp) = IR.Pattern'Wildcard (remove_vars vars ty) sp
         remove_from_pat (IR.Pattern'Tuple ty sp l r) = IR.Pattern'Tuple (remove_vars vars ty) sp (remove_from_pat l) (remove_from_pat r)
         remove_from_pat (IR.Pattern'Named ty sp at_sp bnk subpat) = IR.Pattern'Named (remove_vars vars ty) sp at_sp bnk (remove_from_pat subpat)
         remove_from_pat (IR.Pattern'Poison ty sp) = IR.Pattern'Poison (remove_vars vars ty) sp

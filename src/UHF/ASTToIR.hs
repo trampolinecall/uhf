@@ -315,6 +315,7 @@ convert_pattern (AST.Pattern'Identifier iden) =
             pure ([(name, DeclAt name_sp, bn)], IR.Pattern'Identifier () name_sp bn)
 
         Nothing -> pure ([], IR.Pattern'Poison () (just_span iden))
+convert_pattern (AST.Pattern'Wildcard sp) = pure ([], IR.Pattern'Wildcard () sp)
 convert_pattern (AST.Pattern'Tuple sp subpats) =
     List.unzip <$> mapM convert_pattern subpats >>= \ (bound_values, subpats') ->
     go subpats' >>= \ subpats_grouped ->

@@ -50,6 +50,7 @@ data SingleTypeToken
 
     | DoubleColon
 
+    | Underscore
     | Root
     | Let
     | LetRec
@@ -94,6 +95,7 @@ instance Format SingleTypeToken where
     format At = "'@'"
     format Backslash = "'\\'"
 
+    format Underscore = "'_'"
     format Root = "'root'"
     format Let = "'let'"
     format LetRec = "'letrec'"

@@ -7,7 +7,7 @@ import Options.Applicative
 import qualified Driver
 
 import qualified UHF.Compiler as Compiler
-import qualified UHF.Compiler.DiagnosticSettings as DiagnosticSettings
+import qualified UHF.Diagnostic.Settings as DiagnosticSettings
 
 import qualified UHF.IO.File as File
 
@@ -38,6 +38,6 @@ compile :: Int -> Int -> FilePath -> IO ()
 compile num total fname =
     File.open_file fname >>= \ f ->
     putStrLn ("[" <> show num <> "/" <> show total <> "]: compiling " <> format f) >>
-    Compiler.run_compiler (Driver.compile f) DiagnosticSettings.AutoDetect >>= \case
+    Compiler.run_compiler (Driver.compile f) (DiagnosticSettings.Settings DiagnosticSettings.AutoDetect) >>= \case
         Just res -> putTextLn (show res)
         Nothing -> pure ()

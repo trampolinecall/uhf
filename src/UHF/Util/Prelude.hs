@@ -141,7 +141,7 @@ instance Print [Char] where
   hPutStrLn h = liftIO . System.IO.hPutStrLn h
 
 instance Print UHF.FormattedString.FormattedString where
-  hPutStr h = liftIO . UHF.FormattedString.render_formatted_string h UHF.FormattedString.AutoDetect
+  hPutStr h = liftIO . UHF.FormattedString.render_formatted_string h UHF.FormattedString.AutoDetect -- TODO: use ColorsNeeded setting from Compiler monad
   hPutStrLn h fs = liftIO $ UHF.FormattedString.render_formatted_string h UHF.FormattedString.AutoDetect fs >> hPutText h "\n"
 
 putStr :: (Print a, MonadIO m) => a -> m ()

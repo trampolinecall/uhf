@@ -1,8 +1,8 @@
-module UHF.Compiler.DiagnosticSettings where
+module UHF.Diagnostic.Settings where
 
 data ColorsNeeded = Colors | NoColors | AutoDetect
-data DiagnosticSettings
-    = DiagnosticSettings
+data Settings
+    = Settings
         { _colors_needed :: ColorsNeeded
         }
 

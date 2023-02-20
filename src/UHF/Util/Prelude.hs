@@ -184,7 +184,7 @@ instance ConvertString Data.Text.Text FormattedString where convert_str = UHF.Fo
 instance ConvertString FormattedString FormattedString where convert_str = identity
 
 class Format a where
-    format :: a -> FormattedString
+    format :: a -> Text
 
 instance Format Int where
     format = convert_str . Prelude.show

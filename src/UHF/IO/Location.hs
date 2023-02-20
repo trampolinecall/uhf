@@ -3,8 +3,7 @@ module UHF.IO.Location
     , new_file
     , open_file
     , write_file -- TODO: use when writing output file
-    , file_path_color
-    , path , contents , eof_span , start_span
+    , path, contents, eof_span, start_span
 
     , LineCol
     , Location
@@ -35,28 +34,21 @@ import UHF.Util.Prelude hiding (show)
 
 import GHC.Show (show)
 
-import qualified System.Console.ANSI as ANSI
-
-import qualified UHF.FormattedString as FormattedString
-
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text.IO
 import Data.List (minimumBy, maximumBy)
 
--- TODO: test this entire module
+-- TODO: test this entire module and split into separate modules
 
 data File = File { path :: FilePath, contents :: Text, eof_span :: Span, start_span :: Span }
 instance Eq File where
-    (==) = (==) `on` path -- TODO: remove this entirely
+    (==) = (==) `on` path -- TODO: remove this entirely / replace with comparison on Unique
 
 instance Show File where
     show (File path _ _ _) = "File { path = " ++ show path ++ ", ... }"
 
-file_path_color :: [ANSI.SGR]
-file_path_color = [ANSI.SetConsoleIntensity ANSI.BoldIntensity, ANSI.SetColor ANSI.Foreground ANSI.Vivid ANSI.Cyan]
-
 instance Format File where
-    format f = FormattedString.color_text file_path_color (Text.pack $ path f)
+    format f = Text.pack $ path f
 
 new_file :: FilePath -> Text -> File
 new_file path contents = let file = File path contents (make_eof_span file) (make_start_span file) in file
@@ -104,10 +96,10 @@ sp_be_col = loc_col . sp_be
 sp_e_col = loc_col . sp_e
 
 instance Format Location where
-    format (Location f (LineCol _ r c)) = Colored file_path_color $ format f <> ":" <> format r <> ":" <> format c
+    format (Location f (LineCol _ r c)) = format f <> ":" <> format r <> ":" <> format c
 
 instance Format Span where
-    format (Span f (LineCol _ r1 c1) _ (LineCol _ r2 c2)) = Colored file_path_color $ format f <> ":" <> format r1 <> ":" <> format c1 <> ":" <> format r2 <> ":" <> format c2
+    format (Span f (LineCol _ r1 c1) _ (LineCol _ r2 c2)) = format f <> ":" <> format r1 <> ":" <> format c1 <> ":" <> format r2 <> ":" <> format c2
 
 instance Functor Located where
     fmap f (Located sp v) = Located sp (f v)
@@ -127,9 +119,6 @@ dummy_span = Span (new_file "" "") (LineCol 0 1 1) (LineCol 0 1 1) (LineCol 0 1 
 
 dummy_locate :: a -> Located a
 dummy_locate = Located dummy_span
-
--- eof_span :: File -> Span
--- eof_span f = new_span (seek (Text.length $ contents f) $ new_location f) 0 1
 
 join_span :: Span -> Span -> Span
 join_span (Span f1 s1 b1 e1) (Span f2 s2 b2 e2) =

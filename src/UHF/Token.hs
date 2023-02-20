@@ -99,7 +99,7 @@ instance Format SingleTypeToken where
     format Root = "'root'"
     format Let = "'let'"
     format LetRec = "'letrec'"
-    format TypeSyn = "'typesy
+    format TypeSyn = "'typesyn'"
     format Data = "'data'"
     format Impl = "'impl'"
     format If = "'if'"

@@ -163,7 +163,7 @@ show_msg_row style below msgs =
             let start_col = rm_start_col msg
                 end_col = rm_end_col style msg
             in ( end_col
-               , FormattedString.Literal (Text.pack $ map (\ c -> if c `elem` below_pipes then '|' else ' ') [last_col..start_col - 1])
+               , FormattedString.Literal (Text.pack $ map (\ c -> if c `elem` below_pipes then Style.message_below_char style else ' ') [last_col..start_col - 1])
                    <> format_render_message style (start_col `notElem` below_pipes) msg
                )
 

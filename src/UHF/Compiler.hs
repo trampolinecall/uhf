@@ -14,6 +14,8 @@ import qualified UHF.Diagnostic as Diagnostic
 
 import qualified System.IO as IO
 
+import qualified UHF.IO.FormattedString as FormattedString
+
 import qualified UHF.Diagnostic.Settings as DiagnosticSettings
 
 newtype Compiler r = Compiler { uncompiler :: Writer Diagnostics r }
@@ -39,11 +41,11 @@ instance Monoid Diagnostics where
 instance Semigroup Diagnostics where
     Diagnostics e1 w1 <> Diagnostics e2 w2 = Diagnostics (e1 <> e2) (w1 <> w2)
 
-run_compiler :: Compiler r -> DiagnosticSettings.Settings -> IO (Maybe r)
-run_compiler (Compiler r) diag_settings =
+run_compiler :: Compiler r -> FormattedString.ColorsNeeded -> DiagnosticSettings.Settings -> IO (Maybe r)
+run_compiler (Compiler r) c_needed diag_settings =
     let (result, (Diagnostics errors warnings)) = runWriter r
-    in mapM_ (Diagnostic.report IO.stdout diag_settings) warnings >>
-    mapM_ (Diagnostic.report IO.stderr diag_settings) errors >>
+    in mapM_ (Diagnostic.report IO.stdout c_needed diag_settings) warnings >>
+    mapM_ (Diagnostic.report IO.stderr c_needed diag_settings) errors >>
     if null errors
         then pure $ Just result
         else pure Nothing

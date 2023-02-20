@@ -29,7 +29,6 @@ module UHF.Util.Prelude
 
     , show
 
-    , FormattedString(..)
     , Format(..)
     ) where
 
@@ -41,7 +40,7 @@ import qualified Data.Text
 import qualified Data.Text.IO
 import qualified Debug.Trace
 import qualified System.IO
-import qualified UHF.FormattedString
+import qualified UHF.IO.FormattedString
 import qualified GHC.Stack
 import Control.Monad.IO.Class (MonadIO, liftIO)
 
@@ -95,8 +94,6 @@ import System.Exit as X (exitFailure, exitSuccess)
 import System.Environment as X (getArgs, getProgName)
 import System.IO as X (FilePath, Handle, stdin, stdout, stderr)
 
-import UHF.FormattedString as X (FormattedString)
-
 import Test.Tasty as X (TestTree, testGroup, defaultMain)
 import Test.Tasty.HUnit as X (Assertion, testCase, (@=?), (@?=), assertBool, assertFailure)
 import Test.Tasty.TH as X (testGroupGenerator)
@@ -140,10 +137,6 @@ instance Print [Char] where
   hPutStr h = liftIO . System.IO.hPutStr h
   hPutStrLn h = liftIO . System.IO.hPutStrLn h
 
-instance Print UHF.FormattedString.FormattedString where
-  hPutStr h = liftIO . UHF.FormattedString.render_formatted_string h UHF.FormattedString.AutoDetect -- TODO: use ColorsNeeded setting from Compiler monad
-  hPutStrLn h fs = liftIO $ UHF.FormattedString.render_formatted_string h UHF.FormattedString.AutoDetect fs >> hPutText h "\n"
-
 putStr :: (Print a, MonadIO m) => a -> m ()
 putStr = hPutStr stdout
 
@@ -174,14 +167,14 @@ class ConvertString a b where
 
 instance ConvertString Prelude.String Prelude.String where convert_str = identity
 instance ConvertString Prelude.String Data.Text.Text where convert_str = Data.Text.pack
-instance ConvertString Prelude.String FormattedString where convert_str = UHF.FormattedString.Literal . Data.Text.pack
+instance ConvertString Prelude.String UHF.IO.FormattedString.FormattedString where convert_str = UHF.IO.FormattedString.Literal . Data.Text.pack
 
 instance ConvertString Data.Text.Text Prelude.String where convert_str = Data.Text.unpack
 instance ConvertString Data.Text.Text Data.Text.Text where convert_str = identity
-instance ConvertString Data.Text.Text FormattedString where convert_str = UHF.FormattedString.Literal
+instance ConvertString Data.Text.Text UHF.IO.FormattedString.FormattedString where convert_str = UHF.IO.FormattedString.Literal
 
 -- cannot convert to other 2 string types without losing sgr information
-instance ConvertString FormattedString FormattedString where convert_str = identity
+instance ConvertString UHF.IO.FormattedString.FormattedString UHF.IO.FormattedString.FormattedString where convert_str = identity
 
 class Format a where
     format :: a -> Text

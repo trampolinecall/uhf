@@ -59,7 +59,7 @@ default_style = Style
     , make_footer = \ code desc -> "==> [" <> FormattedString.color_text [bold] code <> "] " <> FormattedString.color_text [bold] desc
     }
 unicode_style :: Style
-unicode_style = Style -- TODO
+unicode_style = Style
     { file_path_color = [bold, fg_bcyan]
     , error_color = [bold, fg_bred]
     , warning_color = [bold, fg_bmagenta]

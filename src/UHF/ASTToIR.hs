@@ -34,6 +34,8 @@ import qualified Data.Map as Map
 import qualified Data.List as List
 import qualified Data.Maybe as Maybe
 
+import qualified UHF.Compiler as Compiler
+
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Control.Monad.Fix (mfix)
 
@@ -144,11 +146,13 @@ make_iden1_with_err make_err iden =
         Just res -> pure $ Just res
         Nothing -> tell_err (make_err iden) >> pure Nothing
 
-convert :: [AST.Decl] -> Writer [Error] (DeclArena, NominalTypeArena, BindingArena, BoundNameArena)
+convert :: [AST.Decl] -> Compiler.Compiler (DeclArena, NominalTypeArena, BindingArena, BoundNameArena)
 convert decls =
-    let make = IR.Decl'Module <$> (IR.Module <$> convert_decls Nothing decls) >>= new_decl
-    in runStateT make (Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (_, (decls, bindings, bound_names, nominals)) ->
-    pure (decls, nominals, bindings, bound_names)
+    let (res, errs) = runWriter (
+                runStateT (IR.Decl'Module <$> (IR.Module <$> convert_decls Nothing decls) >>= new_decl) (Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (_, (decls, bindings, bound_names, nominals)) ->
+                pure (decls, nominals, bindings, bound_names)
+            )
+    in Compiler.errors errs >> pure res
 
 convert_decls :: Maybe IR.NameContext -> [AST.Decl] -> MakeIRState IR.NameContext
 convert_decls parent_context decls =

@@ -12,7 +12,7 @@ import UHF.IO.Location.SpanHelper
 import qualified UHF.Diagnostic.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Report.Line as Line
 import qualified UHF.Diagnostic.Report.Utils as Utils
-import qualified UHF.Diagnostic.Report.Colors as Colors
+import qualified UHF.Diagnostic.Report.Style as Style
 
 import qualified UHF.IO.FormattedString as FormattedString
 import UHF.IO.File (File)
@@ -29,28 +29,29 @@ import qualified Data.Map as Map
 import qualified System.Console.ANSI as ANSI
 
 -- TODO: fix errors on eof where messages arent shown
+-- TODO: fix column counting that doesnt work with unicode
 
 type MessageWithSpan = (Span, Diagnostic.MessageType, Maybe Text)
 
-type_color :: Diagnostic.MessageType -> [ANSI.SGR]
-type_color Diagnostic.MsgError = Colors.error
-type_color Diagnostic.MsgWarning = Colors.warning
-type_color Diagnostic.MsgNote = Colors.note
-type_color Diagnostic.MsgHint = Colors.hint
+type_color :: Diagnostic.MessageType -> Style.Style -> [ANSI.SGR]
+type_color Diagnostic.MsgError = Style.error_color
+type_color Diagnostic.MsgWarning = Style.warning_color
+type_color Diagnostic.MsgNote = Style.note_color
+type_color Diagnostic.MsgHint = Style.hint_color
 
-type_char, top_type_char :: Diagnostic.MessageType -> Char
-type_char Diagnostic.MsgError = '^'
-type_char Diagnostic.MsgWarning = '^'
-type_char Diagnostic.MsgNote = '~'
-type_char Diagnostic.MsgHint = '~'
+type_char, top_type_char :: Diagnostic.MessageType -> Style.Style -> Char
+type_char Diagnostic.MsgError = Style.msg_error_char
+type_char Diagnostic.MsgWarning = Style.msg_warning_char
+type_char Diagnostic.MsgNote = Style.msg_note_char
+type_char Diagnostic.MsgHint = Style.msg_hint_char
 
-top_type_char Diagnostic.MsgError = 'v'
-top_type_char Diagnostic.MsgWarning = 'v'
-top_type_char Diagnostic.MsgNote = '~'
-top_type_char Diagnostic.MsgHint = '~'
+top_type_char Diagnostic.MsgError = Style.msg_error_char_top
+top_type_char Diagnostic.MsgWarning = Style.msg_warning_char_top
+top_type_char Diagnostic.MsgNote = Style.msg_note_char_top
+top_type_char Diagnostic.MsgHint = Style.msg_hint_char_top
 
-render :: Diagnostic.MessagesSection -> [Line.Line]
-render msgs =
+render :: Style.Style -> Diagnostic.MessagesSection -> [Line.Line]
+render style msgs =
     let (nospan, withspan) =
             Either.partitionEithers $
             map (\case
@@ -60,11 +61,11 @@ render msgs =
                 msgs
         (singleline, multiline) = List.partition (Span.is_single_line . (\ (a, _, _) -> a)) withspan
 
-        singleline' = show_singleline singleline
-        multiline' = concatMap show_multiline multiline
+        singleline' = (show_singleline style) singleline
+        multiline' = concatMap (show_multiline style) multiline
         nospan' =
             concatMap (\case
-                    (ty, Just msg) -> [Line.heading_line $ FormattedString.color_text (type_color ty) msg]
+                    (ty, Just msg) -> [Line.heading_line style $ FormattedString.color_text (type_color ty style) msg]
                     (_, Nothing) -> []
                 )
                 nospan -- TODO: refactor this as well as the whole module and all the reporting code
@@ -74,18 +75,19 @@ render msgs =
 -- Message helpers {{{2
 type RenderMessage = (Location.Location, Diagnostic.MessageType, Text)
 
-format_render_message :: Bool -> RenderMessage -> FormattedString.FormattedString
-format_render_message is_last (_, ty, text) = FormattedString.color_text (type_color ty) ((if is_last then "`" else "|") <> "-- " <> text)
+format_render_message :: Style.Style -> Bool -> RenderMessage -> FormattedString.FormattedString
+format_render_message style is_last (_, ty, text) = FormattedString.color_text (type_color ty style) (Text.pack [if is_last then Style.message_prefix_last style else Style.message_prefix_line style] <> Style.message_prefix style <> text)
 
 rm_start_col :: RenderMessage -> Int
 rm_start_col (loc, _, _) = Location.loc_col loc
-rm_end_col :: RenderMessage -> Int
--- `-- message
--- 4 ('`-- ') + length of message
-rm_end_col (loc, _, text) = Location.loc_col loc + Text.length text + 4
+rm_end_col :: Style.Style -> RenderMessage -> Int
+-- [char][prefix] message
+-- for example: in '`-- message' the char is '`' and the prefix is '--'
+-- +1 for the char, +1 for the prefix
+rm_end_col style (loc, _, text) = Location.loc_col loc + Text.length text + 1 + 1 + Text.length (Style.message_prefix style)
 -- show_singleline {{{2
-show_singleline :: [MessageWithSpan] -> [Line.Line]
-show_singleline unds =
+show_singleline :: Style.Style -> [MessageWithSpan] -> [Line.Line]
+show_singleline style unds =
     let grouped = Utils.group_by_spans (\ (sp, _, _) -> sp) unds
         flattened =
             concatMap
@@ -95,35 +97,35 @@ show_singleline unds =
                         (Map.toAscList lines))
                 (Map.toAscList grouped)
 
-    in concatMap show_line $ zip (Nothing : map Just flattened) flattened
+    in concatMap (show_line style) $ zip (Nothing : map Just flattened) flattened
     -- concatMap (concatMap show_line . Map.toAscList) $
     -- Utils.file_and_elipsis_lines identity $ TODO: context lines
     -- List.sortBy Utils.flnr_comparator $
     -- List.nub $
     -- concatMap (uncurry Utils.context_lines) $
 -- show_line {{{2
-show_line :: (Maybe (File, Int, [MessageWithSpan]), (File, Int, [MessageWithSpan])) -> [Line.Line]
-show_line (last, (fl, nr, messages)) =
+show_line :: Style.Style -> (Maybe (File, Int, [MessageWithSpan]), (File, Int, [MessageWithSpan])) -> [Line.Line]
+show_line style (last, (fl, nr, messages)) =
     let renderable_messages = get_renderable_messages messages
-        msg_rows = assign_messages renderable_messages
+        msg_rows = assign_messages style renderable_messages
 
-        (quote, underline_line) = get_colored_quote_and_underline_line fl nr messages
+        (quote, underline_line) = get_colored_quote_and_underline_line style fl nr messages
 
-    in Utils.file_and_elipsis_lines ((\ (lastfl, lastnr, _) -> (lastfl, lastnr)) <$> last) (fl, nr) ++
-        [Line.numbered_line nr quote] ++
+    in Utils.file_and_elipsis_lines style ((\ (lastfl, lastnr, _) -> (lastfl, lastnr)) <$> last) (fl, nr) ++
+        [Line.numbered_line style nr quote] ++
         (if not $ null messages
-            then [Line.other_line underline_line]
+            then [Line.other_line style underline_line]
             else []) ++
 
-        map (uncurry show_msg_row) msg_rows
+        map (uncurry $ show_msg_row style) msg_rows
 
 get_renderable_messages :: [MessageWithSpan] -> [RenderMessage]
 get_renderable_messages =
-    List.sortBy (flip compare `Function.on` rm_start_col) .
+    List.sortBy (flip compare `on` rm_start_col) .
     Maybe.mapMaybe (\ (sp, ty, msg) -> (Span.before_end sp, ty,) <$> msg)
 
-get_colored_quote_and_underline_line :: File -> Int -> [MessageWithSpan] -> (FormattedString.FormattedString, FormattedString.FormattedString)
-get_colored_quote_and_underline_line fl nr unds =
+get_colored_quote_and_underline_line :: Style.Style -> File -> Int -> [MessageWithSpan] -> (FormattedString.FormattedString, FormattedString.FormattedString)
+get_colored_quote_and_underline_line style fl nr unds =
     let col_in_underline c (sp, _, _) = Span.start_col sp <= c && c <= Span.before_end_col sp
 
         message_type (_, ty, _) = ty
@@ -137,7 +139,7 @@ get_colored_quote_and_underline_line fl nr unds =
                 (\ ch m_und ->
                     case m_und of
                         Nothing -> FormattedString.Literal $ Text.pack [ch]
-                        Just ty -> FormattedString.color_text (type_color ty) (Text.pack [ch])
+                        Just ty -> FormattedString.color_text (type_color ty style) (Text.pack [ch])
                 )
                 quote underline_for_cols
 
@@ -146,35 +148,35 @@ get_colored_quote_and_underline_line fl nr unds =
             map
                 (\case
                     Nothing -> " "
-                    Just ty -> FormattedString.color_text (type_color ty) (Text.pack [type_char ty])
+                    Just ty -> FormattedString.color_text (type_color ty style) (Text.pack [type_char ty style])
                 )
                 underline_for_cols
 
     in (colored_quote, underline_line)
 
-show_msg_row :: [RenderMessage] -> [RenderMessage] -> Line.Line
-show_msg_row below msgs =
+show_msg_row :: Style.Style -> [RenderMessage] -> [RenderMessage] -> Line.Line
+show_msg_row style below msgs =
     let below_pipes = map rm_start_col below
         sorted_msgs = List.sortBy (compare `Function.on` rm_start_col) msgs
 
         render_msg last_col msg =
             let start_col = rm_start_col msg
-                end_col = rm_end_col msg
+                end_col = rm_end_col style msg
             in ( end_col
                , FormattedString.Literal (Text.pack $ map (\ c -> if c `elem` below_pipes then '|' else ' ') [last_col..start_col - 1])
-                   <> format_render_message (start_col `notElem` below_pipes) msg
+                   <> format_render_message style (start_col `notElem` below_pipes) msg
                )
 
-    in Line.other_line $ foldl' (<>) "" $ snd $ List.mapAccumL render_msg 1 sorted_msgs
+    in Line.other_line style $ foldl' (<>) "" $ snd $ List.mapAccumL render_msg 1 sorted_msgs
 -- assigning rows {{{3
-assign_messages :: [RenderMessage] -> [([RenderMessage], [RenderMessage])]
-assign_messages msgs =
+assign_messages :: Style.Style -> [RenderMessage] -> [([RenderMessage], [RenderMessage])]
+assign_messages style msgs =
     let assignments =
             zipWith
                 (\ cur_msg prev_assignments ->
                     -- head should never fail because there will always be a next row number that doesn't have any previously assigned messages to overlap with the current one
                     -- TODO: rewrite this with recursive function because i think that was clearer
-                    let row = head $ filter (\ test_row -> not $ overlapping cur_msg $ map fst $ filter ((==test_row) . snd) prev_assignments) ([0..] :: [Int])
+                    let row = head $ filter (\ test_row -> not $ overlapping style cur_msg $ map fst $ filter ((==test_row) . snd) prev_assignments) ([0..] :: [Int])
                     in (cur_msg, row))
                 msgs
                 (List.inits assignments)
@@ -184,22 +186,22 @@ assign_messages msgs =
 
     in zip belows rows
 
-overlapping :: RenderMessage -> [RenderMessage] -> Bool
-overlapping to_assign assigned =
+overlapping :: Style.Style -> RenderMessage -> [RenderMessage] -> Bool
+overlapping style to_assign assigned =
     let to_assign_start_col = rm_start_col to_assign
-        to_assign_end_col = rm_end_col to_assign
+        to_assign_end_col = rm_end_col style to_assign
     in any
         (\ already ->
             let already_start = rm_start_col already
-                already_end = rm_end_col already
+                already_end = rm_end_col style already
             in not $
                 (to_assign_start_col < already_start && to_assign_end_col < already_start) || -- completely to the left of the already assigned message
                 (to_assign_start_col > already_end && to_assign_end_col < already_end) -- completely to the right of the already assigned message
         )
         assigned
 -- show_multiline {{{1
-show_multiline :: MessageWithSpan -> [Line.Line]
-show_multiline (und_sp, und_type, und_msg) = -- TODO: merge messages with the same span
+show_multiline :: Style.Style -> MessageWithSpan -> [Line.Line]
+show_multiline style (und_sp, und_type, und_msg) = -- TODO: merge messages with the same span
     let
         start_line = Span.start_row und_sp
         end_line = Span.before_end_row und_sp
@@ -211,18 +213,18 @@ show_multiline (und_sp, und_type, und_msg) = -- TODO: merge messages with the sa
                 then Just (Span.file und_sp, (start_line + end_line) `div` 2)
                 else Nothing
 
-        und_char = type_char und_type
-        rev_und_char = top_type_char und_type
-        sgr = type_color und_type
+        und_char = type_char und_type style
+        rev_und_char = top_type_char und_type style
+        sgr = type_color und_type style
 
     in
-        [Line.file_line (Span.file und_sp)] ++
-        show_top_lines (Span.start und_sp) n_vertical_lines rev_und_char sgr ++
-        show_middle_line mid_line sgr ++
-        show_bottom_lines (Span.before_end und_sp) n_vertical_lines und_char und_type und_msg -- TODO: see todo at the beginning of this function
+        [Line.file_line style (Span.file und_sp)] ++
+        show_top_lines style (Span.start und_sp) n_vertical_lines rev_und_char sgr ++
+        show_middle_line style mid_line sgr ++
+        show_bottom_lines style (Span.before_end und_sp) n_vertical_lines und_char und_type und_msg -- TODO: see todo at the beginning of this function
 
-show_top_lines :: Location.Location -> Int -> Char -> [ANSI.SGR] -> [Line.Line]
-show_top_lines loc n ch sgr =
+show_top_lines :: Style.Style -> Location.Location -> Int -> Char -> [ANSI.SGR] -> [Line.Line]
+show_top_lines style loc n ch sgr =
     let start_col = Location.loc_col loc
         start_line = Location.loc_row loc
         file = Location.loc_file loc
@@ -236,18 +238,18 @@ show_top_lines loc n ch sgr =
         n_ch = min 3 col_diff
         n_dash = col_diff - n_ch
 
-    in [ Line.other_line $
-            FormattedString.Literal (Text.replicate (start_col + 2 - 1) " ") <> FormattedString.color_text sgr (Text.replicate n_ch (Text.pack [ch])) <> FormattedString.color_text [Colors.bold] (Text.replicate n_dash "-")] ++
-        [ Line.numbered_line start_line $
-            "  " <> FormattedString.Literal (Text.take (start_col - 1) start_quote) <> FormattedString.color_text sgr (Text.drop (start_col - 1) start_quote) <> FormattedString.Literal (Text.replicate (max_col - Text.length start_quote - 1) " ") <> FormattedString.color_text [Colors.bold] "|"] ++
+    in [ Line.other_line style $
+            FormattedString.Literal (Text.replicate (start_col + 2 - 1) " ") <> FormattedString.color_text sgr (Text.replicate n_ch (Text.pack [ch])) <> FormattedString.color_text (Style.und_other_color style) (Text.replicate n_dash "-")] ++
+        [ Line.numbered_line style start_line $
+            "  " <> FormattedString.Literal (Text.take (start_col - 1) start_quote) <> FormattedString.color_text sgr (Text.drop (start_col - 1) start_quote) <> FormattedString.Literal (Text.replicate (max_col - Text.length start_quote - 1) " ") <> FormattedString.color_text (Style.und_other_color style) "|"] ++
         map (\ l ->
             let quote = Utils.get_quote file l
                 pad = max_col - Text.length quote - 1
-            in Line.numbered_line l $ "  " <> FormattedString.color_text sgr quote <> FormattedString.Literal (Text.replicate pad " ") <> FormattedString.color_text [Colors.bold] "|"
+            in Line.numbered_line style l $ "  " <> FormattedString.color_text sgr quote <> FormattedString.Literal (Text.replicate pad " ") <> FormattedString.color_text (Style.und_other_color style) "|"
         ) top_lines
 
-show_bottom_lines :: Location.Location -> Int -> Char -> Diagnostic.MessageType -> Maybe Text -> [Line.Line]
-show_bottom_lines loc n ch ty msg =
+show_bottom_lines :: Style.Style -> Location.Location -> Int -> Char -> Diagnostic.MessageType -> Maybe Text -> [Line.Line]
+show_bottom_lines style loc n ch ty msg =
     let end_col = Location.loc_col loc + 2
         end_line = Location.loc_row loc
         file = Location.loc_file loc
@@ -259,36 +261,36 @@ show_bottom_lines loc n ch ty msg =
 
         bottom_lines = [Location.loc_row loc - n + 1 .. Location.loc_row loc - 1]
 
-        sgr = type_color ty
+        sgr = type_color ty style
 
         -- TODO: refactor this because this is badly adapted to the message overhaul
     in map (\ l ->
             let quote = Utils.get_quote file l
-            in Line.numbered_line l $ FormattedString.color_text [Colors.bold] "| " <> FormattedString.color_text sgr quote
+            in Line.numbered_line style l $ FormattedString.color_text (Style.und_other_color style) "| " <> FormattedString.color_text sgr quote
         ) bottom_lines ++
-        [ Line.numbered_line end_line $
-            FormattedString.color_text [Colors.bold] "| " <> FormattedString.color_text sgr (Text.take (end_col - 2) end_quote) <> FormattedString.Literal (Text.drop (end_col - 2) end_quote)] ++
-        [ Line.other_line $
-            FormattedString.color_text [Colors.bold] (Text.replicate n_dash "-") <> FormattedString.color_text sgr (Text.replicate n_ch (Text.pack [ch]))] ++
+        [ Line.numbered_line style end_line $
+            FormattedString.color_text (Style.und_other_color style) "| " <> FormattedString.color_text sgr (Text.take (end_col - 2) end_quote) <> FormattedString.Literal (Text.drop (end_col - 2) end_quote)] ++
+        [ Line.other_line style $
+            FormattedString.color_text (Style.und_other_color style) (Text.replicate n_dash "-") <> FormattedString.color_text sgr (Text.replicate n_ch (Text.pack [ch]))] ++
         zipWith (\ i msg ->
-            Line.other_line $
-                FormattedString.Literal (Text.replicate (end_col - 1) " ") <> format_render_message (i == (0 :: Int) {- length msgs -}) (loc, ty, msg)
+            Line.other_line style $
+                FormattedString.Literal (Text.replicate (end_col - 1) " ") <> format_render_message style (i == (0 :: Int) {- length msgs -}) (loc, ty, msg)
         ) [0..] (Maybe.maybeToList msg)
 
-show_middle_line :: Maybe (File, Int) -> [ANSI.SGR] -> [Line.Line]
-show_middle_line (Just (file, nr)) sgr = [Line.numbered_line nr $ "  " <> FormattedString.color_text sgr (Utils.get_quote file nr)]
-show_middle_line Nothing _ = []
+show_middle_line :: Style.Style -> Maybe (File, Int) -> [ANSI.SGR] -> [Line.Line]
+show_middle_line style (Just (file, nr)) sgr = [Line.numbered_line style nr $ "  " <> FormattedString.color_text sgr (Utils.get_quote file nr)]
+show_middle_line _ Nothing _ = []
 -- tests {{{1
 case_empty :: Assertion
 case_empty =
-    let lines = render ([] :: Diagnostic.MessagesSection)
+    let lines = render Style.default_style []
     in Line.compare_lines [] lines
 
 case_messages :: Assertion
 case_messages =
     make_spans ["abc", "def\nghi\njklm\n"] >>= \ (_, [single_sp, multi_sp]) ->
 
-    let lines = render
+    let lines = render Style.default_style
             (
                 [ (Just single_sp, Diagnostic.MsgError, Just "message 1"), (Just single_sp, Diagnostic.MsgHint, Just "message 2")
                 , (Just multi_sp, Diagnostic.MsgWarning, Just "message 3")
@@ -347,7 +349,7 @@ case_show_singleline =
         , (  "9", '|', "context3")
         , ( "10", '|', "context4")
         ]
-        (show_singleline unds)
+        (show_singleline Style.default_style unds)
 
 case_show_line_single :: Assertion
 case_show_line_single =
@@ -359,7 +361,7 @@ case_show_line_single =
         , ( "", '|', "^^ ")
         , ( "", '|', " `-- message")
         ]
-        (show_line (Nothing, (f, 1, [(sp, Diagnostic.MsgError, Just "message")])))
+        (show_line Style.default_style (Nothing, (f, 1, [(sp, Diagnostic.MsgError, Just "message")])))
 
 case_show_line_multiple :: Assertion
 case_show_line_multiple =
@@ -371,7 +373,7 @@ case_show_line_multiple =
         , ( "", '|', "^^^                  ^^^ ")
         , ( "", '|', "  `-- a                `-- b")
         ]
-        (show_line (Nothing, (f, 1, [(sp1, Diagnostic.MsgError, Just "a"), (sp2, Diagnostic.MsgError, Just "b")])))
+        (show_line Style.default_style (Nothing, (f, 1, [(sp1, Diagnostic.MsgError, Just "a"), (sp2, Diagnostic.MsgError, Just "b")])))
 
 case_show_line_multiple_overlapping :: Assertion
 case_show_line_multiple_overlapping =
@@ -384,7 +386,7 @@ case_show_line_multiple_overlapping =
         , ( "", '|', "  |-- message1")
         , ( "", '|', "  `-- message2")
         ]
-        (show_line (Nothing, (f, 1, [(sp1, Diagnostic.MsgError, Just "message1"), (sp1, Diagnostic.MsgNote, Just "message2"), (sp2, Diagnostic.MsgHint, Just "message3")])))
+        (show_line Style.default_style (Nothing, (f, 1, [(sp1, Diagnostic.MsgError, Just "message1"), (sp1, Diagnostic.MsgNote, Just "message2"), (sp2, Diagnostic.MsgHint, Just "message3")])))
 
 case_show_msg_row :: Assertion
 case_show_msg_row =
@@ -394,7 +396,7 @@ case_show_msg_row =
                  -- sp1 sp2
         [("", '|', "  `-- message")]
 
-        [show_msg_row [] messages]
+        [show_msg_row Style.default_style [] messages]
 
 case_show_msg_row_message_below :: Assertion
 case_show_msg_row_message_below =
@@ -404,7 +406,7 @@ case_show_msg_row_message_below =
                  -- sp1 sp2
         [("", '|', "  |   `-- message")]
 
-        [show_msg_row [(Span.before_end sp1, Diagnostic.MsgError, "message")] messages]
+        [show_msg_row Style.default_style [(Span.before_end sp1, Diagnostic.MsgError, "message")] messages]
 
 case_show_msg_row_multiple :: Assertion
 case_show_msg_row_multiple =
@@ -414,7 +416,7 @@ case_show_msg_row_multiple =
                  -- sp1 ABCDEFGHIJKLMNOP sp2
         [("", '|', "  `-- message1         `-- message2")]
 
-        [show_msg_row [] messages]
+        [show_msg_row Style.default_style [] messages]
 
 case_assign_message_non_overlapping :: Assertion
 case_assign_message_non_overlapping =
@@ -423,7 +425,7 @@ case_assign_message_non_overlapping =
     let msg1 = (Span.before_end sp1, Diagnostic.MsgError, "message 1")
         msg2 = (Span.before_end sp2, Diagnostic.MsgError, "message 2")
 
-    in [([], [msg2, msg1])] @=? assign_messages [msg2, msg1]
+    in [([], [msg2, msg1])] @=? assign_messages Style.default_style [msg2, msg1]
 
 case_assign_message_overlapping :: Assertion
 case_assign_message_overlapping =
@@ -432,7 +434,7 @@ case_assign_message_overlapping =
     let msg1 = (Span.before_end sp1, Diagnostic.MsgError, "message 1")
         msg2 = (Span.before_end sp2, Diagnostic.MsgError, "message 2")
 
-    in [([msg1], [msg2]), ([], [msg1])] @=? assign_messages [msg2, msg1]
+    in [([msg1], [msg2]), ([], [msg1])] @=? assign_messages Style.default_style [msg2, msg1]
 
 case_assign_message_with_no_space_between :: Assertion
 case_assign_message_with_no_space_between =
@@ -454,7 +456,7 @@ case_assign_message_with_no_space_between =
     let msg1 = (Span.before_end sp1, Diagnostic.MsgError, "a")
         msg2 = (Span.before_end sp2, Diagnostic.MsgError, "b")
 
-    in [([msg1], [msg2]), ([], [msg1])] @=? assign_messages [msg2, msg1]
+    in [([msg1], [msg2]), ([], [msg1])] @=? assign_messages Style.default_style [msg2, msg1]
 
 test_overlapping :: [TestTree]
 test_overlapping =
@@ -463,7 +465,7 @@ test_overlapping =
                 make_spans' "f" "" ["sp1", spacing, "sp2"] >>= \ (_, [sp1, _, sp2]) ->
                 let msg2 = (Span.before_end sp2, Diagnostic.MsgError, "b")
                     msg1 = (Span.before_end sp1, Diagnostic.MsgError, "message 1")
-                in expected @=? overlapping msg1 [msg2]
+                in expected @=? overlapping Style.default_style msg1 [msg2]
 
     in
         [ make_test_case "end left" "ABCDEFGHIJK" False
@@ -501,7 +503,7 @@ case_multiline_lines_even =
         , ( "", '|', "   |-- message 1")
         -- , ( "", '|', "   `-- message 2")
         ]
-        (show_multiline ((sp, Diagnostic.MsgError, Just "message 1")) {-, (Warning, Just "message 2") -})
+        (show_multiline Style.default_style ((sp, Diagnostic.MsgError, Just "message 1")) {-, (Warning, Just "message 2") -})
 
 case_multiline_lines_odd :: Assertion
 case_multiline_lines_odd =
@@ -518,7 +520,7 @@ case_multiline_lines_odd =
         , ( "", '|', "   |-- message 1")
         -- , ( "", '|', "   `-- message 2")
         ]
-        (show_multiline ((sp, Diagnostic.MsgError, Just "message 1")) {- (sp, Diagnostic.MsgWarning, "message 2") -}) -- TODO: grouping multiple together
+        (show_multiline Style.default_style ((sp, Diagnostic.MsgError, Just "message 1")) {- (sp, Diagnostic.MsgWarning, "message 2") -}) -- TODO: grouping multiple together
 
 tests :: TestTree
 tests = $(testGroupGenerator)

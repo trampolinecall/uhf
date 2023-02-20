@@ -1,6 +1,53 @@
-module UHF.Diagnostic.Report.Colors where
+module UHF.Diagnostic.Report.Style
+    ( Style(..)
+    , default_style
+    ) where
+
+import UHF.Util.Prelude
 
 import System.Console.ANSI
+
+data Style
+    = Style
+        { file_path_color, error_color, warning_color, debug_message_color, note_color, hint_color, code_color, desc_color :: [SGR]
+        , und_other_color :: [SGR]
+
+        , msg_error_char, msg_warning_char, msg_note_char, msg_hint_char, msg_error_char_top, msg_warning_char_top, msg_note_char_top, msg_hint_char_top :: Char
+        , file_line_char, header_line_char, other_line_char :: Char
+
+        , message_prefix_line, message_prefix_last :: Char
+        , message_prefix :: Text
+        }
+
+default_style :: Style
+default_style = Style
+    { file_path_color = [bold, fg_bcyan]
+    , error_color = [bold, fg_bred]
+    , warning_color = [bold, fg_bmagenta]
+    , debug_message_color = [bold]
+    , note_color = [bold, fg_bgreen]
+    , hint_color = [bold, fg_bblue]
+    , code_color = [bold]
+    , desc_color = [bold]
+
+    , und_other_color = [bold]
+
+    , msg_error_char = '^'
+    , msg_warning_char = '^'
+    , msg_note_char = '-'
+    , msg_hint_char = '-'
+    , msg_error_char_top = 'v'
+    , msg_warning_char_top = 'v'
+    , msg_note_char_top = '-'
+    , msg_hint_char_top = '-'
+    , file_line_char = '>'
+    , header_line_char = '\\'
+    , other_line_char = '|'
+
+    , message_prefix_line = '|'
+    , message_prefix_last = '`'
+    , message_prefix = "--"
+    }
 
 bold, bg_white, bg_cyan, bg_magenta, bg_blue, bg_yellow, bg_green, bg_red, bg_black, bg_bwhite, bg_bcyan, bg_bmagenta, bg_bblue, bg_byellow, bg_bgreen, bg_bred, bg_bblack, fg_white, fg_cyan, fg_magenta, fg_blue, fg_yellow, fg_green, fg_red, fg_black, fg_bwhite, fg_bcyan, fg_bmagenta, fg_bblue, fg_byellow, fg_bgreen, fg_bred, fg_bblack, reset, normal :: SGR
 
@@ -44,17 +91,3 @@ bg_blue = SetColor Background Dull Blue
 bg_magenta = SetColor Background Dull Magenta
 bg_cyan = SetColor Background Dull Cyan
 bg_white = SetColor Background Dull White
-
-error, warning, debug_message, note, hint, diag_code, diag_desc :: [SGR]
-
-error = [bold, fg_bred]
-warning = [bold, fg_bmagenta]
-debug_message = [bold]
-note = [bold, fg_bgreen]
-hint = [bold, fg_bblue]
-
-file_path_color :: [SGR]
-file_path_color = [bold, fg_bcyan]
-
-diag_code = [bold]
-diag_desc = [bold]

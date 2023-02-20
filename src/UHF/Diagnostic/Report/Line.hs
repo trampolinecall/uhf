@@ -7,6 +7,7 @@ module UHF.Diagnostic.Report.Line
     , file_line
     , elipsis_line
     , numbered_line
+    , heading_line
     , other_line
 
     , compare_lines
@@ -32,6 +33,9 @@ elipsis_line = Line "..." '|' "..."
 
 numbered_line :: Int -> FormattedString.FormattedString -> Line
 numbered_line num = Line (Text.pack $ show num) '|'
+
+heading_line :: FormattedString.FormattedString -> Line
+heading_line = Line "" '\\'
 
 other_line :: FormattedString.FormattedString -> Line
 other_line = Line "" '|'

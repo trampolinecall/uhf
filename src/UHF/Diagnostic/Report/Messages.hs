@@ -200,6 +200,7 @@ overlapping style to_assign assigned =
         )
         assigned
 -- show_multiline {{{1
+-- TODO: refactor all of this
 show_multiline :: Style.Style -> MessageWithSpan -> [Line.Line]
 show_multiline style (und_sp, und_type, und_msg) = -- TODO: merge messages with the same span
     let
@@ -239,13 +240,13 @@ show_top_lines style loc n ch sgr =
         n_dash = col_diff - n_ch
 
     in [ Line.other_line style $
-            FormattedString.Literal (Text.replicate (start_col + 2 - 1) " ") <> FormattedString.color_text sgr (Text.replicate n_ch (Text.pack [ch])) <> FormattedString.color_text (Style.und_other_color style) (Text.replicate n_dash "-")] ++
+            FormattedString.Literal (Text.replicate (start_col + 2 - 1) " ") <> FormattedString.color_text sgr (Text.replicate n_ch (Text.pack [ch])) <> FormattedString.color_text (Style.multiline_other_color style) (Text.replicate (n_dash - 1) (Text.singleton $ Style.multiline_other_char style) <> Text.singleton (Style.multiline_tr_char style))] ++
         [ Line.numbered_line style start_line $
-            "  " <> FormattedString.Literal (Text.take (start_col - 1) start_quote) <> FormattedString.color_text sgr (Text.drop (start_col - 1) start_quote) <> FormattedString.Literal (Text.replicate (max_col - Text.length start_quote - 1) " ") <> FormattedString.color_text (Style.und_other_color style) "|"] ++
+            "  " <> FormattedString.Literal (Text.take (start_col - 1) start_quote) <> FormattedString.color_text sgr (Text.drop (start_col - 1) start_quote) <> FormattedString.Literal (Text.replicate (max_col - Text.length start_quote - 1) " ") <> FormattedString.color_text (Style.multiline_other_color style) (Text.singleton $ Style.multiline_vertical_char style)] ++
         map (\ l ->
             let quote = Utils.get_quote file l
                 pad = max_col - Text.length quote - 1
-            in Line.numbered_line style l $ "  " <> FormattedString.color_text sgr quote <> FormattedString.Literal (Text.replicate pad " ") <> FormattedString.color_text (Style.und_other_color style) "|"
+            in Line.numbered_line style l $ "  " <> FormattedString.color_text sgr quote <> FormattedString.Literal (Text.replicate pad " ") <> FormattedString.color_text (Style.multiline_other_color style) (Text.singleton $ Style.multiline_vertical_char style)
         ) top_lines
 
 show_bottom_lines :: Style.Style -> Location.Location -> Int -> Char -> Diagnostic.MessageType -> Maybe Text -> [Line.Line]
@@ -266,12 +267,12 @@ show_bottom_lines style loc n ch ty msg =
         -- TODO: refactor this because this is badly adapted to the message overhaul
     in map (\ l ->
             let quote = Utils.get_quote file l
-            in Line.numbered_line style l $ FormattedString.color_text (Style.und_other_color style) "| " <> FormattedString.color_text sgr quote
+            in Line.numbered_line style l $ FormattedString.color_text (Style.multiline_other_color style) (Text.singleton $ Style.multiline_vertical_char style) <> " " <> FormattedString.color_text sgr quote
         ) bottom_lines ++
         [ Line.numbered_line style end_line $
-            FormattedString.color_text (Style.und_other_color style) "| " <> FormattedString.color_text sgr (Text.take (end_col - 2) end_quote) <> FormattedString.Literal (Text.drop (end_col - 2) end_quote)] ++
+            FormattedString.color_text (Style.multiline_other_color style) (Text.singleton $ Style.multiline_vertical_char style) <> " " <> FormattedString.color_text sgr (Text.take (end_col - 2) end_quote) <> FormattedString.Literal (Text.drop (end_col - 2) end_quote)] ++
         [ Line.other_line style $
-            FormattedString.color_text (Style.und_other_color style) (Text.replicate n_dash "-") <> FormattedString.color_text sgr (Text.replicate n_ch (Text.pack [ch]))] ++
+            FormattedString.color_text (Style.multiline_other_color style) (Text.singleton (Style.multiline_bl_char style) <> Text.replicate (n_dash - 1) (Text.singleton $ Style.multiline_other_char style)) <> FormattedString.color_text sgr (Text.replicate n_ch (Text.singleton ch))] ++
         zipWith (\ i msg ->
             Line.other_line style $
                 FormattedString.Literal (Text.replicate (end_col - 1) " ") <> format_render_message style (i == (0 :: Int) {- length msgs -}) (loc, ty, msg)

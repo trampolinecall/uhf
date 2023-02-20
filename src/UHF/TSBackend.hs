@@ -23,6 +23,7 @@ type GraphNodeArena = Arena.Arena GraphNode IR.GraphNodeKey
 type GraphParamArena = Arena.Arena GraphParam IR.GraphParamKey
 
 -- TODO: refactor everything
+-- TODO: this actually does not work correctly like at all
 
 type IRReader = Reader (NominalTypeArena, GraphNodeArena, GraphParamArena)
 

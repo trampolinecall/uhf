@@ -7,7 +7,8 @@ import qualified UHF.IR as IR
 
 import qualified UHF.Compiler as Compiler
 
-import UHF.IO.Location (Span, Located (Located, unlocate, just_span))
+import UHF.IO.Span (Span)
+import UHF.IO.Located (Located (..))
 
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Codes as Diagnostic.Codes

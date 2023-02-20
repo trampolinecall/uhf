@@ -15,8 +15,9 @@ import qualified UHF.Diagnostic.Report.Utils as Utils
 import qualified UHF.Diagnostic.Report.Colors as Colors
 
 import qualified UHF.IO.FormattedString as FormattedString
+import UHF.IO.File (File)
 import qualified UHF.IO.Location as Location
-import UHF.IO.Location (File, Span)
+import qualified UHF.IO.Span as Span
 
 import qualified Data.Text as Text
 import qualified Data.Maybe as Maybe
@@ -46,7 +47,7 @@ top_type_char Diagnostic.MsgHint = '~'
 
 render :: Diagnostic.MessagesSection -> [Line.Line]
 render msgs =
-    let (singleline, multiline) = List.partition (Location.is_single_line . (\ (a, _, _) -> a)) msgs
+    let (singleline, multiline) = List.partition (Span.is_single_line . (\ (a, _, _) -> a)) msgs
 
         singleline' = show_singleline singleline
         multiline' = concatMap show_multiline multiline
@@ -60,11 +61,11 @@ format_render_message :: Bool -> RenderMessage -> FormattedString.FormattedStrin
 format_render_message is_last (_, ty, text) = FormattedString.color_text (type_color ty) ((if is_last then "`" else "|") <> "-- " <> text)
 
 rm_start_col :: RenderMessage -> Int
-rm_start_col (loc, _, _) = Location.col $ Location.lc loc
+rm_start_col (loc, _, _) = Location.loc_col loc
 rm_end_col :: RenderMessage -> Int
 -- `-- message
 -- 4 ('`-- ') + length of message
-rm_end_col (loc, _, text) = Location.col (Location.lc loc) + Text.length text + 4
+rm_end_col (loc, _, text) = Location.loc_col loc + Text.length text + 4
 -- show_singleline {{{2
 show_singleline :: [Diagnostic.Message] -> [Line.Line]
 show_singleline unds =
@@ -102,11 +103,11 @@ show_line (last, (fl, nr, messages)) =
 get_renderable_messages :: [Diagnostic.Message] -> [RenderMessage]
 get_renderable_messages =
     List.sortBy (flip compare `Function.on` rm_start_col) .
-    Maybe.mapMaybe (\ (sp, ty, msg) -> (Location.sp_be sp, ty,) <$> msg)
+    Maybe.mapMaybe (\ (sp, ty, msg) -> (Span.before_end sp, ty,) <$> msg)
 
 get_colored_quote_and_underline_line :: File -> Int -> [Diagnostic.Message] -> (FormattedString.FormattedString, FormattedString.FormattedString)
 get_colored_quote_and_underline_line fl nr unds =
-    let col_in_underline c (sp, _, _) = Location.sp_s_col sp <= c && c <= Location.sp_be_col sp
+    let col_in_underline c (sp, _, _) = Span.start_col sp <= c && c <= Span.before_end_col sp
 
         message_type (_, ty, _) = ty
 
@@ -183,14 +184,14 @@ overlapping to_assign assigned =
 show_multiline :: Diagnostic.Message -> [Line.Line]
 show_multiline (und_sp, und_type, und_msg) = -- TODO: merge messages with the same span
     let
-        start_line = Location.sp_s_row und_sp
-        end_line = Location.sp_be_row und_sp
+        start_line = Span.start_row und_sp
+        end_line = Span.before_end_row und_sp
 
         n_lines = (end_line + 1) - start_line
         n_vertical_lines = n_lines `div` 2
         mid_line =
             if odd n_lines
-                then Just (Location.sp_file und_sp, (start_line + end_line) `div` 2)
+                then Just (Span.file und_sp, (start_line + end_line) `div` 2)
                 else Nothing
 
         und_char = type_char und_type
@@ -198,10 +199,10 @@ show_multiline (und_sp, und_type, und_msg) = -- TODO: merge messages with the sa
         sgr = type_color und_type
 
     in
-        [Line.file_line (Location.sp_file und_sp)] ++
-        show_top_lines (Location.sp_s und_sp) n_vertical_lines rev_und_char sgr ++
+        [Line.file_line (Span.file und_sp)] ++
+        show_top_lines (Span.start und_sp) n_vertical_lines rev_und_char sgr ++
         show_middle_line mid_line sgr ++
-        show_bottom_lines (Location.sp_be und_sp) n_vertical_lines und_char und_type und_msg -- TODO: see todo at the beginning of this function
+        show_bottom_lines (Span.before_end und_sp) n_vertical_lines und_char und_type und_msg -- TODO: see todo at the beginning of this function
 
 show_top_lines :: Location.Location -> Int -> Char -> [ANSI.SGR] -> [Line.Line]
 show_top_lines loc n ch sgr =
@@ -371,7 +372,7 @@ case_show_line_multiple_overlapping =
 case_show_msg_row :: Assertion
 case_show_msg_row =
     let (_, [sp1, _]) = make_spans ["sp1", "sp2"]
-        messages = [(Location.sp_be sp1, Diagnostic.MsgError, "message")]
+        messages = [(Span.before_end sp1, Diagnostic.MsgError, "message")]
     in Line.compare_lines
                  -- sp1 sp2
         [("", '|', "  `-- message")]
@@ -381,17 +382,17 @@ case_show_msg_row =
 case_show_msg_row_message_below :: Assertion
 case_show_msg_row_message_below =
     let (_, [sp1, sp2]) = make_spans ["sp1", "sp2"]
-        messages = [(Location.sp_be sp2, Diagnostic.MsgError, "message")]
+        messages = [(Span.before_end sp2, Diagnostic.MsgError, "message")]
     in Line.compare_lines
                  -- sp1 sp2
         [("", '|', "  |   `-- message")]
 
-        [show_msg_row [(Location.sp_be sp1, Diagnostic.MsgError, "message")] messages]
+        [show_msg_row [(Span.before_end sp1, Diagnostic.MsgError, "message")] messages]
 
 case_show_msg_row_multiple :: Assertion
 case_show_msg_row_multiple =
     let (_, [sp1, _, sp2]) = make_spans ["sp1", "ABCDEFGHIJKLMNOP", "sp2"]
-        messages = [(Location.sp_be sp1, Diagnostic.MsgError, "message1"), (Location.sp_be sp2, Diagnostic.MsgError, "message2")]
+        messages = [(Span.before_end sp1, Diagnostic.MsgError, "message1"), (Span.before_end sp2, Diagnostic.MsgError, "message2")]
     in Line.compare_lines
                  -- sp1 ABCDEFGHIJKLMNOP sp2
         [("", '|', "  `-- message1         `-- message2")]
@@ -402,8 +403,8 @@ case_assign_message_non_overlapping :: Assertion
 case_assign_message_non_overlapping =
     let (_, [sp1, _, sp2]) = make_spans ["sp1", "                ", "sp2"]
 
-        msg1 = (Location.sp_be sp1, Diagnostic.MsgError, "message 1")
-        msg2 = (Location.sp_be sp2, Diagnostic.MsgError, "message 2")
+        msg1 = (Span.before_end sp1, Diagnostic.MsgError, "message 1")
+        msg2 = (Span.before_end sp2, Diagnostic.MsgError, "message 2")
 
     in [([], [msg2, msg1])] @=? assign_messages [msg2, msg1]
 
@@ -411,8 +412,8 @@ case_assign_message_overlapping :: Assertion
 case_assign_message_overlapping =
     let (_, [sp1, sp2]) = make_spans ["sp1", "sp2"]
 
-        msg1 = (Location.sp_be sp1, Diagnostic.MsgError, "message 1")
-        msg2 = (Location.sp_be sp2, Diagnostic.MsgError, "message 2")
+        msg1 = (Span.before_end sp1, Diagnostic.MsgError, "message 1")
+        msg2 = (Span.before_end sp2, Diagnostic.MsgError, "message 2")
 
     in [([msg1], [msg2]), ([], [msg1])] @=? assign_messages [msg2, msg1]
 
@@ -433,8 +434,8 @@ case_assign_message_with_no_space_between =
     -}
     let (_, [sp1, _, sp2]) = make_spans' "f" "" ["sp1", "AB", "sp2"]
 
-        msg1 = (Location.sp_be sp1, Diagnostic.MsgError, "a")
-        msg2 = (Location.sp_be sp2, Diagnostic.MsgError, "b")
+        msg1 = (Span.before_end sp1, Diagnostic.MsgError, "a")
+        msg2 = (Span.before_end sp2, Diagnostic.MsgError, "b")
 
     in [([msg1], [msg2]), ([], [msg1])] @=? assign_messages [msg2, msg1]
 
@@ -443,8 +444,8 @@ test_overlapping =
     let make_test_case name spacing expected =
             let (_, [sp1, _, sp2]) = make_spans' "f" "" ["sp1", spacing, "sp2"]
 
-                msg2 = (Location.sp_be sp2, Diagnostic.MsgError, "b")
-                msg1 = (Location.sp_be sp1, Diagnostic.MsgError, "message 1")
+                msg2 = (Span.before_end sp2, Diagnostic.MsgError, "b")
+                msg1 = (Span.before_end sp1, Diagnostic.MsgError, "message 1")
             in testCase name $ expected @=? overlapping msg1 [msg2]
 
     in

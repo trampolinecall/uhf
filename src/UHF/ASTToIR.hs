@@ -24,8 +24,10 @@ import qualified Arena
 import qualified UHF.AST as AST
 import qualified UHF.IR as IR
 
-import qualified UHF.IO.Location as Location
-import UHF.IO.Location (File, Span, Located (..))
+import UHF.IO.File (File)
+import qualified UHF.IO.Span as Span
+import UHF.IO.Span (Span)
+import UHF.IO.Located (Located (..))
 
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Codes as Codes
@@ -176,7 +178,7 @@ primitive_values _ = pure []
 
 convert :: File -> [AST.Decl] -> Compiler.Compiler (DeclArena, NominalTypeArena, BindingArena, BoundValueArena)
 convert file decls =
-    let prim_span = Location.start_span file
+    let prim_span = Span.start_of_file file
         (res, errs) = runWriter (
                 runStateT
                     (

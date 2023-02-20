@@ -45,7 +45,7 @@ compile file =
     NameResolve.resolve (decls, nominal_types, bindings) >>= \ (decls, nominal_types, bindings) ->
     let bindings' = InfixGroup.group bindings
     in Type.typecheck (decls, nominal_types, bindings', bound_values) >>= \ (decls, nominal_types, bindings, bound_values) ->
-    let (nodes, params) = (ToGraph.to_graph bound_values bindings)
+    let (nodes, params) = ToGraph.to_graph bound_values bindings
         no_poison = RemovePoison.remove_poison (decls, nominal_types, nodes, params, bound_values)
         dot =
             case no_poison of

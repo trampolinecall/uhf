@@ -26,6 +26,6 @@ instance Diagnostic.ToError (Located [Error]) where
             "parse error" -- TODO
             (map
                 (\ (BadToken _ tok expectation construct) ->
-                    Located.just_span tok `Diagnostic.msg_error` (convert_str $ construct <> " expects " <> format expectation <> " but got " <> format (Located.unlocate tok)))
+                    Located.just_span tok `Diagnostic.msg_error` convert_str (construct <> " expects " <> format expectation <> " but got " <> format (Located.unlocate tok)))
                 bits) -- TODO: make this better
             []

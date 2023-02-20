@@ -375,7 +375,7 @@ collect_constraints decls bna (IR.Binding pat eq_sp expr) =
 solve_constraints :: TypedWithVarsNominalTypeArena -> [Constraint] -> StateWithVars ()
 solve_constraints nominal_types = mapM_ solve
     where
-        -- TODO: gracefully figure out how to handle errors because the type variables become ambiguous if they cant be unified
+        -- TODO: figure out how to gracefully handle errors because the type variables become ambiguous if they cant be unified
         solve :: Constraint -> StateWithVars ()
         solve (Eq in_what sp a b) =
             runExceptT (unify (unlocate a) (unlocate b)) >>= \case

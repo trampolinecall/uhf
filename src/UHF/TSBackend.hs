@@ -42,7 +42,7 @@ runtime_code :: Text
 runtime_code = $(FileEmbed.embedStringFile "data/ts_runtime.ts")
 
 data TSDecl
-data TSNominalType = TSNominalType'Data IR.NominalTypeKey Text -- TODO
+data TSNominalType = TSNominalType'Data IR.NominalTypeKey Text -- TODO: actually implement variants and things
 data TSLambda = TSLambda IR.GraphNodeKey Type Type IR.GraphNodeKey -- TODO: captures
 data TSEvaluator = TSEvaluator IR.GraphNodeKey Type [(Text, Type)] Text
 data TSMakeThunkGraph = TSMakeThunkGraph IR.GraphNodeKey (Set IR.GraphNodeKey) (Set IR.GraphParamKey)
@@ -231,7 +231,7 @@ define_graph_node_evaluator key (IR.GraphNode'Lambda ty param body) = -- TODO: a
     lift (get_included_nodes body) >>= \ (included_nodes, included_params) ->
     tell_make_thunk_graph (TSMakeThunkGraph body included_nodes included_params) >>
     tell_lambda (TSLambda key param_ty body_type body) >>
-    tell_evaluator (TSEvaluator key ty [] ("return new " <> mangle_graph_node_as_lambda key <> "();\n")) -- TODO
+    tell_evaluator (TSEvaluator key ty [] ("return new " <> mangle_graph_node_as_lambda key <> "();\n")) -- TODO: captures
     where
         get_included_nodes :: IR.GraphNodeKey -> IRReader (Set IR.GraphNodeKey, Set IR.GraphParamKey)
         get_included_nodes cur_node =

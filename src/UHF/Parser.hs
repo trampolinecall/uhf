@@ -4,7 +4,7 @@
 module UHF.Parser
     ( parse
 
-    , Error.BacktrackingError -- TODO: rename to just Error
+    , Error.Error
 
     , tests
    ) where
@@ -41,7 +41,7 @@ parse toks eof_tok =
         parse' = PEG.star decl >>= \ ds -> PEG.consume' "end of file" (Token.EOF ()) >> pure ds
 
         -- TODO: remove duplicate clauses
-        choose_error :: [Error.BacktrackingError] -> Compiler.Compiler ()
+        choose_error :: [Error.Error] -> Compiler.Compiler ()
         choose_error [] = pure ()
         choose_error errs =
             let max_ind = maximum $ map (\ (Error.BadToken ind _ _ _) -> ind) errs

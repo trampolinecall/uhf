@@ -1,5 +1,5 @@
 module UHF.Lexer.LexError
-    ( LexError(..)
+    ( Error(..)
     ) where
 
 import UHF.Util.Prelude
@@ -10,7 +10,7 @@ import qualified UHF.Diagnostic.Codes as Codes
 
 import qualified Data.Text as Text
 
-data LexError
+data Error
     = BadChar Char Span
     | UnclosedMComment Span
     | UnclosedStrLit Span
@@ -20,12 +20,10 @@ data LexError
     | InvalidIntDigit Char Span
     | NonDecimalFloat Span
     | MissingDigits Span
-    -- TODO: add 4 fields: new indent level, before indent level, two closest indentation levels
-    | BadDedent Span
     | InvalidDoubleColon Span
     deriving (Eq, Show)
 
-instance Diagnostic.ToError LexError where
+instance Diagnostic.ToError Error where
     to_error (BadChar ch sp) = Diagnostic.Error Codes.bad_char (Just sp) ("bad character '" <> Text.singleton ch <> "'") [] []
 
     to_error (UnclosedMComment sp) = Diagnostic.Error Codes.unclosed_multiline_comment (Just sp) "unclosed multiline comment" [] []
@@ -43,7 +41,5 @@ instance Diagnostic.ToError LexError where
     to_error (NonDecimalFloat sp) = Diagnostic.Error Codes.non_decimal_float (Just sp) "floating point literals must be in decimal" [] []
 
     to_error (MissingDigits sp) = Diagnostic.Error Codes.missing_digits (Just sp) "missing digits from number literal" [] []
-
-    to_error (BadDedent sp) = Diagnostic.Error Codes.bad_dedent (Just sp) "dedent to unknown level" [] []
 
     to_error (InvalidDoubleColon sp) = Diagnostic.Error Codes.invalid_double_colon (Just sp) "double colon is not allowed outside of paths" [] []

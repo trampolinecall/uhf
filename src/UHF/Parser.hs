@@ -38,6 +38,7 @@ parse toks eof_tok =
         parse' :: PEG.Parser [AST.Decl]
         parse' = PEG.star decl >>= \ ds -> PEG.consume' "end of file" (Token.EOF ()) >> pure ds
 
+        -- TODO: remove duplicate clauses
         choose_error :: [Error.BacktrackingError] -> Compiler.Compiler ()
         choose_error [] = pure ()
         choose_error errs =

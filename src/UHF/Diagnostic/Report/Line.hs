@@ -15,7 +15,7 @@ module UHF.Diagnostic.Report.Line
 
 import UHF.Util.Prelude
 
-import qualified UHF.Diagnostic.Report.Colors as Colors
+import qualified UHF.Diagnostic.Report.Style as Style
 import qualified UHF.IO.FormattedString as FormattedString
 
 import qualified UHF.IO.File as File
@@ -25,20 +25,21 @@ import qualified Data.Text as Text
 
 data Line = Line { prefix :: Text, separ :: Char, contents :: FormattedString.FormattedString } deriving (Show, Eq)
 
-file_line :: File -> Line
-file_line f = Line "" '>' (FormattedString.color_text Colors.file_path_color $ Text.pack $ File.path f)
+-- TODO: use Reader monad instead of passing around Style?
+file_line :: Style.Style -> File -> Line
+file_line style f = Line "" (Style.file_line_char style) (FormattedString.color_text (Style.file_path_color style) $ Text.pack $ File.path f)
 
-elipsis_line :: Line
-elipsis_line = Line "..." '|' "..."
+elipsis_line :: Style.Style -> Line
+elipsis_line style = Line "..." (Style.other_line_char style) "..."
 
-numbered_line :: Int -> FormattedString.FormattedString -> Line
-numbered_line num = Line (Text.pack $ show num) '|'
+numbered_line :: Style.Style -> Int -> FormattedString.FormattedString -> Line
+numbered_line style num = Line (Text.pack $ show num) (Style.other_line_char style)
 
-heading_line :: FormattedString.FormattedString -> Line
-heading_line = Line "" '\\'
+heading_line :: Style.Style -> FormattedString.FormattedString -> Line
+heading_line style = Line "" (Style.header_line_char style)
 
-other_line :: FormattedString.FormattedString -> Line
-other_line = Line "" '|'
+other_line :: Style.Style -> FormattedString.FormattedString -> Line
+other_line style = Line "" (Style.other_line_char style)
 
 compare_lines :: [(Text, Char, Text)] -> [Line] -> Assertion
 compare_lines expect lns =

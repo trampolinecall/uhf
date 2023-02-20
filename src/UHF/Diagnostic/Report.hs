@@ -30,7 +30,7 @@ instance ToDiagnostic Diagnostic.InternalError where
     to_diagnostic (Diagnostic.InternalError sp main_message messages sections) = (FormattedString.color_text Colors.error "internal error", Nothing, Diagnostic.MsgError, sp, main_message, messages, sections)
 
 report :: ToDiagnostic d => Handle -> FormattedString.ColorsNeeded -> Settings.Settings -> d -> IO ()
-report handle c_needed (Settings.Settings) d = -- TODO: use diagnostic settings
+report handle c_needed Settings.Settings d = -- TODO: use diagnostic settings
     let (type_str, code_and_desc, main_message_type, m_sp, main_message, main_section, sections) = to_diagnostic d
         header =
             (case m_sp of

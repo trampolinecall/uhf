@@ -43,7 +43,7 @@ instance Semigroup Diagnostics where
 
 run_compiler :: Compiler r -> FormattedString.ColorsNeeded -> DiagnosticSettings.Settings -> IO (Maybe r)
 run_compiler (Compiler r) c_needed diag_settings =
-    let (result, (Diagnostics errors warnings)) = runWriter r
+    let (result, Diagnostics errors warnings) = runWriter r
     in mapM_ (Diagnostic.report IO.stdout c_needed diag_settings) warnings >>
     mapM_ (Diagnostic.report IO.stderr c_needed diag_settings) errors >>
     if null errors

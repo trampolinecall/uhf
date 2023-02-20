@@ -20,7 +20,6 @@ import qualified UHF.AST as AST
 
 import qualified Data.InfList as InfList
 
-import qualified UHF.IO.Span as Span
 import qualified UHF.IO.Located as Located
 import UHF.IO.Located (Located (Located))
 

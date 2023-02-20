@@ -91,7 +91,8 @@ lex_alpha_identifier =
     lex_id_or_kw
         (\ ch -> isAlpha ch || ch == '_')
         (\ ch -> isAlpha ch || isDigit ch || ch == '_' || ch == '\'')
-        [ ("root", Token.SingleTypeToken Token.Root)
+        [ ("_", Token.SingleTypeToken Token.Underscore)
+        , ("root", Token.SingleTypeToken Token.Root)
         , ("let", Token.SingleTypeToken Token.Let)
         , ("letrec", Token.SingleTypeToken Token.LetRec)
         , ("data", Token.SingleTypeToken Token.Data)

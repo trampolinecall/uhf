@@ -56,7 +56,6 @@ main =
 compile :: FormattedString.ColorsNeeded -> DiagnosticSettings.Settings -> Int -> Int -> FilePath -> IO ()
 compile c_needed diagnostic_settings num total fname =
     File.open fname >>= \ f -> -- TODO: put this in driver
-    -- putStrLn ("[" <> show num <> "/" <> show total <> "]: compiling " <> format f) >>
     Compiler.run_compiler (Driver.compile f) c_needed diagnostic_settings >>= \case
         Just (Just res) -> putTextLn res -- TODO: get rid of double Maybe
         Just Nothing -> exitFailure -- TODO: decide what should happen here

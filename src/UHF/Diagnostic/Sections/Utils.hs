@@ -15,7 +15,7 @@ import qualified Data.Map as Map
 
 newtype FileCmpByPath = FileCmpByPath { un_fcbp :: File }
 instance Ord FileCmpByPath where
-    compare = compare `on` (Location.path . un_fcbp)
+    compare = comparing (Location.path . un_fcbp)
 instance Eq FileCmpByPath where
     (==) = (==) `on` (Location.path . un_fcbp)
 

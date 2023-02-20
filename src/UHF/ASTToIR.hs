@@ -35,6 +35,8 @@ import qualified Data.Map as Map
 import qualified Data.List as List
 import qualified Data.Maybe as Maybe
 
+import qualified UHF.Compiler as Compiler
+
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Control.Monad.Fix (mfix)
 
@@ -174,15 +176,20 @@ primitive_decls prim_span =
 primitive_values :: Span -> MakeIRState BoundValueList
 primitive_values _ = pure []
 
-convert :: File -> [AST.Decl] -> Writer [Error] (DeclArena, NominalTypeArena, BindingArena, BoundValueArena)
+convert :: File -> [AST.Decl] -> Compiler.Compiler (DeclArena, NominalTypeArena, BindingArena, BoundValueArena)
 convert file decls =
     let prim_span = Location.start_span file
-        make =
-            primitive_decls prim_span >>= \ primitive_decls ->
-            primitive_values prim_span >>= \ primitive_values ->
-            IR.Decl'Module <$> (IR.Module <$> convert_decls Nothing primitive_decls primitive_values decls) >>= new_decl
-    in runStateT make (Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (_, (decls, bindings, bound_values, nominals)) ->
-    pure (decls, nominals, bindings, bound_values)
+        (res, errs) = runWriter (
+                runStateT
+                    (
+                        primitive_decls prim_span >>= \ primitive_decls ->
+                        primitive_values prim_span >>= \ primitive_values ->
+                        IR.Decl'Module <$> (IR.Module <$> convert_decls Nothing primitive_decls primitive_values decls) >>= new_decl
+                    )
+                    (Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (_, (decls, bindings, bound_values, nominals)) ->
+                pure (decls, nominals, bindings, bound_values)
+            )
+    in Compiler.errors errs >> pure res
 
 convert_decls :: Maybe IR.NameContext -> DeclChildrenList -> BoundValueList -> [AST.Decl] -> MakeIRState IR.NameContext
 convert_decls parent_context prev_decl_entries prev_bv_entries decls =

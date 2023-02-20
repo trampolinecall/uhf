@@ -61,7 +61,7 @@ render style msgs =
                 msgs
         (singleline, multiline) = List.partition (Span.is_single_line . (\ (a, _, _) -> a)) withspan
 
-        singleline' = (show_singleline style) singleline
+        singleline' = show_singleline style singleline
         multiline' = concatMap (show_multiline style) multiline
         nospan' =
             concatMap (\case
@@ -504,7 +504,7 @@ case_multiline_lines_even =
         , ( "", '|', "   |-- message 1")
         -- , ( "", '|', "   `-- message 2")
         ]
-        (show_multiline Style.default_style ((sp, Diagnostic.MsgError, Just "message 1")) {-, (Warning, Just "message 2") -})
+        (show_multiline Style.default_style (sp, Diagnostic.MsgError, Just "message 1") {-, (Warning, Just "message 2") -})
 
 case_multiline_lines_odd :: Assertion
 case_multiline_lines_odd =
@@ -521,7 +521,7 @@ case_multiline_lines_odd =
         , ( "", '|', "   |-- message 1")
         -- , ( "", '|', "   `-- message 2")
         ]
-        (show_multiline Style.default_style ((sp, Diagnostic.MsgError, Just "message 1")) {- (sp, Diagnostic.MsgWarning, "message 2") -}) -- TODO: grouping multiple together
+        (show_multiline Style.default_style (sp, Diagnostic.MsgError, Just "message 1") {- (sp, Diagnostic.MsgWarning, "message 2") -}) -- TODO: grouping multiple together
 
 tests :: TestTree
 tests = $(testGroupGenerator)

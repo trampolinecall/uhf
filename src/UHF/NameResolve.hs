@@ -172,7 +172,7 @@ resolve_type_iden decls (nc, first:more) =
 get_decl_child :: DeclArena -> IR.DeclKey -> Located Text -> Either Error IR.DeclKey
 get_decl_child decls thing name =
     let res = case Arena.get decls thing of
-            IR.Decl'Module (IR.Module (IR.NameContext d_children _ _)) -> Map.lookup (Located.unlocate name) d_children
+            IR.Decl'Module (IR.NameContext d_children _ _) -> Map.lookup (Located.unlocate name) d_children
             IR.Decl'Type _ -> Nothing -- TODO: implement children of types through impl blocks, this will also need infinite recursion checking
     in case res of
         Just res -> Right res
@@ -181,7 +181,7 @@ get_decl_child decls thing name =
 get_value_child :: DeclArena -> IR.DeclKey -> Located Text -> Either Error IR.BoundValueKey
 get_value_child decls thing name =
     let res = case Arena.get decls thing of
-            IR.Decl'Module (IR.Module (IR.NameContext _ v_children _)) -> Map.lookup (Located.unlocate name) v_children
+            IR.Decl'Module (IR.NameContext _ v_children _) -> Map.lookup (Located.unlocate name) v_children
             IR.Decl'Type _ -> Nothing -- TODO: implement children of types through impl blocks
     in case res of
         Just res -> Right res

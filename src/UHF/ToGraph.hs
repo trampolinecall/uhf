@@ -86,6 +86,7 @@ map_bound_value k node = tell $ Map.singleton k node
 
 assign_pattern :: Pattern -> IR.GraphNodeKey -> MakeGraphState ()
 assign_pattern (IR.Pattern'Identifier _ _ bvk) initializer = map_bound_value bvk initializer
+assign_pattern (IR.Pattern'Wildcard _ _) initializer = pure ()
 assign_pattern (IR.Pattern'Tuple _ _ a b) initializer =
     new_graph_node (IR.GraphNode'TupleDestructure1 (IR.pattern_type a) initializer) >>= assign_pattern a >>
     new_graph_node (IR.GraphNode'TupleDestructure2 (IR.pattern_type b) initializer) >>= assign_pattern b

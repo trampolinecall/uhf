@@ -35,51 +35,51 @@ import qualified Data.InfList as InfList
 
 type TokenStream = InfList.InfList (Int, Token.LToken)
 
-newtype Parser r = Parser { extract_parser :: [Error.BacktrackingError] -> TokenStream -> ([Error.BacktrackingError], Maybe (r, TokenStream)) }
+newtype Parser r = Parser { extract_parser :: [Error.Error] -> TokenStream -> ([Error.Error], Maybe (r, TokenStream)) }
 
 instance Functor Parser where
     fmap f parser = parser >>= \ res -> pure (f res)
 
 instance Applicative Parser where
-    pure a = Parser $ \ bt_errors toks -> (bt_errors, Just (a, toks))
+    pure a = Parser $ \ errors toks -> (errors, Just (a, toks))
     op <*> a =
         op >>= \ op' ->
         a >>= \ a' ->
         pure (op' a')
 
 instance Monad Parser where
-     (Parser a) >>= b = Parser $ \ bt_errors toks ->
-        let (bt_errors', res) = a bt_errors toks
+     (Parser a) >>= b = Parser $ \ errors toks ->
+        let (errors', res) = a errors toks
         in case res of
-            Just (r, toks') -> extract_parser (b r) bt_errors' toks'
-            Nothing -> (bt_errors', Nothing)
+            Just (r, toks') -> extract_parser (b r) errors' toks'
+            Nothing -> (errors', Nothing)
 
-run_parser :: Parser a -> TokenStream -> ([Error.BacktrackingError], Maybe (a, TokenStream))
+run_parser :: Parser a -> TokenStream -> ([Error.Error], Maybe (a, TokenStream))
 run_parser p = extract_parser p []
 
-eval_parser :: Parser a -> TokenStream -> ([Error.BacktrackingError], Maybe a)
+eval_parser :: Parser a -> TokenStream -> ([Error.Error], Maybe a)
 eval_parser p toks =
-    let (bt_errors, res) = extract_parser p [] toks
+    let (errors, res) = extract_parser p [] toks
     in case res of
-        Just (r, _) -> (bt_errors, Just r)
-        _ -> (bt_errors, Nothing)
+        Just (r, _) -> (errors, Just r)
+        _ -> (errors, Nothing)
 
 -- having an error for every Nothing result is enforced by the fact that in the public interface the only way to create a Nothing result is through these functions
-fail :: Error.BacktrackingError -> Parser a
-fail bt_error = Parser $ \ bt_errors _ -> (bt_error : bt_errors, Nothing)
+fail :: Error.Error -> Parser a
+fail error = Parser $ \ errors _ -> (error : errors, Nothing)
 
 is_tt :: Token.TokenType -> Token.Token -> Bool
 is_tt ty tok = ty == Token.to_token_type tok
 
 peek :: Parser Token.LToken
-peek = Parser $ \ bt_errors toks -> (bt_errors, Just (snd $ InfList.head toks, toks))
+peek = Parser $ \ errors toks -> (errors, Just (snd $ InfList.head toks, toks))
 
-consume :: (Int -> Token.LToken -> Error.BacktrackingError) -> Token.TokenType -> Parser Token.LToken
+consume :: (Int -> Token.LToken -> Error.Error) -> Token.TokenType -> Parser Token.LToken
 consume make_err exp = Parser $
-    \ bt_errors ((tok_i, tok) InfList.::: more_toks) ->
+    \ errors ((tok_i, tok) InfList.::: more_toks) ->
         if is_tt exp (Located.unlocate tok)
-            then (bt_errors, Just (tok, more_toks))
-            else (make_err tok_i tok : bt_errors, Nothing)
+            then (errors, Just (tok, more_toks))
+            else (make_err tok_i tok : errors, Nothing)
 
 consume' :: Text -> Token.TokenType -> Parser Token.LToken
 consume' name exp = consume (\ tok_i tok -> Error.BadToken tok_i tok exp name) exp
@@ -92,35 +92,35 @@ advance = Parser $ \ bt toks -> (bt, Just ((), InfList.tail toks))
 -- sequence combinator is >>=
 
 choice :: [Parser a] -> Parser a
-choice choices = Parser $ \ bt_errors toks -> try_choices bt_errors choices toks
+choice choices = Parser $ \ errors toks -> try_choices errors choices toks
     where
-        try_choices bt_errors (choice:more_choices) toks =
-            let (bt_errors', res) = extract_parser choice bt_errors toks
+        try_choices errors (choice:more_choices) toks =
+            let (errors', res) = extract_parser choice errors toks
             in case res of
-                Just r -> (bt_errors', Just r)
-                Nothing -> try_choices bt_errors' more_choices toks
+                Just r -> (errors', Just r)
+                Nothing -> try_choices errors' more_choices toks
 
-        try_choices bt_errors [] _ = (bt_errors, Nothing)
+        try_choices errors [] _ = (errors, Nothing)
 
 star :: Parser a -> Parser [a]
 star a = star' a []
 
 star' :: Parser a -> [a] -> Parser [a]
-star' a acc = Parser $ \ bt_errors toks ->
-    star'' bt_errors acc toks
+star' a acc = Parser $ \ errors toks ->
+    star'' errors acc toks
     where
-        star'' bt_errors a_acc toks =
-            let (bt_errors', res) = extract_parser a bt_errors toks
+        star'' errors a_acc toks =
+            let (errors', res) = extract_parser a errors toks
             in case res of
-                (Just (r, toks')) -> star'' bt_errors' (a_acc ++ [r]) toks'
-                Nothing -> (bt_errors', Just (a_acc, toks))
+                (Just (r, toks')) -> star'' errors' (a_acc ++ [r]) toks'
+                Nothing -> (errors', Just (a_acc, toks))
 
 plus :: Parser a -> Parser [a]
-plus a = Parser $ \ bt_errors toks ->
-    let (bt_errors', res) = extract_parser a bt_errors toks
+plus a = Parser $ \ errors toks ->
+    let (errors', res) = extract_parser a errors toks
     in case res of
-        Just (r, toks') -> extract_parser (star' a [r]) bt_errors' toks'
-        Nothing -> (bt_errors', Nothing)
+        Just (r, toks') -> extract_parser (star' a [r]) errors' toks'
+        Nothing -> (errors', Nothing)
 
 delim_star :: Parser a -> Parser d -> Parser [a]
 delim_star = delim_star' []
@@ -137,10 +137,10 @@ delim_star = delim_star' []
                 Nothing -> pure acc
 
 optional :: Parser a -> Parser (Maybe a)
-optional a = Parser $ \ bt_errors toks ->
-    case extract_parser a bt_errors toks of
-        (bt_errors', Just (r, toks')) -> (bt_errors', Just (Just r, toks'))
-        (bt_errors', Nothing) -> (bt_errors', Just (Nothing, toks))
+optional a = Parser $ \ errors toks ->
+    case extract_parser a errors toks of
+        (errors', Just (r, toks')) -> (errors', Just (Just r, toks'))
+        (errors', Nothing) -> (errors', Just (Nothing, toks))
 
 -- andpred :: Parser a -> Parser ()
 -- notpred :: Parser a -> Parser ()
@@ -181,8 +181,8 @@ case_advance =
             | tokstream' InfList.!!! 0 == (1, t2) &&
               tokstream' InfList.!!! 1 == (2, dummy_eof) -> pure ()
 
-        (bt_errors, Just (r, tokstream')) ->
-            assertFailure $ "did not advance correctly, got: " ++ show (bt_errors, Just (r, InfList.take 5 tokstream')) ++ " (only 5 first tokens shown)"
+        (errors, Just (r, tokstream')) ->
+            assertFailure $ "did not advance correctly, got: " ++ show (errors, Just (r, InfList.take 5 tokstream')) ++ " (only 5 first tokens shown)"
 
         res@(_, Nothing) ->
             assertFailure $ "did not advance correctly, got: " ++ show res

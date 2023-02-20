@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 module UHF.Parser.Error
-    ( BacktrackingError(..)
+    ( Error(..)
     ) where
 
 import UHF.Util.Prelude
@@ -13,12 +13,12 @@ import qualified UHF.Diagnostic.Codes as Codes
 import qualified UHF.IO.Located as Located
 import UHF.IO.Located (Located (Located))
 
-data BacktrackingError
+data Error
     = BadToken Int Token.LToken Token.TokenType Text
     -- | NoneMatched Token.LToken [Error]
     deriving (Eq, Show)
 
-instance Diagnostic.ToError (Located [BacktrackingError]) where
+instance Diagnostic.ToError (Located [Error]) where
     to_error (Located sp bits) =
         Diagnostic.Error
             Codes.parse_error

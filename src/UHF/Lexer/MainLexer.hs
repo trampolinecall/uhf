@@ -23,7 +23,7 @@ import qualified Data.Sequence as Sequence
 import Data.Char (isAlpha, isDigit, isOctDigit, isHexDigit, isSpace, digitToInt)
 
 -- lexing {{{1
-lex :: File -> Writer [LexError.LexError] (Sequence.Seq Token.LInternalToken, Token.LToken)
+lex :: File -> Writer [LexError.Error] (Sequence.Seq Token.LInternalToken, Token.LToken)
 lex f =
     let eof = Located (Span.end_of_file f) (Token.EOF ())
     in evalStateT (run Sequence.Empty) (Location.new f) >>= \ toks -> pure (toks, eof)
@@ -34,7 +34,7 @@ lex f =
                 then pure toks
                 else lex_one_token >>= \ more -> run (toks <> more)
 -- lex_one_token {{{2
-lex_one_token :: StateT Location (Writer [LexError.LexError]) (Sequence.Seq Token.LInternalToken)
+lex_one_token :: StateT Location (Writer [LexError.Error]) (Sequence.Seq Token.LInternalToken)
 lex_one_token =
     StateT $ \ loc ->
         writer $
@@ -51,7 +51,7 @@ lex_one_token =
                 , make_bad_char
                 ]
 -- Lexer {{{2
-type Lexer = StateT Location (WriterT [LexError.LexError] Maybe)
+type Lexer = StateT Location (WriterT [LexError.Error] Maybe)
 -- lexing functions {{{2
 lex_comment :: Lexer (Sequence.Seq Token.LInternalToken)
 lex_comment =
@@ -232,7 +232,7 @@ consume p = StateT $ \ loc -> WriterT $
 get_loc :: Lexer Location
 get_loc = get
 
-put_error :: LexError.LexError -> Lexer ()
+put_error :: LexError.Error -> Lexer ()
 put_error = lift . tell . (:[])
 
 one_or_more :: Lexer a -> Lexer [a]
@@ -259,7 +259,7 @@ case_lex_empty =
 
 lex_test :: (Location -> r) -> Text -> (r -> IO ()) -> IO ()
 lex_test fn input check = check $ fn $ Location.new $ File.new "a" input
-lex_test' :: Lexer r -> Text -> (Maybe (Location, [LexError.LexError], r) -> IO ()) -> IO ()
+lex_test' :: Lexer r -> Text -> (Maybe (Location, [LexError.Error], r) -> IO ()) -> IO ()
 lex_test' fn = lex_test (((\ ((r, loc), errs) -> (loc, errs, r)) <$>) . runWriterT . runStateT fn)
 lex_test_fail :: Show r => [Char] -> r -> IO a
 lex_test_fail fn_name res = assertFailure $ "'" ++ fn_name ++ "' lexed incorrectly: returned '" ++ show res ++ "'"

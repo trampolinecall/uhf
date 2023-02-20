@@ -30,7 +30,7 @@ lex f =
     where
         run toks =
             get >>= \ l ->
-            if Text.null $ remaining l
+            if at_end l
                 then pure toks
                 else lex_one_token >>= \ more -> run (toks <> more)
 -- lex_one_token {{{2
@@ -212,6 +212,12 @@ make_bad_char = consume (const True) >>= \ (Located sp c) -> put_error (LexError
 remaining :: Location -> Text
 remaining l = Text.drop (Location.loc_ind l) (File.contents $ Location.loc_file l)
 
+at_end :: Location -> Bool
+at_end l = Location.loc_ind l >= Text.length (File.contents $ Location.loc_file l)
+
+char_at :: Location -> Maybe Char
+char_at l = if at_end l then Nothing else Just $ Text.index (File.contents $ Location.loc_file l) (Location.loc_ind l)
+
 new_span_start_and_end :: Location -> Location -> Span
 -- start and end should be in the same file because the lex function never processes more than one file at a time
 new_span_start_and_end start end = Span.new start 0 (Location.loc_ind end - Location.loc_ind start)
@@ -225,9 +231,8 @@ choice (fn:fns) = StateT $ \ loc -> WriterT $
 
 consume :: (Char -> Bool) -> Lexer (Located Char)
 consume p = StateT $ \ loc -> WriterT $
-    case Text.uncons $ remaining loc of
-        Just (c, _)
-            | p c -> Just ((Located (Span.new loc 0 1) c, Location.seek 1 loc), [])
+    case char_at loc of
+        Just c | p c -> Just ((Located (Span.new loc 0 1) c, Location.seek 1 loc), [])
         _ -> Nothing
 
 get_loc :: Lexer Location

@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-unused-top-binds #-}
+
 module UHF.Diagnostic.Report.Style
     ( Style(..)
     , default_style

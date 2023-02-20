@@ -13,9 +13,10 @@ import System.Console.ANSI
 data Style
     = Style
         { file_path_color, error_color, warning_color, debug_message_color, note_color, hint_color :: [SGR]
-        , und_other_color :: [SGR]
+        , multiline_other_color :: [SGR]
 
         , msg_error_char, msg_warning_char, msg_note_char, msg_hint_char, msg_error_char_top, msg_warning_char_top, msg_note_char_top, msg_hint_char_top :: Char
+        , multiline_other_char, multiline_vertical_char, multiline_tr_char, multiline_bl_char :: Char
         , file_line_char, header_line_char, other_line_char :: Char
 
         , message_prefix_line, message_prefix_last :: Char
@@ -33,7 +34,7 @@ default_style = Style
     , note_color = [bold, fg_bgreen]
     , hint_color = [bold, fg_bblue]
 
-    , und_other_color = [bold]
+    , multiline_other_color = [bold]
 
     , msg_error_char = '^'
     , msg_warning_char = '^'
@@ -43,6 +44,10 @@ default_style = Style
     , msg_warning_char_top = 'v'
     , msg_note_char_top = '-'
     , msg_hint_char_top = '-'
+    , multiline_other_char = '-'
+    , multiline_vertical_char = '|'
+    , multiline_tr_char = '-'
+    , multiline_bl_char = '-'
     , file_line_char = '>'
     , header_line_char = '\\'
     , other_line_char = '|'
@@ -62,7 +67,7 @@ unicode_style = Style -- TODO
     , note_color = [bold, fg_bgreen]
     , hint_color = [bold, fg_bblue]
 
-    , und_other_color = [bold]
+    , multiline_other_color = [bold]
 
     -- TODO: connect underlines to messages
     , msg_error_char = '━'
@@ -73,6 +78,10 @@ unicode_style = Style -- TODO
     , msg_warning_char_top = '━'
     , msg_note_char_top = '─'
     , msg_hint_char_top = '─'
+    , multiline_other_char = '─'
+    , multiline_vertical_char = '│'
+    , multiline_tr_char = '╮'
+    , multiline_bl_char = '╰'
     , file_line_char = '╭'
     , header_line_char = '╞'
     , other_line_char = '│'

@@ -45,7 +45,7 @@ argparser =
                         <> help "when to print colors in diagnostics"
                     )
                 )
-            <*> pure DiagnosticSettings.Settings
+            <*> pure (DiagnosticSettings.Settings DiagnosticSettings.Unicode) -- TODO: put this in an argument
 
 main :: IO ()
 main =

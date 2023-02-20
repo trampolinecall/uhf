@@ -76,7 +76,7 @@ render style msgs =
 type RenderMessage = (Location.Location, Diagnostic.MessageType, Text)
 
 format_render_message :: Style.Style -> Bool -> RenderMessage -> FormattedString.FormattedString
-format_render_message style is_last (_, ty, text) = FormattedString.color_text (type_color ty style) (Text.pack [if is_last then Style.message_prefix_last style else Style.message_prefix_line style] <> Style.message_prefix style <> text)
+format_render_message style is_last (_, ty, text) = FormattedString.color_text (type_color ty style) (Text.pack [if is_last then Style.message_prefix_last style else Style.message_prefix_line style] <> Style.message_prefix style <> " " <> text)
 
 rm_start_col :: RenderMessage -> Int
 rm_start_col (loc, _, _) = Location.loc_col loc

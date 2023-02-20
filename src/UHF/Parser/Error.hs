@@ -25,6 +25,6 @@ instance Diagnostic.ToError (Location.Located [BacktrackingError]) where
             "parse error" -- TODO
             (map
                 (\ (BadToken _ tok expectation construct) ->
-                    Location.just_span tok `Diagnostic.msg_error` (convert_str construct <> " expects " <> format expectation <> " but got " <> format (Location.unlocate tok)))
+                    Location.just_span tok `Diagnostic.msg_error` (convert_str $ construct <> " expects " <> format expectation <> " but got " <> format (Location.unlocate tok)))
                 bits) -- TODO: make this better
             []

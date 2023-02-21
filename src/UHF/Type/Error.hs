@@ -3,7 +3,7 @@ module UHF.Type.Error (Error(..)) where
 import UHF.Util.Prelude
 
 import qualified Arena
-import qualified UHF.IR as IR
+import qualified UHF.HIR as HIR
 
 import qualified Data.Map as Map
 
@@ -121,7 +121,7 @@ instance Diagnostic.ToError Error where
             []
 
     to_error (OccursCheckError nominal_types vars span var_key ty) =
-        let var_as_type = IR.Type'Variable var_key
+        let var_as_type = HIR.Type'Variable var_key
 
             ((ty_printed, var_printed), var_names) =
                 run_var_namer $
@@ -145,18 +145,18 @@ instance Diagnostic.ToError Error where
 
 print_type :: Bool -> TypedWithVarsNominalTypeArena -> TypeVarArena -> TypeWithVars -> VarNamer Text -- TODO: since this already a monad, put the arenas and things into a reader level?
 -- TODO: construct an ast and print it
-print_type _ nominals _ (IR.Type'Nominal key) =
+print_type _ nominals _ (HIR.Type'Nominal key) =
     case Arena.get nominals key of
-        IR.NominalType'Data name _ -> pure name
-        IR.NominalType'Synonym name _ -> pure name
-print_type _ _ _ IR.Type'Int = pure "int"
-print_type _ _ _ IR.Type'Float = pure "float"
-print_type _ _ _ IR.Type'Char = pure "char"
-print_type _ _ _ IR.Type'String = pure "string"
-print_type _ _ _ IR.Type'Bool = pure "bool"
-print_type vars_show_index nominals vars (IR.Type'Function a r) = print_type vars_show_index nominals vars a >>= \ a -> print_type vars_show_index nominals vars r >>= \ r -> pure (a <> " -> " <> r) -- TODO: parentheses and grouping
-print_type vars_show_index nominals vars (IR.Type'Tuple a b) = print_type vars_show_index nominals vars a >>= \ a -> print_type vars_show_index nominals vars b >>= \ b -> pure ("(" <> a <> ", " <> b <> ")")
-print_type vars_show_index nominals vars (IR.Type'Variable var) =
+        HIR.NominalType'Data name _ -> pure name
+        HIR.NominalType'Synonym name _ -> pure name
+print_type _ _ _ HIR.Type'Int = pure "int"
+print_type _ _ _ HIR.Type'Float = pure "float"
+print_type _ _ _ HIR.Type'Char = pure "char"
+print_type _ _ _ HIR.Type'String = pure "string"
+print_type _ _ _ HIR.Type'Bool = pure "bool"
+print_type vars_show_index nominals vars (HIR.Type'Function a r) = print_type vars_show_index nominals vars a >>= \ a -> print_type vars_show_index nominals vars r >>= \ r -> pure (a <> " -> " <> r) -- TODO: parentheses and grouping
+print_type vars_show_index nominals vars (HIR.Type'Tuple a b) = print_type vars_show_index nominals vars a >>= \ a -> print_type vars_show_index nominals vars b >>= \ b -> pure ("(" <> a <> ", " <> b <> ")")
+print_type vars_show_index nominals vars (HIR.Type'Variable var) =
     case Arena.get vars var of
         TypeVar _ Fresh
             | vars_show_index -> name_var var

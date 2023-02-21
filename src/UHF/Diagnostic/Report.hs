@@ -30,12 +30,12 @@ instance ToDiagnostic Diagnostic.InternalError where
     to_diagnostic style (Diagnostic.InternalError sp main_message messages sections) = (FormattedString.color_text (Style.error_color style) "internal error", Nothing, Diagnostic.MsgError, sp, main_message, messages, sections)
 
 report :: ToDiagnostic d => Handle -> FormattedString.ColorsNeeded -> Settings.Settings -> d -> IO ()
-report handle c_needed (Settings.Settings report_style) d = -- TODO: use diagnostic settings
+report handle c_needed (Settings.Settings report_style) d =
     let style = case report_style of
             Settings.ASCII -> Style.default_style
             Settings.Unicode -> Style.unicode_style
 
-        (type_str, code_and_desc, main_message_type, m_sp, main_message, main_section, sections) = to_diagnostic style d -- TODO: use other styles
+        (type_str, code_and_desc, main_message_type, m_sp, main_message, main_section, sections) = to_diagnostic style d
         header =
             (case m_sp of
                 Just sp -> convert_str (FormattedString.color_text (Style.file_path_color style) (format $ Span.start sp)) <> ": "

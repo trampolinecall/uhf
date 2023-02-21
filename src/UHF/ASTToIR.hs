@@ -5,7 +5,7 @@ import UHF.Util.Prelude
 import qualified Arena
 
 import qualified UHF.AST as AST
-import qualified UHF.IR as IR
+import qualified UHF.HIR as HIR
 
 import UHF.IO.Span (Span)
 import UHF.IO.Located (Located (..))
@@ -61,43 +61,43 @@ instance Diagnostic.ToError Error where
 
     to_error (Tuple0 sp) = Diagnostic.Error Codes.tuple0 (Just sp) "tuple of 0 elements" [] []
 
-type Identifier = (IR.NameContext, [Located Text])
-type Decl = IR.Decl
-type Binding = IR.Binding Identifier TypeExpr () ()
-type NominalType = IR.NominalType TypeExpr
-type TypeExpr = IR.TypeExpr Identifier
-type Expr = IR.Expr Identifier TypeExpr () ()
-type Pattern = IR.Pattern Identifier ()
+type Identifier = (HIR.NameContext, [Located Text])
+type Decl = HIR.Decl
+type Binding = HIR.Binding Identifier TypeExpr () ()
+type NominalType = HIR.NominalType TypeExpr
+type TypeExpr = HIR.TypeExpr Identifier
+type Expr = HIR.Expr Identifier TypeExpr () ()
+type Pattern = HIR.Pattern Identifier ()
 
-type DeclArena = Arena.Arena Decl IR.DeclKey
-type BindingArena = Arena.Arena Binding IR.BindingKey
-type BoundValueArena = Arena.Arena (IR.BoundValue ()) IR.BoundValueKey
-type NominalTypeArena = Arena.Arena NominalType IR.NominalTypeKey
+type DeclArena = Arena.Arena Decl HIR.DeclKey
+type BindingArena = Arena.Arena Binding HIR.BindingKey
+type BoundValueArena = Arena.Arena (HIR.BoundValue ()) HIR.BoundValueKey
+type NominalTypeArena = Arena.Arena NominalType HIR.NominalTypeKey
 
-type DeclChildrenList = [(Text, DeclAt, IR.DeclKey)]
-type BoundValueList = [(Text, DeclAt, IR.BoundValueKey)]
+type DeclChildrenList = [(Text, DeclAt, HIR.DeclKey)]
+type BoundValueList = [(Text, DeclAt, HIR.BoundValueKey)]
 
 type MakeIRState = StateT (DeclArena, BindingArena, BoundValueArena, NominalTypeArena) (Writer [Error])
 
-new_decl :: Decl -> MakeIRState IR.DeclKey
+new_decl :: Decl -> MakeIRState HIR.DeclKey
 new_decl d =
     state $ \ (decls, bindings, bound_values, nominals) ->
         let (key, decls') = Arena.put d decls
         in (key, (decls', bindings, bound_values, nominals))
 
-new_binding :: Binding -> MakeIRState IR.BindingKey
+new_binding :: Binding -> MakeIRState HIR.BindingKey
 new_binding v =
     state $ \ (decls, bindings, bound_values, nominals) ->
         let (key, bindings') = Arena.put v bindings
         in (key, (decls, bindings', bound_values, nominals))
 
-new_bound_value :: Text -> Span -> MakeIRState IR.BoundValueKey
+new_bound_value :: Text -> Span -> MakeIRState HIR.BoundValueKey
 new_bound_value _ sp =
     state $ \ (decls, bindings, bound_values, nominals) ->
-        let (key, bound_values') = Arena.put (IR.BoundValue () sp) bound_values
+        let (key, bound_values') = Arena.put (HIR.BoundValue () sp) bound_values
         in (key, (decls, bindings, bound_values', nominals))
 
-new_nominal_type :: NominalType -> MakeIRState IR.NominalTypeKey
+new_nominal_type :: NominalType -> MakeIRState HIR.NominalTypeKey
 new_nominal_type nominal =
     state $ \ (decls, bindings, bound_values, nominals) ->
         let (key, nominals') = Arena.put nominal nominals
@@ -106,12 +106,12 @@ new_nominal_type nominal =
 tell_err :: Error -> MakeIRState ()
 tell_err = lift . tell . (:[])
 
-make_name_context :: DeclChildrenList -> BoundValueList -> Maybe IR.NameContext -> MakeIRState IR.NameContext
+make_name_context :: DeclChildrenList -> BoundValueList -> Maybe HIR.NameContext -> MakeIRState HIR.NameContext
 make_name_context decls bound_values parent =
     let decl_dups = find_dups decls
         bn_dups = find_dups bound_values
     in report_dups decl_dups >> report_dups bn_dups >>
-    pure (IR.NameContext (make_map decls) (make_map bound_values) parent)
+    pure (HIR.NameContext (make_map decls) (make_map bound_values) parent)
     where
         -- separate finding duplicates from making maps so that if there is a duplicate the whole name contexet doesnt just disappear
         -- duplicates will just take the last bound name in the last, because of the how Map.fromList is implemented
@@ -139,11 +139,11 @@ make_iden1_with_err make_err iden =
 
 primitive_decls :: MakeIRState DeclChildrenList
 primitive_decls =
-    new_decl (IR.Decl'Type IR.Type'Int) >>= \ int ->
-    new_decl (IR.Decl'Type IR.Type'Float) >>= \ float ->
-    new_decl (IR.Decl'Type IR.Type'Char) >>= \ char ->
-    new_decl (IR.Decl'Type IR.Type'String) >>= \ string ->
-    new_decl (IR.Decl'Type IR.Type'Bool) >>= \ bool ->
+    new_decl (HIR.Decl'Type HIR.Type'Int) >>= \ int ->
+    new_decl (HIR.Decl'Type HIR.Type'Float) >>= \ float ->
+    new_decl (HIR.Decl'Type HIR.Type'Char) >>= \ char ->
+    new_decl (HIR.Decl'Type HIR.Type'String) >>= \ string ->
+    new_decl (HIR.Decl'Type HIR.Type'Bool) >>= \ bool ->
     pure
         [ ("int", ImplicitPrim, int)
         , ("float", ImplicitPrim, float)
@@ -162,14 +162,14 @@ convert decls =
                     (
                         primitive_decls >>= \ primitive_decls ->
                         primitive_values >>= \ primitive_values ->
-                        IR.Decl'Module <$> convert_decls Nothing primitive_decls primitive_values decls >>= new_decl
+                        HIR.Decl'Module <$> convert_decls Nothing primitive_decls primitive_values decls >>= new_decl
                     )
                     (Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (_, (decls, bindings, bound_values, nominals)) ->
                 pure (decls, nominals, bindings, bound_values)
             )
     in Compiler.errors errs >> pure res
 
-convert_decls :: Maybe IR.NameContext -> DeclChildrenList -> BoundValueList -> [AST.Decl] -> MakeIRState IR.NameContext
+convert_decls :: Maybe HIR.NameContext -> DeclChildrenList -> BoundValueList -> [AST.Decl] -> MakeIRState HIR.NameContext
 convert_decls parent_context prev_decl_entries prev_bv_entries decls =
     mfix (\ final_name_context -> -- mfix needed because the name context to put the expressions into is this one
         List.unzip <$> mapM
@@ -177,17 +177,17 @@ convert_decls parent_context prev_decl_entries prev_bv_entries decls =
                 AST.Decl'Value target eq_sp expr ->
                     convert_expr final_name_context expr >>= \ expr' ->
                     convert_pattern target >>= \ (new_bound_values, target') ->
-                    new_binding (IR.Binding target' eq_sp expr') >>
+                    new_binding (HIR.Binding target' eq_sp expr') >>
                     pure ([], new_bound_values)
 
                 AST.Decl'Data name variants ->
                     runMaybeT (
                         iden1_for_type_name name >>= \ (Located name1sp name1) ->
-                        IR.NominalType'Data name1 <$> mapM (convert_variant final_name_context) variants >>= \ datatype ->
+                        HIR.NominalType'Data name1 <$> mapM (convert_variant final_name_context) variants >>= \ datatype ->
 
                         lift (new_nominal_type datatype) >>= \ nominal_type_key ->
                         -- TODO: add constructors to bound name table
-                        lift (new_decl (IR.Decl'Type $ IR.Type'Nominal nominal_type_key)) >>= \ decl_key ->
+                        lift (new_decl (HIR.Decl'Type $ HIR.Type'Nominal nominal_type_key)) >>= \ decl_key ->
 
                         pure (name1, DeclAt name1sp, decl_key)
                     ) >>= \ new_decl_entry ->
@@ -197,8 +197,8 @@ convert_decls parent_context prev_decl_entries prev_bv_entries decls =
                     runMaybeT (
                         lift (convert_type final_name_context expansion) >>= \ expansion' ->
                         iden1_for_type_name name >>= \ (Located name1sp name1) ->
-                        lift (new_nominal_type (IR.NominalType'Synonym name1 expansion')) >>= \ nominal_type_key ->
-                        lift (new_decl (IR.Decl'Type $ IR.Type'Nominal nominal_type_key)) >>= \ decl_key ->
+                        lift (new_nominal_type (HIR.NominalType'Synonym name1 expansion')) >>= \ nominal_type_key ->
+                        lift (new_decl (HIR.Decl'Type $ HIR.Type'Nominal nominal_type_key)) >>= \ decl_key ->
 
                         pure (name1, DeclAt name1sp, decl_key)
                     ) >>= \ new_decl_entry ->
@@ -211,10 +211,10 @@ convert_decls parent_context prev_decl_entries prev_bv_entries decls =
         iden1_for_type_name = MaybeT . make_iden1_with_err PathInTypeName
         iden1_for_field_name = MaybeT . make_iden1_with_err PathInFieldName
 
-        convert_variant name_context (AST.DataVariant'Anon name fields) = IR.DataVariant'Anon <$> (unlocate <$> iden1_for_variant_name name) <*> lift (mapM (convert_type name_context) fields)
+        convert_variant name_context (AST.DataVariant'Anon name fields) = HIR.DataVariant'Anon <$> (unlocate <$> iden1_for_variant_name name) <*> lift (mapM (convert_type name_context) fields)
         convert_variant name_context (AST.DataVariant'Named name fields) =
             -- TOOD: making getter functions
-            IR.DataVariant'Named
+            HIR.DataVariant'Named
                 <$> (unlocate <$> iden1_for_variant_name name)
                 <*> mapM
                     (\ (field_name, ty_ast) ->
@@ -223,54 +223,54 @@ convert_decls parent_context prev_decl_entries prev_bv_entries decls =
                             <*> lift (convert_type name_context ty_ast))
                     fields
 
-convert_type :: IR.NameContext -> AST.Type -> MakeIRState TypeExpr
-convert_type nc (AST.Type'Identifier id) = pure $ IR.TypeExpr'Identifier (just_span id) (nc, unlocate id)
+convert_type :: HIR.NameContext -> AST.Type -> MakeIRState TypeExpr
+convert_type nc (AST.Type'Identifier id) = pure $ HIR.TypeExpr'Identifier (just_span id) (nc, unlocate id)
 convert_type nc (AST.Type'Tuple sp items) = mapM (convert_type nc) items >>= group_items
     where
-        group_items [a, b] = pure $ IR.TypeExpr'Tuple a b
-        group_items (a:b:more) = IR.TypeExpr'Tuple a <$> group_items (b:more)
-        group_items [_] = tell_err (Tuple1 sp) >> pure (IR.TypeExpr'Poison sp)
-        group_items [] = tell_err (Tuple0 sp) >> pure (IR.TypeExpr'Poison sp)
+        group_items [a, b] = pure $ HIR.TypeExpr'Tuple a b
+        group_items (a:b:more) = HIR.TypeExpr'Tuple a <$> group_items (b:more)
+        group_items [_] = tell_err (Tuple1 sp) >> pure (HIR.TypeExpr'Poison sp)
+        group_items [] = tell_err (Tuple0 sp) >> pure (HIR.TypeExpr'Poison sp)
 
-convert_expr :: IR.NameContext -> AST.Expr -> MakeIRState Expr
-convert_expr nc (AST.Expr'Identifier iden) = pure $ IR.Expr'Identifier () (just_span iden) (nc, unlocate iden)
-convert_expr _ (AST.Expr'Char sp c) = pure $ IR.Expr'Char () sp c
-convert_expr _ (AST.Expr'String sp s) = pure $ IR.Expr'String () sp s
-convert_expr _ (AST.Expr'Int sp i) = pure $ IR.Expr'Int () sp i
-convert_expr _ (AST.Expr'Float sp f) = pure $ IR.Expr'Float () sp f
-convert_expr _ (AST.Expr'Bool sp b) = pure $ IR.Expr'Bool () sp b
+convert_expr :: HIR.NameContext -> AST.Expr -> MakeIRState Expr
+convert_expr nc (AST.Expr'Identifier iden) = pure $ HIR.Expr'Identifier () (just_span iden) (nc, unlocate iden)
+convert_expr _ (AST.Expr'Char sp c) = pure $ HIR.Expr'Char () sp c
+convert_expr _ (AST.Expr'String sp s) = pure $ HIR.Expr'String () sp s
+convert_expr _ (AST.Expr'Int sp i) = pure $ HIR.Expr'Int () sp i
+convert_expr _ (AST.Expr'Float sp f) = pure $ HIR.Expr'Float () sp f
+convert_expr _ (AST.Expr'Bool sp b) = pure $ HIR.Expr'Bool () sp b
 
 convert_expr parent_context (AST.Expr'Tuple sp items) =
     mapM (convert_expr parent_context) items >>= group_items
     where
-        group_items [a, b] = pure $ IR.Expr'Tuple () sp a b
-        group_items (a:b:more) = IR.Expr'Tuple () sp a <$> group_items (b:more) -- TODO: properly do span of b:more because this just takes the span of the whole thing
-        group_items [_] = tell_err (Tuple1 sp) >> pure (IR.Expr'Poison () sp)
-        group_items [] = tell_err (Tuple0 sp) >> pure (IR.Expr'Poison () sp)
+        group_items [a, b] = pure $ HIR.Expr'Tuple () sp a b
+        group_items (a:b:more) = HIR.Expr'Tuple () sp a <$> group_items (b:more) -- TODO: properly do span of b:more because this just takes the span of the whole thing
+        group_items [_] = tell_err (Tuple1 sp) >> pure (HIR.Expr'Poison () sp)
+        group_items [] = tell_err (Tuple0 sp) >> pure (HIR.Expr'Poison () sp)
 
 convert_expr parent_context (AST.Expr'Lambda sp params body) = convert_lambda parent_context params body
     where
         convert_lambda parent_context (param:more) body =
             convert_pattern param >>= \ (bound_value_list, param) ->
             make_name_context [] bound_value_list (Just parent_context) >>= \ lambda_nc ->
-            IR.Expr'Lambda () sp param <$> convert_lambda lambda_nc more body -- TODO: properly do spans of parts because this also just takes the whole span
+            HIR.Expr'Lambda () sp param <$> convert_lambda lambda_nc more body -- TODO: properly do spans of parts because this also just takes the whole span
 
         convert_lambda parent_context [] body = convert_expr parent_context body
 
 convert_expr parent_context (AST.Expr'Let sp decls subexpr) =
     convert_decls (Just parent_context) [] [] decls >>= \ let_context ->
-    IR.Expr'Let () sp <$> convert_expr let_context subexpr -- TODO: actually do sequentially because convert_decls does all at once
+    HIR.Expr'Let () sp <$> convert_expr let_context subexpr -- TODO: actually do sequentially because convert_decls does all at once
 convert_expr parent_context (AST.Expr'LetRec sp decls subexpr) =
     convert_decls (Just parent_context) [] [] decls >>= \ let_context ->
-    IR.Expr'LetRec () sp <$> convert_expr let_context subexpr
+    HIR.Expr'LetRec () sp <$> convert_expr let_context subexpr
 
-convert_expr parent_context (AST.Expr'BinaryOps sp first ops) = IR.Expr'BinaryOps () () sp <$> convert_expr parent_context first <*> mapM (\ (op, right) -> convert_expr parent_context right >>= \ right' -> pure ((parent_context, unlocate op), right')) ops
+convert_expr parent_context (AST.Expr'BinaryOps sp first ops) = HIR.Expr'BinaryOps () () sp <$> convert_expr parent_context first <*> mapM (\ (op, right) -> convert_expr parent_context right >>= \ right' -> pure ((parent_context, unlocate op), right')) ops
 
 convert_expr parent_context (AST.Expr'Call sp callee args) =
     convert_expr parent_context callee >>= \ callee ->
-    foldlM (\ callee arg -> IR.Expr'Call () sp callee <$> convert_expr parent_context arg) callee args
+    foldlM (\ callee arg -> HIR.Expr'Call () sp callee <$> convert_expr parent_context arg) callee args
 
-convert_expr parent_context (AST.Expr'If sp if_sp cond t f) = IR.Expr'If () sp if_sp <$> convert_expr parent_context cond <*> convert_expr parent_context t <*> convert_expr parent_context f
+convert_expr parent_context (AST.Expr'If sp if_sp cond t f) = HIR.Expr'If () sp if_sp <$> convert_expr parent_context cond <*> convert_expr parent_context t <*> convert_expr parent_context f
 convert_expr parent_context (AST.Expr'Case sp case_sp e arms) =
     convert_expr parent_context e >>= \ e ->
     mapM
@@ -281,34 +281,34 @@ convert_expr parent_context (AST.Expr'Case sp case_sp e arms) =
             pure (pat, choice))
         arms
         >>= \ arms ->
-    pure (IR.Expr'Case () sp case_sp e arms)
+    pure (HIR.Expr'Case () sp case_sp e arms)
 
-convert_expr nc (AST.Expr'TypeAnnotation sp ty e) = IR.Expr'TypeAnnotation () sp <$> convert_type nc ty <*> convert_expr nc e
+convert_expr nc (AST.Expr'TypeAnnotation sp ty e) = HIR.Expr'TypeAnnotation () sp <$> convert_type nc ty <*> convert_expr nc e
 
 convert_pattern :: AST.Pattern -> MakeIRState (BoundValueList, Pattern)
 convert_pattern (AST.Pattern'Identifier iden) =
     make_iden1_with_err PathInPattern iden >>= \case
         Just (Located name_sp name) ->
             new_bound_value name name_sp >>= \ bn ->
-            pure ([(name, DeclAt name_sp, bn)], IR.Pattern'Identifier () name_sp bn)
+            pure ([(name, DeclAt name_sp, bn)], HIR.Pattern'Identifier () name_sp bn)
 
-        Nothing -> pure ([], IR.Pattern'Poison () (just_span iden))
-convert_pattern (AST.Pattern'Wildcard sp) = pure ([], IR.Pattern'Wildcard () sp)
+        Nothing -> pure ([], HIR.Pattern'Poison () (just_span iden))
+convert_pattern (AST.Pattern'Wildcard sp) = pure ([], HIR.Pattern'Wildcard () sp)
 convert_pattern (AST.Pattern'Tuple sp subpats) =
     List.unzip <$> mapM convert_pattern subpats >>= \ (bound_values, subpats') ->
     go subpats' >>= \ subpats_grouped ->
     pure (concat bound_values, subpats_grouped)
     where
-        go [a, b] = pure $ IR.Pattern'Tuple () sp a b
-        go (a:b:more) = IR.Pattern'Tuple () sp a <$> go (b:more)
-        go [_] = tell_err (Tuple1 sp) >> pure (IR.Pattern'Poison () sp)
-        go [] = tell_err (Tuple0 sp) >> pure (IR.Pattern'Poison () sp)
+        go [a, b] = pure $ HIR.Pattern'Tuple () sp a b
+        go (a:b:more) = HIR.Pattern'Tuple () sp a <$> go (b:more)
+        go [_] = tell_err (Tuple1 sp) >> pure (HIR.Pattern'Poison () sp)
+        go [] = tell_err (Tuple0 sp) >> pure (HIR.Pattern'Poison () sp)
 convert_pattern (AST.Pattern'Named sp iden at_sp subpat) =
     convert_pattern subpat >>= \ (sub_bn, subpat') ->
     make_iden1_with_err PathInPattern iden >>= \case
         Just (Located name_sp name) ->
             new_bound_value name name_sp >>= \ bn ->
-            pure ((name, DeclAt name_sp, bn) : sub_bn, IR.Pattern'Named () sp at_sp (Located name_sp bn) subpat')
+            pure ((name, DeclAt name_sp, bn) : sub_bn, HIR.Pattern'Named () sp at_sp (Located name_sp bn) subpat')
 
         Nothing ->
-            pure ([], IR.Pattern'Poison () sp)
+            pure ([], HIR.Pattern'Poison () sp)

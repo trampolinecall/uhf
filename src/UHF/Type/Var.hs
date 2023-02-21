@@ -11,7 +11,7 @@ module UHF.Type.Var
 import UHF.Util.Prelude
 
 import qualified Arena
-import qualified UHF.IR as IR
+import qualified UHF.HIR as HIR
 
 import UHF.IO.Span (Span)
 
@@ -31,7 +31,7 @@ data TypeVarForWhat
     | PoisonPattern Span
     | TypeExpr Span
     | WildcardPattern Span
-data TypeVarState = Fresh | Substituted (IR.Type TypeVarKey)
+data TypeVarState = Fresh | Substituted (HIR.Type TypeVarKey)
 
 type_var_for_what_sp :: TypeVarForWhat -> Span
 type_var_for_what_sp (BoundValue sp) = sp

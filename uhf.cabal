@@ -13,6 +13,7 @@ build-type:     Simple
 library
   exposed-modules:
       Arena
+      UHF.ANFIR
       UHF.AST
       UHF.ASTToIR
       UHF.Compiler
@@ -28,6 +29,7 @@ library
       UHF.Diagnostic.Report.Utils
       UHF.Diagnostic.Settings
       UHF.Driver
+      UHF.HIR
       UHF.InfixGroup
       UHF.IO.File
       UHF.IO.FormattedString
@@ -36,7 +38,6 @@ library
       UHF.IO.Location.SpanHelper
       UHF.IO.Path
       UHF.IO.Span
-      UHF.IR
       UHF.Lexer
       UHF.Lexer.IdentifierGrouper
       UHF.Lexer.LexError

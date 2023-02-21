@@ -6,19 +6,20 @@ import qualified Arena
 
 import qualified Data.Text as Text
 
-import qualified UHF.IR as IR
+import qualified UHF.HIR as HIR
+import qualified UHF.ANFIR as ANFIR
 
-type Decl = IR.Decl
-type DeclArena = Arena.Arena Decl IR.DeclKey
+type Decl = HIR.Decl
+type DeclArena = Arena.Arena Decl HIR.DeclKey
 
-type Type = IR.Type Void
-type NominalType = IR.NominalType Type
-type GraphNode = IR.GraphNode Type Void
-type GraphParam = IR.GraphParam Type
+type Type = HIR.Type Void
+type NominalType = HIR.NominalType Type
+type GraphNode = ANFIR.Node Type Void
+type GraphParam = ANFIR.Param Type
 
-type NominalTypeArena = Arena.Arena NominalType IR.NominalTypeKey
-type GraphNodeArena = Arena.Arena GraphNode IR.GraphNodeKey
-type GraphParamArena = Arena.Arena GraphParam IR.GraphParamKey
+type NominalTypeArena = Arena.Arena NominalType HIR.NominalTypeKey
+type GraphNodeArena = Arena.Arena GraphNode ANFIR.NodeKey
+type GraphParamArena = Arena.Arena GraphParam ANFIR.ParamKey
 
 to_dot :: DeclArena -> NominalTypeArena -> GraphNodeArena -> GraphParamArena -> Text
 to_dot decls nominal_types nodes params =
@@ -32,10 +33,10 @@ to_dot decls nominal_types nodes params =
             tell "}\n"
         )
     where
-        node_key_to_dot_id :: IR.GraphNodeKey -> Text
+        node_key_to_dot_id :: ANFIR.NodeKey -> Text
         node_key_to_dot_id key = "node" <> show (Arena.unmake_key key)
 
-        param_key_to_dot_id :: IR.GraphParamKey -> Text
+        param_key_to_dot_id :: ANFIR.ParamKey -> Text
         param_key_to_dot_id key = "param" <> show (Arena.unmake_key key)
 
         print_param_node key _ =
@@ -45,22 +46,22 @@ to_dot decls nominal_types nodes params =
             let (name, graph_connections, param_connections) =
                     -- TODO: print types
                     case node of
-                        IR.GraphNode'Int _ i -> ("int: " <> show i, [], [])
-                        IR.GraphNode'Float _ f -> ("float: " <> show f, [], [])
-                        IR.GraphNode'Bool _ b -> ("bool: " <> show b, [], [])
-                        IR.GraphNode'Char _ c -> ("char: " <> show c, [], [])
-                        IR.GraphNode'String _ s -> ("string: \\\"" <> s <> "\\\"", [], [])
-                        IR.GraphNode'Tuple _ a b -> ("tuple", [("a", a), ("b", b)], [])
+                        ANFIR.Node'Int _ i -> ("int: " <> show i, [], [])
+                        ANFIR.Node'Float _ f -> ("float: " <> show f, [], [])
+                        ANFIR.Node'Bool _ b -> ("bool: " <> show b, [], [])
+                        ANFIR.Node'Char _ c -> ("char: " <> show c, [], [])
+                        ANFIR.Node'String _ s -> ("string: \\\"" <> s <> "\\\"", [], [])
+                        ANFIR.Node'Tuple _ a b -> ("tuple", [("a", a), ("b", b)], [])
 
-                        IR.GraphNode'Lambda _ param body -> ("lambda", [("body", body)], [("param", param)])
-                        IR.GraphNode'Param _ param -> ("param", [], [("p", param)])
+                        ANFIR.Node'Lambda _ param body -> ("lambda", [("body", body)], [("param", param)])
+                        ANFIR.Node'Param _ param -> ("param", [], [("p", param)])
 
-                        IR.GraphNode'Call _ callee arg -> ("call", [("callee", callee), ("arg", arg)], [])
+                        ANFIR.Node'Call _ callee arg -> ("call", [("callee", callee), ("arg", arg)], [])
 
-                        IR.GraphNode'TupleDestructure1 _ tup -> ("tuple destructure 1", [("tuple", tup)], [])
-                        IR.GraphNode'TupleDestructure2 _ tup -> ("tuple destructure 2", [("tuple", tup)], [])
+                        ANFIR.Node'TupleDestructure1 _ tup -> ("tuple destructure 1", [("tuple", tup)], [])
+                        ANFIR.Node'TupleDestructure2 _ tup -> ("tuple destructure 2", [("tuple", tup)], [])
 
-                        IR.GraphNode'Poison _ void -> absurd void
+                        ANFIR.Node'Poison _ void -> absurd void
 
                 make_port (name, _) = "<" <> name <> ">" <> name
                 ports = if null graph_connections && null param_connections

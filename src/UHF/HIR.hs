@@ -1,4 +1,4 @@
-module UHF.IR
+module UHF.HIR
     ( DeclKey
     , Decl(..)
 
@@ -22,12 +22,6 @@ module UHF.IR
     , pattern_type
     , expr_span
     , pattern_span
-
-    , GraphNodeKey
-    , GraphParamKey
-    , GraphParam(..)
-    , GraphNode(..)
-    , graph_node_type
     ) where
 
 import UHF.Util.Prelude
@@ -40,6 +34,7 @@ import UHF.IO.Span (Span)
 import UHF.IO.Located (Located)
 
 -- TODO: split this into separate modules
+-- TODO: figure out a way for ANFIR to use this type system without explicitly using the HIR module
 
 newtype DeclKey = DeclKey Int deriving Show
 instance Arena.Key DeclKey where
@@ -181,50 +176,3 @@ pattern_span (Pattern'Tuple _ sp _ _) = sp
 pattern_span (Pattern'Named _ sp _ _ _) = sp
 pattern_span (Pattern'Poison _ sp) = sp
 
-newtype GraphNodeKey = GraphNodeKey Int deriving (Show, Eq, Ord) -- TODO: figure out better solution in ts backend than to use ord instance
-instance Arena.Key GraphNodeKey where
-    make_key = GraphNodeKey
-    unmake_key (GraphNodeKey i) = i
-newtype GraphParamKey = GraphParamKey Int deriving (Show, Eq, Ord) -- TODO: figure out better solution in ts backend than to use ord instance for ordering parameters
-instance Arena.Key GraphParamKey where
-    make_key = GraphParamKey
-    unmake_key (GraphParamKey i) = i
-
-newtype GraphParam ty = GraphParam ty deriving Show
-
-data GraphNode ty poison_allowed
-    = GraphNode'Int ty Integer
-    | GraphNode'Float ty Rational
-    | GraphNode'Bool ty Bool
-    | GraphNode'Char ty Char
-    | GraphNode'String ty Text
-    | GraphNode'Tuple ty GraphNodeKey GraphNodeKey -- TODO: replace with call constructor node
-
-    | GraphNode'Lambda ty GraphParamKey GraphNodeKey
-    | GraphNode'Param ty GraphParamKey
-
-    | GraphNode'Call ty GraphNodeKey GraphNodeKey
-
-    | GraphNode'TupleDestructure1 ty GraphNodeKey -- TODO: figure out better solution to this (probably general destructure node for any type)
-    | GraphNode'TupleDestructure2 ty GraphNodeKey
-
-    | GraphNode'Poison ty poison_allowed
-    deriving Show
-
-graph_node_type :: GraphNode ty poison_allowed -> ty
-graph_node_type (GraphNode'Int ty _) = ty
-graph_node_type (GraphNode'Float ty _) = ty
-graph_node_type (GraphNode'Bool ty _) = ty
-graph_node_type (GraphNode'Char ty _) = ty
-graph_node_type (GraphNode'String ty _) = ty
-graph_node_type (GraphNode'Tuple ty _ _) = ty
-
-graph_node_type (GraphNode'Lambda ty _ _) = ty
-graph_node_type (GraphNode'Param ty _) = ty
-
-graph_node_type (GraphNode'Call ty _ _) = ty
-
-graph_node_type (GraphNode'TupleDestructure1 ty _) = ty
-graph_node_type (GraphNode'TupleDestructure2 ty _) = ty
-
-graph_node_type (GraphNode'Poison ty _) = ty

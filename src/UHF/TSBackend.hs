@@ -8,44 +8,45 @@ import qualified Data.Text as Text
 import qualified Data.Set as Set
 import qualified Data.FileEmbed as FileEmbed
 
-import qualified UHF.IR as IR
+import qualified UHF.HIR as HIR
+import qualified UHF.ANFIR as ANFIR
 
-type Decl = IR.Decl
-type DeclArena = Arena.Arena Decl IR.DeclKey
+type Decl = HIR.Decl
+type DeclArena = Arena.Arena Decl HIR.DeclKey
 
-type Type = IR.Type Void
-type NominalType = IR.NominalType Type
-type GraphNode = IR.GraphNode Type Void
-type GraphParam = IR.GraphParam Type
+type Type = HIR.Type Void
+type NominalType = HIR.NominalType Type
+type GraphNode = ANFIR.Node Type Void
+type GraphParam = ANFIR.Param Type
 
-type NominalTypeArena = Arena.Arena NominalType IR.NominalTypeKey
-type GraphNodeArena = Arena.Arena GraphNode IR.GraphNodeKey
-type GraphParamArena = Arena.Arena GraphParam IR.GraphParamKey
+type NominalTypeArena = Arena.Arena NominalType HIR.NominalTypeKey
+type GraphNodeArena = Arena.Arena GraphNode ANFIR.NodeKey
+type GraphParamArena = Arena.Arena GraphParam ANFIR.ParamKey
 
 -- TODO: refactor everything
 -- TODO: this actually does not work correctly like at all
 
 type IRReader = Reader (NominalTypeArena, GraphNodeArena, GraphParamArena)
 
-get_node :: IR.GraphNodeKey -> IRReader GraphNode
+get_node :: ANFIR.NodeKey -> IRReader GraphNode
 get_node k = reader (\ (_, a, _) -> Arena.get a k)
-get_param :: IR.GraphParamKey -> IRReader GraphParam
+get_param :: ANFIR.ParamKey -> IRReader GraphParam
 get_param k = reader (\ (_, _, a) -> Arena.get a k)
-get_nominal_type :: IR.NominalTypeKey -> IRReader NominalType
+get_nominal_type :: HIR.NominalTypeKey -> IRReader NominalType
 get_nominal_type k = reader (\ (a, _, _) -> Arena.get a k)
 
-node_type :: IR.GraphNodeKey -> IRReader Type
-node_type k = IR.graph_node_type <$> get_node k
+node_type :: ANFIR.NodeKey -> IRReader Type
+node_type k = ANFIR.node_type <$> get_node k
 
 -- TS things {{{1
 runtime_code :: Text
 runtime_code = $(FileEmbed.embedStringFile "data/ts_runtime.ts")
 
 data TSDecl
-data TSNominalType = TSNominalType'Data IR.NominalTypeKey Text -- TODO: actually implement variants and things
-data TSLambda = TSLambda IR.GraphNodeKey Type Type IR.GraphNodeKey -- TODO: captures
-data TSEvaluator = TSEvaluator IR.GraphNodeKey Type [(Text, Type)] Text
-data TSMakeThunkGraph = TSMakeThunkGraph IR.GraphNodeKey (Set IR.GraphNodeKey) (Set IR.GraphParamKey)
+data TSNominalType = TSNominalType'Data HIR.NominalTypeKey Text -- TODO: actually implement variants and things
+data TSLambda = TSLambda ANFIR.NodeKey Type Type ANFIR.NodeKey -- TODO: captures
+data TSEvaluator = TSEvaluator ANFIR.NodeKey Type [(Text, Type)] Text
+data TSMakeThunkGraph = TSMakeThunkGraph ANFIR.NodeKey (Set ANFIR.NodeKey) (Set ANFIR.ParamKey)
 data TS = TS [TSDecl] [TSNominalType] [TSMakeThunkGraph] [TSLambda] [TSEvaluator]
 
 instance Semigroup TS where
@@ -90,12 +91,12 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph main_key included_nodes included
         <> "    return " <> mangle_graph_node_as_local_thunk main_key <> ";\n"
         <> "}\n")
     where
-        mangle_graph_node_as_local_thunk, mangle_graph_node_as_local_evaluator :: IR.GraphNodeKey -> Text
+        mangle_graph_node_as_local_thunk, mangle_graph_node_as_local_evaluator :: ANFIR.NodeKey -> Text
         mangle_graph_node_as_local_thunk key = "thunk" <> show (Arena.unmake_key key)
         mangle_graph_node_as_local_evaluator key = "evaluator" <> show (Arena.unmake_key key)
 
         stringify_param param_key =
-            get_param param_key >>= \ (IR.GraphParam param_ty) ->
+            get_param param_key >>= \ (ANFIR.Param param_ty) ->
             refer_type param_ty >>= \ ty_refer ->
             pure ("param_" <> show (Arena.unmake_key param_key) <> ": " <> ty_refer)
 
@@ -107,42 +108,42 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph main_key included_nodes included
                 default_let_thunk = let_thunk ("new Thunk(" <> mangle_graph_node_as_local_evaluator node_key <> ")")
 
             in get_node node_key >>= \case
-                IR.GraphNode'Int _ _ -> pure [let_evaluator "", default_let_thunk]
-                IR.GraphNode'Float _ _ -> pure [let_evaluator "", default_let_thunk]
-                IR.GraphNode'Bool _ _ -> pure [let_evaluator "", default_let_thunk]
-                IR.GraphNode'Char _ _ -> pure [let_evaluator "", default_let_thunk]
-                IR.GraphNode'String _ _ -> pure [let_evaluator "", default_let_thunk]
-                IR.GraphNode'Tuple _ _ _ -> pure [let_evaluator "undefined, undefined", default_let_thunk]
+                ANFIR.Node'Int _ _ -> pure [let_evaluator "", default_let_thunk]
+                ANFIR.Node'Float _ _ -> pure [let_evaluator "", default_let_thunk]
+                ANFIR.Node'Bool _ _ -> pure [let_evaluator "", default_let_thunk]
+                ANFIR.Node'Char _ _ -> pure [let_evaluator "", default_let_thunk]
+                ANFIR.Node'String _ _ -> pure [let_evaluator "", default_let_thunk]
+                ANFIR.Node'Tuple _ _ _ -> pure [let_evaluator "undefined, undefined", default_let_thunk]
 
-                IR.GraphNode'Lambda _ _ _ -> pure [let_evaluator "", default_let_thunk] -- TODO: put captures here
-                IR.GraphNode'Param _ param_key -> pure [let_thunk $ "param_" <> show (Arena.unmake_key param_key)]
+                ANFIR.Node'Lambda _ _ _ -> pure [let_evaluator "", default_let_thunk] -- TODO: put captures here
+                ANFIR.Node'Param _ param_key -> pure [let_thunk $ "param_" <> show (Arena.unmake_key param_key)]
 
-                IR.GraphNode'Call _ _ _ -> pure [let_evaluator "undefined, undefined", default_let_thunk]
+                ANFIR.Node'Call _ _ _ -> pure [let_evaluator "undefined, undefined", default_let_thunk]
 
-                IR.GraphNode'TupleDestructure1 _ _ -> pure [let_evaluator "undefined", default_let_thunk]
-                IR.GraphNode'TupleDestructure2 _ _ -> pure [let_evaluator "undefined", default_let_thunk]
+                ANFIR.Node'TupleDestructure1 _ _ -> pure [let_evaluator "undefined", default_let_thunk]
+                ANFIR.Node'TupleDestructure2 _ _ -> pure [let_evaluator "undefined", default_let_thunk]
 
-                IR.GraphNode'Poison _ void -> absurd void
+                ANFIR.Node'Poison _ void -> absurd void
 
         stringify_node_set_fields node_key =
             let set_field field other_node = mangle_graph_node_as_local_evaluator node_key <> "." <> field <> " = " <> mangle_graph_node_as_local_thunk other_node <> ";"
             in get_node node_key >>= \case
-                IR.GraphNode'Int _ _ -> pure []
-                IR.GraphNode'Float _ _ -> pure []
-                IR.GraphNode'Bool _ _ -> pure []
-                IR.GraphNode'Char _ _ -> pure []
-                IR.GraphNode'String _ _ -> pure []
-                IR.GraphNode'Tuple _ a b -> pure [set_field "a" a, set_field "b" b]
+                ANFIR.Node'Int _ _ -> pure []
+                ANFIR.Node'Float _ _ -> pure []
+                ANFIR.Node'Bool _ _ -> pure []
+                ANFIR.Node'Char _ _ -> pure []
+                ANFIR.Node'String _ _ -> pure []
+                ANFIR.Node'Tuple _ a b -> pure [set_field "a" a, set_field "b" b]
 
-                IR.GraphNode'Lambda _ _ _ -> pure []
-                IR.GraphNode'Param _ _ -> pure []
+                ANFIR.Node'Lambda _ _ _ -> pure []
+                ANFIR.Node'Param _ _ -> pure []
 
-                IR.GraphNode'Call _ callee arg -> pure [set_field "callee" callee, set_field "arg" arg]
+                ANFIR.Node'Call _ callee arg -> pure [set_field "callee" callee, set_field "arg" arg]
 
-                IR.GraphNode'TupleDestructure1 _ tup -> pure [set_field "tup" tup]
-                IR.GraphNode'TupleDestructure2 _ tup -> pure [set_field "tup" tup]
+                ANFIR.Node'TupleDestructure1 _ tup -> pure [set_field "tup" tup]
+                ANFIR.Node'TupleDestructure2 _ tup -> pure [set_field "tup" tup]
 
-                IR.GraphNode'Poison _ void -> absurd void
+                ANFIR.Node'Poison _ void -> absurd void
 
 stringify_ts_lambda :: TSLambda -> IRReader Text
 stringify_ts_lambda (TSLambda key arg result body_key) =
@@ -166,22 +167,22 @@ stringify_ts_evaluator (TSEvaluator key ty fields evaluation) =
         <> "}\n")
 
 -- referring to types {{{2
-refer_type_raw :: IR.Type Void -> IRReader Text
-refer_type_raw (IR.Type'Nominal ntk) =
+refer_type_raw :: HIR.Type Void -> IRReader Text
+refer_type_raw (HIR.Type'Nominal ntk) =
     get_nominal_type ntk >>= \case
-        IR.NominalType'Data _ _ -> pure $ mangle_nominal_type ntk
-        IR.NominalType'Synonym _ expansion -> refer_type expansion
+        HIR.NominalType'Data _ _ -> pure $ mangle_nominal_type ntk
+        HIR.NominalType'Synonym _ expansion -> refer_type expansion
 
-refer_type_raw IR.Type'Int = pure "number"
-refer_type_raw IR.Type'Float = pure "number"
-refer_type_raw IR.Type'Char = pure "char"
-refer_type_raw IR.Type'String = pure "string"
-refer_type_raw IR.Type'Bool = pure "bool"
-refer_type_raw (IR.Type'Function a r) = refer_type a >>= \ a -> refer_type r >>= \ r -> pure ("Lambda<" <> a <> ", " <> r <> ">")
-refer_type_raw (IR.Type'Tuple a b) = refer_type a >>= \ a -> refer_type b >>= \ b -> pure ("[" <> a <> ", " <> b <> "]")
-refer_type_raw (IR.Type'Variable void) = absurd void
+refer_type_raw HIR.Type'Int = pure "number"
+refer_type_raw HIR.Type'Float = pure "number"
+refer_type_raw HIR.Type'Char = pure "char"
+refer_type_raw HIR.Type'String = pure "string"
+refer_type_raw HIR.Type'Bool = pure "bool"
+refer_type_raw (HIR.Type'Function a r) = refer_type a >>= \ a -> refer_type r >>= \ r -> pure ("Lambda<" <> a <> ", " <> r <> ">")
+refer_type_raw (HIR.Type'Tuple a b) = refer_type a >>= \ a -> refer_type b >>= \ b -> pure ("[" <> a <> ", " <> b <> "]")
+refer_type_raw (HIR.Type'Variable void) = absurd void
 
-refer_type :: IR.Type Void -> IRReader Text
+refer_type :: HIR.Type Void -> IRReader Text
 refer_type ty = refer_type_raw ty >>= \ ty -> pure ("Thunk<" <> ty <> ">")
 
 -- lowering {{{1
@@ -206,34 +207,34 @@ lower decls nominal_types nodes params =
         )
         (nominal_types, nodes, params)
 
-define_decl :: IR.DeclKey -> Decl -> TSWriter ()
-define_decl _ (IR.Decl'Module _) = pure ()
-define_decl _ (IR.Decl'Type _) = pure ()
+define_decl :: HIR.DeclKey -> Decl -> TSWriter ()
+define_decl _ (HIR.Decl'Module _) = pure ()
+define_decl _ (HIR.Decl'Type _) = pure ()
 
-define_nominal_type :: IR.NominalTypeKey -> NominalType -> TSWriter ()
-define_nominal_type key (IR.NominalType'Data name variants) = tell_nominal_type (TSNominalType'Data key name)
-define_nominal_type _ (IR.NominalType'Synonym _ _) = pure ()
+define_nominal_type :: HIR.NominalTypeKey -> NominalType -> TSWriter ()
+define_nominal_type key (HIR.NominalType'Data name variants) = tell_nominal_type (TSNominalType'Data key name)
+define_nominal_type _ (HIR.NominalType'Synonym _ _) = pure ()
 
-define_graph_node_evaluator :: IR.GraphNodeKey -> GraphNode -> TSWriter ()
-define_graph_node_evaluator key (IR.GraphNode'Int ty i) = tell_evaluator $ TSEvaluator key ty [] ("return " <> show i <> ";\n")
-define_graph_node_evaluator key (IR.GraphNode'Float ty (num :% denom)) = tell_evaluator $ TSEvaluator key ty [] ("return " <> show num <> " / " <> show denom <> ";\n")
-define_graph_node_evaluator key (IR.GraphNode'Bool ty b) = tell_evaluator $ TSEvaluator key ty [] ("return " <> (if b then "true" else "false") <> ";\n")
-define_graph_node_evaluator key (IR.GraphNode'Char ty c) = tell_evaluator $ TSEvaluator key ty [] ("return " <> show c <> ";\n")
-define_graph_node_evaluator key (IR.GraphNode'String ty s) = tell_evaluator $ TSEvaluator key ty [] ("return " <> show s <> ";\n")
-define_graph_node_evaluator key (IR.GraphNode'Tuple ty a b) =
+define_graph_node_evaluator :: ANFIR.NodeKey -> GraphNode -> TSWriter ()
+define_graph_node_evaluator key (ANFIR.Node'Int ty i) = tell_evaluator $ TSEvaluator key ty [] ("return " <> show i <> ";\n")
+define_graph_node_evaluator key (ANFIR.Node'Float ty (num :% denom)) = tell_evaluator $ TSEvaluator key ty [] ("return " <> show num <> " / " <> show denom <> ";\n")
+define_graph_node_evaluator key (ANFIR.Node'Bool ty b) = tell_evaluator $ TSEvaluator key ty [] ("return " <> (if b then "true" else "false") <> ";\n")
+define_graph_node_evaluator key (ANFIR.Node'Char ty c) = tell_evaluator $ TSEvaluator key ty [] ("return " <> show c <> ";\n")
+define_graph_node_evaluator key (ANFIR.Node'String ty s) = tell_evaluator $ TSEvaluator key ty [] ("return " <> show s <> ";\n")
+define_graph_node_evaluator key (ANFIR.Node'Tuple ty a b) =
     lift (node_type a) >>= \ a_ty ->
     lift (node_type b) >>= \ b_ty ->
     tell_evaluator $ TSEvaluator key ty [("a", a_ty), ("b", b_ty)] "return [this.a, this.b];\n"
 
-define_graph_node_evaluator key (IR.GraphNode'Lambda ty param body) = -- TODO: annotate with captures
-    lift (get_param param) >>= \ (IR.GraphParam param_ty) ->
+define_graph_node_evaluator key (ANFIR.Node'Lambda ty param body) = -- TODO: annotate with captures
+    lift (get_param param) >>= \ (ANFIR.Param param_ty) ->
     lift (node_type body) >>= \ body_type ->
     lift (get_included_nodes body) >>= \ (included_nodes, included_params) ->
     tell_make_thunk_graph (TSMakeThunkGraph body included_nodes included_params) >>
     tell_lambda (TSLambda key param_ty body_type body) >>
     tell_evaluator (TSEvaluator key ty [] ("return new " <> mangle_graph_node_as_lambda key <> "();\n")) -- TODO: captures
     where
-        get_included_nodes :: IR.GraphNodeKey -> IRReader (Set IR.GraphNodeKey, Set IR.GraphParamKey)
+        get_included_nodes :: ANFIR.NodeKey -> IRReader (Set ANFIR.NodeKey, Set ANFIR.ParamKey)
         get_included_nodes cur_node =
             runWriterT (runWriterT (get_included_nodes' cur_node)) >>= \ (((), nodes), params) ->
             pure (nodes, params)
@@ -242,45 +243,45 @@ define_graph_node_evaluator key (IR.GraphNode'Lambda ty param body) = -- TODO: a
             -- TODO: prevent infinite recursion
             tell (Set.singleton cur_node) >>
             lift (lift (get_node cur_node)) >>= \case
-                IR.GraphNode'Int _ _ -> pure ()
-                IR.GraphNode'Float _ _ -> pure ()
-                IR.GraphNode'Bool _ _ -> pure ()
-                IR.GraphNode'Char _ _ -> pure ()
-                IR.GraphNode'String _ _ -> pure ()
-                IR.GraphNode'Tuple _ a b -> get_included_nodes' a >> get_included_nodes' b
+                ANFIR.Node'Int _ _ -> pure ()
+                ANFIR.Node'Float _ _ -> pure ()
+                ANFIR.Node'Bool _ _ -> pure ()
+                ANFIR.Node'Char _ _ -> pure ()
+                ANFIR.Node'String _ _ -> pure ()
+                ANFIR.Node'Tuple _ a b -> get_included_nodes' a >> get_included_nodes' b
 
-                IR.GraphNode'Lambda _ _ _ -> pure () -- param of lambda is not referenced, and body is not turned into thunks here
-                IR.GraphNode'Param _ param -> lift $ tell (Set.singleton param)
+                ANFIR.Node'Lambda _ _ _ -> pure () -- param of lambda is not referenced, and body is not turned into thunks here
+                ANFIR.Node'Param _ param -> lift $ tell (Set.singleton param)
 
-                IR.GraphNode'Call _ callee arg -> get_included_nodes' callee >> get_included_nodes' arg
+                ANFIR.Node'Call _ callee arg -> get_included_nodes' callee >> get_included_nodes' arg
 
-                IR.GraphNode'TupleDestructure1 _ tup -> get_included_nodes' tup
-                IR.GraphNode'TupleDestructure2 _ tup -> get_included_nodes' tup
+                ANFIR.Node'TupleDestructure1 _ tup -> get_included_nodes' tup
+                ANFIR.Node'TupleDestructure2 _ tup -> get_included_nodes' tup
 
-                IR.GraphNode'Poison _ void -> absurd void
+                ANFIR.Node'Poison _ void -> absurd void
 
-define_graph_node_evaluator _ (IR.GraphNode'Param _ _) = pure () -- params do not get lowered and instead are replaced by lambda calls
+define_graph_node_evaluator _ (ANFIR.Node'Param _ _) = pure () -- params do not get lowered and instead are replaced by lambda calls
 
-define_graph_node_evaluator key (IR.GraphNode'Call ty callee arg) =
+define_graph_node_evaluator key (ANFIR.Node'Call ty callee arg) =
     lift (node_type callee) >>= \ callee_type ->
     lift (node_type arg) >>= \ arg_type ->
     tell_evaluator $ TSEvaluator key ty [("callee", callee_type), ("arg", arg_type)] "return this.callee.get_value().call(this.arg).get_value();\n"
 
-define_graph_node_evaluator key (IR.GraphNode'TupleDestructure1 ty tup) = lift (node_type tup) >>= \ tup_ty -> tell_evaluator $ TSEvaluator key ty [("tup", tup_ty)] "return this.tup.get_value()[0].get_value();\n"
-define_graph_node_evaluator key (IR.GraphNode'TupleDestructure2 ty tup) = lift (node_type tup) >>= \ tup_ty -> tell_evaluator $ TSEvaluator key ty [("tup", tup_ty)] "return this.tup.get_value()[1].get_value();\n"
+define_graph_node_evaluator key (ANFIR.Node'TupleDestructure1 ty tup) = lift (node_type tup) >>= \ tup_ty -> tell_evaluator $ TSEvaluator key ty [("tup", tup_ty)] "return this.tup.get_value()[0].get_value();\n"
+define_graph_node_evaluator key (ANFIR.Node'TupleDestructure2 ty tup) = lift (node_type tup) >>= \ tup_ty -> tell_evaluator $ TSEvaluator key ty [("tup", tup_ty)] "return this.tup.get_value()[1].get_value();\n"
 
-define_graph_node_evaluator _ (IR.GraphNode'Poison _ void) = absurd void
+define_graph_node_evaluator _ (ANFIR.Node'Poison _ void) = absurd void
 
 -- mangling {{{2
 -- TODO: better mangling and unified mangling for everything
-mangle_nominal_type :: IR.NominalTypeKey -> Text
+mangle_nominal_type :: HIR.NominalTypeKey -> Text
 mangle_nominal_type key = "NominalType" <> show (Arena.unmake_key key)
 
-mangle_graph_node_as_lambda :: IR.GraphNodeKey -> Text
+mangle_graph_node_as_lambda :: ANFIR.NodeKey -> Text
 mangle_graph_node_as_lambda key = "Lambda" <> show (Arena.unmake_key key)
 
-mangle_graph_node_as_make_thunk_graph :: IR.GraphNodeKey -> Text
+mangle_graph_node_as_make_thunk_graph :: ANFIR.NodeKey -> Text
 mangle_graph_node_as_make_thunk_graph key = "make_thunk_graph" <> show (Arena.unmake_key key)
 
-mangle_graph_node_as_evaluator :: IR.GraphNodeKey -> Text
+mangle_graph_node_as_evaluator :: ANFIR.NodeKey -> Text
 mangle_graph_node_as_evaluator key = "Evaluator" <> show (Arena.unmake_key key)

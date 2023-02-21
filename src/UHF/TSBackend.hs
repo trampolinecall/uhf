@@ -78,7 +78,7 @@ stringify_ts_nominal_type (TSNominalType'Data key name) =
 stringify_ts_make_thunk_graph :: TSMakeThunkGraph -> IRReader Text
 stringify_ts_make_thunk_graph (TSMakeThunkGraph main_key included_nodes included_params) =
     node_type main_key >>= refer_type >>= \ main_node_type ->
-    (mapM stringify_param (Set.toList included_params) :: IRReader [Text]) >>= \ params_stringified ->
+    mapM stringify_param (Set.toList included_params) >>= \ params_stringified ->
 
     concat <$> mapM stringify_node_decl (Set.toList included_nodes) >>= \ node_decls ->
     concat <$> mapM stringify_node_set_fields (Set.toList included_nodes) >>= \ node_set_fields ->

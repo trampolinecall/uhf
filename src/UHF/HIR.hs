@@ -40,7 +40,7 @@ instance Arena.Key DeclKey where
     make_key = DeclKey
     unmake_key (DeclKey i) = i
 data Decl identifier typeannotation typeinfo binaryopsallowed
-    = Decl'Module NameContext [Binding identifier typeannotation typeinfo binaryopsallowed]
+    = Decl'Module NameContext [Binding identifier typeannotation typeinfo binaryopsallowed] -- TODO: should this include nominal types too?
     | Decl'Type (Type Void)
     deriving Show
 

@@ -51,7 +51,8 @@ name_var var = state $
 
 data Error
     = EqError
-        { eq_error_nominal_types :: TypedWithVarsNominalTypeArena
+        { eq_error_adts :: TypedWithVarsADTArena
+        , eq_error_type_synonyms :: TypedWithVarsTypeSynonymArena
         , eq_error_vars :: TypeVarArena
         , eq_error_in_what :: EqInWhat
         , eq_error_span :: Span
@@ -61,7 +62,8 @@ data Error
         , eq_error_b_part :: TypeWithVars
         }
     | ExpectError
-        { expect_error_nominal_types :: TypedWithVarsNominalTypeArena
+        { expect_error_adts :: TypedWithVarsADTArena
+        , expect_error_type_synonyms :: TypedWithVarsTypeSynonymArena
         , expect_error_vars :: TypeVarArena
         , expect_error_in_what :: ExpectInWhat
         , expect_error_got_whole :: Located TypeWithVars
@@ -70,12 +72,12 @@ data Error
         , expect_error_expect_part :: TypeWithVars
         }
 
-    | OccursCheckError TypedWithVarsNominalTypeArena TypeVarArena Span TypeVarKey TypeWithVars
+    | OccursCheckError TypedWithVarsADTArena TypedWithVarsTypeSynonymArena TypeVarArena Span TypeVarKey TypeWithVars
 
     | AmbiguousType TypeVarForWhat
 
 instance Diagnostic.ToError Error where
-    to_error (EqError nominal_types vars in_what span a_whole b_whole a_part b_part) =
+    to_error (EqError adts type_synonyms vars in_what span a_whole b_whole a_part b_part) =
         let what = case in_what of
                 InAssignment -> "assignment"
                 InNamedPattern -> "named pattern"
@@ -85,10 +87,10 @@ instance Diagnostic.ToError Error where
 
             ((a_part_printed, b_part_printed, a_whole_printed, b_whole_printed), var_names) =
                 run_var_namer $ -- TODO: somehow make it so that this can be used without VarNamer
-                    print_type False nominal_types vars a_part >>= \ a_part_printed ->
-                    print_type False nominal_types vars b_part >>= \ b_part_printed ->
-                    print_type False nominal_types vars (unlocate a_whole) >>= \ a_whole_printed ->
-                    print_type False nominal_types vars (unlocate b_whole) >>= \ b_whole_printed ->
+                    print_type False adts type_synonyms vars a_part >>= \ a_part_printed ->
+                    print_type False adts type_synonyms vars b_part >>= \ b_part_printed ->
+                    print_type False adts type_synonyms vars (unlocate a_whole) >>= \ a_whole_printed ->
+                    print_type False adts type_synonyms vars (unlocate b_whole) >>= \ b_whole_printed ->
                     pure (a_part_printed, b_part_printed, a_whole_printed, b_whole_printed)
         in Diagnostic.Error Diagnostic.Codes.type_mismatch
             (Just span)
@@ -98,7 +100,7 @@ instance Diagnostic.ToError Error where
                 : make_var_name_messages vars var_names)
             []
 
-    to_error (ExpectError nominal_types vars in_what got_whole expect_whole got_part expect_part) =
+    to_error (ExpectError adts type_synonyms vars in_what got_whole expect_whole got_part expect_part) =
         let what = case in_what of
                 InTypeAnnotation -> "type annotation"
                 InIfCondition -> "'if' condition"
@@ -108,10 +110,10 @@ instance Diagnostic.ToError Error where
 
             ((expect_part_printed, got_part_printed, expect_whole_printed, got_whole_printed), var_names) =
                 run_var_namer $
-                    print_type False nominal_types vars expect_part >>= \ expect_part_printed ->
-                    print_type False nominal_types vars got_part >>= \ got_part_printed ->
-                    print_type False nominal_types vars expect_whole >>= \ expect_whole_printed ->
-                    print_type False nominal_types vars (unlocate got_whole) >>= \ got_whole_printed ->
+                    print_type False adts type_synonyms vars expect_part >>= \ expect_part_printed ->
+                    print_type False adts type_synonyms vars got_part >>= \ got_part_printed ->
+                    print_type False adts type_synonyms vars expect_whole >>= \ expect_whole_printed ->
+                    print_type False adts type_synonyms vars (unlocate got_whole) >>= \ got_whole_printed ->
                     pure (expect_part_printed, got_part_printed, expect_whole_printed, got_whole_printed)
 
         in Diagnostic.Error Diagnostic.Codes.type_mismatch -- TODO: change code?
@@ -120,13 +122,13 @@ instance Diagnostic.ToError Error where
             ((sp `Diagnostic.msg_note_at` convert_str ("expected '" <> expect_whole_printed <> "', got '" <> got_whole_printed <> "'")) : make_var_name_messages vars var_names)
             []
 
-    to_error (OccursCheckError nominal_types vars span var_key ty) =
+    to_error (OccursCheckError adts type_synonyms vars span var_key ty) =
         let var_as_type = HIR.Type'Variable var_key
 
             ((ty_printed, var_printed), var_names) =
                 run_var_namer $
-                    print_type True nominal_types vars ty >>= \ ty_printed ->
-                    print_type True nominal_types vars var_as_type >>= \ var_printed ->
+                    print_type True adts type_synonyms vars ty >>= \ ty_printed ->
+                    print_type True adts type_synonyms vars var_as_type >>= \ var_printed ->
                     pure (ty_printed, var_printed)
         in Diagnostic.Error Diagnostic.Codes.occurs_check
             (Just span)
@@ -143,23 +145,27 @@ instance Diagnostic.ToError Error where
                 []
                 []
 
-print_type :: Bool -> TypedWithVarsNominalTypeArena -> TypeVarArena -> TypeWithVars -> VarNamer Text -- TODO: since this already a monad, put the arenas and things into a reader monad?
+print_type :: Bool -> TypedWithVarsADTArena -> TypedWithVarsTypeSynonymArena ->TypeVarArena -> TypeWithVars -> VarNamer Text -- TODO: since this already a monad, put the arenas and things into a reader monad?
 -- TODO: construct an ast and print it
-print_type _ nominals _ (HIR.Type'Nominal key) =
-    case Arena.get nominals key of
-        HIR.NominalType'Data name _ -> pure name
-        HIR.NominalType'Synonym name _ -> pure name
-print_type _ _ _ HIR.Type'Int = pure "int"
-print_type _ _ _ HIR.Type'Float = pure "float"
-print_type _ _ _ HIR.Type'Char = pure "char"
-print_type _ _ _ HIR.Type'String = pure "string"
-print_type _ _ _ HIR.Type'Bool = pure "bool"
-print_type vars_show_index nominals vars (HIR.Type'Function a r) = print_type vars_show_index nominals vars a >>= \ a -> print_type vars_show_index nominals vars r >>= \ r -> pure (a <> " -> " <> r) -- TODO: parentheses and grouping
-print_type vars_show_index nominals vars (HIR.Type'Tuple a b) = print_type vars_show_index nominals vars a >>= \ a -> print_type vars_show_index nominals vars b >>= \ b -> pure ("(" <> a <> ", " <> b <> ")")
-print_type vars_show_index nominals vars (HIR.Type'Variable var) =
+print_type _ adts _ _ (HIR.Type'ADT key) =
+    case Arena.get adts key of
+        HIR.ADT name _ -> pure name
+
+print_type _ _ type_synonyms _ (HIR.Type'Synonym key) =
+    case Arena.get type_synonyms key of
+        HIR.TypeSynonym name _ -> pure name
+
+print_type _ _ _ _ HIR.Type'Int = pure "int"
+print_type _ _ _ _ HIR.Type'Float = pure "float"
+print_type _ _ _ _ HIR.Type'Char = pure "char"
+print_type _ _ _ _ HIR.Type'String = pure "string"
+print_type _ _ _ _ HIR.Type'Bool = pure "bool"
+print_type vars_show_index adts type_synonyms vars (HIR.Type'Function a r) = print_type vars_show_index adts type_synonyms vars a >>= \ a -> print_type vars_show_index adts type_synonyms vars r >>= \ r -> pure (a <> " -> " <> r) -- TODO: parentheses and grouping
+print_type vars_show_index adts type_synonyms vars (HIR.Type'Tuple a b) = print_type vars_show_index adts type_synonyms vars a >>= \ a -> print_type vars_show_index adts type_synonyms vars b >>= \ b -> pure ("(" <> a <> ", " <> b <> ")")
+print_type vars_show_index adts type_synonyms vars (HIR.Type'Variable var) =
     case Arena.get vars var of
         TypeVar _ Fresh
             | vars_show_index -> name_var var
             | otherwise -> pure "_"
-        TypeVar _ (Substituted other) -> print_type vars_show_index nominals vars other
+        TypeVar _ (Substituted other) -> print_type vars_show_index adts type_synonyms vars other
 

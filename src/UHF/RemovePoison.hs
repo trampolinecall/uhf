@@ -4,13 +4,10 @@ import UHF.Util.Prelude
 
 import qualified Arena
 
-import UHF.IO.Located (Located)
-
 import qualified UHF.HIR as HIR
 import qualified UHF.ANFIR as ANFIR
 
--- TODO: same todo as in ToDot and TSBackend
-type Decl = HIR.Decl (Located (Maybe HIR.BoundValueKey)) (Maybe (HIR.Type Void)) (Maybe (HIR.Type Void)) Void
+type Decl = ANFIR.Decl
 type DeclArena = Arena.Arena Decl HIR.DeclKey
 
 type PoisonedType = Maybe (HIR.Type Void)
@@ -60,7 +57,7 @@ rp_graph_node (ANFIR.Node'Char ty c) = ty >>= \ ty -> pure (ANFIR.Node'Char ty c
 rp_graph_node (ANFIR.Node'String ty t) = ty >>= \ ty -> pure (ANFIR.Node'String ty t)
 rp_graph_node (ANFIR.Node'Tuple ty a b) = ty >>= \ ty -> pure (ANFIR.Node'Tuple ty a b)
 
-rp_graph_node (ANFIR.Node'Lambda ty a r) = ty >>= \ ty -> pure (ANFIR.Node'Lambda ty a r)
+rp_graph_node (ANFIR.Node'Lambda ty a i b) = ty >>= \ ty -> pure (ANFIR.Node'Lambda ty a i b)
 rp_graph_node (ANFIR.Node'Param ty p) = ty >>= \ ty -> pure (ANFIR.Node'Param ty p)
 
 rp_graph_node (ANFIR.Node'Call ty c a) = ty >>= \ ty -> pure (ANFIR.Node'Call ty c a)

@@ -66,7 +66,8 @@ argparser =
                     (long "diagnostic-format"
                         <> metavar "FORMAT"
                         <> value DiagnosticSettings.Unicode
-                        <> help "The format to output diagnostics")
+                        <> help "The format to output diagnostics"
+                    )
                 )
 
 main :: IO ()

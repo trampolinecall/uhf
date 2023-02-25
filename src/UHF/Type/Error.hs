@@ -143,7 +143,7 @@ instance Diagnostic.ToError Error where
                 []
                 []
 
-print_type :: Bool -> TypedWithVarsNominalTypeArena -> TypeVarArena -> TypeWithVars -> VarNamer Text -- TODO: since this already a monad, put the arenas and things into a reader level?
+print_type :: Bool -> TypedWithVarsNominalTypeArena -> TypeVarArena -> TypeWithVars -> VarNamer Text -- TODO: since this already a monad, put the arenas and things into a reader monad?
 -- TODO: construct an ast and print it
 print_type _ nominals _ (HIR.Type'Nominal key) =
     case Arena.get nominals key of

@@ -199,10 +199,9 @@ lower decls nominal_types nodes params =
     runReader
         (
             runWriterT (
-                Arena.transform_with_keyM define_decl decls >>
+                Arena.transform_with_keyM define_decl decls >> -- TODO: pass module instead of doing this
                 Arena.transform_with_keyM define_nominal_type nominal_types >>
                 Arena.transform_with_keyM define_lambda_type nodes >>
-                -- TODO: probably move collect involved nodes outside of define_lambda_type, also have to store global nodes in main module, tell_make_thunk_graph (TSMakeThunkGraph Globals global_nodes Set.empty) -- global thunk graph does not have any params
                 pure ()
             ) >>= \ ((), TS ts_decls ts_nominal_types ts_make_thunk_graphs ts_lambdas) ->
 
@@ -216,7 +215,7 @@ lower decls nominal_types nodes params =
         (nominal_types, nodes, params)
 
 define_decl :: HIR.DeclKey -> Decl -> TSWriter ()
-define_decl _ (ANFIR.Decl'Module _) = pure () -- TODO: make global thunk graph
+define_decl _ (ANFIR.Decl'Module global_nodes) = tell_make_thunk_graph (TSMakeThunkGraph Globals global_nodes []) -- global thunk graph does not have any params
 define_decl _ (ANFIR.Decl'Type _) = pure ()
 
 define_nominal_type :: HIR.NominalTypeKey -> NominalType -> TSWriter ()

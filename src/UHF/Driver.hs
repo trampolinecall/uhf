@@ -62,7 +62,7 @@ compile c_needed diagnostic_settings compile_options =
     Compiler.run_compiler (front file >>= \ ast -> analysis ast >>= \ ir -> pure (ast, ir)) c_needed diagnostic_settings >>= \case
         Just (ast, Just ir) ->
             (if AST `elem` output_formats compile_options -- TODO: should outputting ast skip anaylsis?
-                then todo
+                then todo -- TODO
                 else pure ()) >>
             (if Dot `elem` output_formats compile_options
                 then write_output_file "dot" (to_dot ir)

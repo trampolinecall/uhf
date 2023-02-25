@@ -11,7 +11,7 @@ import qualified UHF.Driver as Driver
 import qualified UHF.IO.FormattedString as FormattedString
 import qualified UHF.Diagnostic.Settings as DiagnosticSettings
 
-data Args = Args [FilePath] FormattedString.ColorsNeeded DiagnosticSettings.Settings
+data Args = Args Driver.CompileOptions FormattedString.ColorsNeeded DiagnosticSettings.Settings
 
 argparser :: ParserInfo Args
 argparser =
@@ -22,11 +22,27 @@ argparser =
         )
     where
         args = Args
-            <$> some (
-                    argument str
-                        ( metavar "FILES..."
-                        <> help "files to compile"
+            <$> (Driver.CompileOptions
+                    <$> argument str
+                            (metavar "FILE"
+                                <> help "The module to compile"
+                            )
+                    <*> optional (strOption
+                            (long "module-name"
+                                <> metavar "MODULENAME"
+                                <> help "The name of the current module"
+                            )
                         )
+                    <*> (fromMaybe [Driver.TS] <$> optional (some (option
+                            (eitherReader $ \case
+                                "ast" -> Right Driver.AST
+                                "dot" -> Right Driver.Dot
+                                "ts" -> Right Driver.TS
+                                _ -> Left "invalid option: must one of 'ast', 'dot', or 'ts'")
+                            (long "output-format"
+                                <> metavar "FORMAT"
+                                <> help "The types of output to emit")
+                        )))
                 )
             <*> (option
                     (eitherReader $ \case
@@ -38,15 +54,24 @@ argparser =
                     (long "colors"
                         <> metavar "COLORS"
                         <> value FormattedString.AutoDetect
-                        <> help "when to print colors in diagnostics"
+                        <> help "When to print colors in diagnostics"
                     )
                 )
-            <*> pure (DiagnosticSettings.Settings DiagnosticSettings.Unicode) -- TODO: put this in an argument
+            <*> (DiagnosticSettings.Settings <$> option
+                    (eitherReader $ \case
+                        "original-ascii" -> Right DiagnosticSettings.ASCII
+                        "original-unicode" -> Right DiagnosticSettings.Unicode
+                        _ -> Left "invalid option: must be one of 'original-ascii' or 'original-unicode'"
+                    )
+                    (long "diagnostic-format"
+                        <> metavar "FORMAT"
+                        <> value DiagnosticSettings.Unicode
+                        <> help "The format to output diagnostics")
+                )
 
 main :: IO ()
 main =
-    execParser argparser >>= \ (Args files c_needed diagnostic_settings) ->
-    mapM (Driver.compile c_needed diagnostic_settings) files >>= \ results ->
-    if any isLeft results
-       then exitFailure
-       else pure ()
+    execParser argparser >>= \ (Args compile_opts c_needed diagnostic_settings) ->
+    Driver.compile c_needed diagnostic_settings compile_opts >>= \case
+        Right () -> pure ()
+        Left () -> exitFailure

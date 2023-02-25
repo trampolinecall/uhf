@@ -5,7 +5,6 @@ module UHF.IO.File
 
     , new
     , open
-    , write -- TODO: use when writing output file
     ) where
 
 import UHF.Util.Prelude hiding (show)
@@ -35,7 +34,3 @@ new path contents =
 
 open :: FilePath -> IO File
 open path = Text.IO.readFile path >>= \ contents -> new path contents
-
-write :: File -> IO ()
-write f = Text.IO.writeFile (path f) (contents f)
-

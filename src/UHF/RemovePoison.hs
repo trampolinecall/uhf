@@ -11,43 +11,50 @@ type Decl = ANFIR.Decl
 type DeclArena = Arena.Arena Decl HIR.DeclKey
 
 type PoisonedType = Maybe (HIR.Type Void)
-type PoisonedNominalType = HIR.NominalType PoisonedType
+type PoisonedADT = HIR.ADT PoisonedType
+type PoisonedTypeSynonym = HIR.TypeSynonym PoisonedType
 type PoisonedGraphNode = ANFIR.Node PoisonedType ()
 type PoisonedGraphParam = ANFIR.Param PoisonedType
 type PoisonedBoundValue = HIR.BoundValue PoisonedType
 
-type PoisonedNominalTypeArena = Arena.Arena PoisonedNominalType HIR.NominalTypeKey
+type PoisonedADTArena = Arena.Arena PoisonedADT HIR.ADTKey
+type PoisonedTypeSynonymArena = Arena.Arena PoisonedTypeSynonym HIR.TypeSynonymKey
 type PoisonedGraphNodeArena = Arena.Arena PoisonedGraphNode ANFIR.NodeKey
 type PoisonedGraphParamArena = Arena.Arena PoisonedGraphParam ANFIR.ParamKey
 type PoisonedBoundValueArena = Arena.Arena PoisonedBoundValue HIR.BoundValueKey
 
 type NoPoisonType = HIR.Type Void
-type NoPoisonNominalType = HIR.NominalType NoPoisonType
+type NoPoisonADT = HIR.ADT NoPoisonType
+type NoPoisonTypeSynonym = HIR.TypeSynonym NoPoisonType
 type NoPoisonGraphNode = ANFIR.Node NoPoisonType Void
 type NoPoisonGraphParam = ANFIR.Param NoPoisonType
 type NoPoisonBoundValue = HIR.BoundValue NoPoisonType
 
-type NoPoisonNominalTypeArena = Arena.Arena NoPoisonNominalType HIR.NominalTypeKey
+type NoPoisonADTArena = Arena.Arena NoPoisonADT HIR.ADTKey
+type NoPoisonTypeSynonymArena = Arena.Arena NoPoisonTypeSynonym HIR.TypeSynonymKey
 type NoPoisonGraphNodeArena = Arena.Arena NoPoisonGraphNode ANFIR.NodeKey
 type NoPoisonGraphParamArena = Arena.Arena NoPoisonGraphParam ANFIR.ParamKey
 type NoPoisonBoundValueArena = Arena.Arena NoPoisonBoundValue HIR.BoundValueKey
-remove_poison :: (DeclArena, PoisonedNominalTypeArena, PoisonedGraphNodeArena, PoisonedGraphParamArena, PoisonedBoundValueArena) -> Maybe (DeclArena, NoPoisonNominalTypeArena, NoPoisonGraphNodeArena, NoPoisonGraphParamArena, NoPoisonBoundValueArena)
+remove_poison :: (DeclArena, PoisonedADTArena, PoisonedTypeSynonymArena, PoisonedGraphNodeArena, PoisonedGraphParamArena, PoisonedBoundValueArena) -> Maybe (DeclArena, NoPoisonADTArena, NoPoisonTypeSynonymArena, NoPoisonGraphNodeArena, NoPoisonGraphParamArena, NoPoisonBoundValueArena)
 -- TODO: probably dont pass DeclArena if it is not going to be changed
-remove_poison (decls, nominal_types, graph_nodes, graph_params, bound_values) =
-    (decls,,,,)
-        <$> Arena.transformM rp_nominal_type nominal_types
+remove_poison (decls, adts, type_synonyms, graph_nodes, graph_params, bound_values) =
+    (decls,,,,,)
+        <$> Arena.transformM rp_adt adts
+        <*> Arena.transformM rp_type_synonym type_synonyms
         <*> Arena.transformM rp_graph_node graph_nodes
         <*> Arena.transformM rp_graph_param graph_params
         <*> Arena.transformM rp_bound_value bound_values
 
 -- rp short for remove poison
 
-rp_nominal_type :: PoisonedNominalType -> Maybe NoPoisonNominalType
-rp_nominal_type (HIR.NominalType'Data name variants) = HIR.NominalType'Data name <$> mapM rp_variant variants
+rp_adt :: PoisonedADT -> Maybe NoPoisonADT
+rp_adt (HIR.ADT name variants) = HIR.ADT name <$> mapM rp_variant variants
     where
-        rp_variant (HIR.DataVariant'Named name fields) = HIR.DataVariant'Named name <$> mapM (\ (field_name, field_ty) -> (field_name,) <$> field_ty) fields
-        rp_variant (HIR.DataVariant'Anon name fields) = HIR.DataVariant'Anon name <$> sequence fields
-rp_nominal_type (HIR.NominalType'Synonym name expansion) = HIR.NominalType'Synonym name <$> expansion
+        rp_variant (HIR.ADTVariant'Named name fields) = HIR.ADTVariant'Named name <$> mapM (\ (field_name, field_ty) -> (field_name,) <$> field_ty) fields
+        rp_variant (HIR.ADTVariant'Anon name fields) = HIR.ADTVariant'Anon name <$> sequence fields
+
+rp_type_synonym :: PoisonedTypeSynonym -> Maybe NoPoisonTypeSynonym
+rp_type_synonym (HIR.TypeSynonym name expansion) = HIR.TypeSynonym name <$> expansion
 
 rp_graph_node :: PoisonedGraphNode -> Maybe NoPoisonGraphNode
 rp_graph_node (ANFIR.Node'Int ty i) = ty >>= \ ty -> pure (ANFIR.Node'Int ty i)

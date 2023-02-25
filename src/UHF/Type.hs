@@ -25,36 +25,39 @@ new_type_variable for_what =
         Arena.put (TypeVar for_what Fresh) type_vars
 
 -- also does type inference
-typecheck :: (UntypedDeclArena, UntypedNominalTypeArena, UntypedBoundValueArena) -> Compiler.Compiler (TypedDeclArena, TypedNominalTypeArena, TypedBoundValueArena)
-typecheck (decls, nominal_types, bound_values) =
+typecheck :: (UntypedDeclArena, UntypedADTArena, UntypedTypeSynonymArena, UntypedBoundValueArena) -> Compiler.Compiler (TypedDeclArena, TypedADTArena, TypedTypeSynonymArena, TypedBoundValueArena)
+typecheck (decls, adts, type_synonyms, bound_values) =
     let (res, errs) =
             runWriter (
                 runStateT
                     (
-                        Arena.transformM (convert_type_exprs_in_nominal_types decls) nominal_types >>= \ nominal_types ->
+                        Arena.transformM (convert_type_exprs_in_adts decls) adts >>= \ adts ->
+                        Arena.transformM (convert_type_exprs_in_type_synonyms decls) type_synonyms >>= \ type_synonyms ->
                         Arena.transformM assign_type_variable_to_bound_value bound_values >>= \ bound_values ->
                         runWriterT (Arena.transformM (collect_constraints decls bound_values) decls) >>= \ (decls, constraints) ->
-                        solve_constraints nominal_types constraints >>
-                        pure (decls, nominal_types, bound_values)
+                        solve_constraints adts type_synonyms constraints >>
+                        pure (decls, adts, type_synonyms, bound_values)
                     )
-                    Arena.new >>= \ ((decls, nominal_types, bound_values), vars) ->
+                    Arena.new >>= \ ((decls, adts, type_synonyms, bound_values), vars) ->
 
                 convert_vars vars >>= \ vars ->
                 let decls' = Arena.transform (remove_vars_from_decl vars) decls
-                    nominal_types' = Arena.transform (remove_vars_from_nominal_type vars) nominal_types
+                    adts' = Arena.transform (remove_vars_from_adt vars) adts
+                    type_synonyms' = Arena.transform (remove_vars_from_type_synonym vars) type_synonyms
                     bound_values' = Arena.transform (remove_vars_from_bound_value vars) bound_values
                 in
-                pure (decls', nominal_types', bound_values')
+                pure (decls', adts', type_synonyms', bound_values')
             )
     in Compiler.errors errs >> pure res
 
-convert_type_exprs_in_nominal_types :: UntypedDeclArena -> UntypedNominalType -> StateWithVars TypedWithVarsNominalType
-convert_type_exprs_in_nominal_types decls (HIR.NominalType'Data name variants) = HIR.NominalType'Data name <$> mapM (convert_variant decls) variants
+convert_type_exprs_in_adts :: UntypedDeclArena -> UntypedADT -> StateWithVars TypedWithVarsADT
+convert_type_exprs_in_adts decls (HIR.ADT name variants) = HIR.ADT name <$> mapM (convert_variant decls) variants
     where
-        convert_variant decls (HIR.DataVariant'Named name fields) = HIR.DataVariant'Named name <$> mapM (\ (name, ty) -> (,) name <$> convert_type_expr decls ty) fields
-        convert_variant decls (HIR.DataVariant'Anon name fields) = HIR.DataVariant'Anon name <$> mapM (convert_type_expr decls) fields
+        convert_variant decls (HIR.ADTVariant'Named name fields) = HIR.ADTVariant'Named name <$> mapM (\ (name, ty) -> (,) name <$> convert_type_expr decls ty) fields
+        convert_variant decls (HIR.ADTVariant'Anon name fields) = HIR.ADTVariant'Anon name <$> mapM (convert_type_expr decls) fields
 
-convert_type_exprs_in_nominal_types decls (HIR.NominalType'Synonym name expansion) = HIR.NominalType'Synonym name <$> convert_type_expr decls expansion
+convert_type_exprs_in_type_synonyms :: UntypedDeclArena -> UntypedTypeSynonym -> StateWithVars TypedWithVarsTypeSynonym
+convert_type_exprs_in_type_synonyms decls (HIR.TypeSynonym name expansion) = HIR.TypeSynonym name <$> convert_type_expr decls expansion
 
 convert_type_expr :: UntypedDeclArena -> TypeExpr -> StateWithVars TypeWithVars
 convert_type_expr decls (HIR.TypeExpr'Identifier sp iden) =
@@ -65,7 +68,8 @@ convert_type_expr decls (HIR.TypeExpr'Identifier sp iden) =
         Nothing -> HIR.Type'Variable <$> new_type_variable (TypeExpr sp)
     where
         -- basically useless function for converting Type Void to Type TypeVarKey
-        void_var_to_key (HIR.Type'Nominal k) = HIR.Type'Nominal k
+        void_var_to_key (HIR.Type'ADT k) = HIR.Type'ADT k
+        void_var_to_key (HIR.Type'Synonym k) = HIR.Type'Synonym k
         void_var_to_key HIR.Type'Int = HIR.Type'Int
         void_var_to_key HIR.Type'Float = HIR.Type'Float
         void_var_to_key HIR.Type'Char = HIR.Type'Char
@@ -205,8 +209,8 @@ collect_constraints decls bna (HIR.Decl'Module nc bindings) = HIR.Decl'Module nc
             tell [Expect InTypeAnnotation (loc_expr_type e) annotation] >> -- TODO: use annotation span
             pure (HIR.Expr'TypeAnnotation annotation sp annotation e)
 
-solve_constraints :: TypedWithVarsNominalTypeArena -> [Constraint] -> StateWithVars ()
-solve_constraints nominal_types = mapM_ solve
+solve_constraints :: TypedWithVarsADTArena -> TypedWithVarsTypeSynonymArena -> [Constraint] -> StateWithVars ()
+solve_constraints adts type_synonyms = mapM_ solve
     where
         -- TODO: figure out how to gracefully handle errors because the type variables become ambiguous if they cant be unified
         solve :: Constraint -> StateWithVars ()
@@ -216,12 +220,12 @@ solve_constraints nominal_types = mapM_ solve
 
                 Left (Left (a_part, b_part)) -> -- mismatch error
                     get >>= \ vars ->
-                    lift (tell [EqError { eq_error_nominal_types = nominal_types, eq_error_vars = vars, eq_error_in_what = in_what, eq_error_span = sp, eq_error_a_whole = a, eq_error_b_whole = b, eq_error_a_part = a_part, eq_error_b_part = b_part }]) >>
+                    lift (tell [EqError { eq_error_adts = adts, eq_error_type_synonyms = type_synonyms, eq_error_vars = vars, eq_error_in_what = in_what, eq_error_span = sp, eq_error_a_whole = a, eq_error_b_whole = b, eq_error_a_part = a_part, eq_error_b_part = b_part }]) >>
                     pure ()
 
                 Left (Right (var, ty)) -> -- occurs check failure
                     get >>= \ vars ->
-                    lift (tell [OccursCheckError nominal_types vars sp var ty ]) >>
+                    lift (tell [OccursCheckError adts type_synonyms vars sp var ty ]) >>
                     pure ()
 
         solve (Expect in_what got expect) =
@@ -230,23 +234,26 @@ solve_constraints nominal_types = mapM_ solve
 
                 Left (Left (got_part, expect_part)) -> -- mismatch error
                     get >>= \ vars ->
-                    lift (tell [ExpectError { expect_error_nominal_types = nominal_types, expect_error_vars = vars, expect_error_in_what = in_what, expect_error_got_whole = got, expect_error_expect_whole = expect, expect_error_got_part = got_part, expect_error_expect_part = expect_part }]) >>
+                    lift (tell [ExpectError { expect_error_adts = adts, expect_error_type_synonyms = type_synonyms, expect_error_vars = vars, expect_error_in_what = in_what, expect_error_got_whole = got, expect_error_expect_whole = expect, expect_error_got_part = got_part, expect_error_expect_part = expect_part }]) >>
                     pure ()
 
                 Left (Right (var, ty)) -> -- occurs check failure
                     get >>= \ vars ->
-                    lift (tell [OccursCheckError nominal_types vars (just_span got) var ty]) >>
+                    lift (tell [OccursCheckError adts type_synonyms vars (just_span got) var ty]) >>
                     pure ()
 
         unify :: TypeWithVars -> TypeWithVars -> ExceptT (Either (TypeWithVars, TypeWithVars) (TypeVarKey, TypeWithVars)) StateWithVars ()
-        unify a@(HIR.Type'Nominal a_nominal_key) b@(HIR.Type'Nominal b_nominal_key) =
-            -- TODO: fix bug with unifying this: synonyms will not be expanded if for example a is nominal pointing to a synonym b is not a nominal
-            case (Arena.get nominal_types a_nominal_key, Arena.get nominal_types b_nominal_key) of
-                (HIR.NominalType'Synonym _ a_expansion, _) -> unify a_expansion b
-                (_, HIR.NominalType'Synonym _ b_expansion) -> unify a b_expansion
-                (HIR.NominalType'Data _ _, HIR.NominalType'Data _ _) -> if a_nominal_key == b_nominal_key
-                    then pure ()
-                    else ExceptT (pure $ Left $ Left (a, b))
+        unify a@(HIR.Type'ADT a_adt_key) b@(HIR.Type'ADT b_adt_key)
+            | a_adt_key == b_adt_key = pure ()
+            | otherwise = ExceptT (pure $ Left $ Left (a, b))
+
+        unify (HIR.Type'Synonym a_syn_key) b =
+            case Arena.get type_synonyms a_syn_key of
+                HIR.TypeSynonym _ a_expansion -> unify a_expansion b
+
+        unify a (HIR.Type'Synonym b_syn_key) =
+            case Arena.get type_synonyms b_syn_key of
+                HIR.TypeSynonym _ b_expansion -> unify a b_expansion
 
         unify (HIR.Type'Variable a) b = unify_var a b False
         unify a (HIR.Type'Variable b) = unify_var b a True
@@ -301,10 +308,13 @@ solve_constraints nominal_types = mapM_ solve
                                 TypeVar _ (Substituted other_sub) -> occurs_check v other_sub
                                 TypeVar _ Fresh -> pure False
 
-                HIR.Type'Nominal nominal_key ->
-                    case Arena.get nominal_types nominal_key of
-                        HIR.NominalType'Synonym _ other_expansion -> occurs_check v other_expansion
-                        HIR.NominalType'Data _ _ -> pure False -- TODO: check type arguemnts when those are added
+                HIR.Type'ADT adt_key ->
+                    case Arena.get adts adt_key of
+                        HIR.ADT _ _ -> pure False -- TODO: check type arguemnts when those are added
+
+                HIR.Type'Synonym syn_key ->
+                    case Arena.get type_synonyms syn_key of
+                        HIR.TypeSynonym _ other_expansion -> occurs_check v other_expansion
 
                 HIR.Type'Int -> pure False
                 HIR.Type'Float -> pure False
@@ -324,7 +334,8 @@ convert_vars vars =
         r _ HIR.Type'Char = pure HIR.Type'Char
         r _ HIR.Type'String = pure HIR.Type'String
         r _ HIR.Type'Bool = pure HIR.Type'Bool
-        r _ (HIR.Type'Nominal n) = pure $ HIR.Type'Nominal n
+        r _ (HIR.Type'ADT a) = pure $ HIR.Type'ADT a
+        r _ (HIR.Type'Synonym s) = pure $ HIR.Type'Synonym s
         r vars_converted (HIR.Type'Function arg res) = HIR.Type'Function <$> r vars_converted arg <*> r vars_converted res
         r vars_converted (HIR.Type'Tuple a b) = HIR.Type'Tuple <$> r vars_converted a <*> r vars_converted b
         r vars_converted (HIR.Type'Variable v) = MaybeT $ pure $ Arena.get vars_converted v
@@ -339,12 +350,14 @@ remove_vars_from_decl _ (HIR.Decl'Type ty) = HIR.Decl'Type ty
 remove_vars_from_bound_value :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsBoundValue -> TypedBoundValue
 remove_vars_from_bound_value vars (HIR.BoundValue ty sp) = HIR.BoundValue (remove_vars vars ty) sp
 
-remove_vars_from_nominal_type :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsNominalType -> TypedNominalType
-remove_vars_from_nominal_type vars (HIR.NominalType'Data name variants) = HIR.NominalType'Data name (map remove_from_variant variants)
+remove_vars_from_adt :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsADT -> TypedADT
+remove_vars_from_adt vars (HIR.ADT name variants) = HIR.ADT name (map remove_from_variant variants)
     where
-        remove_from_variant (HIR.DataVariant'Named name fields) = HIR.DataVariant'Named name (map (\ (name, ty) -> (name, remove_vars vars ty)) fields)
-        remove_from_variant (HIR.DataVariant'Anon name fields) = HIR.DataVariant'Anon name (map (remove_vars vars) fields)
-remove_vars_from_nominal_type vars (HIR.NominalType'Synonym name expansion) = HIR.NominalType'Synonym name (remove_vars vars expansion)
+        remove_from_variant (HIR.ADTVariant'Named name fields) = HIR.ADTVariant'Named name (map (\ (name, ty) -> (name, remove_vars vars ty)) fields)
+        remove_from_variant (HIR.ADTVariant'Anon name fields) = HIR.ADTVariant'Anon name (map (remove_vars vars) fields)
+
+remove_vars_from_type_synonym :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsTypeSynonym -> TypedTypeSynonym
+remove_vars_from_type_synonym vars (HIR.TypeSynonym name expansion) = HIR.TypeSynonym name (remove_vars vars expansion)
 
 remove_vars_from_binding :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsBinding -> TypedBinding
 remove_vars_from_binding vars (HIR.Binding pat eq_sp expr) = HIR.Binding (remove_from_pat pat) eq_sp (remove_from_expr expr)
@@ -380,7 +393,8 @@ remove_vars vars = r
         r HIR.Type'Char = pure HIR.Type'Char
         r HIR.Type'String = pure HIR.Type'String
         r HIR.Type'Bool = pure HIR.Type'Bool
-        r (HIR.Type'Nominal n) = pure $ HIR.Type'Nominal n
+        r (HIR.Type'ADT a) = pure $ HIR.Type'ADT a
+        r (HIR.Type'Synonym s) = pure $ HIR.Type'Synonym s
         r (HIR.Type'Function arg res) = HIR.Type'Function <$> r arg <*> r res
         r (HIR.Type'Tuple a b) = HIR.Type'Tuple <$> r a <*> r b
         r (HIR.Type'Variable v) = Arena.get vars v

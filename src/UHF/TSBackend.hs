@@ -14,24 +14,28 @@ type Decl = ANFIR.Decl
 type DeclArena = Arena.Arena Decl HIR.DeclKey
 
 type Type = HIR.Type Void
-type NominalType = HIR.NominalType Type
+type ADT = HIR.ADT Type
+type TypeSynonym = HIR.TypeSynonym Type
 type GraphNode = ANFIR.Node Type Void
 type GraphParam = ANFIR.Param Type
 
-type NominalTypeArena = Arena.Arena NominalType HIR.NominalTypeKey
+type ADTArena = Arena.Arena ADT HIR.ADTKey
+type TypeSynonymArena = Arena.Arena TypeSynonym HIR.TypeSynonymKey
 type GraphNodeArena = Arena.Arena GraphNode ANFIR.NodeKey
 type GraphParamArena = Arena.Arena GraphParam ANFIR.ParamKey
 
 -- TODO: refactor everything
 
-type IRReader = Reader (NominalTypeArena, GraphNodeArena, GraphParamArena)
+type IRReader = Reader (ADTArena, TypeSynonymArena, GraphNodeArena, GraphParamArena)
 
 get_node :: ANFIR.NodeKey -> IRReader GraphNode
-get_node k = reader (\ (_, a, _) -> Arena.get a k)
+get_node k = reader (\ (_, _, a, _) -> Arena.get a k)
 get_param :: ANFIR.ParamKey -> IRReader GraphParam
-get_param k = reader (\ (_, _, a) -> Arena.get a k)
-get_nominal_type :: HIR.NominalTypeKey -> IRReader NominalType
-get_nominal_type k = reader (\ (a, _, _) -> Arena.get a k)
+get_param k = reader (\ (_, _, _, a) -> Arena.get a k)
+get_adt :: HIR.ADTKey -> IRReader ADT
+get_adt k = reader (\ (a, _, _, _) -> Arena.get a k)
+get_type_synonym :: HIR.TypeSynonymKey -> IRReader TypeSynonym
+get_type_synonym k = reader (\ (_, a, _, _) -> Arena.get a k)
 
 node_type :: ANFIR.NodeKey -> IRReader Type
 node_type k = ANFIR.node_type <$> get_node k
@@ -41,11 +45,11 @@ runtime_code :: Text
 runtime_code = $(FileEmbed.embedStringFile "data/ts_runtime.ts")
 
 data TSDecl
-data TSNominalType = TSNominalType'Data HIR.NominalTypeKey Text -- TODO: actually implement variants and things
+data TSADT = TSADT HIR.ADTKey Text -- TODO: actually implement variants and things
 data TSLambda = TSLambda ANFIR.NodeKey Type Type ANFIR.NodeKey -- TODO: captures
 data MakeThunkGraphFor = LambdaBody ANFIR.NodeKey | Globals
 data TSMakeThunkGraph = TSMakeThunkGraph MakeThunkGraphFor [ANFIR.NodeKey] [ANFIR.ParamKey]
-data TS = TS [TSDecl] [TSNominalType] [TSMakeThunkGraph] [TSLambda]
+data TS = TS [TSDecl] [TSADT] [TSMakeThunkGraph] [TSLambda]
 
 instance Semigroup TS where
     (TS d1 n1 m1 l1) <> (TS d2 n2 m2 l2) = TS (d1 <> d2) (n1 <> n2) (m1 <> m2) (l1 <> l2)
@@ -54,8 +58,8 @@ instance Monoid TS where
 
 type TSWriter = WriterT TS IRReader
 
-tell_nominal_type :: TSNominalType -> TSWriter ()
-tell_nominal_type nt = tell $ TS [] [nt] [] []
+tell_adt :: TSADT -> TSWriter ()
+tell_adt adt = tell $ TS [] [adt] [] []
 tell_make_thunk_graph :: TSMakeThunkGraph -> TSWriter ()
 tell_make_thunk_graph mtg = tell $ TS [] [] [mtg] []
 tell_lambda :: TSLambda -> TSWriter ()
@@ -64,11 +68,11 @@ tell_lambda lt = tell $ TS [] [] [] [lt]
 stringify_ts_decl :: TSDecl -> IRReader Text
 stringify_ts_decl = error "unreachable"
 
-stringify_ts_nominal_type :: TSNominalType -> IRReader Text
-stringify_ts_nominal_type (TSNominalType'Data key name) =
+stringify_ts_adt :: TSADT -> IRReader Text
+stringify_ts_adt (TSADT key name) =
     pure $
         "// data " <> name <> "\n"
-            <> "class " <> mangle_nominal_type key <> " {\n"
+            <> "class " <> mangle_adt key <> " {\n"
             <> "}\n"
 
 stringify_ts_make_thunk_graph :: TSMakeThunkGraph -> IRReader Text
@@ -176,10 +180,10 @@ stringify_ts_lambda (TSLambda key arg result body_key) =
 
 -- referring to types {{{2
 refer_type_raw :: HIR.Type Void -> IRReader Text
-refer_type_raw (HIR.Type'Nominal ntk) =
-    get_nominal_type ntk >>= \case
-        HIR.NominalType'Data _ _ -> pure $ mangle_nominal_type ntk
-        HIR.NominalType'Synonym _ expansion -> refer_type expansion
+refer_type_raw (HIR.Type'ADT ak) = pure $ mangle_adt ak
+
+refer_type_raw (HIR.Type'Synonym sk) =
+    get_type_synonym sk >>= \ (HIR.TypeSynonym _ expansion) -> refer_type expansion
 
 refer_type_raw HIR.Type'Int = pure "number"
 refer_type_raw HIR.Type'Float = pure "number"
@@ -194,33 +198,36 @@ refer_type :: HIR.Type Void -> IRReader Text
 refer_type ty = refer_type_raw ty >>= \ ty -> pure ("Thunk<" <> ty <> ">")
 
 -- lowering {{{1
-lower :: DeclArena -> NominalTypeArena -> GraphNodeArena -> GraphParamArena -> Text
-lower decls nominal_types nodes params =
+lower :: DeclArena -> ADTArena -> TypeSynonymArena -> GraphNodeArena -> GraphParamArena -> Text
+lower decls adts type_synonyms nodes params =
     runReader
         (
             runWriterT (
                 Arena.transform_with_keyM define_decl decls >> -- TODO: pass module instead of doing this
-                Arena.transform_with_keyM define_nominal_type nominal_types >>
+                Arena.transform_with_keyM define_adt adts >>
+                Arena.transform_with_keyM define_type_synonym type_synonyms >>
                 Arena.transform_with_keyM define_lambda_type nodes >>
                 pure ()
-            ) >>= \ ((), TS ts_decls ts_nominal_types ts_make_thunk_graphs ts_lambdas) ->
+            ) >>= \ ((), TS ts_decls ts_adts ts_make_thunk_graphs ts_lambdas) ->
 
             mapM stringify_ts_decl ts_decls >>= \ ts_decls ->
-            mapM stringify_ts_nominal_type ts_nominal_types >>= \ ts_nominal_types ->
+            mapM stringify_ts_adt ts_adts >>= \ ts_adts ->
             mapM stringify_ts_make_thunk_graph ts_make_thunk_graphs >>= \ ts_make_thunk_graphs ->
             mapM stringify_ts_lambda ts_lambdas >>= \ ts_lambdas ->
 
-            pure (runtime_code <> Text.concat ts_decls <> Text.concat ts_nominal_types <> Text.concat ts_make_thunk_graphs <> Text.concat ts_lambdas)
+            pure (runtime_code <> Text.concat ts_decls <> Text.concat ts_adts <> Text.concat ts_make_thunk_graphs <> Text.concat ts_lambdas)
         )
-        (nominal_types, nodes, params)
+        (adts, type_synonyms, nodes, params)
 
 define_decl :: HIR.DeclKey -> Decl -> TSWriter ()
 define_decl _ (ANFIR.Decl'Module global_nodes) = tell_make_thunk_graph (TSMakeThunkGraph Globals global_nodes []) -- global thunk graph does not have any params
 define_decl _ (ANFIR.Decl'Type _) = pure ()
 
-define_nominal_type :: HIR.NominalTypeKey -> NominalType -> TSWriter ()
-define_nominal_type key (HIR.NominalType'Data name variants) = tell_nominal_type (TSNominalType'Data key name)
-define_nominal_type _ (HIR.NominalType'Synonym _ _) = pure ()
+define_adt :: HIR.ADTKey -> ADT -> TSWriter ()
+define_adt key (HIR.ADT name variants) = tell_adt (TSADT key name)
+
+define_type_synonym :: HIR.TypeSynonymKey -> TypeSynonym -> TSWriter ()
+define_type_synonym _ (HIR.TypeSynonym _ _) = pure ()
 
 define_lambda_type :: ANFIR.NodeKey -> GraphNode -> TSWriter ()
 define_lambda_type key (ANFIR.Node'Lambda _ param body_included_nodes body) = -- TODO: annotate with captures
@@ -245,8 +252,8 @@ define_lambda_type _ _ = pure ()
 
 -- mangling {{{2
 -- TODO: better mangling and unified mangling for everything
-mangle_nominal_type :: HIR.NominalTypeKey -> Text
-mangle_nominal_type key = "NominalType" <> show (Arena.unmake_key key)
+mangle_adt :: HIR.ADTKey -> Text
+mangle_adt key = "ADT" <> show (Arena.unmake_key key)
 
 mangle_graph_node_as_lambda :: ANFIR.NodeKey -> Text
 mangle_graph_node_as_lambda key = "Lambda" <> show (Arena.unmake_key key)

@@ -93,8 +93,8 @@ instance Diagnostic.ToError Error where
         in Diagnostic.Error Diagnostic.Codes.type_mismatch
             (Just span)
             ("conflicting types in " <> what <> ": '" <> a_part_printed <> "' vs '" <> b_part_printed <> "'")
-            ([ just_span a_whole `Diagnostic.msg_note_at` convert_str (a_whole_printed)
-            , just_span b_whole `Diagnostic.msg_note_at` convert_str (b_whole_printed)
+            ([ just_span a_whole `Diagnostic.msg_note_at` convert_str a_whole_printed
+            , just_span b_whole `Diagnostic.msg_note_at` convert_str b_whole_printed
             ] ++ make_var_name_messages vars var_names)
             []
 
@@ -117,7 +117,7 @@ instance Diagnostic.ToError Error where
         in Diagnostic.Error Diagnostic.Codes.type_mismatch -- TODO: change code?
             (Just sp)
             (convert_str $ "conflicting types in " <> what <> ": '" <> expect_part_printed <> "' vs '" <> got_part_printed <> "'")
-            ([ sp `Diagnostic.msg_note_at` convert_str ("expected '" <> expect_whole_printed <> "', got '" <> got_whole_printed <> "'") ] ++ make_var_name_messages vars var_names)
+            ((sp `Diagnostic.msg_note_at` convert_str ("expected '" <> expect_whole_printed <> "', got '" <> got_whole_printed <> "'")) : make_var_name_messages vars var_names)
             []
 
     to_error (OccursCheckError nominal_types vars span var_key ty) =

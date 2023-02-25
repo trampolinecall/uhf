@@ -60,7 +60,8 @@ new_param_node node = lift (lift $ state $ \ (g, p) -> let (i, p') = Arena.put n
 convert_expr :: BoundValueMap -> Expr -> WriterT [ANFIR.NodeKey] MakeGraphState ANFIR.NodeKey
 convert_expr bv_map (HIR.Expr'Identifier ty _ bvkey) =
     case unlocate bvkey of
-        Just bvkey -> pure $ bv_map Map.! bvkey -- TODO: include included nodes of this in current one?
+        Just bvkey -> pure $ bv_map Map.! bvkey -- included nodes of the identifier does not need to be included because even though evaluating the identifier expression requires evaluating those nodes, this is not creating those nodes
+                                                -- those nodes will be created by their bindings
         Nothing -> new_graph_node (ANFIR.Node'Poison ty ())
 convert_expr _ (HIR.Expr'Char ty _ c) = new_graph_node (ANFIR.Node'Char ty c)
 convert_expr _ (HIR.Expr'String ty _ s) = new_graph_node (ANFIR.Node'String ty s)

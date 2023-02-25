@@ -6,13 +6,10 @@ import qualified Arena
 
 import qualified Data.Text as Text
 
-import UHF.IO.Located (Located)
-
 import qualified UHF.HIR as HIR
 import qualified UHF.ANFIR as ANFIR
 
--- TODO: do not use HIR.Decl here; instead make an ANFIR.Decl type
-type Decl = HIR.Decl (Located (Maybe HIR.BoundValueKey)) (Maybe (HIR.Type Void)) (Maybe (HIR.Type Void)) Void
+type Decl = ANFIR.Decl
 type DeclArena = Arena.Arena Decl HIR.DeclKey
 
 type Type = HIR.Type Void
@@ -56,7 +53,7 @@ to_dot decls nominal_types nodes params =
                         ANFIR.Node'String _ s -> ("string: \\\"" <> s <> "\\\"", [], [])
                         ANFIR.Node'Tuple _ a b -> ("tuple", [("a", a), ("b", b)], [])
 
-                        ANFIR.Node'Lambda _ param body -> ("lambda", [("body", body)], [("param", param)])
+                        ANFIR.Node'Lambda _ param _ body -> ("lambda", [("body", body)], [("param", param)])
                         ANFIR.Node'Param _ param -> ("param", [], [("p", param)])
 
                         ANFIR.Node'Call _ callee arg -> ("call", [("callee", callee), ("arg", arg)], [])

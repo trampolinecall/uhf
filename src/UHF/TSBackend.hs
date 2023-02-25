@@ -5,16 +5,12 @@ import UHF.Util.Prelude
 import qualified Arena
 
 import qualified Data.Text as Text
-import qualified Data.Set as Set
 import qualified Data.FileEmbed as FileEmbed
-
-import UHF.IO.Located (Located)
 
 import qualified UHF.HIR as HIR
 import qualified UHF.ANFIR as ANFIR
 
--- TODO: same todo as in ToDot and RemovePoison
-type Decl = HIR.Decl (Located (Maybe HIR.BoundValueKey)) (Maybe (HIR.Type Void)) (Maybe (HIR.Type Void)) Void
+type Decl = ANFIR.Decl
 type DeclArena = Arena.Arena Decl HIR.DeclKey
 
 type Type = HIR.Type Void
@@ -27,7 +23,6 @@ type GraphNodeArena = Arena.Arena GraphNode ANFIR.NodeKey
 type GraphParamArena = Arena.Arena GraphParam ANFIR.ParamKey
 
 -- TODO: refactor everything
--- TODO: this actually does not work correctly like at all
 
 type IRReader = Reader (NominalTypeArena, GraphNodeArena, GraphParamArena)
 
@@ -49,7 +44,7 @@ data TSDecl
 data TSNominalType = TSNominalType'Data HIR.NominalTypeKey Text -- TODO: actually implement variants and things
 data TSLambda = TSLambda ANFIR.NodeKey Type Type ANFIR.NodeKey -- TODO: captures
 data MakeThunkGraphFor = LambdaBody ANFIR.NodeKey | Globals
-data TSMakeThunkGraph = TSMakeThunkGraph MakeThunkGraphFor (Set ANFIR.NodeKey) (Set ANFIR.ParamKey)
+data TSMakeThunkGraph = TSMakeThunkGraph MakeThunkGraphFor [ANFIR.NodeKey] [ANFIR.ParamKey]
 data TS = TS [TSDecl] [TSNominalType] [TSMakeThunkGraph] [TSLambda]
 
 instance Semigroup TS where
@@ -78,10 +73,10 @@ stringify_ts_nominal_type (TSNominalType'Data key name) =
 
 stringify_ts_make_thunk_graph :: TSMakeThunkGraph -> IRReader Text
 stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_nodes included_params) =
-    mapM stringify_param (Set.toList included_params) >>= \ params_stringified ->
+    mapM stringify_param included_params >>= \ params_stringified ->
 
-    concat <$> mapM stringify_node_decl (Set.toList included_nodes) >>= \ node_decls ->
-    concat <$> mapM stringify_node_set_fields (Set.toList included_nodes) >>= \ node_set_fields ->
+    concat <$> mapM stringify_node_decl included_nodes >>= \ node_decls ->
+    concat <$> mapM stringify_node_set_fields included_nodes >>= \ node_set_fields ->
     -- TODO: dont use GraphParamKey Ord instance to decide parameter order (not deterministic across compiles)
     -- also TODO: dont use unmake_key anywhere (probably including outside of this module too)
 
@@ -96,14 +91,14 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_nodes included_para
         <> "}\n")
     where
         ts_return_type =
-            mapM r (Set.toList included_nodes) >>= \ tys ->
-            pure ("{ " <> Text.intercalate "; " tys <> " }")
+            mapM r included_nodes >>= \ fields ->
+            pure ("{ " <> Text.intercalate "; " fields <> " }")
             where
                 r node =
                     node_type node >>= refer_type >>= \ ty ->
                     pure (mangle_graph_node_as_node_var node <> ": " <> ty)
 
-        object_of_nodes = "{ " <> Text.intercalate ", " (map r (Set.toList included_nodes)) <> " }"
+        object_of_nodes = "{ " <> Text.intercalate ", " (map r included_nodes) <> " }"
             where
                 r node =
                     mangle_graph_node_as_node_var node <> ": " <> mangle_graph_node_as_local_thunk node
@@ -136,7 +131,7 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_nodes included_para
                         node_type b >>= refer_type_raw >>= \ b_ty ->
                         pure [let_evaluator ("TupleEvaluator<" <> a_ty <> ", " <> b_ty <> ">") (evaluator "TupleEvaluator" "undefined, undefined"), default_let_thunk]
 
-                ANFIR.Node'Lambda _ _ _ -> pure [let_evaluator ("ConstEvaluator<" <> mangle_graph_node_as_lambda node_key <> ">") (evaluator "ConstEvaluator" ("new " <> mangle_graph_node_as_lambda node_key <> "()")), default_let_thunk] -- TODO: put captures here
+                ANFIR.Node'Lambda _ _ _ _ -> pure [let_evaluator ("ConstEvaluator<" <> mangle_graph_node_as_lambda node_key <> ">") (evaluator "ConstEvaluator" ("new " <> mangle_graph_node_as_lambda node_key <> "()")), default_let_thunk] -- TODO: put captures here
                 ANFIR.Node'Param _ param_key -> pure [let_thunk $ "param_" <> show (Arena.unmake_key param_key)]
 
                 ANFIR.Node'Call ty _ arg ->
@@ -159,7 +154,7 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_nodes included_para
                 ANFIR.Node'String _ _ -> pure []
                 ANFIR.Node'Tuple _ a b -> pure [set_field "a" a, set_field "b" b]
 
-                ANFIR.Node'Lambda _ _ _ -> pure []
+                ANFIR.Node'Lambda _ _ _ _ -> pure []
                 ANFIR.Node'Param _ _ -> pure []
 
                 ANFIR.Node'Call _ callee arg -> pure [set_field "callee" callee, set_field "arg" arg]
@@ -221,46 +216,31 @@ lower decls nominal_types nodes params =
         (nominal_types, nodes, params)
 
 define_decl :: HIR.DeclKey -> Decl -> TSWriter ()
-define_decl _ (HIR.Decl'Module _ _) = pure ()
-define_decl _ (HIR.Decl'Type _) = pure ()
+define_decl _ (ANFIR.Decl'Module _) = pure () -- TODO: make global thunk graph
+define_decl _ (ANFIR.Decl'Type _) = pure ()
 
 define_nominal_type :: HIR.NominalTypeKey -> NominalType -> TSWriter ()
 define_nominal_type key (HIR.NominalType'Data name variants) = tell_nominal_type (TSNominalType'Data key name)
 define_nominal_type _ (HIR.NominalType'Synonym _ _) = pure ()
 
 define_lambda_type :: ANFIR.NodeKey -> GraphNode -> TSWriter ()
-define_lambda_type key (ANFIR.Node'Lambda _ param body) = -- TODO: annotate with captures
+define_lambda_type key (ANFIR.Node'Lambda _ param body_included_nodes body) = -- TODO: annotate with captures
     lift (get_param param) >>= \ (ANFIR.Param param_ty) ->
     lift (node_type body) >>= \ body_type ->
-    lift (get_included_nodes body) >>= \ (included_nodes, included_params) ->
-    tell_make_thunk_graph (TSMakeThunkGraph (LambdaBody key) included_nodes included_params) >>
+    lift (get_included_params body_included_nodes) >>= \ included_params ->
+    tell_make_thunk_graph (TSMakeThunkGraph (LambdaBody key) body_included_nodes included_params) >>
     tell_lambda (TSLambda key param_ty body_type body)
     where
-        get_included_nodes :: ANFIR.NodeKey -> IRReader (Set ANFIR.NodeKey, Set ANFIR.ParamKey)
-        get_included_nodes cur_node =
-            runWriterT (runWriterT (get_included_nodes' cur_node)) >>= \ (((), nodes), params) ->
-            pure (nodes, params)
-
-        get_included_nodes' cur_node =
-            -- TODO: prevent infinite recursion
-            tell (Set.singleton cur_node) >>
-            lift (lift (get_node cur_node)) >>= \case
-                ANFIR.Node'Int _ _ -> pure ()
-                ANFIR.Node'Float _ _ -> pure ()
-                ANFIR.Node'Bool _ _ -> pure ()
-                ANFIR.Node'Char _ _ -> pure ()
-                ANFIR.Node'String _ _ -> pure ()
-                ANFIR.Node'Tuple _ a b -> get_included_nodes' a >> get_included_nodes' b
-
-                ANFIR.Node'Lambda _ _ _ -> pure () -- param of lambda is not referenced, and body is not turned into thunks here
-                ANFIR.Node'Param _ param -> lift $ tell (Set.singleton param)
-
-                ANFIR.Node'Call _ callee arg -> get_included_nodes' callee >> get_included_nodes' arg
-
-                ANFIR.Node'TupleDestructure1 _ tup -> get_included_nodes' tup
-                ANFIR.Node'TupleDestructure2 _ tup -> get_included_nodes' tup
-
-                ANFIR.Node'Poison _ void -> absurd void
+        -- TODO: decide on param order
+        get_included_params :: [ANFIR.NodeKey] -> IRReader [ANFIR.ParamKey]
+        get_included_params nodes =
+            catMaybes <$>
+                mapM
+                    (\ n ->
+                        get_node n >>= \case
+                            ANFIR.Node'Param _ param -> pure $ Just param
+                            _ -> pure Nothing)
+                    nodes
 
 define_lambda_type _ _ = pure ()
 

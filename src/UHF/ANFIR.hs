@@ -1,5 +1,6 @@
 module UHF.ANFIR
-    ( NodeKey
+    ( Decl(..)
+    , NodeKey
     , ParamKey
     , Param(..)
     , Node(..)
@@ -8,7 +9,14 @@ module UHF.ANFIR
 
 import UHF.Util.Prelude
 
+import qualified UHF.HIR as HIR -- TODO: figure out where to put HIR.Type because this uses the same type system
 import qualified Arena
+
+-- TODO: figure out where to put HIR.DeclKey because this also uses that
+data Decl
+    = Decl'Module [NodeKey] -- TODO: should this include nominal types too?
+    | Decl'Type (HIR.Type Void)
+    deriving Show
 
 newtype NodeKey = NodeKey Int deriving (Show, Eq, Ord) -- TODO: figure out better solution in ts backend than to use ord instance
 instance Arena.Key NodeKey where
@@ -31,7 +39,7 @@ data Node ty poison_allowed
     | Node'String ty Text
     | Node'Tuple ty NodeKey NodeKey -- TODO: replace with call constructor node
 
-    | Node'Lambda ty ParamKey NodeKey
+    | Node'Lambda ty ParamKey [NodeKey] NodeKey
     | Node'Param ty ParamKey
 
     | Node'Call ty NodeKey NodeKey
@@ -50,7 +58,7 @@ node_type (Node'Char ty _) = ty
 node_type (Node'String ty _) = ty
 node_type (Node'Tuple ty _ _) = ty
 
-node_type (Node'Lambda ty _ _) = ty
+node_type (Node'Lambda ty _ _ _) = ty
 node_type (Node'Param ty _) = ty
 
 node_type (Node'Call ty _ _) = ty

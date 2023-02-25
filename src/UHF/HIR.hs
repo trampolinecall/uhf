@@ -2,9 +2,11 @@ module UHF.HIR
     ( DeclKey
     , Decl(..)
 
-    , NominalTypeKey
-    , NominalType(..)
-    , DataVariant(..)
+    , ADTKey
+    , ADT(..)
+    , ADTVariant(..)
+    , TypeSynonymKey
+    , TypeSynonym(..)
 
     , BoundValueKey
     , BoundValue(..)
@@ -44,17 +46,21 @@ data Decl identifier typeannotation typeinfo binaryopsallowed
     | Decl'Type (Type Void)
     deriving Show
 
-newtype NominalTypeKey = NominalTypeKey Int deriving (Show, Eq)
-instance Arena.Key NominalTypeKey where
-    make_key = NominalTypeKey
-    unmake_key (NominalTypeKey i) = i
-data NominalType ty
-    = NominalType'Data Text [DataVariant ty]
-    | NominalType'Synonym Text ty
+newtype ADTKey = ADTKey Int deriving (Show, Eq)
+instance Arena.Key ADTKey where
+    make_key = ADTKey
+    unmake_key (ADTKey i) = i
+data ADT ty = ADT Text [ADTVariant ty]
+data ADTVariant ty
+    = ADTVariant'Named Text [(Text, ty)]
+    | ADTVariant'Anon Text [ty]
     deriving Show
-data DataVariant ty
-    = DataVariant'Named Text [(Text, ty)]
-    | DataVariant'Anon Text [ty]
+
+newtype TypeSynonymKey = TypeSynonymKey Int deriving (Show, Eq)
+instance Arena.Key TypeSynonymKey where
+    make_key = TypeSynonymKey
+    unmake_key (TypeSynonymKey i) = i
+data TypeSynonym ty = TypeSynonym Text ty
     deriving Show
 
 newtype BoundValueKey = BoundValueKey Int deriving (Show, Eq, Ord) -- TODO: remove Eq and Ord when BoundValues store their graph nodes
@@ -74,7 +80,8 @@ data TypeExpr identifier
     deriving Show
 
 data Type var
-    = Type'Nominal NominalTypeKey
+    = Type'ADT ADTKey
+    | Type'Synonym TypeSynonymKey
     | Type'Int
     | Type'Float
     | Type'Char

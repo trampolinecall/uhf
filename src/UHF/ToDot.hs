@@ -13,16 +13,18 @@ type Decl = ANFIR.Decl
 type DeclArena = Arena.Arena Decl HIR.DeclKey
 
 type Type = HIR.Type Void
-type NominalType = HIR.NominalType Type
+type ADT = HIR.ADT Type
+type TypeSynonym = HIR.TypeSynonym Type
 type GraphNode = ANFIR.Node Type Void
 type GraphParam = ANFIR.Param Type
 
-type NominalTypeArena = Arena.Arena NominalType HIR.NominalTypeKey
+type ADTArena = Arena.Arena ADT HIR.ADTKey
+type TypeSynonymArena = Arena.Arena TypeSynonym HIR.TypeSynonymKey
 type GraphNodeArena = Arena.Arena GraphNode ANFIR.NodeKey
 type GraphParamArena = Arena.Arena GraphParam ANFIR.ParamKey
 
-to_dot :: DeclArena -> NominalTypeArena -> GraphNodeArena -> GraphParamArena -> Text
-to_dot decls nominal_types nodes params =
+to_dot :: DeclArena -> ADTArena -> TypeSynonymArena -> GraphNodeArena -> GraphParamArena -> Text
+to_dot decls adts type_synonyms nodes params =
     snd $ runWriter (
             tell "strict digraph {\n" >>
             tell "    node [shape=record];\n" >>

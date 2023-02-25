@@ -39,9 +39,9 @@ argparser =
                                 "dot" -> Right Driver.Dot
                                 "ts" -> Right Driver.TS
                                 _ -> Left "invalid option: must one of 'ast', 'dot', or 'ts'")
-                            (long "output-format"
+                            (long "output"
                                 <> metavar "FORMAT"
-                                <> help "The types of output to emit")
+                                <> help "The type of output to emit")
                         )))
                 )
             <*> (option

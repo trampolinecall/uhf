@@ -11,6 +11,7 @@ import qualified Data.Map as Map
 import qualified UHF.HIR as HIR
 import qualified UHF.ANFIR as ANFIR
 
+type Decl = HIR.Decl (Located (Maybe HIR.BoundValueKey)) (Maybe (HIR.Type Void)) (Maybe (HIR.Type Void)) Void
 type Expr = HIR.Expr (Located (Maybe HIR.BoundValueKey)) (Maybe (HIR.Type Void)) (Maybe (HIR.Type Void)) Void
 type Pattern = HIR.Pattern (Located (Maybe HIR.BoundValueKey)) (Maybe (HIR.Type Void))
 type Binding = HIR.Binding (Located (Maybe HIR.BoundValueKey)) (Maybe (HIR.Type Void)) (Maybe (HIR.Type Void)) Void
@@ -19,8 +20,9 @@ type Type = Maybe (HIR.Type Void)
 type GraphNode = ANFIR.Node Type ()
 type GraphParam = ANFIR.Param Type
 
-type BindingArena = Arena.Arena Binding HIR.BindingKey
+type DeclArena = Arena.Arena Decl HIR.DeclKey
 type BoundValueArena = Arena.Arena (HIR.BoundValue (Maybe (HIR.Type Void))) HIR.BoundValueKey
+
 type GraphArena = Arena.Arena GraphNode ANFIR.NodeKey
 type ParamArena = Arena.Arena GraphParam ANFIR.ParamKey
 
@@ -28,10 +30,14 @@ type BoundValueMap = Map.Map HIR.BoundValueKey ANFIR.NodeKey
 
 type MakeGraphState = WriterT BoundValueMap (State (GraphArena, ParamArena))
 
-to_graph :: BoundValueArena -> BindingArena -> (GraphArena, ParamArena)
-to_graph bvs bindings =
-    let ((_, bv_map), graph) = runState (runWriterT (Arena.transformM (convert_binding bv_map) bindings)) (Arena.new, Arena.new)
+to_graph :: BoundValueArena -> DeclArena -> (GraphArena, ParamArena)
+to_graph bvs decls =
+    let ((_, bv_map), graph) = runState (runWriterT (Arena.transformM (convert_decl bv_map) decls)) (Arena.new, Arena.new)
     in graph
+
+convert_decl :: BoundValueMap -> Decl -> MakeGraphState ()
+convert_decl bv_map (HIR.Decl'Module _ bindings) = mapM_ (convert_binding bv_map) bindings
+convert_decl _ (HIR.Decl'Type _) = pure ()
 
 convert_binding :: BoundValueMap -> Binding -> MakeGraphState ()
 -- TODO: decide what to do to prevent nonterminating compiles in cases like `x = x`
@@ -68,8 +74,8 @@ convert_expr bv_map (HIR.Expr'Lambda ty _ param body) =
     convert_expr bv_map body >>= \ body ->
     new_graph_node (ANFIR.Node'Lambda ty graph_param body)
 
-convert_expr bv_map (HIR.Expr'Let ty _ e) = convert_expr bv_map e
-convert_expr bv_map (HIR.Expr'LetRec ty _ e) = convert_expr bv_map e
+convert_expr bv_map (HIR.Expr'Let _ _ bindings e) = mapM (convert_binding bv_map) bindings >> convert_expr bv_map e
+convert_expr bv_map (HIR.Expr'LetRec _ _ bindings e) = mapM (convert_binding bv_map) bindings >> convert_expr bv_map e
 
 convert_expr _ (HIR.Expr'BinaryOps void _ _ _ _) = absurd void
 

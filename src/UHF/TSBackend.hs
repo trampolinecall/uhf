@@ -8,10 +8,13 @@ import qualified Data.Text as Text
 import qualified Data.Set as Set
 import qualified Data.FileEmbed as FileEmbed
 
+import UHF.IO.Located (Located)
+
 import qualified UHF.HIR as HIR
 import qualified UHF.ANFIR as ANFIR
 
-type Decl = HIR.Decl
+-- TODO: same todo as in ToDot and RemovePoison
+type Decl = HIR.Decl (Located (Maybe HIR.BoundValueKey)) (Maybe (HIR.Type Void)) (Maybe (HIR.Type Void)) Void
 type DeclArena = Arena.Arena Decl HIR.DeclKey
 
 type Type = HIR.Type Void
@@ -208,7 +211,7 @@ lower decls nominal_types nodes params =
         (nominal_types, nodes, params)
 
 define_decl :: HIR.DeclKey -> Decl -> TSWriter ()
-define_decl _ (HIR.Decl'Module _) = pure ()
+define_decl _ (HIR.Decl'Module _ _) = pure ()
 define_decl _ (HIR.Decl'Type _) = pure ()
 
 define_nominal_type :: HIR.NominalTypeKey -> NominalType -> TSWriter ()

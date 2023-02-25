@@ -8,10 +8,9 @@ module UHF.NameResolve
 
     , UnresolvedNominalTypeArena
     , ResolvedNominalTypeArena
-    , UnresolvedBindingArena
-    , ResolvedBindingArena
 
-    , DeclArena
+    , UnresolvedDeclArena
+    , ResolvedDeclArena
 
     , resolve
     ) where
@@ -32,6 +31,7 @@ import qualified UHF.HIR as HIR
 import qualified Data.Map as Map
 import Data.Functor.Identity (Identity (Identity, runIdentity))
 
+type UnresolvedDecl = HIR.Decl UnresolvedExprIdentifier UnresolvedType () ()
 type UnresolvedTypeIdentifier = (HIR.NameContext, [Located Text])
 type UnresolvedExprIdentifier = (HIR.NameContext, [Located Text])
 type UnresolvedNominalType = HIR.NominalType UnresolvedType
@@ -40,21 +40,18 @@ type UnresolvedBinding = HIR.Binding UnresolvedExprIdentifier UnresolvedType () 
 type UnresolvedExpr = HIR.Expr UnresolvedExprIdentifier UnresolvedType () ()
 type UnresolvedPattern = HIR.Pattern UnresolvedExprIdentifier
 
-type UnresolvedBindingArena = Arena.Arena UnresolvedBinding HIR.BindingKey
+type UnresolvedDeclArena = Arena.Arena UnresolvedDecl HIR.DeclKey
 type UnresolvedNominalTypeArena = Arena.Arena UnresolvedNominalType HIR.NominalTypeKey
 
+type ResolvedDecl = HIR.Decl (Located (Maybe HIR.BoundValueKey)) ResolvedType () ()
 type ResolvedNominalType = HIR.NominalType ResolvedType
 type ResolvedType = HIR.TypeExpr (Maybe HIR.DeclKey)
 type ResolvedBinding = HIR.Binding (Located (Maybe HIR.BoundValueKey)) ResolvedType () ()
 type ResolvedExpr = HIR.Expr (Located (Maybe HIR.BoundValueKey)) ResolvedType () ()
 type ResolvedPattern = HIR.Pattern (Located (Maybe HIR.BoundValueKey))
 
-type ResolvedBindingArena = Arena.Arena ResolvedBinding HIR.BindingKey
+type ResolvedDeclArena = Arena.Arena ResolvedDecl HIR.DeclKey
 type ResolvedNominalTypeArena = Arena.Arena ResolvedNominalType HIR.NominalTypeKey
-
-type Decl = HIR.Decl
-
-type DeclArena = Arena.Arena Decl HIR.DeclKey
 
 data Error
     = CouldNotFind (Maybe (Located Text)) (Located Text)
@@ -68,8 +65,8 @@ instance Diagnostic.ToError Error where
                         Nothing -> ""
         in Diagnostic.Error Diagnostic.Codes.undef_name (Just sp) message [] []
 
-transform_identifiers :: Monad m => (t_iden -> m t_iden') -> (e_iden -> m e_iden') -> Arena.Arena (HIR.NominalType (HIR.TypeExpr t_iden)) HIR.NominalTypeKey -> Arena.Arena (HIR.Binding e_iden (HIR.TypeExpr t_iden) typeinfo binaryopsallowed) HIR.BindingKey -> m (Arena.Arena (HIR.NominalType (HIR.TypeExpr t_iden')) HIR.NominalTypeKey, Arena.Arena (HIR.Binding e_iden' (HIR.TypeExpr t_iden') typeinfo binaryopsallowed) HIR.BindingKey)
-transform_identifiers transform_t_iden transform_e_iden nominal_types bindings = (,) <$> Arena.transformM transform_nominal_type nominal_types <*> Arena.transformM transform_binding bindings
+transform_identifiers :: Monad m => (t_iden -> m t_iden') -> (e_iden -> m e_iden') -> Arena.Arena (HIR.NominalType (HIR.TypeExpr t_iden)) HIR.NominalTypeKey -> Arena.Arena (HIR.Decl e_iden (HIR.TypeExpr t_iden) typeinfo binaryopsallowed) HIR.DeclKey -> m (Arena.Arena (HIR.NominalType (HIR.TypeExpr t_iden')) HIR.NominalTypeKey, Arena.Arena (HIR.Decl e_iden' (HIR.TypeExpr t_iden') typeinfo binaryopsallowed) HIR.DeclKey)
+transform_identifiers transform_t_iden transform_e_iden nominal_types decls = (,) <$> Arena.transformM transform_nominal_type nominal_types <*> Arena.transformM transform_decl decls
     where
         transform_nominal_type (HIR.NominalType'Data name variants) = HIR.NominalType'Data name <$> mapM transform_variant variants
             where
@@ -80,6 +77,9 @@ transform_identifiers transform_t_iden transform_e_iden nominal_types bindings =
         transform_type_expr (HIR.TypeExpr'Identifier sp id) = HIR.TypeExpr'Identifier sp <$> transform_t_iden id
         transform_type_expr (HIR.TypeExpr'Tuple a b) = HIR.TypeExpr'Tuple <$> transform_type_expr a <*> transform_type_expr b
         transform_type_expr (HIR.TypeExpr'Poison sp) = pure $ HIR.TypeExpr'Poison sp
+
+        transform_decl (HIR.Decl'Module nc bindings) = HIR.Decl'Module nc <$> mapM transform_binding bindings
+        transform_decl (HIR.Decl'Type ty) = pure $ HIR.Decl'Type ty
 
         transform_binding (HIR.Binding target eq_sp expr) = HIR.Binding <$> transform_pat target <*> pure eq_sp <*> transform_expr expr
 
@@ -100,8 +100,8 @@ transform_identifiers transform_t_iden transform_e_iden nominal_types bindings =
 
         transform_expr (HIR.Expr'Lambda typeinfo sp param body) = HIR.Expr'Lambda typeinfo sp <$> transform_pat param <*> transform_expr body
 
-        transform_expr (HIR.Expr'Let typeinfo sp body) = HIR.Expr'Let typeinfo sp <$> transform_expr body
-        transform_expr (HIR.Expr'LetRec typeinfo sp body) = HIR.Expr'LetRec typeinfo sp <$> transform_expr body
+        transform_expr (HIR.Expr'Let typeinfo sp bindings body) = HIR.Expr'Let typeinfo sp <$> mapM transform_binding bindings <*> transform_expr body
+        transform_expr (HIR.Expr'LetRec typeinfo sp bindings body) = HIR.Expr'LetRec typeinfo sp <$> mapM transform_binding bindings <*> transform_expr body
 
         transform_expr (HIR.Expr'BinaryOps allowed typeinfo sp first ops) = HIR.Expr'BinaryOps allowed typeinfo sp <$> transform_expr first <*> mapM (\ (iden, rhs) -> (,) <$> transform_e_iden iden <*> transform_expr rhs) ops
 
@@ -114,13 +114,13 @@ transform_identifiers transform_t_iden transform_e_iden nominal_types bindings =
 
         transform_expr (HIR.Expr'Poison typeinfo sp) = pure $ HIR.Expr'Poison typeinfo sp
 
-resolve :: (DeclArena, UnresolvedNominalTypeArena, UnresolvedBindingArena) -> Compiler.Compiler (DeclArena, ResolvedNominalTypeArena, ResolvedBindingArena)
-resolve (decls, nominals, bindings) =
+resolve :: (UnresolvedDeclArena, UnresolvedNominalTypeArena) -> Compiler.Compiler (ResolvedDeclArena, ResolvedNominalTypeArena)
+resolve (decls, nominals) =
     let (res, errs) =
             runWriter (
-                let (nominals', bindings') = runIdentity (transform_identifiers Identity split_expr_iden nominals bindings)
-                in transform_identifiers (resolve_type_iden decls) (resolve_expr_iden decls) nominals' bindings' >>= \ (nominals', bindings') ->
-                pure (decls, nominals', bindings')
+                let (nominals', decls') = runIdentity (transform_identifiers Identity split_expr_iden nominals decls)
+                in transform_identifiers (resolve_type_iden decls) (resolve_expr_iden decls) nominals' decls' >>= \ (nominals', decls') ->
+                pure (decls', nominals')
             )
     in Compiler.errors errs >> pure res
 
@@ -129,7 +129,7 @@ split_expr_iden (_, []) = error "empty identifier"
 split_expr_iden (nc, [x]) = pure (nc, Nothing, x)
 split_expr_iden (nc, x) = pure (nc, Just $ init x, last x)
 
-resolve_expr_iden :: DeclArena -> (HIR.NameContext, Maybe [Located Text], Located Text) -> Writer [Error] (Located (Maybe HIR.BoundValueKey))
+resolve_expr_iden :: UnresolvedDeclArena -> (HIR.NameContext, Maybe [Located Text], Located Text) -> Writer [Error] (Located (Maybe HIR.BoundValueKey))
 resolve_expr_iden decls (nc, Just type_iden, last_segment) =
     let sp = Located.just_span (head type_iden) <> Located.just_span last_segment
     in resolve_type_iden decls (nc, type_iden) >>= \ resolved_type ->
@@ -151,7 +151,7 @@ resolve_expr_iden _ (nc, Nothing, last_segment@(Located last_segment_sp _)) =
                         Just parent -> resolve parent name
                         Nothing -> Left $ CouldNotFind Nothing name
 
-resolve_type_iden :: DeclArena -> UnresolvedTypeIdentifier -> Writer [Error] (Maybe HIR.DeclKey)
+resolve_type_iden :: UnresolvedDeclArena -> UnresolvedTypeIdentifier -> Writer [Error] (Maybe HIR.DeclKey)
 resolve_type_iden _ (_, []) = error "empty identifier"
 resolve_type_iden decls (nc, first:more) =
     case resolve_first nc first of
@@ -169,19 +169,19 @@ resolve_type_iden decls (nc, first:more) =
                         Just parent -> resolve_first parent first
                         Nothing -> Left $ CouldNotFind Nothing first -- TODO: put previous in error
 
-get_decl_child :: DeclArena -> HIR.DeclKey -> Located Text -> Either Error HIR.DeclKey
+get_decl_child :: UnresolvedDeclArena -> HIR.DeclKey -> Located Text -> Either Error HIR.DeclKey
 get_decl_child decls thing name =
     let res = case Arena.get decls thing of
-            HIR.Decl'Module (HIR.NameContext d_children _ _) -> Map.lookup (Located.unlocate name) d_children
+            HIR.Decl'Module (HIR.NameContext d_children _ _) _ -> Map.lookup (Located.unlocate name) d_children
             HIR.Decl'Type _ -> Nothing -- TODO: implement children of types through impl blocks, this will also need infinite recursion checking
     in case res of
         Just res -> Right res
         Nothing -> Left $ CouldNotFind Nothing name -- TODO: put previous
 
-get_value_child :: DeclArena -> HIR.DeclKey -> Located Text -> Either Error HIR.BoundValueKey
+get_value_child :: UnresolvedDeclArena -> HIR.DeclKey -> Located Text -> Either Error HIR.BoundValueKey
 get_value_child decls thing name =
     let res = case Arena.get decls thing of
-            HIR.Decl'Module (HIR.NameContext _ v_children _) -> Map.lookup (Located.unlocate name) v_children
+            HIR.Decl'Module (HIR.NameContext _ v_children _) _ -> Map.lookup (Located.unlocate name) v_children
             HIR.Decl'Type _ -> Nothing -- TODO: implement children of types through impl blocks
     in case res of
         Just res -> Right res

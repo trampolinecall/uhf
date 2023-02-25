@@ -59,15 +59,15 @@ compile' file =
     NameResolve.resolve (decls, nominal_types) >>= \ (decls, nominal_types) ->
     let decls' = InfixGroup.group decls
     in Type.typecheck (decls', nominal_types, bound_values) >>= \ (decls', nominal_types, bound_values) ->
-    let (nodes, params) = ToGraph.to_graph bound_values decls'
-        no_poison = RemovePoison.remove_poison (decls', nominal_types, nodes, params, bound_values)
+    let (decls'', nodes, params) = ToGraph.to_graph bound_values decls'
+        no_poison = RemovePoison.remove_poison (decls'', nominal_types, nodes, params, bound_values)
         dot =
             case no_poison of
-                Just (decls', nominal_types', nodes', params', bound_values') -> Just $ ToDot.to_dot decls' nominal_types' nodes' params'
+                Just (decls'', nominal_types', nodes', params', bound_values') -> Just $ ToDot.to_dot decls'' nominal_types' nodes' params'
                 Nothing -> Nothing
 
         ts =
             case no_poison of
-                Just (decls', nominal_types', nodes', params', bound_values') -> Just $ TSBackend.lower decls' nominal_types' nodes' params'
+                Just (decls'', nominal_types', nodes', params', bound_values') -> Just $ TSBackend.lower decls'' nominal_types' nodes' params'
                 Nothing -> Nothing
     in pure ts

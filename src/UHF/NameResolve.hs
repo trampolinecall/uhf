@@ -6,8 +6,11 @@ module UHF.NameResolve
     , UnresolvedPattern
     , ResolvedPattern
 
-    , UnresolvedNominalTypeArena
-    , ResolvedNominalTypeArena
+    , UnresolvedADTArena
+    , ResolvedADTArena
+
+    , UnresolvedTypeSynonymArena
+    , ResolvedTypeSynonymArena
 
     , UnresolvedDeclArena
     , ResolvedDeclArena
@@ -34,24 +37,28 @@ import Data.Functor.Identity (Identity (Identity, runIdentity))
 type UnresolvedDecl = HIR.Decl UnresolvedExprIdentifier UnresolvedType () ()
 type UnresolvedTypeIdentifier = (HIR.NameContext, [Located Text])
 type UnresolvedExprIdentifier = (HIR.NameContext, [Located Text])
-type UnresolvedNominalType = HIR.NominalType UnresolvedType
+type UnresolvedADT = HIR.ADT UnresolvedType
+type UnresolvedTypeSynonym = HIR.TypeSynonym UnresolvedType
 type UnresolvedType = HIR.TypeExpr UnresolvedTypeIdentifier
 type UnresolvedBinding = HIR.Binding UnresolvedExprIdentifier UnresolvedType () ()
 type UnresolvedExpr = HIR.Expr UnresolvedExprIdentifier UnresolvedType () ()
 type UnresolvedPattern = HIR.Pattern UnresolvedExprIdentifier
 
 type UnresolvedDeclArena = Arena.Arena UnresolvedDecl HIR.DeclKey
-type UnresolvedNominalTypeArena = Arena.Arena UnresolvedNominalType HIR.NominalTypeKey
+type UnresolvedADTArena = Arena.Arena UnresolvedADT HIR.ADTKey
+type UnresolvedTypeSynonymArena = Arena.Arena UnresolvedTypeSynonym HIR.TypeSynonymKey
 
 type ResolvedDecl = HIR.Decl (Located (Maybe HIR.BoundValueKey)) ResolvedType () ()
-type ResolvedNominalType = HIR.NominalType ResolvedType
+type ResolvedADT = HIR.ADT ResolvedType
+type ResolvedTypeSynonym = HIR.TypeSynonym ResolvedType
 type ResolvedType = HIR.TypeExpr (Maybe HIR.DeclKey)
 type ResolvedBinding = HIR.Binding (Located (Maybe HIR.BoundValueKey)) ResolvedType () ()
 type ResolvedExpr = HIR.Expr (Located (Maybe HIR.BoundValueKey)) ResolvedType () ()
 type ResolvedPattern = HIR.Pattern (Located (Maybe HIR.BoundValueKey))
 
 type ResolvedDeclArena = Arena.Arena ResolvedDecl HIR.DeclKey
-type ResolvedNominalTypeArena = Arena.Arena ResolvedNominalType HIR.NominalTypeKey
+type ResolvedADTArena = Arena.Arena ResolvedADT HIR.ADTKey
+type ResolvedTypeSynonymArena = Arena.Arena ResolvedTypeSynonym HIR.TypeSynonymKey
 
 data Error
     = CouldNotFind (Maybe (Located Text)) (Located Text)
@@ -65,14 +72,15 @@ instance Diagnostic.ToError Error where
                         Nothing -> ""
         in Diagnostic.Error Diagnostic.Codes.undef_name (Just sp) message [] []
 
-transform_identifiers :: Monad m => (t_iden -> m t_iden') -> (e_iden -> m e_iden') -> Arena.Arena (HIR.NominalType (HIR.TypeExpr t_iden)) HIR.NominalTypeKey -> Arena.Arena (HIR.Decl e_iden (HIR.TypeExpr t_iden) typeinfo binaryopsallowed) HIR.DeclKey -> m (Arena.Arena (HIR.NominalType (HIR.TypeExpr t_iden')) HIR.NominalTypeKey, Arena.Arena (HIR.Decl e_iden' (HIR.TypeExpr t_iden') typeinfo binaryopsallowed) HIR.DeclKey)
-transform_identifiers transform_t_iden transform_e_iden nominal_types decls = (,) <$> Arena.transformM transform_nominal_type nominal_types <*> Arena.transformM transform_decl decls
+transform_identifiers :: Monad m => (t_iden -> m t_iden') -> (e_iden -> m e_iden') -> Arena.Arena (HIR.ADT (HIR.TypeExpr t_iden)) HIR.ADTKey -> Arena.Arena (HIR.TypeSynonym (HIR.TypeExpr t_iden)) HIR.TypeSynonymKey -> Arena.Arena (HIR.Decl e_iden (HIR.TypeExpr t_iden) typeinfo binaryopsallowed) HIR.DeclKey -> m (Arena.Arena (HIR.ADT (HIR.TypeExpr t_iden')) HIR.ADTKey, Arena.Arena (HIR.TypeSynonym (HIR.TypeExpr t_iden')) HIR.TypeSynonymKey, Arena.Arena (HIR.Decl e_iden' (HIR.TypeExpr t_iden') typeinfo binaryopsallowed) HIR.DeclKey)
+transform_identifiers transform_t_iden transform_e_iden adts type_synonyms decls = (,,) <$> Arena.transformM transform_adt adts <*> Arena.transformM transform_type_synonym type_synonyms <*> Arena.transformM transform_decl decls
     where
-        transform_nominal_type (HIR.NominalType'Data name variants) = HIR.NominalType'Data name <$> mapM transform_variant variants
+        transform_adt (HIR.ADT name variants) = HIR.ADT name <$> mapM transform_variant variants
             where
-                transform_variant (HIR.DataVariant'Named name fields) = HIR.DataVariant'Named name <$> mapM (\ (name, ty) -> (,) name <$> transform_type_expr ty) fields
-                transform_variant (HIR.DataVariant'Anon name fields) = HIR.DataVariant'Anon name <$> mapM transform_type_expr fields
-        transform_nominal_type (HIR.NominalType'Synonym name expansion) = HIR.NominalType'Synonym name <$> transform_type_expr expansion
+                transform_variant (HIR.ADTVariant'Named name fields) = HIR.ADTVariant'Named name <$> mapM (\ (name, ty) -> (,) name <$> transform_type_expr ty) fields
+                transform_variant (HIR.ADTVariant'Anon name fields) = HIR.ADTVariant'Anon name <$> mapM transform_type_expr fields
+
+        transform_type_synonym (HIR.TypeSynonym name expansion) = HIR.TypeSynonym name <$> transform_type_expr expansion
 
         transform_type_expr (HIR.TypeExpr'Identifier sp id) = HIR.TypeExpr'Identifier sp <$> transform_t_iden id
         transform_type_expr (HIR.TypeExpr'Tuple a b) = HIR.TypeExpr'Tuple <$> transform_type_expr a <*> transform_type_expr b
@@ -114,13 +122,13 @@ transform_identifiers transform_t_iden transform_e_iden nominal_types decls = (,
 
         transform_expr (HIR.Expr'Poison typeinfo sp) = pure $ HIR.Expr'Poison typeinfo sp
 
-resolve :: (UnresolvedDeclArena, UnresolvedNominalTypeArena) -> Compiler.Compiler (ResolvedDeclArena, ResolvedNominalTypeArena)
-resolve (decls, nominals) =
+resolve :: (UnresolvedDeclArena, UnresolvedADTArena, UnresolvedTypeSynonymArena) -> Compiler.Compiler (ResolvedDeclArena, ResolvedADTArena, ResolvedTypeSynonymArena)
+resolve (decls, adts, type_synonyms) =
     let (res, errs) =
             runWriter (
-                let (nominals', decls') = runIdentity (transform_identifiers Identity split_expr_iden nominals decls)
-                in transform_identifiers (resolve_type_iden decls) (resolve_expr_iden decls) nominals' decls' >>= \ (nominals', decls') ->
-                pure (decls', nominals')
+                let (adts', type_synonyms', decls') = runIdentity (transform_identifiers Identity split_expr_iden adts type_synonyms decls)
+                in transform_identifiers (resolve_type_iden decls) (resolve_expr_iden decls) adts' type_synonyms' decls' >>= \ (adts', type_synonyms', decls') ->
+                pure (decls', adts', type_synonyms')
             )
     in Compiler.errors errs >> pure res
 

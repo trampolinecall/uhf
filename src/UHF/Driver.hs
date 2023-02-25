@@ -40,11 +40,11 @@ import qualified UHF.TSBackend as TSBackend
 type Tokens = ([Token.LToken], Token.LToken)
 type AST = [AST.Decl]
 
-type FirstIR = (Arena.Arena (HIR.Decl (HIR.NameContext, [Located Text]) (HIR.TypeExpr (HIR.NameContext, [Located Text])) () ()) HIR.DeclKey, Arena.Arena (HIR.NominalType (HIR.TypeExpr (HIR.NameContext, [Located Text]))) HIR.NominalTypeKey, Arena.Arena (HIR.BoundValue ()) HIR.BoundValueKey)
-type NRIR = (Arena.Arena (HIR.Decl (Located (Maybe HIR.BoundValueKey)) (HIR.TypeExpr (Maybe HIR.DeclKey)) () ()) HIR.DeclKey, Arena.Arena (HIR.NominalType (HIR.TypeExpr (Maybe HIR.DeclKey))) HIR.NominalTypeKey, Arena.Arena (HIR.BoundValue ()) HIR.BoundValueKey)
-type TypedIR = (Arena.Arena (HIR.Decl (Located (Maybe HIR.BoundValueKey)) (Maybe (HIR.Type Void)) (Maybe (HIR.Type Void)) Void) HIR.DeclKey, Arena.Arena (HIR.NominalType (Maybe (HIR.Type Void))) HIR.NominalTypeKey, Arena.Arena (HIR.BoundValue (Maybe (HIR.Type Void))) HIR.BoundValueKey)
-type GraphIR = (Arena.Arena ANFIR.Decl HIR.DeclKey, Arena.Arena (HIR.NominalType (Maybe (HIR.Type Void))) HIR.NominalTypeKey, Arena.Arena (ANFIR.Node (Maybe (HIR.Type Void)) ()) ANFIR.NodeKey, Arena.Arena (ANFIR.Param (Maybe (HIR.Type Void))) ANFIR.ParamKey, Arena.Arena (HIR.BoundValue (Maybe (HIR.Type Void))) HIR.BoundValueKey)
-type NoPoisonIR = (Arena.Arena ANFIR.Decl HIR.DeclKey, Arena.Arena (HIR.NominalType (HIR.Type Void)) HIR.NominalTypeKey, Arena.Arena (ANFIR.Node (HIR.Type Void) Void) ANFIR.NodeKey, Arena.Arena (ANFIR.Param (HIR.Type Void)) ANFIR.ParamKey, Arena.Arena (HIR.BoundValue (HIR.Type Void)) HIR.BoundValueKey)
+type FirstIR = (Arena.Arena (HIR.Decl (HIR.NameContext, [Located Text]) (HIR.TypeExpr (HIR.NameContext, [Located Text])) () ()) HIR.DeclKey, Arena.Arena (HIR.ADT (HIR.TypeExpr (HIR.NameContext, [Located Text]))) HIR.ADTKey, Arena.Arena (HIR.TypeSynonym (HIR.TypeExpr (HIR.NameContext, [Located Text]))) HIR.TypeSynonymKey, Arena.Arena (HIR.BoundValue ()) HIR.BoundValueKey)
+type NRIR = (Arena.Arena (HIR.Decl (Located (Maybe HIR.BoundValueKey)) (HIR.TypeExpr (Maybe HIR.DeclKey)) () ()) HIR.DeclKey, Arena.Arena (HIR.ADT (HIR.TypeExpr (Maybe HIR.DeclKey))) HIR.TypeSynonymKey, Arena.Arena (HIR.TypeSynonym (HIR.TypeExpr (Maybe HIR.DeclKey))) HIR.TypeSynonymKey, Arena.Arena (HIR.BoundValue ()) HIR.BoundValueKey)
+type TypedIR = (Arena.Arena (HIR.Decl (Located (Maybe HIR.BoundValueKey)) (Maybe (HIR.Type Void)) (Maybe (HIR.Type Void)) Void) HIR.DeclKey, Arena.Arena (HIR.ADT (Maybe (HIR.Type Void))) HIR.TypeSynonymKey, Arena.Arena (HIR.TypeSynonym (Maybe (HIR.Type Void))) HIR.TypeSynonymKey, Arena.Arena (HIR.BoundValue (Maybe (HIR.Type Void))) HIR.BoundValueKey)
+type GraphIR = (Arena.Arena ANFIR.Decl HIR.DeclKey, Arena.Arena (HIR.ADT (Maybe (HIR.Type Void))) HIR.TypeSynonymKey, Arena.Arena (HIR.TypeSynonym (Maybe (HIR.Type Void))) HIR.TypeSynonymKey, Arena.Arena (ANFIR.Node (Maybe (HIR.Type Void)) ()) ANFIR.NodeKey, Arena.Arena (ANFIR.Param (Maybe (HIR.Type Void))) ANFIR.ParamKey, Arena.Arena (HIR.BoundValue (Maybe (HIR.Type Void))) HIR.BoundValueKey)
+type NoPoisonIR = (Arena.Arena ANFIR.Decl HIR.DeclKey, Arena.Arena (HIR.ADT (HIR.Type Void)) HIR.ADTKey, Arena.Arena (HIR.TypeSynonym (HIR.Type Void)) HIR.TypeSynonymKey, Arena.Arena (ANFIR.Node (HIR.Type Void) Void) ANFIR.NodeKey, Arena.Arena (ANFIR.Param (HIR.Type Void)) ANFIR.ParamKey, Arena.Arena (HIR.BoundValue (HIR.Type Void)) HIR.BoundValueKey)
 type Dot = Text
 type TS = Text
 
@@ -92,16 +92,16 @@ front file =
 
 analysis :: AST -> Compiler.Compiler (Maybe NoPoisonIR)
 analysis ast =
-    ASTToIR.convert ast >>= \ (decls, nominal_types, bound_values) ->
-    NameResolve.resolve (decls, nominal_types) >>= \ (decls, nominal_types) ->
+    ASTToIR.convert ast >>= \ (decls, adts, type_synonyms, bound_values) ->
+    NameResolve.resolve (decls, adts, type_synonyms) >>= \ (decls, adts, type_synonyms) ->
     let decls' = InfixGroup.group decls
-    in Type.typecheck (decls', nominal_types, bound_values) >>= \ (decls', nominal_types, bound_values) ->
+    in Type.typecheck (decls', adts, type_synonyms, bound_values) >>= \ (decls', adts, type_synonyms, bound_values) ->
     let (decls'', nodes, params) = ToGraph.to_graph bound_values decls'
-        no_poison = RemovePoison.remove_poison (decls'', nominal_types, nodes, params, bound_values)
+        no_poison = RemovePoison.remove_poison (decls'', adts, type_synonyms, nodes, params, bound_values)
     in pure no_poison
 
 to_ts :: NoPoisonIR -> TS
-to_ts (decls, nominal_types, nodes, params, bound_values) = TSBackend.lower decls nominal_types nodes params
+to_ts (decls, adts, type_synonyms, nodes, params, bound_values) = TSBackend.lower decls adts type_synonyms nodes params
 
 to_dot :: NoPoisonIR -> Dot
-to_dot (decls, nominal_types, nodes, params, bound_values) = ToDot.to_dot decls nominal_types nodes params
+to_dot (decls, adts, type_synonyms, nodes, params, bound_values) = ToDot.to_dot decls adts type_synonyms nodes params

@@ -64,37 +64,45 @@ instance Diagnostic.ToError Error where
 type Identifier = (HIR.NameContext, [Located Text])
 type Decl = HIR.Decl Identifier TypeExpr () ()
 type Binding = HIR.Binding Identifier TypeExpr () ()
-type NominalType = HIR.NominalType TypeExpr
+type ADT = HIR.ADT TypeExpr
+type TypeSynonym = HIR.TypeSynonym TypeExpr
 type TypeExpr = HIR.TypeExpr Identifier
 type Expr = HIR.Expr Identifier TypeExpr () ()
 type Pattern = HIR.Pattern Identifier ()
 
 type DeclArena = Arena.Arena Decl HIR.DeclKey
 type BoundValueArena = Arena.Arena (HIR.BoundValue ()) HIR.BoundValueKey
-type NominalTypeArena = Arena.Arena NominalType HIR.NominalTypeKey
+type ADTArena = Arena.Arena ADT HIR.ADTKey
+type TypeSynonymArena = Arena.Arena TypeSynonym HIR.TypeSynonymKey
 
 type DeclChildrenList = [(Text, DeclAt, HIR.DeclKey)]
 type BoundValueList = [(Text, DeclAt, HIR.BoundValueKey)]
 
-type MakeIRState = StateT (DeclArena, BoundValueArena, NominalTypeArena) (Writer [Error])
+type MakeIRState = StateT (DeclArena, BoundValueArena, ADTArena, TypeSynonymArena) (Writer [Error])
 
 new_decl :: Decl -> MakeIRState HIR.DeclKey
 new_decl d =
-    state $ \ (decls, bound_values, nominals) ->
+    state $ \ (decls, bound_values, adts, type_synonyms) ->
         let (key, decls') = Arena.put d decls
-        in (key, (decls', bound_values, nominals))
+        in (key, (decls', bound_values, adts, type_synonyms))
 
 new_bound_value :: Text -> Span -> MakeIRState HIR.BoundValueKey
 new_bound_value _ sp =
-    state $ \ (decls, bound_values, nominals) ->
+    state $ \ (decls, bound_values, adts, type_synonyms) ->
         let (key, bound_values') = Arena.put (HIR.BoundValue () sp) bound_values
-        in (key, (decls, bound_values', nominals))
+        in (key, (decls, bound_values', adts, type_synonyms))
 
-new_nominal_type :: NominalType -> MakeIRState HIR.NominalTypeKey
-new_nominal_type nominal =
-    state $ \ (decls, bound_values, nominals) ->
-        let (key, nominals') = Arena.put nominal nominals
-        in (key, (decls, bound_values, nominals'))
+new_adt :: ADT -> MakeIRState HIR.ADTKey
+new_adt adt =
+    state $ \ (decls, bound_values, adts, type_synonyms) ->
+        let (key, adts') = Arena.put adt adts
+        in (key, (decls, bound_values, adts', type_synonyms))
+
+new_type_synonym :: TypeSynonym -> MakeIRState HIR.TypeSynonymKey
+new_type_synonym ts =
+    state $ \ (decls, bound_values, adts, type_synonyms) ->
+        let (key, type_synonyms') = Arena.put ts type_synonyms
+        in (key, (decls, bound_values, adts, type_synonyms'))
 
 tell_err :: Error -> MakeIRState ()
 tell_err = lift . tell . (:[])
@@ -147,7 +155,7 @@ primitive_decls =
 primitive_values :: MakeIRState BoundValueList
 primitive_values = pure []
 
-convert :: [AST.Decl] -> Compiler.Compiler (DeclArena, NominalTypeArena, BoundValueArena)
+convert :: [AST.Decl] -> Compiler.Compiler (DeclArena, ADTArena, TypeSynonymArena, BoundValueArena)
 convert decls =
     let -- prim_span = Span.start_of_file file TODO: remove this function
         (res, errs) = runWriter (
@@ -158,8 +166,8 @@ convert decls =
                         convert_decls Nothing primitive_decls primitive_values decls >>= \ (name_context, bindings) ->
                         new_decl (HIR.Decl'Module name_context bindings)
                     )
-                    (Arena.new, Arena.new, Arena.new) >>= \ (_, (decls, bound_values, nominals)) ->
-                pure (decls, nominals, bound_values)
+                    (Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (_, (decls, bound_values, adts, type_synonyms)) ->
+                pure (decls, adts, type_synonyms, bound_values)
             )
     in Compiler.errors errs >> pure res
 
@@ -180,11 +188,11 @@ convert_decls parent_context prev_decl_entries prev_bv_entries decls =
         convert_decl final_name_context (AST.Decl'Data name variants) =
             runMaybeT (
                 iden1_for_type_name name >>= \ (Located name1sp name1) ->
-                HIR.NominalType'Data name1 <$> mapM (convert_variant final_name_context) variants >>= \ datatype ->
+                HIR.ADT name1 <$> mapM (convert_variant final_name_context) variants >>= \ datatype ->
 
-                lift (new_nominal_type datatype) >>= \ nominal_type_key ->
+                lift (new_adt datatype) >>= \ nominal_type_key ->
                 -- TODO: add constructors to bound name table
-                lift (new_decl (HIR.Decl'Type $ HIR.Type'Nominal nominal_type_key)) >>= \ decl_key ->
+                lift (new_decl (HIR.Decl'Type $ HIR.Type'ADT nominal_type_key)) >>= \ decl_key ->
 
                 pure (name1, DeclAt name1sp, decl_key)
             ) >>= \ new_decl_entry ->
@@ -194,8 +202,8 @@ convert_decls parent_context prev_decl_entries prev_bv_entries decls =
             runMaybeT (
                 lift (convert_type final_name_context expansion) >>= \ expansion' ->
                 iden1_for_type_name name >>= \ (Located name1sp name1) ->
-                lift (new_nominal_type (HIR.NominalType'Synonym name1 expansion')) >>= \ nominal_type_key ->
-                lift (new_decl (HIR.Decl'Type $ HIR.Type'Nominal nominal_type_key)) >>= \ decl_key ->
+                lift (new_type_synonym (HIR.TypeSynonym name1 expansion')) >>= \ nominal_type_key ->
+                lift (new_decl (HIR.Decl'Type $ HIR.Type'Synonym nominal_type_key)) >>= \ decl_key ->
 
                 pure (name1, DeclAt name1sp, decl_key)
             ) >>= \ new_decl_entry ->
@@ -205,10 +213,10 @@ convert_decls parent_context prev_decl_entries prev_bv_entries decls =
         iden1_for_type_name = MaybeT . make_iden1_with_err PathInTypeName
         iden1_for_field_name = MaybeT . make_iden1_with_err PathInFieldName
 
-        convert_variant name_context (AST.DataVariant'Anon name fields) = HIR.DataVariant'Anon <$> (unlocate <$> iden1_for_variant_name name) <*> lift (mapM (convert_type name_context) fields)
+        convert_variant name_context (AST.DataVariant'Anon name fields) = HIR.ADTVariant'Anon <$> (unlocate <$> iden1_for_variant_name name) <*> lift (mapM (convert_type name_context) fields)
         convert_variant name_context (AST.DataVariant'Named name fields) =
             -- TOOD: making getter functions
-            HIR.DataVariant'Named
+            HIR.ADTVariant'Named
                 <$> (unlocate <$> iden1_for_variant_name name)
                 <*> mapM
                     (\ (field_name, ty_ast) ->

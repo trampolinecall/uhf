@@ -34,11 +34,11 @@ import qualified UHF.TSBackend as TSBackend
 type Tokens = ([Token.LToken], Token.LToken)
 type AST = [AST.Decl]
 
-type FirstIR = (Arena.Arena HIR.Decl HIR.DeclKey, Arena.Arena (HIR.NominalType (HIR.TypeExpr (HIR.NameContext, [Located Text]))) HIR.NominalTypeKey, Arena.Arena (HIR.Binding (HIR.NameContext, [Located Text]) (HIR.TypeExpr (HIR.NameContext, [Located Text])) () ()) HIR.BindingKey, Arena.Arena (HIR.BoundValue ()) HIR.BoundValueKey)
-type NRIR = (Arena.Arena HIR.Decl HIR.DeclKey, Arena.Arena (HIR.NominalType (HIR.TypeExpr (Maybe HIR.DeclKey))) HIR.NominalTypeKey, Arena.Arena (HIR.Binding (Located (Maybe HIR.BoundValueKey)) (HIR.TypeExpr (Maybe HIR.DeclKey)) () ()) HIR.BindingKey, Arena.Arena (HIR.BoundValue ()) HIR.BoundValueKey)
-type TypedIR = (Arena.Arena HIR.Decl HIR.DeclKey, Arena.Arena (HIR.NominalType (Maybe (HIR.Type Void))) HIR.NominalTypeKey, Arena.Arena (HIR.Binding (Located (Maybe HIR.BoundValueKey)) (Maybe (HIR.Type Void)) (Maybe (HIR.Type Void)) Void) HIR.BindingKey, Arena.Arena (HIR.BoundValue (Maybe (HIR.Type Void))) HIR.BoundValueKey)
-type GraphIR = (Arena.Arena HIR.Decl HIR.DeclKey, Arena.Arena (HIR.NominalType (Maybe (HIR.Type Void))) HIR.NominalTypeKey, Arena.Arena (ANFIR.Node (Maybe (HIR.Type Void)) ()) ANFIR.NodeKey, Arena.Arena (ANFIR.Param (Maybe (HIR.Type Void))) ANFIR.ParamKey, Arena.Arena (HIR.BoundValue (Maybe (HIR.Type Void))) HIR.BoundValueKey)
-type NoPoisonIR = (Arena.Arena HIR.Decl HIR.DeclKey, Arena.Arena (HIR.NominalType (HIR.Type Void)) HIR.NominalTypeKey, Arena.Arena (ANFIR.Node (HIR.Type Void) Void) ANFIR.NodeKey, Arena.Arena (ANFIR.Param (HIR.Type Void)) ANFIR.ParamKey, Arena.Arena (HIR.BoundValue (HIR.Type Void)) HIR.BoundValueKey)
+type FirstIR = (Arena.Arena (HIR.Decl (HIR.NameContext, [Located Text]) (HIR.TypeExpr (HIR.NameContext, [Located Text])) () ()) HIR.DeclKey, Arena.Arena (HIR.NominalType (HIR.TypeExpr (HIR.NameContext, [Located Text]))) HIR.NominalTypeKey, Arena.Arena (HIR.BoundValue ()) HIR.BoundValueKey)
+type NRIR = (Arena.Arena (HIR.Decl (Located (Maybe HIR.BoundValueKey)) (HIR.TypeExpr (Maybe HIR.DeclKey)) () ()) HIR.DeclKey, Arena.Arena (HIR.NominalType (HIR.TypeExpr (Maybe HIR.DeclKey))) HIR.NominalTypeKey, Arena.Arena (HIR.BoundValue ()) HIR.BoundValueKey)
+type TypedIR = (Arena.Arena (HIR.Decl (Located (Maybe HIR.BoundValueKey)) (Maybe (HIR.Type Void)) (Maybe (HIR.Type Void)) Void) HIR.DeclKey, Arena.Arena (HIR.NominalType (Maybe (HIR.Type Void))) HIR.NominalTypeKey, Arena.Arena (HIR.BoundValue (Maybe (HIR.Type Void))) HIR.BoundValueKey)
+type GraphIR = (Arena.Arena (HIR.Decl (Located (Maybe HIR.BoundValueKey)) (Maybe (HIR.Type Void)) (Maybe (HIR.Type Void)) Void) HIR.DeclKey, Arena.Arena (HIR.NominalType (Maybe (HIR.Type Void))) HIR.NominalTypeKey, Arena.Arena (ANFIR.Node (Maybe (HIR.Type Void)) ()) ANFIR.NodeKey, Arena.Arena (ANFIR.Param (Maybe (HIR.Type Void))) ANFIR.ParamKey, Arena.Arena (HIR.BoundValue (Maybe (HIR.Type Void))) HIR.BoundValueKey)
+type NoPoisonIR = (Arena.Arena (HIR.Decl (Located (Maybe HIR.BoundValueKey)) (Maybe (HIR.Type Void)) (Maybe (HIR.Type Void)) Void) HIR.DeclKey, Arena.Arena (HIR.NominalType (HIR.Type Void)) HIR.NominalTypeKey, Arena.Arena (ANFIR.Node (HIR.Type Void) Void) ANFIR.NodeKey, Arena.Arena (ANFIR.Param (HIR.Type Void)) ANFIR.ParamKey, Arena.Arena (HIR.BoundValue (HIR.Type Void)) HIR.BoundValueKey)
 type Dot = Text
 type TS = Text
 
@@ -55,12 +55,12 @@ compile' file =
     -- TODO: clean up
     Lexer.lex file >>= \ (tokens, eof_tok) ->
     Parser.parse tokens eof_tok >>= \ ast ->
-    ASTToIR.convert ast >>= \ (decls, nominal_types, bindings, bound_values) ->
-    NameResolve.resolve (decls, nominal_types, bindings) >>= \ (decls, nominal_types, bindings) ->
-    let bindings' = InfixGroup.group bindings
-    in Type.typecheck (decls, nominal_types, bindings', bound_values) >>= \ (decls, nominal_types, bindings, bound_values) ->
-    let (nodes, params) = ToGraph.to_graph bound_values bindings
-        no_poison = RemovePoison.remove_poison (decls, nominal_types, nodes, params, bound_values)
+    ASTToIR.convert ast >>= \ (decls, nominal_types, bound_values) ->
+    NameResolve.resolve (decls, nominal_types) >>= \ (decls, nominal_types) ->
+    let decls' = InfixGroup.group decls
+    in Type.typecheck (decls', nominal_types, bound_values) >>= \ (decls', nominal_types, bound_values) ->
+    let (nodes, params) = ToGraph.to_graph bound_values decls'
+        no_poison = RemovePoison.remove_poison (decls', nominal_types, nodes, params, bound_values)
         dot =
             case no_poison of
                 Just (decls', nominal_types', nodes', params', bound_values') -> Just $ ToDot.to_dot decls' nominal_types' nodes' params'

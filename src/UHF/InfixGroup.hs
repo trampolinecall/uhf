@@ -9,17 +9,20 @@ import UHF.IO.Located (Located)
 
 import qualified UHF.HIR as HIR
 
+type UngroupedDecl typeannotation = HIR.Decl (Located (Maybe HIR.BoundValueKey)) typeannotation () ()
 type UngroupedBinding typeannotation = HIR.Binding (Located (Maybe HIR.BoundValueKey)) typeannotation () ()
 type UngroupedExpr typeannotation = HIR.Expr (Located (Maybe HIR.BoundValueKey)) typeannotation () ()
 
+type GroupedDecl typeannotation = HIR.Decl (Located (Maybe HIR.BoundValueKey)) typeannotation () Void
 type GroupedBinding typeannotation = HIR.Binding (Located (Maybe HIR.BoundValueKey)) typeannotation () Void
 type GroupedExpr typeannotation = HIR.Expr (Located (Maybe HIR.BoundValueKey)) typeannotation () Void
 
-type UngroupedBindingArena typeannotation = Arena.Arena (UngroupedBinding typeannotation) HIR.BindingKey
-type GroupedBindingArena typeannotation = Arena.Arena (GroupedBinding typeannotation) HIR.BindingKey
+group :: Arena.Arena (UngroupedDecl typeannotation) HIR.DeclKey -> Arena.Arena (GroupedDecl typeannotation) HIR.DeclKey
+group = Arena.transform group_decl
 
-group :: UngroupedBindingArena typeannotation -> GroupedBindingArena typeannotation
-group = Arena.transform group_binding
+group_decl :: UngroupedDecl typeannotation -> GroupedDecl typeannotation
+group_decl (HIR.Decl'Module nc bindings) = HIR.Decl'Module nc (map group_binding bindings)
+group_decl (HIR.Decl'Type ty) = HIR.Decl'Type ty
 
 group_binding :: UngroupedBinding typeannotation -> GroupedBinding typeannotation
 group_binding (HIR.Binding pat eq_sp e) = HIR.Binding pat eq_sp (group_expr e)
@@ -36,8 +39,8 @@ group_expr (HIR.Expr'Tuple () sp a b) = HIR.Expr'Tuple () sp (group_expr a) (gro
 
 group_expr (HIR.Expr'Lambda () sp param body) = HIR.Expr'Lambda () sp param (group_expr body)
 
-group_expr (HIR.Expr'Let () sp body) = HIR.Expr'Let () sp (group_expr body)
-group_expr (HIR.Expr'LetRec () sp body) = HIR.Expr'LetRec () sp (group_expr body)
+group_expr (HIR.Expr'Let () sp bindings body) = HIR.Expr'Let () sp (map group_binding bindings) (group_expr body)
+group_expr (HIR.Expr'LetRec () sp bindings body) = HIR.Expr'LetRec () sp (map group_binding bindings) (group_expr body)
 
 group_expr (HIR.Expr'BinaryOps () () _ first ops) =
     let (r, a) = g (group_expr first) ops 0

@@ -6,10 +6,13 @@ import qualified Arena
 
 import qualified Data.Text as Text
 
+import UHF.IO.Located (Located)
+
 import qualified UHF.HIR as HIR
 import qualified UHF.ANFIR as ANFIR
 
-type Decl = HIR.Decl
+-- TODO: do not use HIR.Decl here; instead make an ANFIR.Decl type
+type Decl = HIR.Decl (Located (Maybe HIR.BoundValueKey)) (Maybe (HIR.Type Void)) (Maybe (HIR.Type Void)) Void
 type DeclArena = Arena.Arena Decl HIR.DeclKey
 
 type Type = HIR.Type Void

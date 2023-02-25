@@ -32,7 +32,7 @@ data Error
     | Tuple1 Span
     | Tuple0 Span
 
-data DeclAt = DeclAt Span | ImplicitPrim
+data DeclAt = DeclAt Span | ImplicitPrim deriving Show
 
 instance Diagnostic.ToError Error where
     to_error (MultipleDecls name decl_ats) =
@@ -62,7 +62,7 @@ instance Diagnostic.ToError Error where
     to_error (Tuple0 sp) = Diagnostic.Error Codes.tuple0 (Just sp) "tuple of 0 elements" [] []
 
 type Identifier = (HIR.NameContext, [Located Text])
-type Decl = HIR.Decl
+type Decl = HIR.Decl Identifier TypeExpr () ()
 type Binding = HIR.Binding Identifier TypeExpr () ()
 type NominalType = HIR.NominalType TypeExpr
 type TypeExpr = HIR.TypeExpr Identifier
@@ -70,38 +70,31 @@ type Expr = HIR.Expr Identifier TypeExpr () ()
 type Pattern = HIR.Pattern Identifier ()
 
 type DeclArena = Arena.Arena Decl HIR.DeclKey
-type BindingArena = Arena.Arena Binding HIR.BindingKey
 type BoundValueArena = Arena.Arena (HIR.BoundValue ()) HIR.BoundValueKey
 type NominalTypeArena = Arena.Arena NominalType HIR.NominalTypeKey
 
 type DeclChildrenList = [(Text, DeclAt, HIR.DeclKey)]
 type BoundValueList = [(Text, DeclAt, HIR.BoundValueKey)]
 
-type MakeIRState = StateT (DeclArena, BindingArena, BoundValueArena, NominalTypeArena) (Writer [Error])
+type MakeIRState = StateT (DeclArena, BoundValueArena, NominalTypeArena) (Writer [Error])
 
 new_decl :: Decl -> MakeIRState HIR.DeclKey
 new_decl d =
-    state $ \ (decls, bindings, bound_values, nominals) ->
+    state $ \ (decls, bound_values, nominals) ->
         let (key, decls') = Arena.put d decls
-        in (key, (decls', bindings, bound_values, nominals))
-
-new_binding :: Binding -> MakeIRState HIR.BindingKey
-new_binding v =
-    state $ \ (decls, bindings, bound_values, nominals) ->
-        let (key, bindings') = Arena.put v bindings
-        in (key, (decls, bindings', bound_values, nominals))
+        in (key, (decls', bound_values, nominals))
 
 new_bound_value :: Text -> Span -> MakeIRState HIR.BoundValueKey
 new_bound_value _ sp =
-    state $ \ (decls, bindings, bound_values, nominals) ->
+    state $ \ (decls, bound_values, nominals) ->
         let (key, bound_values') = Arena.put (HIR.BoundValue () sp) bound_values
-        in (key, (decls, bindings, bound_values', nominals))
+        in (key, (decls, bound_values', nominals))
 
 new_nominal_type :: NominalType -> MakeIRState HIR.NominalTypeKey
 new_nominal_type nominal =
-    state $ \ (decls, bindings, bound_values, nominals) ->
+    state $ \ (decls, bound_values, nominals) ->
         let (key, nominals') = Arena.put nominal nominals
-        in (key, (decls, bindings, bound_values, nominals'))
+        in (key, (decls, bound_values, nominals'))
 
 tell_err :: Error -> MakeIRState ()
 tell_err = lift . tell . (:[])
@@ -116,7 +109,7 @@ make_name_context decls bound_values parent =
         -- separate finding duplicates from making maps so that if there is a duplicate the whole name contexet doesnt just disappear
         -- duplicates will just take the last bound name in the last, because of the how Map.fromList is implemented
         find_dups x =
-            let grouped = List.groupBy ((==) `on` get_name) $ List.sortBy (compare `on` get_name) x -- compare names of bindings only
+            let grouped = List.groupBy ((==) `on` get_name) $ List.sortBy (compare `on` get_name) x -- compare names of bound names only
             in filter ((1/=) . length) grouped
             where
                 get_name (n, _, _) = n
@@ -154,7 +147,7 @@ primitive_decls =
 primitive_values :: MakeIRState BoundValueList
 primitive_values = pure []
 
-convert :: [AST.Decl] -> Compiler.Compiler (DeclArena, NominalTypeArena, BindingArena, BoundValueArena)
+convert :: [AST.Decl] -> Compiler.Compiler (DeclArena, NominalTypeArena, BoundValueArena)
 convert decls =
     let -- prim_span = Span.start_of_file file TODO: remove this function
         (res, errs) = runWriter (
@@ -162,51 +155,52 @@ convert decls =
                     (
                         primitive_decls >>= \ primitive_decls ->
                         primitive_values >>= \ primitive_values ->
-                        HIR.Decl'Module <$> convert_decls Nothing primitive_decls primitive_values decls >>= new_decl
+                        convert_decls Nothing primitive_decls primitive_values decls >>= \ (name_context, bindings) ->
+                        new_decl (HIR.Decl'Module name_context bindings)
                     )
-                    (Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (_, (decls, bindings, bound_values, nominals)) ->
-                pure (decls, nominals, bindings, bound_values)
+                    (Arena.new, Arena.new, Arena.new) >>= \ (_, (decls, bound_values, nominals)) ->
+                pure (decls, nominals, bound_values)
             )
     in Compiler.errors errs >> pure res
 
-convert_decls :: Maybe HIR.NameContext -> DeclChildrenList -> BoundValueList -> [AST.Decl] -> MakeIRState HIR.NameContext
+convert_decls :: Maybe HIR.NameContext -> DeclChildrenList -> BoundValueList -> [AST.Decl] -> MakeIRState (HIR.NameContext, [Binding])
 convert_decls parent_context prev_decl_entries prev_bv_entries decls =
-    mfix (\ final_name_context -> -- mfix needed because the name context to put the expressions into is this one
-        List.unzip <$> mapM
-            (\case
-                AST.Decl'Value target eq_sp expr ->
-                    convert_expr final_name_context expr >>= \ expr' ->
-                    convert_pattern target >>= \ (new_bound_values, target') ->
-                    new_binding (HIR.Binding target' eq_sp expr') >>
-                    pure ([], new_bound_values)
-
-                AST.Decl'Data name variants ->
-                    runMaybeT (
-                        iden1_for_type_name name >>= \ (Located name1sp name1) ->
-                        HIR.NominalType'Data name1 <$> mapM (convert_variant final_name_context) variants >>= \ datatype ->
-
-                        lift (new_nominal_type datatype) >>= \ nominal_type_key ->
-                        -- TODO: add constructors to bound name table
-                        lift (new_decl (HIR.Decl'Type $ HIR.Type'Nominal nominal_type_key)) >>= \ decl_key ->
-
-                        pure (name1, DeclAt name1sp, decl_key)
-                    ) >>= \ new_decl_entry ->
-                    pure (Maybe.maybeToList new_decl_entry, [])
-
-                AST.Decl'TypeSyn name expansion ->
-                    runMaybeT (
-                        lift (convert_type final_name_context expansion) >>= \ expansion' ->
-                        iden1_for_type_name name >>= \ (Located name1sp name1) ->
-                        lift (new_nominal_type (HIR.NominalType'Synonym name1 expansion')) >>= \ nominal_type_key ->
-                        lift (new_decl (HIR.Decl'Type $ HIR.Type'Nominal nominal_type_key)) >>= \ decl_key ->
-
-                        pure (name1, DeclAt name1sp, decl_key)
-                    ) >>= \ new_decl_entry ->
-                    pure (Maybe.maybeToList new_decl_entry, [])
-            )
-            decls >>= \ (decl_entries, bound_value_entries) ->
-        make_name_context (prev_decl_entries ++ concat decl_entries) (prev_bv_entries ++ concat bound_value_entries) parent_context)
+    mfix (\ ~(final_name_context, _) -> -- mfix needed because the name context to put the expressions into is this one
+        List.unzip3 <$> mapM (convert_decl final_name_context) decls >>= \ (decl_entries, bound_value_entries, bindings) ->
+        make_name_context (prev_decl_entries ++ concat decl_entries) (prev_bv_entries ++ concat bound_value_entries) parent_context >>= \ name_context ->
+        pure (name_context, concat bindings)
+    )
     where
+        convert_decl final_name_context (AST.Decl'Value target eq_sp expr) =
+            convert_expr final_name_context expr >>= \ expr' ->
+            convert_pattern target >>= \ (new_bound_values, target') ->
+            let binding = HIR.Binding target' eq_sp expr'
+            in pure ([], new_bound_values, [binding])
+
+        convert_decl final_name_context (AST.Decl'Data name variants) =
+            runMaybeT (
+                iden1_for_type_name name >>= \ (Located name1sp name1) ->
+                HIR.NominalType'Data name1 <$> mapM (convert_variant final_name_context) variants >>= \ datatype ->
+
+                lift (new_nominal_type datatype) >>= \ nominal_type_key ->
+                -- TODO: add constructors to bound name table
+                lift (new_decl (HIR.Decl'Type $ HIR.Type'Nominal nominal_type_key)) >>= \ decl_key ->
+
+                pure (name1, DeclAt name1sp, decl_key)
+            ) >>= \ new_decl_entry ->
+            pure (Maybe.maybeToList new_decl_entry, [], [])
+
+        convert_decl final_name_context (AST.Decl'TypeSyn name expansion) =
+            runMaybeT (
+                lift (convert_type final_name_context expansion) >>= \ expansion' ->
+                iden1_for_type_name name >>= \ (Located name1sp name1) ->
+                lift (new_nominal_type (HIR.NominalType'Synonym name1 expansion')) >>= \ nominal_type_key ->
+                lift (new_decl (HIR.Decl'Type $ HIR.Type'Nominal nominal_type_key)) >>= \ decl_key ->
+
+                pure (name1, DeclAt name1sp, decl_key)
+            ) >>= \ new_decl_entry ->
+            pure (Maybe.maybeToList new_decl_entry, [], [])
+
         iden1_for_variant_name = MaybeT . make_iden1_with_err PathInVariantName
         iden1_for_type_name = MaybeT . make_iden1_with_err PathInTypeName
         iden1_for_field_name = MaybeT . make_iden1_with_err PathInFieldName
@@ -258,11 +252,11 @@ convert_expr parent_context (AST.Expr'Lambda sp params body) = convert_lambda pa
         convert_lambda parent_context [] body = convert_expr parent_context body
 
 convert_expr parent_context (AST.Expr'Let sp decls subexpr) =
-    convert_decls (Just parent_context) [] [] decls >>= \ let_context ->
-    HIR.Expr'Let () sp <$> convert_expr let_context subexpr -- TODO: actually do sequentially because convert_decls does all at once
+    convert_decls (Just parent_context) [] [] decls >>= \ (let_context, bindings) ->
+    HIR.Expr'Let () sp bindings <$> convert_expr let_context subexpr -- TODO: actually do sequentially because convert_decls does all at once
 convert_expr parent_context (AST.Expr'LetRec sp decls subexpr) =
-    convert_decls (Just parent_context) [] [] decls >>= \ let_context ->
-    HIR.Expr'LetRec () sp <$> convert_expr let_context subexpr
+    convert_decls (Just parent_context) [] [] decls >>= \ (let_context, bindings) ->
+    HIR.Expr'LetRec () sp bindings <$> convert_expr let_context subexpr
 
 convert_expr parent_context (AST.Expr'BinaryOps sp first ops) = HIR.Expr'BinaryOps () () sp <$> convert_expr parent_context first <*> mapM (\ (op, right) -> convert_expr parent_context right >>= \ right' -> pure ((parent_context, unlocate op), right')) ops
 

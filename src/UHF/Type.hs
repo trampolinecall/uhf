@@ -25,30 +25,30 @@ new_type_variable for_what =
         Arena.put (TypeVar for_what Fresh) type_vars
 
 -- also does type inference
-typecheck :: (DeclArena, UntypedNominalTypeArena, UntypedBindingArena, UntypedBoundValueArena) -> Compiler.Compiler (DeclArena, TypedNominalTypeArena, TypedBindingArena, TypedBoundValueArena)
-typecheck (decls, nominal_types, bindings, bound_values) =
+typecheck :: (UntypedDeclArena, UntypedNominalTypeArena, UntypedBoundValueArena) -> Compiler.Compiler (TypedDeclArena, TypedNominalTypeArena, TypedBoundValueArena)
+typecheck (decls, nominal_types, bound_values) =
     let (res, errs) =
             runWriter (
                 runStateT
                     (
                         Arena.transformM (convert_type_exprs_in_nominal_types decls) nominal_types >>= \ nominal_types ->
                         Arena.transformM assign_type_variable_to_bound_value bound_values >>= \ bound_values ->
-                        runWriterT (Arena.transformM (collect_constraints decls bound_values) bindings) >>= \ (bindings, constraints) ->
+                        runWriterT (Arena.transformM (collect_constraints decls bound_values) decls) >>= \ (decls, constraints) ->
                         solve_constraints nominal_types constraints >>
-                        pure (nominal_types, bound_values, bindings)
+                        pure (decls, nominal_types, bound_values)
                     )
-                    Arena.new >>= \ ((nominal_types, bound_values, bindings), vars) ->
+                    Arena.new >>= \ ((decls, nominal_types, bound_values), vars) ->
 
                 convert_vars vars >>= \ vars ->
-                let nominal_types' = Arena.transform (remove_vars_from_nominal_type vars) nominal_types
+                let decls' = Arena.transform (remove_vars_from_decl vars) decls
+                    nominal_types' = Arena.transform (remove_vars_from_nominal_type vars) nominal_types
                     bound_values' = Arena.transform (remove_vars_from_bound_value vars) bound_values
-                    bindings' = Arena.transform (remove_vars_from_binding vars) bindings
                 in
-                pure (decls, nominal_types', bindings', bound_values')
+                pure (decls', nominal_types', bound_values')
             )
     in Compiler.errors errs >> pure res
 
-convert_type_exprs_in_nominal_types :: DeclArena -> UntypedNominalType -> StateWithVars TypedWithVarsNominalType
+convert_type_exprs_in_nominal_types :: UntypedDeclArena -> UntypedNominalType -> StateWithVars TypedWithVarsNominalType
 convert_type_exprs_in_nominal_types decls (HIR.NominalType'Data name variants) = HIR.NominalType'Data name <$> mapM (convert_variant decls) variants
     where
         convert_variant decls (HIR.DataVariant'Named name fields) = HIR.DataVariant'Named name <$> mapM (\ (name, ty) -> (,) name <$> convert_type_expr decls ty) fields
@@ -56,10 +56,10 @@ convert_type_exprs_in_nominal_types decls (HIR.NominalType'Data name variants) =
 
 convert_type_exprs_in_nominal_types decls (HIR.NominalType'Synonym name expansion) = HIR.NominalType'Synonym name <$> convert_type_expr decls expansion
 
-convert_type_expr :: DeclArena -> TypeExpr -> StateWithVars TypeWithVars
+convert_type_expr :: UntypedDeclArena -> TypeExpr -> StateWithVars TypeWithVars
 convert_type_expr decls (HIR.TypeExpr'Identifier sp iden) = case iden of -- TODO: make poison type variable
     Just i -> case Arena.get decls i of
-        HIR.Decl'Module _ -> HIR.Type'Variable <$> new_type_variable (TypeExpr sp) -- TODO: report error for this
+        HIR.Decl'Module _ _ -> HIR.Type'Variable <$> new_type_variable (TypeExpr sp) -- TODO: report error for this
         HIR.Decl'Type ty -> pure $ void_var_to_key ty
     Nothing -> HIR.Type'Variable <$> new_type_variable (TypeExpr sp)
     where
@@ -80,14 +80,18 @@ convert_type_expr _ (HIR.TypeExpr'Poison sp) = HIR.Type'Variable <$> new_type_va
 assign_type_variable_to_bound_value :: UntypedBoundValue -> StateWithVars TypedWithVarsBoundValue
 assign_type_variable_to_bound_value (HIR.BoundValue () def_span) = HIR.BoundValue <$> (HIR.Type'Variable <$> new_type_variable (BoundValue def_span)) <*> pure def_span
 
-collect_constraints :: DeclArena -> TypedWithVarsBoundValueArena -> UntypedBinding -> WriterT [Constraint] StateWithVars TypedWithVarsBinding
-collect_constraints decls bna (HIR.Binding pat eq_sp expr) =
-    collect_for_pat pat >>= \ pat ->
-    collect_for_expr expr >>= \ expr ->
-    tell [Eq InAssignment eq_sp (loc_pat_type pat) (loc_expr_type expr)] >>
-    pure (HIR.Binding pat eq_sp expr)
+collect_constraints :: UntypedDeclArena -> TypedWithVarsBoundValueArena -> UntypedDecl -> WriterT [Constraint] StateWithVars TypedWithVarsDecl
+collect_constraints _ _ (HIR.Decl'Type ty) = pure $ HIR.Decl'Type ty
+collect_constraints decls bna (HIR.Decl'Module nc bindings) = HIR.Decl'Module nc <$> mapM collect_for_binding bindings
     where
+        collect_for_binding (HIR.Binding pat eq_sp expr) =
+            collect_for_pat pat >>= \ pat ->
+            collect_for_expr expr >>= \ expr ->
+            tell [Eq InAssignment eq_sp (loc_pat_type pat) (loc_expr_type expr)] >>
+            pure (HIR.Binding pat eq_sp expr)
+
         -- TODO: sort constraints by priority so that certain weird things dont happen
+        -- TODO: reconsider this todo now that bindings are stored in let blocks
         -- for example:
         -- ```
         -- test = let x = \ (a) -> :string a;
@@ -146,12 +150,14 @@ collect_constraints decls bna (HIR.Binding pat eq_sp expr) =
             collect_for_expr body >>= \ body ->
             pure (HIR.Expr'Lambda (HIR.Type'Function (HIR.pattern_type param) (HIR.expr_type body)) sp param body)
 
-        collect_for_expr (HIR.Expr'Let () sp result) =
+        collect_for_expr (HIR.Expr'Let () sp bindings result) =
+            mapM collect_for_binding bindings >>= \ bindings ->
             collect_for_expr result >>= \ result ->
-            pure (HIR.Expr'Let (HIR.expr_type result) sp result)
-        collect_for_expr (HIR.Expr'LetRec () sp result) =
+            pure (HIR.Expr'Let (HIR.expr_type result) sp bindings result)
+        collect_for_expr (HIR.Expr'LetRec () sp bindings result) =
+            mapM collect_for_binding bindings >>= \ bindings ->
             collect_for_expr result >>= \ result ->
-            pure (HIR.Expr'LetRec (HIR.expr_type result) sp result)
+            pure (HIR.Expr'LetRec (HIR.expr_type result) sp bindings result)
 
         collect_for_expr (HIR.Expr'BinaryOps void _ _ _ _) = absurd void
 
@@ -326,6 +332,10 @@ convert_vars vars =
         convert_var vars_converted (TypeVar _ (Substituted s)) = r vars_converted s
         convert_var _ (TypeVar for_what Fresh) = lift (tell [AmbiguousType for_what]) >> MaybeT (pure Nothing)
 
+remove_vars_from_decl :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsDecl -> TypedDecl
+remove_vars_from_decl vars (HIR.Decl'Module nc bindings) = HIR.Decl'Module nc (map (remove_vars_from_binding vars) bindings)
+remove_vars_from_decl _ (HIR.Decl'Type ty) = HIR.Decl'Type ty
+
 remove_vars_from_bound_value :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsBoundValue -> TypedBoundValue
 remove_vars_from_bound_value vars (HIR.BoundValue ty sp) = HIR.BoundValue (remove_vars vars ty) sp
 
@@ -353,8 +363,8 @@ remove_vars_from_binding vars (HIR.Binding pat eq_sp expr) = HIR.Binding (remove
         remove_from_expr (HIR.Expr'Bool ty sp b) = HIR.Expr'Bool (remove_vars vars ty) sp b
         remove_from_expr (HIR.Expr'Tuple ty sp l r) = HIR.Expr'Tuple (remove_vars vars ty) sp (remove_from_expr l) (remove_from_expr r)
         remove_from_expr (HIR.Expr'Lambda ty sp param body) = HIR.Expr'Lambda (remove_vars vars ty) sp (remove_from_pat param) (remove_from_expr body)
-        remove_from_expr (HIR.Expr'Let ty sp result) = HIR.Expr'Let (remove_vars vars ty) sp (remove_from_expr result)
-        remove_from_expr (HIR.Expr'LetRec ty sp result) = HIR.Expr'LetRec (remove_vars vars ty) sp (remove_from_expr result)
+        remove_from_expr (HIR.Expr'Let ty sp bindings result) = HIR.Expr'Let (remove_vars vars ty) sp (map (remove_vars_from_binding vars) bindings) (remove_from_expr result)
+        remove_from_expr (HIR.Expr'LetRec ty sp bindings result) = HIR.Expr'LetRec (remove_vars vars ty) sp (map (remove_vars_from_binding vars) bindings) (remove_from_expr result)
         remove_from_expr (HIR.Expr'BinaryOps void _ _ _ _) = absurd void
         remove_from_expr (HIR.Expr'Call ty sp callee arg) = HIR.Expr'Call (remove_vars vars ty) sp (remove_from_expr callee) (remove_from_expr arg)
         remove_from_expr (HIR.Expr'If ty sp if_sp cond true false) = HIR.Expr'If (remove_vars vars ty) sp if_sp (remove_from_expr cond) (remove_from_expr true) (remove_from_expr false)

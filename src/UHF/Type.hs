@@ -57,11 +57,12 @@ convert_type_exprs_in_nominal_types decls (HIR.NominalType'Data name variants) =
 convert_type_exprs_in_nominal_types decls (HIR.NominalType'Synonym name expansion) = HIR.NominalType'Synonym name <$> convert_type_expr decls expansion
 
 convert_type_expr :: UntypedDeclArena -> TypeExpr -> StateWithVars TypeWithVars
-convert_type_expr decls (HIR.TypeExpr'Identifier sp iden) = case iden of -- TODO: make poison type variable
-    Just i -> case Arena.get decls i of
-        HIR.Decl'Module _ _ -> HIR.Type'Variable <$> new_type_variable (TypeExpr sp) -- TODO: report error for this
-        HIR.Decl'Type ty -> pure $ void_var_to_key ty
-    Nothing -> HIR.Type'Variable <$> new_type_variable (TypeExpr sp)
+convert_type_expr decls (HIR.TypeExpr'Identifier sp iden) =
+    case iden of -- TODO: make poison type variable
+        Just i -> case Arena.get decls i of
+            HIR.Decl'Module _ _ -> HIR.Type'Variable <$> new_type_variable (TypeExpr sp) -- TODO: report error for this
+            HIR.Decl'Type ty -> pure $ void_var_to_key ty
+        Nothing -> HIR.Type'Variable <$> new_type_variable (TypeExpr sp)
     where
         -- basically useless function for converting Type Void to Type TypeVarKey
         void_var_to_key (HIR.Type'Nominal k) = HIR.Type'Nominal k
@@ -94,8 +95,7 @@ collect_constraints decls bna (HIR.Decl'Module nc bindings) = HIR.Decl'Module nc
         -- TODO: reconsider this todo now that bindings are stored in let blocks
         -- for example:
         -- ```
-        -- test = let x = \ (a) -> :string a;
-        --     x(0)
+        -- test = let x = \ (a) -> :string a; x(0);
         -- ```
         -- produces "
         --     scratch.uhf:1:14: error: conflicting types in assignment: 'int' vs 'string'

@@ -74,6 +74,7 @@ library
     , base >=4.13 && <5
     , containers
     , file-embed
+    , filepath
     , inflist
     , safe
     , tasty

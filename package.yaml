@@ -29,6 +29,7 @@ library:
     - template-haskell
     - inflist
     - file-embed
+    - filepath
 
     - tasty
     - tasty-hunit

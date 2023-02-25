@@ -22,6 +22,8 @@ import qualified Data.Text as Text
 
 -- TODO: test this entire module
 
+-- TODO: count column numbers with tabs correctly
+
 data LineCol = LineCol { lc_ind :: Int, lc_row :: Int, lc_col :: Int } deriving (Show, Eq)
 data Location = Location { loc_file :: File, lc :: LineCol } deriving (Show, Eq)
 

@@ -26,7 +26,7 @@ import Data.Char (isAlpha, isDigit, isOctDigit, isHexDigit, isSpace, digitToInt)
 lex :: File -> Writer [LexError.Error] (Sequence.Seq Token.LInternalToken, Token.LToken)
 lex f =
     let eof = Located (Span.end_of_file f) (Token.EOF ())
-    in evalStateT (run Sequence.Empty) (Location.new f) >>= \ toks -> pure (toks, eof)
+    in evalStateT (run Sequence.Empty) (LexLocation (Location.new f) (File.contents f)) >>= \ toks -> pure (toks, eof)
     where
         run toks =
             get >>= \ l ->
@@ -34,7 +34,8 @@ lex f =
                 then pure toks
                 else lex_one_token >>= \ more -> run (toks <> more)
 -- lex_one_token {{{2
-lex_one_token :: StateT Location (Writer [LexError.Error]) (Sequence.Seq Token.LInternalToken)
+data LexLocation = LexLocation Location Text deriving Show
+lex_one_token :: StateT LexLocation (Writer [LexError.Error]) (Sequence.Seq Token.LInternalToken)
 lex_one_token =
     StateT $ \ loc ->
         writer $
@@ -51,7 +52,7 @@ lex_one_token =
                 , make_bad_char
                 ]
 -- Lexer {{{2
-type Lexer = StateT Location (WriterT [LexError.Error] Maybe)
+type Lexer = StateT LexLocation (WriterT [LexError.Error] Maybe)
 -- lexing functions {{{2
 lex_comment :: Lexer (Sequence.Seq Token.LInternalToken)
 lex_comment =
@@ -209,18 +210,15 @@ lex_space = consume isSpace >> pure Sequence.Empty
 make_bad_char :: Lexer (Sequence.Seq Token.LInternalToken)
 make_bad_char = consume (const True) >>= \ (Located sp c) -> put_error (LexError.BadChar c sp) >> pure Sequence.Empty
 -- helper functions {{{1
-remaining :: Location -> Text
-remaining l = Text.drop (Location.loc_ind l) (File.contents $ Location.loc_file l)
+remaining :: LexLocation -> Text
+remaining (LexLocation _ r) = r
 
-at_end :: Location -> Bool
-at_end l = Location.loc_ind l >= File.length (Location.loc_file l)
+at_end :: LexLocation -> Bool
+at_end (LexLocation _ r) = Text.null r
 
-char_at :: Location -> Maybe Char
-char_at l = if at_end l then Nothing else Just $ Text.index (File.contents $ Location.loc_file l) (Location.loc_ind l) -- TODO: optimize this becuase Text.index is O(n) where n is the number of characters in the input file
-
-new_span_start_and_end :: Location -> Location -> Span
+new_span_start_and_end :: LexLocation -> LexLocation -> Span
 -- start and end should be in the same file because the lex function never processes more than one file at a time
-new_span_start_and_end start end = Span.new start 0 (Location.loc_ind end - Location.loc_ind start)
+new_span_start_and_end (LexLocation start _) (LexLocation end _) = Span.new start 0 (Location.loc_ind end - Location.loc_ind start)
 
 choice :: [Lexer a] -> Lexer a
 choice [] = StateT $ \ _ -> WriterT Nothing
@@ -230,12 +228,12 @@ choice (fn:fns) = StateT $ \ loc -> WriterT $
         Just res -> Just res
 
 consume :: (Char -> Bool) -> Lexer (Located Char)
-consume p = StateT $ \ loc -> WriterT $
-    case char_at loc of
-        Just c | p c -> Just ((Located (Span.new loc 0 1) c, Location.seek 1 loc), [])
+consume p = StateT $ \ (LexLocation loc remaining) -> WriterT $
+    case Text.uncons remaining of
+        Just (c, more) | p c -> Just ((Located (Span.new loc 0 1) c, LexLocation (Location.seek 1 loc) more), [])
         _ -> Nothing
 
-get_loc :: Lexer Location
+get_loc :: Lexer LexLocation
 get_loc = get
 
 put_error :: LexError.Error -> Lexer ()
@@ -245,9 +243,6 @@ one_or_more :: Lexer a -> Lexer [a]
 one_or_more a = a >>= \ res -> (res:) <$> choice [one_or_more a, pure []]
 -- tests {{{1
 -- TODO: update tests
-case_remaining :: Assertion
-case_remaining = File.new "filename" "abcdefghijkl" >>= \ f -> "fghijkl" @=? remaining (Location.seek 5 $ Location.new f)
-
 case_lex :: Assertion
 case_lex =
     let src = "abc *&* ( \"adji\n"
@@ -263,9 +258,9 @@ case_lex_empty =
         ((Sequence.Empty, _), []) -> pure ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
-lex_test :: (Location -> r) -> Text -> (r -> IO ()) -> IO ()
-lex_test fn input check = File.new "a" input >>= \ f -> check $ fn $ Location.new f
-lex_test' :: Lexer r -> Text -> (Maybe (Location, [LexError.Error], r) -> IO ()) -> IO ()
+lex_test :: (LexLocation -> r) -> Text -> (r -> IO ()) -> IO ()
+lex_test fn input check = File.new "a" input >>= \ f -> check $ fn $ (LexLocation (Location.new f) input)
+lex_test' :: Lexer r -> Text -> (Maybe (LexLocation, [LexError.Error], r) -> IO ()) -> IO ()
 lex_test' fn = lex_test (((\ ((r, loc), errs) -> (loc, errs, r)) <$>) . runWriterT . runStateT fn)
 lex_test_fail :: Show r => [Char] -> r -> IO a
 lex_test_fail fn_name res = assertFailure $ "'" ++ fn_name ++ "' lexed incorrectly: returned '" ++ show res ++ "'"

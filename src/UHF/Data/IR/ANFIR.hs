@@ -19,6 +19,8 @@ data Decl
 
 newtype Param ty = Param ty deriving Show
 
+-- TODO: make every node more like a binding?
+
 -- every node is implicitly its own variable declaration
 -- because every nodes argument is another node, all arguments to expressions are variables
 data Node ty poison_allowed

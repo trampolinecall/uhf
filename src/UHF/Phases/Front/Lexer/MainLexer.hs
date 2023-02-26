@@ -216,7 +216,7 @@ at_end :: Location -> Bool
 at_end l = Location.loc_ind l >= File.length (Location.loc_file l)
 
 char_at :: Location -> Maybe Char
-char_at l = if at_end l then Nothing else Just $ Text.index (File.contents $ Location.loc_file l) (Location.loc_ind l)
+char_at l = if at_end l then Nothing else Just $ Text.index (File.contents $ Location.loc_file l) (Location.loc_ind l) -- TODO: optimize this becuase Text.index is O(n) where n is the number of characters in the input file
 
 new_span_start_and_end :: Location -> Location -> Span
 -- start and end should be in the same file because the lex function never processes more than one file at a time

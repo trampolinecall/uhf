@@ -99,7 +99,7 @@ analysis ast =
     NameResolve.resolve (decls, adts, type_synonyms) >>= \ (decls, adts, type_synonyms) ->
     let decls' = InfixGroup.group decls
     in Type.typecheck (decls', adts, type_synonyms, bound_values) >>= \ (decls', adts, type_synonyms, bound_values) ->
-    ToRIR.convert decls' bound_values >>= \ (decls'', bound_values) -> -- TODO: use RIR decls in ToGraph
+    ToRIR.convert decls' bound_values >>= \ (decls', bound_values) ->
     let (decls'', nodes, params) = ToGraph.to_graph bound_values decls'
         no_poison = RemovePoison.remove_poison (decls'', adts, type_synonyms, nodes, params, bound_values)
     in pure no_poison

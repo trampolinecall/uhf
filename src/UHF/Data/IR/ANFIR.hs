@@ -9,23 +9,13 @@ module UHF.Data.IR.ANFIR
 
 import UHF.Util.Prelude
 
-import qualified UHF.Data.IR.HIR as HIR -- TODO: figure out where to put HIR.Type because this uses the same type system
-import qualified Arena
+import qualified UHF.Data.IR.Type as Type
+import UHF.Data.IR.Keys
 
--- TODO: figure out where to put HIR.DeclKey because this also uses that
 data Decl
     = Decl'Module [NodeKey] -- TODO: should this include nominal types too?
-    | Decl'Type (HIR.Type Void)
+    | Decl'Type (Type.Type Void)
     deriving Show
-
-newtype NodeKey = NodeKey Int deriving (Show, Eq, Ord) -- TODO: figure out better solution in ts backend than to use ord instance
-instance Arena.Key NodeKey where
-    make_key = NodeKey
-    unmake_key (NodeKey i) = i
-newtype ParamKey = ParamKey Int deriving (Show, Eq, Ord) -- TODO: figure out better solution in ts backend than to use ord instance for ordering parameters
-instance Arena.Key ParamKey where
-    make_key = ParamKey
-    unmake_key (ParamKey i) = i
 
 newtype Param ty = Param ty deriving Show
 

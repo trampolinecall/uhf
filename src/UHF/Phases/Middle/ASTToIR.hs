@@ -6,6 +6,8 @@ import qualified Arena
 
 import qualified UHF.Data.AST as AST
 import qualified UHF.Data.IR.HIR as HIR
+import qualified UHF.Data.IR.Type as Type
+import UHF.Data.IR.Keys
 
 import UHF.IO.Span (Span)
 import UHF.IO.Located (Located (..))
@@ -70,29 +72,29 @@ type TypeExpr = HIR.TypeExpr Identifier
 type Expr = HIR.Expr Identifier TypeExpr () ()
 type Pattern = HIR.Pattern Identifier ()
 
-type DeclArena = Arena.Arena Decl HIR.DeclKey
-type BoundValueArena = Arena.Arena (HIR.BoundValue ()) HIR.BoundValueKey
-type ADTArena = Arena.Arena ADT HIR.ADTKey
+type DeclArena = Arena.Arena Decl DeclKey
+type BoundValueArena = Arena.Arena (HIR.BoundValue ()) BoundValueKey
+type ADTArena = Arena.Arena ADT ADTKey
 type TypeSynonymArena = Arena.Arena TypeSynonym HIR.TypeSynonymKey
 
-type DeclChildrenList = [(Text, DeclAt, HIR.DeclKey)]
-type BoundValueList = [(Text, DeclAt, HIR.BoundValueKey)]
+type DeclChildrenList = [(Text, DeclAt, DeclKey)]
+type BoundValueList = [(Text, DeclAt, BoundValueKey)]
 
 type MakeIRState = StateT (DeclArena, BoundValueArena, ADTArena, TypeSynonymArena) (Writer [Error])
 
-new_decl :: Decl -> MakeIRState HIR.DeclKey
+new_decl :: Decl -> MakeIRState DeclKey
 new_decl d =
     state $ \ (decls, bound_values, adts, type_synonyms) ->
         let (key, decls') = Arena.put d decls
         in (key, (decls', bound_values, adts, type_synonyms))
 
-new_bound_value :: Text -> Span -> MakeIRState HIR.BoundValueKey
+new_bound_value :: Text -> Span -> MakeIRState BoundValueKey
 new_bound_value _ sp =
     state $ \ (decls, bound_values, adts, type_synonyms) ->
         let (key, bound_values') = Arena.put (HIR.BoundValue () sp) bound_values
         in (key, (decls, bound_values', adts, type_synonyms))
 
-new_adt :: ADT -> MakeIRState HIR.ADTKey
+new_adt :: ADT -> MakeIRState ADTKey
 new_adt adt =
     state $ \ (decls, bound_values, adts, type_synonyms) ->
         let (key, adts') = Arena.put adt adts
@@ -140,11 +142,11 @@ make_iden1_with_err make_err iden =
 
 primitive_decls :: MakeIRState DeclChildrenList
 primitive_decls =
-    new_decl (HIR.Decl'Type HIR.Type'Int) >>= \ int ->
-    new_decl (HIR.Decl'Type HIR.Type'Float) >>= \ float ->
-    new_decl (HIR.Decl'Type HIR.Type'Char) >>= \ char ->
-    new_decl (HIR.Decl'Type HIR.Type'String) >>= \ string ->
-    new_decl (HIR.Decl'Type HIR.Type'Bool) >>= \ bool ->
+    new_decl (HIR.Decl'Type Type.Type'Int) >>= \ int ->
+    new_decl (HIR.Decl'Type Type.Type'Float) >>= \ float ->
+    new_decl (HIR.Decl'Type Type.Type'Char) >>= \ char ->
+    new_decl (HIR.Decl'Type Type.Type'String) >>= \ string ->
+    new_decl (HIR.Decl'Type Type.Type'Bool) >>= \ bool ->
     pure
         [ ("int", ImplicitPrim, int)
         , ("float", ImplicitPrim, float)
@@ -192,7 +194,7 @@ convert_decls parent_context prev_decl_entries prev_bv_entries decls =
 
                 lift (new_adt datatype) >>= \ nominal_type_key ->
                 -- TODO: add constructors to bound name table
-                lift (new_decl (HIR.Decl'Type $ HIR.Type'ADT nominal_type_key)) >>= \ decl_key ->
+                lift (new_decl (HIR.Decl'Type $ Type.Type'ADT nominal_type_key)) >>= \ decl_key ->
 
                 pure (name1, DeclAt name1sp, decl_key)
             ) >>= \ new_decl_entry ->
@@ -203,7 +205,7 @@ convert_decls parent_context prev_decl_entries prev_bv_entries decls =
                 lift (convert_type final_name_context expansion) >>= \ expansion' ->
                 iden1_for_type_name name >>= \ (Located name1sp name1) ->
                 lift (new_type_synonym (HIR.TypeSynonym name1 expansion')) >>= \ nominal_type_key ->
-                lift (new_decl (HIR.Decl'Type $ HIR.Type'Synonym nominal_type_key)) >>= \ decl_key ->
+                lift (new_decl (HIR.Decl'Type $ Type.Type'Synonym nominal_type_key)) >>= \ decl_key ->
 
                 pure (name1, DeclAt name1sp, decl_key)
             ) >>= \ new_decl_entry ->

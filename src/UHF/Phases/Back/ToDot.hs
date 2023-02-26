@@ -8,17 +8,19 @@ import qualified Data.Text as Text
 
 import qualified UHF.Data.IR.HIR as HIR
 import qualified UHF.Data.IR.ANFIR as ANFIR
+import qualified UHF.Data.IR.Type as Type
+import UHF.Data.IR.Keys
 
 type Decl = ANFIR.Decl
-type DeclArena = Arena.Arena Decl HIR.DeclKey
+type DeclArena = Arena.Arena Decl DeclKey
 
-type Type = HIR.Type Void
+type Type = Type.Type Void
 type ADT = HIR.ADT Type
 type TypeSynonym = HIR.TypeSynonym Type
 type GraphNode = ANFIR.Node Type Void
 type GraphParam = ANFIR.Param Type
 
-type ADTArena = Arena.Arena ADT HIR.ADTKey
+type ADTArena = Arena.Arena ADT ADTKey
 type TypeSynonymArena = Arena.Arena TypeSynonym HIR.TypeSynonymKey
 type GraphNodeArena = Arena.Arena GraphNode ANFIR.NodeKey
 type GraphParamArena = Arena.Arena GraphParam ANFIR.ParamKey

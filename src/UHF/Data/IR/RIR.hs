@@ -37,7 +37,7 @@ data Expr
 
     | Expr'Tuple (Maybe Type) Span Expr Expr
 
-    | Expr'Lambda (Maybe Type) Span Pattern Expr
+    | Expr'Lambda (Maybe Type) Span BoundValueKey Expr
 
     | Expr'Let (Maybe Type) Span [Binding] Expr
 

@@ -33,16 +33,22 @@ type ParamArena = Arena.Arena GraphParam ANFIR.ParamKey
 
 type BoundValueMap = Map.Map BoundValueKey ANFIR.NodeKey
 
-type MakeGraphState = WriterT BoundValueMap (State (GraphArena, ParamArena))
+type MakeGraphState = WriterT BoundValueMap (StateT (GraphArena, ParamArena) (Reader BoundValueArena))
 
 to_graph :: BoundValueArena -> RIRDeclArena -> (ANFIRDeclArena, GraphArena, ParamArena)
 to_graph bvs decls =
-    let ((decls', bv_map), (nodes, params)) = runState (runWriterT (Arena.transformM (convert_decl bv_map) decls)) (Arena.new, Arena.new)
+    let ((decls', bv_map), (nodes, params)) = runReader (runStateT (runWriterT (Arena.transformM (convert_decl bv_map) decls)) (Arena.new, Arena.new)) bvs
     in (decls', nodes, params)
 
 convert_decl :: BoundValueMap -> RIRDecl -> MakeGraphState ANFIRDecl
 convert_decl bv_map (RIR.Decl'Module bindings) = ANFIR.Decl'Module <$> (concat <$> mapM (convert_binding bv_map) bindings)
 convert_decl _ (RIR.Decl'Type ty) = pure $ ANFIR.Decl'Type ty
+
+map_bound_value :: BoundValueKey -> ANFIR.NodeKey -> MakeGraphState ()
+map_bound_value k node = tell $ Map.singleton k node
+
+get_bv :: BoundValueKey -> MakeGraphState (HIR.BoundValue (Maybe (Type.Type Void)))
+get_bv k = lift $ lift $ reader (\ a -> Arena.get a k)
 
 convert_binding :: BoundValueMap -> Binding -> MakeGraphState [ANFIR.NodeKey]
 -- TODO: decide what to do to prevent nonterminating compiles in cases like `x = x`
@@ -75,10 +81,11 @@ convert_expr _ (RIR.Expr'Bool ty _ b) = new_graph_node (ANFIR.Node'Bool ty b)
 convert_expr bv_map (RIR.Expr'Tuple ty _ a b) = ANFIR.Node'Tuple ty <$> convert_expr bv_map a <*> convert_expr bv_map b >>= new_graph_node
 
 convert_expr bv_map (RIR.Expr'Lambda ty _ param body) =
-    new_param_node (ANFIR.Param (RIR.pattern_type param)) >>= \ graph_param ->
+    lift (get_bv param) >>= \ (HIR.BoundValue param_ty _) ->
+    new_param_node (ANFIR.Param param_ty) >>= \ graph_param ->
     lift (runWriterT $ -- lambda bodies should not be included in the parent included nodes because they do not need to be evaluated to create the lambda object
-        new_graph_node (ANFIR.Node'Param (RIR.pattern_type param) graph_param) >>= \ graph_param_node ->
-        assign_pattern param graph_param_node >>
+        new_graph_node (ANFIR.Node'Param param_ty graph_param) >>= \ graph_param_node ->
+        lift (map_bound_value param graph_param_node) >>
         convert_expr bv_map body
     ) >>= \ (body, body_included_nodes) ->
     new_graph_node (ANFIR.Node'Lambda ty graph_param body_included_nodes body)
@@ -91,9 +98,6 @@ convert_expr _ (RIR.Expr'If ty _ cond true false) = todo
 convert_expr _ (RIR.Expr'Case ty _ testing arms) = todo
 
 convert_expr _ (RIR.Expr'Poison ty _) = new_graph_node (ANFIR.Node'Poison ty ())
-
-map_bound_value :: BoundValueKey -> ANFIR.NodeKey -> MakeGraphState ()
-map_bound_value k node = tell $ Map.singleton k node
 
 assign_pattern :: Pattern -> ANFIR.NodeKey -> WriterT [ANFIR.NodeKey] MakeGraphState ()
 assign_pattern (RIR.Pattern'Identifier _ _ bvk) initializer = lift (map_bound_value bvk initializer) >> pure ()

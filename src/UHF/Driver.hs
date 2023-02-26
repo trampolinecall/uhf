@@ -30,12 +30,12 @@ import qualified UHF.Data.IR.Type as IR.Type
 
 import qualified UHF.Phases.Front.Lexer as Lexer
 import qualified UHF.Phases.Front.Parser as Parser
-import qualified UHF.Phases.Middle.ASTToIR as ASTToIR
+import qualified UHF.Phases.Middle.ToHIR as ToHIR
 import qualified UHF.Phases.Middle.NameResolve as NameResolve
 import qualified UHF.Phases.Middle.InfixGroup as InfixGroup
 import qualified UHF.Phases.Middle.Type as Type
 import qualified UHF.Phases.Middle.ToRIR as ToRIR
-import qualified UHF.Phases.Middle.ToGraph as ToGraph
+import qualified UHF.Phases.Middle.ToANFIR as ToANFIR
 import qualified UHF.Phases.Middle.RemovePoison as RemovePoison
 import qualified UHF.Phases.Back.ToDot as ToDot
 import qualified UHF.Phases.Back.TSBackend as TSBackend
@@ -95,12 +95,12 @@ front file =
 
 analysis :: AST -> Compiler.Compiler (Maybe NoPoisonIR)
 analysis ast =
-    ASTToIR.convert ast >>= \ (decls, adts, type_synonyms, bound_values) ->
+    ToHIR.convert ast >>= \ (decls, adts, type_synonyms, bound_values) ->
     NameResolve.resolve (decls, adts, type_synonyms) >>= \ (decls, adts, type_synonyms) ->
     let decls' = InfixGroup.group decls
     in Type.typecheck (decls', adts, type_synonyms, bound_values) >>= \ (decls', adts, type_synonyms, bound_values) ->
     ToRIR.convert decls' bound_values >>= \ (decls', bound_values) ->
-    let (decls'', nodes, params) = ToGraph.to_graph bound_values decls'
+    let (decls'', nodes, params) = ToANFIR.convert bound_values decls'
         no_poison = RemovePoison.remove_poison (decls'', adts, type_synonyms, nodes, params, bound_values)
     in pure no_poison
 

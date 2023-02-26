@@ -13,10 +13,11 @@ build-type:     Simple
 library
   exposed-modules:
       Arena
-      UHF.ANFIR
-      UHF.AST
-      UHF.ASTToIR
       UHF.Compiler
+      UHF.Data.AST
+      UHF.Data.IR.ANFIR
+      UHF.Data.IR.HIR
+      UHF.Data.Token
       UHF.Diagnostic
       UHF.Diagnostic.Codes
       UHF.Diagnostic.Codes.Code
@@ -29,34 +30,32 @@ library
       UHF.Diagnostic.Report.Utils
       UHF.Diagnostic.Settings
       UHF.Driver
-      UHF.HIR
-      UHF.InfixGroup
       UHF.IO.File
       UHF.IO.FormattedString
       UHF.IO.Located
       UHF.IO.Location
       UHF.IO.Location.SpanHelper
-      UHF.IO.Path
       UHF.IO.Span
-      UHF.Lexer
-      UHF.Lexer.IdentifierGrouper
-      UHF.Lexer.LexError
-      UHF.Lexer.MainLexer
-      UHF.NameResolve
-      UHF.Parser
-      UHF.Parser.Error
-      UHF.Parser.PEG
-      UHF.Parser.Test
-      UHF.RemovePoison
-      UHF.ToDot
-      UHF.ToGraph
-      UHF.Token
-      UHF.TSBackend
-      UHF.Type
-      UHF.Type.Aliases
-      UHF.Type.Constraint
-      UHF.Type.Error
-      UHF.Type.Var
+      UHF.Phases.Back.ToDot
+      UHF.Phases.Back.TSBackend
+      UHF.Phases.Front.Lexer
+      UHF.Phases.Front.Lexer.IdentifierGrouper
+      UHF.Phases.Front.Lexer.LexError
+      UHF.Phases.Front.Lexer.MainLexer
+      UHF.Phases.Front.Parser
+      UHF.Phases.Front.Parser.Error
+      UHF.Phases.Front.Parser.PEG
+      UHF.Phases.Front.Parser.Test
+      UHF.Phases.Middle.ASTToIR
+      UHF.Phases.Middle.InfixGroup
+      UHF.Phases.Middle.NameResolve
+      UHF.Phases.Middle.RemovePoison
+      UHF.Phases.Middle.ToGraph
+      UHF.Phases.Middle.Type
+      UHF.Phases.Middle.Type.Aliases
+      UHF.Phases.Middle.Type.Constraint
+      UHF.Phases.Middle.Type.Error
+      UHF.Phases.Middle.Type.Var
       UHF.Util.Prelude
   other-modules:
       Paths_uhf

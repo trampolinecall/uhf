@@ -1,18 +1,18 @@
-module UHF.Type (typecheck) where
+module UHF.Phases.Middle.Type (typecheck) where
 
 import UHF.Util.Prelude
 
 import qualified Arena
-import qualified UHF.HIR as HIR
+import qualified UHF.Data.IR.HIR as HIR
 
 import qualified UHF.Compiler as Compiler
 
 import UHF.IO.Located (Located (..))
 
-import UHF.Type.Var
-import UHF.Type.Aliases
-import UHF.Type.Error
-import UHF.Type.Constraint
+import UHF.Phases.Middle.Type.Var
+import UHF.Phases.Middle.Type.Aliases
+import UHF.Phases.Middle.Type.Error
+import UHF.Phases.Middle.Type.Constraint
 
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Control.Monad.Fix (mfix)

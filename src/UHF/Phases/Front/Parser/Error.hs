@@ -1,12 +1,12 @@
 {-# LANGUAGE FlexibleInstances #-}
 
-module UHF.Parser.Error
+module UHF.Phases.Front.Parser.Error
     ( Error(..)
     ) where
 
 import UHF.Util.Prelude
 
-import qualified UHF.Token as Token
+import qualified UHF.Data.Token as Token
 
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Codes as Codes

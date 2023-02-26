@@ -1,4 +1,4 @@
-module UHF.Type.Var
+module UHF.Phases.Middle.Type.Var
     ( TypeVarKey
     , TypeVar (..)
     , TypeVarForWhat (..)
@@ -11,7 +11,7 @@ module UHF.Type.Var
 import UHF.Util.Prelude
 
 import qualified Arena
-import qualified UHF.HIR as HIR
+import qualified UHF.Data.IR.HIR as HIR
 
 import UHF.IO.Span (Span)
 

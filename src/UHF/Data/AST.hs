@@ -1,4 +1,4 @@
-module UHF.AST where
+module UHF.Data.AST where
 
 -- TODO: rename this to literal ast and make it literally store tokens
 

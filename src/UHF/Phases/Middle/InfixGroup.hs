@@ -1,4 +1,4 @@
-module UHF.InfixGroup (group) where
+module UHF.Phases.Middle.InfixGroup (group) where
 
 import UHF.Util.Prelude
 
@@ -7,7 +7,7 @@ import qualified Arena
 import qualified UHF.IO.Located as Located
 import UHF.IO.Located (Located)
 
-import qualified UHF.HIR as HIR
+import qualified UHF.Data.IR.HIR as HIR
 
 type UngroupedDecl typeannotation = HIR.Decl (Located (Maybe HIR.BoundValueKey)) typeannotation () ()
 type UngroupedBinding typeannotation = HIR.Binding (Located (Maybe HIR.BoundValueKey)) typeannotation () ()

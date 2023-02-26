@@ -1,4 +1,4 @@
-module UHF.HIR
+module UHF.Data.IR.HIR
     ( DeclKey
     , Decl(..)
 

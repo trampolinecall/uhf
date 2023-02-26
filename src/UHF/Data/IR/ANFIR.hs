@@ -1,4 +1,4 @@
-module UHF.ANFIR
+module UHF.Data.IR.ANFIR
     ( Decl(..)
     , NodeKey
     , ParamKey
@@ -9,7 +9,7 @@ module UHF.ANFIR
 
 import UHF.Util.Prelude
 
-import qualified UHF.HIR as HIR -- TODO: figure out where to put HIR.Type because this uses the same type system
+import qualified UHF.Data.IR.HIR as HIR -- TODO: figure out where to put HIR.Type because this uses the same type system
 import qualified Arena
 
 -- TODO: figure out where to put HIR.DeclKey because this also uses that

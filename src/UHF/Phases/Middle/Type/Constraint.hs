@@ -1,9 +1,9 @@
-module UHF.Type.Constraint where
+module UHF.Phases.Middle.Type.Constraint where
 
 import UHF.IO.Span (Span)
 import UHF.IO.Located (Located)
 
-import UHF.Type.Aliases
+import UHF.Phases.Middle.Type.Aliases
 
 data EqInWhat = InAssignment | InNamedPattern | InIfBranches | InCasePatterns | InCaseArms
 data ExpectInWhat = InTypeAnnotation | InCallExpr | InIfCondition

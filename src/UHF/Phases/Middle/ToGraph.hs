@@ -1,4 +1,4 @@
-module UHF.ToGraph (to_graph) where
+module UHF.Phases.Middle.ToGraph (to_graph) where
 
 import UHF.Util.Prelude
 
@@ -8,8 +8,8 @@ import qualified Arena
 
 import qualified Data.Map as Map
 
-import qualified UHF.HIR as HIR
-import qualified UHF.ANFIR as ANFIR
+import qualified UHF.Data.IR.HIR as HIR
+import qualified UHF.Data.IR.ANFIR as ANFIR
 
 type HIRDecl = HIR.Decl (Located (Maybe HIR.BoundValueKey)) (Maybe (HIR.Type Void)) (Maybe (HIR.Type Void)) Void
 type Expr = HIR.Expr (Located (Maybe HIR.BoundValueKey)) (Maybe (HIR.Type Void)) (Maybe (HIR.Type Void)) Void

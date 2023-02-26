@@ -16,7 +16,6 @@ module UHF.Data.IR.HIR
     , NameContext (..)
 
     , TypeExpr(..)
-    , Type(..)
     , Expr(..)
     , Pattern(..)
     , expr_type
@@ -27,46 +26,27 @@ module UHF.Data.IR.HIR
 
 import UHF.Util.Prelude
 
-import qualified Arena
+import UHF.Data.IR.Keys
+import qualified UHF.Data.IR.Type as Type
 
 import qualified Data.Map as Map
 
 import UHF.IO.Span (Span)
 import UHF.IO.Located (Located)
 
--- TODO: split this into separate modules
--- TODO: figure out a way for ANFIR to use this type system without explicitly using the HIR module
-
-newtype DeclKey = DeclKey Int deriving Show
-instance Arena.Key DeclKey where
-    make_key = DeclKey
-    unmake_key (DeclKey i) = i
 data Decl identifier typeannotation typeinfo binaryopsallowed
     = Decl'Module NameContext [Binding identifier typeannotation typeinfo binaryopsallowed] -- TODO: should this include nominal types too?
-    | Decl'Type (Type Void)
+    | Decl'Type (Type.Type Void)
     deriving Show
 
-newtype ADTKey = ADTKey Int deriving (Show, Eq)
-instance Arena.Key ADTKey where
-    make_key = ADTKey
-    unmake_key (ADTKey i) = i
-data ADT ty = ADT Text [ADTVariant ty]
+data ADT ty = ADT Text [ADTVariant ty] deriving Show -- TODO: does this need to be moved into the Type module?
 data ADTVariant ty
     = ADTVariant'Named Text [(Text, ty)]
     | ADTVariant'Anon Text [ty]
     deriving Show
 
-newtype TypeSynonymKey = TypeSynonymKey Int deriving (Show, Eq)
-instance Arena.Key TypeSynonymKey where
-    make_key = TypeSynonymKey
-    unmake_key (TypeSynonymKey i) = i
-data TypeSynonym ty = TypeSynonym Text ty
-    deriving Show
+data TypeSynonym ty = TypeSynonym Text ty deriving Show
 
-newtype BoundValueKey = BoundValueKey Int deriving (Show, Eq, Ord) -- TODO: remove Eq and Ord when BoundValues store their graph nodes
-instance Arena.Key BoundValueKey where
-    make_key = BoundValueKey
-    unmake_key (BoundValueKey i) = i
 data BoundValue typeinfo = BoundValue typeinfo Span deriving Show
 
 data Binding identifier typeannotation typeinfo binaryopsallowed = Binding (Pattern identifier typeinfo) Span (Expr identifier typeannotation typeinfo binaryopsallowed) deriving Show
@@ -77,19 +57,6 @@ data TypeExpr identifier
     = TypeExpr'Identifier Span identifier
     | TypeExpr'Tuple (TypeExpr identifier) (TypeExpr identifier)
     | TypeExpr'Poison Span
-    deriving Show
-
-data Type var
-    = Type'ADT ADTKey
-    | Type'Synonym TypeSynonymKey
-    | Type'Int
-    | Type'Float
-    | Type'Char
-    | Type'String
-    | Type'Bool
-    | Type'Function (Type var) (Type var)
-    | Type'Tuple (Type var) (Type var)
-    | Type'Variable var
     deriving Show
 
 data Expr identifier typeannotation typeinfo binaryopsallowed

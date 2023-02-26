@@ -4,6 +4,7 @@ import UHF.Util.Prelude
 
 import qualified Arena
 import qualified UHF.Data.IR.HIR as HIR
+import qualified UHF.Data.IR.Type as Type
 
 import qualified Data.Map as Map
 
@@ -123,7 +124,7 @@ instance Diagnostic.ToError Error where
             []
 
     to_error (OccursCheckError adts type_synonyms vars span var_key ty) =
-        let var_as_type = HIR.Type'Variable var_key
+        let var_as_type = Type.Type'Variable var_key
 
             ((ty_printed, var_printed), var_names) =
                 run_var_namer $
@@ -147,22 +148,22 @@ instance Diagnostic.ToError Error where
 
 print_type :: Bool -> TypedWithVarsADTArena -> TypedWithVarsTypeSynonymArena ->TypeVarArena -> TypeWithVars -> VarNamer Text -- TODO: since this already a monad, put the arenas and things into a reader monad?
 -- TODO: construct an ast and print it
-print_type _ adts _ _ (HIR.Type'ADT key) =
+print_type _ adts _ _ (Type.Type'ADT key) =
     case Arena.get adts key of
         HIR.ADT name _ -> pure name
 
-print_type _ _ type_synonyms _ (HIR.Type'Synonym key) =
+print_type _ _ type_synonyms _ (Type.Type'Synonym key) =
     case Arena.get type_synonyms key of
         HIR.TypeSynonym name _ -> pure name
 
-print_type _ _ _ _ HIR.Type'Int = pure "int"
-print_type _ _ _ _ HIR.Type'Float = pure "float"
-print_type _ _ _ _ HIR.Type'Char = pure "char"
-print_type _ _ _ _ HIR.Type'String = pure "string"
-print_type _ _ _ _ HIR.Type'Bool = pure "bool"
-print_type vars_show_index adts type_synonyms vars (HIR.Type'Function a r) = print_type vars_show_index adts type_synonyms vars a >>= \ a -> print_type vars_show_index adts type_synonyms vars r >>= \ r -> pure (a <> " -> " <> r) -- TODO: parentheses and grouping
-print_type vars_show_index adts type_synonyms vars (HIR.Type'Tuple a b) = print_type vars_show_index adts type_synonyms vars a >>= \ a -> print_type vars_show_index adts type_synonyms vars b >>= \ b -> pure ("(" <> a <> ", " <> b <> ")")
-print_type vars_show_index adts type_synonyms vars (HIR.Type'Variable var) =
+print_type _ _ _ _ Type.Type'Int = pure "int"
+print_type _ _ _ _ Type.Type'Float = pure "float"
+print_type _ _ _ _ Type.Type'Char = pure "char"
+print_type _ _ _ _ Type.Type'String = pure "string"
+print_type _ _ _ _ Type.Type'Bool = pure "bool"
+print_type vars_show_index adts type_synonyms vars (Type.Type'Function a r) = print_type vars_show_index adts type_synonyms vars a >>= \ a -> print_type vars_show_index adts type_synonyms vars r >>= \ r -> pure (a <> " -> " <> r) -- TODO: parentheses and grouping
+print_type vars_show_index adts type_synonyms vars (Type.Type'Tuple a b) = print_type vars_show_index adts type_synonyms vars a >>= \ a -> print_type vars_show_index adts type_synonyms vars b >>= \ b -> pure ("(" <> a <> ", " <> b <> ")")
+print_type vars_show_index adts type_synonyms vars (Type.Type'Variable var) =
     case Arena.get vars var of
         TypeVar _ Fresh
             | vars_show_index -> name_var var

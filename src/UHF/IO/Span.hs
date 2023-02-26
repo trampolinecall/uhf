@@ -22,7 +22,6 @@ import qualified UHF.IO.Location as Location
 import UHF.IO.Location (Location)
 
 import Data.List (maximumBy, minimumBy)
-import qualified Data.Text as Text
 
 data Span = Span Location.Location Location.Location Location.Location deriving (Show, Eq) -- TODO: remove Eq
 

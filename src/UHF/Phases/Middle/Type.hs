@@ -320,8 +320,10 @@ solve_constraints adts type_synonyms = mapM_ solve
 convert_vars :: TypeVarArena -> Compiler.Compiler (Arena.Arena (Maybe Type) TypeVarKey)
 convert_vars vars =
     -- infinite recursion is not possible because occurs check prevents loops in substitution
-    mfix (\ vars_converted -> Arena.transformM (runMaybeT . convert_var vars_converted) vars)
+    let (res, errs) = (runWriter $ mfix (\ vars_converted -> Arena.transformM (runMaybeT . convert_var vars_converted) vars))
+    in Compiler.errors errs >> pure res
     where
+        -- this usage of mfix does not play nicely with the IO in the Compiler monad so this must be done in the Writer monad
         r _ Type.Type'Int = pure Type.Type'Int
         r _ Type.Type'Float = pure Type.Type'Float
         r _ Type.Type'Char = pure Type.Type'Char
@@ -334,7 +336,7 @@ convert_vars vars =
         r vars_converted (Type.Type'Variable v) = MaybeT $ pure $ Arena.get vars_converted v
 
         convert_var vars_converted (TypeVar _ (Substituted s)) = r vars_converted s
-        convert_var _ (TypeVar for_what Fresh) = lift (Compiler.error $ AmbiguousType for_what) >> MaybeT (pure Nothing)
+        convert_var _ (TypeVar for_what Fresh) = lift (tell [AmbiguousType for_what]) >> MaybeT (pure Nothing)
 
 remove_vars_from_decl :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsDecl -> TypedDecl
 remove_vars_from_decl vars (HIR.Decl'Module nc bindings) = HIR.Decl'Module nc (map (remove_vars_from_binding vars) bindings)

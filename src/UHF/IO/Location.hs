@@ -25,8 +25,8 @@ import qualified Data.Text as Text
 
 -- TODO: count column numbers with tabs correctly
 
-data LineCol = LineCol { lc_ind :: Int, lc_row :: Int, lc_col :: Int } deriving (Show, Eq)
-data Location = Location { loc_file :: File, lc :: LineCol, loc_remaining_in_file :: Text } deriving (Show, Eq)
+data LineCol = LineCol { lc_ind :: !Int, lc_row :: !Int, lc_col :: !Int } deriving (Show, Eq)
+data Location = Location { loc_file :: File, lc :: !LineCol, loc_remaining_in_file :: Text } deriving (Show, Eq)
 
 loc_ind, loc_row, loc_col :: Location -> Int
 loc_ind = lc_ind . lc

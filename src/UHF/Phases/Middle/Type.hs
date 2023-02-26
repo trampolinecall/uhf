@@ -18,7 +18,7 @@ import UHF.Phases.Middle.Type.Constraint
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Control.Monad.Fix (mfix)
 
-type StateWithVars = StateT TypeVarArena (Compiler.Compiler)
+type StateWithVars = StateT TypeVarArena Compiler.Compiler
 
 new_type_variable :: TypeVarForWhat -> StateWithVars TypeVarKey
 new_type_variable for_what =

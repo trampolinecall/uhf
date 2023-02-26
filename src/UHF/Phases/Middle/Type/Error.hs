@@ -1,9 +1,9 @@
-module UHF.Type.Error (Error(..)) where
+module UHF.Phases.Middle.Type.Error (Error(..)) where
 
 import UHF.Util.Prelude
 
 import qualified Arena
-import qualified UHF.HIR as HIR
+import qualified UHF.Data.IR.HIR as HIR
 
 import qualified Data.Map as Map
 
@@ -13,9 +13,9 @@ import UHF.IO.Located (Located (..))
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Codes as Diagnostic.Codes
 
-import UHF.Type.Var
-import UHF.Type.Aliases
-import UHF.Type.Constraint
+import UHF.Phases.Middle.Type.Var
+import UHF.Phases.Middle.Type.Aliases
+import UHF.Phases.Middle.Type.Constraint
 
 type VarNamer = State (Int, Map TypeVarKey Text)
 run_var_namer :: VarNamer a -> (a, Map TypeVarKey Text)

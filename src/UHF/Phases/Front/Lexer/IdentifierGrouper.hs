@@ -1,4 +1,4 @@
-module UHF.Lexer.IdentifierGrouper
+module UHF.Phases.Front.Lexer.IdentifierGrouper
     ( group_identifiers
 
     , tests
@@ -8,7 +8,7 @@ import UHF.Util.Prelude
 
 import qualified UHF.IO.Location.SpanHelper as SpanHelper
 
-import qualified UHF.Token as Token
+import qualified UHF.Data.Token as Token
 import UHF.IO.Located (Located (..))
 
 group_identifiers :: [Token.LInternalToken] -> [Token.LToken]

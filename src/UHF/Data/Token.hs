@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 
-module UHF.Token
+module UHF.Data.Token
     ( BaseToken(..)
     , SingleTypeToken(..)
 

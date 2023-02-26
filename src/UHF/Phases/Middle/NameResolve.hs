@@ -1,4 +1,4 @@
-module UHF.NameResolve
+module UHF.Phases.Middle.NameResolve
     ( UnresolvedBinding
     , ResolvedBinding
     , UnresolvedExpr
@@ -29,7 +29,7 @@ import UHF.IO.Located (Located (Located))
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Codes as Diagnostic.Codes
 
-import qualified UHF.HIR as HIR
+import qualified UHF.Data.IR.HIR as HIR
 
 import qualified Data.Map as Map
 import Data.Functor.Identity (Identity (Identity, runIdentity))

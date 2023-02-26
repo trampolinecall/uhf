@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ExistentialQuantification #-}
 
-module UHF.Parser
+module UHF.Phases.Front.Parser
     ( parse
 
     , Error.Error
@@ -11,12 +11,12 @@ module UHF.Parser
 
 import UHF.Util.Prelude
 
-import qualified UHF.Parser.PEG as PEG
-import qualified UHF.Parser.Error as Error
--- import qualified UHF.Parser.Test as Test
+import qualified UHF.Phases.Front.Parser.PEG as PEG
+import qualified UHF.Phases.Front.Parser.Error as Error
+-- import qualified UHF.Phases.Front.Parser.Test as Test
 
-import qualified UHF.Token as Token
-import qualified UHF.AST as AST
+import qualified UHF.Data.Token as Token
+import qualified UHF.Data.AST as AST
 
 import qualified Data.InfList as InfList
 

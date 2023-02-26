@@ -1,14 +1,14 @@
 {-# LANGUAGE ExistentialQuantification #-}
 
-module UHF.Parser.Test (ParsingTest(..), make_token_stream, run_test) where
+module UHF.Phases.Front.Parser.Test (ParsingTest(..), make_token_stream, run_test) where
 
 import UHF.Util.Prelude
 
-import qualified UHF.Parser.PEG as PEG
+import qualified UHF.Phases.Front.Parser.PEG as PEG
 
 import qualified UHF.IO.Located as Located
 
-import qualified UHF.Token as Token
+import qualified UHF.Data.Token as Token
 
 import qualified Data.InfList as InfList
 

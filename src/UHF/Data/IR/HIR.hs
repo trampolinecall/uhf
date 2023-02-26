@@ -72,7 +72,6 @@ data Expr identifier typeannotation typeinfo binaryopsallowed
     | Expr'Lambda typeinfo Span (Pattern identifier typeinfo) (Expr identifier typeannotation typeinfo binaryopsallowed)
 
     | Expr'Let typeinfo Span [Binding identifier typeannotation typeinfo binaryopsallowed] (Expr identifier typeannotation typeinfo binaryopsallowed)
-    | Expr'LetRec typeinfo Span [Binding identifier typeannotation typeinfo binaryopsallowed] (Expr identifier typeannotation typeinfo binaryopsallowed)
 
     | Expr'BinaryOps binaryopsallowed typeinfo Span (Expr identifier typeannotation typeinfo binaryopsallowed) [(identifier, Expr identifier typeannotation typeinfo binaryopsallowed)]
 
@@ -105,7 +104,6 @@ expr_type (Expr'Bool typeinfo _ _) = typeinfo
 expr_type (Expr'Tuple typeinfo _ _ _) = typeinfo
 expr_type (Expr'Lambda typeinfo _ _ _) = typeinfo
 expr_type (Expr'Let typeinfo _ _ _) = typeinfo
-expr_type (Expr'LetRec typeinfo _ _ _) = typeinfo
 expr_type (Expr'BinaryOps _ typeinfo _ _ _) = typeinfo
 expr_type (Expr'Call typeinfo _ _ _) = typeinfo
 expr_type (Expr'If typeinfo _ _ _ _ _) = typeinfo
@@ -123,7 +121,6 @@ expr_span (Expr'Bool _ sp _) = sp
 expr_span (Expr'Tuple _ sp _ _) = sp
 expr_span (Expr'Lambda _ sp _ _) = sp
 expr_span (Expr'Let _ sp _ _) = sp
-expr_span (Expr'LetRec _ sp _ _) = sp
 expr_span (Expr'BinaryOps _ _ sp _ _) = sp
 expr_span (Expr'Call _ sp _ _) = sp
 expr_span (Expr'If _ sp _ _ _ _) = sp

@@ -261,12 +261,15 @@ convert_expr parent_context (AST.Expr'Lambda sp params body) = convert_lambda pa
 
         convert_lambda parent_context [] body = convert_expr parent_context body
 
-convert_expr parent_context (AST.Expr'Let sp decls subexpr) =
-    convert_decls (Just parent_context) [] [] decls >>= \ (let_context, bindings) ->
-    HIR.Expr'Let () sp bindings <$> convert_expr let_context subexpr -- TODO: actually do sequentially because convert_decls does all at once
+convert_expr parent_context (AST.Expr'Let sp decls subexpr) = go parent_context decls
+    where
+        go parent [] = convert_expr parent subexpr
+        go parent (first:more) =
+            convert_decls (Just parent) [] [] [first] >>= \ (let_context, bindings) ->
+            HIR.Expr'Let () sp bindings <$> go let_context more
 convert_expr parent_context (AST.Expr'LetRec sp decls subexpr) =
     convert_decls (Just parent_context) [] [] decls >>= \ (let_context, bindings) ->
-    HIR.Expr'LetRec () sp bindings <$> convert_expr let_context subexpr
+    HIR.Expr'Let () sp bindings <$> convert_expr let_context subexpr
 
 convert_expr parent_context (AST.Expr'BinaryOps sp first ops) = HIR.Expr'BinaryOps () () sp <$> convert_expr parent_context first <*> mapM (\ (op, right) -> convert_expr parent_context right >>= \ right' -> pure ((parent_context, unlocate op), right')) ops
 

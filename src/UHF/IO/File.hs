@@ -2,6 +2,7 @@ module UHF.IO.File
     ( File
     , path
     , contents
+    , UHF.IO.File.length
 
     , new
     , open
@@ -16,10 +17,10 @@ import qualified Data.Text.IO as Text.IO
 
 import Data.Unique
 
-data File = File { uniq :: Unique, path :: FilePath, contents :: Text }
+data File = File { uniq :: Unique, path :: FilePath, contents :: Text, length :: Int}
 
 instance Show File where
-    show (File _ path _) = "File { path = " <> path <> ", ... }"
+    show (File _ path _ _) = "File { path = " <> path <> ", ... }"
 
 instance Eq File where
     (==) = (==) `on` uniq
@@ -30,7 +31,7 @@ instance Format File where
 new :: FilePath -> Text -> IO File
 new path contents =
     newUnique >>= \ u ->
-    pure (File u path contents)
+    pure (File u path contents (Text.length contents))
 
 open :: FilePath -> IO File
 open path = Text.IO.readFile path >>= \ contents -> new path contents

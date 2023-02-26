@@ -4,7 +4,7 @@ module UHF.Phases.Front.Lexer.MainLexer
     , tests
     ) where
 
-import UHF.Util.Prelude
+import UHF.Util.Prelude hiding (Writer, WriterT (runWriterT), runWriter, tell, writer)
 
 import qualified UHF.Phases.Front.Lexer.LexError as LexError
 import qualified UHF.IO.File as File
@@ -20,13 +20,17 @@ import qualified UHF.Data.Token as Token
 import qualified Data.Text as Text
 import qualified Data.Sequence as Sequence
 
+import Control.Monad.Trans.Writer.CPS
+import qualified Control.Monad.Trans.Writer as LazyWriter
+
 import Data.Char (isAlpha, isDigit, isOctDigit, isHexDigit, isSpace, digitToInt)
 
 -- lexing {{{1
-lex :: File -> Writer [LexError.Error] (Sequence.Seq Token.LInternalToken, Token.LToken)
+lex :: File -> LazyWriter.Writer [LexError.Error] (Sequence.Seq Token.LInternalToken, Token.LToken)
 lex f =
     let eof = Located (Span.end_of_file f) (Token.EOF ())
-    in evalStateT (run Sequence.Empty) (Location.new f) >>= \ toks -> pure (toks, eof)
+        (toks, errs) = runWriter $ evalStateT (run Sequence.Empty) (Location.new f)
+    in LazyWriter.tell errs >> pure (toks, eof)
     where
         run toks =
             get >>= \ l ->
@@ -220,14 +224,14 @@ new_span_start_and_end :: Location -> Location -> Span
 new_span_start_and_end start end = Span.new start 0 (Location.loc_ind end - Location.loc_ind start)
 
 choice :: [Lexer a] -> Lexer a
-choice [] = StateT $ \ _ -> WriterT Nothing
-choice (fn:fns) = StateT $ \ loc -> WriterT $
+choice [] = StateT $ \ _ -> writerT Nothing
+choice (fn:fns) = StateT $ \ loc -> writerT $
     case runWriterT $ runStateT fn loc of
         Nothing -> runWriterT $ runStateT (choice fns) loc
         Just res -> Just res
 
 consume :: (Char -> Bool) -> Lexer (Located Char)
-consume p = StateT $ \ loc -> WriterT $
+consume p = StateT $ \ loc -> writerT $
     case Text.uncons $ remaining loc of
         Just (c, _) | p c -> Just ((Located (Span.new loc 0 1) c, Location.seek_1 loc), [])
         _ -> Nothing
@@ -246,14 +250,14 @@ case_lex :: Assertion
 case_lex =
     let src = "abc *&* ( \"adji\n"
     in File.new "a" src >>= \ f ->
-    case runWriter $ lex f of
+    case LazyWriter.runWriter $ lex f of
         ((Located _ (Token.AlphaIdentifier (Located _ "abc")) Sequence.:<| Located _ (Token.SymbolIdentifier (Located _ "*&*")) Sequence.:<| Located _ (Token.SingleTypeToken Token.OParen) Sequence.:<| Sequence.Empty, _), [LexError.UnclosedStrLit _]) -> pure ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
 case_lex_empty :: Assertion
 case_lex_empty =
     File.new "a" "" >>= \ f ->
-    case runWriter $ lex f of
+    case LazyWriter.runWriter $ lex f of
         ((Sequence.Empty, _), []) -> pure ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 

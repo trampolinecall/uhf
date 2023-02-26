@@ -30,6 +30,7 @@ import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Codes as Diagnostic.Codes
 
 import qualified UHF.Data.IR.HIR as HIR
+import UHF.Data.IR.Keys
 
 import qualified Data.Map as Map
 import Data.Functor.Identity (Identity (Identity, runIdentity))
@@ -44,20 +45,20 @@ type UnresolvedBinding = HIR.Binding UnresolvedExprIdentifier UnresolvedType () 
 type UnresolvedExpr = HIR.Expr UnresolvedExprIdentifier UnresolvedType () ()
 type UnresolvedPattern = HIR.Pattern UnresolvedExprIdentifier
 
-type UnresolvedDeclArena = Arena.Arena UnresolvedDecl HIR.DeclKey
-type UnresolvedADTArena = Arena.Arena UnresolvedADT HIR.ADTKey
+type UnresolvedDeclArena = Arena.Arena UnresolvedDecl DeclKey
+type UnresolvedADTArena = Arena.Arena UnresolvedADT ADTKey
 type UnresolvedTypeSynonymArena = Arena.Arena UnresolvedTypeSynonym HIR.TypeSynonymKey
 
-type ResolvedDecl = HIR.Decl (Located (Maybe HIR.BoundValueKey)) ResolvedType () ()
+type ResolvedDecl = HIR.Decl (Located (Maybe BoundValueKey)) ResolvedType () ()
 type ResolvedADT = HIR.ADT ResolvedType
 type ResolvedTypeSynonym = HIR.TypeSynonym ResolvedType
-type ResolvedType = HIR.TypeExpr (Maybe HIR.DeclKey)
-type ResolvedBinding = HIR.Binding (Located (Maybe HIR.BoundValueKey)) ResolvedType () ()
-type ResolvedExpr = HIR.Expr (Located (Maybe HIR.BoundValueKey)) ResolvedType () ()
-type ResolvedPattern = HIR.Pattern (Located (Maybe HIR.BoundValueKey))
+type ResolvedType = HIR.TypeExpr (Maybe DeclKey)
+type ResolvedBinding = HIR.Binding (Located (Maybe BoundValueKey)) ResolvedType () ()
+type ResolvedExpr = HIR.Expr (Located (Maybe BoundValueKey)) ResolvedType () ()
+type ResolvedPattern = HIR.Pattern (Located (Maybe BoundValueKey))
 
-type ResolvedDeclArena = Arena.Arena ResolvedDecl HIR.DeclKey
-type ResolvedADTArena = Arena.Arena ResolvedADT HIR.ADTKey
+type ResolvedDeclArena = Arena.Arena ResolvedDecl DeclKey
+type ResolvedADTArena = Arena.Arena ResolvedADT ADTKey
 type ResolvedTypeSynonymArena = Arena.Arena ResolvedTypeSynonym HIR.TypeSynonymKey
 
 data Error
@@ -72,7 +73,7 @@ instance Diagnostic.ToError Error where
                         Nothing -> ""
         in Diagnostic.Error Diagnostic.Codes.undef_name (Just sp) message [] []
 
-transform_identifiers :: Monad m => (t_iden -> m t_iden') -> (e_iden -> m e_iden') -> Arena.Arena (HIR.ADT (HIR.TypeExpr t_iden)) HIR.ADTKey -> Arena.Arena (HIR.TypeSynonym (HIR.TypeExpr t_iden)) HIR.TypeSynonymKey -> Arena.Arena (HIR.Decl e_iden (HIR.TypeExpr t_iden) typeinfo binaryopsallowed) HIR.DeclKey -> m (Arena.Arena (HIR.ADT (HIR.TypeExpr t_iden')) HIR.ADTKey, Arena.Arena (HIR.TypeSynonym (HIR.TypeExpr t_iden')) HIR.TypeSynonymKey, Arena.Arena (HIR.Decl e_iden' (HIR.TypeExpr t_iden') typeinfo binaryopsallowed) HIR.DeclKey)
+transform_identifiers :: Monad m => (t_iden -> m t_iden') -> (e_iden -> m e_iden') -> Arena.Arena (HIR.ADT (HIR.TypeExpr t_iden)) ADTKey -> Arena.Arena (HIR.TypeSynonym (HIR.TypeExpr t_iden)) HIR.TypeSynonymKey -> Arena.Arena (HIR.Decl e_iden (HIR.TypeExpr t_iden) typeinfo binaryopsallowed) DeclKey -> m (Arena.Arena (HIR.ADT (HIR.TypeExpr t_iden')) ADTKey, Arena.Arena (HIR.TypeSynonym (HIR.TypeExpr t_iden')) HIR.TypeSynonymKey, Arena.Arena (HIR.Decl e_iden' (HIR.TypeExpr t_iden') typeinfo binaryopsallowed) DeclKey)
 transform_identifiers transform_t_iden transform_e_iden adts type_synonyms decls = (,,) <$> Arena.transformM transform_adt adts <*> Arena.transformM transform_type_synonym type_synonyms <*> Arena.transformM transform_decl decls
     where
         transform_adt (HIR.ADT name variants) = HIR.ADT name <$> mapM transform_variant variants
@@ -137,7 +138,7 @@ split_expr_iden (_, []) = error "empty identifier"
 split_expr_iden (nc, [x]) = pure (nc, Nothing, x)
 split_expr_iden (nc, x) = pure (nc, Just $ init x, last x)
 
-resolve_expr_iden :: UnresolvedDeclArena -> (HIR.NameContext, Maybe [Located Text], Located Text) -> Writer [Error] (Located (Maybe HIR.BoundValueKey))
+resolve_expr_iden :: UnresolvedDeclArena -> (HIR.NameContext, Maybe [Located Text], Located Text) -> Writer [Error] (Located (Maybe BoundValueKey))
 resolve_expr_iden decls (nc, Just type_iden, last_segment) =
     let sp = Located.just_span (head type_iden) <> Located.just_span last_segment
     in resolve_type_iden decls (nc, type_iden) >>= \ resolved_type ->
@@ -159,7 +160,7 @@ resolve_expr_iden _ (nc, Nothing, last_segment@(Located last_segment_sp _)) =
                         Just parent -> resolve parent name
                         Nothing -> Left $ CouldNotFind Nothing name
 
-resolve_type_iden :: UnresolvedDeclArena -> UnresolvedTypeIdentifier -> Writer [Error] (Maybe HIR.DeclKey)
+resolve_type_iden :: UnresolvedDeclArena -> UnresolvedTypeIdentifier -> Writer [Error] (Maybe DeclKey)
 resolve_type_iden _ (_, []) = error "empty identifier"
 resolve_type_iden decls (nc, first:more) =
     case resolve_first nc first of
@@ -177,7 +178,7 @@ resolve_type_iden decls (nc, first:more) =
                         Just parent -> resolve_first parent first
                         Nothing -> Left $ CouldNotFind Nothing first -- TODO: put previous in error
 
-get_decl_child :: UnresolvedDeclArena -> HIR.DeclKey -> Located Text -> Either Error HIR.DeclKey
+get_decl_child :: UnresolvedDeclArena -> DeclKey -> Located Text -> Either Error DeclKey
 get_decl_child decls thing name =
     let res = case Arena.get decls thing of
             HIR.Decl'Module (HIR.NameContext d_children _ _) _ -> Map.lookup (Located.unlocate name) d_children
@@ -186,7 +187,7 @@ get_decl_child decls thing name =
         Just res -> Right res
         Nothing -> Left $ CouldNotFind Nothing name -- TODO: put previous
 
-get_value_child :: UnresolvedDeclArena -> HIR.DeclKey -> Located Text -> Either Error HIR.BoundValueKey
+get_value_child :: UnresolvedDeclArena -> DeclKey -> Located Text -> Either Error BoundValueKey
 get_value_child decls thing name =
     let res = case Arena.get decls thing of
             HIR.Decl'Module (HIR.NameContext _ v_children _) _ -> Map.lookup (Located.unlocate name) v_children

@@ -4,6 +4,7 @@ import UHF.Util.Prelude
 
 import qualified Arena
 import qualified UHF.Data.IR.HIR as HIR
+import qualified UHF.Data.IR.Type as Type
 
 import qualified UHF.Compiler as Compiler
 
@@ -63,27 +64,27 @@ convert_type_expr :: UntypedDeclArena -> TypeExpr -> StateWithVars TypeWithVars
 convert_type_expr decls (HIR.TypeExpr'Identifier sp iden) =
     case iden of -- TODO: make poison type variable
         Just i -> case Arena.get decls i of
-            HIR.Decl'Module _ _ -> HIR.Type'Variable <$> new_type_variable (TypeExpr sp) -- TODO: report error for this
+            HIR.Decl'Module _ _ -> Type.Type'Variable <$> new_type_variable (TypeExpr sp) -- TODO: report error for this
             HIR.Decl'Type ty -> pure $ void_var_to_key ty
-        Nothing -> HIR.Type'Variable <$> new_type_variable (TypeExpr sp)
+        Nothing -> Type.Type'Variable <$> new_type_variable (TypeExpr sp)
     where
         -- basically useless function for converting Type Void to Type TypeVarKey
-        void_var_to_key (HIR.Type'ADT k) = HIR.Type'ADT k
-        void_var_to_key (HIR.Type'Synonym k) = HIR.Type'Synonym k
-        void_var_to_key HIR.Type'Int = HIR.Type'Int
-        void_var_to_key HIR.Type'Float = HIR.Type'Float
-        void_var_to_key HIR.Type'Char = HIR.Type'Char
-        void_var_to_key HIR.Type'String = HIR.Type'String
-        void_var_to_key HIR.Type'Bool = HIR.Type'Bool
-        void_var_to_key (HIR.Type'Function a r) = HIR.Type'Function (void_var_to_key a) (void_var_to_key r)
-        void_var_to_key (HIR.Type'Tuple a b) = HIR.Type'Tuple (void_var_to_key a) (void_var_to_key b)
-        void_var_to_key (HIR.Type'Variable void) = absurd void
+        void_var_to_key (Type.Type'ADT k) = Type.Type'ADT k
+        void_var_to_key (Type.Type'Synonym k) = Type.Type'Synonym k
+        void_var_to_key Type.Type'Int = Type.Type'Int
+        void_var_to_key Type.Type'Float = Type.Type'Float
+        void_var_to_key Type.Type'Char = Type.Type'Char
+        void_var_to_key Type.Type'String = Type.Type'String
+        void_var_to_key Type.Type'Bool = Type.Type'Bool
+        void_var_to_key (Type.Type'Function a r) = Type.Type'Function (void_var_to_key a) (void_var_to_key r)
+        void_var_to_key (Type.Type'Tuple a b) = Type.Type'Tuple (void_var_to_key a) (void_var_to_key b)
+        void_var_to_key (Type.Type'Variable void) = absurd void
 
-convert_type_expr decls (HIR.TypeExpr'Tuple a b) = HIR.Type'Tuple <$> convert_type_expr decls a <*> convert_type_expr decls b
-convert_type_expr _ (HIR.TypeExpr'Poison sp) = HIR.Type'Variable <$> new_type_variable (TypeExpr sp)
+convert_type_expr decls (HIR.TypeExpr'Tuple a b) = Type.Type'Tuple <$> convert_type_expr decls a <*> convert_type_expr decls b
+convert_type_expr _ (HIR.TypeExpr'Poison sp) = Type.Type'Variable <$> new_type_variable (TypeExpr sp)
 
 assign_type_variable_to_bound_value :: UntypedBoundValue -> StateWithVars TypedWithVarsBoundValue
-assign_type_variable_to_bound_value (HIR.BoundValue () def_span) = HIR.BoundValue <$> (HIR.Type'Variable <$> new_type_variable (BoundValue def_span)) <*> pure def_span
+assign_type_variable_to_bound_value (HIR.BoundValue () def_span) = HIR.BoundValue <$> (Type.Type'Variable <$> new_type_variable (BoundValue def_span)) <*> pure def_span
 
 collect_constraints :: UntypedDeclArena -> TypedWithVarsBoundValueArena -> UntypedDecl -> WriterT [Constraint] StateWithVars TypedWithVarsDecl
 collect_constraints _ _ (HIR.Decl'Type ty) = pure $ HIR.Decl'Type ty
@@ -118,13 +119,13 @@ collect_constraints decls bna (HIR.Decl'Module nc bindings) = HIR.Decl'Module nc
             in pure (HIR.Pattern'Identifier ty sp bn)
 
         collect_for_pat (HIR.Pattern'Wildcard () sp) =
-            lift (HIR.Type'Variable <$> new_type_variable (WildcardPattern sp)) >>= \ ty ->
+            lift (Type.Type'Variable <$> new_type_variable (WildcardPattern sp)) >>= \ ty ->
             pure (HIR.Pattern'Wildcard ty sp)
 
         collect_for_pat (HIR.Pattern'Tuple () sp l r) =
             collect_for_pat l >>= \ l ->
             collect_for_pat r >>= \ r ->
-            pure (HIR.Pattern'Tuple (HIR.Type'Tuple (HIR.pattern_type l) (HIR.pattern_type r)) sp l r)
+            pure (HIR.Pattern'Tuple (Type.Type'Tuple (HIR.pattern_type l) (HIR.pattern_type r)) sp l r)
 
         collect_for_pat (HIR.Pattern'Named () sp at_sp bnk subpat) =
             collect_for_pat subpat >>= \ subpat ->
@@ -132,27 +133,27 @@ collect_constraints decls bna (HIR.Decl'Module nc bindings) = HIR.Decl'Module nc
             in tell [Eq InNamedPattern at_sp (Located (just_span bnk) bn_ty) (loc_pat_type subpat)] >>
             pure (HIR.Pattern'Named bn_ty sp at_sp bnk subpat)
 
-        collect_for_pat (HIR.Pattern'Poison () sp) = HIR.Pattern'Poison <$> (HIR.Type'Variable <$> lift (new_type_variable $ PoisonPattern sp)) <*> pure sp
+        collect_for_pat (HIR.Pattern'Poison () sp) = HIR.Pattern'Poison <$> (Type.Type'Variable <$> lift (new_type_variable $ PoisonPattern sp)) <*> pure sp
 
         collect_for_expr (HIR.Expr'Identifier () sp bn) =
             (case unlocate bn of
                 Just bn -> let (HIR.BoundValue ty _) = Arena.get bna bn in pure ty
-                Nothing -> HIR.Type'Variable <$> lift (new_type_variable (UnresolvedIdenExpr sp))) >>= \ ty ->
+                Nothing -> Type.Type'Variable <$> lift (new_type_variable (UnresolvedIdenExpr sp))) >>= \ ty ->
 
             pure (HIR.Expr'Identifier ty sp bn)
 
-        collect_for_expr (HIR.Expr'Char () sp c) = pure (HIR.Expr'Char HIR.Type'Char sp c)
-        collect_for_expr (HIR.Expr'String () sp t) = pure (HIR.Expr'String HIR.Type'String sp t)
-        collect_for_expr (HIR.Expr'Int () sp i) = pure (HIR.Expr'Int HIR.Type'Int sp i)
-        collect_for_expr (HIR.Expr'Float () sp r) = pure (HIR.Expr'Float HIR.Type'Float sp r)
-        collect_for_expr (HIR.Expr'Bool () sp b) = pure (HIR.Expr'Bool HIR.Type'Bool sp b)
+        collect_for_expr (HIR.Expr'Char () sp c) = pure (HIR.Expr'Char Type.Type'Char sp c)
+        collect_for_expr (HIR.Expr'String () sp t) = pure (HIR.Expr'String Type.Type'String sp t)
+        collect_for_expr (HIR.Expr'Int () sp i) = pure (HIR.Expr'Int Type.Type'Int sp i)
+        collect_for_expr (HIR.Expr'Float () sp r) = pure (HIR.Expr'Float Type.Type'Float sp r)
+        collect_for_expr (HIR.Expr'Bool () sp b) = pure (HIR.Expr'Bool Type.Type'Bool sp b)
 
-        collect_for_expr (HIR.Expr'Tuple () sp l r) = collect_for_expr l >>= \ l -> collect_for_expr r >>= \ r -> pure (HIR.Expr'Tuple (HIR.Type'Tuple (HIR.expr_type l) (HIR.expr_type r)) sp l r)
+        collect_for_expr (HIR.Expr'Tuple () sp l r) = collect_for_expr l >>= \ l -> collect_for_expr r >>= \ r -> pure (HIR.Expr'Tuple (Type.Type'Tuple (HIR.expr_type l) (HIR.expr_type r)) sp l r)
 
         collect_for_expr (HIR.Expr'Lambda () sp param body) =
             collect_for_pat param >>= \ param ->
             collect_for_expr body >>= \ body ->
-            pure (HIR.Expr'Lambda (HIR.Type'Function (HIR.pattern_type param) (HIR.expr_type body)) sp param body)
+            pure (HIR.Expr'Lambda (Type.Type'Function (HIR.pattern_type param) (HIR.expr_type body)) sp param body)
 
         collect_for_expr (HIR.Expr'Let () sp bindings result) =
             mapM collect_for_binding bindings >>= \ bindings ->
@@ -170,9 +171,9 @@ collect_constraints decls bna (HIR.Decl'Module nc bindings) = HIR.Decl'Module nc
             collect_for_expr arg >>= \ arg ->
             lift (new_type_variable (CallExpr sp)) >>= \ res_ty_var ->
 
-            tell [Expect InCallExpr (loc_expr_type callee) (HIR.Type'Function (HIR.expr_type arg) (HIR.Type'Variable res_ty_var))] >>
+            tell [Expect InCallExpr (loc_expr_type callee) (Type.Type'Function (HIR.expr_type arg) (Type.Type'Variable res_ty_var))] >>
 
-            pure (HIR.Expr'Call (HIR.Type'Variable res_ty_var) sp callee arg)
+            pure (HIR.Expr'Call (Type.Type'Variable res_ty_var) sp callee arg)
 
         collect_for_expr (HIR.Expr'If () sp if_sp cond true false) =
             collect_for_expr cond >>= \ cond ->
@@ -180,7 +181,7 @@ collect_constraints decls bna (HIR.Decl'Module nc bindings) = HIR.Decl'Module nc
             collect_for_expr false >>= \ false ->
 
             tell
-                [ Expect InIfCondition (loc_expr_type cond) HIR.Type'Bool
+                [ Expect InIfCondition (loc_expr_type cond) Type.Type'Bool
                 , Eq InIfBranches if_sp (loc_expr_type true) (loc_expr_type false)
                 ] >>
 
@@ -197,11 +198,11 @@ collect_constraints decls bna (HIR.Decl'Module nc bindings) = HIR.Decl'Module nc
 
             (case headMay arms of
                 Just (_, first_arm_result) -> pure $ HIR.expr_type first_arm_result
-                Nothing -> HIR.Type'Variable <$> lift (new_type_variable (CaseExpr sp))) >>= \ result_ty ->
+                Nothing -> Type.Type'Variable <$> lift (new_type_variable (CaseExpr sp))) >>= \ result_ty ->
 
             pure (HIR.Expr'Case result_ty sp case_tok_sp testing arms)
 
-        collect_for_expr (HIR.Expr'Poison () sp) = HIR.Expr'Poison <$> (HIR.Type'Variable <$> lift (new_type_variable $ PoisonExpr sp)) <*> pure sp
+        collect_for_expr (HIR.Expr'Poison () sp) = HIR.Expr'Poison <$> (Type.Type'Variable <$> lift (new_type_variable $ PoisonExpr sp)) <*> pure sp
 
         collect_for_expr (HIR.Expr'TypeAnnotation () sp annotation e) =
             lift (convert_type_expr decls annotation) >>= \ annotation ->
@@ -243,27 +244,27 @@ solve_constraints adts type_synonyms = mapM_ solve
                     pure ()
 
         unify :: TypeWithVars -> TypeWithVars -> ExceptT (Either (TypeWithVars, TypeWithVars) (TypeVarKey, TypeWithVars)) StateWithVars ()
-        unify a@(HIR.Type'ADT a_adt_key) b@(HIR.Type'ADT b_adt_key)
+        unify a@(Type.Type'ADT a_adt_key) b@(Type.Type'ADT b_adt_key)
             | a_adt_key == b_adt_key = pure ()
             | otherwise = ExceptT (pure $ Left $ Left (a, b))
 
-        unify (HIR.Type'Synonym a_syn_key) b =
+        unify (Type.Type'Synonym a_syn_key) b =
             case Arena.get type_synonyms a_syn_key of
                 HIR.TypeSynonym _ a_expansion -> unify a_expansion b
 
-        unify a (HIR.Type'Synonym b_syn_key) =
+        unify a (Type.Type'Synonym b_syn_key) =
             case Arena.get type_synonyms b_syn_key of
                 HIR.TypeSynonym _ b_expansion -> unify a b_expansion
 
-        unify (HIR.Type'Variable a) b = unify_var a b False
-        unify a (HIR.Type'Variable b) = unify_var b a True
-        unify HIR.Type'Int HIR.Type'Int = pure ()
-        unify HIR.Type'Float HIR.Type'Float = pure ()
-        unify HIR.Type'Char HIR.Type'Char = pure ()
-        unify HIR.Type'String HIR.Type'String = pure ()
-        unify HIR.Type'Bool HIR.Type'Bool = pure ()
-        unify (HIR.Type'Function a1 r1) (HIR.Type'Function a2 r2) = unify a1 a2 >> unify r1 r2
-        unify (HIR.Type'Tuple a1 b1) (HIR.Type'Tuple a2 b2) = unify a1 a2 >> unify b1 b2
+        unify (Type.Type'Variable a) b = unify_var a b False
+        unify a (Type.Type'Variable b) = unify_var b a True
+        unify Type.Type'Int Type.Type'Int = pure ()
+        unify Type.Type'Float Type.Type'Float = pure ()
+        unify Type.Type'Char Type.Type'Char = pure ()
+        unify Type.Type'String Type.Type'String = pure ()
+        unify Type.Type'Bool Type.Type'Bool = pure ()
+        unify (Type.Type'Function a1 r1) (Type.Type'Function a2 r2) = unify a1 a2 >> unify r1 r2
+        unify (Type.Type'Tuple a1 b1) (Type.Type'Tuple a2 b2) = unify a1 a2 >> unify b1 b2
         unify a b = ExceptT (pure $ Left $ Left (a, b))
 
         unify_var :: TypeVarKey -> TypeWithVars -> Bool -> ExceptT (Either (TypeWithVars, TypeWithVars) (TypeVarKey, TypeWithVars)) StateWithVars ()
@@ -277,7 +278,7 @@ solve_constraints adts type_synonyms = mapM_ solve
             -- if this variable has no substitution, what happens depends on the other type
             TypeVar _ Fresh ->
                 case other of
-                    HIR.Type'Variable other_var ->
+                    Type.Type'Variable other_var ->
                         Arena.get <$> lift get <*> pure other_var >>= \case
                             -- if the other type is a substituted type variable, unify this variable with the other's expansion
                             TypeVar _ (Substituted other_var_sub) -> unify_var var other_var_sub var_on_right
@@ -300,7 +301,7 @@ solve_constraints adts type_synonyms = mapM_ solve
         -- does the variable v occur anywhere in the type ty?
         occurs_check v ty =
             case ty of
-                HIR.Type'Variable other_v ->
+                Type.Type'Variable other_v ->
                     if v == other_v
                         then pure True
                         else
@@ -308,37 +309,37 @@ solve_constraints adts type_synonyms = mapM_ solve
                                 TypeVar _ (Substituted other_sub) -> occurs_check v other_sub
                                 TypeVar _ Fresh -> pure False
 
-                HIR.Type'ADT adt_key ->
+                Type.Type'ADT adt_key ->
                     case Arena.get adts adt_key of
                         HIR.ADT _ _ -> pure False -- TODO: check type arguemnts when those are added
 
-                HIR.Type'Synonym syn_key ->
+                Type.Type'Synonym syn_key ->
                     case Arena.get type_synonyms syn_key of
                         HIR.TypeSynonym _ other_expansion -> occurs_check v other_expansion
 
-                HIR.Type'Int -> pure False
-                HIR.Type'Float -> pure False
-                HIR.Type'Char -> pure False
-                HIR.Type'String -> pure False
-                HIR.Type'Bool -> pure False
-                HIR.Type'Function a r -> (||) <$> occurs_check v a <*> occurs_check v r
-                HIR.Type'Tuple a b -> (||) <$> occurs_check v a <*> occurs_check v b
+                Type.Type'Int -> pure False
+                Type.Type'Float -> pure False
+                Type.Type'Char -> pure False
+                Type.Type'String -> pure False
+                Type.Type'Bool -> pure False
+                Type.Type'Function a r -> (||) <$> occurs_check v a <*> occurs_check v r
+                Type.Type'Tuple a b -> (||) <$> occurs_check v a <*> occurs_check v b
 
 convert_vars :: TypeVarArena -> Writer [Error] (Arena.Arena (Maybe Type) TypeVarKey)
 convert_vars vars =
     -- infinite recursion is not possible because occurs check prevents loops in substitution
     mfix (\ vars_converted -> Arena.transformM (runMaybeT . convert_var vars_converted) vars)
     where
-        r _ HIR.Type'Int = pure HIR.Type'Int
-        r _ HIR.Type'Float = pure HIR.Type'Float
-        r _ HIR.Type'Char = pure HIR.Type'Char
-        r _ HIR.Type'String = pure HIR.Type'String
-        r _ HIR.Type'Bool = pure HIR.Type'Bool
-        r _ (HIR.Type'ADT a) = pure $ HIR.Type'ADT a
-        r _ (HIR.Type'Synonym s) = pure $ HIR.Type'Synonym s
-        r vars_converted (HIR.Type'Function arg res) = HIR.Type'Function <$> r vars_converted arg <*> r vars_converted res
-        r vars_converted (HIR.Type'Tuple a b) = HIR.Type'Tuple <$> r vars_converted a <*> r vars_converted b
-        r vars_converted (HIR.Type'Variable v) = MaybeT $ pure $ Arena.get vars_converted v
+        r _ Type.Type'Int = pure Type.Type'Int
+        r _ Type.Type'Float = pure Type.Type'Float
+        r _ Type.Type'Char = pure Type.Type'Char
+        r _ Type.Type'String = pure Type.Type'String
+        r _ Type.Type'Bool = pure Type.Type'Bool
+        r _ (Type.Type'ADT a) = pure $ Type.Type'ADT a
+        r _ (Type.Type'Synonym s) = pure $ Type.Type'Synonym s
+        r vars_converted (Type.Type'Function arg res) = Type.Type'Function <$> r vars_converted arg <*> r vars_converted res
+        r vars_converted (Type.Type'Tuple a b) = Type.Type'Tuple <$> r vars_converted a <*> r vars_converted b
+        r vars_converted (Type.Type'Variable v) = MaybeT $ pure $ Arena.get vars_converted v
 
         convert_var vars_converted (TypeVar _ (Substituted s)) = r vars_converted s
         convert_var _ (TypeVar for_what Fresh) = lift (tell [AmbiguousType for_what]) >> MaybeT (pure Nothing)
@@ -388,13 +389,13 @@ remove_vars_from_binding vars (HIR.Binding pat eq_sp expr) = HIR.Binding (remove
 remove_vars :: Arena.Arena (Maybe Type) TypeVarKey -> TypeWithVars -> Maybe Type
 remove_vars vars = r
     where
-        r HIR.Type'Int = pure HIR.Type'Int
-        r HIR.Type'Float = pure HIR.Type'Float
-        r HIR.Type'Char = pure HIR.Type'Char
-        r HIR.Type'String = pure HIR.Type'String
-        r HIR.Type'Bool = pure HIR.Type'Bool
-        r (HIR.Type'ADT a) = pure $ HIR.Type'ADT a
-        r (HIR.Type'Synonym s) = pure $ HIR.Type'Synonym s
-        r (HIR.Type'Function arg res) = HIR.Type'Function <$> r arg <*> r res
-        r (HIR.Type'Tuple a b) = HIR.Type'Tuple <$> r a <*> r b
-        r (HIR.Type'Variable v) = Arena.get vars v
+        r Type.Type'Int = pure Type.Type'Int
+        r Type.Type'Float = pure Type.Type'Float
+        r Type.Type'Char = pure Type.Type'Char
+        r Type.Type'String = pure Type.Type'String
+        r Type.Type'Bool = pure Type.Type'Bool
+        r (Type.Type'ADT a) = pure $ Type.Type'ADT a
+        r (Type.Type'Synonym s) = pure $ Type.Type'Synonym s
+        r (Type.Type'Function arg res) = Type.Type'Function <$> r arg <*> r res
+        r (Type.Type'Tuple a b) = Type.Type'Tuple <$> r a <*> r b
+        r (Type.Type'Variable v) = Arena.get vars v

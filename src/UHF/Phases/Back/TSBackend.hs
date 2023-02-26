@@ -9,17 +9,19 @@ import qualified Data.FileEmbed as FileEmbed
 
 import qualified UHF.Data.IR.HIR as HIR
 import qualified UHF.Data.IR.ANFIR as ANFIR
+import qualified UHF.Data.IR.Type as Type
+import UHF.Data.IR.Keys
 
 type Decl = ANFIR.Decl
-type DeclArena = Arena.Arena Decl HIR.DeclKey
+type DeclArena = Arena.Arena Decl DeclKey
 
-type Type = HIR.Type Void
+type Type = Type.Type Void
 type ADT = HIR.ADT Type
 type TypeSynonym = HIR.TypeSynonym Type
 type GraphNode = ANFIR.Node Type Void
 type GraphParam = ANFIR.Param Type
 
-type ADTArena = Arena.Arena ADT HIR.ADTKey
+type ADTArena = Arena.Arena ADT ADTKey
 type TypeSynonymArena = Arena.Arena TypeSynonym HIR.TypeSynonymKey
 type GraphNodeArena = Arena.Arena GraphNode ANFIR.NodeKey
 type GraphParamArena = Arena.Arena GraphParam ANFIR.ParamKey
@@ -32,7 +34,7 @@ get_node :: ANFIR.NodeKey -> IRReader GraphNode
 get_node k = reader (\ (_, _, a, _) -> Arena.get a k)
 get_param :: ANFIR.ParamKey -> IRReader GraphParam
 get_param k = reader (\ (_, _, _, a) -> Arena.get a k)
-get_adt :: HIR.ADTKey -> IRReader ADT
+get_adt :: ADTKey -> IRReader ADT
 get_adt k = reader (\ (a, _, _, _) -> Arena.get a k)
 get_type_synonym :: HIR.TypeSynonymKey -> IRReader TypeSynonym
 get_type_synonym k = reader (\ (_, a, _, _) -> Arena.get a k)
@@ -45,7 +47,7 @@ runtime_code :: Text
 runtime_code = $(FileEmbed.embedStringFile "data/ts_runtime.ts")
 
 data TSDecl
-data TSADT = TSADT HIR.ADTKey Text -- TODO: actually implement variants and things
+data TSADT = TSADT ADTKey Text -- TODO: actually implement variants and things
 data TSLambda = TSLambda ANFIR.NodeKey Type Type ANFIR.NodeKey -- TODO: captures
 data MakeThunkGraphFor = LambdaBody ANFIR.NodeKey | Globals
 data TSMakeThunkGraph = TSMakeThunkGraph MakeThunkGraphFor [ANFIR.NodeKey] [ANFIR.ParamKey]
@@ -179,22 +181,22 @@ stringify_ts_lambda (TSLambda key arg result body_key) =
         <> "}\n")
 
 -- referring to types {{{2
-refer_type_raw :: HIR.Type Void -> IRReader Text
-refer_type_raw (HIR.Type'ADT ak) = pure $ mangle_adt ak
+refer_type_raw :: Type.Type Void -> IRReader Text
+refer_type_raw (Type.Type'ADT ak) = pure $ mangle_adt ak
 
-refer_type_raw (HIR.Type'Synonym sk) =
+refer_type_raw (Type.Type'Synonym sk) =
     get_type_synonym sk >>= \ (HIR.TypeSynonym _ expansion) -> refer_type expansion
 
-refer_type_raw HIR.Type'Int = pure "number"
-refer_type_raw HIR.Type'Float = pure "number"
-refer_type_raw HIR.Type'Char = pure "char"
-refer_type_raw HIR.Type'String = pure "string"
-refer_type_raw HIR.Type'Bool = pure "bool"
-refer_type_raw (HIR.Type'Function a r) = refer_type a >>= \ a -> refer_type r >>= \ r -> pure ("Lambda<" <> a <> ", " <> r <> ">")
-refer_type_raw (HIR.Type'Tuple a b) = refer_type a >>= \ a -> refer_type b >>= \ b -> pure ("[" <> a <> ", " <> b <> "]")
-refer_type_raw (HIR.Type'Variable void) = absurd void
+refer_type_raw Type.Type'Int = pure "number"
+refer_type_raw Type.Type'Float = pure "number"
+refer_type_raw Type.Type'Char = pure "char"
+refer_type_raw Type.Type'String = pure "string"
+refer_type_raw Type.Type'Bool = pure "bool"
+refer_type_raw (Type.Type'Function a r) = refer_type a >>= \ a -> refer_type r >>= \ r -> pure ("Lambda<" <> a <> ", " <> r <> ">")
+refer_type_raw (Type.Type'Tuple a b) = refer_type a >>= \ a -> refer_type b >>= \ b -> pure ("[" <> a <> ", " <> b <> "]")
+refer_type_raw (Type.Type'Variable void) = absurd void
 
-refer_type :: HIR.Type Void -> IRReader Text
+refer_type :: Type.Type Void -> IRReader Text
 refer_type ty = refer_type_raw ty >>= \ ty -> pure ("Thunk<" <> ty <> ">")
 
 -- lowering {{{1
@@ -219,11 +221,11 @@ lower decls adts type_synonyms nodes params =
         )
         (adts, type_synonyms, nodes, params)
 
-define_decl :: HIR.DeclKey -> Decl -> TSWriter ()
+define_decl :: DeclKey -> Decl -> TSWriter ()
 define_decl _ (ANFIR.Decl'Module global_nodes) = tell_make_thunk_graph (TSMakeThunkGraph Globals global_nodes []) -- global thunk graph does not have any params
 define_decl _ (ANFIR.Decl'Type _) = pure ()
 
-define_adt :: HIR.ADTKey -> ADT -> TSWriter ()
+define_adt :: ADTKey -> ADT -> TSWriter ()
 define_adt key (HIR.ADT name variants) = tell_adt (TSADT key name)
 
 define_type_synonym :: HIR.TypeSynonymKey -> TypeSynonym -> TSWriter ()
@@ -252,7 +254,7 @@ define_lambda_type _ _ = pure ()
 
 -- mangling {{{2
 -- TODO: better mangling and unified mangling for everything
-mangle_adt :: HIR.ADTKey -> Text
+mangle_adt :: ADTKey -> Text
 mangle_adt key = "ADT" <> show (Arena.unmake_key key)
 
 mangle_graph_node_as_lambda :: ANFIR.NodeKey -> Text

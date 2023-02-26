@@ -6,35 +6,37 @@ import qualified Arena
 
 import qualified UHF.Data.IR.HIR as HIR
 import qualified UHF.Data.IR.ANFIR as ANFIR
+import qualified UHF.Data.IR.Type as Type
+import UHF.Data.IR.Keys
 
 type Decl = ANFIR.Decl
-type DeclArena = Arena.Arena Decl HIR.DeclKey
+type DeclArena = Arena.Arena Decl DeclKey
 
-type PoisonedType = Maybe (HIR.Type Void)
+type PoisonedType = Maybe (Type.Type Void)
 type PoisonedADT = HIR.ADT PoisonedType
 type PoisonedTypeSynonym = HIR.TypeSynonym PoisonedType
 type PoisonedGraphNode = ANFIR.Node PoisonedType ()
 type PoisonedGraphParam = ANFIR.Param PoisonedType
 type PoisonedBoundValue = HIR.BoundValue PoisonedType
 
-type PoisonedADTArena = Arena.Arena PoisonedADT HIR.ADTKey
+type PoisonedADTArena = Arena.Arena PoisonedADT ADTKey
 type PoisonedTypeSynonymArena = Arena.Arena PoisonedTypeSynonym HIR.TypeSynonymKey
 type PoisonedGraphNodeArena = Arena.Arena PoisonedGraphNode ANFIR.NodeKey
 type PoisonedGraphParamArena = Arena.Arena PoisonedGraphParam ANFIR.ParamKey
-type PoisonedBoundValueArena = Arena.Arena PoisonedBoundValue HIR.BoundValueKey
+type PoisonedBoundValueArena = Arena.Arena PoisonedBoundValue BoundValueKey
 
-type NoPoisonType = HIR.Type Void
+type NoPoisonType = Type.Type Void
 type NoPoisonADT = HIR.ADT NoPoisonType
 type NoPoisonTypeSynonym = HIR.TypeSynonym NoPoisonType
 type NoPoisonGraphNode = ANFIR.Node NoPoisonType Void
 type NoPoisonGraphParam = ANFIR.Param NoPoisonType
 type NoPoisonBoundValue = HIR.BoundValue NoPoisonType
 
-type NoPoisonADTArena = Arena.Arena NoPoisonADT HIR.ADTKey
+type NoPoisonADTArena = Arena.Arena NoPoisonADT ADTKey
 type NoPoisonTypeSynonymArena = Arena.Arena NoPoisonTypeSynonym HIR.TypeSynonymKey
 type NoPoisonGraphNodeArena = Arena.Arena NoPoisonGraphNode ANFIR.NodeKey
 type NoPoisonGraphParamArena = Arena.Arena NoPoisonGraphParam ANFIR.ParamKey
-type NoPoisonBoundValueArena = Arena.Arena NoPoisonBoundValue HIR.BoundValueKey
+type NoPoisonBoundValueArena = Arena.Arena NoPoisonBoundValue BoundValueKey
 remove_poison :: (DeclArena, PoisonedADTArena, PoisonedTypeSynonymArena, PoisonedGraphNodeArena, PoisonedGraphParamArena, PoisonedBoundValueArena) -> Maybe (DeclArena, NoPoisonADTArena, NoPoisonTypeSynonymArena, NoPoisonGraphNodeArena, NoPoisonGraphParamArena, NoPoisonBoundValueArena)
 -- TODO: probably dont pass DeclArena if it is not going to be changed
 remove_poison (decls, adts, type_synonyms, graph_nodes, graph_params, bound_values) =

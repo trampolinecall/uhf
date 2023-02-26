@@ -1,4 +1,4 @@
-module UHF.TSBackend (lower) where
+module UHF.Phases.Back.TSBackend (lower) where
 
 import UHF.Util.Prelude
 
@@ -7,8 +7,8 @@ import qualified Arena
 import qualified Data.Text as Text
 import qualified Data.FileEmbed as FileEmbed
 
-import qualified UHF.HIR as HIR
-import qualified UHF.ANFIR as ANFIR
+import qualified UHF.Data.IR.HIR as HIR
+import qualified UHF.Data.IR.ANFIR as ANFIR
 
 type Decl = ANFIR.Decl
 type DeclArena = Arena.Arena Decl HIR.DeclKey

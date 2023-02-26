@@ -1,4 +1,4 @@
-module UHF.Lexer.LexError
+module UHF.Phases.Front.Lexer.LexError
     ( Error(..)
     ) where
 

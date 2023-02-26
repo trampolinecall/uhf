@@ -1,4 +1,4 @@
-module UHF.Lexer.MainLexer
+module UHF.Phases.Front.Lexer.MainLexer
     ( lex
 
     , tests
@@ -6,7 +6,7 @@ module UHF.Lexer.MainLexer
 
 import UHF.Util.Prelude
 
-import qualified UHF.Lexer.LexError as LexError
+import qualified UHF.Phases.Front.Lexer.LexError as LexError
 import qualified UHF.IO.File as File
 import UHF.IO.File (File)
 import qualified UHF.IO.Location as Location
@@ -15,7 +15,7 @@ import qualified UHF.IO.Span as Span
 import UHF.IO.Span (Span)
 import qualified UHF.IO.Located as Located
 import UHF.IO.Located (Located (Located))
-import qualified UHF.Token as Token
+import qualified UHF.Data.Token as Token
 
 import qualified Data.Text as Text
 import qualified Data.Sequence as Sequence

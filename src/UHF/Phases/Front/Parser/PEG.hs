@@ -1,4 +1,4 @@
-module UHF.Parser.PEG
+module UHF.Phases.Front.Parser.PEG
     ( TokenStream
 
     , Parser
@@ -25,11 +25,11 @@ module UHF.Parser.PEG
 
 import UHF.Util.Prelude
 
-import qualified UHF.Parser.Error as Error
+import qualified UHF.Phases.Front.Parser.Error as Error
 
 import qualified UHF.IO.Located as Located
 
-import qualified UHF.Token as Token
+import qualified UHF.Data.Token as Token
 
 import qualified Data.InfList as InfList
 

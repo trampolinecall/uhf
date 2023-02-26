@@ -21,21 +21,21 @@ import qualified UHF.Diagnostic.Settings as DiagnosticSettings
 
 import qualified UHF.Compiler as Compiler
 
-import qualified UHF.Token as Token
-import qualified UHF.AST as AST
-import qualified UHF.HIR as HIR
-import qualified UHF.ANFIR as ANFIR
+import qualified UHF.Data.Token as Token
+import qualified UHF.Data.AST as AST
+import qualified UHF.Data.IR.HIR as HIR
+import qualified UHF.Data.IR.ANFIR as ANFIR
 
-import qualified UHF.Lexer as Lexer
-import qualified UHF.Parser as Parser
-import qualified UHF.ASTToIR as ASTToIR
-import qualified UHF.NameResolve as NameResolve
-import qualified UHF.InfixGroup as InfixGroup
-import qualified UHF.Type as Type
-import qualified UHF.ToGraph as ToGraph
-import qualified UHF.RemovePoison as RemovePoison
-import qualified UHF.ToDot as ToDot
-import qualified UHF.TSBackend as TSBackend
+import qualified UHF.Phases.Front.Lexer as Lexer
+import qualified UHF.Phases.Front.Parser as Parser
+import qualified UHF.Phases.Middle.ASTToIR as ASTToIR
+import qualified UHF.Phases.Middle.NameResolve as NameResolve
+import qualified UHF.Phases.Middle.InfixGroup as InfixGroup
+import qualified UHF.Phases.Middle.Type as Type
+import qualified UHF.Phases.Middle.ToGraph as ToGraph
+import qualified UHF.Phases.Middle.RemovePoison as RemovePoison
+import qualified UHF.Phases.Back.ToDot as ToDot
+import qualified UHF.Phases.Back.TSBackend as TSBackend
 
 type Tokens = ([Token.LToken], Token.LToken)
 type AST = [AST.Decl]

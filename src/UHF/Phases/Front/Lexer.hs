@@ -1,16 +1,16 @@
-module UHF.Lexer
-    ( UHF.Lexer.lex
+module UHF.Phases.Front.Lexer
+    ( UHF.Phases.Front.Lexer.lex
 
     , LexError.Error
     ) where
 
 import UHF.Util.Prelude
 
-import qualified UHF.Lexer.LexError as LexError
-import qualified UHF.Lexer.MainLexer as MainLexer
-import qualified UHF.Lexer.IdentifierGrouper as IdentifierGrouper
+import qualified UHF.Phases.Front.Lexer.LexError as LexError
+import qualified UHF.Phases.Front.Lexer.MainLexer as MainLexer
+import qualified UHF.Phases.Front.Lexer.IdentifierGrouper as IdentifierGrouper
 
-import qualified UHF.Token as Token
+import qualified UHF.Data.Token as Token
 import UHF.IO.File (File)
 
 import qualified UHF.Compiler as Compiler

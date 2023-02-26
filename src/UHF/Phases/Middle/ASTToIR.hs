@@ -1,11 +1,11 @@
-module UHF.ASTToIR (convert) where
+module UHF.Phases.Middle.ASTToIR (convert) where
 
 import UHF.Util.Prelude
 
 import qualified Arena
 
-import qualified UHF.AST as AST
-import qualified UHF.HIR as HIR
+import qualified UHF.Data.AST as AST
+import qualified UHF.Data.IR.HIR as HIR
 
 import UHF.IO.Span (Span)
 import UHF.IO.Located (Located (..))

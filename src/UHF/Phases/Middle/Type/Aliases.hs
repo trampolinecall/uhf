@@ -1,13 +1,13 @@
-module UHF.Type.Aliases where
+module UHF.Phases.Middle.Type.Aliases where
 
 import UHF.Util.Prelude
 
 import qualified Arena
-import qualified UHF.HIR as HIR
+import qualified UHF.Data.IR.HIR as HIR
 
 import UHF.IO.Located (Located (..))
 
-import qualified UHF.Type.Var as Var
+import qualified UHF.Phases.Middle.Type.Var as Var
 
 type TypeExpr = HIR.TypeExpr (Maybe HIR.DeclKey)
 type TypeWithVars = HIR.Type Var.TypeVarKey

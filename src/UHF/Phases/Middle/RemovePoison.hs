@@ -1,11 +1,11 @@
-module UHF.RemovePoison (remove_poison) where
+module UHF.Phases.Middle.RemovePoison (remove_poison) where
 
 import UHF.Util.Prelude
 
 import qualified Arena
 
-import qualified UHF.HIR as HIR
-import qualified UHF.ANFIR as ANFIR
+import qualified UHF.Data.IR.HIR as HIR
+import qualified UHF.Data.IR.ANFIR as ANFIR
 
 type Decl = ANFIR.Decl
 type DeclArena = Arena.Arena Decl HIR.DeclKey

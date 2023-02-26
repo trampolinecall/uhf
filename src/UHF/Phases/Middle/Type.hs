@@ -159,10 +159,6 @@ collect_constraints decls bna (HIR.Decl'Module nc bindings) = HIR.Decl'Module nc
             mapM collect_for_binding bindings >>= \ bindings ->
             collect_for_expr result >>= \ result ->
             pure (HIR.Expr'Let (HIR.expr_type result) sp bindings result)
-        collect_for_expr (HIR.Expr'LetRec () sp bindings result) =
-            mapM collect_for_binding bindings >>= \ bindings ->
-            collect_for_expr result >>= \ result ->
-            pure (HIR.Expr'LetRec (HIR.expr_type result) sp bindings result)
 
         collect_for_expr (HIR.Expr'BinaryOps void _ _ _ _) = absurd void
 
@@ -378,7 +374,6 @@ remove_vars_from_binding vars (HIR.Binding pat eq_sp expr) = HIR.Binding (remove
         remove_from_expr (HIR.Expr'Tuple ty sp l r) = HIR.Expr'Tuple (remove_vars vars ty) sp (remove_from_expr l) (remove_from_expr r)
         remove_from_expr (HIR.Expr'Lambda ty sp param body) = HIR.Expr'Lambda (remove_vars vars ty) sp (remove_from_pat param) (remove_from_expr body)
         remove_from_expr (HIR.Expr'Let ty sp bindings result) = HIR.Expr'Let (remove_vars vars ty) sp (map (remove_vars_from_binding vars) bindings) (remove_from_expr result)
-        remove_from_expr (HIR.Expr'LetRec ty sp bindings result) = HIR.Expr'LetRec (remove_vars vars ty) sp (map (remove_vars_from_binding vars) bindings) (remove_from_expr result)
         remove_from_expr (HIR.Expr'BinaryOps void _ _ _ _) = absurd void
         remove_from_expr (HIR.Expr'Call ty sp callee arg) = HIR.Expr'Call (remove_vars vars ty) sp (remove_from_expr callee) (remove_from_expr arg)
         remove_from_expr (HIR.Expr'If ty sp if_sp cond true false) = HIR.Expr'If (remove_vars vars ty) sp if_sp (remove_from_expr cond) (remove_from_expr true) (remove_from_expr false)

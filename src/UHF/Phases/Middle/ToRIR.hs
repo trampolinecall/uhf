@@ -67,8 +67,7 @@ convert_expr (HIR.Expr'Lambda ty sp param_pat body) =
     assign_pattern param_pat (RIR.Expr'Identifier param_ty (RIR.pattern_span param_pat) (Just param_bk)) >>= \ bindings ->
     RIR.Expr'Lambda ty sp param_bk <$> (RIR.Expr'Let body_ty body_sp bindings <$> convert_expr body)
 
-convert_expr (HIR.Expr'Let ty sp bindings body) = todo
-convert_expr (HIR.Expr'LetRec ty sp bindings body) = RIR.Expr'Let ty sp <$> (concat <$> mapM convert_binding bindings) <*> convert_expr body
+convert_expr (HIR.Expr'Let ty sp bindings body) = RIR.Expr'Let ty sp <$> (concat <$> mapM convert_binding bindings) <*> convert_expr body
 convert_expr (HIR.Expr'BinaryOps void _ _ _ _) = absurd void
 convert_expr (HIR.Expr'Call ty sp callee arg) = RIR.Expr'Call ty sp <$> convert_expr callee <*> convert_expr arg
 convert_expr (HIR.Expr'If ty sp if_sp cond true false) = RIR.Expr'If ty sp <$> convert_expr cond <*> convert_expr true <*> convert_expr false

@@ -41,7 +41,6 @@ group_expr (HIR.Expr'Tuple () sp a b) = HIR.Expr'Tuple () sp (group_expr a) (gro
 group_expr (HIR.Expr'Lambda () sp param body) = HIR.Expr'Lambda () sp param (group_expr body)
 
 group_expr (HIR.Expr'Let () sp bindings body) = HIR.Expr'Let () sp (map group_binding bindings) (group_expr body)
-group_expr (HIR.Expr'LetRec () sp bindings body) = HIR.Expr'LetRec () sp (map group_binding bindings) (group_expr body)
 
 group_expr (HIR.Expr'BinaryOps () () _ first ops) =
     let (r, a) = g (group_expr first) ops 0

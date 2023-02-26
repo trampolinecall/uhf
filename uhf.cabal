@@ -49,11 +49,11 @@ library
       UHF.Phases.Front.Parser.Error
       UHF.Phases.Front.Parser.PEG
       UHF.Phases.Front.Parser.Test
-      UHF.Phases.Middle.ASTToIR
       UHF.Phases.Middle.InfixGroup
       UHF.Phases.Middle.NameResolve
       UHF.Phases.Middle.RemovePoison
-      UHF.Phases.Middle.ToGraph
+      UHF.Phases.Middle.ToANFIR
+      UHF.Phases.Middle.ToHIR
       UHF.Phases.Middle.ToRIR
       UHF.Phases.Middle.Type
       UHF.Phases.Middle.Type.Aliases

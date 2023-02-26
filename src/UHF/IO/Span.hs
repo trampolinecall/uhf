@@ -59,7 +59,7 @@ start_of_file :: File -> Span
 start_of_file f = new (Location.new f) 0 1
 
 end_of_file :: File -> Span
-end_of_file f = new (Location.seek (Text.length $ File.contents f) $ Location.new f) 0 1
+end_of_file f = new (Location.seek (File.length f) $ Location.new f) 0 1
 
 dummy :: IO Span
 dummy = -- TODO: this cannot be joined with any other spans

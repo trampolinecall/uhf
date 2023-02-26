@@ -8,16 +8,17 @@ import qualified UHF.IO.Located as Located
 import UHF.IO.Located (Located)
 
 import qualified UHF.Data.IR.HIR as HIR
+import UHF.Data.IR.Keys
 
-type UngroupedDecl typeannotation = HIR.Decl (Located (Maybe HIR.BoundValueKey)) typeannotation () ()
-type UngroupedBinding typeannotation = HIR.Binding (Located (Maybe HIR.BoundValueKey)) typeannotation () ()
-type UngroupedExpr typeannotation = HIR.Expr (Located (Maybe HIR.BoundValueKey)) typeannotation () ()
+type UngroupedDecl typeannotation = HIR.Decl (Located (Maybe BoundValueKey)) typeannotation () ()
+type UngroupedBinding typeannotation = HIR.Binding (Located (Maybe BoundValueKey)) typeannotation () ()
+type UngroupedExpr typeannotation = HIR.Expr (Located (Maybe BoundValueKey)) typeannotation () ()
 
-type GroupedDecl typeannotation = HIR.Decl (Located (Maybe HIR.BoundValueKey)) typeannotation () Void
-type GroupedBinding typeannotation = HIR.Binding (Located (Maybe HIR.BoundValueKey)) typeannotation () Void
-type GroupedExpr typeannotation = HIR.Expr (Located (Maybe HIR.BoundValueKey)) typeannotation () Void
+type GroupedDecl typeannotation = HIR.Decl (Located (Maybe BoundValueKey)) typeannotation () Void
+type GroupedBinding typeannotation = HIR.Binding (Located (Maybe BoundValueKey)) typeannotation () Void
+type GroupedExpr typeannotation = HIR.Expr (Located (Maybe BoundValueKey)) typeannotation () Void
 
-group :: Arena.Arena (UngroupedDecl typeannotation) HIR.DeclKey -> Arena.Arena (GroupedDecl typeannotation) HIR.DeclKey
+group :: Arena.Arena (UngroupedDecl typeannotation) DeclKey -> Arena.Arena (GroupedDecl typeannotation) DeclKey
 group = Arena.transform group_decl
 
 group_decl :: UngroupedDecl typeannotation -> GroupedDecl typeannotation
@@ -47,7 +48,7 @@ group_expr (HIR.Expr'BinaryOps () () _ first ops) =
     in if null a then r else error "internal error: still operations to group after grouping binary ops"
     where
         -- TODO: test this
-        g :: GroupedExpr tya -> [(Located (Maybe HIR.BoundValueKey), UngroupedExpr tya)] -> Int -> (GroupedExpr tya, [(Located (Maybe HIR.BoundValueKey), UngroupedExpr tya)])
+        g :: GroupedExpr tya -> [(Located (Maybe BoundValueKey), UngroupedExpr tya)] -> Int -> (GroupedExpr tya, [(Located (Maybe BoundValueKey), UngroupedExpr tya)])
         g left more@((first_op, first_rhs):after_first_op) cur_precedence =
             let op_prec = const 1 first_op -- TODO: precedence
             -- for example if the current precedence level is that for +, and first_op is *, this will consume the * and incorporate it into left

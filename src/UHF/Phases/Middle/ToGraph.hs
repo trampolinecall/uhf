@@ -10,25 +10,27 @@ import qualified Data.Map as Map
 
 import qualified UHF.Data.IR.HIR as HIR
 import qualified UHF.Data.IR.ANFIR as ANFIR
+import qualified UHF.Data.IR.Type as Type
+import UHF.Data.IR.Keys
 
-type HIRDecl = HIR.Decl (Located (Maybe HIR.BoundValueKey)) (Maybe (HIR.Type Void)) (Maybe (HIR.Type Void)) Void
-type Expr = HIR.Expr (Located (Maybe HIR.BoundValueKey)) (Maybe (HIR.Type Void)) (Maybe (HIR.Type Void)) Void
-type Pattern = HIR.Pattern (Located (Maybe HIR.BoundValueKey)) (Maybe (HIR.Type Void))
-type Binding = HIR.Binding (Located (Maybe HIR.BoundValueKey)) (Maybe (HIR.Type Void)) (Maybe (HIR.Type Void)) Void
+type HIRDecl = HIR.Decl (Located (Maybe BoundValueKey)) (Maybe (Type.Type Void)) (Maybe (Type.Type Void)) Void
+type Expr = HIR.Expr (Located (Maybe BoundValueKey)) (Maybe (Type.Type Void)) (Maybe (Type.Type Void)) Void
+type Pattern = HIR.Pattern (Located (Maybe BoundValueKey)) (Maybe (Type.Type Void))
+type Binding = HIR.Binding (Located (Maybe BoundValueKey)) (Maybe (Type.Type Void)) (Maybe (Type.Type Void)) Void
 
 type ANFIRDecl = ANFIR.Decl
-type Type = Maybe (HIR.Type Void)
+type Type = Maybe (Type.Type Void)
 type GraphNode = ANFIR.Node Type ()
 type GraphParam = ANFIR.Param Type
 
-type HIRDeclArena = Arena.Arena HIRDecl HIR.DeclKey
-type BoundValueArena = Arena.Arena (HIR.BoundValue (Maybe (HIR.Type Void))) HIR.BoundValueKey
+type HIRDeclArena = Arena.Arena HIRDecl DeclKey
+type BoundValueArena = Arena.Arena (HIR.BoundValue (Maybe (Type.Type Void))) BoundValueKey
 
-type ANFIRDeclArena = Arena.Arena ANFIRDecl HIR.DeclKey
+type ANFIRDeclArena = Arena.Arena ANFIRDecl DeclKey
 type GraphArena = Arena.Arena GraphNode ANFIR.NodeKey
 type ParamArena = Arena.Arena GraphParam ANFIR.ParamKey
 
-type BoundValueMap = Map.Map HIR.BoundValueKey ANFIR.NodeKey
+type BoundValueMap = Map.Map BoundValueKey ANFIR.NodeKey
 
 type MakeGraphState = WriterT BoundValueMap (State (GraphArena, ParamArena))
 
@@ -94,7 +96,7 @@ convert_expr bv_map (HIR.Expr'TypeAnnotation _ _ _ e) = convert_expr bv_map e
 
 convert_expr _ (HIR.Expr'Poison ty _) = new_graph_node (ANFIR.Node'Poison ty ())
 
-map_bound_value :: HIR.BoundValueKey -> ANFIR.NodeKey -> WriterT [ANFIR.NodeKey] MakeGraphState ()
+map_bound_value :: BoundValueKey -> ANFIR.NodeKey -> WriterT [ANFIR.NodeKey] MakeGraphState ()
 map_bound_value k node = lift $ tell $ Map.singleton k node
 
 assign_pattern :: Pattern -> ANFIR.NodeKey -> WriterT [ANFIR.NodeKey] MakeGraphState ()

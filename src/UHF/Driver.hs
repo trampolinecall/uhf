@@ -25,6 +25,8 @@ import qualified UHF.Data.Token as Token
 import qualified UHF.Data.AST as AST
 import qualified UHF.Data.IR.HIR as HIR
 import qualified UHF.Data.IR.ANFIR as ANFIR
+import qualified UHF.Data.IR.Keys as IR.Keys
+import qualified UHF.Data.IR.Type as IR.Type
 
 import qualified UHF.Phases.Front.Lexer as Lexer
 import qualified UHF.Phases.Front.Parser as Parser
@@ -40,11 +42,11 @@ import qualified UHF.Phases.Back.TSBackend as TSBackend
 type Tokens = ([Token.LToken], Token.LToken)
 type AST = [AST.Decl]
 
-type FirstIR = (Arena.Arena (HIR.Decl (HIR.NameContext, [Located Text]) (HIR.TypeExpr (HIR.NameContext, [Located Text])) () ()) HIR.DeclKey, Arena.Arena (HIR.ADT (HIR.TypeExpr (HIR.NameContext, [Located Text]))) HIR.ADTKey, Arena.Arena (HIR.TypeSynonym (HIR.TypeExpr (HIR.NameContext, [Located Text]))) HIR.TypeSynonymKey, Arena.Arena (HIR.BoundValue ()) HIR.BoundValueKey)
-type NRIR = (Arena.Arena (HIR.Decl (Located (Maybe HIR.BoundValueKey)) (HIR.TypeExpr (Maybe HIR.DeclKey)) () ()) HIR.DeclKey, Arena.Arena (HIR.ADT (HIR.TypeExpr (Maybe HIR.DeclKey))) HIR.TypeSynonymKey, Arena.Arena (HIR.TypeSynonym (HIR.TypeExpr (Maybe HIR.DeclKey))) HIR.TypeSynonymKey, Arena.Arena (HIR.BoundValue ()) HIR.BoundValueKey)
-type TypedIR = (Arena.Arena (HIR.Decl (Located (Maybe HIR.BoundValueKey)) (Maybe (HIR.Type Void)) (Maybe (HIR.Type Void)) Void) HIR.DeclKey, Arena.Arena (HIR.ADT (Maybe (HIR.Type Void))) HIR.TypeSynonymKey, Arena.Arena (HIR.TypeSynonym (Maybe (HIR.Type Void))) HIR.TypeSynonymKey, Arena.Arena (HIR.BoundValue (Maybe (HIR.Type Void))) HIR.BoundValueKey)
-type GraphIR = (Arena.Arena ANFIR.Decl HIR.DeclKey, Arena.Arena (HIR.ADT (Maybe (HIR.Type Void))) HIR.TypeSynonymKey, Arena.Arena (HIR.TypeSynonym (Maybe (HIR.Type Void))) HIR.TypeSynonymKey, Arena.Arena (ANFIR.Node (Maybe (HIR.Type Void)) ()) ANFIR.NodeKey, Arena.Arena (ANFIR.Param (Maybe (HIR.Type Void))) ANFIR.ParamKey, Arena.Arena (HIR.BoundValue (Maybe (HIR.Type Void))) HIR.BoundValueKey)
-type NoPoisonIR = (Arena.Arena ANFIR.Decl HIR.DeclKey, Arena.Arena (HIR.ADT (HIR.Type Void)) HIR.ADTKey, Arena.Arena (HIR.TypeSynonym (HIR.Type Void)) HIR.TypeSynonymKey, Arena.Arena (ANFIR.Node (HIR.Type Void) Void) ANFIR.NodeKey, Arena.Arena (ANFIR.Param (HIR.Type Void)) ANFIR.ParamKey, Arena.Arena (HIR.BoundValue (HIR.Type Void)) HIR.BoundValueKey)
+type FirstIR = (Arena.Arena (HIR.Decl (HIR.NameContext, [Located Text]) (HIR.TypeExpr (HIR.NameContext, [Located Text])) () ()) IR.Keys.DeclKey, Arena.Arena (HIR.ADT (HIR.TypeExpr (HIR.NameContext, [Located Text]))) IR.Keys.ADTKey, Arena.Arena (HIR.TypeSynonym (HIR.TypeExpr (HIR.NameContext, [Located Text]))) IR.Keys.TypeSynonymKey, Arena.Arena (HIR.BoundValue ()) IR.Keys.BoundValueKey)
+type NRIR = (Arena.Arena (HIR.Decl (Located (Maybe IR.Keys.BoundValueKey)) (HIR.TypeExpr (Maybe IR.Keys.DeclKey)) () ()) IR.Keys.DeclKey, Arena.Arena (HIR.ADT (HIR.TypeExpr (Maybe IR.Keys.DeclKey))) IR.Keys.TypeSynonymKey, Arena.Arena (HIR.TypeSynonym (HIR.TypeExpr (Maybe IR.Keys.DeclKey))) IR.Keys.TypeSynonymKey, Arena.Arena (HIR.BoundValue ()) IR.Keys.BoundValueKey)
+type TypedIR = (Arena.Arena (HIR.Decl (Located (Maybe IR.Keys.BoundValueKey)) (Maybe (IR.Type.Type Void)) (Maybe (IR.Type.Type Void)) Void) IR.Keys.DeclKey, Arena.Arena (HIR.ADT (Maybe (IR.Type.Type Void))) IR.Keys.TypeSynonymKey, Arena.Arena (HIR.TypeSynonym (Maybe (IR.Type.Type Void))) IR.Keys.TypeSynonymKey, Arena.Arena (HIR.BoundValue (Maybe (IR.Type.Type Void))) IR.Keys.BoundValueKey)
+type GraphIR = (Arena.Arena ANFIR.Decl IR.Keys.DeclKey, Arena.Arena (HIR.ADT (Maybe (IR.Type.Type Void))) IR.Keys.TypeSynonymKey, Arena.Arena (HIR.TypeSynonym (Maybe (IR.Type.Type Void))) IR.Keys.TypeSynonymKey, Arena.Arena (ANFIR.Node (Maybe (IR.Type.Type Void)) ()) IR.Keys.NodeKey, Arena.Arena (ANFIR.Param (Maybe (IR.Type.Type Void))) IR.Keys.ParamKey, Arena.Arena (HIR.BoundValue (Maybe (IR.Type.Type Void))) IR.Keys.BoundValueKey)
+type NoPoisonIR = (Arena.Arena ANFIR.Decl IR.Keys.DeclKey, Arena.Arena (HIR.ADT (IR.Type.Type Void)) IR.Keys.ADTKey, Arena.Arena (HIR.TypeSynonym (IR.Type.Type Void)) IR.Keys.TypeSynonymKey, Arena.Arena (ANFIR.Node (IR.Type.Type Void) Void) IR.Keys.NodeKey, Arena.Arena (ANFIR.Param (IR.Type.Type Void)) IR.Keys.ParamKey, Arena.Arena (HIR.BoundValue (IR.Type.Type Void)) IR.Keys.BoundValueKey)
 type Dot = Text
 type TS = Text
 

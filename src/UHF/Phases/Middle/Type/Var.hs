@@ -11,7 +11,7 @@ module UHF.Phases.Middle.Type.Var
 import UHF.Util.Prelude
 
 import qualified Arena
-import qualified UHF.Data.IR.HIR as HIR
+import qualified UHF.Data.IR.Type as Type
 
 import UHF.IO.Span (Span)
 
@@ -31,7 +31,7 @@ data TypeVarForWhat
     | PoisonPattern Span
     | TypeExpr Span
     | WildcardPattern Span
-data TypeVarState = Fresh | Substituted (HIR.Type TypeVarKey)
+data TypeVarState = Fresh | Substituted (Type.Type TypeVarKey)
 
 type_var_for_what_sp :: TypeVarForWhat -> Span
 type_var_for_what_sp (BoundValue sp) = sp

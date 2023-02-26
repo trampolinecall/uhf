@@ -213,7 +213,7 @@ remaining :: Location -> Text
 remaining l = Text.drop (Location.loc_ind l) (File.contents $ Location.loc_file l)
 
 at_end :: Location -> Bool
-at_end l = Location.loc_ind l >= Text.length (File.contents $ Location.loc_file l)
+at_end l = Location.loc_ind l >= File.length (Location.loc_file l)
 
 char_at :: Location -> Maybe Char
 char_at l = if at_end l then Nothing else Just $ Text.index (File.contents $ Location.loc_file l) (Location.loc_ind l)

@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedLists #-}
+
 module Arena
     ( Arena
     , Key(..)
@@ -16,38 +18,38 @@ module Arena
 import Test.Tasty
 import UHF.Util.Prelude
 
-import qualified Data.List ((!!))
+import qualified Data.Sequence as Sequence
 
-newtype Arena a k = Arena [a] deriving (Show, Eq)
+newtype Arena a k = Arena (Seq a) deriving (Show, Eq)
 
 class Key k where
     make_key :: Int -> k
     unmake_key :: k -> Int
 
 new :: Arena a k
-new = Arena []
+new = Arena Sequence.empty
 
 put :: Key k => a -> Arena a k -> (k, Arena a k)
 put item (Arena items) =
     let index = length items
-    in (make_key index, Arena $ item : items) -- indexes count from end
+    in (make_key index, Arena $ items Sequence.|> item)
 
 get :: Key k => Arena a k -> k -> a
-get (Arena items) key = items Data.List.!! (length items - unmake_key key - 1)
+get (Arena items) key = items `Sequence.index` (unmake_key key)
 
 modify :: Key k => Arena a k -> k -> (a -> a) -> Arena a k
 modify (Arena items) key change =
-    let (before, old:after) = splitAt (length items - unmake_key key - 1) items
-    in Arena $ before ++ change old : after
+    let (before, old Sequence.:<| after) = Sequence.splitAt (unmake_key key) items
+    in Arena $ before <> (change old Sequence.<| after)
 
 transform :: Key k => (a -> b) -> Arena a k -> Arena b k
-transform t (Arena items) = Arena $ map t items
+transform t (Arena items) = Arena $ fmap t items
 
 transformM :: (Key k, Monad m) => (a -> m b) -> Arena a k -> m (Arena b k)
 transformM t (Arena items) = Arena <$> mapM t items
 
 transform_with_keyM :: (Key k, Monad m) => (k -> a -> m b) -> Arena a k -> m (Arena b k)
-transform_with_keyM t (Arena items) = Arena <$> mapM (uncurry t) (zip (map make_key $ reverse [0 .. length items - 1]) items)
+transform_with_keyM t (Arena items) = Arena <$> mapM (uncurry t) (Sequence.zip (fmap make_key [0..]) items)
 
 newtype TestKey = TestKey Int deriving (Show, Eq)
 instance Key TestKey where
@@ -60,7 +62,7 @@ case_put =
 
 case_put_more :: Assertion
 case_put_more =
-    Arena.put (1 :: Int) (Arena [0]) @?= (TestKey 1, Arena [1, 0])
+    Arena.put (1 :: Int) (Arena [0]) @?= (TestKey 1, Arena [0, 1])
 
 case_get :: Assertion
 case_get =
@@ -76,9 +78,9 @@ case_modify =
         (k1, a1) = Arena.put 1 a0
         (k2, a2) = Arena.put 2 a1
     in
-        (Arena.modify a2 k0 (const 100) @?= Arena [2, 1, 100]) >>
-        (Arena.modify a2 k1 (const 100) @?= Arena [2, 100, 0]) >>
-        (Arena.modify a2 k2 (const 100) @?= Arena [100, 1, 0])
+        (Arena.modify a2 k0 (const 100) @?= Arena [100, 1, 2]) >>
+        (Arena.modify a2 k1 (const 100) @?= Arena [0, 100, 2]) >>
+        (Arena.modify a2 k2 (const 100) @?= Arena [0, 1, 100])
 
 case_transform :: Assertion
 case_transform =
@@ -90,7 +92,7 @@ case_transformM :: Assertion
 case_transformM =
     let a :: Arena Int TestKey
         a = Arena [0, 1, 2]
-    in runWriter (transformM (\ x -> tell [x] >> pure (x + 2)) a) @?= (Arena [2, 3, 4], [0, 1, 2])
+    in runWriter (transformM (\ x -> tell (x:[]) >> pure (x + 2)) a) @?= (Arena [2, 3, 4], [0, 1, 2])
 
 tests :: TestTree
 tests = $(testGroupGenerator)

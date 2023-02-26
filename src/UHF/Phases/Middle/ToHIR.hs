@@ -1,4 +1,4 @@
-module UHF.Phases.Middle.ASTToIR (convert) where
+module UHF.Phases.Middle.ToHIR (convert) where
 
 import UHF.Util.Prelude
 

@@ -45,6 +45,9 @@ convert_decl (HIR.Decl'Type ty) = pure $ RIR.Decl'Type ty
 convert_binding :: HIRBinding -> ConvertState [RIRBinding]
 convert_binding (HIR.Binding pat _ expr) = convert_expr expr >>= \ expr -> convert_pattern pat >>= \ pat -> assign_pattern pat expr
 
+new_bound_value :: Type -> Span -> ConvertState BoundValueKey
+new_bound_value ty sp = state (Arena.put (HIR.BoundValue ty sp))
+
 convert_expr :: HIRExpr -> ConvertState RIRExpr
 convert_expr (HIR.Expr'Identifier ty sp bv) = pure $ RIR.Expr'Identifier ty sp (unlocate bv)
 convert_expr (HIR.Expr'Char ty sp c) = pure $ RIR.Expr'Char ty sp c
@@ -53,7 +56,17 @@ convert_expr (HIR.Expr'Int ty sp i) = pure $ RIR.Expr'Int ty sp i
 convert_expr (HIR.Expr'Float ty sp f) = pure $ RIR.Expr'Float ty sp f
 convert_expr (HIR.Expr'Bool ty sp b) = pure $ RIR.Expr'Bool ty sp b
 convert_expr (HIR.Expr'Tuple ty sp a b) = RIR.Expr'Tuple ty sp <$> convert_expr a <*> convert_expr b
-convert_expr (HIR.Expr'Lambda ty sp param body) = RIR.Expr'Lambda ty sp <$> convert_pattern param <*> convert_expr body
+convert_expr (HIR.Expr'Lambda ty sp param_pat body) =
+    let param_ty = HIR.pattern_type param_pat
+        body_ty = HIR.expr_type body
+        body_sp = HIR.expr_span body
+    in
+    -- '\ (...) -> body' becomes '\ (arg) -> let ... = arg; body'
+    convert_pattern param_pat >>= \ param_pat ->
+    new_bound_value param_ty (RIR.pattern_span param_pat) >>= \ param_bk ->
+    assign_pattern param_pat (RIR.Expr'Identifier param_ty (RIR.pattern_span param_pat) (Just param_bk)) >>= \ bindings ->
+    RIR.Expr'Lambda ty sp param_bk <$> (RIR.Expr'Let body_ty body_sp bindings <$> convert_expr body)
+
 convert_expr (HIR.Expr'Let ty sp bindings body) = todo
 convert_expr (HIR.Expr'LetRec ty sp bindings body) = RIR.Expr'Let ty sp <$> (concat <$> mapM convert_binding bindings) <*> convert_expr body
 convert_expr (HIR.Expr'BinaryOps void _ _ _ _) = absurd void
@@ -70,8 +83,6 @@ convert_pattern (HIR.Pattern'Tuple ty sp a b) = RIR.Pattern'Tuple ty sp <$> conv
 convert_pattern (HIR.Pattern'Named ty sp _ bv other) = RIR.Pattern'Named ty sp bv <$> convert_pattern other
 convert_pattern (HIR.Pattern'Poison ty sp) = pure $ RIR.Pattern'Poison ty sp
 
-new_bound_value :: Type -> Span -> ConvertState BoundValueKey
-new_bound_value ty sp = state (Arena.put (HIR.BoundValue ty sp))
 assign_pattern :: RIRPattern -> RIRExpr -> ConvertState [RIRBinding]
 assign_pattern (RIR.Pattern'Identifier _ _ bv) expr = pure [RIR.Binding bv expr]
 assign_pattern (RIR.Pattern'Wildcard ty _) expr = pure []

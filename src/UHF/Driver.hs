@@ -34,6 +34,7 @@ import qualified UHF.Phases.Middle.ASTToIR as ASTToIR
 import qualified UHF.Phases.Middle.NameResolve as NameResolve
 import qualified UHF.Phases.Middle.InfixGroup as InfixGroup
 import qualified UHF.Phases.Middle.Type as Type
+import qualified UHF.Phases.Middle.ToRIR as ToRIR
 import qualified UHF.Phases.Middle.ToGraph as ToGraph
 import qualified UHF.Phases.Middle.RemovePoison as RemovePoison
 import qualified UHF.Phases.Back.ToDot as ToDot
@@ -98,6 +99,7 @@ analysis ast =
     NameResolve.resolve (decls, adts, type_synonyms) >>= \ (decls, adts, type_synonyms) ->
     let decls' = InfixGroup.group decls
     in Type.typecheck (decls', adts, type_synonyms, bound_values) >>= \ (decls', adts, type_synonyms, bound_values) ->
+    ToRIR.convert decls' bound_values >>= \ (decls'', bound_values) -> -- TODO: use RIR decls in ToGraph
     let (decls'', nodes, params) = ToGraph.to_graph bound_values decls'
         no_poison = RemovePoison.remove_poison (decls'', adts, type_synonyms, nodes, params, bound_values)
     in pure no_poison

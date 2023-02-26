@@ -1,4 +1,4 @@
-module UHF.Phases.Middle.ToGraph (to_graph) where
+module UHF.Phases.Middle.ToANFIR (convert) where
 
 import UHF.Util.Prelude
 
@@ -35,8 +35,8 @@ type BoundValueMap = Map.Map BoundValueKey ANFIR.NodeKey
 
 type MakeGraphState = WriterT BoundValueMap (StateT (GraphArena, ParamArena) (Reader BoundValueArena))
 
-to_graph :: BoundValueArena -> RIRDeclArena -> (ANFIRDeclArena, GraphArena, ParamArena)
-to_graph bvs decls =
+convert :: BoundValueArena -> RIRDeclArena -> (ANFIRDeclArena, GraphArena, ParamArena)
+convert bvs decls =
     let ((decls', bv_map), (nodes, params)) = runReader (runStateT (runWriterT (Arena.transformM (convert_decl bv_map) decls)) (Arena.new, Arena.new)) bvs
     in (decls', nodes, params)
 

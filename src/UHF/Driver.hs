@@ -86,7 +86,7 @@ compile c_needed diagnostic_settings compile_options =
 
         get_output_file_path ext = FilePath.takeDirectory (input_file compile_options) FilePath.</> module_name' FilePath.<.> ext
 
-        write_output_file ext contents = Text.IO.writeFile (get_output_file_path ext) contents
+        write_output_file ext = Text.IO.writeFile (get_output_file_path ext)
 
 front :: File -> Compiler.Compiler AST
 front file =

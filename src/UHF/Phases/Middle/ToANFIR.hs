@@ -59,7 +59,7 @@ convert_binding :: BoundValueMap -> Binding -> MakeGraphState [ANFIR.NodeKey]
 convert_binding bv_map (RIR.Binding target expr) =
     runWriterT (convert_expr bv_map expr) >>= \ (expr_result_node, expr_involved_nodes) ->
     map_bound_value target expr_result_node >>
-    pure (expr_involved_nodes)
+    pure expr_involved_nodes
 
 new_graph_node :: GraphNode -> WriterT [ANFIR.NodeKey] MakeGraphState ANFIR.NodeKey
 new_graph_node node = lift (lift $ state $ \ (g, p) -> let (i, g') = Arena.put node g in (i, (g', p))) >>= \ node_key -> tell [node_key] >> pure node_key

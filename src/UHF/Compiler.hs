@@ -10,6 +10,8 @@ module UHF.Compiler
 
 import UHF.Util.Prelude hiding (error)
 
+import Control.Monad.Fix (MonadFix (mfix))
+
 import qualified UHF.Diagnostic as Diagnostic
 
 import qualified System.IO as IO
@@ -29,6 +31,9 @@ instance Applicative Compiler where
 
 instance Monad Compiler where
     Compiler a >>= b = Compiler $ a >>= uncompiler . b
+
+instance MonadFix Compiler where
+    mfix f = Compiler $ mfix (uncompiler . f)
 
 data Diagnostics
     = Diagnostics

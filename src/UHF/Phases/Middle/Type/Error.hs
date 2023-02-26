@@ -77,6 +77,8 @@ data Error
 
     | AmbiguousType TypeVarForWhat
 
+    | NotAType Span Text
+
 instance Diagnostic.ToError Error where
     to_error (EqError adts type_synonyms vars in_what span a_whole b_whole a_part b_part) =
         let what = case in_what of
@@ -145,6 +147,8 @@ instance Diagnostic.ToError Error where
                 ("ambiguous type: could not infer the type of this " <> name) -- TODO: better message
                 []
                 []
+
+    to_error (NotAType sp instead) = Diagnostic.Error Diagnostic.Codes.not_a_type (Just sp) ("not a type: got " <> instead) [] []
 
 print_type :: Bool -> TypedWithVarsADTArena -> TypedWithVarsTypeSynonymArena ->TypeVarArena -> TypeWithVars -> VarNamer Text -- TODO: since this already a monad, put the arenas and things into a reader monad?
 -- TODO: construct an ast and print it

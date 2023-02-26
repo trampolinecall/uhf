@@ -58,7 +58,7 @@ data Pattern
     | Pattern'Poison (Maybe Type) Span
     deriving Show
 
-expr_type :: Expr -> (Maybe Type)
+expr_type :: Expr -> Maybe Type
 expr_type (Expr'Identifier ty _ _) = ty
 expr_type (Expr'Char ty _ _) = ty
 expr_type (Expr'String ty _ _) = ty
@@ -88,7 +88,7 @@ expr_span (Expr'If _ sp _ _ _) = sp
 expr_span (Expr'Case _ sp _ _) = sp
 expr_span (Expr'Poison _ sp) = sp
 
-pattern_type :: Pattern -> (Maybe Type)
+pattern_type :: Pattern -> Maybe Type
 pattern_type (Pattern'Identifier ty _ _) = ty
 pattern_type (Pattern'Wildcard ty _) = ty
 pattern_type (Pattern'Tuple ty _ _ _) = ty

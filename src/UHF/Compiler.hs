@@ -20,7 +20,7 @@ import qualified UHF.IO.FormattedString as FormattedString
 
 import qualified UHF.Diagnostic.Settings as DiagnosticSettings
 
-newtype Compiler r = Compiler { uncompiler :: Writer Diagnostics r }
+newtype Compiler r = Compiler { uncompiler :: WriterT Diagnostics IO r }
 
 instance Functor Compiler where
     fmap f (Compiler c) = Compiler $ f <$> c
@@ -48,8 +48,8 @@ instance Semigroup Diagnostics where
 
 run_compiler :: Compiler r -> FormattedString.ColorsNeeded -> DiagnosticSettings.Settings -> IO (Maybe r)
 run_compiler (Compiler r) c_needed diag_settings =
-    let (result, Diagnostics errors warnings) = runWriter r
-    in mapM_ (Diagnostic.report IO.stdout c_needed diag_settings) warnings >>
+    runWriterT r >>= \ (result, Diagnostics errors warnings) ->
+    mapM_ (Diagnostic.report IO.stdout c_needed diag_settings) warnings >>
     mapM_ (Diagnostic.report IO.stderr c_needed diag_settings) errors >>
     if null errors
         then pure $ Just result

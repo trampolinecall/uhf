@@ -110,7 +110,6 @@ transform_identifiers transform_t_iden transform_e_iden adts type_synonyms decls
         transform_expr (HIR.Expr'Lambda typeinfo sp param body) = HIR.Expr'Lambda typeinfo sp <$> transform_pat param <*> transform_expr body
 
         transform_expr (HIR.Expr'Let typeinfo sp bindings body) = HIR.Expr'Let typeinfo sp <$> mapM transform_binding bindings <*> transform_expr body
-        transform_expr (HIR.Expr'LetRec typeinfo sp bindings body) = HIR.Expr'LetRec typeinfo sp <$> mapM transform_binding bindings <*> transform_expr body
 
         transform_expr (HIR.Expr'BinaryOps allowed typeinfo sp first ops) = HIR.Expr'BinaryOps allowed typeinfo sp <$> transform_expr first <*> mapM (\ (iden, rhs) -> (,) <$> transform_e_iden iden <*> transform_expr rhs) ops
 

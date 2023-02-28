@@ -71,6 +71,8 @@ rp_graph_node (ANFIR.Node'Param ty p) = ty >>= \ ty -> pure (ANFIR.Node'Param ty
 
 rp_graph_node (ANFIR.Node'Call ty c a) = ty >>= \ ty -> pure (ANFIR.Node'Call ty c a)
 
+rp_graph_node (ANFIR.Node'Switch ty c a) = ty >>= \ ty -> pure (ANFIR.Node'Switch ty c a)
+
 rp_graph_node (ANFIR.Node'TupleDestructure1 ty t) = ty >>= \ ty -> pure (ANFIR.Node'TupleDestructure1 ty t)
 rp_graph_node (ANFIR.Node'TupleDestructure2 ty t) = ty >>= \ ty -> pure (ANFIR.Node'TupleDestructure2 ty t)
 

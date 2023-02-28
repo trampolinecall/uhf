@@ -4,6 +4,7 @@ module UHF.Data.IR.ANFIR
     , ParamKey
     , Param(..)
     , Node(..)
+    , SwitchMatcher(..)
     , node_type
     ) where
 
@@ -36,10 +37,18 @@ data Node ty poison_allowed
 
     | Node'Call ty NodeKey NodeKey
 
+    | Node'Switch ty NodeKey [(SwitchMatcher, NodeKey)]
+
     | Node'TupleDestructure1 ty NodeKey -- TODO: figure out better solution to this (probably general destructure node for any type, or actually probably use case expressions to match on things)
     | Node'TupleDestructure2 ty NodeKey
 
     | Node'Poison ty poison_allowed
+    deriving Show
+
+data SwitchMatcher
+    = Switch'BoolLiteral Bool
+    | Switch'Tuple
+    | Switch'Default
     deriving Show
 
 node_type :: Node ty poison_allowed -> ty
@@ -54,6 +63,8 @@ node_type (Node'Lambda ty _ _ _) = ty
 node_type (Node'Param ty _) = ty
 
 node_type (Node'Call ty _ _) = ty
+
+node_type (Node'Switch ty _ _) = ty
 
 node_type (Node'TupleDestructure1 ty _) = ty
 node_type (Node'TupleDestructure2 ty _) = ty

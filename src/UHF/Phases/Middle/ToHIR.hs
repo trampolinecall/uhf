@@ -157,7 +157,7 @@ primitive_decls =
 primitive_values :: MakeIRState BoundValueList
 primitive_values = pure []
 
-convert :: [AST.Decl] -> Compiler.Compiler (DeclArena, ADTArena, TypeSynonymArena, BoundValueArena)
+convert :: [AST.Decl] -> Compiler.WithDiagnostics Error Void (DeclArena, ADTArena, TypeSynonymArena, BoundValueArena)
 convert decls =
     let -- prim_span = Span.start_of_file file TODO: remove this function
         (res, errs) = runWriter (
@@ -171,7 +171,7 @@ convert decls =
                     (Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (_, (decls, bound_values, adts, type_synonyms)) ->
                 pure (decls, adts, type_synonyms, bound_values)
             )
-    in Compiler.errors errs >> pure res
+    in Compiler.tell_errors errs >> pure res
 
 convert_decls :: Maybe HIR.NameContext -> DeclChildrenList -> BoundValueList -> [AST.Decl] -> MakeIRState (HIR.NameContext, [Binding])
 convert_decls parent_context prev_decl_entries prev_bv_entries decls =

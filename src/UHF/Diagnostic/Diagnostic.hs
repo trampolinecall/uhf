@@ -8,7 +8,7 @@ module UHF.Diagnostic.Diagnostic
     , InternalError(..)
 
     , ToError(..)
-    , IsWarning(..)
+    , ToWarning(..)
 
     , MessagesSection
     , Message
@@ -31,7 +31,12 @@ data DebugMessage = DebugMessage (Maybe Span) Text MessagesSection [OtherSection
 data InternalError = InternalError (Maybe Span) Text MessagesSection [OtherSection]
 
 class ToError e where to_error :: e -> Error
-class IsWarning w where to_warning :: w -> Warning
+class ToWarning w where to_warning :: w -> Warning
+
+instance ToError Error where to_error = identity
+instance ToWarning Warning where to_warning = identity
+instance ToError Void where to_error = absurd
+instance ToWarning Void where to_warning = absurd
 
 type MessagesSection = [Message]
 type Message = (Maybe Span, MessageType, Maybe Text)

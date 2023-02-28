@@ -18,29 +18,30 @@ type DeclArena = Arena.Arena Decl DeclKey
 type Type = Type.Type Void
 type ADT = HIR.ADT Type
 type TypeSynonym = HIR.TypeSynonym Type
-type GraphNode = ANFIR.Node Type Void
-type GraphParam = ANFIR.Param Type
+type Expr = ANFIR.Expr Type Void
+type Binding = ANFIR.Binding Type Void
+type Param = ANFIR.Param Type
 
 type ADTArena = Arena.Arena ADT ADTKey
 type TypeSynonymArena = Arena.Arena TypeSynonym HIR.TypeSynonymKey
-type GraphNodeArena = Arena.Arena GraphNode ANFIR.NodeKey
-type GraphParamArena = Arena.Arena GraphParam ANFIR.ParamKey
+type BindingArena = Arena.Arena Binding ANFIR.BindingKey
+type ParamArena = Arena.Arena Param ANFIR.ParamKey
 
 -- TODO: refactor everything
 
-type IRReader = Reader (ADTArena, TypeSynonymArena, GraphNodeArena, GraphParamArena)
+type IRReader = Reader (ADTArena, TypeSynonymArena, BindingArena, ParamArena)
 
-get_node :: ANFIR.NodeKey -> IRReader GraphNode
-get_node k = reader (\ (_, _, a, _) -> Arena.get a k)
-get_param :: ANFIR.ParamKey -> IRReader GraphParam
+get_binding :: ANFIR.BindingKey -> IRReader Binding
+get_binding k = reader (\ (_, _, a, _) -> Arena.get a k)
+get_param :: ANFIR.ParamKey -> IRReader Param
 get_param k = reader (\ (_, _, _, a) -> Arena.get a k)
 get_adt :: ADTKey -> IRReader ADT
 get_adt k = reader (\ (a, _, _, _) -> Arena.get a k)
 get_type_synonym :: HIR.TypeSynonymKey -> IRReader TypeSynonym
 get_type_synonym k = reader (\ (_, a, _, _) -> Arena.get a k)
 
-node_type :: ANFIR.NodeKey -> IRReader Type
-node_type k = ANFIR.node_type <$> get_node k
+node_type :: ANFIR.BindingKey -> IRReader Type
+node_type k = ANFIR.node_type <$> (ANFIR.get_initializer <$> get_binding k)
 
 -- TS things {{{1
 runtime_code :: Text
@@ -48,9 +49,9 @@ runtime_code = $(FileEmbed.embedStringFile "data/ts_runtime.ts")
 
 data TSDecl
 data TSADT = TSADT ADTKey Text -- TODO: actually implement variants and things
-data TSLambda = TSLambda ANFIR.NodeKey Type Type ANFIR.NodeKey -- TODO: captures
-data MakeThunkGraphFor = LambdaBody ANFIR.NodeKey | Globals
-data TSMakeThunkGraph = TSMakeThunkGraph MakeThunkGraphFor [ANFIR.NodeKey] [ANFIR.ParamKey]
+data TSLambda = TSLambda ANFIR.BindingKey Type Type ANFIR.BindingKey -- TODO: captures
+data MakeThunkGraphFor = LambdaBody ANFIR.BindingKey | Globals
+data TSMakeThunkGraph = TSMakeThunkGraph MakeThunkGraphFor [ANFIR.BindingKey] [ANFIR.ParamKey]
 data TS = TS [TSDecl] [TSADT] [TSMakeThunkGraph] [TSLambda]
 
 instance Semigroup TS where
@@ -83,7 +84,7 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_nodes included_para
 
     concat <$> mapM stringify_node_decl included_nodes >>= \ node_decls ->
     concat <$> mapM stringify_node_set_fields included_nodes >>= \ node_set_fields ->
-    -- TODO: dont use GraphParamKey Ord instance to decide parameter order (not deterministic across compiles)
+    -- TODO: dont use ParamKey Ord instance to decide parameter order (not deterministic across compiles)
     -- also TODO: dont use unmake_key anywhere (probably including outside of this module too)
 
     ts_return_type >>= \ ts_return_type ->
@@ -109,7 +110,7 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_nodes included_para
                 r node =
                     mangle_graph_node_as_node_var node <> ": " <> mangle_graph_node_as_local_thunk node
 
-        mangle_graph_node_as_local_thunk, mangle_graph_node_as_local_evaluator :: ANFIR.NodeKey -> Text
+        mangle_graph_node_as_local_thunk, mangle_graph_node_as_local_evaluator :: ANFIR.BindingKey -> Text
         mangle_graph_node_as_local_thunk key = "thunk" <> show (Arena.unmake_key key)
         mangle_graph_node_as_local_evaluator key = "evaluator" <> show (Arena.unmake_key key)
 
@@ -126,57 +127,61 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_nodes included_para
                 let_thunk initializer = "let " <> mangle_graph_node_as_local_thunk node_key <> ": " <> cur_node_type <> " = " <> initializer <> ";"
                 default_let_thunk = let_thunk ("new Thunk(" <> mangle_graph_node_as_local_evaluator node_key <> ")")
 
-            in get_node node_key >>= \case
-                ANFIR.Node'Int _ i -> pure [let_evaluator "ConstEvaluator<number>" (evaluator "ConstEvaluator" (show i)), default_let_thunk]
-                ANFIR.Node'Float _ (num :% denom) -> pure [let_evaluator "ConstEvaluator<number>" (evaluator "ConstEvaluator" (show num <> " / " <> show denom)), default_let_thunk]
-                ANFIR.Node'Bool _ b -> pure [let_evaluator "ConstEvaluator<bool>" (evaluator "ConstEvaluator" (if b then "true" else "false")), default_let_thunk]
-                ANFIR.Node'Char _ c -> pure [let_evaluator "ConstEvaluator<char>" (evaluator "ConstEvaluator" (show c)), default_let_thunk]
-                ANFIR.Node'String _ s -> pure [let_evaluator "ConstEvaluator<string>" (evaluator "ConstEvaluator" (show s)), default_let_thunk]
-                ANFIR.Node'Tuple _ a b ->
+            in ANFIR.get_initializer <$> get_binding node_key >>= \case
+                ANFIR.Expr'Identifier ty _ ->
+                    refer_type_raw ty >>= \ ty ->
+                    pure [let_evaluator ("PassthroughEvaluator<" <> ty <> ">") (evaluator "PassthroughEvaluator" "undefined"), default_let_thunk]
+                ANFIR.Expr'Int _ i -> pure [let_evaluator "ConstEvaluator<number>" (evaluator "ConstEvaluator" (show i)), default_let_thunk]
+                ANFIR.Expr'Float _ (num :% denom) -> pure [let_evaluator "ConstEvaluator<number>" (evaluator "ConstEvaluator" (show num <> " / " <> show denom)), default_let_thunk]
+                ANFIR.Expr'Bool _ b -> pure [let_evaluator "ConstEvaluator<bool>" (evaluator "ConstEvaluator" (if b then "true" else "false")), default_let_thunk]
+                ANFIR.Expr'Char _ c -> pure [let_evaluator "ConstEvaluator<char>" (evaluator "ConstEvaluator" (show c)), default_let_thunk]
+                ANFIR.Expr'String _ s -> pure [let_evaluator "ConstEvaluator<string>" (evaluator "ConstEvaluator" (show s)), default_let_thunk]
+                ANFIR.Expr'Tuple _ a b ->
                         node_type a >>= refer_type_raw >>= \ a_ty ->
                         node_type b >>= refer_type_raw >>= \ b_ty ->
                         pure [let_evaluator ("TupleEvaluator<" <> a_ty <> ", " <> b_ty <> ">") (evaluator "TupleEvaluator" "undefined, undefined"), default_let_thunk]
 
-                ANFIR.Node'Lambda _ _ _ _ -> pure [let_evaluator ("ConstEvaluator<" <> mangle_graph_node_as_lambda node_key <> ">") (evaluator "ConstEvaluator" ("new " <> mangle_graph_node_as_lambda node_key <> "()")), default_let_thunk] -- TODO: put captures here
-                ANFIR.Node'Param _ param_key -> pure [let_thunk $ "param_" <> show (Arena.unmake_key param_key)]
+                ANFIR.Expr'Lambda _ _ _ _ -> pure [let_evaluator ("ConstEvaluator<" <> mangle_graph_node_as_lambda node_key <> ">") (evaluator "ConstEvaluator" ("new " <> mangle_graph_node_as_lambda node_key <> "()")), default_let_thunk] -- TODO: put captures here
+                ANFIR.Expr'Param _ param_key -> pure [let_thunk $ "param_" <> show (Arena.unmake_key param_key)]
 
-                ANFIR.Node'Call ty _ arg ->
+                ANFIR.Expr'Call ty _ arg ->
                     refer_type_raw ty >>= \ res_ty ->
                     node_type arg >>= refer_type_raw >>= \ arg_ty ->
                     pure [let_evaluator ("CallEvaluator<" <> arg_ty <> ", " <> res_ty <> ">") (evaluator "CallEvaluator" "undefined, undefined"), default_let_thunk]
 
-                ANFIR.Node'Switch ty e _ ->
+                ANFIR.Expr'Switch ty e _ ->
                     refer_type_raw ty >>= \ res_ty ->
                     node_type e >>= refer_type_raw >>= \ e_ty ->
                     pure [let_evaluator ("SwitchEvaluator<" <> e_ty <> ", " <> res_ty <> ">") (evaluator "SwitchEvaluator" "undefined, undefined"), default_let_thunk]
 
-                ANFIR.Node'TupleDestructure1 _ tup -> node_type tup >>= refer_type_raw >>= \ tup_ty -> pure [let_evaluator ("TupleDestructure1Evaluator<" <> tup_ty <> ">") (evaluator "TupleDestructure1Evaluator" "undefined"), default_let_thunk] -- TODO: fix this becuase the type parameters should actually be the elements of the tuple
-                ANFIR.Node'TupleDestructure2 _ tup -> node_type tup >>= refer_type_raw >>= \ tup_ty -> pure [let_evaluator ("TupleDestructure1Evaluator<" <> tup_ty <> ">") (evaluator "TupleDestructure2Evaluator" "undefined"), default_let_thunk] -- TODO: same as above
+                ANFIR.Expr'TupleDestructure1 _ tup -> node_type tup >>= refer_type_raw >>= \ tup_ty -> pure [let_evaluator ("TupleDestructure1Evaluator<" <> tup_ty <> ">") (evaluator "TupleDestructure1Evaluator" "undefined"), default_let_thunk] -- TODO: fix this becuase the type parameters should actually be the elements of the tuple
+                ANFIR.Expr'TupleDestructure2 _ tup -> node_type tup >>= refer_type_raw >>= \ tup_ty -> pure [let_evaluator ("TupleDestructure1Evaluator<" <> tup_ty <> ">") (evaluator "TupleDestructure2Evaluator" "undefined"), default_let_thunk] -- TODO: same as above
 
-                ANFIR.Node'Poison _ void -> absurd void
+                ANFIR.Expr'Poison _ void -> absurd void
 
         stringify_node_set_fields node_key =
             let set_field field other_node = set_field_not_node field (mangle_graph_node_as_local_thunk other_node)
                 set_field_not_node field initializer = mangle_graph_node_as_local_evaluator node_key <> "." <> field <> " = " <> initializer <> ";"
-            in get_node node_key >>= \case
-                ANFIR.Node'Int _ _ -> pure []
-                ANFIR.Node'Float _ _ -> pure []
-                ANFIR.Node'Bool _ _ -> pure []
-                ANFIR.Node'Char _ _ -> pure []
-                ANFIR.Node'String _ _ -> pure []
-                ANFIR.Node'Tuple _ a b -> pure [set_field "a" a, set_field "b" b]
+            in ANFIR.get_initializer <$> get_binding node_key >>= \case
+                ANFIR.Expr'Identifier _ i -> pure [set_field "other" i]
+                ANFIR.Expr'Int _ _ -> pure []
+                ANFIR.Expr'Float _ _ -> pure []
+                ANFIR.Expr'Bool _ _ -> pure []
+                ANFIR.Expr'Char _ _ -> pure []
+                ANFIR.Expr'String _ _ -> pure []
+                ANFIR.Expr'Tuple _ a b -> pure [set_field "a" a, set_field "b" b]
 
-                ANFIR.Node'Lambda _ _ _ _ -> pure []
-                ANFIR.Node'Param _ _ -> pure []
+                ANFIR.Expr'Lambda _ _ _ _ -> pure []
+                ANFIR.Expr'Param _ _ -> pure []
 
-                ANFIR.Node'Switch _ e arms -> pure [set_field "testing" e, set_field_not_node "arms" ("[" <> Text.intercalate ", " (map (\ (matcher, res) -> "[" <> convert_matcher matcher <> ", " <> mangle_graph_node_as_local_thunk res <> "]") arms) <> "]")] -- TODO, also TODO: exhaustiveness check
+                ANFIR.Expr'Switch _ e arms -> pure [set_field "testing" e, set_field_not_node "arms" ("[" <> Text.intercalate ", " (map (\ (matcher, res) -> "[" <> convert_matcher matcher <> ", " <> mangle_graph_node_as_local_thunk res <> "]") arms) <> "]")] -- TODO, also TODO: exhaustiveness check
 
-                ANFIR.Node'Call _ callee arg -> pure [set_field "callee" callee, set_field "arg" arg]
+                ANFIR.Expr'Call _ callee arg -> pure [set_field "callee" callee, set_field "arg" arg]
 
-                ANFIR.Node'TupleDestructure1 _ tup -> pure [set_field "tuple" tup]
-                ANFIR.Node'TupleDestructure2 _ tup -> pure [set_field "tuple" tup]
+                ANFIR.Expr'TupleDestructure1 _ tup -> pure [set_field "tuple" tup]
+                ANFIR.Expr'TupleDestructure2 _ tup -> pure [set_field "tuple" tup]
 
-                ANFIR.Node'Poison _ void -> absurd void
+                ANFIR.Expr'Poison _ void -> absurd void
 
         convert_matcher (ANFIR.Switch'BoolLiteral b) = "new BoolLiteralMatcher(" <> if b then "true" else "false" <> ")"
         convert_matcher ANFIR.Switch'Tuple = "new TupleMatcher()"
@@ -212,7 +217,7 @@ refer_type :: Type.Type Void -> IRReader Text
 refer_type ty = refer_type_raw ty >>= \ ty -> pure ("Thunk<" <> ty <> ">")
 
 -- lowering {{{1
-lower :: DeclArena -> ADTArena -> TypeSynonymArena -> GraphNodeArena -> GraphParamArena -> Text
+lower :: DeclArena -> ADTArena -> TypeSynonymArena -> BindingArena -> ParamArena -> Text
 lower decls adts type_synonyms nodes params =
     runReader
         (
@@ -243,8 +248,8 @@ define_adt key (HIR.ADT name variants) = tell_adt (TSADT key name)
 define_type_synonym :: HIR.TypeSynonymKey -> TypeSynonym -> TSWriter ()
 define_type_synonym _ (HIR.TypeSynonym _ _) = pure ()
 
-define_lambda_type :: ANFIR.NodeKey -> GraphNode -> TSWriter ()
-define_lambda_type key (ANFIR.Node'Lambda _ param body_included_nodes body) = -- TODO: annotate with captures
+define_lambda_type :: ANFIR.BindingKey -> Binding -> TSWriter ()
+define_lambda_type key (ANFIR.Binding _ (ANFIR.Expr'Lambda _ param body_included_nodes body)) = -- TODO: annotate with captures
     lift (get_param param) >>= \ (ANFIR.Param param_ty) ->
     lift (node_type body) >>= \ body_type ->
     lift (get_included_params body_included_nodes) >>= \ included_params ->
@@ -252,13 +257,13 @@ define_lambda_type key (ANFIR.Node'Lambda _ param body_included_nodes body) = --
     tell_lambda (TSLambda key param_ty body_type body)
     where
         -- TODO: decide on param order
-        get_included_params :: [ANFIR.NodeKey] -> IRReader [ANFIR.ParamKey]
+        get_included_params :: [ANFIR.BindingKey] -> IRReader [ANFIR.ParamKey]
         get_included_params nodes =
             catMaybes <$>
                 mapM
                     (\ n ->
-                        get_node n >>= \case
-                            ANFIR.Node'Param _ param -> pure $ Just param
+                        ANFIR.get_initializer <$> get_binding n >>= \case
+                            ANFIR.Expr'Param _ param -> pure $ Just param
                             _ -> pure Nothing)
                     nodes
 
@@ -269,10 +274,10 @@ define_lambda_type _ _ = pure ()
 mangle_adt :: ADTKey -> Text
 mangle_adt key = "ADT" <> show (Arena.unmake_key key)
 
-mangle_graph_node_as_lambda :: ANFIR.NodeKey -> Text
+mangle_graph_node_as_lambda :: ANFIR.BindingKey -> Text
 mangle_graph_node_as_lambda key = "Lambda" <> show (Arena.unmake_key key)
 
-mangle_graph_node_as_node_var :: ANFIR.NodeKey -> Text
+mangle_graph_node_as_node_var :: ANFIR.BindingKey -> Text
 mangle_graph_node_as_node_var key = "node_" <> show (Arena.unmake_key key)
 
 mangle_make_thunk_graph_for :: MakeThunkGraphFor -> Text

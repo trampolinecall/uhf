@@ -17,55 +17,60 @@ type DeclArena = Arena.Arena Decl DeclKey
 type Type = Type.Type Void
 type ADT = HIR.ADT Type
 type TypeSynonym = HIR.TypeSynonym Type
-type GraphNode = ANFIR.Node Type Void
-type GraphParam = ANFIR.Param Type
+type Expr = ANFIR.Expr Type Void
+type Binding = ANFIR.Binding Type Void
+type Param = ANFIR.Param Type
 
 type ADTArena = Arena.Arena ADT ADTKey
 type TypeSynonymArena = Arena.Arena TypeSynonym HIR.TypeSynonymKey
-type GraphNodeArena = Arena.Arena GraphNode ANFIR.NodeKey
-type GraphParamArena = Arena.Arena GraphParam ANFIR.ParamKey
+type BindingArena = Arena.Arena Binding ANFIR.BindingKey
+type ParamArena = Arena.Arena Param ANFIR.ParamKey
 
-to_dot :: DeclArena -> ADTArena -> TypeSynonymArena -> GraphNodeArena -> GraphParamArena -> Text
+to_dot :: DeclArena -> ADTArena -> TypeSynonymArena -> BindingArena -> ParamArena -> Text
 to_dot decls adts type_synonyms nodes params =
     snd $ runWriter (
             tell "strict digraph {\n" >>
             tell "    node [shape=record];\n" >>
             tell "    subgraph cluster_params {\n" >>
-            Arena.transform_with_keyM print_param_node params >>
+            Arena.transform_with_keyM print_param params >>
             tell "    }\n" >>
-            Arena.transform_with_keyM print_graph_node nodes >>
+            Arena.transform_with_keyM print_binding nodes >>
             tell "}\n"
         )
     where
-        node_key_to_dot_id :: ANFIR.NodeKey -> Text
-        node_key_to_dot_id key = "node" <> show (Arena.unmake_key key)
+        binding_key_to_dot_id :: ANFIR.BindingKey -> Text
+        binding_key_to_dot_id key = "node" <> show (Arena.unmake_key key)
 
         param_key_to_dot_id :: ANFIR.ParamKey -> Text
         param_key_to_dot_id key = "param" <> show (Arena.unmake_key key)
 
-        print_param_node key _ =
+        print_param key _ =
             tell ("    " <> param_key_to_dot_id key <> " [label = \"<name> param\"]\n")
 
-        print_graph_node cur_key node =
+        print_binding cur_key (ANFIR.Binding _ initializer) =
             let (name, graph_connections, param_connections) =
                     -- TODO: print types
-                    case node of
-                        ANFIR.Node'Int _ i -> ("int: " <> show i, [], [])
-                        ANFIR.Node'Float _ f -> ("float: " <> show f, [], [])
-                        ANFIR.Node'Bool _ b -> ("bool: " <> show b, [], [])
-                        ANFIR.Node'Char _ c -> ("char: " <> show c, [], [])
-                        ANFIR.Node'String _ s -> ("string: \\\"" <> s <> "\\\"", [], [])
-                        ANFIR.Node'Tuple _ a b -> ("tuple", [("a", a), ("b", b)], [])
+                    case initializer of
+                        ANFIR.Expr'Identifier _ b -> ("identifier", [("identifier", b)], [])
 
-                        ANFIR.Node'Lambda _ param _ body -> ("lambda", [("body", body)], [("param", param)])
-                        ANFIR.Node'Param _ param -> ("param", [], [("p", param)])
+                        ANFIR.Expr'Int _ i -> ("int: " <> show i, [], [])
+                        ANFIR.Expr'Float _ f -> ("float: " <> show f, [], [])
+                        ANFIR.Expr'Bool _ b -> ("bool: " <> show b, [], [])
+                        ANFIR.Expr'Char _ c -> ("char: " <> show c, [], [])
+                        ANFIR.Expr'String _ s -> ("string: \\\"" <> s <> "\\\"", [], [])
+                        ANFIR.Expr'Tuple _ a b -> ("tuple", [("a", a), ("b", b)], [])
 
-                        ANFIR.Node'Call _ callee arg -> ("call", [("callee", callee), ("arg", arg)], [])
+                        ANFIR.Expr'Lambda _ param _ body -> ("lambda", [("body", body)], [("param", param)])
+                        ANFIR.Expr'Param _ param -> ("param", [], [("p", param)])
 
-                        ANFIR.Node'TupleDestructure1 _ tup -> ("tuple destructure 1", [("tuple", tup)], [])
-                        ANFIR.Node'TupleDestructure2 _ tup -> ("tuple destructure 2", [("tuple", tup)], [])
+                        ANFIR.Expr'Call _ callee arg -> ("call", [("callee", callee), ("arg", arg)], [])
 
-                        ANFIR.Node'Poison _ void -> absurd void
+                        ANFIR.Expr'Switch _ e arms -> ("switch", [("e", e), todo {- arms -}], [])
+
+                        ANFIR.Expr'TupleDestructure1 _ tup -> ("tuple destructure 1", [("tuple", tup)], [])
+                        ANFIR.Expr'TupleDestructure2 _ tup -> ("tuple destructure 2", [("tuple", tup)], [])
+
+                        ANFIR.Expr'Poison _ void -> absurd void
 
                 make_port (name, _) = "<" <> name <> ">" <> name
                 ports = if null graph_connections && null param_connections
@@ -73,8 +78,8 @@ to_dot decls adts type_synonyms nodes params =
                         else "|{" <> Text.intercalate "|" (map make_port graph_connections ++ map make_port param_connections) <> "}"
                 label = "{<name> " <> name <> ports <> "}"
 
-                make_connection to_dot_id (this_port, other) = "    " <> node_key_to_dot_id cur_key <> ":" <> this_port <> " -> " <> to_dot_id other <> ":name;\n"
+                make_connection to_dot_id (this_port, other) = "    " <> binding_key_to_dot_id cur_key <> ":" <> this_port <> " -> " <> to_dot_id other <> ":name;\n"
 
-            in tell ("    " <> node_key_to_dot_id cur_key <> " [label = \"" <> label <> "\"];\n") >>
-            mapM_ (tell . make_connection node_key_to_dot_id) graph_connections >>
+            in tell ("    " <> binding_key_to_dot_id cur_key <> " [label = \"" <> label <> "\"];\n") >>
+            mapM_ (tell . make_connection binding_key_to_dot_id) graph_connections >>
             mapM_ (tell . make_connection param_key_to_dot_id) param_connections

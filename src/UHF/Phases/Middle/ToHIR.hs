@@ -80,7 +80,7 @@ type TypeSynonymArena = Arena.Arena TypeSynonym HIR.TypeSynonymKey
 type DeclChildrenList = [(Text, DeclAt, DeclKey)]
 type BoundValueList = [(Text, DeclAt, BoundValueKey)]
 
-type MakeIRState = StateT (DeclArena, BoundValueArena, ADTArena, TypeSynonymArena) (Writer [Error])
+type MakeIRState = StateT (DeclArena, BoundValueArena, ADTArena, TypeSynonymArena) (Compiler.WithDiagnostics Error Void)
 
 new_decl :: Decl -> MakeIRState DeclKey
 new_decl d =
@@ -106,8 +106,8 @@ new_type_synonym ts =
         let (key, type_synonyms') = Arena.put ts type_synonyms
         in (key, (decls, bound_values, adts, type_synonyms'))
 
-tell_err :: Error -> MakeIRState ()
-tell_err = lift . tell . (:[])
+tell_error :: Error -> MakeIRState ()
+tell_error = lift . Compiler.tell_error
 
 make_name_context :: DeclChildrenList -> BoundValueList -> Maybe HIR.NameContext -> MakeIRState HIR.NameContext
 make_name_context decls bound_values parent =
@@ -126,7 +126,7 @@ make_name_context decls bound_values parent =
 
         make_map x = Map.fromList (map (\ (n, _, v) -> (n, v)) x)
 
-        report_dups = mapM_ (\ decls@((first_name, _, _):_) -> tell_err $ MultipleDecls first_name (map get_decl_at decls))
+        report_dups = mapM_ (\ decls@((first_name, _, _):_) -> tell_error $ MultipleDecls first_name (map get_decl_at decls))
             where
                 get_decl_at (_, d, _) = d
 
@@ -138,7 +138,7 @@ make_iden1_with_err :: (Located [Located Text] -> Error) -> Located [Located Tex
 make_iden1_with_err make_err iden =
     case make_iden1 iden of
         Just res -> pure $ Just res
-        Nothing -> tell_err (make_err iden) >> pure Nothing
+        Nothing -> tell_error (make_err iden) >> pure Nothing
 
 primitive_decls :: MakeIRState DeclChildrenList
 primitive_decls =
@@ -159,19 +159,16 @@ primitive_values = pure []
 
 convert :: [AST.Decl] -> Compiler.WithDiagnostics Error Void (DeclArena, ADTArena, TypeSynonymArena, BoundValueArena)
 convert decls =
-    let -- prim_span = Span.start_of_file file TODO: remove this function
-        (res, errs) = runWriter (
-                runStateT
-                    (
-                        primitive_decls >>= \ primitive_decls ->
-                        primitive_values >>= \ primitive_values ->
-                        convert_decls Nothing primitive_decls primitive_values decls >>= \ (name_context, bindings) ->
-                        new_decl (HIR.Decl'Module name_context bindings)
-                    )
-                    (Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (_, (decls, bound_values, adts, type_synonyms)) ->
-                pure (decls, adts, type_synonyms, bound_values)
-            )
-    in Compiler.tell_errors errs >> pure res
+    -- prim_span = Span.start_of_file file TODO: remove this function
+    runStateT
+        (
+            primitive_decls >>= \ primitive_decls ->
+            primitive_values >>= \ primitive_values ->
+            convert_decls Nothing primitive_decls primitive_values decls >>= \ (name_context, bindings) ->
+            new_decl (HIR.Decl'Module name_context bindings)
+        )
+        (Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (_, (decls, bound_values, adts, type_synonyms)) ->
+    pure (decls, adts, type_synonyms, bound_values)
 
 convert_decls :: Maybe HIR.NameContext -> DeclChildrenList -> BoundValueList -> [AST.Decl] -> MakeIRState (HIR.NameContext, [Binding])
 convert_decls parent_context prev_decl_entries prev_bv_entries decls =
@@ -233,8 +230,8 @@ convert_type nc (AST.Type'Tuple sp items) = mapM (convert_type nc) items >>= gro
     where
         group_items [a, b] = pure $ HIR.TypeExpr'Tuple a b
         group_items (a:b:more) = HIR.TypeExpr'Tuple a <$> group_items (b:more)
-        group_items [_] = tell_err (Tuple1 sp) >> pure (HIR.TypeExpr'Poison sp)
-        group_items [] = tell_err (Tuple0 sp) >> pure (HIR.TypeExpr'Poison sp)
+        group_items [_] = tell_error (Tuple1 sp) >> pure (HIR.TypeExpr'Poison sp)
+        group_items [] = tell_error (Tuple0 sp) >> pure (HIR.TypeExpr'Poison sp)
 
 convert_expr :: HIR.NameContext -> AST.Expr -> MakeIRState Expr
 convert_expr nc (AST.Expr'Identifier iden) = pure $ HIR.Expr'Identifier () (just_span iden) (nc, unlocate iden)
@@ -249,8 +246,8 @@ convert_expr parent_context (AST.Expr'Tuple sp items) =
     where
         group_items [a, b] = pure $ HIR.Expr'Tuple () sp a b
         group_items (a:b:more) = HIR.Expr'Tuple () sp a <$> group_items (b:more) -- TODO: properly do span of b:more because this just takes the span of the whole thing
-        group_items [_] = tell_err (Tuple1 sp) >> pure (HIR.Expr'Poison () sp)
-        group_items [] = tell_err (Tuple0 sp) >> pure (HIR.Expr'Poison () sp)
+        group_items [_] = tell_error (Tuple1 sp) >> pure (HIR.Expr'Poison () sp)
+        group_items [] = tell_error (Tuple0 sp) >> pure (HIR.Expr'Poison () sp)
 
 convert_expr parent_context (AST.Expr'Lambda sp params body) = convert_lambda parent_context params body
     where
@@ -308,8 +305,8 @@ convert_pattern (AST.Pattern'Tuple sp subpats) =
     where
         go [a, b] = pure $ HIR.Pattern'Tuple () sp a b
         go (a:b:more) = HIR.Pattern'Tuple () sp a <$> go (b:more)
-        go [_] = tell_err (Tuple1 sp) >> pure (HIR.Pattern'Poison () sp)
-        go [] = tell_err (Tuple0 sp) >> pure (HIR.Pattern'Poison () sp)
+        go [_] = tell_error (Tuple1 sp) >> pure (HIR.Pattern'Poison () sp)
+        go [] = tell_error (Tuple0 sp) >> pure (HIR.Pattern'Poison () sp)
 convert_pattern (AST.Pattern'Named sp iden at_sp subpat) =
     convert_pattern subpat >>= \ (sub_bn, subpat') ->
     make_iden1_with_err PathInPattern iden >>= \case

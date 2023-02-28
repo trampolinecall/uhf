@@ -124,32 +124,28 @@ transform_identifiers transform_t_iden transform_e_iden adts type_synonyms decls
 
 resolve :: (UnresolvedDeclArena, UnresolvedADTArena, UnresolvedTypeSynonymArena) -> Compiler.WithDiagnostics Error Void (ResolvedDeclArena, ResolvedADTArena, ResolvedTypeSynonymArena)
 resolve (decls, adts, type_synonyms) =
-    let (res, errs) =
-            runWriter (
-                let (adts', type_synonyms', decls') = runIdentity (transform_identifiers Identity split_expr_iden adts type_synonyms decls)
-                in transform_identifiers (resolve_type_iden decls) (resolve_expr_iden decls) adts' type_synonyms' decls' >>= \ (adts', type_synonyms', decls') ->
-                pure (decls', adts', type_synonyms')
-            )
-    in Compiler.tell_errors errs >> pure res
+    let (adts', type_synonyms', decls') = runIdentity (transform_identifiers Identity split_expr_iden adts type_synonyms decls)
+    in transform_identifiers (resolve_type_iden decls) (resolve_expr_iden decls) adts' type_synonyms' decls' >>= \ (adts', type_synonyms', decls') ->
+    pure (decls', adts', type_synonyms')
 
 split_expr_iden :: UnresolvedExprIdentifier -> Identity (HIR.NameContext, Maybe [Located Text], Located Text)
 split_expr_iden (_, []) = error "empty identifier"
 split_expr_iden (nc, [x]) = pure (nc, Nothing, x)
 split_expr_iden (nc, x) = pure (nc, Just $ init x, last x)
 
-resolve_expr_iden :: UnresolvedDeclArena -> (HIR.NameContext, Maybe [Located Text], Located Text) -> Writer [Error] (Located (Maybe BoundValueKey))
+resolve_expr_iden :: UnresolvedDeclArena -> (HIR.NameContext, Maybe [Located Text], Located Text) -> Compiler.WithDiagnostics Error Void (Located (Maybe BoundValueKey))
 resolve_expr_iden decls (nc, Just type_iden, last_segment) =
     let sp = Located.just_span (head type_iden) <> Located.just_span last_segment
     in resolve_type_iden decls (nc, type_iden) >>= \ resolved_type ->
     case get_value_child decls <$> resolved_type <*> pure last_segment of
         Just (Right v) -> pure $ Located sp (Just v)
-        Just (Left e) -> tell [e] >> pure (Located sp Nothing)
+        Just (Left e) -> Compiler.tell_error e >> pure (Located sp Nothing)
         Nothing -> pure $ Located sp Nothing
 
 resolve_expr_iden _ (nc, Nothing, last_segment@(Located last_segment_sp _)) =
     case resolve nc last_segment of
         Right v -> pure $ Located last_segment_sp (Just v)
-        Left e -> tell [e] >> pure (Located last_segment_sp Nothing)
+        Left e -> Compiler.tell_error e >> pure (Located last_segment_sp Nothing)
     where
         resolve (HIR.NameContext _ bn_children parent) name =
             case Map.lookup (Located.unlocate name) bn_children of
@@ -159,15 +155,15 @@ resolve_expr_iden _ (nc, Nothing, last_segment@(Located last_segment_sp _)) =
                         Just parent -> resolve parent name
                         Nothing -> Left $ CouldNotFind Nothing name
 
-resolve_type_iden :: UnresolvedDeclArena -> UnresolvedTypeIdentifier -> Writer [Error] (Maybe DeclKey)
+resolve_type_iden :: UnresolvedDeclArena -> UnresolvedTypeIdentifier -> Compiler.WithDiagnostics Error Void (Maybe DeclKey)
 resolve_type_iden _ (_, []) = error "empty identifier"
 resolve_type_iden decls (nc, first:more) =
     case resolve_first nc first of
         Right first_resolved ->
             case foldlM (get_decl_child decls) first_resolved more of
                 Right r -> pure $ Just r
-                Left e -> tell [e] >> pure Nothing
-        Left e -> tell [e] >> pure Nothing
+                Left e -> Compiler.tell_error e >> pure Nothing
+        Left e -> Compiler.tell_error e >> pure Nothing
     where
         resolve_first (HIR.NameContext d_children _ parent) first =
             case Map.lookup (Located.unlocate first) d_children of

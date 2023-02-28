@@ -49,7 +49,7 @@ transformM :: (Key k, Monad m) => (a -> m b) -> Arena a k -> m (Arena b k)
 transformM t (Arena items) = Arena <$> mapM t items
 
 transform_with_keyM :: (Key k, Monad m) => (k -> a -> m b) -> Arena a k -> m (Arena b k)
-transform_with_keyM t (Arena items) = Arena <$> mapM (uncurry t) (Sequence.zip (fmap make_key [0..]) items)
+transform_with_keyM t (Arena items) = Arena <$> mapM (uncurry t) (Sequence.zip (fmap make_key [0 .. Sequence.length items]) items)
 
 newtype TestKey = TestKey Int deriving (Show, Eq)
 instance Key TestKey where

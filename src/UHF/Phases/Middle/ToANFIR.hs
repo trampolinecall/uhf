@@ -118,14 +118,3 @@ convert_expr bv_map (RIR.Expr'Switch ty _ testing arms) =
 
 convert_expr _ (RIR.Expr'Poison ty _) = new_graph_node (ANFIR.Node'Poison ty ())
 
-{-
-assign_pattern :: Pattern -> ANFIR.NodeKey -> WriterT [ANFIR.NodeKey] MakeGraphState ()
-assign_pattern (RIR.Pattern'Identifier _ _ bvk) initializer = lift (map_bound_value bvk initializer) >> pure ()
-assign_pattern (RIR.Pattern'Wildcard _ _) initializer = pure ()
-assign_pattern (RIR.Pattern'Tuple _ _ a b) initializer =
-    new_graph_node (ANFIR.Node'TupleDestructure1 (RIR.pattern_type a) initializer) >>= assign_pattern a >>
-    new_graph_node (ANFIR.Node'TupleDestructure2 (RIR.pattern_type b) initializer) >>= assign_pattern b
-
-assign_pattern (RIR.Pattern'Named _ _ bvk subpat) initializer = lift (map_bound_value (unlocate bvk) initializer) >> assign_pattern subpat initializer
-assign_pattern (RIR.Pattern'Poison _ _) _ = pure ()
--}

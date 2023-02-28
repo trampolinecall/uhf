@@ -18,7 +18,7 @@ import UHF.Phases.Middle.Type.Constraint
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Control.Monad.Fix (mfix)
 
-type StateWithVars = StateT TypeVarArena Compiler.Compiler
+type StateWithVars = StateT TypeVarArena (Compiler.WithDiagnostics Error Void)
 
 new_type_variable :: TypeVarForWhat -> StateWithVars TypeVarKey
 new_type_variable for_what =
@@ -26,7 +26,7 @@ new_type_variable for_what =
         Arena.put (TypeVar for_what Fresh) type_vars
 
 -- also does type inference
-typecheck :: (UntypedDeclArena, UntypedADTArena, UntypedTypeSynonymArena, UntypedBoundValueArena) -> Compiler.Compiler (TypedDeclArena, TypedADTArena, TypedTypeSynonymArena, TypedBoundValueArena)
+typecheck :: (UntypedDeclArena, UntypedADTArena, UntypedTypeSynonymArena, UntypedBoundValueArena) -> Compiler.WithDiagnostics Error Void (TypedDeclArena, TypedADTArena, TypedTypeSynonymArena, TypedBoundValueArena)
 typecheck (decls, adts, type_synonyms, bound_values) =
     runStateT
         (
@@ -60,7 +60,7 @@ convert_type_expr :: UntypedDeclArena -> TypeExpr -> StateWithVars TypeWithVars
 convert_type_expr decls (HIR.TypeExpr'Identifier sp iden) =
     case iden of -- TODO: make poison type variable
         Just i -> case Arena.get decls i of
-            HIR.Decl'Module _ _ -> lift (Compiler.error $ NotAType sp "a module") >> Type.Type'Variable <$> new_type_variable (TypeExpr sp)
+            HIR.Decl'Module _ _ -> lift (Compiler.tell_error $ NotAType sp "a module") >> Type.Type'Variable <$> new_type_variable (TypeExpr sp)
             HIR.Decl'Type ty -> pure $ void_var_to_key ty
         Nothing -> Type.Type'Variable <$> new_type_variable (TypeExpr sp)
     where
@@ -213,12 +213,12 @@ solve_constraints adts type_synonyms = mapM_ solve
 
                 Left (Left (a_part, b_part)) -> -- mismatch error
                     get >>= \ vars ->
-                    lift (Compiler.error $ EqError { eq_error_adts = adts, eq_error_type_synonyms = type_synonyms, eq_error_vars = vars, eq_error_in_what = in_what, eq_error_span = sp, eq_error_a_whole = a, eq_error_b_whole = b, eq_error_a_part = a_part, eq_error_b_part = b_part }) >>
+                    lift (Compiler.tell_error $ EqError { eq_error_adts = adts, eq_error_type_synonyms = type_synonyms, eq_error_vars = vars, eq_error_in_what = in_what, eq_error_span = sp, eq_error_a_whole = a, eq_error_b_whole = b, eq_error_a_part = a_part, eq_error_b_part = b_part }) >>
                     pure ()
 
                 Left (Right (var, ty)) -> -- occurs check failure
                     get >>= \ vars ->
-                    lift (Compiler.error $ OccursCheckError adts type_synonyms vars sp var ty) >>
+                    lift (Compiler.tell_error $ OccursCheckError adts type_synonyms vars sp var ty) >>
                     pure ()
 
         solve (Expect in_what got expect) =
@@ -227,12 +227,12 @@ solve_constraints adts type_synonyms = mapM_ solve
 
                 Left (Left (got_part, expect_part)) -> -- mismatch error
                     get >>= \ vars ->
-                    lift (Compiler.error $ ExpectError { expect_error_adts = adts, expect_error_type_synonyms = type_synonyms, expect_error_vars = vars, expect_error_in_what = in_what, expect_error_got_whole = got, expect_error_expect_whole = expect, expect_error_got_part = got_part, expect_error_expect_part = expect_part }) >>
+                    lift (Compiler.tell_error $ ExpectError { expect_error_adts = adts, expect_error_type_synonyms = type_synonyms, expect_error_vars = vars, expect_error_in_what = in_what, expect_error_got_whole = got, expect_error_expect_whole = expect, expect_error_got_part = got_part, expect_error_expect_part = expect_part }) >>
                     pure ()
 
                 Left (Right (var, ty)) -> -- occurs check failure
                     get >>= \ vars ->
-                    lift (Compiler.error $ OccursCheckError adts type_synonyms vars (just_span got) var ty) >>
+                    lift (Compiler.tell_error $ OccursCheckError adts type_synonyms vars (just_span got) var ty) >>
                     pure ()
 
         unify :: TypeWithVars -> TypeWithVars -> ExceptT (Either (TypeWithVars, TypeWithVars) (TypeVarKey, TypeWithVars)) StateWithVars ()
@@ -317,11 +317,11 @@ solve_constraints adts type_synonyms = mapM_ solve
                 Type.Type'Function a r -> (||) <$> occurs_check v a <*> occurs_check v r
                 Type.Type'Tuple a b -> (||) <$> occurs_check v a <*> occurs_check v b
 
-convert_vars :: TypeVarArena -> Compiler.Compiler (Arena.Arena (Maybe Type) TypeVarKey)
+convert_vars :: TypeVarArena -> Compiler.WithDiagnostics Error Void (Arena.Arena (Maybe Type) TypeVarKey)
 convert_vars vars =
     -- infinite recursion is not possible because occurs check prevents loops in substitution
     let (res, errs) = (runWriter $ mfix (\ vars_converted -> Arena.transformM (runMaybeT . convert_var vars_converted) vars))
-    in Compiler.errors errs >> pure res
+    in Compiler.tell_errors errs >> pure res
     where
         -- this usage of mfix does not play nicely with the IO in the Compiler monad so this must be done in the Writer monad
         r _ Type.Type'Int = pure Type.Type'Int

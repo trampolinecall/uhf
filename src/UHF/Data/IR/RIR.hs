@@ -3,11 +3,9 @@ module UHF.Data.IR.RIR
     , Binding (..)
     , Type
     , Expr (..)
-    , Pattern (..)
+    , SwitchMatcher (..)
     , expr_type
-    , pattern_type
     , expr_span
-    , pattern_span
     ) where
 
 import UHF.Util.Prelude
@@ -16,7 +14,6 @@ import UHF.Data.IR.Keys
 import qualified UHF.Data.IR.Type as Type
 
 import UHF.IO.Span (Span)
-import UHF.IO.Located (Located)
 
 data Decl
     = Decl'Module [Binding]
@@ -43,19 +40,15 @@ data Expr
 
     | Expr'Call (Maybe Type) Span Expr Expr
 
-    | Expr'If (Maybe Type) Span Expr Expr Expr -- TODO: desugar to 'case x { true -> _; false -> _ }
-    | Expr'Case (Maybe Type) Span Expr [(Pattern, Expr)] -- TODO: case should be more like switch at this level
+    | Expr'Switch (Maybe Type) Span Expr [(SwitchMatcher, Expr)]
 
     | Expr'Poison (Maybe Type) Span
     deriving Show
 
-data Pattern
-    = Pattern'Identifier (Maybe Type) Span BoundValueKey
-    | Pattern'Wildcard (Maybe Type) Span
-    | Pattern'Tuple (Maybe Type) Span Pattern Pattern
-    | Pattern'Named (Maybe Type) Span (Located BoundValueKey) Pattern
-
-    | Pattern'Poison (Maybe Type) Span
+data SwitchMatcher
+    = Switch'BoolLiteral Bool
+    | Switch'Tuple (Maybe BoundValueKey) (Maybe BoundValueKey)
+    | Switch'Default
     deriving Show
 
 expr_type :: Expr -> Maybe Type
@@ -69,8 +62,7 @@ expr_type (Expr'Tuple ty _ _ _) = ty
 expr_type (Expr'Lambda ty _ _ _) = ty
 expr_type (Expr'Let ty _ _ _) = ty
 expr_type (Expr'Call ty _ _ _) = ty
-expr_type (Expr'If ty _ _ _ _) = ty
-expr_type (Expr'Case ty _ _ _) = ty
+expr_type (Expr'Switch ty _ _ _) = ty
 expr_type (Expr'Poison ty _) = ty
 
 expr_span :: Expr -> Span
@@ -84,20 +76,5 @@ expr_span (Expr'Tuple _ sp _ _) = sp
 expr_span (Expr'Lambda _ sp _ _) = sp
 expr_span (Expr'Let _ sp _ _) = sp
 expr_span (Expr'Call _ sp _ _) = sp
-expr_span (Expr'If _ sp _ _ _) = sp
-expr_span (Expr'Case _ sp _ _) = sp
+expr_span (Expr'Switch _ sp _ _) = sp
 expr_span (Expr'Poison _ sp) = sp
-
-pattern_type :: Pattern -> Maybe Type
-pattern_type (Pattern'Identifier ty _ _) = ty
-pattern_type (Pattern'Wildcard ty _) = ty
-pattern_type (Pattern'Tuple ty _ _ _) = ty
-pattern_type (Pattern'Named ty _ _ _) = ty
-pattern_type (Pattern'Poison ty _) = ty
-
-pattern_span :: Pattern -> Span
-pattern_span (Pattern'Identifier _ sp _) = sp
-pattern_span (Pattern'Wildcard _ sp) = sp
-pattern_span (Pattern'Tuple _ sp _ _) = sp
-pattern_span (Pattern'Named _ sp _ _) = sp
-pattern_span (Pattern'Poison _ sp) = sp

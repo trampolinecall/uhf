@@ -23,7 +23,6 @@ type HIRBinding = HIR.Binding (Located (Maybe BoundValueKey)) Type Type Void
 
 type RIRDecl = RIR.Decl
 type RIRExpr = RIR.Expr
-type RIRPattern = RIR.Pattern
 type RIRBinding = RIR.Binding
 
 type HIRDeclArena = Arena.Arena HIRDecl DeclKey
@@ -43,7 +42,7 @@ convert_decl (HIR.Decl'Module _ bindings) = RIR.Decl'Module <$> (concat <$> mapM
 convert_decl (HIR.Decl'Type ty) = pure $ RIR.Decl'Type ty
 
 convert_binding :: HIRBinding -> ConvertState [RIRBinding]
-convert_binding (HIR.Binding pat _ expr) = convert_expr expr >>= \ expr -> convert_pattern pat >>= \ pat -> assign_pattern pat expr
+convert_binding (HIR.Binding pat _ expr) = convert_expr expr >>= assign_pattern pat
 
 new_bound_value :: Type -> Span -> ConvertState BoundValueKey
 new_bound_value ty sp = state (Arena.put (HIR.BoundValue ty sp))
@@ -62,34 +61,26 @@ convert_expr (HIR.Expr'Lambda ty sp param_pat body) =
         body_sp = HIR.expr_span body
     in
     -- '\ (...) -> body' becomes '\ (arg) -> let ... = arg; body'
-    convert_pattern param_pat >>= \ param_pat ->
-    new_bound_value param_ty (RIR.pattern_span param_pat) >>= \ param_bk ->
-    assign_pattern param_pat (RIR.Expr'Identifier param_ty (RIR.pattern_span param_pat) (Just param_bk)) >>= \ bindings ->
+    new_bound_value param_ty (HIR.pattern_span param_pat) >>= \ param_bk ->
+    assign_pattern param_pat (RIR.Expr'Identifier param_ty (HIR.pattern_span param_pat) (Just param_bk)) >>= \ bindings ->
     RIR.Expr'Lambda ty sp param_bk <$> (RIR.Expr'Let body_ty body_sp bindings <$> convert_expr body)
 
 convert_expr (HIR.Expr'Let ty sp bindings body) = RIR.Expr'Let ty sp <$> (concat <$> mapM convert_binding bindings) <*> convert_expr body
 convert_expr (HIR.Expr'BinaryOps void _ _ _ _) = absurd void
 convert_expr (HIR.Expr'Call ty sp callee arg) = RIR.Expr'Call ty sp <$> convert_expr callee <*> convert_expr arg
-convert_expr (HIR.Expr'If ty sp if_sp cond true false) = RIR.Expr'If ty sp <$> convert_expr cond <*> convert_expr true <*> convert_expr false
-convert_expr (HIR.Expr'Case ty sp case_sp expr arms) = RIR.Expr'Case ty sp <$> convert_expr expr <*> mapM (\ (pat, expr) -> (,) <$> convert_pattern pat <*> convert_expr expr) arms
+convert_expr (HIR.Expr'If ty sp if_sp cond true false) = RIR.Expr'Switch ty sp <$> convert_expr cond <*> sequence [(,) (RIR.Switch'BoolLiteral True) <$> convert_expr true, (,) (RIR.Switch'BoolLiteral False) <$> convert_expr false]
+convert_expr (HIR.Expr'Case ty sp case_sp expr arms) = todo -- TODO: case desguaring RIR.Expr'Switch ty sp <$> convert_expr expr <*> mapM (\ (pat, expr) -> (,) <$> convert_pattern pat <*> convert_expr expr) arms
 convert_expr (HIR.Expr'Poison ty sp) = pure $ RIR.Expr'Poison ty sp
 convert_expr (HIR.Expr'TypeAnnotation _ _ _ other) = convert_expr other
 
-convert_pattern :: HIRPattern -> ConvertState RIRPattern
-convert_pattern (HIR.Pattern'Identifier ty sp bv) = pure $ RIR.Pattern'Identifier ty sp bv
-convert_pattern (HIR.Pattern'Wildcard ty sp) = pure $ RIR.Pattern'Wildcard ty sp
-convert_pattern (HIR.Pattern'Tuple ty sp a b) = RIR.Pattern'Tuple ty sp <$> convert_pattern a <*> convert_pattern b
-convert_pattern (HIR.Pattern'Named ty sp _ bv other) = RIR.Pattern'Named ty sp bv <$> convert_pattern other
-convert_pattern (HIR.Pattern'Poison ty sp) = pure $ RIR.Pattern'Poison ty sp
-
-assign_pattern :: RIRPattern -> RIRExpr -> ConvertState [RIRBinding]
-assign_pattern (RIR.Pattern'Identifier _ _ bv) expr = pure [RIR.Binding bv expr]
-assign_pattern (RIR.Pattern'Wildcard ty _) expr = pure []
-assign_pattern (RIR.Pattern'Tuple whole_ty whole_sp a b) expr =
-    let a_sp = RIR.pattern_span a
-        b_sp = RIR.pattern_span b
-        a_ty = RIR.pattern_type a
-        b_ty = RIR.pattern_type b
+assign_pattern :: HIRPattern -> RIRExpr -> ConvertState [RIRBinding]
+assign_pattern (HIR.Pattern'Identifier _ _ bv) expr = pure [RIR.Binding bv expr]
+assign_pattern (HIR.Pattern'Wildcard ty _) expr = pure []
+assign_pattern (HIR.Pattern'Tuple whole_ty whole_sp a b) expr =
+    let a_sp = HIR.pattern_span a
+        b_sp = HIR.pattern_span b
+        a_ty = HIR.pattern_type a
+        b_ty = HIR.pattern_type b
     in
     --     (..., ...) = e
     -- becomes
@@ -102,8 +93,8 @@ assign_pattern (RIR.Pattern'Tuple whole_ty whole_sp a b) expr =
     new_bound_value b_ty b_sp >>= \ b_bv ->
 
     let whole_expr = RIR.Expr'Identifier whole_ty whole_sp (Just whole_bv)
-        extract_a = RIR.Expr'Case a_ty a_sp whole_expr [(RIR.Pattern'Tuple whole_ty whole_sp (RIR.Pattern'Identifier a_ty a_sp a_bv) (RIR.Pattern'Wildcard b_ty b_sp), RIR.Expr'Identifier a_ty a_sp (Just a_bv))]
-        extract_b = RIR.Expr'Case b_ty b_sp whole_expr [(RIR.Pattern'Tuple whole_ty whole_sp (RIR.Pattern'Wildcard a_ty a_sp) (RIR.Pattern'Identifier b_ty b_sp b_bv), RIR.Expr'Identifier b_ty b_sp (Just b_bv))]
+        extract_a = RIR.Expr'Switch a_ty a_sp whole_expr [(RIR.Switch'Tuple (Just a_bv) Nothing, RIR.Expr'Identifier a_ty a_sp (Just a_bv))]
+        extract_b = RIR.Expr'Switch b_ty b_sp whole_expr [(RIR.Switch'Tuple Nothing (Just b_bv), RIR.Expr'Identifier b_ty b_sp (Just b_bv))]
     in
 
     assign_pattern a extract_a >>= \ assign_a ->
@@ -111,7 +102,7 @@ assign_pattern (RIR.Pattern'Tuple whole_ty whole_sp a b) expr =
 
     pure (RIR.Binding whole_bv expr : assign_a ++ assign_b)
 
-assign_pattern (RIR.Pattern'Named ty sp bv other) expr =
+assign_pattern (HIR.Pattern'Named ty sp _ bv other) expr =
     --      a@... = e
     --  becomes
     --      a = e
@@ -119,4 +110,4 @@ assign_pattern (RIR.Pattern'Named ty sp bv other) expr =
     assign_pattern other (RIR.Expr'Identifier ty sp (Just $ unlocate bv)) >>= \ other_assignments ->
     pure (RIR.Binding (unlocate bv) expr : other_assignments)
 
-assign_pattern (RIR.Pattern'Poison ty _) expr = pure []
+assign_pattern (HIR.Pattern'Poison ty _) expr = pure []

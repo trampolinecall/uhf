@@ -145,13 +145,19 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_nodes included_para
                     node_type arg >>= refer_type_raw >>= \ arg_ty ->
                     pure [let_evaluator ("CallEvaluator<" <> arg_ty <> ", " <> res_ty <> ">") (evaluator "CallEvaluator" "undefined, undefined"), default_let_thunk]
 
+                ANFIR.Node'Switch ty e arms ->
+                    refer_type_raw ty >>= \ res_ty ->
+                    node_type e >>= refer_type_raw >>= \ e_ty ->
+                    pure [let_evaluator ("SwitchEvaluator<" <> e_ty <> ", " <> res_ty <> ">") (evaluator "SwitchEvaluator" "undefined, undefined"), default_let_thunk]
+
                 ANFIR.Node'TupleDestructure1 _ tup -> node_type tup >>= refer_type_raw >>= \ tup_ty -> pure [let_evaluator ("TupleDestructure1Evaluator<" <> tup_ty <> ">") (evaluator "TupleDestructure1Evaluator" "undefined"), default_let_thunk] -- TODO: fix this becuase the type parameters should actually be the elements of the tuple
                 ANFIR.Node'TupleDestructure2 _ tup -> node_type tup >>= refer_type_raw >>= \ tup_ty -> pure [let_evaluator ("TupleDestructure1Evaluator<" <> tup_ty <> ">") (evaluator "TupleDestructure2Evaluator" "undefined"), default_let_thunk] -- TODO: same as above
 
                 ANFIR.Node'Poison _ void -> absurd void
 
         stringify_node_set_fields node_key =
-            let set_field field other_node = mangle_graph_node_as_local_evaluator node_key <> "." <> field <> " = " <> mangle_graph_node_as_local_thunk other_node <> ";"
+            let set_field field other_node = set_field_other field (mangle_graph_node_as_local_thunk other_node)
+                set_field_other field initializer = mangle_graph_node_as_local_evaluator node_key <> "." <> field <> " = " <> initializer <> ";"
             in get_node node_key >>= \case
                 ANFIR.Node'Int _ _ -> pure []
                 ANFIR.Node'Float _ _ -> pure []
@@ -162,6 +168,8 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_nodes included_para
 
                 ANFIR.Node'Lambda _ _ _ _ -> pure []
                 ANFIR.Node'Param _ _ -> pure []
+
+                ANFIR.Node'Switch ty e arms -> pure [set_field "test" e, set_field_other "arms" "[]"] -- TODO, also TODO: exhaustiveness check
 
                 ANFIR.Node'Call _ callee arg -> pure [set_field "callee" callee, set_field "arg" arg]
 

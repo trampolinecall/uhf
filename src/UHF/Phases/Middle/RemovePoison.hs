@@ -15,36 +15,38 @@ type DeclArena = Arena.Arena Decl DeclKey
 type PoisonedType = Maybe (Type.Type Void)
 type PoisonedADT = HIR.ADT PoisonedType
 type PoisonedTypeSynonym = HIR.TypeSynonym PoisonedType
-type PoisonedGraphNode = ANFIR.Node PoisonedType ()
-type PoisonedGraphParam = ANFIR.Param PoisonedType
+type PoisonedExpr = ANFIR.Expr PoisonedType ()
+type PoisonedBinding = ANFIR.Binding PoisonedType ()
+type PoisonedParam = ANFIR.Param PoisonedType
 type PoisonedBoundValue = HIR.BoundValue PoisonedType
 
 type PoisonedADTArena = Arena.Arena PoisonedADT ADTKey
 type PoisonedTypeSynonymArena = Arena.Arena PoisonedTypeSynonym HIR.TypeSynonymKey
-type PoisonedGraphNodeArena = Arena.Arena PoisonedGraphNode ANFIR.NodeKey
-type PoisonedGraphParamArena = Arena.Arena PoisonedGraphParam ANFIR.ParamKey
+type PoisonedBindingArena = Arena.Arena PoisonedBinding ANFIR.BindingKey
+type PoisonedParamArena = Arena.Arena PoisonedParam ANFIR.ParamKey
 type PoisonedBoundValueArena = Arena.Arena PoisonedBoundValue BoundValueKey
 
 type NoPoisonType = Type.Type Void
 type NoPoisonADT = HIR.ADT NoPoisonType
 type NoPoisonTypeSynonym = HIR.TypeSynonym NoPoisonType
-type NoPoisonGraphNode = ANFIR.Node NoPoisonType Void
-type NoPoisonGraphParam = ANFIR.Param NoPoisonType
+type NoPoisonExpr = ANFIR.Expr NoPoisonType Void
+type NoPoisonBinding = ANFIR.Binding NoPoisonType Void
+type NoPoisonParam = ANFIR.Param NoPoisonType
 type NoPoisonBoundValue = HIR.BoundValue NoPoisonType
 
 type NoPoisonADTArena = Arena.Arena NoPoisonADT ADTKey
 type NoPoisonTypeSynonymArena = Arena.Arena NoPoisonTypeSynonym HIR.TypeSynonymKey
-type NoPoisonGraphNodeArena = Arena.Arena NoPoisonGraphNode ANFIR.NodeKey
-type NoPoisonGraphParamArena = Arena.Arena NoPoisonGraphParam ANFIR.ParamKey
+type NoPoisonBindingArena = Arena.Arena NoPoisonBinding ANFIR.BindingKey
+type NoPoisonParamArena = Arena.Arena NoPoisonParam ANFIR.ParamKey
 type NoPoisonBoundValueArena = Arena.Arena NoPoisonBoundValue BoundValueKey
-remove_poison :: (DeclArena, PoisonedADTArena, PoisonedTypeSynonymArena, PoisonedGraphNodeArena, PoisonedGraphParamArena, PoisonedBoundValueArena) -> Maybe (DeclArena, NoPoisonADTArena, NoPoisonTypeSynonymArena, NoPoisonGraphNodeArena, NoPoisonGraphParamArena, NoPoisonBoundValueArena)
+remove_poison :: (DeclArena, PoisonedADTArena, PoisonedTypeSynonymArena, PoisonedBindingArena, PoisonedParamArena, PoisonedBoundValueArena) -> Maybe (DeclArena, NoPoisonADTArena, NoPoisonTypeSynonymArena, NoPoisonBindingArena, NoPoisonParamArena, NoPoisonBoundValueArena)
 -- TODO: probably dont pass DeclArena if it is not going to be changed
-remove_poison (decls, adts, type_synonyms, graph_nodes, graph_params, bound_values) =
+remove_poison (decls, adts, type_synonyms, bindings, params, bound_values) =
     (decls,,,,,)
         <$> Arena.transformM rp_adt adts
         <*> Arena.transformM rp_type_synonym type_synonyms
-        <*> Arena.transformM rp_graph_node graph_nodes
-        <*> Arena.transformM rp_graph_param graph_params
+        <*> Arena.transformM rp_binding bindings
+        <*> Arena.transformM rp_param params
         <*> Arena.transformM rp_bound_value bound_values
 
 -- rp short for remove poison
@@ -58,28 +60,32 @@ rp_adt (HIR.ADT name variants) = HIR.ADT name <$> mapM rp_variant variants
 rp_type_synonym :: PoisonedTypeSynonym -> Maybe NoPoisonTypeSynonym
 rp_type_synonym (HIR.TypeSynonym name expansion) = HIR.TypeSynonym name <$> expansion
 
-rp_graph_node :: PoisonedGraphNode -> Maybe NoPoisonGraphNode
-rp_graph_node (ANFIR.Node'Int ty i) = ty >>= \ ty -> pure (ANFIR.Node'Int ty i)
-rp_graph_node (ANFIR.Node'Float ty f) = ty >>= \ ty -> pure (ANFIR.Node'Float ty f)
-rp_graph_node (ANFIR.Node'Bool ty b) = ty >>= \ ty -> pure (ANFIR.Node'Bool ty b)
-rp_graph_node (ANFIR.Node'Char ty c) = ty >>= \ ty -> pure (ANFIR.Node'Char ty c)
-rp_graph_node (ANFIR.Node'String ty t) = ty >>= \ ty -> pure (ANFIR.Node'String ty t)
-rp_graph_node (ANFIR.Node'Tuple ty a b) = ty >>= \ ty -> pure (ANFIR.Node'Tuple ty a b)
+rp_binding :: PoisonedBinding -> Maybe NoPoisonBinding
+rp_binding (ANFIR.Binding ty initializer) = ANFIR.Binding <$> ty <*> rp_expr initializer
 
-rp_graph_node (ANFIR.Node'Lambda ty a i b) = ty >>= \ ty -> pure (ANFIR.Node'Lambda ty a i b)
-rp_graph_node (ANFIR.Node'Param ty p) = ty >>= \ ty -> pure (ANFIR.Node'Param ty p)
+rp_expr :: PoisonedExpr -> Maybe NoPoisonExpr
+rp_expr (ANFIR.Expr'Identifier ty b) = ty >>= \ ty -> pure (ANFIR.Expr'Identifier ty b)
+rp_expr (ANFIR.Expr'Int ty i) = ty >>= \ ty -> pure (ANFIR.Expr'Int ty i)
+rp_expr (ANFIR.Expr'Float ty f) = ty >>= \ ty -> pure (ANFIR.Expr'Float ty f)
+rp_expr (ANFIR.Expr'Bool ty b) = ty >>= \ ty -> pure (ANFIR.Expr'Bool ty b)
+rp_expr (ANFIR.Expr'Char ty c) = ty >>= \ ty -> pure (ANFIR.Expr'Char ty c)
+rp_expr (ANFIR.Expr'String ty t) = ty >>= \ ty -> pure (ANFIR.Expr'String ty t)
+rp_expr (ANFIR.Expr'Tuple ty a b) = ty >>= \ ty -> pure (ANFIR.Expr'Tuple ty a b)
 
-rp_graph_node (ANFIR.Node'Call ty c a) = ty >>= \ ty -> pure (ANFIR.Node'Call ty c a)
+rp_expr (ANFIR.Expr'Lambda ty a i b) = ty >>= \ ty -> pure (ANFIR.Expr'Lambda ty a i b)
+rp_expr (ANFIR.Expr'Param ty p) = ty >>= \ ty -> pure (ANFIR.Expr'Param ty p)
 
-rp_graph_node (ANFIR.Node'Switch ty c a) = ty >>= \ ty -> pure (ANFIR.Node'Switch ty c a)
+rp_expr (ANFIR.Expr'Call ty c a) = ty >>= \ ty -> pure (ANFIR.Expr'Call ty c a)
 
-rp_graph_node (ANFIR.Node'TupleDestructure1 ty t) = ty >>= \ ty -> pure (ANFIR.Node'TupleDestructure1 ty t)
-rp_graph_node (ANFIR.Node'TupleDestructure2 ty t) = ty >>= \ ty -> pure (ANFIR.Node'TupleDestructure2 ty t)
+rp_expr (ANFIR.Expr'Switch ty c a) = ty >>= \ ty -> pure (ANFIR.Expr'Switch ty c a)
 
-rp_graph_node (ANFIR.Node'Poison _ _) = Nothing
+rp_expr (ANFIR.Expr'TupleDestructure1 ty t) = ty >>= \ ty -> pure (ANFIR.Expr'TupleDestructure1 ty t)
+rp_expr (ANFIR.Expr'TupleDestructure2 ty t) = ty >>= \ ty -> pure (ANFIR.Expr'TupleDestructure2 ty t)
 
-rp_graph_param :: PoisonedGraphParam -> Maybe NoPoisonGraphParam
-rp_graph_param (ANFIR.Param ty) = ANFIR.Param <$> ty
+rp_expr (ANFIR.Expr'Poison _ _) = Nothing
+
+rp_param :: PoisonedParam -> Maybe NoPoisonParam
+rp_param (ANFIR.Param ty) = ANFIR.Param <$> ty
 
 rp_bound_value :: PoisonedBoundValue -> Maybe NoPoisonBoundValue
 rp_bound_value (HIR.BoundValue ty sp) = ty >>= \ ty -> pure (HIR.BoundValue ty sp)

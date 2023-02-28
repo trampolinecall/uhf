@@ -32,6 +32,14 @@ class ConstEvaluator<T> implements Evaluator<T> {
     }
 }
 
+class PassthroughEvaluator<T> implements Evaluator<T> {
+    constructor(public other: Thunk<T>) {}
+
+    evaluate(): T {
+        return this.other.get_value();
+    }
+}
+
 class TupleEvaluator<A, B> implements Evaluator<[Thunk<A>, Thunk<B>]> {
     constructor(public a: Thunk<A>, public b: Thunk<B>) {}
 

@@ -145,7 +145,7 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_nodes included_para
                     node_type arg >>= refer_type_raw >>= \ arg_ty ->
                     pure [let_evaluator ("CallEvaluator<" <> arg_ty <> ", " <> res_ty <> ">") (evaluator "CallEvaluator" "undefined, undefined"), default_let_thunk]
 
-                ANFIR.Node'Switch ty e arms ->
+                ANFIR.Node'Switch ty e _ ->
                     refer_type_raw ty >>= \ res_ty ->
                     node_type e >>= refer_type_raw >>= \ e_ty ->
                     pure [let_evaluator ("SwitchEvaluator<" <> e_ty <> ", " <> res_ty <> ">") (evaluator "SwitchEvaluator" "undefined, undefined"), default_let_thunk]
@@ -156,8 +156,8 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_nodes included_para
                 ANFIR.Node'Poison _ void -> absurd void
 
         stringify_node_set_fields node_key =
-            let set_field field other_node = set_field_other field (mangle_graph_node_as_local_thunk other_node)
-                set_field_other field initializer = mangle_graph_node_as_local_evaluator node_key <> "." <> field <> " = " <> initializer <> ";"
+            let set_field field other_node = set_field_not_node field (mangle_graph_node_as_local_thunk other_node)
+                set_field_not_node field initializer = mangle_graph_node_as_local_evaluator node_key <> "." <> field <> " = " <> initializer <> ";"
             in get_node node_key >>= \case
                 ANFIR.Node'Int _ _ -> pure []
                 ANFIR.Node'Float _ _ -> pure []
@@ -169,7 +169,7 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_nodes included_para
                 ANFIR.Node'Lambda _ _ _ _ -> pure []
                 ANFIR.Node'Param _ _ -> pure []
 
-                ANFIR.Node'Switch ty e arms -> pure [set_field "test" e, set_field_other "arms" "[]"] -- TODO, also TODO: exhaustiveness check
+                ANFIR.Node'Switch _ e arms -> pure [set_field "testing" e, set_field_not_node "arms" ("[" <> Text.intercalate ", " (map (\ (matcher, res) -> "[" <> convert_matcher matcher <> ", " <> mangle_graph_node_as_local_thunk res <> "]") arms) <> "]")] -- TODO, also TODO: exhaustiveness check
 
                 ANFIR.Node'Call _ callee arg -> pure [set_field "callee" callee, set_field "arg" arg]
 
@@ -177,6 +177,10 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_nodes included_para
                 ANFIR.Node'TupleDestructure2 _ tup -> pure [set_field "tuple" tup]
 
                 ANFIR.Node'Poison _ void -> absurd void
+
+        convert_matcher (ANFIR.Switch'BoolLiteral b) = "new BoolLiteralMatcher(" <> if b then "true" else "false" <> ")"
+        convert_matcher ANFIR.Switch'Tuple = "new TupleMatcher()"
+        convert_matcher ANFIR.Switch'Default = "new DefaultMatcher()"
 
 stringify_ts_lambda :: TSLambda -> IRReader Text
 stringify_ts_lambda (TSLambda key arg result body_key) =

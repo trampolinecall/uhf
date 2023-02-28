@@ -3,7 +3,7 @@ module UHF.Data.IR.Keys
     , ADTKey
     , TypeSynonymKey
     , BoundValueKey
-    , NodeKey
+    , BindingKey
     , ParamKey
     ) where
 
@@ -33,10 +33,10 @@ instance Arena.Key BoundValueKey where
     make_key = BoundValueKey
     unmake_key (BoundValueKey i) = i
 
-newtype NodeKey = NodeKey Int deriving (Show, Eq, Ord) -- TODO: figure out better solution in ts backend than to use ord instance
-instance Arena.Key NodeKey where
-    make_key = NodeKey
-    unmake_key (NodeKey i) = i
+newtype BindingKey = BindingKey Int deriving (Show, Eq, Ord) -- TODO: figure out better solution in ts backend than to use ord instance
+instance Arena.Key BindingKey where
+    make_key = BindingKey
+    unmake_key (BindingKey i) = i
 
 newtype ParamKey = ParamKey Int deriving (Show, Eq, Ord) -- TODO: figure out better solution in ts backend than to use ord instance for ordering parameters
 instance Arena.Key ParamKey where

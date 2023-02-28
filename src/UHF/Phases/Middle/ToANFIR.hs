@@ -2,8 +2,6 @@ module UHF.Phases.Middle.ToANFIR (convert) where
 
 import UHF.Util.Prelude
 
-import UHF.IO.Located (Located (unlocate))
-
 import qualified Arena
 
 import qualified Data.Map as Map
@@ -16,7 +14,6 @@ import UHF.Data.IR.Keys
 
 type RIRDecl = RIR.Decl
 type Expr = RIR.Expr
-type Pattern = RIR.Pattern
 type Binding = RIR.Binding
 
 type ANFIRDecl = ANFIR.Decl
@@ -94,11 +91,34 @@ convert_expr bv_map (RIR.Expr'Let _ _ bindings e) = mapM (lift . convert_binding
 
 convert_expr bv_map (RIR.Expr'Call ty _ callee arg) = ANFIR.Node'Call ty <$> convert_expr bv_map callee <*> convert_expr bv_map arg >>= new_graph_node
 
-convert_expr _ (RIR.Expr'If ty _ cond true false) = todo
-convert_expr _ (RIR.Expr'Case ty _ testing arms) = todo
+convert_expr bv_map (RIR.Expr'Switch ty _ testing arms) =
+    convert_expr bv_map testing >>= \ testing ->
+    ANFIR.Node'Switch ty testing <$> mapM (\ (matcher, arm) -> (,) <$> convert_matcher matcher testing <*> convert_expr bv_map arm) arms >>= new_graph_node
+    where
+        convert_matcher (RIR.Switch'BoolLiteral b) _ = pure $ ANFIR.Switch'BoolLiteral b
+        convert_matcher (RIR.Switch'Tuple a b) testing =
+            -- case thing {
+            --     (a, b) -> e
+            -- }
+            -- becomes
+            -- case thing {
+            --     (,) ->
+            --         let a = TupleDestructure1 thing;
+            --         let b = TupleDestructure2 thing;
+            --         e
+            -- }
+            (case a of
+                Just a -> lift (get_bv a) >>= \ (HIR.BoundValue a_ty _) -> new_graph_node (ANFIR.Node'TupleDestructure1 a_ty testing) >>= \ a_destructure -> lift (map_bound_value a a_destructure)
+                Nothing -> pure ()) >>
+            (case b of
+                Just b -> lift (get_bv b) >>= \ (HIR.BoundValue b_ty _) -> new_graph_node (ANFIR.Node'TupleDestructure2 b_ty testing) >>= \ b_destructure -> lift (map_bound_value b b_destructure)
+                Nothing -> pure ()) >>
+            pure ANFIR.Switch'Tuple
+        convert_matcher (RIR.Switch'Default) _ = pure ANFIR.Switch'Default
 
 convert_expr _ (RIR.Expr'Poison ty _) = new_graph_node (ANFIR.Node'Poison ty ())
 
+{-
 assign_pattern :: Pattern -> ANFIR.NodeKey -> WriterT [ANFIR.NodeKey] MakeGraphState ()
 assign_pattern (RIR.Pattern'Identifier _ _ bvk) initializer = lift (map_bound_value bvk initializer) >> pure ()
 assign_pattern (RIR.Pattern'Wildcard _ _) initializer = pure ()
@@ -108,3 +128,4 @@ assign_pattern (RIR.Pattern'Tuple _ _ a b) initializer =
 
 assign_pattern (RIR.Pattern'Named _ _ bvk subpat) initializer = lift (map_bound_value (unlocate bvk) initializer) >> assign_pattern subpat initializer
 assign_pattern (RIR.Pattern'Poison _ _) _ = pure ()
+-}

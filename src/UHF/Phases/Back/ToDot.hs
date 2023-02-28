@@ -47,6 +47,12 @@ to_dot decls adts type_synonyms nodes params =
         print_param key _ =
             tell ("    " <> param_key_to_dot_id key <> " [label = \"<name> param\"]\n")
 
+        stringify_matcher (ANFIR.Switch'BoolLiteral b)
+            | b = "true"
+            | otherwise = "false"
+        stringify_matcher ANFIR.Switch'Tuple = "tuple"
+        stringify_matcher ANFIR.Switch'Default = "_"
+
         print_binding cur_key (ANFIR.Binding _ initializer) =
             let (name, graph_connections, param_connections) =
                     -- TODO: print types
@@ -65,7 +71,7 @@ to_dot decls adts type_synonyms nodes params =
 
                         ANFIR.Expr'Call _ callee arg -> ("call", [("callee", callee), ("arg", arg)], [])
 
-                        ANFIR.Expr'Switch _ e arms -> ("switch", [("e", e), todo {- arms -}], [])
+                        ANFIR.Expr'Switch _ e arms -> ("switch", ("e", e) : zipWith (\ arm_i (matcher, result) -> (show arm_i <> " - " <> stringify_matcher matcher, result)) [0 :: Int ..] arms, [])
 
                         ANFIR.Expr'TupleDestructure1 _ tup -> ("tuple destructure 1", [("tuple", tup)], [])
                         ANFIR.Expr'TupleDestructure2 _ tup -> ("tuple destructure 2", [("tuple", tup)], [])
@@ -78,7 +84,7 @@ to_dot decls adts type_synonyms nodes params =
                         else "|{" <> Text.intercalate "|" (map make_port graph_connections ++ map make_port param_connections) <> "}"
                 label = "{<name> " <> name <> ports <> "}"
 
-                make_connection to_dot_id (this_port, other) = "    " <> binding_key_to_dot_id cur_key <> ":" <> this_port <> " -> " <> to_dot_id other <> ":name;\n"
+                make_connection to_dot_id (this_port, other) = "    " <> binding_key_to_dot_id cur_key <> ":\"" <> this_port <> "\" -> " <> to_dot_id other <> ":name;\n"
 
             in tell ("    " <> binding_key_to_dot_id cur_key <> " [label = \"" <> label <> "\"];\n") >>
             mapM_ (tell . make_connection binding_key_to_dot_id) graph_connections >>

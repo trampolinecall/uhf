@@ -63,3 +63,37 @@ class TupleDestructure2Evaluator<A, B> implements Evaluator<B> {
         return this.tuple.get_value()[1].get_value();
     }
 }
+
+interface Matcher<T> {
+    matches(thing: T): boolean;
+}
+class BoolLiteralMatcher implements Matcher<boolean> {
+    constructor(public expecting: boolean) {}
+    matches(t: boolean): boolean {
+        return t == this.expecting;
+    }
+}
+class DefaultMatcher<T> implements Matcher<T> {
+    matches(t: T): boolean {
+        return true;
+    }
+}
+class TupleMatcher<A, B> implements Matcher<[A, B]> {
+    matches(t: [A, B]): boolean {
+        return true; // tuples only have one constructor so it always matches
+    }
+}
+class SwitchEvaluator<E, R> implements Evaluator<R> {
+    constructor(public testing: Thunk<E>, public arms: [Matcher<E>, Thunk<R>][]) {}
+
+    evaluate(): R {
+        let testing = this.testing.get_value();
+        for (let [matcher, result] of this.arms) {
+            if (matcher.matches(testing)) {
+                return result.get_value();
+            }
+        }
+
+        throw Error("non-exhaustive matchers in switch");
+    }
+}

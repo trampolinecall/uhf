@@ -30,9 +30,9 @@ type BoundValueArena = Arena.Arena (HIR.BoundValue Type) BoundValueKey
 
 type RIRDeclArena = Arena.Arena RIRDecl DeclKey
 
-type ConvertState = StateT BoundValueArena Compiler.Compiler
+type ConvertState = StateT BoundValueArena (Compiler.WithDiagnostics Void Void)
 
-convert :: HIRDeclArena -> BoundValueArena -> Compiler.Compiler (RIRDeclArena, BoundValueArena)
+convert :: HIRDeclArena -> BoundValueArena -> Compiler.WithDiagnostics Void Void (RIRDeclArena, BoundValueArena)
 convert decls bvs =
     runStateT (Arena.transformM convert_decl decls) bvs >>= \ (decls, bvs) ->
     pure (decls, bvs)

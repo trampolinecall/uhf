@@ -1,10 +1,14 @@
+{-# LANGUAGE OverloadedLists #-}
+
 module UHF.Phases.Front.Lexer.MainLexer
     ( lex
 
     , tests
     ) where
 
-import UHF.Util.Prelude hiding (Writer, WriterT (runWriterT), runWriter, tell, writer)
+import UHF.Util.Prelude
+
+import qualified UHF.Compiler as Compiler
 
 import qualified UHF.Phases.Front.Lexer.LexError as LexError
 import qualified UHF.IO.File as File
@@ -20,17 +24,18 @@ import qualified UHF.Data.Token as Token
 import qualified Data.Text as Text
 import qualified Data.Sequence as Sequence
 
-import Control.Monad.Trans.Writer.CPS
+-- import Control.Monad.Trans.Writer.CPS
 import qualified Control.Monad.Trans.Writer as LazyWriter
 
 import Data.Char (isAlpha, isDigit, isOctDigit, isHexDigit, isSpace, digitToInt)
 
 -- lexing {{{1
-lex :: File -> LazyWriter.Writer [LexError.Error] (Sequence.Seq Token.LInternalToken, Token.LToken)
+lex :: File -> Compiler.WithDiagnostics LexError.Error Void (Sequence.Seq Token.LInternalToken, Token.LToken)
 lex f =
     let eof = Located (Span.end_of_file f) (Token.EOF ())
-        (toks, errs) = runWriter $ evalStateT (run Sequence.Empty) (Location.new f)
-    in LazyWriter.tell errs >> pure (toks, eof)
+    in evalStateT (run Sequence.Empty) (Location.new f) >>= \ toks ->
+    pure (toks, eof)
+
     where
         run toks =
             get >>= \ l ->
@@ -38,7 +43,7 @@ lex f =
                 then pure toks
                 else lex_one_token >>= \ more -> run (toks <> more)
 -- lex_one_token {{{2
-lex_one_token :: StateT Location (Writer [LexError.Error]) (Sequence.Seq Token.LInternalToken)
+lex_one_token :: StateT Location ((Compiler.WithDiagnostics LexError.Error Void)) (Sequence.Seq Token.LInternalToken)
 lex_one_token =
     StateT $ \ loc ->
         writer $
@@ -55,7 +60,7 @@ lex_one_token =
                 , make_bad_char
                 ]
 -- Lexer {{{2
-type Lexer = StateT Location (WriterT [LexError.Error] Maybe)
+type Lexer = StateT Location (Compiler.WithDiagnosticsT LexError.Error Void Maybe)
 -- lexing functions {{{2
 lex_comment :: Lexer (Sequence.Seq Token.LInternalToken)
 lex_comment =
@@ -224,23 +229,23 @@ new_span_start_and_end :: Location -> Location -> Span
 new_span_start_and_end start end = Span.new start 0 (Location.loc_ind end - Location.loc_ind start)
 
 choice :: [Lexer a] -> Lexer a
-choice [] = StateT $ \ _ -> writerT Nothing
-choice (fn:fns) = StateT $ \ loc -> writerT $
+choice [] = StateT $ \ _ -> WriterT Nothing
+choice (fn:fns) = StateT $ \ loc -> WriterT $
     case runWriterT $ runStateT fn loc of
         Nothing -> runWriterT $ runStateT (choice fns) loc
         Just res -> Just res
 
 consume :: (Char -> Bool) -> Lexer (Located Char)
-consume p = StateT $ \ loc -> writerT $
+consume p = StateT $ \ loc ->
     case Text.uncons $ remaining loc of
-        Just (c, _) | p c -> Just ((Located (Span.new loc 0 1) c, Location.seek_1 loc), [])
-        _ -> Nothing
+        Just (c, _) | p c -> lift $ Just (Located (Span.new loc 0 1) c, Location.seek_1 loc)
+        _ -> lift Nothing
 
 get_loc :: Lexer Location
 get_loc = get
 
 put_error :: LexError.Error -> Lexer ()
-put_error = lift . tell . (:[])
+put_error = lift . Compiler.tell_error
 
 one_or_more :: Lexer a -> Lexer [a]
 one_or_more a = a >>= \ res -> (res:) <$> choice [one_or_more a, pure []]
@@ -251,20 +256,20 @@ case_lex =
     let src = "abc *&* ( \"adji\n"
     in File.new "a" src >>= \ f ->
     case LazyWriter.runWriter $ lex f of
-        ((Located _ (Token.AlphaIdentifier (Located _ "abc")) Sequence.:<| Located _ (Token.SymbolIdentifier (Located _ "*&*")) Sequence.:<| Located _ (Token.SingleTypeToken Token.OParen) Sequence.:<| Sequence.Empty, _), [LexError.UnclosedStrLit _]) -> pure ()
+        (([Located _ (Token.AlphaIdentifier (Located _ "abc")), Located _ (Token.SymbolIdentifier (Located _ "*&*")), Located _ (Token.SingleTypeToken Token.OParen)], _), Compiler.Diagnostics [LexError.UnclosedStrLit _] []) -> pure ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
 case_lex_empty :: Assertion
 case_lex_empty =
     File.new "a" "" >>= \ f ->
     case LazyWriter.runWriter $ lex f of
-        ((Sequence.Empty, _), []) -> pure ()
+        ((Sequence.Empty, _), Compiler.Diagnostics [] []) -> pure ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
 lex_test :: (Location -> r) -> Text -> (r -> IO ()) -> IO ()
 lex_test fn input check = File.new "a" input >>= \ f -> check $ fn $ (Location.new f)
 lex_test' :: Lexer r -> Text -> (Maybe (Location, [LexError.Error], r) -> IO ()) -> IO ()
-lex_test' fn = lex_test (((\ ((r, loc), errs) -> (loc, errs, r)) <$>) . runWriterT . runStateT fn)
+lex_test' fn = lex_test (((\ ((r, loc), Compiler.Diagnostics errs _) -> (loc, toList errs, r)) <$>) . runWriterT . runStateT fn)
 lex_test_fail :: Show r => [Char] -> r -> IO a
 lex_test_fail fn_name res = assertFailure $ "'" ++ fn_name ++ "' lexed incorrectly: returned '" ++ show res ++ "'"
 
@@ -274,7 +279,7 @@ convert_seq_to_list ((a, b), c) = ((toList a, b), c)
 case_lex_one_token :: Assertion
 case_lex_one_token =
     lex_test (convert_seq_to_list . runWriter . runStateT lex_one_token) "abc" $ \case
-        (([Located _ (Token.AlphaIdentifier (Located _ "abc"))], l), [])
+        (([Located _ (Token.AlphaIdentifier (Located _ "abc"))], l), Compiler.Diagnostics [] [])
             | remaining l == "" -> pure ()
 
         x -> lex_test_fail "lex_one_token" x
@@ -282,31 +287,31 @@ case_lex_one_token =
 case_lex_comment_single :: Assertion
 case_lex_comment_single =
     lex_test' lex_comment "// asdf\nabcde\n" $ \case
-        Just (l', [], Sequence.Empty)
+        Just (l', [], [])
             | remaining l' == "abcde\n" -> pure ()
         x -> lex_test_fail "lex_comment" x
 case_lex_comment_single2 :: Assertion
 case_lex_comment_single2 =
     lex_test' lex_comment "// asdf" $ \case
-        Just (l', [], Sequence.Empty)
+        Just (l', [], [])
             | remaining l' == "" -> pure ()
         x -> lex_test_fail "lex_comment" x
 case_lex_comment_multiline :: Assertion
 case_lex_comment_multiline =
     lex_test' lex_comment "/* asdf\nasdf */more\n" $ \case
-        Just (l', [], Sequence.Empty)
+        Just (l', [], [])
             | remaining l' == "more\n" -> pure ()
         x -> lex_test_fail "lex_comment" x
 case_lex_comment_multiline_nesting :: Assertion
 case_lex_comment_multiline_nesting =
     lex_test' lex_comment "/* asdf /* asdf */ asdf */more\n" $ \case
-        Just (l', [], Sequence.Empty)
+        Just (l', [], [])
             | remaining l' == "more\n" -> pure ()
         x -> lex_test_fail "lex_comment" x
 case_lex_comment_unclosed_multiline :: Assertion
 case_lex_comment_unclosed_multiline =
     lex_test' lex_comment "/* asdf" $ \case
-        Just (l', [LexError.UnclosedMComment _], Sequence.Empty)
+        Just (l', [LexError.UnclosedMComment _], [])
             | remaining l' == "" -> pure ()
         x -> lex_test_fail "lex_comment" x
 case_lex_comment_not_comment :: Assertion
@@ -318,124 +323,124 @@ case_lex_comment_not_comment =
 case_lex_alpha_identifier :: Assertion
 case_lex_alpha_identifier =
     lex_test' lex_alpha_identifier "a" $ \case
-        Just (l, [], Located _ (Token.AlphaIdentifier (Located _ "a")) Sequence.:<| Sequence.Empty)
+        Just (l, [], [Located _ (Token.AlphaIdentifier (Located _ "a"))])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_alpha_identifier" x
 case_lex_alpha_identifier_with_numbers :: Assertion
 case_lex_alpha_identifier_with_numbers =
     lex_test' lex_alpha_identifier "a12" $ \case
-        Just (l, [], Located _ (Token.AlphaIdentifier (Located _ "a12")) Sequence.:<| Sequence.Empty)
+        Just (l, [], [Located _ (Token.AlphaIdentifier (Located _ "a12"))])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_alpha_identifier" x
 case_lex_alpha_identifier_apostrophes :: Assertion
 case_lex_alpha_identifier_apostrophes =
     lex_test' lex_alpha_identifier "a''" $ \case
-        Just (l, [], Located _ (Token.AlphaIdentifier (Located _ "a''")) Sequence.:<| Sequence.Empty)
+        Just (l, [], [Located _ (Token.AlphaIdentifier (Located _ "a''"))])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_alpha_identifier" x
 case_lex_alpha_identifier_underscore :: Assertion
 case_lex_alpha_identifier_underscore =
     lex_test' lex_alpha_identifier "_a" $ \case
-        Just (l, [], Located _ (Token.AlphaIdentifier (Located _ "_a")) Sequence.:<| Sequence.Empty)
+        Just (l, [], [Located _ (Token.AlphaIdentifier (Located _ "_a"))])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_alpha_identifier" x
 
 case_lex_symbol_identifier :: Assertion
 case_lex_symbol_identifier =
     lex_test' lex_symbol_identifier "*" $ \case
-        Just (l, [], Located _ (Token.SymbolIdentifier (Located _ "*")) Sequence.:<| Sequence.Empty)
+        Just (l, [], [Located _ (Token.SymbolIdentifier (Located _ "*"))])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_alpha_identifier" x
 case_lex_symbol_identifier_multiple :: Assertion
 case_lex_symbol_identifier_multiple =
     lex_test' lex_symbol_identifier "*^&*&" $ \case
-        Just (l, [], Located _ (Token.SymbolIdentifier (Located _ "*^&*&")) Sequence.:<| Sequence.Empty)
+        Just (l, [], [Located _ (Token.SymbolIdentifier (Located _ "*^&*&"))])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_alpha_identifier" x
 case_lex_symbol_identifier_kw :: Assertion
 case_lex_symbol_identifier_kw =
     lex_test' lex_symbol_identifier ":" $ \case
-        Just (l, [], Located _ (Token.SingleTypeToken Token.Colon) Sequence.:<| Sequence.Empty)
+        Just (l, [], [Located _ (Token.SingleTypeToken Token.Colon)])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_alpha_identifier" x
 case_lex_symbol_identifier_long_kw :: Assertion
 case_lex_symbol_identifier_long_kw =
     lex_test' lex_symbol_identifier "->" $ \case
-        Just (l, [], Located _ (Token.SingleTypeToken Token.Arrow) Sequence.:<| Sequence.Empty)
+        Just (l, [], [Located _ (Token.SingleTypeToken Token.Arrow)])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_alpha_identifier" x
 
 case_lex_char_lit :: Assertion
 case_lex_char_lit =
     lex_test' lex_str_or_char_lit "'c'" $ \case
-        Just (l, [], Located _ (Token.Char 'c') Sequence.:<| Sequence.Empty)
+        Just (l, [], [Located _ (Token.Char 'c')])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_str_or_char_lit" x
 case_lex_char_lit_unclosed :: Assertion
 case_lex_char_lit_unclosed =
     lex_test' lex_str_or_char_lit "'c" $ \case
-        Just (l, [LexError.UnclosedCharLit _], Sequence.Empty)
+        Just (l, [LexError.UnclosedCharLit _], [])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_str_or_char_lit" x
 case_lex_char_lit_multiple :: Assertion
 case_lex_char_lit_multiple =
     lex_test' lex_str_or_char_lit "'cab'" $ \case
-        Just (l, [LexError.MulticharCharLit _], Sequence.Empty)
+        Just (l, [LexError.MulticharCharLit _], [])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_str_or_char_lit" x
 
 case_lex_str_lit :: Assertion
 case_lex_str_lit =
     lex_test' lex_str_or_char_lit "\"abcde\"" $ \case
-        Just (l, [], Located _ (Token.String "abcde") Sequence.:<| Sequence.Empty)
+        Just (l, [], [Located _ (Token.String "abcde")])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_str_or_char_lit" x
 case_lex_str_lit_unclosed :: Assertion
 case_lex_str_lit_unclosed =
     lex_test' lex_str_or_char_lit "\"cjfwoeifj" $ \case
-        Just (l, [LexError.UnclosedStrLit _], Sequence.Empty)
+        Just (l, [LexError.UnclosedStrLit _], [])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_str_or_char_lit" x
 
 case_lex_number_decimal :: Assertion
 case_lex_number_decimal =
     lex_test' lex_number "1234" $ \case
-        Just (l, [], Located _ (Token.Int Token.Dec 1234) Sequence.:<| Sequence.Empty)
+        Just (l, [], [Located _ (Token.Int Token.Dec 1234)])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_decimal_leading_0 :: Assertion
 case_lex_number_decimal_leading_0 =
     lex_test' lex_number "01234" $ \case
-        Just (l, [], Located _ (Token.Int Token.Dec 1234) Sequence.:<| Sequence.Empty)
+        Just (l, [], [Located _ (Token.Int Token.Dec 1234)])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_float :: Assertion
 case_lex_number_float =
     lex_test' lex_number "1234.1234" $ \case
-        Just (l, [], Located _ (Token.Float 1234.1234) Sequence.:<| Sequence.Empty)
+        Just (l, [], [Located _ (Token.Float 1234.1234)])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_binary :: Assertion
 case_lex_number_binary =
     lex_test' lex_number "0b101" $ \case
-        Just (l, [], Located _ (Token.Int Token.Bin 5) Sequence.:<| Sequence.Empty)
+        Just (l, [], [Located _ (Token.Int Token.Bin 5)])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_hex :: Assertion
 case_lex_number_hex =
     lex_test' lex_number "0xf1abcABC" $ \case
-        Just (l, [], Located _ (Token.Int Token.Hex 4054567612) Sequence.:<| Sequence.Empty)
+        Just (l, [], [Located _ (Token.Int Token.Hex 4054567612)])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_octal :: Assertion
 case_lex_number_octal =
     lex_test' lex_number "0o765" $ \case
-        Just (l, [], Located _ (Token.Int Token.Oct 501) Sequence.:<| Sequence.Empty)
+        Just (l, [], [Located _ (Token.Int Token.Oct 501)])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_number" x
 
@@ -448,81 +453,81 @@ case_lex_number_leading_point =
 case_lex_number_with_invalid_float :: Assertion
 case_lex_number_with_invalid_float =
     lex_test' lex_number "123.x" $ \case
-        Just (l, [], Located _ (Token.Int Token.Dec 123) Sequence.:<| Sequence.Empty)
+        Just (l, [], [Located _ (Token.Int Token.Dec 123)])
             | remaining l == ".x" -> pure ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_no_float_digits :: Assertion
 case_lex_number_no_float_digits =
     lex_test' lex_number "123." $ \case
-        Just (l, [], Located _ (Token.Int Token.Dec 123) Sequence.:<| Sequence.Empty)
+        Just (l, [], [Located _ (Token.Int Token.Dec 123)])
             | remaining l == "." -> pure ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_binary_decimal :: Assertion
 case_lex_number_binary_decimal =
     lex_test' lex_number "0b101.1" $ \case
-        Just (l, [LexError.NonDecimalFloat _], Sequence.Empty)
+        Just (l, [LexError.NonDecimalFloat _], [])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_binary_invalid :: Assertion
 case_lex_number_binary_invalid =
     lex_test' lex_number "0b29a" $ \case
-        Just (l, [LexError.InvalidIntDigit '2' _, LexError.InvalidIntDigit '9' _, LexError.InvalidIntDigit 'a' _], Sequence.Empty)
+        Just (l, [LexError.InvalidIntDigit '2' _, LexError.InvalidIntDigit '9' _, LexError.InvalidIntDigit 'a' _], [])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_decimal_invalid :: Assertion
 case_lex_number_decimal_invalid =
     lex_test' lex_number "20ab3" $ \case
-        Just (l, [LexError.InvalidIntDigit 'a' _, LexError.InvalidIntDigit 'b' _], Sequence.Empty)
+        Just (l, [LexError.InvalidIntDigit 'a' _, LexError.InvalidIntDigit 'b' _], [])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_octal_invalid :: Assertion
 case_lex_number_octal_invalid =
     lex_test' lex_number "0o79a" $ \case
-        Just (l, [LexError.InvalidIntDigit '9' _, LexError.InvalidIntDigit 'a' _], Sequence.Empty)
+        Just (l, [LexError.InvalidIntDigit '9' _, LexError.InvalidIntDigit 'a' _], [])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_invalid_base :: Assertion
 case_lex_number_invalid_base =
     lex_test' lex_number "0a98a" $ \case
-        Just (l, [LexError.InvalidIntBase 'a' _], Sequence.Empty)
+        Just (l, [LexError.InvalidIntBase 'a' _], [])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_space_space :: Assertion
 case_lex_space_space =
     lex_test' lex_space " a" $ \case
-        Just (l, [], Sequence.Empty)
+        Just (l, [], [])
             | remaining l == "a" -> pure ()
         x -> lex_test_fail "lex_space" x
 case_lex_space_newline :: Assertion
 case_lex_space_newline =
     lex_test' lex_space "\na" $ \case
-        Just (l, [], Sequence.Empty)
+        Just (l, [], [])
             | remaining l == "a" -> pure ()
         x -> lex_test_fail "lex_space" x
 case_lex_space_tab :: Assertion
 case_lex_space_tab =
     lex_test' lex_space "\ta" $ \case
-        Just (l, [], Sequence.Empty)
+        Just (l, [], [])
             | remaining l == "a" -> pure ()
         x -> lex_test_fail "lex_space" x
 case_lex_space_vertical_tab :: Assertion
 case_lex_space_vertical_tab =
     lex_test' lex_space "\va" $ \case
-        Just (l, [], Sequence.Empty)
+        Just (l, [], [])
             | remaining l == "a" -> pure ()
         x -> lex_test_fail "lex_space" x
 
 case_lex_make_bad_char :: Assertion
 case_lex_make_bad_char =
     lex_test' make_bad_char "a" $ \case
-        Just (l, [LexError.BadChar 'a' _], Sequence.Empty)
+        Just (l, [LexError.BadChar 'a' _], [])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "make_bad_char" x
 case_lex_make_bad_char_empty :: Assertion

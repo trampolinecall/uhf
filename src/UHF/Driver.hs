@@ -74,7 +74,7 @@ data PhaseResultsCache
         }
 type PhaseResultsState = StateT PhaseResultsCache (WithDiagnosticsIO)
 
-data OutputFormat = AST | Dot | TS deriving Eq
+data OutputFormat = AST | HIR | NRHIR | InfixGroupedHIR | TypedHIR | RIR | ANFIR | Dot | TS
 data CompileOptions
     = CompileOptions
         { input_file :: FilePath
@@ -90,18 +90,17 @@ compile c_needed diagnostic_settings compile_options =
     runWriterT (print_outputs compile_options file) >>= \ ((), diagnostics) ->
     Compiler.report_diagnostics c_needed diagnostic_settings diagnostics >>
     pure (if Compiler.had_errors diagnostics then Left () else Right ())
-                -- (_, tokens, ast, hir, nrhir, typed_hir, anfir, no_poison_ir, dot, ts) ->
-                    -- print_if_needed _ ast >>
-                    -- print_if_needed (write_output_file "dot") dot >>
-                    -- print_if_needed (write_output_file "dot") ts >>
-                    -- pure (Right ())
-
-                -- (_, Nothing) -> error "internal error: error in constructing ir result but no errors emitted"
 
 print_outputs :: CompileOptions -> File -> WithDiagnosticsIO ()
 print_outputs compile_options file = runStateT (mapM print_output_format (output_formats compile_options)) (PhaseResultsCache file Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing) >> pure ()
     where
-        print_output_format AST = get_ast >>= \ ast -> lift (lift (todo)) -- TODO
+        print_output_format AST = get_ast >>= \ ast -> lift (lift (todo ast)) -- TODO
+        print_output_format HIR = get_first_hir >>= \ ir -> lift (lift (write_output_file "uhf_hir" (todo ir))) -- TODO
+        print_output_format NRHIR = get_nrhir >>= \ ir -> lift (lift (write_output_file "uhf_nrhir" (todo ir))) -- TODO
+        print_output_format InfixGroupedHIR = get_infix_grouped >>= \ ir -> lift (lift (write_output_file "uhf_infix_grouped" (todo ir))) -- TODO
+        print_output_format TypedHIR = get_typed_hir >>= \ ir -> lift (lift (write_output_file "uhf_typed_hir" (todo ir))) -- TODO
+        print_output_format RIR = get_rir >>= \ ir -> lift (lift (write_output_file "uhf_rir" (todo ir))) -- TODO
+        print_output_format ANFIR = get_anfir >>= \ ir -> lift (lift (write_output_file "uhf_anfir" (todo ir))) -- TODO
         print_output_format Dot = get_dot >>= lift . lift . maybe (pure ()) (write_output_file "dot")
         print_output_format TS = get_ts >>= lift . lift . maybe (pure ()) (write_output_file "ts")
 

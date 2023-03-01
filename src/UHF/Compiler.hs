@@ -1,6 +1,8 @@
 module UHF.Compiler
     ( WithDiagnostics
     , WithDiagnosticsT
+    , Diagnostics (..)
+
     , report_diagnostics
     , convert_diagnostics
 
@@ -28,7 +30,7 @@ import qualified UHF.Diagnostic.Settings as DiagnosticSettings
 type WithDiagnosticsT e w = WriterT (Diagnostics e w)
 type WithDiagnostics e w = WithDiagnosticsT e w Identity
 
-data Diagnostics e w = Diagnostics (Seq e) (Seq w)
+data Diagnostics e w = Diagnostics (Seq e) (Seq w) deriving Show
 
 instance Monoid (Diagnostics e w) where
     mempty = Diagnostics Sequence.empty Sequence.empty

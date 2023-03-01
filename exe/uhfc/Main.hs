@@ -36,9 +36,15 @@ argparser =
                     <*> (fromMaybe [Driver.TS] <$> optional (some (option
                             (eitherReader $ \case
                                 "ast" -> Right Driver.AST
+                                "hir" -> Right Driver.HIR
+                                "name-resolved" -> Right Driver.NRHIR
+                                "infix-grouped" -> Right Driver.InfixGroupedHIR
+                                "typed-hir" -> Right Driver.TypedHIR
+                                "rir" -> Right Driver.RIR
+                                "anfir" -> Right Driver.ANFIR
                                 "dot" -> Right Driver.Dot
                                 "ts" -> Right Driver.TS
-                                _ -> Left "invalid option: must one of 'ast', 'dot', or 'ts'")
+                                _ -> Left "invalid option: must be one of 'ast', 'hir', 'name-resolved', 'infix-grouped', 'typed-hir', 'rir', 'anfir', 'dot', 'ts'")
                             (long "output"
                                 <> metavar "FORMAT"
                                 <> help "The type of output to emit")

@@ -2,6 +2,7 @@ module UHF.Data.IR.ANFIR
     ( Decl(..)
     , BindingKey
     , ParamKey
+    , BoundWhere(..)
     , Binding(..)
     , Param(..)
     , Expr(..)
@@ -22,7 +23,8 @@ data Decl
 
 newtype Param ty = Param ty deriving Show
 
-data Binding ty poison_allowed = Binding ty (Expr ty poison_allowed)
+data BoundWhere = InModule | InLambdaBody
+data Binding ty poison_allowed = Binding BoundWhere ty (Expr ty poison_allowed)
 
 data Expr ty poison_allowed
     = Expr'Identifier ty BindingKey
@@ -75,4 +77,4 @@ node_type (Expr'TupleDestructure2 ty _) = ty
 node_type (Expr'Poison ty _) = ty
 
 get_initializer :: Binding ty poison_allowed -> Expr ty poison_allowed
-get_initializer (Binding _ e) = e
+get_initializer (Binding _ _ e) = e

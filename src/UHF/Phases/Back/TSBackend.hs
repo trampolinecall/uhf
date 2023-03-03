@@ -249,7 +249,7 @@ define_type_synonym :: HIR.TypeSynonymKey -> TypeSynonym -> TSWriter ()
 define_type_synonym _ (HIR.TypeSynonym _ _) = pure ()
 
 define_lambda_type :: ANFIR.BindingKey -> Binding -> TSWriter ()
-define_lambda_type key (ANFIR.Binding _ (ANFIR.Expr'Lambda _ param body_included_nodes body)) = -- TODO: annotate with captures
+define_lambda_type key (ANFIR.Binding _ _ (ANFIR.Expr'Lambda _ param body_included_nodes body)) = -- TODO: annotate with captures
     lift (get_param param) >>= \ (ANFIR.Param param_ty) ->
     lift (node_type body) >>= \ body_type ->
     lift (get_included_params body_included_nodes) >>= \ included_params ->

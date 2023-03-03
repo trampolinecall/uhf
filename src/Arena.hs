@@ -35,7 +35,7 @@ put item (Arena items) =
     in (make_key index, Arena $ items Sequence.|> item)
 
 get :: Key k => Arena a k -> k -> a
-get (Arena items) key = items `Sequence.index` (unmake_key key)
+get (Arena items) key = items `Sequence.index` unmake_key key
 
 modify :: Key k => Arena a k -> k -> (a -> a) -> Arena a k
 modify (Arena items) key change =

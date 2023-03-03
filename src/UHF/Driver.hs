@@ -72,7 +72,7 @@ data PhaseResultsCache
         , _get_dot :: Maybe (Maybe Dot)
         , _get_ts :: Maybe (Maybe TS)
         }
-type PhaseResultsState = StateT PhaseResultsCache (WithDiagnosticsIO)
+type PhaseResultsState = StateT PhaseResultsCache WithDiagnosticsIO
 
 data OutputFormat = AST | HIR | NRHIR | InfixGroupedHIR | TypedHIR | RIR | ANFIR | Dot | TS
 data CompileOptions
@@ -124,12 +124,12 @@ convert_stage s = (\ (res, diagnostics) -> lift (tell diagnostics) >> pure res) 
 get_tokens :: PhaseResultsState Tokens
 get_tokens = get_or_calculate _get_tokens (\ cache tokens -> cache { _get_tokens = tokens }) lex
     where
-        lex = _get_file <$> get >>= \ file -> (convert_stage (Lexer.lex file))
+        lex = _get_file <$> get >>= \ file -> convert_stage (Lexer.lex file)
 
 get_ast :: PhaseResultsState AST
 get_ast = get_or_calculate _get_ast (\ cache ast -> cache { _get_ast = ast }) parse_phase
     where
-        parse_phase = get_tokens >>= \ (tokens, eof) -> (convert_stage $ Parser.parse tokens eof)
+        parse_phase = get_tokens >>= \ (tokens, eof) -> convert_stage $ Parser.parse tokens eof
 
 get_first_hir :: PhaseResultsState FirstHIR
 get_first_hir = get_or_calculate _get_first_hir (\ cache first_hir -> cache { _get_first_hir = first_hir }) to_hir
@@ -159,7 +159,7 @@ get_rir = get_or_calculate _get_rir (\ cache rir -> cache { _get_rir = rir }) to
 get_anfir :: PhaseResultsState ANFIR
 get_anfir = get_or_calculate _get_anfir (\ cache anfir -> cache { _get_anfir = anfir }) to_anfir
     where
-        to_anfir = get_rir >>= \ (decls, adts, type_synonyms, bound_values) -> let (decls', bindings, params) = (ToANFIR.convert bound_values decls) in pure (decls', adts, type_synonyms, bindings, params)
+        to_anfir = get_rir >>= \ (decls, adts, type_synonyms, bound_values) -> let (decls', bindings, params) = ToANFIR.convert bound_values decls in pure (decls', adts, type_synonyms, bindings, params)
 
 get_no_poison_ir :: PhaseResultsState (Maybe NoPoisonIR)
 get_no_poison_ir = get_or_calculate _get_no_poison_ir (\ cache no_poison_ir -> cache { _get_no_poison_ir = no_poison_ir }) remove_poison

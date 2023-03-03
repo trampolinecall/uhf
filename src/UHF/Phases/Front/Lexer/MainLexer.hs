@@ -43,7 +43,7 @@ lex f =
                 then pure toks
                 else lex_one_token >>= \ more -> run (toks <> more)
 -- lex_one_token {{{2
-lex_one_token :: StateT Location ((Compiler.WithDiagnostics LexError.Error Void)) (Sequence.Seq Token.LInternalToken)
+lex_one_token :: StateT Location (Compiler.WithDiagnostics LexError.Error Void) (Sequence.Seq Token.LInternalToken)
 lex_one_token =
     StateT $ \ loc ->
         writer $
@@ -267,7 +267,7 @@ case_lex_empty =
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
 lex_test :: (Location -> r) -> Text -> (r -> IO ()) -> IO ()
-lex_test fn input check = File.new "a" input >>= \ f -> check $ fn $ (Location.new f)
+lex_test fn input check = File.new "a" input >>= \ f -> check $ fn $ Location.new f
 lex_test' :: Lexer r -> Text -> (Maybe (Location, [LexError.Error], r) -> IO ()) -> IO ()
 lex_test' fn = lex_test (((\ ((r, loc), Compiler.Diagnostics errs _) -> (loc, toList errs, r)) <$>) . runWriterT . runStateT fn)
 lex_test_fail :: Show r => [Char] -> r -> IO a

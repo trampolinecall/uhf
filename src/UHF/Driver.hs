@@ -50,8 +50,8 @@ type NRHIR = (Arena.Arena (HIR.Decl (Located (Maybe IR.Keys.BoundValueKey)) (HIR
 type InfixGroupedHIR = (Arena.Arena (HIR.Decl (Located (Maybe IR.Keys.BoundValueKey)) (HIR.TypeExpr (Maybe IR.Keys.DeclKey)) () Void) IR.Keys.DeclKey, Arena.Arena (HIR.ADT (HIR.TypeExpr (Maybe IR.Keys.DeclKey))) IR.Keys.ADTKey, Arena.Arena (HIR.TypeSynonym (HIR.TypeExpr (Maybe IR.Keys.DeclKey))) IR.Keys.TypeSynonymKey, Arena.Arena (HIR.BoundValue ()) IR.Keys.BoundValueKey)
 type TypedHIR = (Arena.Arena (HIR.Decl (Located (Maybe IR.Keys.BoundValueKey)) (Maybe (IR.Type.Type Void)) (Maybe (IR.Type.Type Void)) Void) IR.Keys.DeclKey, Arena.Arena (HIR.ADT (Maybe (IR.Type.Type Void))) IR.Keys.ADTKey, Arena.Arena (HIR.TypeSynonym (Maybe (IR.Type.Type Void))) IR.Keys.TypeSynonymKey, Arena.Arena (HIR.BoundValue (Maybe (IR.Type.Type Void))) IR.Keys.BoundValueKey)
 type RIR = (Arena.Arena RIR.Decl IR.Keys.DeclKey, Arena.Arena (HIR.ADT (Maybe (IR.Type.Type Void))) IR.Keys.ADTKey, Arena.Arena (HIR.TypeSynonym (Maybe (IR.Type.Type Void))) IR.Keys.TypeSynonymKey, Arena.Arena (HIR.BoundValue (Maybe (IR.Type.Type Void))) IR.Keys.BoundValueKey)
-type ANFIR = (Arena.Arena ANFIR.Decl IR.Keys.DeclKey, Arena.Arena (HIR.ADT (Maybe (IR.Type.Type Void))) IR.Keys.ADTKey, Arena.Arena (HIR.TypeSynonym (Maybe (IR.Type.Type Void))) IR.Keys.TypeSynonymKey, Arena.Arena (ANFIR.Binding (Maybe (IR.Type.Type Void)) ()) IR.Keys.BindingKey, Arena.Arena (ANFIR.Param (Maybe (IR.Type.Type Void))) IR.Keys.ParamKey, Arena.Arena (HIR.BoundValue (Maybe (IR.Type.Type Void))) IR.Keys.BoundValueKey)
-type NoPoisonIR = (Arena.Arena ANFIR.Decl IR.Keys.DeclKey, Arena.Arena (HIR.ADT (IR.Type.Type Void)) IR.Keys.ADTKey, Arena.Arena (HIR.TypeSynonym (IR.Type.Type Void)) IR.Keys.TypeSynonymKey, Arena.Arena (ANFIR.Binding (IR.Type.Type Void) Void) IR.Keys.BindingKey, Arena.Arena (ANFIR.Param (IR.Type.Type Void)) IR.Keys.ParamKey, Arena.Arena (HIR.BoundValue (IR.Type.Type Void)) IR.Keys.BoundValueKey)
+type ANFIR = (Arena.Arena ANFIR.Decl IR.Keys.DeclKey, Arena.Arena (HIR.ADT (Maybe (IR.Type.Type Void))) IR.Keys.ADTKey, Arena.Arena (HIR.TypeSynonym (Maybe (IR.Type.Type Void))) IR.Keys.TypeSynonymKey, Arena.Arena (ANFIR.Binding (Maybe (IR.Type.Type Void)) ()) IR.Keys.BindingKey, Arena.Arena (ANFIR.Param (Maybe (IR.Type.Type Void))) IR.Keys.ParamKey)
+type NoPoisonIR = (Arena.Arena ANFIR.Decl IR.Keys.DeclKey, Arena.Arena (HIR.ADT (IR.Type.Type Void)) IR.Keys.ADTKey, Arena.Arena (HIR.TypeSynonym (IR.Type.Type Void)) IR.Keys.TypeSynonymKey, Arena.Arena (ANFIR.Binding (IR.Type.Type Void) Void) IR.Keys.BindingKey, Arena.Arena (ANFIR.Param (IR.Type.Type Void)) IR.Keys.ParamKey)
 type Dot = Text
 type TS = Text
 
@@ -159,7 +159,7 @@ get_rir = get_or_calculate _get_rir (\ cache rir -> cache { _get_rir = rir }) to
 get_anfir :: PhaseResultsState ANFIR
 get_anfir = get_or_calculate _get_anfir (\ cache anfir -> cache { _get_anfir = anfir }) to_anfir
     where
-        to_anfir = get_rir >>= \ (decls, adts, type_synonyms, bound_values) -> let (decls', bindings, params) = (ToANFIR.convert bound_values decls) in pure (decls', adts, type_synonyms, bindings, params, bound_values)
+        to_anfir = get_rir >>= \ (decls, adts, type_synonyms, bound_values) -> let (decls', bindings, params) = (ToANFIR.convert bound_values decls) in pure (decls', adts, type_synonyms, bindings, params)
 
 get_no_poison_ir :: PhaseResultsState (Maybe NoPoisonIR)
 get_no_poison_ir = get_or_calculate _get_no_poison_ir (\ cache no_poison_ir -> cache { _get_no_poison_ir = no_poison_ir }) remove_poison
@@ -169,9 +169,9 @@ get_no_poison_ir = get_or_calculate _get_no_poison_ir (\ cache no_poison_ir -> c
 get_dot :: PhaseResultsState (Maybe Dot)
 get_dot = get_or_calculate _get_dot (\ cache dot -> cache { _get_dot = dot }) to_dot
     where
-        to_dot = get_no_poison_ir >>= maybe (pure Nothing) (\ (decls, adts, type_synonyms, nodes, params, _) -> pure (Just $ ToDot.to_dot decls adts type_synonyms nodes params))
+        to_dot = get_no_poison_ir >>= maybe (pure Nothing) (\ (decls, adts, type_synonyms, nodes, params) -> pure (Just $ ToDot.to_dot decls adts type_synonyms nodes params))
 
 get_ts :: PhaseResultsState (Maybe TS)
 get_ts = get_or_calculate _get_ts (\ cache ts -> cache { _get_ts = ts }) to_ts
     where
-        to_ts = get_no_poison_ir >>= maybe (pure Nothing) (\ (decls, adts, type_synonyms, bindings, params, _) -> pure (Just $ TSBackend.lower decls adts type_synonyms bindings params))
+        to_ts = get_no_poison_ir >>= maybe (pure Nothing) (\ (decls, adts, type_synonyms, bindings, params) -> pure (Just $ TSBackend.lower decls adts type_synonyms bindings params))

@@ -77,9 +77,9 @@ convert_expr bound_where bv_map (RIR.Expr'Lambda ty _ param_bv body) =
     lift (get_bv param_bv) >>= \ (HIR.BoundValue param_ty _) ->
     new_param (ANFIR.Param param_ty) >>= \ anfir_param ->
     lift (runWriterT $ -- lambda bodies should not be included in the parent included nodes because they do not need to be evaluated to create the lambda object
-        new_binding bound_where (ANFIR.Expr'Param param_ty anfir_param) >>= \ param_binding ->
+        new_binding ANFIR.InLambdaBody (ANFIR.Expr'Param param_ty anfir_param) >>= \ param_binding ->
         lift (map_bound_value param_bv param_binding) >>
-        convert_expr bound_where bv_map body
+        convert_expr (ANFIR.InLambdaBody) bv_map body
     ) >>= \ (body, body_included_nodes) ->
     new_binding bound_where (ANFIR.Expr'Lambda ty anfir_param body_included_nodes body)
 

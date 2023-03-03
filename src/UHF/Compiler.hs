@@ -46,7 +46,7 @@ had_errors :: Diagnostics e w -> Bool
 had_errors (Diagnostics errs _) = not $ Sequence.null errs
 
 convert_diagnostics :: (Functor m, Diagnostic.ToError e, Diagnostic.ToWarning w) => WithDiagnosticsT e w m r -> WithDiagnosticsT Diagnostic.Error Diagnostic.Warning m r
-convert_diagnostics r = mapWriterT (fmap (\ (r, Diagnostics e w) -> (r, Diagnostics (fmap Diagnostic.to_error e) (fmap Diagnostic.to_warning w)))) r
+convert_diagnostics = mapWriterT (fmap (\ (r, Diagnostics e w) -> (r, Diagnostics (fmap Diagnostic.to_error e) (fmap Diagnostic.to_warning w))))
 
 tell_error :: Monad m => Diagnostic.ToError e => e -> WithDiagnosticsT e w m ()
 tell_error e = tell (Diagnostics (Sequence.singleton e) Sequence.empty)

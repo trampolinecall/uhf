@@ -110,7 +110,7 @@ convert_expr bv_map (RIR.Expr'Switch ty _ testing arms) =
                 Just b -> lift (get_bv b) >>= \ (HIR.BoundValue b_ty _) -> new_binding (ANFIR.Expr'TupleDestructure2 b_ty testing) >>= \ b_destructure -> lift (map_bound_value b b_destructure)
                 Nothing -> pure ()) >>
             pure ANFIR.Switch'Tuple
-        convert_matcher (RIR.Switch'Default) _ = pure ANFIR.Switch'Default
+        convert_matcher RIR.Switch'Default _ = pure ANFIR.Switch'Default
 
 convert_expr _ (RIR.Expr'Poison ty _) = new_binding (ANFIR.Expr'Poison ty ())
 

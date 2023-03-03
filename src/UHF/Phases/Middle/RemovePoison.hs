@@ -18,13 +18,11 @@ type PoisonedTypeSynonym = HIR.TypeSynonym PoisonedType
 type PoisonedExpr = ANFIR.Expr PoisonedType ()
 type PoisonedBinding = ANFIR.Binding PoisonedType ()
 type PoisonedParam = ANFIR.Param PoisonedType
-type PoisonedBoundValue = HIR.BoundValue PoisonedType
 
 type PoisonedADTArena = Arena.Arena PoisonedADT ADTKey
 type PoisonedTypeSynonymArena = Arena.Arena PoisonedTypeSynonym HIR.TypeSynonymKey
 type PoisonedBindingArena = Arena.Arena PoisonedBinding ANFIR.BindingKey
 type PoisonedParamArena = Arena.Arena PoisonedParam ANFIR.ParamKey
-type PoisonedBoundValueArena = Arena.Arena PoisonedBoundValue BoundValueKey
 
 type NoPoisonType = Type.Type Void
 type NoPoisonADT = HIR.ADT NoPoisonType
@@ -32,22 +30,19 @@ type NoPoisonTypeSynonym = HIR.TypeSynonym NoPoisonType
 type NoPoisonExpr = ANFIR.Expr NoPoisonType Void
 type NoPoisonBinding = ANFIR.Binding NoPoisonType Void
 type NoPoisonParam = ANFIR.Param NoPoisonType
-type NoPoisonBoundValue = HIR.BoundValue NoPoisonType
 
 type NoPoisonADTArena = Arena.Arena NoPoisonADT ADTKey
 type NoPoisonTypeSynonymArena = Arena.Arena NoPoisonTypeSynonym HIR.TypeSynonymKey
 type NoPoisonBindingArena = Arena.Arena NoPoisonBinding ANFIR.BindingKey
 type NoPoisonParamArena = Arena.Arena NoPoisonParam ANFIR.ParamKey
-type NoPoisonBoundValueArena = Arena.Arena NoPoisonBoundValue BoundValueKey
-remove_poison :: (DeclArena, PoisonedADTArena, PoisonedTypeSynonymArena, PoisonedBindingArena, PoisonedParamArena, PoisonedBoundValueArena) -> Maybe (DeclArena, NoPoisonADTArena, NoPoisonTypeSynonymArena, NoPoisonBindingArena, NoPoisonParamArena, NoPoisonBoundValueArena)
+remove_poison :: (DeclArena, PoisonedADTArena, PoisonedTypeSynonymArena, PoisonedBindingArena, PoisonedParamArena) -> Maybe (DeclArena, NoPoisonADTArena, NoPoisonTypeSynonymArena, NoPoisonBindingArena, NoPoisonParamArena)
 -- TODO: probably dont pass DeclArena if it is not going to be changed
-remove_poison (decls, adts, type_synonyms, bindings, params, bound_values) =
-    (decls,,,,,)
+remove_poison (decls, adts, type_synonyms, bindings, params) =
+    (decls,,,,)
         <$> Arena.transformM rp_adt adts
         <*> Arena.transformM rp_type_synonym type_synonyms
         <*> Arena.transformM rp_binding bindings
         <*> Arena.transformM rp_param params
-        <*> Arena.transformM rp_bound_value bound_values
 
 -- rp short for remove poison
 
@@ -86,6 +81,3 @@ rp_expr (ANFIR.Expr'Poison _ _) = Nothing
 
 rp_param :: PoisonedParam -> Maybe NoPoisonParam
 rp_param (ANFIR.Param ty) = ANFIR.Param <$> ty
-
-rp_bound_value :: PoisonedBoundValue -> Maybe NoPoisonBoundValue
-rp_bound_value (HIR.BoundValue ty sp) = ty >>= \ ty -> pure (HIR.BoundValue ty sp)

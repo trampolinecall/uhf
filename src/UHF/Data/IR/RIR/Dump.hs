@@ -12,6 +12,7 @@ import qualified UHF.Data.IR.Keys as Keys
 import qualified UHF.Data.IR.Type as Type
 
 -- TODO: dont dump decls, just dump module
+-- TODO: dump types too
 
 type IR = (Arena.Arena RIR.Decl Keys.DeclKey, Arena.Arena (HIR.ADT (Maybe (Type.Type Void))) Keys.ADTKey, Arena.Arena (HIR.TypeSynonym (Maybe (Type.Type Void))) Keys.TypeSynonymKey, Arena.Arena (HIR.BoundValue (Maybe (Type.Type Void))) Keys.BoundValueKey)
 type Dumper = ReaderT IR DumpUtils.Dumper

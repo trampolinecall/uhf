@@ -7,7 +7,6 @@ import qualified Arena
 import qualified Data.Text as Text
 import qualified Data.FileEmbed as FileEmbed
 
-import qualified UHF.Data.IR.HIR as HIR
 import qualified UHF.Data.IR.ANFIR as ANFIR
 import qualified UHF.Data.IR.Type as Type
 import UHF.Data.IR.Keys
@@ -16,14 +15,14 @@ type Decl = ANFIR.Decl
 type DeclArena = Arena.Arena Decl DeclKey
 
 type Type = Type.Type Void
-type ADT = HIR.ADT Type
-type TypeSynonym = HIR.TypeSynonym Type
+type ADT = Type.ADT Type
+type TypeSynonym = Type.TypeSynonym Type
 type Expr = ANFIR.Expr Type Void
 type Binding = ANFIR.Binding Type Void
 type Param = ANFIR.Param Type
 
 type ADTArena = Arena.Arena ADT ADTKey
-type TypeSynonymArena = Arena.Arena TypeSynonym HIR.TypeSynonymKey
+type TypeSynonymArena = Arena.Arena TypeSynonym Type.TypeSynonymKey
 type BindingArena = Arena.Arena Binding ANFIR.BindingKey
 type ParamArena = Arena.Arena Param ANFIR.ParamKey
 
@@ -37,7 +36,7 @@ get_param :: ANFIR.ParamKey -> IRReader Param
 get_param k = reader (\ (_, _, _, a) -> Arena.get a k)
 get_adt :: ADTKey -> IRReader ADT
 get_adt k = reader (\ (a, _, _, _) -> Arena.get a k)
-get_type_synonym :: HIR.TypeSynonymKey -> IRReader TypeSynonym
+get_type_synonym :: Type.TypeSynonymKey -> IRReader TypeSynonym
 get_type_synonym k = reader (\ (_, a, _, _) -> Arena.get a k)
 
 binding_type :: ANFIR.BindingKey -> IRReader Type
@@ -202,7 +201,7 @@ refer_type_raw :: Type.Type Void -> IRReader Text
 refer_type_raw (Type.Type'ADT ak) = pure $ mangle_adt ak
 
 refer_type_raw (Type.Type'Synonym sk) =
-    get_type_synonym sk >>= \ (HIR.TypeSynonym _ expansion) -> refer_type expansion
+    get_type_synonym sk >>= \ (Type.TypeSynonym _ expansion) -> refer_type expansion
 
 refer_type_raw Type.Type'Int = pure "number"
 refer_type_raw Type.Type'Float = pure "number"
@@ -243,10 +242,10 @@ define_decl _ (ANFIR.Decl'Module global_bindings) = tell_make_thunk_graph (TSMak
 define_decl _ (ANFIR.Decl'Type _) = pure ()
 
 define_adt :: ADTKey -> ADT -> TSWriter ()
-define_adt key (HIR.ADT name variants) = tell_adt (TSADT key name)
+define_adt key (Type.ADT name variants) = tell_adt (TSADT key name)
 
-define_type_synonym :: HIR.TypeSynonymKey -> TypeSynonym -> TSWriter ()
-define_type_synonym _ (HIR.TypeSynonym _ _) = pure ()
+define_type_synonym :: Type.TypeSynonymKey -> TypeSynonym -> TSWriter ()
+define_type_synonym _ (Type.TypeSynonym _ _) = pure ()
 
 define_lambda_type :: ANFIR.BindingKey -> Binding -> TSWriter ()
 define_lambda_type key (ANFIR.Binding _ (ANFIR.Expr'Lambda _ param body_included_bindings body)) = -- TODO: annotate with captures

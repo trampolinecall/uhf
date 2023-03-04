@@ -35,9 +35,9 @@ dump_text = dump_
 
 get_bv :: Keys.BoundValueKey -> Dumper iden type_expr type_info binary_ops_allowed (HIR.BoundValue type_info)
 get_bv k = reader (\ (HIR.HIR _ _ _ bvs) -> Arena.get bvs k)
-get_adt :: Keys.ADTKey -> Dumper iden type_expr type_info binary_ops_allowed (HIR.ADT type_expr)
+get_adt :: Keys.ADTKey -> Dumper iden type_expr type_info binary_ops_allowed (Type.ADT type_expr)
 get_adt k = reader (\ (HIR.HIR _ adts _ _) -> Arena.get adts k)
-get_type_syn :: Keys.TypeSynonymKey -> Dumper iden type_expr type_info binary_ops_allowed (HIR.TypeSynonym type_expr)
+get_type_syn :: Keys.TypeSynonymKey -> Dumper iden type_expr type_info binary_ops_allowed (Type.TypeSynonym type_expr)
 get_type_syn k = reader (\ (HIR.HIR _ _ syns _) -> Arena.get syns k)
 
 instance (DumpableIdentifier iden, DumpableType type_expr) => Dumpable (HIR.Decl iden type_expr type_info binary_ops_allowed) where
@@ -72,8 +72,8 @@ instance DumpableType (Maybe (Type.Type Void)) where
     dump_type (Just ty) = dump_type ty
     dump_type Nothing = dump_text "<type error>"
 instance DumpableType (Type.Type Void) where
-    dump_type (Type.Type'ADT k) = get_adt k >>= \ (HIR.ADT name _) -> dump_text name -- TODO: dump path
-    dump_type (Type.Type'Synonym k) = get_type_syn k >>= \ (HIR.TypeSynonym name _) -> dump_text name
+    dump_type (Type.Type'ADT k) = get_adt k >>= \ (Type.ADT name _) -> dump_text name -- TODO: dump path
+    dump_type (Type.Type'Synonym k) = get_type_syn k >>= \ (Type.TypeSynonym name _) -> dump_text name
     dump_type (Type.Type'Int) = dump_text "int"
     dump_type (Type.Type'Float) = dump_text "float"
     dump_type (Type.Type'Char) = dump_text "char"

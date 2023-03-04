@@ -17,9 +17,12 @@ library
       UHF.Data.AST
       UHF.Data.AST.Dump
       UHF.Data.IR.ANFIR
+      UHF.Data.IR.ANFIR.Dump
       UHF.Data.IR.HIR
+      UHF.Data.IR.HIR.Dump
       UHF.Data.IR.Keys
       UHF.Data.IR.RIR
+      UHF.Data.IR.RIR.Dump
       UHF.Data.IR.Type
       UHF.Data.Token
       UHF.Diagnostic

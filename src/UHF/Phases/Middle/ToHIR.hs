@@ -63,6 +63,8 @@ instance Diagnostic.ToError Error where
 
     to_error (Tuple0 sp) = Diagnostic.Error Codes.tuple0 (Just sp) "tuple of 0 elements" [] []
 
+type HIR = HIR.HIR Identifier TypeExpr () ()
+
 type Identifier = (HIR.NameContext, [Located Text])
 type Decl = HIR.Decl Identifier TypeExpr () ()
 type Binding = HIR.Binding Identifier TypeExpr () ()
@@ -80,31 +82,31 @@ type TypeSynonymArena = Arena.Arena TypeSynonym HIR.TypeSynonymKey
 type DeclChildrenList = [(Text, DeclAt, DeclKey)]
 type BoundValueList = [(Text, DeclAt, BoundValueKey)]
 
-type MakeIRState = StateT (DeclArena, BoundValueArena, ADTArena, TypeSynonymArena) (Compiler.WithDiagnostics Error Void)
+type MakeIRState = StateT HIR (Compiler.WithDiagnostics Error Void)
 
 new_decl :: Decl -> MakeIRState DeclKey
 new_decl d =
-    state $ \ (decls, bound_values, adts, type_synonyms) ->
+    state $ \ (HIR.HIR decls adts type_synonyms bound_values) ->
         let (key, decls') = Arena.put d decls
-        in (key, (decls', bound_values, adts, type_synonyms))
+        in (key, (HIR.HIR decls' adts type_synonyms bound_values))
 
 new_bound_value :: Text -> Span -> MakeIRState BoundValueKey
 new_bound_value _ sp =
-    state $ \ (decls, bound_values, adts, type_synonyms) ->
+    state $ \ (HIR.HIR decls adts type_synonyms bound_values) ->
         let (key, bound_values') = Arena.put (HIR.BoundValue () sp) bound_values
-        in (key, (decls, bound_values', adts, type_synonyms))
+        in (key, (HIR.HIR decls adts type_synonyms bound_values'))
 
 new_adt :: ADT -> MakeIRState ADTKey
 new_adt adt =
-    state $ \ (decls, bound_values, adts, type_synonyms) ->
+    state $ \ (HIR.HIR decls adts type_synonyms bound_values) ->
         let (key, adts') = Arena.put adt adts
-        in (key, (decls, bound_values, adts', type_synonyms))
+        in (key, (HIR.HIR decls adts' type_synonyms bound_values))
 
 new_type_synonym :: TypeSynonym -> MakeIRState HIR.TypeSynonymKey
 new_type_synonym ts =
-    state $ \ (decls, bound_values, adts, type_synonyms) ->
+    state $ \ (HIR.HIR decls adts type_synonyms bound_values) ->
         let (key, type_synonyms') = Arena.put ts type_synonyms
-        in (key, (decls, bound_values, adts, type_synonyms'))
+        in (key, (HIR.HIR decls adts type_synonyms' bound_values))
 
 tell_error :: Error -> MakeIRState ()
 tell_error = lift . Compiler.tell_error
@@ -157,7 +159,7 @@ primitive_decls =
 primitive_values :: MakeIRState BoundValueList
 primitive_values = pure []
 
-convert :: [AST.Decl] -> Compiler.WithDiagnostics Error Void (DeclArena, ADTArena, TypeSynonymArena, BoundValueArena)
+convert :: [AST.Decl] -> Compiler.WithDiagnostics Error Void HIR
 convert decls =
     -- prim_span = Span.start_of_file file TODO: remove this function
     runStateT
@@ -167,8 +169,8 @@ convert decls =
             convert_decls Nothing primitive_decls primitive_values decls >>= \ (name_context, bindings) ->
             new_decl (HIR.Decl'Module name_context bindings)
         )
-        (Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (_, (decls, bound_values, adts, type_synonyms)) ->
-    pure (decls, adts, type_synonyms, bound_values)
+        (HIR.HIR Arena.new Arena.new Arena.new Arena.new) >>= \ (_, hir) ->
+    pure hir
 
 convert_decls :: Maybe HIR.NameContext -> DeclChildrenList -> BoundValueList -> [AST.Decl] -> MakeIRState (HIR.NameContext, [Binding])
 convert_decls parent_context prev_decl_entries prev_bv_entries decls =

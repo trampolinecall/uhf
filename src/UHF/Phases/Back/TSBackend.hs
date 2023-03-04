@@ -40,8 +40,8 @@ get_adt k = reader (\ (a, _, _, _) -> Arena.get a k)
 get_type_synonym :: HIR.TypeSynonymKey -> IRReader TypeSynonym
 get_type_synonym k = reader (\ (_, a, _, _) -> Arena.get a k)
 
-node_type :: ANFIR.BindingKey -> IRReader Type
-node_type k = ANFIR.node_type <$> (ANFIR.get_initializer <$> get_binding k)
+binding_type :: ANFIR.BindingKey -> IRReader Type
+binding_type k = ANFIR.binding_type <$> (ANFIR.get_initializer <$> get_binding k)
 
 -- TS things {{{1
 runtime_code :: Text
@@ -79,55 +79,55 @@ stringify_ts_adt (TSADT key name) =
             <> "}\n"
 
 stringify_ts_make_thunk_graph :: TSMakeThunkGraph -> IRReader Text
-stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_nodes included_params) =
+stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings included_params) =
     mapM stringify_param included_params >>= \ params_stringified ->
 
-    concat <$> mapM stringify_node_decl included_nodes >>= \ node_decls ->
-    concat <$> mapM stringify_node_set_fields included_nodes >>= \ node_set_fields ->
+    concat <$> mapM stringify_binding_decl included_bindings >>= \ binding_decls ->
+    concat <$> mapM stringify_binding_set_fields included_bindings >>= \ binding_set_fields ->
     -- TODO: dont use ParamKey Ord instance to decide parameter order (not deterministic across compiles)
     -- also TODO: dont use unmake_key anywhere (probably including outside of this module too)
 
     ts_return_type >>= \ ts_return_type ->
 
     pure ("function " <> mangle_make_thunk_graph_for for <> "(" <> Text.intercalate ", " params_stringified <> "): " <> ts_return_type <> " {\n" -- TODO: captures
-        <> Text.unlines (map ("    " <>) node_decls)
+        <> Text.unlines (map ("    " <>) binding_decls)
         <> "\n"
-        <> Text.unlines (map ("    " <>) node_set_fields)
+        <> Text.unlines (map ("    " <>) binding_set_fields)
         <> "\n"
-        <> "    return " <> object_of_nodes <> ";\n"
+        <> "    return " <> object_of_bindings <> ";\n"
         <> "}\n")
     where
         ts_return_type =
-            mapM r included_nodes >>= \ fields ->
+            mapM r included_bindings >>= \ fields ->
             pure ("{ " <> Text.intercalate "; " fields <> " }")
             where
-                r node =
-                    node_type node >>= refer_type >>= \ ty ->
-                    pure (mangle_graph_node_as_node_var node <> ": " <> ty)
+                r binding =
+                    binding_type binding >>= refer_type >>= \ ty ->
+                    pure (mangle_graph_binding_as_binding_var binding <> ": " <> ty)
 
-        object_of_nodes = "{ " <> Text.intercalate ", " (map r included_nodes) <> " }"
+        object_of_bindings = "{ " <> Text.intercalate ", " (map r included_bindings) <> " }"
             where
-                r node =
-                    mangle_graph_node_as_node_var node <> ": " <> mangle_graph_node_as_local_thunk node
+                r binding =
+                    mangle_graph_binding_as_binding_var binding <> ": " <> mangle_graph_binding_as_local_thunk binding
 
-        mangle_graph_node_as_local_thunk, mangle_graph_node_as_local_evaluator :: ANFIR.BindingKey -> Text
-        mangle_graph_node_as_local_thunk key = "thunk" <> show (Arena.unmake_key key)
-        mangle_graph_node_as_local_evaluator key = "evaluator" <> show (Arena.unmake_key key)
+        mangle_graph_binding_as_local_thunk, mangle_graph_binding_as_local_evaluator :: ANFIR.BindingKey -> Text
+        mangle_graph_binding_as_local_thunk key = "thunk" <> show (Arena.unmake_key key)
+        mangle_graph_binding_as_local_evaluator key = "evaluator" <> show (Arena.unmake_key key)
 
         stringify_param param_key =
             get_param param_key >>= \ (ANFIR.Param param_ty) ->
             refer_type param_ty >>= \ ty_refer ->
             pure ("param_" <> show (Arena.unmake_key param_key) <> ": " <> ty_refer)
 
-        stringify_node_decl node_key =
-            node_type node_key >>= refer_type >>= \ cur_node_type ->
+        stringify_binding_decl binding_key =
+            binding_type binding_key >>= refer_type >>= \ cur_binding_type ->
             let evaluator evaluator_name evaluator_args = "new " <> evaluator_name <> "(" <> evaluator_args <> ")"
-                let_evaluator evaluator_type initializer = "let " <> mangle_graph_node_as_local_evaluator node_key <> ": " <> evaluator_type <> " = " <> initializer <> ";"
+                let_evaluator evaluator_type initializer = "let " <> mangle_graph_binding_as_local_evaluator binding_key <> ": " <> evaluator_type <> " = " <> initializer <> ";"
                 let_thunk :: Text -> Text
-                let_thunk initializer = "let " <> mangle_graph_node_as_local_thunk node_key <> ": " <> cur_node_type <> " = " <> initializer <> ";"
-                default_let_thunk = let_thunk ("new Thunk(" <> mangle_graph_node_as_local_evaluator node_key <> ")")
+                let_thunk initializer = "let " <> mangle_graph_binding_as_local_thunk binding_key <> ": " <> cur_binding_type <> " = " <> initializer <> ";"
+                default_let_thunk = let_thunk ("new Thunk(" <> mangle_graph_binding_as_local_evaluator binding_key <> ")")
 
-            in ANFIR.get_initializer <$> get_binding node_key >>= \case
+            in ANFIR.get_initializer <$> get_binding binding_key >>= \case
                 ANFIR.Expr'Identifier ty _ ->
                     refer_type_raw ty >>= \ ty ->
                     pure [let_evaluator ("PassthroughEvaluator<" <> ty <> ">") (evaluator "PassthroughEvaluator" "undefined"), default_let_thunk]
@@ -137,32 +137,32 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_nodes included_para
                 ANFIR.Expr'Char _ c -> pure [let_evaluator "ConstEvaluator<char>" (evaluator "ConstEvaluator" (show c)), default_let_thunk]
                 ANFIR.Expr'String _ s -> pure [let_evaluator "ConstEvaluator<string>" (evaluator "ConstEvaluator" (show s)), default_let_thunk]
                 ANFIR.Expr'Tuple _ a b ->
-                        node_type a >>= refer_type_raw >>= \ a_ty ->
-                        node_type b >>= refer_type_raw >>= \ b_ty ->
+                        binding_type a >>= refer_type_raw >>= \ a_ty ->
+                        binding_type b >>= refer_type_raw >>= \ b_ty ->
                         pure [let_evaluator ("TupleEvaluator<" <> a_ty <> ", " <> b_ty <> ">") (evaluator "TupleEvaluator" "undefined, undefined"), default_let_thunk]
 
-                ANFIR.Expr'Lambda _ _ _ _ -> pure [let_evaluator ("ConstEvaluator<" <> mangle_graph_node_as_lambda node_key <> ">") (evaluator "ConstEvaluator" ("new " <> mangle_graph_node_as_lambda node_key <> "()")), default_let_thunk] -- TODO: put captures here
+                ANFIR.Expr'Lambda _ _ _ _ -> pure [let_evaluator ("ConstEvaluator<" <> mangle_graph_binding_as_lambda binding_key <> ">") (evaluator "ConstEvaluator" ("new " <> mangle_graph_binding_as_lambda binding_key <> "()")), default_let_thunk] -- TODO: put captures here
                 ANFIR.Expr'Param _ param_key -> pure [let_thunk $ "param_" <> show (Arena.unmake_key param_key)]
 
                 ANFIR.Expr'Call ty _ arg ->
                     refer_type_raw ty >>= \ res_ty ->
-                    node_type arg >>= refer_type_raw >>= \ arg_ty ->
+                    binding_type arg >>= refer_type_raw >>= \ arg_ty ->
                     pure [let_evaluator ("CallEvaluator<" <> arg_ty <> ", " <> res_ty <> ">") (evaluator "CallEvaluator" "undefined, undefined"), default_let_thunk]
 
                 ANFIR.Expr'Switch ty e _ ->
                     refer_type_raw ty >>= \ res_ty ->
-                    node_type e >>= refer_type_raw >>= \ e_ty ->
+                    binding_type e >>= refer_type_raw >>= \ e_ty ->
                     pure [let_evaluator ("SwitchEvaluator<" <> e_ty <> ", " <> res_ty <> ">") (evaluator "SwitchEvaluator" "undefined, undefined"), default_let_thunk]
 
-                ANFIR.Expr'TupleDestructure1 _ tup -> node_type tup >>= refer_type_raw >>= \ tup_ty -> pure [let_evaluator ("TupleDestructure1Evaluator<" <> tup_ty <> ">") (evaluator "TupleDestructure1Evaluator" "undefined"), default_let_thunk] -- TODO: fix this becuase the type parameters should actually be the elements of the tuple
-                ANFIR.Expr'TupleDestructure2 _ tup -> node_type tup >>= refer_type_raw >>= \ tup_ty -> pure [let_evaluator ("TupleDestructure1Evaluator<" <> tup_ty <> ">") (evaluator "TupleDestructure2Evaluator" "undefined"), default_let_thunk] -- TODO: same as above
+                ANFIR.Expr'TupleDestructure1 _ tup -> binding_type tup >>= refer_type_raw >>= \ tup_ty -> pure [let_evaluator ("TupleDestructure1Evaluator<" <> tup_ty <> ">") (evaluator "TupleDestructure1Evaluator" "undefined"), default_let_thunk] -- TODO: fix this becuase the type parameters should actually be the elements of the tuple
+                ANFIR.Expr'TupleDestructure2 _ tup -> binding_type tup >>= refer_type_raw >>= \ tup_ty -> pure [let_evaluator ("TupleDestructure1Evaluator<" <> tup_ty <> ">") (evaluator "TupleDestructure2Evaluator" "undefined"), default_let_thunk] -- TODO: same as above
 
                 ANFIR.Expr'Poison _ void -> absurd void
 
-        stringify_node_set_fields node_key =
-            let set_field field other_node = set_field_not_node field (mangle_graph_node_as_local_thunk other_node)
-                set_field_not_node field initializer = mangle_graph_node_as_local_evaluator node_key <> "." <> field <> " = " <> initializer <> ";"
-            in ANFIR.get_initializer <$> get_binding node_key >>= \case
+        stringify_binding_set_fields binding_key =
+            let set_field field other_binding = set_field_not_binding field (mangle_graph_binding_as_local_thunk other_binding)
+                set_field_not_binding field initializer = mangle_graph_binding_as_local_evaluator binding_key <> "." <> field <> " = " <> initializer <> ";"
+            in ANFIR.get_initializer <$> get_binding binding_key >>= \case
                 ANFIR.Expr'Identifier _ i -> pure [set_field "other" i]
                 ANFIR.Expr'Int _ _ -> pure []
                 ANFIR.Expr'Float _ _ -> pure []
@@ -174,7 +174,7 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_nodes included_para
                 ANFIR.Expr'Lambda _ _ _ _ -> pure []
                 ANFIR.Expr'Param _ _ -> pure []
 
-                ANFIR.Expr'Switch _ e arms -> pure [set_field "testing" e, set_field_not_node "arms" ("[" <> Text.intercalate ", " (map (\ (matcher, res) -> "[" <> convert_matcher matcher <> ", " <> mangle_graph_node_as_local_thunk res <> "]") arms) <> "]")] -- TODO, also TODO: exhaustiveness check
+                ANFIR.Expr'Switch _ e arms -> pure [set_field "testing" e, set_field_not_binding "arms" ("[" <> Text.intercalate ", " (map (\ (matcher, res) -> "[" <> convert_matcher matcher <> ", " <> mangle_graph_binding_as_local_thunk res <> "]") arms) <> "]")] -- TODO, also TODO: exhaustiveness check
 
                 ANFIR.Expr'Call _ callee arg -> pure [set_field "callee" callee, set_field "arg" arg]
 
@@ -191,9 +191,9 @@ stringify_ts_lambda :: TSLambda -> IRReader Text
 stringify_ts_lambda (TSLambda key arg result body_key) =
     refer_type arg >>= \ arg_type ->
     refer_type result >>= \ result_type ->
-    pure ("class " <> mangle_graph_node_as_lambda key <> " implements Lambda<" <> arg_type <> ", " <> result_type <> "> {\n"
+    pure ("class " <> mangle_graph_binding_as_lambda key <> " implements Lambda<" <> arg_type <> ", " <> result_type <> "> {\n"
         <> "    call(arg: " <> arg_type <> "): " <> result_type <> " {\n"
-        <> "        return " <> mangle_make_thunk_graph_for (LambdaBody key) <> "()." <> mangle_graph_node_as_node_var body_key <> ";\n" -- TODO: captures and params
+        <> "        return " <> mangle_make_thunk_graph_for (LambdaBody key) <> "()." <> mangle_graph_binding_as_binding_var body_key <> ";\n" -- TODO: captures and params
         <> "    }\n"
         <> "}\n")
 
@@ -218,14 +218,14 @@ refer_type ty = refer_type_raw ty >>= \ ty -> pure ("Thunk<" <> ty <> ">")
 
 -- lowering {{{1
 lower :: DeclArena -> ADTArena -> TypeSynonymArena -> BindingArena -> ParamArena -> Text
-lower decls adts type_synonyms nodes params =
+lower decls adts type_synonyms bindings params =
     runReader
         (
             runWriterT (
                 Arena.transform_with_keyM define_decl decls >> -- TODO: pass module instead of doing this
                 Arena.transform_with_keyM define_adt adts >>
                 Arena.transform_with_keyM define_type_synonym type_synonyms >>
-                Arena.transform_with_keyM define_lambda_type nodes >>
+                Arena.transform_with_keyM define_lambda_type bindings >>
                 pure ()
             ) >>= \ ((), TS ts_decls ts_adts ts_make_thunk_graphs ts_lambdas) ->
 
@@ -236,10 +236,10 @@ lower decls adts type_synonyms nodes params =
 
             pure (runtime_code <> Text.concat ts_decls <> Text.concat ts_adts <> Text.concat ts_make_thunk_graphs <> Text.concat ts_lambdas)
         )
-        (adts, type_synonyms, nodes, params)
+        (adts, type_synonyms, bindings, params)
 
 define_decl :: DeclKey -> Decl -> TSWriter ()
-define_decl _ (ANFIR.Decl'Module global_nodes) = tell_make_thunk_graph (TSMakeThunkGraph Globals global_nodes []) -- global thunk graph does not have any params
+define_decl _ (ANFIR.Decl'Module global_bindings) = tell_make_thunk_graph (TSMakeThunkGraph Globals global_bindings []) -- global thunk graph does not have any params
 define_decl _ (ANFIR.Decl'Type _) = pure ()
 
 define_adt :: ADTKey -> ADT -> TSWriter ()
@@ -249,23 +249,23 @@ define_type_synonym :: HIR.TypeSynonymKey -> TypeSynonym -> TSWriter ()
 define_type_synonym _ (HIR.TypeSynonym _ _) = pure ()
 
 define_lambda_type :: ANFIR.BindingKey -> Binding -> TSWriter ()
-define_lambda_type key (ANFIR.Binding _ _ (ANFIR.Expr'Lambda _ param body_included_nodes body)) = -- TODO: annotate with captures
+define_lambda_type key (ANFIR.Binding _ _ (ANFIR.Expr'Lambda _ param body_included_bindings body)) = -- TODO: annotate with captures
     lift (get_param param) >>= \ (ANFIR.Param param_ty) ->
-    lift (node_type body) >>= \ body_type ->
-    lift (get_included_params body_included_nodes) >>= \ included_params ->
-    tell_make_thunk_graph (TSMakeThunkGraph (LambdaBody key) body_included_nodes included_params) >>
+    lift (binding_type body) >>= \ body_type ->
+    lift (get_included_params body_included_bindings) >>= \ included_params ->
+    tell_make_thunk_graph (TSMakeThunkGraph (LambdaBody key) body_included_bindings included_params) >>
     tell_lambda (TSLambda key param_ty body_type body)
     where
         -- TODO: decide on param order
         get_included_params :: [ANFIR.BindingKey] -> IRReader [ANFIR.ParamKey]
-        get_included_params nodes =
+        get_included_params bindings =
             catMaybes <$>
                 mapM
                     (\ n ->
                         ANFIR.get_initializer <$> get_binding n >>= \case
                             ANFIR.Expr'Param _ param -> pure $ Just param
                             _ -> pure Nothing)
-                    nodes
+                    bindings
 
 define_lambda_type _ _ = pure ()
 
@@ -274,12 +274,12 @@ define_lambda_type _ _ = pure ()
 mangle_adt :: ADTKey -> Text
 mangle_adt key = "ADT" <> show (Arena.unmake_key key)
 
-mangle_graph_node_as_lambda :: ANFIR.BindingKey -> Text
-mangle_graph_node_as_lambda key = "Lambda" <> show (Arena.unmake_key key)
+mangle_graph_binding_as_lambda :: ANFIR.BindingKey -> Text
+mangle_graph_binding_as_lambda key = "Lambda" <> show (Arena.unmake_key key)
 
-mangle_graph_node_as_node_var :: ANFIR.BindingKey -> Text
-mangle_graph_node_as_node_var key = "node_" <> show (Arena.unmake_key key)
+mangle_graph_binding_as_binding_var :: ANFIR.BindingKey -> Text
+mangle_graph_binding_as_binding_var key = "binding_" <> show (Arena.unmake_key key)
 
 mangle_make_thunk_graph_for :: MakeThunkGraphFor -> Text
 mangle_make_thunk_graph_for Globals = "make_global_thunk_graph"
-mangle_make_thunk_graph_for (LambdaBody lambda_key) = "make_thunk_graph_for_" <> mangle_graph_node_as_lambda lambda_key -- TODO: put this in the lambda itself?
+mangle_make_thunk_graph_for (LambdaBody lambda_key) = "make_thunk_graph_for_" <> mangle_graph_binding_as_lambda lambda_key -- TODO: put this in the lambda itself?

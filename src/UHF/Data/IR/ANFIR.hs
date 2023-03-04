@@ -1,5 +1,6 @@
 module UHF.Data.IR.ANFIR
-    ( Decl(..)
+    ( ANFIR (..)
+    , Decl (..)
     , BindingKey
     , ParamKey
     , BoundWhere(..)
@@ -7,14 +8,19 @@ module UHF.Data.IR.ANFIR
     , Param(..)
     , Expr(..)
     , SwitchMatcher(..)
-    , node_type
+    , binding_type
     , get_initializer
     ) where
 
 import UHF.Util.Prelude
 
-import qualified UHF.Data.IR.Type as Type
+import qualified Arena
+
 import UHF.Data.IR.Keys
+import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.HIR as HIR
+
+data ANFIR ty poison_allowed = ANFIR (Arena.Arena Decl DeclKey) (Arena.Arena (HIR.ADT ty) ADTKey) (Arena.Arena (HIR.TypeSynonym ty) TypeSynonymKey) (Arena.Arena (Binding ty poison_allowed) BindingKey) (Arena.Arena (Param ty) ParamKey)
 
 data Decl
     = Decl'Module [BindingKey] -- TODO: should this include nominal types too?
@@ -34,7 +40,7 @@ data Expr ty poison_allowed
     | Expr'Bool ty Bool
     | Expr'Char ty Char
     | Expr'String ty Text
-    | Expr'Tuple ty BindingKey BindingKey -- TODO: replace with call constructor node
+    | Expr'Tuple ty BindingKey BindingKey -- TODO: replace with call constructor expr
 
     | Expr'Lambda ty ParamKey [BindingKey] BindingKey
     | Expr'Param ty ParamKey
@@ -43,7 +49,7 @@ data Expr ty poison_allowed
 
     | Expr'Switch ty BindingKey [(SwitchMatcher, BindingKey)]
 
-    | Expr'TupleDestructure1 ty BindingKey -- TODO: figure out better solution to this (probably general destructure node for any type, or actually probably use case expressions to match on things)
+    | Expr'TupleDestructure1 ty BindingKey -- TODO: figure out better solution to this (probably general destructure expr for any type, or actually probably use case expressions to match on things)
     | Expr'TupleDestructure2 ty BindingKey
 
     | Expr'Poison ty poison_allowed
@@ -55,26 +61,26 @@ data SwitchMatcher
     | Switch'Default
     deriving Show
 
-node_type :: Expr ty poison_allowed -> ty
-node_type (Expr'Identifier ty _) = ty
-node_type (Expr'Int ty _) = ty
-node_type (Expr'Float ty _) = ty
-node_type (Expr'Bool ty _) = ty
-node_type (Expr'Char ty _) = ty
-node_type (Expr'String ty _) = ty
-node_type (Expr'Tuple ty _ _) = ty
+binding_type :: Expr ty poison_allowed -> ty
+binding_type (Expr'Identifier ty _) = ty
+binding_type (Expr'Int ty _) = ty
+binding_type (Expr'Float ty _) = ty
+binding_type (Expr'Bool ty _) = ty
+binding_type (Expr'Char ty _) = ty
+binding_type (Expr'String ty _) = ty
+binding_type (Expr'Tuple ty _ _) = ty
 
-node_type (Expr'Lambda ty _ _ _) = ty
-node_type (Expr'Param ty _) = ty
+binding_type (Expr'Lambda ty _ _ _) = ty
+binding_type (Expr'Param ty _) = ty
 
-node_type (Expr'Call ty _ _) = ty
+binding_type (Expr'Call ty _ _) = ty
 
-node_type (Expr'Switch ty _ _) = ty
+binding_type (Expr'Switch ty _ _) = ty
 
-node_type (Expr'TupleDestructure1 ty _) = ty
-node_type (Expr'TupleDestructure2 ty _) = ty
+binding_type (Expr'TupleDestructure1 ty _) = ty
+binding_type (Expr'TupleDestructure2 ty _) = ty
 
-node_type (Expr'Poison ty _) = ty
+binding_type (Expr'Poison ty _) = ty
 
 get_initializer :: Binding ty poison_allowed -> Expr ty poison_allowed
 get_initializer (Binding _ _ e) = e

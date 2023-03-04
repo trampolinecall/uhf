@@ -1,5 +1,7 @@
 module UHF.Data.IR.HIR
-    ( DeclKey
+    ( HIR (..)
+
+    , DeclKey
     , Decl(..)
 
     , ADTKey
@@ -26,6 +28,8 @@ module UHF.Data.IR.HIR
 
 import UHF.Util.Prelude
 
+import qualified Arena
+
 import UHF.Data.IR.Keys
 import qualified UHF.Data.IR.Type as Type
 
@@ -33,6 +37,8 @@ import qualified Data.Map as Map
 
 import UHF.IO.Span (Span)
 import UHF.IO.Located (Located)
+
+data HIR iden type_expr type_info binary_ops_allowed = HIR (Arena.Arena (Decl iden type_expr type_info binary_ops_allowed) DeclKey) (Arena.Arena (ADT type_expr) ADTKey) (Arena.Arena (TypeSynonym type_expr) TypeSynonymKey) (Arena.Arena (BoundValue type_info) BoundValueKey)
 
 data Decl identifier typeannotation typeinfo binaryopsallowed
     = Decl'Module NameContext [Binding identifier typeannotation typeinfo binaryopsallowed] -- TODO: this should include nominal types too

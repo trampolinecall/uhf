@@ -10,8 +10,6 @@ import qualified Data.Text.IO as Text.IO
 
 import qualified System.FilePath as FilePath
 
-import qualified Arena
-
 import UHF.IO.File (File)
 import qualified UHF.IO.File as File
 import UHF.IO.Located (Located)
@@ -49,13 +47,13 @@ import qualified UHF.Phases.Back.TSBackend as TSBackend
 -- TODO: only print unerrored versions of each (double each thing in the PhaseResultsState, each one has ErrorsPossible and NoErrors variant, only print the NoErrors variant, but future phases use the ErrorsPossible variant to keep compilation going as long as possible)
 type Tokens = ([Token.LToken], Token.LToken)
 type AST = [AST.Decl]
-type FirstHIR = (Arena.Arena (HIR.Decl (HIR.NameContext, [Located Text]) (HIR.TypeExpr (HIR.NameContext, [Located Text])) () ()) IR.Keys.DeclKey, Arena.Arena (HIR.ADT (HIR.TypeExpr (HIR.NameContext, [Located Text]))) IR.Keys.ADTKey, Arena.Arena (HIR.TypeSynonym (HIR.TypeExpr (HIR.NameContext, [Located Text]))) IR.Keys.TypeSynonymKey, Arena.Arena (HIR.BoundValue ()) IR.Keys.BoundValueKey)
-type NRHIR = (Arena.Arena (HIR.Decl (Located (Maybe IR.Keys.BoundValueKey)) (HIR.TypeExpr (Maybe IR.Keys.DeclKey)) () ()) IR.Keys.DeclKey, Arena.Arena (HIR.ADT (HIR.TypeExpr (Maybe IR.Keys.DeclKey))) IR.Keys.ADTKey, Arena.Arena (HIR.TypeSynonym (HIR.TypeExpr (Maybe IR.Keys.DeclKey))) IR.Keys.TypeSynonymKey, Arena.Arena (HIR.BoundValue ()) IR.Keys.BoundValueKey)
-type InfixGroupedHIR = (Arena.Arena (HIR.Decl (Located (Maybe IR.Keys.BoundValueKey)) (HIR.TypeExpr (Maybe IR.Keys.DeclKey)) () Void) IR.Keys.DeclKey, Arena.Arena (HIR.ADT (HIR.TypeExpr (Maybe IR.Keys.DeclKey))) IR.Keys.ADTKey, Arena.Arena (HIR.TypeSynonym (HIR.TypeExpr (Maybe IR.Keys.DeclKey))) IR.Keys.TypeSynonymKey, Arena.Arena (HIR.BoundValue ()) IR.Keys.BoundValueKey)
-type TypedHIR = (Arena.Arena (HIR.Decl (Located (Maybe IR.Keys.BoundValueKey)) (Maybe (IR.Type.Type Void)) (Maybe (IR.Type.Type Void)) Void) IR.Keys.DeclKey, Arena.Arena (HIR.ADT (Maybe (IR.Type.Type Void))) IR.Keys.ADTKey, Arena.Arena (HIR.TypeSynonym (Maybe (IR.Type.Type Void))) IR.Keys.TypeSynonymKey, Arena.Arena (HIR.BoundValue (Maybe (IR.Type.Type Void))) IR.Keys.BoundValueKey)
-type RIR = (Arena.Arena RIR.Decl IR.Keys.DeclKey, Arena.Arena (HIR.ADT (Maybe (IR.Type.Type Void))) IR.Keys.ADTKey, Arena.Arena (HIR.TypeSynonym (Maybe (IR.Type.Type Void))) IR.Keys.TypeSynonymKey, Arena.Arena (HIR.BoundValue (Maybe (IR.Type.Type Void))) IR.Keys.BoundValueKey)
-type ANFIR = (Arena.Arena ANFIR.Decl IR.Keys.DeclKey, Arena.Arena (HIR.ADT (Maybe (IR.Type.Type Void))) IR.Keys.ADTKey, Arena.Arena (HIR.TypeSynonym (Maybe (IR.Type.Type Void))) IR.Keys.TypeSynonymKey, Arena.Arena (ANFIR.Binding (Maybe (IR.Type.Type Void)) ()) IR.Keys.BindingKey, Arena.Arena (ANFIR.Param (Maybe (IR.Type.Type Void))) IR.Keys.ParamKey)
-type NoPoisonIR = (Arena.Arena ANFIR.Decl IR.Keys.DeclKey, Arena.Arena (HIR.ADT (IR.Type.Type Void)) IR.Keys.ADTKey, Arena.Arena (HIR.TypeSynonym (IR.Type.Type Void)) IR.Keys.TypeSynonymKey, Arena.Arena (ANFIR.Binding (IR.Type.Type Void) Void) IR.Keys.BindingKey, Arena.Arena (ANFIR.Param (IR.Type.Type Void)) IR.Keys.ParamKey)
+type FirstHIR = HIR.HIR (HIR.NameContext, [Located Text]) (HIR.TypeExpr (HIR.NameContext, [Located Text])) () ()
+type NRHIR = HIR.HIR (Located (Maybe IR.Keys.BoundValueKey)) (HIR.TypeExpr (Maybe IR.Keys.DeclKey)) () ()
+type InfixGroupedHIR = HIR.HIR (Located (Maybe IR.Keys.BoundValueKey)) (HIR.TypeExpr (Maybe IR.Keys.DeclKey)) () Void
+type TypedHIR = HIR.HIR (Located (Maybe IR.Keys.BoundValueKey)) (Maybe (IR.Type.Type Void)) (Maybe (IR.Type.Type Void)) Void
+type RIR = RIR.RIR
+type ANFIR = ANFIR.ANFIR (Maybe (IR.Type.Type Void)) ()
+type NoPoisonIR = ANFIR.ANFIR (IR.Type.Type Void) Void
 type Dot = Text
 type TS = Text
 
@@ -143,12 +141,12 @@ get_first_hir = get_or_calculate _get_first_hir (\ cache first_hir -> cache { _g
 get_nrhir :: PhaseResultsState NRHIR
 get_nrhir = get_or_calculate _get_nrhir (\ cache nrhir -> cache { _get_nrhir = nrhir }) name_resolve
     where
-        name_resolve = get_first_hir >>= \ (decls, adts, type_synonyms, bound_values) -> convert_stage (NameResolve.resolve (decls, adts, type_synonyms) >>= \ (decls, adts, type_synonyms) -> pure (decls, adts, type_synonyms, bound_values))
+        name_resolve = get_first_hir >>= \ hir -> convert_stage (NameResolve.resolve hir)
 
 get_infix_grouped :: PhaseResultsState InfixGroupedHIR
 get_infix_grouped = get_or_calculate _get_infix_grouped (\ cache infix_grouped -> cache { _get_infix_grouped = infix_grouped }) group_infix
     where
-        group_infix = get_nrhir >>= \ (decls, adts, type_synonyms, bound_values) -> pure (InfixGroup.group decls, adts, type_synonyms, bound_values)
+        group_infix = get_nrhir >>= \ hir -> pure (InfixGroup.group hir)
 
 get_typed_hir :: PhaseResultsState TypedHIR
 get_typed_hir = get_or_calculate _get_typed_hir (\ cache typed_hir -> cache { _get_typed_hir = typed_hir }) type_
@@ -158,12 +156,12 @@ get_typed_hir = get_or_calculate _get_typed_hir (\ cache typed_hir -> cache { _g
 get_rir :: PhaseResultsState RIR
 get_rir = get_or_calculate _get_rir (\ cache rir -> cache { _get_rir = rir }) to_rir
     where
-        to_rir = get_typed_hir >>= \ (decls, adts, type_synonyms, bound_values) -> convert_stage (ToRIR.convert decls bound_values) >>= \ (decls, bound_values) -> pure (decls, adts, type_synonyms, bound_values)
+        to_rir = get_typed_hir >>= \ hir -> convert_stage (ToRIR.convert hir)
 
 get_anfir :: PhaseResultsState ANFIR
 get_anfir = get_or_calculate _get_anfir (\ cache anfir -> cache { _get_anfir = anfir }) to_anfir
     where
-        to_anfir = get_rir >>= \ (decls, adts, type_synonyms, bound_values) -> let (decls', bindings, params) = ToANFIR.convert bound_values decls in pure (decls', adts, type_synonyms, bindings, params)
+        to_anfir = get_rir >>= \ rir -> pure (ToANFIR.convert rir)
 
 get_no_poison_ir :: PhaseResultsState (Maybe NoPoisonIR)
 get_no_poison_ir = get_or_calculate _get_no_poison_ir (\ cache no_poison_ir -> cache { _get_no_poison_ir = no_poison_ir }) remove_poison
@@ -173,9 +171,9 @@ get_no_poison_ir = get_or_calculate _get_no_poison_ir (\ cache no_poison_ir -> c
 get_dot :: PhaseResultsState (Maybe Dot)
 get_dot = get_or_calculate _get_dot (\ cache dot -> cache { _get_dot = dot }) to_dot
     where
-        to_dot = get_no_poison_ir >>= maybe (pure Nothing) (\ (decls, adts, type_synonyms, nodes, params) -> pure (Just $ ToDot.to_dot decls adts type_synonyms nodes params))
+        to_dot = get_no_poison_ir >>= maybe (pure Nothing) (\ (ANFIR.ANFIR decls adts type_synonyms nodes params) -> pure (Just $ ToDot.to_dot decls adts type_synonyms nodes params))
 
 get_ts :: PhaseResultsState (Maybe TS)
 get_ts = get_or_calculate _get_ts (\ cache ts -> cache { _get_ts = ts }) to_ts
     where
-        to_ts = get_no_poison_ir >>= maybe (pure Nothing) (\ (decls, adts, type_synonyms, bindings, params) -> pure (Just $ TSBackend.lower decls adts type_synonyms bindings params))
+        to_ts = get_no_poison_ir >>= maybe (pure Nothing) (\ (ANFIR.ANFIR decls adts type_synonyms bindings params) -> pure (Just $ TSBackend.lower decls adts type_synonyms bindings params))

@@ -1,5 +1,6 @@
 module UHF.Data.IR.RIR
-    ( Decl (..)
+    ( RIR (..)
+    , Decl (..)
     , Binding (..)
     , Type
     , Expr (..)
@@ -10,10 +11,15 @@ module UHF.Data.IR.RIR
 
 import UHF.Util.Prelude
 
+import qualified Arena
+
 import UHF.Data.IR.Keys
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.HIR as HIR
 
 import UHF.IO.Span (Span)
+
+data RIR = RIR (Arena.Arena Decl DeclKey) (Arena.Arena (HIR.ADT (Maybe (Type.Type Void))) ADTKey) (Arena.Arena (HIR.TypeSynonym (Maybe (Type.Type Void))) TypeSynonymKey) (Arena.Arena (HIR.BoundValue (Maybe (Type.Type Void))) BoundValueKey)
 
 data Decl
     = Decl'Module [Binding]

@@ -3,7 +3,6 @@ module UHF.Phases.Middle.Type.Error (Error(..)) where
 import UHF.Util.Prelude
 
 import qualified Arena
-import qualified UHF.Data.IR.HIR as HIR
 import qualified UHF.Data.IR.Type as Type
 
 import qualified Data.Map as Map
@@ -154,11 +153,11 @@ print_type :: Bool -> TypedWithVarsADTArena -> TypedWithVarsTypeSynonymArena ->T
 -- TODO: construct an ast and print it
 print_type _ adts _ _ (Type.Type'ADT key) =
     case Arena.get adts key of
-        HIR.ADT name _ -> pure name
+        Type.ADT name _ -> pure name
 
 print_type _ _ type_synonyms _ (Type.Type'Synonym key) =
     case Arena.get type_synonyms key of
-        HIR.TypeSynonym name _ -> pure name
+        Type.TypeSynonym name _ -> pure name
 
 print_type _ _ _ _ Type.Type'Int = pure "int"
 print_type _ _ _ _ Type.Type'Float = pure "float"

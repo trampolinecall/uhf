@@ -4,7 +4,6 @@ import UHF.Util.Prelude
 
 import qualified Arena
 
-import qualified UHF.Data.IR.HIR as HIR
 import qualified UHF.Data.IR.ANFIR as ANFIR
 import qualified UHF.Data.IR.Type as Type
 import UHF.Data.IR.Keys
@@ -14,27 +13,27 @@ type DeclArena = Arena.Arena Decl DeclKey
 
 type PoisonedANFIR = ANFIR.ANFIR PoisonedType ()
 type PoisonedType = Maybe (Type.Type Void)
-type PoisonedADT = HIR.ADT PoisonedType
-type PoisonedTypeSynonym = HIR.TypeSynonym PoisonedType
+type PoisonedADT = Type.ADT PoisonedType
+type PoisonedTypeSynonym = Type.TypeSynonym PoisonedType
 type PoisonedExpr = ANFIR.Expr PoisonedType ()
 type PoisonedBinding = ANFIR.Binding PoisonedType ()
 type PoisonedParam = ANFIR.Param PoisonedType
 
 type PoisonedADTArena = Arena.Arena PoisonedADT ADTKey
-type PoisonedTypeSynonymArena = Arena.Arena PoisonedTypeSynonym HIR.TypeSynonymKey
+type PoisonedTypeSynonymArena = Arena.Arena PoisonedTypeSynonym Type.TypeSynonymKey
 type PoisonedBindingArena = Arena.Arena PoisonedBinding ANFIR.BindingKey
 type PoisonedParamArena = Arena.Arena PoisonedParam ANFIR.ParamKey
 
 type NoPoisonANFIR = ANFIR.ANFIR NoPoisonType Void
 type NoPoisonType = Type.Type Void
-type NoPoisonADT = HIR.ADT NoPoisonType
-type NoPoisonTypeSynonym = HIR.TypeSynonym NoPoisonType
+type NoPoisonADT = Type.ADT NoPoisonType
+type NoPoisonTypeSynonym = Type.TypeSynonym NoPoisonType
 type NoPoisonExpr = ANFIR.Expr NoPoisonType Void
 type NoPoisonBinding = ANFIR.Binding NoPoisonType Void
 type NoPoisonParam = ANFIR.Param NoPoisonType
 
 type NoPoisonADTArena = Arena.Arena NoPoisonADT ADTKey
-type NoPoisonTypeSynonymArena = Arena.Arena NoPoisonTypeSynonym HIR.TypeSynonymKey
+type NoPoisonTypeSynonymArena = Arena.Arena NoPoisonTypeSynonym Type.TypeSynonymKey
 type NoPoisonBindingArena = Arena.Arena NoPoisonBinding ANFIR.BindingKey
 type NoPoisonParamArena = Arena.Arena NoPoisonParam ANFIR.ParamKey
 remove_poison :: PoisonedANFIR -> Maybe NoPoisonANFIR
@@ -49,13 +48,13 @@ remove_poison (ANFIR.ANFIR decls adts type_synonyms bindings params) =
 -- rp short for remove poison
 
 rp_adt :: PoisonedADT -> Maybe NoPoisonADT
-rp_adt (HIR.ADT name variants) = HIR.ADT name <$> mapM rp_variant variants
+rp_adt (Type.ADT name variants) = Type.ADT name <$> mapM rp_variant variants
     where
-        rp_variant (HIR.ADTVariant'Named name fields) = HIR.ADTVariant'Named name <$> mapM (\ (field_name, field_ty) -> (field_name,) <$> field_ty) fields
-        rp_variant (HIR.ADTVariant'Anon name fields) = HIR.ADTVariant'Anon name <$> sequence fields
+        rp_variant (Type.ADTVariant'Named name fields) = Type.ADTVariant'Named name <$> mapM (\ (field_name, field_ty) -> (field_name,) <$> field_ty) fields
+        rp_variant (Type.ADTVariant'Anon name fields) = Type.ADTVariant'Anon name <$> sequence fields
 
 rp_type_synonym :: PoisonedTypeSynonym -> Maybe NoPoisonTypeSynonym
-rp_type_synonym (HIR.TypeSynonym name expansion) = HIR.TypeSynonym name <$> expansion
+rp_type_synonym (Type.TypeSynonym name expansion) = Type.TypeSynonym name <$> expansion
 
 rp_binding :: PoisonedBinding -> Maybe NoPoisonBinding
 rp_binding (ANFIR.Binding bound_where initializer) = ANFIR.Binding bound_where <$> rp_expr initializer

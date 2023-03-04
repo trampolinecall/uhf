@@ -68,8 +68,8 @@ type HIR = HIR.HIR Identifier TypeExpr () ()
 type Identifier = (HIR.NameContext, [Located Text])
 type Decl = HIR.Decl Identifier TypeExpr () ()
 type Binding = HIR.Binding Identifier TypeExpr () ()
-type ADT = HIR.ADT TypeExpr
-type TypeSynonym = HIR.TypeSynonym TypeExpr
+type ADT = Type.ADT TypeExpr
+type TypeSynonym = Type.TypeSynonym TypeExpr
 type TypeExpr = HIR.TypeExpr Identifier
 type Expr = HIR.Expr Identifier TypeExpr () ()
 type Pattern = HIR.Pattern Identifier ()
@@ -77,7 +77,7 @@ type Pattern = HIR.Pattern Identifier ()
 type DeclArena = Arena.Arena Decl DeclKey
 type BoundValueArena = Arena.Arena (HIR.BoundValue ()) BoundValueKey
 type ADTArena = Arena.Arena ADT ADTKey
-type TypeSynonymArena = Arena.Arena TypeSynonym HIR.TypeSynonymKey
+type TypeSynonymArena = Arena.Arena TypeSynonym Type.TypeSynonymKey
 
 type DeclChildrenList = [(Text, DeclAt, DeclKey)]
 type BoundValueList = [(Text, DeclAt, BoundValueKey)]
@@ -102,7 +102,7 @@ new_adt adt =
         let (key, adts') = Arena.put adt adts
         in (key, (HIR.HIR decls adts' type_synonyms bound_values))
 
-new_type_synonym :: TypeSynonym -> MakeIRState HIR.TypeSynonymKey
+new_type_synonym :: TypeSynonym -> MakeIRState Type.TypeSynonymKey
 new_type_synonym ts =
     state $ \ (HIR.HIR decls adts type_synonyms bound_values) ->
         let (key, type_synonyms') = Arena.put ts type_synonyms
@@ -189,7 +189,7 @@ convert_decls parent_context prev_decl_entries prev_bv_entries decls =
         convert_decl final_name_context (AST.Decl'Data name variants) =
             runMaybeT (
                 iden1_for_type_name name >>= \ (Located name1sp name1) ->
-                HIR.ADT name1 <$> mapM (convert_variant final_name_context) variants >>= \ datatype ->
+                Type.ADT name1 <$> mapM (convert_variant final_name_context) variants >>= \ datatype ->
 
                 lift (new_adt datatype) >>= \ nominal_type_key ->
                 -- TODO: add constructors to bound name table
@@ -203,7 +203,7 @@ convert_decls parent_context prev_decl_entries prev_bv_entries decls =
             runMaybeT (
                 lift (convert_type final_name_context expansion) >>= \ expansion' ->
                 iden1_for_type_name name >>= \ (Located name1sp name1) ->
-                lift (new_type_synonym (HIR.TypeSynonym name1 expansion')) >>= \ nominal_type_key ->
+                lift (new_type_synonym (Type.TypeSynonym name1 expansion')) >>= \ nominal_type_key ->
                 lift (new_decl (HIR.Decl'Type $ Type.Type'Synonym nominal_type_key)) >>= \ decl_key ->
 
                 pure (name1, DeclAt name1sp, decl_key)
@@ -214,10 +214,10 @@ convert_decls parent_context prev_decl_entries prev_bv_entries decls =
         iden1_for_type_name = MaybeT . make_iden1_with_err PathInTypeName
         iden1_for_field_name = MaybeT . make_iden1_with_err PathInFieldName
 
-        convert_variant name_context (AST.DataVariant'Anon name fields) = HIR.ADTVariant'Anon <$> (unlocate <$> iden1_for_variant_name name) <*> lift (mapM (convert_type name_context) fields)
+        convert_variant name_context (AST.DataVariant'Anon name fields) = Type.ADTVariant'Anon <$> (unlocate <$> iden1_for_variant_name name) <*> lift (mapM (convert_type name_context) fields)
         convert_variant name_context (AST.DataVariant'Named name fields) =
             -- TOOD: making getter functions
-            HIR.ADTVariant'Named
+            Type.ADTVariant'Named
                 <$> (unlocate <$> iden1_for_variant_name name)
                 <*> mapM
                     (\ (field_name, ty_ast) ->

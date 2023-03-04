@@ -19,7 +19,7 @@ import qualified UHF.Data.IR.HIR as HIR
 
 import UHF.IO.Span (Span)
 
-data RIR = RIR (Arena.Arena Decl DeclKey) (Arena.Arena (HIR.ADT (Maybe (Type.Type Void))) ADTKey) (Arena.Arena (HIR.TypeSynonym (Maybe (Type.Type Void))) TypeSynonymKey) (Arena.Arena (HIR.BoundValue (Maybe (Type.Type Void))) BoundValueKey)
+data RIR = RIR (Arena.Arena Decl DeclKey) (Arena.Arena (Type.ADT (Maybe (Type.Type Void))) ADTKey) (Arena.Arena (Type.TypeSynonym (Maybe (Type.Type Void))) TypeSynonymKey) (Arena.Arena (HIR.BoundValue (Maybe (Type.Type Void))) BoundValueKey)
 
 data Decl
     = Decl'Module [Binding]

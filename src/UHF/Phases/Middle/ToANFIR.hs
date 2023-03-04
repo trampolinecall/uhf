@@ -24,10 +24,8 @@ type ANFIRExpr = ANFIR.Expr Type ()
 type ANFIRParam = ANFIR.Param Type
 type ANFIRBinding = ANFIR.Binding Type ()
 
-type RIRDeclArena = Arena.Arena RIRDecl DeclKey
 type BoundValueArena = Arena.Arena (HIR.BoundValue (Maybe (Type.Type Void))) BoundValueKey
 
-type ANFIRDeclArena = Arena.Arena ANFIRDecl DeclKey
 type ANFIRBindingArena = Arena.Arena ANFIRBinding ANFIR.BindingKey
 type ANFIRParamArena = Arena.Arena ANFIRParam ANFIR.ParamKey
 

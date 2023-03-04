@@ -6,10 +6,6 @@ import qualified Arena
 
 import qualified UHF.Data.IR.ANFIR as ANFIR
 import qualified UHF.Data.IR.Type as Type
-import UHF.Data.IR.Keys
-
-type Decl = ANFIR.Decl
-type DeclArena = Arena.Arena Decl DeclKey
 
 type PoisonedANFIR = ANFIR.ANFIR PoisonedType ()
 type PoisonedType = Maybe (Type.Type Void)
@@ -19,11 +15,6 @@ type PoisonedExpr = ANFIR.Expr PoisonedType ()
 type PoisonedBinding = ANFIR.Binding PoisonedType ()
 type PoisonedParam = ANFIR.Param PoisonedType
 
-type PoisonedADTArena = Arena.Arena PoisonedADT ADTKey
-type PoisonedTypeSynonymArena = Arena.Arena PoisonedTypeSynonym Type.TypeSynonymKey
-type PoisonedBindingArena = Arena.Arena PoisonedBinding ANFIR.BindingKey
-type PoisonedParamArena = Arena.Arena PoisonedParam ANFIR.ParamKey
-
 type NoPoisonANFIR = ANFIR.ANFIR NoPoisonType Void
 type NoPoisonType = Type.Type Void
 type NoPoisonADT = Type.ADT NoPoisonType
@@ -32,10 +23,6 @@ type NoPoisonExpr = ANFIR.Expr NoPoisonType Void
 type NoPoisonBinding = ANFIR.Binding NoPoisonType Void
 type NoPoisonParam = ANFIR.Param NoPoisonType
 
-type NoPoisonADTArena = Arena.Arena NoPoisonADT ADTKey
-type NoPoisonTypeSynonymArena = Arena.Arena NoPoisonTypeSynonym Type.TypeSynonymKey
-type NoPoisonBindingArena = Arena.Arena NoPoisonBinding ANFIR.BindingKey
-type NoPoisonParamArena = Arena.Arena NoPoisonParam ANFIR.ParamKey
 remove_poison :: PoisonedANFIR -> Maybe NoPoisonANFIR
 -- TODO: probably dont pass DeclArena if it is not going to be changed
 remove_poison (ANFIR.ANFIR decls adts type_synonyms bindings params) =

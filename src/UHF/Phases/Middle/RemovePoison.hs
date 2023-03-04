@@ -58,7 +58,7 @@ rp_type_synonym :: PoisonedTypeSynonym -> Maybe NoPoisonTypeSynonym
 rp_type_synonym (HIR.TypeSynonym name expansion) = HIR.TypeSynonym name <$> expansion
 
 rp_binding :: PoisonedBinding -> Maybe NoPoisonBinding
-rp_binding (ANFIR.Binding bound_where ty initializer) = ANFIR.Binding bound_where <$> ty <*> rp_expr initializer
+rp_binding (ANFIR.Binding bound_where initializer) = ANFIR.Binding bound_where <$> rp_expr initializer
 
 rp_expr :: PoisonedExpr -> Maybe NoPoisonExpr
 rp_expr (ANFIR.Expr'Identifier ty b) = ty >>= \ ty -> pure (ANFIR.Expr'Identifier ty b)

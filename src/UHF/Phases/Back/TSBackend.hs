@@ -17,7 +17,6 @@ type DeclArena = Arena.Arena Decl DeclKey
 type Type = Type.Type Void
 type ADT = Type.ADT Type
 type TypeSynonym = Type.TypeSynonym Type
-type Expr = ANFIR.Expr Type Void
 type Binding = ANFIR.Binding Type Void
 type Param = ANFIR.Param Type
 

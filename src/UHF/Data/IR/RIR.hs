@@ -22,7 +22,7 @@ import UHF.IO.Span (Span)
 data RIR = RIR (Arena.Arena Decl DeclKey) (Arena.Arena (Type.ADT (Maybe (Type.Type Void))) ADTKey) (Arena.Arena (Type.TypeSynonym (Maybe (Type.Type Void))) TypeSynonymKey) (Arena.Arena (HIR.BoundValue (Maybe (Type.Type Void))) BoundValueKey)
 
 data Decl
-    = Decl'Module [Binding]
+    = Decl'Module [Binding] [ADTKey] [TypeSynonymKey]
     | Decl'Type Type
     deriving Show
 

@@ -90,7 +90,7 @@ transform_identifiers transform_t_iden transform_e_iden adts type_synonyms decls
         transform_type_expr (HIR.TypeExpr'Tuple a b) = HIR.TypeExpr'Tuple <$> transform_type_expr a <*> transform_type_expr b
         transform_type_expr (HIR.TypeExpr'Poison sp) = pure $ HIR.TypeExpr'Poison sp
 
-        transform_decl (HIR.Decl'Module nc bindings) = HIR.Decl'Module nc <$> mapM transform_binding bindings
+        transform_decl (HIR.Decl'Module nc bindings adts syns) = HIR.Decl'Module nc <$> mapM transform_binding bindings <*> pure adts <*> pure syns
         transform_decl (HIR.Decl'Type ty) = pure $ HIR.Decl'Type ty
 
         transform_binding (HIR.Binding target eq_sp expr) = HIR.Binding <$> transform_pat target <*> pure eq_sp <*> transform_expr expr
@@ -179,7 +179,7 @@ resolve_type_iden decls (nc, first:more) =
 get_decl_child :: UnresolvedDeclArena -> DeclKey -> Located Text -> Either Error DeclKey
 get_decl_child decls thing name =
     let res = case Arena.get decls thing of
-            HIR.Decl'Module (HIR.NameContext d_children _ _) _ -> Map.lookup (Located.unlocate name) d_children
+            HIR.Decl'Module (HIR.NameContext d_children _ _) _ _ _ -> Map.lookup (Located.unlocate name) d_children
             HIR.Decl'Type _ -> Nothing -- TODO: implement children of types through impl blocks, this will also need infinite recursion checking
     in case res of
         Just res -> Right res
@@ -188,7 +188,7 @@ get_decl_child decls thing name =
 get_value_child :: UnresolvedDeclArena -> DeclKey -> Located Text -> Either Error BoundValueKey
 get_value_child decls thing name =
     let res = case Arena.get decls thing of
-            HIR.Decl'Module (HIR.NameContext _ v_children _) _ -> Map.lookup (Located.unlocate name) v_children
+            HIR.Decl'Module (HIR.NameContext _ v_children _) _ _ _ -> Map.lookup (Located.unlocate name) v_children
             HIR.Decl'Type _ -> Nothing -- TODO: implement children of types through impl blocks
     in case res of
         Just res -> Right res

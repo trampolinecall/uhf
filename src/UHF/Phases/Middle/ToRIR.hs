@@ -16,6 +16,7 @@ import UHF.Data.IR.Keys
 
 type Type = Maybe (Type.Type Void)
 
+type HIR = HIR.HIR (Located (Maybe BoundValueKey)) Type Type Void
 type HIRDecl = HIR.Decl (Located (Maybe BoundValueKey)) Type Type Void
 type HIRExpr = HIR.Expr (Located (Maybe BoundValueKey)) Type Type Void
 type HIRPattern = HIR.Pattern (Located (Maybe BoundValueKey)) Type
@@ -32,10 +33,10 @@ type RIRDeclArena = Arena.Arena RIRDecl DeclKey
 
 type ConvertState = StateT BoundValueArena (Compiler.WithDiagnostics Void Void)
 
-convert :: HIRDeclArena -> BoundValueArena -> Compiler.WithDiagnostics Void Void (RIRDeclArena, BoundValueArena)
-convert decls bvs =
+convert :: HIR -> Compiler.WithDiagnostics Void Void RIR.RIR
+convert (HIR.HIR decls adts type_synonyms bvs) =
     runStateT (Arena.transformM convert_decl decls) bvs >>= \ (decls, bvs) ->
-    pure (decls, bvs)
+    pure (RIR.RIR decls adts type_synonyms bvs)
 
 convert_decl :: HIRDecl -> ConvertState RIRDecl
 convert_decl (HIR.Decl'Module _ bindings) = RIR.Decl'Module <$> (concat <$> mapM convert_binding bindings)

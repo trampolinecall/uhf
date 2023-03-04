@@ -35,6 +35,7 @@ import UHF.Data.IR.Keys
 import qualified Data.Map as Map
 import Data.Functor.Identity (Identity (Identity, runIdentity))
 
+type UnresolvedHIR = HIR.HIR UnresolvedExprIdentifier UnresolvedType () ()
 type UnresolvedDecl = HIR.Decl UnresolvedExprIdentifier UnresolvedType () ()
 type UnresolvedTypeIdentifier = (HIR.NameContext, [Located Text])
 type UnresolvedExprIdentifier = (HIR.NameContext, [Located Text])
@@ -49,6 +50,7 @@ type UnresolvedDeclArena = Arena.Arena UnresolvedDecl DeclKey
 type UnresolvedADTArena = Arena.Arena UnresolvedADT ADTKey
 type UnresolvedTypeSynonymArena = Arena.Arena UnresolvedTypeSynonym HIR.TypeSynonymKey
 
+type ResolvedHIR = HIR.HIR (Located (Maybe BoundValueKey)) ResolvedType () ()
 type ResolvedDecl = HIR.Decl (Located (Maybe BoundValueKey)) ResolvedType () ()
 type ResolvedADT = HIR.ADT ResolvedType
 type ResolvedTypeSynonym = HIR.TypeSynonym ResolvedType
@@ -122,11 +124,11 @@ transform_identifiers transform_t_iden transform_e_iden adts type_synonyms decls
 
         transform_expr (HIR.Expr'Poison typeinfo sp) = pure $ HIR.Expr'Poison typeinfo sp
 
-resolve :: (UnresolvedDeclArena, UnresolvedADTArena, UnresolvedTypeSynonymArena) -> Compiler.WithDiagnostics Error Void (ResolvedDeclArena, ResolvedADTArena, ResolvedTypeSynonymArena)
-resolve (decls, adts, type_synonyms) =
+resolve :: UnresolvedHIR -> Compiler.WithDiagnostics Error Void ResolvedHIR
+resolve (HIR.HIR decls adts type_synonyms bound_values) =
     let (adts', type_synonyms', decls') = runIdentity (transform_identifiers Identity split_expr_iden adts type_synonyms decls)
     in transform_identifiers (resolve_type_iden decls) (resolve_expr_iden decls) adts' type_synonyms' decls' >>= \ (adts', type_synonyms', decls') ->
-    pure (decls', adts', type_synonyms')
+    pure (HIR.HIR decls' adts' type_synonyms' bound_values)
 
 split_expr_iden :: UnresolvedExprIdentifier -> Identity (HIR.NameContext, Maybe [Located Text], Located Text)
 split_expr_iden (_, []) = error "empty identifier"

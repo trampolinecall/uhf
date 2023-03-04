@@ -10,16 +10,18 @@ import UHF.IO.Located (Located)
 import qualified UHF.Data.IR.HIR as HIR
 import UHF.Data.IR.Keys
 
+type UngroupedHIR typeannotation = HIR.HIR (Located (Maybe BoundValueKey)) typeannotation () ()
 type UngroupedDecl typeannotation = HIR.Decl (Located (Maybe BoundValueKey)) typeannotation () ()
 type UngroupedBinding typeannotation = HIR.Binding (Located (Maybe BoundValueKey)) typeannotation () ()
 type UngroupedExpr typeannotation = HIR.Expr (Located (Maybe BoundValueKey)) typeannotation () ()
 
+type GroupedHIR typeannotation = HIR.HIR (Located (Maybe BoundValueKey)) typeannotation () Void
 type GroupedDecl typeannotation = HIR.Decl (Located (Maybe BoundValueKey)) typeannotation () Void
 type GroupedBinding typeannotation = HIR.Binding (Located (Maybe BoundValueKey)) typeannotation () Void
 type GroupedExpr typeannotation = HIR.Expr (Located (Maybe BoundValueKey)) typeannotation () Void
 
-group :: Arena.Arena (UngroupedDecl typeannotation) DeclKey -> Arena.Arena (GroupedDecl typeannotation) DeclKey
-group = Arena.transform group_decl
+group :: UngroupedHIR typeannotation -> GroupedHIR typeannotation
+group (HIR.HIR decls adts type_synonyms bound_values) = (HIR.HIR (Arena.transform group_decl decls) adts type_synonyms bound_values)
 
 group_decl :: UngroupedDecl typeannotation -> GroupedDecl typeannotation
 group_decl (HIR.Decl'Module nc bindings) = HIR.Decl'Module nc (map group_binding bindings)

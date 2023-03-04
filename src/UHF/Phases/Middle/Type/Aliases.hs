@@ -15,6 +15,7 @@ type TypeExpr = HIR.TypeExpr (Maybe DeclKey)
 type TypeWithVars = Type.Type Var.TypeVarKey
 type Type = Type.Type Void
 
+type UntypedHIR = HIR.HIR (Located (Maybe BoundValueKey)) TypeExpr () Void
 type UntypedDecl = HIR.Decl (Located (Maybe BoundValueKey)) TypeExpr () Void
 type UntypedADT = HIR.ADT TypeExpr
 type UntypedTypeSynonym = HIR.TypeSynonym TypeExpr
@@ -28,6 +29,7 @@ type UntypedTypeSynonymArena = Arena.Arena UntypedTypeSynonym HIR.TypeSynonymKey
 type UntypedBoundValueArena = Arena.Arena UntypedBoundValue BoundValueKey
 type UntypedDeclArena = Arena.Arena UntypedDecl DeclKey
 
+type TypedWithVarsHIR = HIR.HIR (Located (Maybe BoundValueKey)) TypeWithVars TypeWithVars Void
 type TypedWithVarsDecl = HIR.Decl (Located (Maybe BoundValueKey)) TypeWithVars TypeWithVars Void
 type TypedWithVarsADT = HIR.ADT TypeWithVars
 type TypedWithVarsTypeSynonym = HIR.TypeSynonym TypeWithVars
@@ -41,6 +43,7 @@ type TypedWithVarsTypeSynonymArena = Arena.Arena TypedWithVarsTypeSynonym HIR.Ty
 type TypedWithVarsBoundValueArena = Arena.Arena TypedWithVarsBoundValue BoundValueKey
 type TypedWithVarsDeclArena = Arena.Arena TypedWithVarsDecl DeclKey
 
+type TypedHIR = HIR.HIR (Located (Maybe BoundValueKey)) (Maybe Type) (Maybe Type) Void
 type TypedDecl = HIR.Decl (Located (Maybe BoundValueKey)) (Maybe Type) (Maybe Type) Void
 type TypedADT = HIR.ADT (Maybe Type)
 type TypedTypeSynonym = HIR.TypeSynonym (Maybe Type)

@@ -17,7 +17,6 @@ import qualified UHF.Diagnostic.Codes as Codes
 
 import qualified Data.Map as Map
 import qualified Data.List as List
-import qualified Data.Maybe as Maybe
 
 import qualified UHF.Compiler as Compiler
 
@@ -166,49 +165,51 @@ convert decls =
         (
             primitive_decls >>= \ primitive_decls ->
             primitive_values >>= \ primitive_values ->
-            convert_decls Nothing primitive_decls primitive_values decls >>= \ (name_context, bindings) ->
-            new_decl (HIR.Decl'Module name_context bindings)
+            convert_decls Nothing primitive_decls primitive_values decls >>= \ (name_context, bindings, adts, type_synonyms) ->
+            new_decl (HIR.Decl'Module name_context bindings adts type_synonyms)
         )
         (HIR.HIR Arena.new Arena.new Arena.new Arena.new) >>= \ (_, hir) ->
     pure hir
 
-convert_decls :: Maybe HIR.NameContext -> DeclChildrenList -> BoundValueList -> [AST.Decl] -> MakeIRState (HIR.NameContext, [Binding])
+convert_decls :: Maybe HIR.NameContext -> DeclChildrenList -> BoundValueList -> [AST.Decl] -> MakeIRState (HIR.NameContext, [Binding], [ADTKey], [TypeSynonymKey])
 convert_decls parent_context prev_decl_entries prev_bv_entries decls =
-    mfix (\ ~(final_name_context, _) -> -- mfix needed because the name context to put the expressions into is this one
-        List.unzip3 <$> mapM (convert_decl final_name_context) decls >>= \ (decl_entries, bound_value_entries, bindings) ->
+    mfix (\ ~(final_name_context, _, _, _) -> -- mfix needed because the name context to put the expressions into is this one
+        List.unzip5 <$> mapM (convert_decl final_name_context) decls >>= \ (decl_entries, bound_value_entries, bindings, adts, type_synonyms) ->
         make_name_context (prev_decl_entries ++ concat decl_entries) (prev_bv_entries ++ concat bound_value_entries) parent_context >>= \ name_context ->
-        pure (name_context, concat bindings)
+        pure (name_context, concat bindings, concat adts, concat type_synonyms)
     )
     where
         convert_decl final_name_context (AST.Decl'Value target eq_sp expr) =
             convert_expr final_name_context expr >>= \ expr' ->
             convert_pattern target >>= \ (new_bound_values, target') ->
             let binding = HIR.Binding target' eq_sp expr'
-            in pure ([], new_bound_values, [binding])
+            in pure ([], new_bound_values, [binding], [], [])
 
         convert_decl final_name_context (AST.Decl'Data name variants) =
             runMaybeT (
                 iden1_for_type_name name >>= \ (Located name1sp name1) ->
                 Type.ADT name1 <$> mapM (convert_variant final_name_context) variants >>= \ datatype ->
 
-                lift (new_adt datatype) >>= \ nominal_type_key ->
+                lift (new_adt datatype) >>= \ adt_key ->
                 -- TODO: add constructors to bound name table
-                lift (new_decl (HIR.Decl'Type $ Type.Type'ADT nominal_type_key)) >>= \ decl_key ->
+                lift (new_decl (HIR.Decl'Type $ Type.Type'ADT adt_key)) >>= \ decl_key ->
 
-                pure (name1, DeclAt name1sp, decl_key)
-            ) >>= \ new_decl_entry ->
-            pure (Maybe.maybeToList new_decl_entry, [], [])
+                pure (name1, DeclAt name1sp, decl_key, adt_key)
+            ) >>= \case
+                Just (name1, decl_at, decl_key, adt_key) -> pure ([(name1, decl_at, decl_key)], [], [], [adt_key], [])
+                Nothing -> pure ([], [], [], [], [])
 
         convert_decl final_name_context (AST.Decl'TypeSyn name expansion) =
             runMaybeT (
                 lift (convert_type final_name_context expansion) >>= \ expansion' ->
                 iden1_for_type_name name >>= \ (Located name1sp name1) ->
-                lift (new_type_synonym (Type.TypeSynonym name1 expansion')) >>= \ nominal_type_key ->
-                lift (new_decl (HIR.Decl'Type $ Type.Type'Synonym nominal_type_key)) >>= \ decl_key ->
+                lift (new_type_synonym (Type.TypeSynonym name1 expansion')) >>= \ syn_key ->
+                lift (new_decl (HIR.Decl'Type $ Type.Type'Synonym syn_key)) >>= \ decl_key ->
 
-                pure (name1, DeclAt name1sp, decl_key)
-            ) >>= \ new_decl_entry ->
-            pure (Maybe.maybeToList new_decl_entry, [], [])
+                pure (name1, DeclAt name1sp, decl_key, syn_key)
+            ) >>= \case
+                Just (name1, decl_at, decl_key, syn_key) -> pure ([(name1, decl_at, decl_key)], [], [], [], [syn_key])
+                Nothing -> pure ([], [], [], [], [])
 
         iden1_for_variant_name = MaybeT . make_iden1_with_err PathInVariantName
         iden1_for_type_name = MaybeT . make_iden1_with_err PathInTypeName
@@ -264,10 +265,10 @@ convert_expr parent_context (AST.Expr'Let sp decls subexpr) = go parent_context 
     where
         go parent [] = convert_expr parent subexpr
         go parent (first:more) =
-            convert_decls (Just parent) [] [] [first] >>= \ (let_context, bindings) ->
+            convert_decls (Just parent) [] [] [first] >>= \ (let_context, bindings, adts, type_synonyms) -> -- TODO: put adts and type synonyms into module
             HIR.Expr'Let () sp bindings <$> go let_context more
 convert_expr parent_context (AST.Expr'LetRec sp decls subexpr) =
-    convert_decls (Just parent_context) [] [] decls >>= \ (let_context, bindings) ->
+    convert_decls (Just parent_context) [] [] decls >>= \ (let_context, bindings, adts, type_synonyms) -> -- TODO: put adts and type synonyms into module
     HIR.Expr'Let () sp bindings <$> convert_expr let_context subexpr
 
 convert_expr parent_context (AST.Expr'BinaryOps sp first ops) = HIR.Expr'BinaryOps () () sp <$> convert_expr parent_context first <*> mapM (\ (op, right) -> convert_expr parent_context right >>= \ right' -> pure ((parent_context, unlocate op), right')) ops

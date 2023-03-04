@@ -41,7 +41,7 @@ convert (RIR.RIR decls adts type_synonyms bound_values) =
     in (ANFIR.ANFIR decls' adts type_synonyms bindings params)
 
 convert_decl :: BoundValueMap -> RIRDecl -> MakeGraphState ANFIRDecl
-convert_decl bv_map (RIR.Decl'Module bindings) = ANFIR.Decl'Module <$> (concat <$> mapM (convert_binding ANFIR.InModule bv_map) bindings)
+convert_decl bv_map (RIR.Decl'Module bindings adts type_synonyms) = ANFIR.Decl'Module <$> (concat <$> mapM (convert_binding ANFIR.InModule bv_map) bindings) <*> pure adts <*> pure type_synonyms
 convert_decl _ (RIR.Decl'Type ty) = pure $ ANFIR.Decl'Type ty
 
 map_bound_value :: BoundValueKey -> ANFIR.BindingKey -> MakeGraphState ()

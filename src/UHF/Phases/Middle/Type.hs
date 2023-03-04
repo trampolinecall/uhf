@@ -60,7 +60,7 @@ convert_type_expr :: UntypedDeclArena -> TypeExpr -> StateWithVars TypeWithVars
 convert_type_expr decls (HIR.TypeExpr'Identifier sp iden) =
     case iden of -- TODO: make poison type variable
         Just i -> case Arena.get decls i of
-            HIR.Decl'Module _ _ -> lift (Compiler.tell_error $ NotAType sp "a module") >> Type.Type'Variable <$> new_type_variable (TypeExpr sp)
+            HIR.Decl'Module _ _ _ _ -> lift (Compiler.tell_error $ NotAType sp "a module") >> Type.Type'Variable <$> new_type_variable (TypeExpr sp)
             HIR.Decl'Type ty -> pure $ void_var_to_key ty
         Nothing -> Type.Type'Variable <$> new_type_variable (TypeExpr sp)
     where
@@ -84,7 +84,7 @@ assign_type_variable_to_bound_value (HIR.BoundValue () def_span) = HIR.BoundValu
 
 collect_constraints :: UntypedDeclArena -> TypedWithVarsBoundValueArena -> UntypedDecl -> WriterT [Constraint] StateWithVars TypedWithVarsDecl
 collect_constraints _ _ (HIR.Decl'Type ty) = pure $ HIR.Decl'Type ty
-collect_constraints decls bna (HIR.Decl'Module nc bindings) = HIR.Decl'Module nc <$> mapM collect_for_binding bindings
+collect_constraints decls bna (HIR.Decl'Module nc bindings adts type_synonyms) = HIR.Decl'Module nc <$> mapM collect_for_binding bindings <*> pure adts <*> pure type_synonyms
     where
         collect_for_binding (HIR.Binding pat eq_sp expr) =
             collect_for_pat pat >>= \ pat ->
@@ -339,7 +339,7 @@ convert_vars vars =
         convert_var _ (TypeVar for_what Fresh) = lift (tell [AmbiguousType for_what]) >> MaybeT (pure Nothing)
 
 remove_vars_from_decl :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsDecl -> TypedDecl
-remove_vars_from_decl vars (HIR.Decl'Module nc bindings) = HIR.Decl'Module nc (map (remove_vars_from_binding vars) bindings)
+remove_vars_from_decl vars (HIR.Decl'Module nc bindings adts type_synonyms) = HIR.Decl'Module nc (map (remove_vars_from_binding vars) bindings) adts type_synonyms
 remove_vars_from_decl _ (HIR.Decl'Type ty) = HIR.Decl'Type ty
 
 remove_vars_from_bound_value :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsBoundValue -> TypedBoundValue

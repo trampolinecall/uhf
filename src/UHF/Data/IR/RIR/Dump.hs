@@ -15,6 +15,11 @@ import qualified UHF.Data.IR.Type as Type
 
 type Dumper = ReaderT RIR.RIR DumpUtils.Dumper
 
+get_adt :: Keys.ADTKey -> Dumper (Type.ADT (Maybe (Type.Type Void)))
+get_adt k = reader (\ (RIR.RIR _ adts _ _) -> Arena.get adts k)
+get_type_synonym :: Keys.TypeSynonymKey -> Dumper (Type.TypeSynonym (Maybe (Type.Type Void)))
+get_type_synonym k = reader (\ (RIR.RIR _ _ type_synonyms _) -> Arena.get type_synonyms k)
+
 dump :: RIR.RIR -> Text
 dump ir@(RIR.RIR decls _ _ _) = DumpUtils.exec_dumper $ runReaderT (Arena.transformM dump_decl decls) ir
 
@@ -22,8 +27,30 @@ dump_text :: Text -> Dumper ()
 dump_text = lift . DumpUtils.dump
 
 dump_decl :: RIR.Decl -> Dumper ()
-dump_decl (RIR.Decl'Module bindings) = mapM_ dump_binding bindings
+dump_decl (RIR.Decl'Module bindings adts type_synonyms) = mapM_ (\ k -> get_adt k >>= dump_adt) adts >> mapM_ (\ k -> get_type_synonym k >>= dump_type_synonym) type_synonyms >> mapM_ dump_binding bindings
+
 dump_decl (RIR.Decl'Type ty) = pure ()
+
+dump_adt :: Type.ADT (Maybe (Type.Type Void)) -> Dumper ()
+dump_adt (Type.ADT name variants) = dump_text "data " >> dump_text name >> dump_text ";\n" -- TODO
+dump_type_synonym :: Type.TypeSynonym (Maybe (Type.Type Void)) -> Dumper ()
+dump_type_synonym (Type.TypeSynonym name expansion) = dump_text "typesyn " >> dump_text name >> dump_text " = " >> dump_m_type expansion >> dump_text ";\n"
+
+dump_m_type :: Maybe (Type.Type Void) -> Dumper () -- TODO: remove
+dump_m_type (Just ty) = dump_type ty
+dump_m_type Nothing = dump_text "<type error>"
+
+dump_type :: Type.Type Void -> Dumper ()
+dump_type (Type.Type'ADT k) = get_adt k >>= \ (Type.ADT name _) -> dump_text name -- TODO: dump path
+dump_type (Type.Type'Synonym k) = get_type_synonym k >>= \ (Type.TypeSynonym name _) -> dump_text name
+dump_type (Type.Type'Int) = dump_text "int"
+dump_type (Type.Type'Float) = dump_text "float"
+dump_type (Type.Type'Char) = dump_text "char"
+dump_type (Type.Type'String) = dump_text "string"
+dump_type (Type.Type'Bool) = dump_text "bool"
+dump_type (Type.Type'Function a r) = dump_type a >> dump_text " -> " >> dump_type r
+dump_type (Type.Type'Tuple a b) = dump_text "(" >> dump_type a >> dump_text ", " >> dump_type b >> dump_text ")"
+dump_type (Type.Type'Variable void) = absurd void
 
 dump_binding :: RIR.Binding -> Dumper ()
 dump_binding (RIR.Binding bvk expr) = dump_bvk bvk >> dump_text " = " >> dump_expr expr >> dump_text ";\n"

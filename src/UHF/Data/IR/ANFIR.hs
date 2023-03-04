@@ -23,7 +23,7 @@ import qualified UHF.Data.IR.Type as Type
 data ANFIR ty poison_allowed = ANFIR (Arena.Arena Decl DeclKey) (Arena.Arena (Type.ADT ty) ADTKey) (Arena.Arena (Type.TypeSynonym ty) TypeSynonymKey) (Arena.Arena (Binding ty poison_allowed) BindingKey) (Arena.Arena (Param ty) ParamKey)
 
 data Decl
-    = Decl'Module [BindingKey] -- TODO: should this include nominal types too?
+    = Decl'Module [BindingKey] [ADTKey] [TypeSynonymKey]
     | Decl'Type (Type.Type Void)
     deriving Show
 

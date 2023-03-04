@@ -7,7 +7,6 @@ import qualified Arena
 import qualified UHF.DumpUtils as DumpUtils
 
 import qualified UHF.Data.IR.ANFIR as ANFIR
-import qualified UHF.Data.IR.HIR as HIR
 import qualified UHF.Data.IR.Keys as Keys
 import qualified UHF.Data.IR.Type as Type
 

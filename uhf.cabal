@@ -15,6 +15,7 @@ library
       Arena
       UHF.Compiler
       UHF.Data.AST
+      UHF.Data.AST.Dump
       UHF.Data.IR.ANFIR
       UHF.Data.IR.HIR
       UHF.Data.IR.Keys

@@ -41,7 +41,7 @@ get_type_synonym :: HIR.TypeSynonymKey -> IRReader TypeSynonym
 get_type_synonym k = reader (\ (_, a, _, _) -> Arena.get a k)
 
 binding_type :: ANFIR.BindingKey -> IRReader Type
-binding_type k = ANFIR.binding_type <$> (ANFIR.get_initializer <$> get_binding k)
+binding_type k = ANFIR.binding_type <$> get_binding k
 
 -- TS things {{{1
 runtime_code :: Text
@@ -249,7 +249,7 @@ define_type_synonym :: HIR.TypeSynonymKey -> TypeSynonym -> TSWriter ()
 define_type_synonym _ (HIR.TypeSynonym _ _) = pure ()
 
 define_lambda_type :: ANFIR.BindingKey -> Binding -> TSWriter ()
-define_lambda_type key (ANFIR.Binding _ _ (ANFIR.Expr'Lambda _ param body_included_bindings body)) = -- TODO: annotate with captures
+define_lambda_type key (ANFIR.Binding _ (ANFIR.Expr'Lambda _ param body_included_bindings body)) = -- TODO: annotate with captures
     lift (get_param param) >>= \ (ANFIR.Param param_ty) ->
     lift (binding_type body) >>= \ body_type ->
     lift (get_included_params body_included_bindings) >>= \ included_params ->

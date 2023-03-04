@@ -53,7 +53,7 @@ to_dot decls adts type_synonyms nodes params =
         stringify_matcher ANFIR.Switch'Tuple = "tuple"
         stringify_matcher ANFIR.Switch'Default = "_"
 
-        print_binding cur_key (ANFIR.Binding _ _ initializer) = -- TODO: color differntly based on bound where
+        print_binding cur_key (ANFIR.Binding _ initializer) = -- TODO: color differntly based on bound where
             let (name, graph_connections, param_connections) =
                     -- TODO: print types
                     case initializer of

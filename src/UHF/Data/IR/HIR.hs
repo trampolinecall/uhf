@@ -35,7 +35,7 @@ import UHF.IO.Span (Span)
 import UHF.IO.Located (Located)
 
 data Decl identifier typeannotation typeinfo binaryopsallowed
-    = Decl'Module NameContext [Binding identifier typeannotation typeinfo binaryopsallowed] -- TODO: should this include nominal types too?
+    = Decl'Module NameContext [Binding identifier typeannotation typeinfo binaryopsallowed] -- TODO: this should include nominal types too
     | Decl'Type (Type.Type Void)
     deriving Show
 
@@ -135,7 +135,7 @@ pattern_type (Pattern'Tuple typeinfo _ _ _) = typeinfo
 pattern_type (Pattern'Named typeinfo _ _ _ _) = typeinfo
 pattern_type (Pattern'Poison typeinfo _) = typeinfo
 
-pattern_span :: Pattern spanannotation spaninfo -> Span
+pattern_span :: Pattern typeannotation typeinfo -> Span
 pattern_span (Pattern'Identifier _ sp _) = sp
 pattern_span (Pattern'Wildcard _ sp) = sp
 pattern_span (Pattern'Tuple _ sp _ _) = sp

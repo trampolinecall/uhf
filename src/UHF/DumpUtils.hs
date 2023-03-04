@@ -1,6 +1,7 @@
 module UHF.DumpUtils
     ( Dumper
     , run_dumper
+    , exec_dumper
 
     , dump
     , dump_ch
@@ -31,6 +32,9 @@ instance Monad Dumper where
 run_dumper :: Dumper a -> (a, Text)
 run_dumper (Dumper d) = runWriter $ evalStateT d (DumpState 0 True)
 
+exec_dumper :: Dumper a -> Text
+exec_dumper = snd . run_dumper
+
 dump :: Text -> Dumper ()
 dump t = mapM_ dump_ch $ Text.unpack t
 
@@ -45,9 +49,8 @@ dump_ch c =
         _ -> pure ()) >>
     Dumper (modify $ \ (DumpState cur_indent _) -> DumpState cur_indent False) >>
     output c
-
-put_indent :: Dumper ()
-put_indent = Dumper $ get >>= \ (DumpState indent _) -> lift (tell $ Text.replicate indent " ")
+    where
+        put_indent = Dumper $ get >>= \ (DumpState indent _) -> lift (tell $ Text.replicate indent " ")
 
 indent :: Dumper ()
 indent = Dumper $ modify $ \ (DumpState indent at_start) -> DumpState (indent + 4) at_start

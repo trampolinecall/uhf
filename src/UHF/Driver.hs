@@ -24,6 +24,7 @@ import qualified UHF.Compiler as Compiler
 
 import qualified UHF.Data.Token as Token
 import qualified UHF.Data.AST as AST
+import qualified UHF.Data.AST.Dump as AST.Dump
 import qualified UHF.Data.IR.HIR as HIR
 import qualified UHF.Data.IR.RIR as RIR
 import qualified UHF.Data.IR.ANFIR as ANFIR
@@ -94,7 +95,7 @@ compile c_needed diagnostic_settings compile_options =
 print_outputs :: CompileOptions -> File -> WithDiagnosticsIO ()
 print_outputs compile_options file = runStateT (mapM print_output_format (output_formats compile_options)) (PhaseResultsCache file Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing) >> pure ()
     where
-        print_output_format AST = get_ast >>= \ ast -> lift (lift (todo ast)) -- TODO
+        print_output_format AST = get_ast >>= \ ast -> lift (lift (putTextLn $ AST.Dump.dump ast)) -- TODO
         print_output_format HIR = get_first_hir >>= \ ir -> lift (lift (write_output_file "uhf_hir" (todo ir))) -- TODO
         print_output_format NRHIR = get_nrhir >>= \ ir -> lift (lift (write_output_file "uhf_nrhir" (todo ir))) -- TODO
         print_output_format InfixGroupedHIR = get_infix_grouped >>= \ ir -> lift (lift (write_output_file "uhf_infix_grouped" (todo ir))) -- TODO

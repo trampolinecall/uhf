@@ -73,11 +73,6 @@ type TypeExpr = HIR.TypeExpr Identifier
 type Expr = HIR.Expr Identifier TypeExpr () ()
 type Pattern = HIR.Pattern Identifier ()
 
-type DeclArena = Arena.Arena Decl DeclKey
-type BoundValueArena = Arena.Arena (HIR.BoundValue ()) BoundValueKey
-type ADTArena = Arena.Arena ADT ADTKey
-type TypeSynonymArena = Arena.Arena TypeSynonym Type.TypeSynonymKey
-
 type DeclChildrenList = [(Text, DeclAt, DeclKey)]
 type BoundValueList = [(Text, DeclAt, BoundValueKey)]
 
@@ -265,10 +260,10 @@ convert_expr parent_context (AST.Expr'Let sp decls subexpr) = go parent_context 
     where
         go parent [] = convert_expr parent subexpr
         go parent (first:more) =
-            convert_decls (Just parent) [] [] [first] >>= \ (let_context, bindings, adts, type_synonyms) -> -- TODO: put adts and type synonyms into module
+            convert_decls (Just parent) [] [] [first] >>= \ (let_context, bindings, _, _) -> -- TODO: put adts and type synonyms into module
             HIR.Expr'Let () sp bindings <$> go let_context more
 convert_expr parent_context (AST.Expr'LetRec sp decls subexpr) =
-    convert_decls (Just parent_context) [] [] decls >>= \ (let_context, bindings, adts, type_synonyms) -> -- TODO: put adts and type synonyms into module
+    convert_decls (Just parent_context) [] [] decls >>= \ (let_context, bindings, _, _) -> -- TODO: put adts and type synonyms into module
     HIR.Expr'Let () sp bindings <$> convert_expr let_context subexpr
 
 convert_expr parent_context (AST.Expr'BinaryOps sp first ops) = HIR.Expr'BinaryOps () () sp <$> convert_expr parent_context first <*> mapM (\ (op, right) -> convert_expr parent_context right >>= \ right' -> pure ((parent_context, unlocate op), right')) ops

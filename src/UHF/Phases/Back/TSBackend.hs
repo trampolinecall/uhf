@@ -47,7 +47,7 @@ runtime_code :: Text
 runtime_code = $(FileEmbed.embedStringFile "data/ts_runtime.ts")
 
 data TSDecl
-data TSADT = TSADT ADTKey Text -- TODO: actually implement variants and things
+data TSADT = TSADT ADTKey -- TODO: actually implement variants and things
 data TSLambda = TSLambda ANFIR.BindingKey Type Type ANFIR.BindingKey -- TODO: captures
 data MakeThunkGraphFor = LambdaBody ANFIR.BindingKey | Globals
 data TSMakeThunkGraph = TSMakeThunkGraph MakeThunkGraphFor [ANFIR.BindingKey] [ANFIR.ParamKey]
@@ -71,10 +71,9 @@ stringify_ts_decl :: TSDecl -> IRReader Text
 stringify_ts_decl = error "unreachable"
 
 stringify_ts_adt :: TSADT -> IRReader Text
-stringify_ts_adt (TSADT key name) =
+stringify_ts_adt (TSADT key ) =
     pure $
-        "// data " <> name <> "\n"
-            <> "class " <> mangle_adt key <> " {\n"
+        "class " <> mangle_adt key <> " {\n"
             <> "}\n"
 
 stringify_ts_make_thunk_graph :: TSMakeThunkGraph -> IRReader Text
@@ -222,8 +221,6 @@ lower decls adts type_synonyms bindings params =
         (
             runWriterT (
                 Arena.transform_with_keyM define_decl decls >> -- TODO: pass module instead of doing this
-                Arena.transform_with_keyM define_adt adts >>
-                Arena.transform_with_keyM define_type_synonym type_synonyms >>
                 Arena.transform_with_keyM define_lambda_type bindings >>
                 pure ()
             ) >>= \ ((), TS ts_decls ts_adts ts_make_thunk_graphs ts_lambdas) ->
@@ -238,14 +235,11 @@ lower decls adts type_synonyms bindings params =
         (adts, type_synonyms, bindings, params)
 
 define_decl :: DeclKey -> Decl -> TSWriter ()
-define_decl _ (ANFIR.Decl'Module global_bindings) = tell_make_thunk_graph (TSMakeThunkGraph Globals global_bindings []) -- global thunk graph does not have any params
+-- TODO: lower adts and type synonyms here
+define_decl _ (ANFIR.Decl'Module global_bindings adts _) =
+    mapM_ (tell_adt . TSADT) adts >>
+    tell_make_thunk_graph (TSMakeThunkGraph Globals global_bindings []) -- global thunk graph does not have any params
 define_decl _ (ANFIR.Decl'Type _) = pure ()
-
-define_adt :: ADTKey -> ADT -> TSWriter ()
-define_adt key (Type.ADT name variants) = tell_adt (TSADT key name)
-
-define_type_synonym :: Type.TypeSynonymKey -> TypeSynonym -> TSWriter ()
-define_type_synonym _ (Type.TypeSynonym _ _) = pure ()
 
 define_lambda_type :: ANFIR.BindingKey -> Binding -> TSWriter ()
 define_lambda_type key (ANFIR.Binding _ (ANFIR.Expr'Lambda _ param body_included_bindings body)) = -- TODO: annotate with captures

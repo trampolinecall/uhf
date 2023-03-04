@@ -31,4 +31,3 @@ data ADTVariant ty
     deriving Show
 
 data TypeSynonym ty = TypeSynonym Text ty deriving Show
-

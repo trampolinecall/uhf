@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleInstances #-}
+
 module UHF.Data.IR.ANFIR.Dump (dump) where
 
 import UHF.Util.Prelude
@@ -17,16 +19,25 @@ type Dumper ty poison_allowed = ReaderT (ANFIR.ANFIR ty poison_allowed) DumpUtil
 
 get_binding :: Keys.BindingKey -> Dumper ty poison_allowed (ANFIR.Binding ty poison_allowed)
 get_binding k = reader (\ (ANFIR.ANFIR _ _ _ bindings _) -> Arena.get bindings k)
+get_adt :: Keys.ADTKey -> Dumper ty poison_allowed (Type.ADT ty)
+get_adt k = reader (\ (ANFIR.ANFIR _ adts _ _ _) -> Arena.get adts k)
+get_type_synonym :: Keys.TypeSynonymKey -> Dumper ty poison_allowed (Type.TypeSynonym ty)
+get_type_synonym k = reader (\ (ANFIR.ANFIR _ _ type_synonyms _ _) -> Arena.get type_synonyms k)
 
-dump :: ANFIR.ANFIR ty poison_allowed -> Text
-dump ir@(ANFIR.ANFIR decls adts type_synonyms bindings params) = DumpUtils.exec_dumper $ runReaderT (Arena.transformM dump_decl decls) ir
+dump :: DumpableType ty => ANFIR.ANFIR ty poison_allowed -> Text
+dump ir@(ANFIR.ANFIR decls _ _ _ _) = DumpUtils.exec_dumper $ runReaderT (Arena.transformM dump_decl decls) ir
 
 dump_text :: Text -> Dumper ty poison_allowed ()
 dump_text = lift . DumpUtils.dump
 
-dump_decl :: ANFIR.Decl -> Dumper ty poison_allowed ()
-dump_decl (ANFIR.Decl'Module bindings) = mapM_ (\ k -> get_binding k >>= dump_binding k) bindings
+dump_decl :: DumpableType ty => ANFIR.Decl -> Dumper ty poison_allowed ()
+dump_decl (ANFIR.Decl'Module bindings adts type_synonyms) = mapM_ (\ k -> get_adt k >>= dump_adt) adts >> mapM_ (\ k -> get_type_synonym k >>= dump_type_synonym) type_synonyms >> mapM_ (\ k -> get_binding k >>= dump_binding k) bindings
 dump_decl (ANFIR.Decl'Type ty) = pure ()
+
+dump_adt :: Type.ADT ty -> Dumper ty poison_allowed ()
+dump_adt (Type.ADT name variants) = dump_text "data " >> dump_text name >> dump_text ";\n" -- TODO
+dump_type_synonym :: DumpableType ty => Type.TypeSynonym ty -> Dumper ty poison_allowed ()
+dump_type_synonym (Type.TypeSynonym name expansion) = dump_text "typesyn " >> dump_text name >> dump_text " = " >> dump_type expansion >> dump_text ";\n"
 
 dump_binding_key :: ANFIR.BindingKey -> Dumper ty poison_allowed ()
 dump_binding_key key = dump_text ("_" <> show (Arena.unmake_key key))
@@ -35,6 +46,26 @@ dump_param_key key = dump_text ("p_" <> show (Arena.unmake_key key))
 
 dump_binding :: ANFIR.BindingKey -> ANFIR.Binding ty poison_allowed -> Dumper ty poison_allowed ()
 dump_binding key (ANFIR.Binding _ expr) = dump_binding_key key >> dump_text " = " >> dump_expr expr >> dump_text ";\n" -- TODO: dont use unmake_key
+
+-- TODO: put this in Type.Dump? because this is duplicated across all the IR dump modules
+class DumpableType t where
+    dump_type :: t -> Dumper ty poison_allowed ()
+
+instance DumpableType (Maybe (Type.Type Void)) where -- TODO: remove this
+    dump_type (Just ty) = dump_type ty
+    dump_type Nothing = dump_text "<type error>"
+
+instance DumpableType (Type.Type Void) where
+    dump_type (Type.Type'ADT k) = get_adt k >>= \ (Type.ADT name _) -> dump_text name -- TODO: dump path
+    dump_type (Type.Type'Synonym k) = get_type_synonym k >>= \ (Type.TypeSynonym name _) -> dump_text name
+    dump_type (Type.Type'Int) = dump_text "int"
+    dump_type (Type.Type'Float) = dump_text "float"
+    dump_type (Type.Type'Char) = dump_text "char"
+    dump_type (Type.Type'String) = dump_text "string"
+    dump_type (Type.Type'Bool) = dump_text "bool"
+    dump_type (Type.Type'Function a r) = dump_type a >> dump_text " -> " >> dump_type r
+    dump_type (Type.Type'Tuple a b) = dump_text "(" >> dump_type a >> dump_text ", " >> dump_type b >> dump_text ")"
+    dump_type (Type.Type'Variable void) = absurd void
 
 dump_expr :: ANFIR.Expr ty poison_allowed -> Dumper ty poison_allowed ()
 dump_expr (ANFIR.Expr'Identifier ty bk) = dump_binding_key bk

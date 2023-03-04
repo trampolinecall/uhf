@@ -39,7 +39,7 @@ convert (HIR.HIR decls adts type_synonyms bvs) =
     pure (RIR.RIR decls adts type_synonyms bvs)
 
 convert_decl :: HIRDecl -> ConvertState RIRDecl
-convert_decl (HIR.Decl'Module _ bindings) = RIR.Decl'Module <$> (concat <$> mapM convert_binding bindings)
+convert_decl (HIR.Decl'Module _ bindings adts syns) = RIR.Decl'Module <$> (concat <$> mapM convert_binding bindings) <*> pure adts <*> pure syns
 convert_decl (HIR.Decl'Type ty) = pure $ RIR.Decl'Type ty
 
 convert_binding :: HIRBinding -> ConvertState [RIRBinding]

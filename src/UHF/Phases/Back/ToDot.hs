@@ -16,7 +16,6 @@ type DeclArena = Arena.Arena Decl DeclKey
 type Type = Type.Type Void
 type ADT = Type.ADT Type
 type TypeSynonym = Type.TypeSynonym Type
-type Expr = ANFIR.Expr Type Void
 type Binding = ANFIR.Binding Type Void
 type Param = ANFIR.Param Type
 
@@ -26,7 +25,7 @@ type BindingArena = Arena.Arena Binding ANFIR.BindingKey
 type ParamArena = Arena.Arena Param ANFIR.ParamKey
 
 to_dot :: DeclArena -> ADTArena -> TypeSynonymArena -> BindingArena -> ParamArena -> Text
-to_dot decls adts type_synonyms nodes params =
+to_dot _ _ _ nodes params =
     snd $ runWriter (
             tell "strict digraph {\n" >>
             tell "    node [shape=record];\n" >>

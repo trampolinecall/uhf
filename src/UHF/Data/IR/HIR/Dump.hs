@@ -42,10 +42,10 @@ get_type_syn k = reader (\ (HIR.HIR _ _ syns _) -> Arena.get syns k)
 
 instance (DumpableIdentifier iden, DumpableType type_expr) => Dumpable (HIR.Decl iden type_expr type_info binary_ops_allowed) where
     dump_ (HIR.Decl'Module _ bindings adts type_synonyms) = mapM_ (\ k -> get_adt k >>= dump_) adts >> mapM_ (\ k -> get_type_syn k >>= dump_) type_synonyms >> mapM_ dump_ bindings
-    dump_ (HIR.Decl'Type ty) = pure ()
+    dump_ (HIR.Decl'Type _) = pure ()
 
 instance (DumpableType ty) => Dumpable (Type.ADT ty) where
-    dump_ (Type.ADT name variants) = dump_text "data " >> dump_text name >> dump_text ";\n" -- TODO
+    dump_ (Type.ADT name _) = dump_text "data " >> dump_text name >> dump_text ";\n" -- TODO
 instance (DumpableType ty) => Dumpable (Type.TypeSynonym ty) where
     dump_ (Type.TypeSynonym name expansion) = dump_text "typesyn " >> dump_text name >> dump_text " = " >> dump_type expansion >> dump_text ";\n"
 instance (DumpableIdentifier iden, DumpableType type_expr) => Dumpable (HIR.Binding iden type_expr type_info binary_ops_allowed) where
@@ -61,7 +61,7 @@ instance DumpableIdentifier (Located (Maybe Keys.BoundValueKey)) where
         Just k -> dump_iden k
         Nothing -> dump_text "<name resolution error>"
 instance DumpableIdentifier (Keys.BoundValueKey) where
-    dump_iden k = get_bv k >>= \ (HIR.BoundValue _ ty) -> dump_text "_" >> dump_text (show $ Arena.unmake_key k) -- TODO: show names and dont use unmake_key
+    dump_iden k = get_bv k >>= \ (HIR.BoundValue _ _) -> dump_text "_" >> dump_text (show $ Arena.unmake_key k) -- TODO: show names and dont use unmake_key
 instance DumpableIdentifier (Maybe Keys.DeclKey) where
     dump_iden (Just k) = dump_text "decl_" >> dump_text (show $ Arena.unmake_key k)
     dump_iden Nothing = dump_text "<name resolution error>"
@@ -92,25 +92,25 @@ instance DumpableType (Type.Type Void) where
 -- TODO: deal with precedence
 
 instance (DumpableIdentifier iden, DumpableType type_expr) => Dumpable (HIR.Expr iden type_expr type_info binary_ops_allowed) where
-    dump_ (HIR.Expr'Identifier typeinfo _ i) = dump_iden i
-    dump_ (HIR.Expr'Char typeinfo _ c) = dump_text $ show c
-    dump_ (HIR.Expr'String typeinfo _ s) = dump_text $ show s
-    dump_ (HIR.Expr'Int typeinfo _ i) = dump_text $ show i
-    dump_ (HIR.Expr'Float typeinfo _ f) = dump_text $ show f
-    dump_ (HIR.Expr'Bool typeinfo _ b) = dump_text $ if b then "true" else "false"
-    dump_ (HIR.Expr'Tuple typeinfo _ a b) = dump_text "(" >> dump_ a >> dump_text ", " >> dump_ b >> dump_text ")"
-    dump_ (HIR.Expr'Lambda typeinfo _ param body) = dump_text "\\ " >> dump_ param >> dump_text " -> " >> dump_ body -- TODO: decide if this should be \ (x) -> or \ x ->
-    dump_ (HIR.Expr'Let typeinfo _ bindings body) = dump_text "let {\n" >> lift DumpUtils.indent >> mapM_ dump_ bindings >> lift DumpUtils.dedent >> dump_text "}\n" >> dump_ body
-    dump_ (HIR.Expr'BinaryOps _ typeinfo _ first ops) = dump_text "(" >> dump_ first >> todo >> dump_text ")" -- TODO
-    dump_ (HIR.Expr'Call typeinfo _ callee arg) = dump_text "(" >> dump_ callee >> dump_text "(" >> dump_ arg >> dump_text "))"
-    dump_ (HIR.Expr'If typeinfo _ _ cond t f) = dump_text "if " >> dump_ cond >> dump_text " then " >> dump_ t >> dump_text " else " >> dump_ f
-    dump_ (HIR.Expr'Case typeinfo _ _ e arms) = todo
-    dump_ (HIR.Expr'TypeAnnotation typeinfo _ ty e) = dump_text ":" >> dump_type ty >> dump_text ": " >> dump_ e
-    dump_ (HIR.Expr'Poison typeinfo _) = dump_text "poison"
+    dump_ (HIR.Expr'Identifier _ _ i) = dump_iden i
+    dump_ (HIR.Expr'Char _ _ c) = dump_text $ show c
+    dump_ (HIR.Expr'String _ _ s) = dump_text $ show s
+    dump_ (HIR.Expr'Int _ _ i) = dump_text $ show i
+    dump_ (HIR.Expr'Float _ _ f) = dump_text $ show f
+    dump_ (HIR.Expr'Bool _ _ b) = dump_text $ if b then "true" else "false"
+    dump_ (HIR.Expr'Tuple _ _ a b) = dump_text "(" >> dump_ a >> dump_text ", " >> dump_ b >> dump_text ")"
+    dump_ (HIR.Expr'Lambda _ _ param body) = dump_text "\\ " >> dump_ param >> dump_text " -> " >> dump_ body -- TODO: decide if this should be \ (x) -> or \ x ->
+    dump_ (HIR.Expr'Let _ _ bindings body) = dump_text "let {\n" >> lift DumpUtils.indent >> mapM_ dump_ bindings >> lift DumpUtils.dedent >> dump_text "}\n" >> dump_ body
+    dump_ (HIR.Expr'BinaryOps _ _ _ first _) = dump_text "(" >> dump_ first >> todo >> dump_text ")" -- TODO
+    dump_ (HIR.Expr'Call _ _ callee arg) = dump_text "(" >> dump_ callee >> dump_text "(" >> dump_ arg >> dump_text "))"
+    dump_ (HIR.Expr'If _ _ _ cond t f) = dump_text "if " >> dump_ cond >> dump_text " then " >> dump_ t >> dump_text " else " >> dump_ f
+    dump_ (HIR.Expr'Case _ _ _ _ _) = todo
+    dump_ (HIR.Expr'TypeAnnotation _ _ ty e) = dump_text ":" >> dump_type ty >> dump_text ": " >> dump_ e
+    dump_ (HIR.Expr'Poison _ _) = dump_text "poison"
 
 instance Dumpable (HIR.Pattern iden type_info) where
-    dump_ (HIR.Pattern'Identifier typeinfo _ bnk) = dump_iden bnk
-    dump_ (HIR.Pattern'Wildcard typeinfo _) = dump_text "_"
-    dump_ (HIR.Pattern'Tuple typeinfo _ a b) = dump_text "(" >> dump_ a >> dump_text ", " >> dump_ b >> dump_text ")"
-    dump_ (HIR.Pattern'Named typeinfo _ _ bnk subpat) = dump_text "@" >> dump_iden (unlocate bnk) >> dump_text " " >> dump_ subpat
-    dump_ (HIR.Pattern'Poison typeinfo _) = dump_text "poison"
+    dump_ (HIR.Pattern'Identifier _ _ bnk) = dump_iden bnk
+    dump_ (HIR.Pattern'Wildcard _ _) = dump_text "_"
+    dump_ (HIR.Pattern'Tuple _ _ a b) = dump_text "(" >> dump_ a >> dump_text ", " >> dump_ b >> dump_text ")"
+    dump_ (HIR.Pattern'Named _ _ _ bnk subpat) = dump_text "@" >> dump_iden (unlocate bnk) >> dump_text " " >> dump_ subpat
+    dump_ (HIR.Pattern'Poison _ _) = dump_text "poison"

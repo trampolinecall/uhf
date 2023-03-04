@@ -30,6 +30,7 @@ import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Codes as Diagnostic.Codes
 
 import qualified UHF.Data.IR.HIR as HIR
+import qualified UHF.Data.IR.Type as Type
 import UHF.Data.IR.Keys
 
 import qualified Data.Map as Map
@@ -39,8 +40,8 @@ type UnresolvedHIR = HIR.HIR UnresolvedExprIdentifier UnresolvedType () ()
 type UnresolvedDecl = HIR.Decl UnresolvedExprIdentifier UnresolvedType () ()
 type UnresolvedTypeIdentifier = (HIR.NameContext, [Located Text])
 type UnresolvedExprIdentifier = (HIR.NameContext, [Located Text])
-type UnresolvedADT = HIR.ADT UnresolvedType
-type UnresolvedTypeSynonym = HIR.TypeSynonym UnresolvedType
+type UnresolvedADT = Type.ADT UnresolvedType
+type UnresolvedTypeSynonym = Type.TypeSynonym UnresolvedType
 type UnresolvedType = HIR.TypeExpr UnresolvedTypeIdentifier
 type UnresolvedBinding = HIR.Binding UnresolvedExprIdentifier UnresolvedType () ()
 type UnresolvedExpr = HIR.Expr UnresolvedExprIdentifier UnresolvedType () ()
@@ -48,12 +49,12 @@ type UnresolvedPattern = HIR.Pattern UnresolvedExprIdentifier
 
 type UnresolvedDeclArena = Arena.Arena UnresolvedDecl DeclKey
 type UnresolvedADTArena = Arena.Arena UnresolvedADT ADTKey
-type UnresolvedTypeSynonymArena = Arena.Arena UnresolvedTypeSynonym HIR.TypeSynonymKey
+type UnresolvedTypeSynonymArena = Arena.Arena UnresolvedTypeSynonym Type.TypeSynonymKey
 
 type ResolvedHIR = HIR.HIR (Located (Maybe BoundValueKey)) ResolvedType () ()
 type ResolvedDecl = HIR.Decl (Located (Maybe BoundValueKey)) ResolvedType () ()
-type ResolvedADT = HIR.ADT ResolvedType
-type ResolvedTypeSynonym = HIR.TypeSynonym ResolvedType
+type ResolvedADT = Type.ADT ResolvedType
+type ResolvedTypeSynonym = Type.TypeSynonym ResolvedType
 type ResolvedType = HIR.TypeExpr (Maybe DeclKey)
 type ResolvedBinding = HIR.Binding (Located (Maybe BoundValueKey)) ResolvedType () ()
 type ResolvedExpr = HIR.Expr (Located (Maybe BoundValueKey)) ResolvedType () ()
@@ -61,7 +62,7 @@ type ResolvedPattern = HIR.Pattern (Located (Maybe BoundValueKey))
 
 type ResolvedDeclArena = Arena.Arena ResolvedDecl DeclKey
 type ResolvedADTArena = Arena.Arena ResolvedADT ADTKey
-type ResolvedTypeSynonymArena = Arena.Arena ResolvedTypeSynonym HIR.TypeSynonymKey
+type ResolvedTypeSynonymArena = Arena.Arena ResolvedTypeSynonym Type.TypeSynonymKey
 
 data Error
     = CouldNotFind (Maybe (Located Text)) (Located Text)
@@ -75,15 +76,15 @@ instance Diagnostic.ToError Error where
                         Nothing -> ""
         in Diagnostic.Error Diagnostic.Codes.undef_name (Just sp) message [] []
 
-transform_identifiers :: Monad m => (t_iden -> m t_iden') -> (e_iden -> m e_iden') -> Arena.Arena (HIR.ADT (HIR.TypeExpr t_iden)) ADTKey -> Arena.Arena (HIR.TypeSynonym (HIR.TypeExpr t_iden)) HIR.TypeSynonymKey -> Arena.Arena (HIR.Decl e_iden (HIR.TypeExpr t_iden) typeinfo binaryopsallowed) DeclKey -> m (Arena.Arena (HIR.ADT (HIR.TypeExpr t_iden')) ADTKey, Arena.Arena (HIR.TypeSynonym (HIR.TypeExpr t_iden')) HIR.TypeSynonymKey, Arena.Arena (HIR.Decl e_iden' (HIR.TypeExpr t_iden') typeinfo binaryopsallowed) DeclKey)
+transform_identifiers :: Monad m => (t_iden -> m t_iden') -> (e_iden -> m e_iden') -> Arena.Arena (Type.ADT (HIR.TypeExpr t_iden)) ADTKey -> Arena.Arena (Type.TypeSynonym (HIR.TypeExpr t_iden)) Type.TypeSynonymKey -> Arena.Arena (HIR.Decl e_iden (HIR.TypeExpr t_iden) typeinfo binaryopsallowed) DeclKey -> m (Arena.Arena (Type.ADT (HIR.TypeExpr t_iden')) ADTKey, Arena.Arena (Type.TypeSynonym (HIR.TypeExpr t_iden')) Type.TypeSynonymKey, Arena.Arena (HIR.Decl e_iden' (HIR.TypeExpr t_iden') typeinfo binaryopsallowed) DeclKey)
 transform_identifiers transform_t_iden transform_e_iden adts type_synonyms decls = (,,) <$> Arena.transformM transform_adt adts <*> Arena.transformM transform_type_synonym type_synonyms <*> Arena.transformM transform_decl decls
     where
-        transform_adt (HIR.ADT name variants) = HIR.ADT name <$> mapM transform_variant variants
+        transform_adt (Type.ADT name variants) = Type.ADT name <$> mapM transform_variant variants
             where
-                transform_variant (HIR.ADTVariant'Named name fields) = HIR.ADTVariant'Named name <$> mapM (\ (name, ty) -> (,) name <$> transform_type_expr ty) fields
-                transform_variant (HIR.ADTVariant'Anon name fields) = HIR.ADTVariant'Anon name <$> mapM transform_type_expr fields
+                transform_variant (Type.ADTVariant'Named name fields) = Type.ADTVariant'Named name <$> mapM (\ (name, ty) -> (,) name <$> transform_type_expr ty) fields
+                transform_variant (Type.ADTVariant'Anon name fields) = Type.ADTVariant'Anon name <$> mapM transform_type_expr fields
 
-        transform_type_synonym (HIR.TypeSynonym name expansion) = HIR.TypeSynonym name <$> transform_type_expr expansion
+        transform_type_synonym (Type.TypeSynonym name expansion) = Type.TypeSynonym name <$> transform_type_expr expansion
 
         transform_type_expr (HIR.TypeExpr'Identifier sp id) = HIR.TypeExpr'Identifier sp <$> transform_t_iden id
         transform_type_expr (HIR.TypeExpr'Tuple a b) = HIR.TypeExpr'Tuple <$> transform_type_expr a <*> transform_type_expr b

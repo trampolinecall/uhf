@@ -48,13 +48,13 @@ typecheck (HIR.HIR decls adts type_synonyms bound_values) =
     pure (HIR.HIR decls' adts' type_synonyms' bound_values')
 
 convert_type_exprs_in_adts :: UntypedDeclArena -> UntypedADT -> StateWithVars TypedWithVarsADT
-convert_type_exprs_in_adts decls (HIR.ADT name variants) = HIR.ADT name <$> mapM (convert_variant decls) variants
+convert_type_exprs_in_adts decls (Type.ADT name variants) = Type.ADT name <$> mapM (convert_variant decls) variants
     where
-        convert_variant decls (HIR.ADTVariant'Named name fields) = HIR.ADTVariant'Named name <$> mapM (\ (name, ty) -> (,) name <$> convert_type_expr decls ty) fields
-        convert_variant decls (HIR.ADTVariant'Anon name fields) = HIR.ADTVariant'Anon name <$> mapM (convert_type_expr decls) fields
+        convert_variant decls (Type.ADTVariant'Named name fields) = Type.ADTVariant'Named name <$> mapM (\ (name, ty) -> (,) name <$> convert_type_expr decls ty) fields
+        convert_variant decls (Type.ADTVariant'Anon name fields) = Type.ADTVariant'Anon name <$> mapM (convert_type_expr decls) fields
 
 convert_type_exprs_in_type_synonyms :: UntypedDeclArena -> UntypedTypeSynonym -> StateWithVars TypedWithVarsTypeSynonym
-convert_type_exprs_in_type_synonyms decls (HIR.TypeSynonym name expansion) = HIR.TypeSynonym name <$> convert_type_expr decls expansion
+convert_type_exprs_in_type_synonyms decls (Type.TypeSynonym name expansion) = Type.TypeSynonym name <$> convert_type_expr decls expansion
 
 convert_type_expr :: UntypedDeclArena -> TypeExpr -> StateWithVars TypeWithVars
 convert_type_expr decls (HIR.TypeExpr'Identifier sp iden) =
@@ -242,11 +242,11 @@ solve_constraints adts type_synonyms = mapM_ solve
 
         unify (Type.Type'Synonym a_syn_key) b =
             case Arena.get type_synonyms a_syn_key of
-                HIR.TypeSynonym _ a_expansion -> unify a_expansion b
+                Type.TypeSynonym _ a_expansion -> unify a_expansion b
 
         unify a (Type.Type'Synonym b_syn_key) =
             case Arena.get type_synonyms b_syn_key of
-                HIR.TypeSynonym _ b_expansion -> unify a b_expansion
+                Type.TypeSynonym _ b_expansion -> unify a b_expansion
 
         unify (Type.Type'Variable a) b = unify_var a b False
         unify a (Type.Type'Variable b) = unify_var b a True
@@ -303,11 +303,11 @@ solve_constraints adts type_synonyms = mapM_ solve
 
                 Type.Type'ADT adt_key ->
                     case Arena.get adts adt_key of
-                        HIR.ADT _ _ -> pure False -- TODO: check type arguemnts when those are added
+                        Type.ADT _ _ -> pure False -- TODO: check type arguemnts when those are added
 
                 Type.Type'Synonym syn_key ->
                     case Arena.get type_synonyms syn_key of
-                        HIR.TypeSynonym _ other_expansion -> occurs_check v other_expansion
+                        Type.TypeSynonym _ other_expansion -> occurs_check v other_expansion
 
                 Type.Type'Int -> pure False
                 Type.Type'Float -> pure False
@@ -346,13 +346,13 @@ remove_vars_from_bound_value :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWith
 remove_vars_from_bound_value vars (HIR.BoundValue ty sp) = HIR.BoundValue (remove_vars vars ty) sp
 
 remove_vars_from_adt :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsADT -> TypedADT
-remove_vars_from_adt vars (HIR.ADT name variants) = HIR.ADT name (map remove_from_variant variants)
+remove_vars_from_adt vars (Type.ADT name variants) = Type.ADT name (map remove_from_variant variants)
     where
-        remove_from_variant (HIR.ADTVariant'Named name fields) = HIR.ADTVariant'Named name (map (\ (name, ty) -> (name, remove_vars vars ty)) fields)
-        remove_from_variant (HIR.ADTVariant'Anon name fields) = HIR.ADTVariant'Anon name (map (remove_vars vars) fields)
+        remove_from_variant (Type.ADTVariant'Named name fields) = Type.ADTVariant'Named name (map (\ (name, ty) -> (name, remove_vars vars ty)) fields)
+        remove_from_variant (Type.ADTVariant'Anon name fields) = Type.ADTVariant'Anon name (map (remove_vars vars) fields)
 
 remove_vars_from_type_synonym :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsTypeSynonym -> TypedTypeSynonym
-remove_vars_from_type_synonym vars (HIR.TypeSynonym name expansion) = HIR.TypeSynonym name (remove_vars vars expansion)
+remove_vars_from_type_synonym vars (Type.TypeSynonym name expansion) = Type.TypeSynonym name (remove_vars vars expansion)
 
 remove_vars_from_binding :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsBinding -> TypedBinding
 remove_vars_from_binding vars (HIR.Binding pat eq_sp expr) = HIR.Binding (remove_from_pat pat) eq_sp (remove_from_expr expr)

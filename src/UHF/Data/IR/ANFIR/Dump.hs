@@ -35,7 +35,7 @@ dump_param_key :: ANFIR.ParamKey -> Dumper ty poison_allowed ()
 dump_param_key key = dump_text ("p_" <> show (Arena.unmake_key key))
 
 dump_binding :: ANFIR.BindingKey -> ANFIR.Binding ty poison_allowed -> Dumper ty poison_allowed ()
-dump_binding key (ANFIR.Binding _ ty expr) = dump_binding_key key >> dump_text " = " >> dump_expr expr >> dump_text ";\n" -- TODO: dont use unmake_key
+dump_binding key (ANFIR.Binding _ expr) = dump_binding_key key >> dump_text " = " >> dump_expr expr >> dump_text ";\n" -- TODO: dont use unmake_key
 
 dump_expr :: ANFIR.Expr ty poison_allowed -> Dumper ty poison_allowed ()
 dump_expr (ANFIR.Expr'Identifier ty bk) = dump_binding_key bk

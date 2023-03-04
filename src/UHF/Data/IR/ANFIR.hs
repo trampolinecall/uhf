@@ -8,8 +8,9 @@ module UHF.Data.IR.ANFIR
     , Param(..)
     , Expr(..)
     , SwitchMatcher(..)
-    , binding_type
     , get_initializer
+    , expr_type
+    , binding_type
     ) where
 
 import UHF.Util.Prelude
@@ -30,7 +31,7 @@ data Decl
 newtype Param ty = Param ty deriving Show
 
 data BoundWhere = InModule | InLambdaBody
-data Binding ty poison_allowed = Binding BoundWhere ty (Expr ty poison_allowed)
+data Binding ty poison_allowed = Binding BoundWhere (Expr ty poison_allowed)
 
 data Expr ty poison_allowed
     = Expr'Identifier ty BindingKey
@@ -61,26 +62,29 @@ data SwitchMatcher
     | Switch'Default
     deriving Show
 
-binding_type :: Expr ty poison_allowed -> ty
-binding_type (Expr'Identifier ty _) = ty
-binding_type (Expr'Int ty _) = ty
-binding_type (Expr'Float ty _) = ty
-binding_type (Expr'Bool ty _) = ty
-binding_type (Expr'Char ty _) = ty
-binding_type (Expr'String ty _) = ty
-binding_type (Expr'Tuple ty _ _) = ty
-
-binding_type (Expr'Lambda ty _ _ _) = ty
-binding_type (Expr'Param ty _) = ty
-
-binding_type (Expr'Call ty _ _) = ty
-
-binding_type (Expr'Switch ty _ _) = ty
-
-binding_type (Expr'TupleDestructure1 ty _) = ty
-binding_type (Expr'TupleDestructure2 ty _) = ty
-
-binding_type (Expr'Poison ty _) = ty
-
 get_initializer :: Binding ty poison_allowed -> Expr ty poison_allowed
-get_initializer (Binding _ _ e) = e
+get_initializer (Binding _ e) = e
+
+expr_type :: Expr ty poison_allowed -> ty
+expr_type (Expr'Identifier ty _) = ty
+expr_type (Expr'Int ty _) = ty
+expr_type (Expr'Float ty _) = ty
+expr_type (Expr'Bool ty _) = ty
+expr_type (Expr'Char ty _) = ty
+expr_type (Expr'String ty _) = ty
+expr_type (Expr'Tuple ty _ _) = ty
+
+expr_type (Expr'Lambda ty _ _ _) = ty
+expr_type (Expr'Param ty _) = ty
+
+expr_type (Expr'Call ty _ _) = ty
+
+expr_type (Expr'Switch ty _ _) = ty
+
+expr_type (Expr'TupleDestructure1 ty _) = ty
+expr_type (Expr'TupleDestructure2 ty _) = ty
+
+expr_type (Expr'Poison ty _) = ty
+
+binding_type :: Binding ty poison_allowed -> ty
+binding_type = expr_type . get_initializer

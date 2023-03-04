@@ -25,12 +25,12 @@ dump :: (DumpableIdentifier iden, DumpableType type_expr) => HIR.HIR iden type_e
 dump ir@(HIR.HIR decls _ _ _) = DumpUtils.exec_dumper $ runReaderT (Arena.transformM dump_ decls) ir
 
 class Dumpable d where
-    dump_ :: d -> Dumper iden type_expr type_info binary_ops_allowed ()
+    dump_ :: DumpableType type_expr => d -> Dumper iden type_expr type_info binary_ops_allowed ()
 
 instance Dumpable Text where
     dump_ = lift . DumpUtils.dump
 
-dump_text :: Text -> Dumper iden type_expr type_info binary_ops_allowed ()
+dump_text :: DumpableType type_expr => Text -> Dumper iden type_expr type_info binary_ops_allowed ()
 dump_text = dump_
 
 get_bv :: Keys.BoundValueKey -> Dumper iden type_expr type_info binary_ops_allowed (HIR.BoundValue type_info)
@@ -41,14 +41,18 @@ get_type_syn :: Keys.TypeSynonymKey -> Dumper iden type_expr type_info binary_op
 get_type_syn k = reader (\ (HIR.HIR _ _ syns _) -> Arena.get syns k)
 
 instance (DumpableIdentifier iden, DumpableType type_expr) => Dumpable (HIR.Decl iden type_expr type_info binary_ops_allowed) where
-    dump_ (HIR.Decl'Module _ bindings) = mapM_ dump_ bindings
+    dump_ (HIR.Decl'Module _ bindings adts type_synonyms) = mapM_ (\ k -> get_adt k >>= dump_) adts >> mapM_ (\ k -> get_type_syn k >>= dump_) type_synonyms >> mapM_ dump_ bindings
     dump_ (HIR.Decl'Type ty) = pure ()
 
+instance (DumpableType ty) => Dumpable (Type.ADT ty) where
+    dump_ (Type.ADT name variants) = dump_text "data " >> dump_text name >> dump_text ";\n" -- TODO
+instance (DumpableType ty) => Dumpable (Type.TypeSynonym ty) where
+    dump_ (Type.TypeSynonym name expansion) = dump_text "typesyn " >> dump_text name >> dump_text " = " >> dump_type expansion >> dump_text ";\n"
 instance (DumpableIdentifier iden, DumpableType type_expr) => Dumpable (HIR.Binding iden type_expr type_info binary_ops_allowed) where
     dump_ (HIR.Binding pat _ init) = dump_ pat >> dump_text " = " >> dump_ init >> dump_text ";\n"
 
 class DumpableIdentifier i where
-    dump_iden :: i -> Dumper iden type_expr type_info binary_ops_allowed ()
+    dump_iden :: DumpableType type_expr => i -> Dumper iden type_expr type_info binary_ops_allowed ()
 
 instance DumpableIdentifier (HIR.NameContext, [Located Text]) where
     dump_iden (_, segments) = dump_ $ Text.intercalate "::" (map unlocate segments)
@@ -63,7 +67,7 @@ instance DumpableIdentifier (Maybe Keys.DeclKey) where
     dump_iden Nothing = dump_text "<name resolution error>"
 
 class DumpableType t where
-    dump_type :: t -> Dumper iden type_expr type_info binary_ops_allowed ()
+    dump_type :: DumpableType type_expr => t -> Dumper iden type_expr type_info binary_ops_allowed ()
 instance DumpableIdentifier iden => DumpableType (HIR.TypeExpr iden) where
     dump_type (HIR.TypeExpr'Identifier _ iden) = dump_iden iden
     dump_type (HIR.TypeExpr'Tuple a b) = dump_text "(" >> dump_type a >> dump_text ", " >> dump_type b >> dump_text ")"

@@ -57,7 +57,7 @@ convert_binding bound_where bv_map (RIR.Binding target expr) =
     pure expr_involved_bindings
 
 new_binding :: ANFIR.BoundWhere -> ANFIRExpr -> WriterT [ANFIR.BindingKey] MakeGraphState ANFIR.BindingKey
-new_binding bound_where expr = lift (lift $ state $ \ (g, p) -> let (i, g') = Arena.put (ANFIR.Binding bound_where (ANFIR.binding_type expr) expr) g in (i, (g', p))) >>= \ binding_key -> tell [binding_key] >> pure binding_key
+new_binding bound_where expr = lift (lift $ state $ \ (g, p) -> let (i, g') = Arena.put (ANFIR.Binding bound_where expr) g in (i, (g', p))) >>= \ binding_key -> tell [binding_key] >> pure binding_key
 new_param :: ANFIRParam -> WriterT [ANFIR.BindingKey] MakeGraphState ANFIR.ParamKey
 new_param param = lift (lift $ state $ \ (g, p) -> let (i, p') = Arena.put param p in (i, (g, p')))
 

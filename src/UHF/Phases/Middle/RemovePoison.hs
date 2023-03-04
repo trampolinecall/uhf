@@ -12,6 +12,7 @@ import UHF.Data.IR.Keys
 type Decl = ANFIR.Decl
 type DeclArena = Arena.Arena Decl DeclKey
 
+type PoisonedANFIR = ANFIR.ANFIR PoisonedType ()
 type PoisonedType = Maybe (Type.Type Void)
 type PoisonedADT = HIR.ADT PoisonedType
 type PoisonedTypeSynonym = HIR.TypeSynonym PoisonedType
@@ -24,6 +25,7 @@ type PoisonedTypeSynonymArena = Arena.Arena PoisonedTypeSynonym HIR.TypeSynonymK
 type PoisonedBindingArena = Arena.Arena PoisonedBinding ANFIR.BindingKey
 type PoisonedParamArena = Arena.Arena PoisonedParam ANFIR.ParamKey
 
+type NoPoisonANFIR = ANFIR.ANFIR NoPoisonType Void
 type NoPoisonType = Type.Type Void
 type NoPoisonADT = HIR.ADT NoPoisonType
 type NoPoisonTypeSynonym = HIR.TypeSynonym NoPoisonType
@@ -35,10 +37,10 @@ type NoPoisonADTArena = Arena.Arena NoPoisonADT ADTKey
 type NoPoisonTypeSynonymArena = Arena.Arena NoPoisonTypeSynonym HIR.TypeSynonymKey
 type NoPoisonBindingArena = Arena.Arena NoPoisonBinding ANFIR.BindingKey
 type NoPoisonParamArena = Arena.Arena NoPoisonParam ANFIR.ParamKey
-remove_poison :: (DeclArena, PoisonedADTArena, PoisonedTypeSynonymArena, PoisonedBindingArena, PoisonedParamArena) -> Maybe (DeclArena, NoPoisonADTArena, NoPoisonTypeSynonymArena, NoPoisonBindingArena, NoPoisonParamArena)
+remove_poison :: PoisonedANFIR -> Maybe NoPoisonANFIR
 -- TODO: probably dont pass DeclArena if it is not going to be changed
-remove_poison (decls, adts, type_synonyms, bindings, params) =
-    (decls,,,,)
+remove_poison (ANFIR.ANFIR decls adts type_synonyms bindings params) =
+    ANFIR.ANFIR decls
         <$> Arena.transformM rp_adt adts
         <*> Arena.transformM rp_type_synonym type_synonyms
         <*> Arena.transformM rp_binding bindings

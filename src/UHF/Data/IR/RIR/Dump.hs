@@ -14,11 +14,10 @@ import qualified UHF.Data.IR.Type as Type
 -- TODO: dont dump decls, just dump module
 -- TODO: dump types too
 
-type IR = (Arena.Arena RIR.Decl Keys.DeclKey, Arena.Arena (HIR.ADT (Maybe (Type.Type Void))) Keys.ADTKey, Arena.Arena (HIR.TypeSynonym (Maybe (Type.Type Void))) Keys.TypeSynonymKey, Arena.Arena (HIR.BoundValue (Maybe (Type.Type Void))) Keys.BoundValueKey)
-type Dumper = ReaderT IR DumpUtils.Dumper
+type Dumper = ReaderT RIR.RIR DumpUtils.Dumper
 
-dump :: IR -> Text
-dump ir@(decls, _, _, _) = DumpUtils.exec_dumper $ runReaderT (Arena.transformM dump_decl decls) ir
+dump :: RIR.RIR -> Text
+dump ir@(RIR.RIR decls _ _ _) = DumpUtils.exec_dumper $ runReaderT (Arena.transformM dump_decl decls) ir
 
 dump_text :: Text -> Dumper ()
 dump_text = lift . DumpUtils.dump

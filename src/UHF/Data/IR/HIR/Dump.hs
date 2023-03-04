@@ -19,11 +19,10 @@ import qualified Data.Text as Text
 -- TODO: dont dump decls, just dump module
 -- TODO: remove Dumable class
 
-type IR iden type_expr type_info binary_ops_allowed = (Arena.Arena (HIR.Decl iden type_expr type_info binary_ops_allowed) Keys.DeclKey, Arena.Arena (HIR.ADT type_expr) Keys.ADTKey, Arena.Arena (HIR.TypeSynonym type_expr) Keys.TypeSynonymKey, Arena.Arena (HIR.BoundValue type_info) Keys.BoundValueKey)
-type Dumper iden type_expr type_info binary_ops_allowed = ReaderT (IR iden type_expr type_info binary_ops_allowed) DumpUtils.Dumper
+type Dumper iden type_expr type_info binary_ops_allowed = ReaderT (HIR.HIR iden type_expr type_info binary_ops_allowed) DumpUtils.Dumper
 
-dump :: (DumpableIdentifier iden, DumpableType type_expr) => IR iden type_expr type_info binary_ops_allowed -> Text
-dump ir@(decls, _, _, _) = DumpUtils.exec_dumper $ runReaderT (Arena.transformM dump_ decls) ir
+dump :: (DumpableIdentifier iden, DumpableType type_expr) => HIR.HIR iden type_expr type_info binary_ops_allowed -> Text
+dump ir@(HIR.HIR decls _ _ _) = DumpUtils.exec_dumper $ runReaderT (Arena.transformM dump_ decls) ir
 
 class Dumpable d where
     dump_ :: d -> Dumper iden type_expr type_info binary_ops_allowed ()
@@ -35,11 +34,11 @@ dump_text :: Text -> Dumper iden type_expr type_info binary_ops_allowed ()
 dump_text = dump_
 
 get_bv :: Keys.BoundValueKey -> Dumper iden type_expr type_info binary_ops_allowed (HIR.BoundValue type_info)
-get_bv k = reader (\ (_, _, _, bvs) -> Arena.get bvs k)
+get_bv k = reader (\ (HIR.HIR _ _ _ bvs) -> Arena.get bvs k)
 get_adt :: Keys.ADTKey -> Dumper iden type_expr type_info binary_ops_allowed (HIR.ADT type_expr)
-get_adt k = reader (\ (_, adts, _, _) -> Arena.get adts k)
+get_adt k = reader (\ (HIR.HIR _ adts _ _) -> Arena.get adts k)
 get_type_syn :: Keys.TypeSynonymKey -> Dumper iden type_expr type_info binary_ops_allowed (HIR.TypeSynonym type_expr)
-get_type_syn k = reader (\ (_, _, syns, _) -> Arena.get syns k)
+get_type_syn k = reader (\ (HIR.HIR _ _ syns _) -> Arena.get syns k)
 
 instance (DumpableIdentifier iden, DumpableType type_expr) => Dumpable (HIR.Decl iden type_expr type_info binary_ops_allowed) where
     dump_ (HIR.Decl'Module _ bindings) = mapM_ dump_ bindings

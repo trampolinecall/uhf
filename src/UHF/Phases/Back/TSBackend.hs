@@ -87,7 +87,6 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures p
     sequence (map stringify_capture $ Set.toList captures) >>= \ stringified_captures ->
 
     (unzip <$> mapM stringify_binding_decl included_bindings) >>= \ (binding_decls, binding_set_evaluators) ->
-    -- concat <$> mapM stringify_binding_set_fields included_bindings >>= \ binding_set_fields ->
     -- TODO: dont use unmake_key anywhere (probably including outside of this module too)
 
     ts_return_type >>= \ ts_return_type ->
@@ -106,17 +105,14 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures p
             where
                 r binding =
                     binding_type binding >>= refer_type >>= \ ty ->
-                    pure (mangle_binding_as_binding_var binding <> ": " <> ty)
+                    pure (mangle_binding_as_thunk binding <> ": " <> ty)
 
-        object_of_bindings = "{ " <> Text.intercalate ", " (map r included_bindings) <> " }"
-            where
-                r binding =
-                    mangle_binding_as_binding_var binding <> ": " <> mangle_binding_as_thunk binding
+        object_of_bindings = "{ " <> Text.intercalate ", " (map mangle_binding_as_thunk included_bindings) <> " }"
 
         stringify_param param_key =
             get_param param_key >>= \ (ANFIR.Param param_ty) ->
             refer_type param_ty >>= \ ty_refer ->
-            pure ("param_" <> show (Arena.unmake_key param_key) <> ": " <> ty_refer)
+            pure ("param: " <> ty_refer)
 
         stringify_capture bk =
             ANFIR.binding_type <$> get_binding bk >>= refer_type >>= \ ty_refer ->
@@ -140,7 +136,7 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures p
                         pure (default_let_thunk, Just (set_evaluator "TupleEvaluator" (mangle_binding_as_thunk a <> ", " <> mangle_binding_as_thunk b)))
 
                 ANFIR.Expr'Lambda _ captures _ _ _ -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" ("new " <> mangle_binding_as_lambda binding_key <> "(" <> Text.intercalate ", " (map mangle_binding_as_thunk (toList captures)) <> ")")))
-                ANFIR.Expr'Param _ param_key -> pure (let_thunk $ "param_" <> show (Arena.unmake_key param_key), Nothing)
+                ANFIR.Expr'Param _ _ -> pure (let_thunk "param", Nothing)
 
                 ANFIR.Expr'Call _ callee arg -> pure (default_let_thunk, Just (set_evaluator "CallEvaluator" (mangle_binding_as_thunk callee <> ", " <> mangle_binding_as_thunk arg)))
 
@@ -172,7 +168,7 @@ stringify_ts_lambda (TSLambda key captures arg result body_key) =
     pure ("class " <> mangle_binding_as_lambda key <> " implements Lambda<" <> arg_type_raw <> ", " <> result_type_raw <> "> {\n"
         <> "    constructor(" <> capture_constructor_params  <> ") {}\n"
         <> "    call(arg: " <> arg_type <> "): " <> result_type <> " {\n"
-        <> "        return " <> mangle_make_thunk_graph_for (LambdaBody key) <> "(" <> Text.intercalate ", " (map (\ c -> "this." <> mangle_binding_as_capture c) (toList captures) ++ ["arg"]) <> ")." <> mangle_binding_as_binding_var body_key <> ";\n"
+        <> "        return " <> mangle_make_thunk_graph_for (LambdaBody key) <> "(" <> Text.intercalate ", " (map (\ c -> "this." <> mangle_binding_as_capture c) (toList captures) ++ ["arg"]) <> ")." <> mangle_binding_as_thunk body_key <> ";\n"
         <> "    }\n"
         <> "}\n")
 
@@ -185,7 +181,7 @@ initialize_global_thunks :: [TSGlobalThunk] -> IRReader Text
 initialize_global_thunks thunks =
     pure ("function initialize_global_thunks() {\n"
         <> "    let globals = make_global_thunk_graph();\n"
-        <> Text.concat (map (\ (TSGlobalThunk k) -> "    " <> mangle_binding_as_thunk k <> " = " <> "globals." <> mangle_binding_as_binding_var k <> ";\n") thunks)
+        <> Text.concat (map (\ (TSGlobalThunk k) -> "    " <> mangle_binding_as_thunk k <> " = " <> "globals." <> mangle_binding_as_thunk k <> ";\n") thunks)
         <> "}\n"
         <> "initialize_global_thunks();\n")
 
@@ -253,9 +249,6 @@ mangle_adt key = "ADT" <> show (Arena.unmake_key key)
 
 mangle_binding_as_lambda :: ANFIR.BindingKey -> Text
 mangle_binding_as_lambda key = "Lambda" <> show (Arena.unmake_key key)
-
-mangle_binding_as_binding_var :: ANFIR.BindingKey -> Text
-mangle_binding_as_binding_var key = "binding_" <> show (Arena.unmake_key key)
 
 mangle_binding_as_capture :: ANFIR.BindingKey -> Text
 mangle_binding_as_capture key = "capture" <> show (Arena.unmake_key key)

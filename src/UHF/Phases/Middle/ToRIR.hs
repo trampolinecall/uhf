@@ -60,14 +60,14 @@ convert_expr _ (HIR.Expr'Int ty sp i) = pure $ RIR.Expr'Int ty sp i
 convert_expr _ (HIR.Expr'Float ty sp f) = pure $ RIR.Expr'Float ty sp f
 convert_expr _ (HIR.Expr'Bool ty sp b) = pure $ RIR.Expr'Bool ty sp b
 convert_expr bound_where (HIR.Expr'Tuple ty sp a b) = RIR.Expr'Tuple ty sp <$> convert_expr bound_where a <*> convert_expr bound_where b
-convert_expr bound_where (HIR.Expr'Lambda ty sp param_pat body) =
+convert_expr _ (HIR.Expr'Lambda ty sp param_pat body) =
     let param_ty = HIR.pattern_type param_pat
         body_ty = HIR.expr_type body
         body_sp = HIR.expr_span body
     in
     -- '\ (...) -> body' becomes '\ (arg) -> let ... = arg; body'
     Unique.make_unique >>= \ uniq ->
-    new_bound_value bound_where param_ty (HIR.pattern_span param_pat) >>= \ param_bk ->
+    new_bound_value (RIR.InLambdaBody uniq) param_ty (HIR.pattern_span param_pat) >>= \ param_bk ->
     assign_pattern (RIR.InLambdaBody uniq) param_pat (RIR.Expr'Identifier param_ty (HIR.pattern_span param_pat) (Just param_bk)) >>= \ bindings ->
     RIR.Expr'Lambda ty sp uniq () param_bk <$> (RIR.Expr'Let body_ty body_sp bindings <$> convert_expr (RIR.InLambdaBody uniq) body)
 

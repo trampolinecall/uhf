@@ -35,7 +35,7 @@ annotate_expr _ (RIR.Expr'Float ty sp r) = RIR.Expr'Float ty sp r
 annotate_expr _ (RIR.Expr'Bool ty sp b) = RIR.Expr'Bool ty sp b
 annotate_expr bvs (RIR.Expr'Tuple ty sp a b) = RIR.Expr'Tuple ty sp (annotate_expr bvs a) (annotate_expr bvs b)
 annotate_expr bvs (RIR.Expr'Lambda ty sp uniq () param body) =
-    let body' = (annotate_expr bvs body)
+    let body' = annotate_expr bvs body
     in RIR.Expr'Lambda ty sp uniq (get_captures body') param body'
     where
         get_captures :: RIR.Expr CaptureList -> Set BoundValueKey

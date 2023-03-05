@@ -30,6 +30,7 @@ dump_decl :: RIR.Decl captures -> Dumper captures ()
 dump_decl (RIR.Decl'Module bindings adts type_synonyms) = mapM_ (\ k -> get_adt k >>= dump_adt) adts >> mapM_ (\ k -> get_type_synonym k >>= dump_type_synonym) type_synonyms >> mapM_ dump_binding bindings
 dump_decl (RIR.Decl'Type _) = pure ()
 
+-- TODO: move this to Type.Dump? because this is also duplicated across all the ir dumps
 dump_adt :: Type.ADT (Maybe (Type.Type Void)) -> Dumper captures ()
 dump_adt (Type.ADT name _) = dump_text "data " >> dump_text name >> dump_text ";\n" -- TODO
 dump_type_synonym :: Type.TypeSynonym (Maybe (Type.Type Void)) -> Dumper captures ()

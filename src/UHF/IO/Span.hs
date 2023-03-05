@@ -8,7 +8,6 @@ module UHF.IO.Span
 
     , new
     , dummy -- TODO: use conditional compilation? to make sure this only compiles in tests
-    , start_of_file
     , end_of_file
 
     , is_single_line
@@ -20,8 +19,6 @@ import qualified UHF.IO.File as File
 import UHF.IO.File (File)
 import qualified UHF.IO.Location as Location
 import UHF.IO.Location (Location)
-
-import Data.List (maximumBy, minimumBy)
 
 data Span = Span Location.Location Location.Location Location.Location deriving (Show, Eq) -- TODO: remove Eq
 
@@ -53,9 +50,6 @@ new loc start_i len =
         b_l = Location.seek (len - 1) start_l
         end_l = Location.seek len start_l
     in Span start_l b_l end_l
-
-start_of_file :: File -> Span
-start_of_file f = new (Location.new f) 0 1
 
 end_of_file :: File -> Span
 end_of_file f = new (Location.seek (File.length f) $ Location.new f) 0 1

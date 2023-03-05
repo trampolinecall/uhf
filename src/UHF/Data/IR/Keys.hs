@@ -38,7 +38,7 @@ instance Arena.Key BindingKey where
     make_key = BindingKey
     unmake_key (BindingKey i) = i
 
-newtype ParamKey = ParamKey Int deriving (Show, Eq, Ord) -- TODO: figure out better solution in ts backend than to use ord instance for ordering parameters
+newtype ParamKey = ParamKey Int deriving (Show, Eq)
 instance Arena.Key ParamKey where
     make_key = ParamKey
     unmake_key (ParamKey i) = i

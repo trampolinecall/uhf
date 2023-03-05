@@ -1,8 +1,12 @@
+{-# LANGUAGE OverloadedLists #-}
+
 module UHF.Phases.Middle.AnnotateCaptures (annotate) where
 
 import UHF.Util.Prelude
 
 import qualified Arena
+
+import qualified Data.Set as Set
 
 import qualified UHF.Data.IR.RIR as RIR
 import qualified UHF.Data.IR.Type as Type
@@ -10,7 +14,7 @@ import UHF.Data.IR.Keys
 
 type BoundValue = RIR.BoundValue (Maybe (Type.Type Void))
 
-type CaptureList = [BoundValueKey]
+type CaptureList = Set BoundValueKey -- TODO: dont use BoundValueKey Ord for order of captures in ts backend arguments
 
 annotate :: RIR.RIR () -> RIR.RIR CaptureList
 annotate (RIR.RIR decls adts type_synonyms bvs) = RIR.RIR (Arena.transform (annotate_decl bvs) decls) adts type_synonyms bvs
@@ -34,7 +38,7 @@ annotate_expr bvs (RIR.Expr'Lambda ty sp () param body) =
     let body' = (annotate_expr bvs body)
     in RIR.Expr'Lambda ty sp (get_captures body') param body'
     where
-        get_captures :: RIR.Expr CaptureList -> [BoundValueKey]
+        get_captures :: RIR.Expr CaptureList -> Set BoundValueKey
         get_captures (RIR.Expr'Identifier _ _ (Just i))
             | is_capture i = [i]
             | otherwise = []
@@ -44,11 +48,11 @@ annotate_expr bvs (RIR.Expr'Lambda ty sp () param body) =
         get_captures (RIR.Expr'Int _ _ _) = []
         get_captures (RIR.Expr'Float _ _ _) = []
         get_captures (RIR.Expr'Bool _ _ _) = []
-        get_captures (RIR.Expr'Tuple _ _ a b) = get_captures a ++ get_captures b
+        get_captures (RIR.Expr'Tuple _ _ a b) = get_captures a <> get_captures b
         get_captures (RIR.Expr'Lambda _ _ captures _ _) = captures
-        get_captures (RIR.Expr'Let _ _ bindings result) = concatMap (\ (RIR.Binding _ init) -> get_captures init) bindings ++ get_captures result
-        get_captures (RIR.Expr'Call _ _ callee arg) = get_captures callee ++ get_captures arg
-        get_captures (RIR.Expr'Switch _ _ test arms) = get_captures test ++ concatMap (\ (_, e) -> get_captures e) arms
+        get_captures (RIR.Expr'Let _ _ bindings result) = Set.unions (map (\ (RIR.Binding _ init) -> get_captures init) bindings) <> get_captures result
+        get_captures (RIR.Expr'Call _ _ callee arg) = get_captures callee <> get_captures arg
+        get_captures (RIR.Expr'Switch _ _ test arms) = get_captures test <> (Set.unions $ map (\ (_, e) -> get_captures e) arms)
         get_captures (RIR.Expr'Poison _ _) = []
 
         is_capture k = case Arena.get bvs k of

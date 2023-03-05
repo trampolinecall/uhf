@@ -5,6 +5,7 @@ import UHF.Util.Prelude
 import qualified Arena
 
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 import qualified UHF.Data.IR.RIR as RIR
 import qualified UHF.Data.IR.ANFIR as ANFIR
@@ -12,7 +13,7 @@ import qualified UHF.Data.IR.Type as Type
 import UHF.Data.IR.Keys
 
 type Type = Maybe (Type.Type Void)
-type CaptureList = [BoundValueKey]
+type CaptureList = Set BoundValueKey
 
 type RIRDecl = RIR.Decl CaptureList
 type RIRExpr = RIR.Expr CaptureList
@@ -80,7 +81,7 @@ convert_expr bv_map (RIR.Expr'Lambda ty _ captures param_bv body) =
         lift (map_bound_value param_bv param_binding) >>
         convert_expr bv_map body
     ) >>= \ (body, body_included_bindings) ->
-    new_binding (ANFIR.Expr'Lambda ty (map (bv_map Map.!) captures) anfir_param body_included_bindings body)
+    new_binding (ANFIR.Expr'Lambda ty (Set.map (bv_map Map.!) captures) anfir_param body_included_bindings body)
 
 convert_expr bv_map (RIR.Expr'Let _ _ bindings e) = mapM (lift . convert_binding bv_map) bindings >>= \ binding_involved_bindings -> tell (concat binding_involved_bindings) >> convert_expr bv_map e
 

@@ -24,15 +24,15 @@ type HIRExpr = HIR.Expr (Located (Maybe BoundValueKey)) Type Type Void
 type HIRPattern = HIR.Pattern (Located (Maybe BoundValueKey)) Type
 type HIRBinding = HIR.Binding (Located (Maybe BoundValueKey)) Type Type Void
 
-type RIRDecl = RIR.Decl
-type RIRExpr = RIR.Expr
-type RIRBinding = RIR.Binding
+type RIRDecl = RIR.Decl ()
+type RIRExpr = RIR.Expr ()
+type RIRBinding = RIR.Binding ()
 
 type HIRBoundValueArena = Arena.Arena (HIR.BoundValue Type) BoundValueKey
 
 type ConvertState = WriterT (Map BoundValueKey RIR.BoundWhere) (StateT HIRBoundValueArena (Compiler.WithDiagnostics Void Void))
 
-convert :: HIR -> Compiler.WithDiagnostics Void Void RIR.RIR
+convert :: HIR -> Compiler.WithDiagnostics Void Void (RIR.RIR ())
 convert (HIR.HIR decls adts type_synonyms bvs) =
     runStateT (runWriterT (Arena.transformM convert_decl decls)) bvs >>= \ ((decls, bound_wheres), bvs) ->
     let bvs' = Arena.transform_with_key (\ key (HIR.BoundValue ty sp) -> RIR.BoundValue ty (bound_wheres Map.! key) sp) bvs
@@ -67,7 +67,7 @@ convert_expr bound_where (HIR.Expr'Lambda ty sp param_pat body) =
     -- '\ (...) -> body' becomes '\ (arg) -> let ... = arg; body'
     new_bound_value bound_where param_ty (HIR.pattern_span param_pat) >>= \ param_bk ->
     assign_pattern (RIR.InLambdaBody) param_pat (RIR.Expr'Identifier param_ty (HIR.pattern_span param_pat) (Just param_bk)) >>= \ bindings ->
-    RIR.Expr'Lambda ty sp param_bk <$> (RIR.Expr'Let body_ty body_sp bindings <$> convert_expr (RIR.InLambdaBody) body)
+    RIR.Expr'Lambda ty sp () param_bk <$> (RIR.Expr'Let body_ty body_sp bindings <$> convert_expr (RIR.InLambdaBody) body)
 
 convert_expr bound_where (HIR.Expr'Let ty sp bindings body) = RIR.Expr'Let ty sp <$> (concat <$> mapM (convert_binding bound_where) bindings) <*> convert_expr bound_where body
 convert_expr bound_where (HIR.Expr'BinaryOps void _ _ _ _) = absurd void

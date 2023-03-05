@@ -205,12 +205,13 @@ refer_type :: Type.Type Void -> IRReader Text
 refer_type ty = refer_type_raw ty >>= \ ty -> pure ("Thunk<" <> ty <> ">")
 
 -- lowering {{{1
-lower :: DeclArena -> ADTArena -> TypeSynonymArena -> BindingArena -> ParamArena -> Text
-lower decls adts type_synonyms bindings params =
+-- TODO: take ANFIR
+lower :: DeclArena -> ADTArena -> TypeSynonymArena -> BindingArena -> ParamArena -> DeclKey -> Text
+lower decls adts type_synonyms bindings params mod =
     runReader
         (
             runWriterT (
-                Arena.transform_with_keyM define_decl decls >> -- TODO: pass module instead of doing this
+                define_decl mod (Arena.get decls mod) >>
                 Arena.transform_with_keyM define_lambda_type bindings >>
                 pure ()
             ) >>= \ ((), TS ts_decls ts_adts ts_make_thunk_graphs ts_lambdas ts_global_thunks) ->

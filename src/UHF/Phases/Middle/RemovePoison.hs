@@ -25,12 +25,13 @@ type NoPoisonParam = ANFIR.Param NoPoisonType
 
 remove_poison :: PoisonedANFIR -> Maybe NoPoisonANFIR
 -- TODO: probably dont pass DeclArena if it is not going to be changed
-remove_poison (ANFIR.ANFIR decls adts type_synonyms bindings params) =
+remove_poison (ANFIR.ANFIR decls adts type_synonyms bindings params mod) =
     ANFIR.ANFIR decls
         <$> Arena.transformM rp_adt adts
         <*> Arena.transformM rp_type_synonym type_synonyms
         <*> Arena.transformM rp_binding bindings
         <*> Arena.transformM rp_param params
+        <*> pure mod
 
 -- rp short for remove poison
 

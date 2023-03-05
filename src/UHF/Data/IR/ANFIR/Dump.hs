@@ -12,20 +12,20 @@ import qualified UHF.Data.IR.ANFIR as ANFIR
 import qualified UHF.Data.IR.Keys as Keys
 import qualified UHF.Data.IR.Type as Type
 
--- TODO: dont dump decls, just dump module
 -- TODO: dump types too
+-- TODO: separate dump as definition and dump as reference
 
 type Dumper ty poison_allowed = ReaderT (ANFIR.ANFIR ty poison_allowed) DumpUtils.Dumper
 
 get_binding :: Keys.BindingKey -> Dumper ty poison_allowed (ANFIR.Binding ty poison_allowed)
-get_binding k = reader (\ (ANFIR.ANFIR _ _ _ bindings _) -> Arena.get bindings k)
+get_binding k = reader (\ (ANFIR.ANFIR _ _ _ bindings _ _) -> Arena.get bindings k)
 get_adt :: Keys.ADTKey -> Dumper ty poison_allowed (Type.ADT ty)
-get_adt k = reader (\ (ANFIR.ANFIR _ adts _ _ _) -> Arena.get adts k)
+get_adt k = reader (\ (ANFIR.ANFIR _ adts _ _ _ _) -> Arena.get adts k)
 get_type_synonym :: Keys.TypeSynonymKey -> Dumper ty poison_allowed (Type.TypeSynonym ty)
-get_type_synonym k = reader (\ (ANFIR.ANFIR _ _ type_synonyms _ _) -> Arena.get type_synonyms k)
+get_type_synonym k = reader (\ (ANFIR.ANFIR _ _ type_synonyms _ _ _) -> Arena.get type_synonyms k)
 
 dump :: DumpableType ty => ANFIR.ANFIR ty poison_allowed -> Text
-dump ir@(ANFIR.ANFIR decls _ _ _ _) = DumpUtils.exec_dumper $ runReaderT (Arena.transformM dump_decl decls) ir
+dump ir@(ANFIR.ANFIR decls _ _ _ _ mod) = DumpUtils.exec_dumper $ runReaderT (dump_decl $ Arena.get decls mod) ir
 
 dump_text :: Text -> Dumper ty poison_allowed ()
 dump_text = lift . DumpUtils.dump

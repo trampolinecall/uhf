@@ -21,7 +21,7 @@ type GroupedBinding typeannotation = HIR.Binding (Located (Maybe BoundValueKey))
 type GroupedExpr typeannotation = HIR.Expr (Located (Maybe BoundValueKey)) typeannotation () Void
 
 group :: UngroupedHIR typeannotation -> GroupedHIR typeannotation
-group (HIR.HIR decls adts type_synonyms bound_values) = (HIR.HIR (Arena.transform group_decl decls) adts type_synonyms bound_values)
+group (HIR.HIR decls adts type_synonyms bound_values mod) = (HIR.HIR (Arena.transform group_decl decls) adts type_synonyms bound_values mod)
 
 group_decl :: UngroupedDecl typeannotation -> GroupedDecl typeannotation
 group_decl (HIR.Decl'Module nc bindings adts syns) = HIR.Decl'Module nc (map group_binding bindings) adts syns

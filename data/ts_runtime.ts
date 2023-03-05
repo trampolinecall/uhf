@@ -56,16 +56,16 @@ class CallEvaluator<A, R> implements Evaluator<R> {
     }
 }
 
-class TupleDestructure1Evaluator<A, B> implements Evaluator<A> {
-    constructor(public tuple: Thunk<[Thunk<A>, Thunk<B>]>) {}
+class TupleDestructure1Evaluator<A> implements Evaluator<A> {
+    constructor(public tuple: Thunk<[Thunk<A>, Thunk<any>]>) {}
 
     evaluate(): A {
         return this.tuple.get_value()[0].get_value();
     }
 }
 
-class TupleDestructure2Evaluator<A, B> implements Evaluator<B> {
-    constructor(public tuple: Thunk<[Thunk<A>, Thunk<B>]>) {}
+class TupleDestructure2Evaluator<B> implements Evaluator<B> {
+    constructor(public tuple: Thunk<[Thunk<any>, Thunk<B>]>) {}
 
     evaluate(): B {
         return this.tuple.get_value()[1].get_value();

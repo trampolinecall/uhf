@@ -24,7 +24,6 @@ type NoPoisonBinding = ANFIR.Binding NoPoisonType Void
 type NoPoisonParam = ANFIR.Param NoPoisonType
 
 remove_poison :: PoisonedANFIR -> Maybe NoPoisonANFIR
--- TODO: probably dont pass DeclArena if it is not going to be changed
 remove_poison (ANFIR.ANFIR decls adts type_synonyms bindings params mod) =
     ANFIR.ANFIR decls
         <$> Arena.transformM rp_adt adts

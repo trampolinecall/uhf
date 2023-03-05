@@ -118,7 +118,7 @@ instance Diagnostic.ToError Error where
                     print_type False adts type_synonyms vars (unlocate got_whole) >>= \ got_whole_printed ->
                     pure (expect_part_printed, got_part_printed, expect_whole_printed, got_whole_printed)
 
-        in Diagnostic.Error Diagnostic.Codes.type_mismatch -- TODO: change code?
+        in Diagnostic.Error Diagnostic.Codes.type_mismatch
             (Just sp)
             (convert_str $ "conflicting types in " <> what <> ": '" <> expect_part_printed <> "' vs '" <> got_part_printed <> "'")
             ((sp `Diagnostic.msg_note_at` convert_str ("expected '" <> expect_whole_printed <> "', got '" <> got_whole_printed <> "'")) : make_var_name_messages vars var_names)
@@ -142,8 +142,8 @@ instance Diagnostic.ToError Error where
         let sp = type_var_for_what_sp for_what
             name = type_var_for_what_name for_what
         in Diagnostic.Error Diagnostic.Codes.ambiguous_type
-                (Just sp) -- TODO
-                ("ambiguous type: could not infer the type of this " <> name) -- TODO: better message
+                (Just sp)
+                ("ambiguous type: could not infer the type of this " <> name)
                 []
                 []
 

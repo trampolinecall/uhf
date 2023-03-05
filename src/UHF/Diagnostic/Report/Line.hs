@@ -25,7 +25,6 @@ import qualified Data.Text as Text
 
 data Line = Line { prefix :: Text, separ :: Char, contents :: FormattedString.FormattedString } deriving (Show, Eq)
 
--- TODO: use Reader monad instead of passing around Style?
 file_line :: Style.Style -> File -> Line
 file_line style f = Line "" (Style.file_line_char style) (FormattedString.color_text (Style.file_path_color style) $ Text.pack $ File.path f)
 

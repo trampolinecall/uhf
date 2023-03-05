@@ -8,8 +8,6 @@ import qualified Unique
 import UHF.IO.Span (Span)
 import UHF.IO.Located (Located (unlocate))
 
-import qualified UHF.Compiler as Compiler
-
 import qualified UHF.Data.IR.HIR as HIR
 import qualified UHF.Data.IR.RIR as RIR
 import qualified UHF.Data.IR.Type as Type
@@ -31,13 +29,13 @@ type RIRBinding = RIR.Binding ()
 
 type HIRBoundValueArena = Arena.Arena (HIR.BoundValue Type) BoundValueKey
 
-type ConvertState = Unique.UniqueMakerT (WriterT (Map BoundValueKey RIR.BoundWhere) (StateT HIRBoundValueArena (Compiler.WithDiagnostics Void Void)))
+type ConvertState = Unique.UniqueMakerT (WriterT (Map BoundValueKey RIR.BoundWhere) (State HIRBoundValueArena))
 
-convert :: HIR -> Compiler.WithDiagnostics Void Void (RIR.RIR ())
+convert :: HIR -> RIR.RIR ()
 convert (HIR.HIR decls adts type_synonyms bvs mod) =
-    runStateT (runWriterT (Unique.run_unique_maker_t (Arena.transformM convert_decl decls))) bvs >>= \ ((decls, bound_wheres), bvs) ->
-    let bvs' = Arena.transform_with_key (\ key (HIR.BoundValue ty sp) -> RIR.BoundValue ty (bound_wheres Map.! key) sp) bvs
-    in pure (RIR.RIR decls adts type_synonyms bvs' mod)
+    let ((decls', bound_wheres), bvs') = runState (runWriterT (Unique.run_unique_maker_t (Arena.transformM convert_decl decls))) bvs
+        bvs'' = Arena.transform_with_key (\ key (HIR.BoundValue ty sp) -> RIR.BoundValue ty (bound_wheres Map.! key) sp) bvs'
+    in RIR.RIR decls' adts type_synonyms bvs'' mod
 
 convert_decl :: HIRDecl -> ConvertState RIRDecl
 convert_decl (HIR.Decl'Module _ bindings adts syns) = RIR.Decl'Module <$> (concat <$> mapM (convert_binding RIR.InModule) bindings) <*> pure adts <*> pure syns

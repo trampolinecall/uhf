@@ -52,7 +52,7 @@ data TSADT = TSADT ADTKey -- TODO: actually implement variants and things
 data TSLambda = TSLambda ANFIR.BindingKey Type Type ANFIR.BindingKey -- TODO: captures
 data MakeThunkGraphFor = LambdaBody ANFIR.BindingKey | Globals
 -- TODO: dont use BoundValueKey Ord for order of captures in parameters of function
-data TSMakeThunkGraph = TSMakeThunkGraph MakeThunkGraphFor [ANFIR.BindingKey] (Set ANFIR.BindingKey) (Maybe ANFIR.ParamKey) -- first one is body, second one is captures
+data TSMakeThunkGraph = TSMakeThunkGraph MakeThunkGraphFor [ANFIR.BindingKey] (Set ANFIR.BindingKey) (Maybe ANFIR.ParamKey) -- list of bindings is body, set of bindings is captures
 data TS = TS [TSDecl] [TSADT] [TSMakeThunkGraph] [TSLambda]
 
 instance Semigroup TS where
@@ -249,7 +249,7 @@ define_decl _ (ANFIR.Decl'Module global_bindings adts _) =
 define_decl _ (ANFIR.Decl'Type _) = pure ()
 
 define_lambda_type :: ANFIR.BindingKey -> Binding -> TSWriter ()
-define_lambda_type key (ANFIR.Binding (ANFIR.Expr'Lambda _ captures param body_included_bindings body)) = -- TODO: annotate with captures
+define_lambda_type key (ANFIR.Binding (ANFIR.Expr'Lambda _ captures param body_included_bindings body)) =
     lift (get_param param) >>= \ (ANFIR.Param param_ty) ->
     lift (binding_type body) >>= \ body_type ->
     tell_make_thunk_graph (TSMakeThunkGraph (LambdaBody key) body_included_bindings captures (Just param)) >>

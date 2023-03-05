@@ -113,4 +113,3 @@ convert_expr bv_map (RIR.Expr'Switch ty _ testing arms) =
         convert_matcher RIR.Switch'Default _ = pure ANFIR.Switch'Default
 
 convert_expr _ (RIR.Expr'Poison ty _) = new_binding (ANFIR.Expr'Poison ty ())
-

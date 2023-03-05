@@ -73,7 +73,7 @@ convert_expr _ (RIR.Expr'Bool ty _ b) = new_binding (ANFIR.Expr'Bool ty b)
 
 convert_expr bv_map (RIR.Expr'Tuple ty _ a b) = ANFIR.Expr'Tuple ty <$> convert_expr bv_map a <*> convert_expr bv_map b >>= new_binding
 
-convert_expr bv_map (RIR.Expr'Lambda ty _ captures param_bv body) =
+convert_expr bv_map (RIR.Expr'Lambda ty _ _ captures param_bv body) =
     lift (get_bv param_bv) >>= \ (RIR.BoundValue param_ty _ _) ->
     new_param (ANFIR.Param param_ty) >>= \ anfir_param ->
     lift (runWriterT $ -- lambda bodies should not be included in the parent included bindings because they do not need to be evaluated to create the lambda object

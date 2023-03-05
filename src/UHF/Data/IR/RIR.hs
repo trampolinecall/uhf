@@ -20,6 +20,7 @@ module UHF.Data.IR.RIR
 import UHF.Util.Prelude
 
 import qualified Arena
+import qualified Unique
 
 import UHF.Data.IR.Keys
 import qualified UHF.Data.IR.Type as Type
@@ -28,7 +29,7 @@ import UHF.IO.Span (Span)
 
 data RIR captures = RIR (Arena.Arena (Decl captures) DeclKey) (Arena.Arena (Type.ADT (Maybe (Type.Type Void))) ADTKey) (Arena.Arena (Type.TypeSynonym (Maybe (Type.Type Void))) TypeSynonymKey) (Arena.Arena (BoundValue (Maybe (Type.Type Void))) BoundValueKey)
 
-data BoundWhere = InModule | InLambdaBody deriving Show
+data BoundWhere = InModule | InLambdaBody Unique.Unique deriving Show
 data BoundValue typeinfo = BoundValue typeinfo BoundWhere Span deriving Show
 
 data Decl captures
@@ -50,7 +51,7 @@ data Expr captures
 
     | Expr'Tuple (Maybe Type) Span (Expr captures) (Expr captures)
 
-    | Expr'Lambda (Maybe Type) Span captures BoundValueKey (Expr captures)
+    | Expr'Lambda (Maybe Type) Span Unique.Unique captures BoundValueKey (Expr captures)
 
     | Expr'Let (Maybe Type) Span [Binding captures] (Expr captures)
 
@@ -75,7 +76,7 @@ expr_type (Expr'Int ty _ _) = ty
 expr_type (Expr'Float ty _ _) = ty
 expr_type (Expr'Bool ty _ _) = ty
 expr_type (Expr'Tuple ty _ _ _) = ty
-expr_type (Expr'Lambda ty _ _ _ _) = ty
+expr_type (Expr'Lambda ty _ _ _ _ _) = ty
 expr_type (Expr'Let ty _ _ _) = ty
 expr_type (Expr'Call ty _ _ _) = ty
 expr_type (Expr'Switch ty _ _ _) = ty
@@ -89,7 +90,7 @@ expr_span (Expr'Int _ sp _) = sp
 expr_span (Expr'Float _ sp _) = sp
 expr_span (Expr'Bool _ sp _) = sp
 expr_span (Expr'Tuple _ sp _ _) = sp
-expr_span (Expr'Lambda _ sp _ _ _) = sp
+expr_span (Expr'Lambda _ sp _ _ _ _) = sp
 expr_span (Expr'Let _ sp _ _) = sp
 expr_span (Expr'Call _ sp _ _) = sp
 expr_span (Expr'Switch _ sp _ _) = sp

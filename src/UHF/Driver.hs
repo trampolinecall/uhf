@@ -160,7 +160,7 @@ get_typed_hir = get_or_calculate _get_typed_hir (\ cache typed_hir -> cache { _g
 get_first_rir :: PhaseResultsState FirstRIR
 get_first_rir = get_or_calculate _get_first_rir (\ cache rir -> cache { _get_first_rir = rir }) to_first_rir
     where
-        to_first_rir = get_typed_hir >>= \ hir -> convert_stage (ToRIR.convert hir)
+        to_first_rir = get_typed_hir >>= \ hir -> pure (ToRIR.convert hir)
 
 get_rir_with_captures :: PhaseResultsState RIRWithCaptures
 get_rir_with_captures = get_or_calculate _get_rir_with_captures (\ cache rir -> cache { _get_rir_with_captures = rir }) to_rir_with_captures

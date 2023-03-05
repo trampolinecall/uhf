@@ -34,9 +34,9 @@ annotate_expr _ (RIR.Expr'Int ty sp i) = RIR.Expr'Int ty sp i
 annotate_expr _ (RIR.Expr'Float ty sp r) = RIR.Expr'Float ty sp r
 annotate_expr _ (RIR.Expr'Bool ty sp b) = RIR.Expr'Bool ty sp b
 annotate_expr bvs (RIR.Expr'Tuple ty sp a b) = RIR.Expr'Tuple ty sp (annotate_expr bvs a) (annotate_expr bvs b)
-annotate_expr bvs (RIR.Expr'Lambda ty sp () param body) =
+annotate_expr bvs (RIR.Expr'Lambda ty sp uniq () param body) =
     let body' = (annotate_expr bvs body)
-    in RIR.Expr'Lambda ty sp (get_captures body') param body'
+    in RIR.Expr'Lambda ty sp uniq (get_captures body') param body'
     where
         get_captures :: RIR.Expr CaptureList -> Set BoundValueKey
         get_captures (RIR.Expr'Identifier _ _ (Just i))
@@ -49,7 +49,7 @@ annotate_expr bvs (RIR.Expr'Lambda ty sp () param body) =
         get_captures (RIR.Expr'Float _ _ _) = []
         get_captures (RIR.Expr'Bool _ _ _) = []
         get_captures (RIR.Expr'Tuple _ _ a b) = get_captures a <> get_captures b
-        get_captures (RIR.Expr'Lambda _ _ captures _ _) = captures
+        get_captures (RIR.Expr'Lambda _ _ _ captures _ _) = captures
         get_captures (RIR.Expr'Let _ _ bindings result) = Set.unions (map (\ (RIR.Binding _ init) -> get_captures init) bindings) <> get_captures result
         get_captures (RIR.Expr'Call _ _ callee arg) = get_captures callee <> get_captures arg
         get_captures (RIR.Expr'Switch _ _ test arms) = get_captures test <> (Set.unions $ map (\ (_, e) -> get_captures e) arms)
@@ -57,7 +57,9 @@ annotate_expr bvs (RIR.Expr'Lambda ty sp () param body) =
 
         is_capture k = case Arena.get bvs k of
             RIR.BoundValue _ RIR.InModule _ -> False
-            RIR.BoundValue _ RIR.InLambdaBody _ -> True -- TODO: has to not be defined in this current lambda
+            RIR.BoundValue _ (RIR.InLambdaBody def_l) _
+                | def_l /= uniq -> True -- is not defined in this current lambda
+                | otherwise -> False
 
 annotate_expr bvs (RIR.Expr'Let ty sp bindings result) = RIR.Expr'Let ty sp (map (annotate_binding bvs) bindings) (annotate_expr bvs result)
 annotate_expr bvs (RIR.Expr'Call ty sp callee arg) = RIR.Expr'Call ty sp (annotate_expr bvs callee) (annotate_expr bvs arg)

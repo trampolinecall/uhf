@@ -67,6 +67,7 @@ library
       UHF.Phases.Middle.Type.Error
       UHF.Phases.Middle.Type.Var
       UHF.Util.Prelude
+      Unique
   other-modules:
       Paths_uhf
   hs-source-dirs:

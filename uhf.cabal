@@ -54,6 +54,7 @@ library
       UHF.Phases.Front.Parser.Error
       UHF.Phases.Front.Parser.PEG
       UHF.Phases.Front.Parser.Test
+      UHF.Phases.Middle.AnnotateCaptures
       UHF.Phases.Middle.InfixGroup
       UHF.Phases.Middle.NameResolve
       UHF.Phases.Middle.RemovePoison

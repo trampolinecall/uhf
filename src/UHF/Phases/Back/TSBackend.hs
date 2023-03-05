@@ -86,8 +86,8 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures p
     sequence (stringify_param <$> param) >>= \ stringified_param ->
     sequence (map stringify_capture $ Set.toList captures) >>= \ stringified_captures ->
 
-    concat <$> mapM stringify_binding_decl included_bindings >>= \ binding_decls ->
-    concat <$> mapM stringify_binding_set_fields included_bindings >>= \ binding_set_fields ->
+    (unzip <$> mapM stringify_binding_decl included_bindings) >>= \ (binding_decls, binding_set_evaluators) ->
+    -- concat <$> mapM stringify_binding_set_fields included_bindings >>= \ binding_set_fields ->
     -- TODO: dont use unmake_key anywhere (probably including outside of this module too)
 
     ts_return_type >>= \ ts_return_type ->
@@ -95,7 +95,7 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures p
     pure ("function " <> mangle_make_thunk_graph_for for <> "(" <> Text.intercalate ", " (stringified_captures ++ Maybe.maybeToList stringified_param) <> "): " <> ts_return_type <> " {\n"
         <> Text.unlines (map ("    " <>) binding_decls)
         <> "\n"
-        <> Text.unlines (map ("    " <>) binding_set_fields)
+        <> Text.unlines (map ("    " <>) (Maybe.catMaybes binding_set_evaluators))
         <> "\n"
         <> "    return " <> object_of_bindings <> ";\n"
         <> "}\n")
@@ -113,9 +113,6 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures p
                 r binding =
                     mangle_binding_as_binding_var binding <> ": " <> mangle_binding_as_thunk binding
 
-        mangle_binding_as_local_evaluator :: ANFIR.BindingKey -> Text
-        mangle_binding_as_local_evaluator key = "evaluator" <> show (Arena.unmake_key key)
-
         stringify_param param_key =
             get_param param_key >>= \ (ANFIR.Param param_ty) ->
             refer_type param_ty >>= \ ty_refer ->
@@ -127,65 +124,30 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures p
 
         stringify_binding_decl binding_key =
             binding_type binding_key >>= refer_type >>= \ cur_binding_type ->
-            let evaluator evaluator_name evaluator_args = "new " <> evaluator_name <> "(" <> evaluator_args <> ")"
-                let_evaluator evaluator_type initializer = "let " <> mangle_binding_as_local_evaluator binding_key <> ": " <> evaluator_type <> " = " <> initializer <> ";"
-                let_thunk :: Text -> Text
+            let set_evaluator evaluator_name evaluator_args = mangle_binding_as_thunk binding_key <> ".evaluator = new " <> evaluator_name <> "(" <> evaluator_args <> ");"
                 let_thunk initializer = "let " <> mangle_binding_as_thunk binding_key <> ": " <> cur_binding_type <> " = " <> initializer <> ";"
-                default_let_thunk = let_thunk ("new Thunk(" <> mangle_binding_as_local_evaluator binding_key <> ")")
+                default_let_thunk = let_thunk ("new Thunk(undefined)")
 
             in ANFIR.get_initializer <$> get_binding binding_key >>= \case
-                ANFIR.Expr'Identifier ty _ ->
-                    refer_type_raw ty >>= \ ty ->
-                    pure [let_evaluator ("PassthroughEvaluator<" <> ty <> ">") (evaluator "PassthroughEvaluator" "undefined"), default_let_thunk]
-                ANFIR.Expr'Int _ i -> pure [let_evaluator "ConstEvaluator<Int>" (evaluator "ConstEvaluator" ("new Int(" <> show i <> ")")), default_let_thunk]
-                ANFIR.Expr'Float _ (num :% denom) -> pure [let_evaluator "ConstEvaluator<Float>" (evaluator "ConstEvaluator" ("new Float(" <> show num <> " / " <> show denom <> ")")), default_let_thunk]
-                ANFIR.Expr'Bool _ b -> pure [let_evaluator "ConstEvaluator<Bool>" (evaluator "ConstEvaluator" ("new Bool(" <> if b then "true" else "false" <> ")")), default_let_thunk]
-                ANFIR.Expr'Char _ c -> pure [let_evaluator "ConstEvaluator<Char>" (evaluator "ConstEvaluator" ("new Char(" <> show c <> ")")), default_let_thunk]
-                ANFIR.Expr'String _ s -> pure [let_evaluator "ConstEvaluator<UHFString>" (evaluator "ConstEvaluator" ("new UHFString(" <> show s <> ")")), default_let_thunk]
+                ANFIR.Expr'Identifier _ i ->
+                    pure (default_let_thunk, Just (set_evaluator "PassthroughEvaluator" (mangle_binding_as_thunk i)))
+                ANFIR.Expr'Int _ i -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" ("new Int(" <> show i <> ")")))
+                ANFIR.Expr'Float _ (num :% denom) -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" ("new Float(" <> show num <> " / " <> show denom <> ")")))
+                ANFIR.Expr'Bool _ b -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" ("new Bool(" <> if b then "true" else "false" <> ")")))
+                ANFIR.Expr'Char _ c -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" ("new Char(" <> show c <> ")")))
+                ANFIR.Expr'String _ s -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" ("new UHFString(" <> show s <> ")")))
                 ANFIR.Expr'Tuple _ a b ->
-                        binding_type a >>= refer_type_raw >>= \ a_ty ->
-                        binding_type b >>= refer_type_raw >>= \ b_ty ->
-                        pure [let_evaluator ("TupleEvaluator<" <> a_ty <> ", " <> b_ty <> ">") (evaluator "TupleEvaluator" "undefined, undefined"), default_let_thunk]
+                        pure (default_let_thunk, Just (set_evaluator "TupleEvaluator" (mangle_binding_as_thunk a <> ", " <> mangle_binding_as_thunk b)))
 
-                ANFIR.Expr'Lambda _ captures _ _ _ -> pure [let_evaluator ("ConstEvaluator<" <> mangle_binding_as_lambda binding_key <> ">") (evaluator "ConstEvaluator" ("new " <> mangle_binding_as_lambda binding_key <> "(" <> Text.intercalate ", " (map (const "undefined") (toList captures)) <> ")")), default_let_thunk] -- TODO: put captures here
-                ANFIR.Expr'Param _ param_key -> pure [let_thunk $ "param_" <> show (Arena.unmake_key param_key)]
+                ANFIR.Expr'Lambda _ captures _ _ _ -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" ("new " <> mangle_binding_as_lambda binding_key <> "(" <> Text.intercalate ", " (map mangle_binding_as_thunk (toList captures)) <> ")")))
+                ANFIR.Expr'Param _ param_key -> pure (let_thunk $ "param_" <> show (Arena.unmake_key param_key), Nothing)
 
-                ANFIR.Expr'Call ty _ arg ->
-                    refer_type_raw ty >>= \ res_ty ->
-                    binding_type arg >>= refer_type_raw >>= \ arg_ty ->
-                    pure [let_evaluator ("CallEvaluator<" <> arg_ty <> ", " <> res_ty <> ">") (evaluator "CallEvaluator" "undefined, undefined"), default_let_thunk]
+                ANFIR.Expr'Call _ callee arg -> pure (default_let_thunk, Just (set_evaluator "CallEvaluator" (mangle_binding_as_thunk callee <> ", " <> mangle_binding_as_thunk arg)))
 
-                ANFIR.Expr'Switch ty e _ ->
-                    refer_type_raw ty >>= \ res_ty ->
-                    binding_type e >>= refer_type_raw >>= \ e_ty ->
-                    pure [let_evaluator ("SwitchEvaluator<" <> e_ty <> ", " <> res_ty <> ">") (evaluator "SwitchEvaluator" "undefined, undefined"), default_let_thunk]
+                ANFIR.Expr'Switch _ test arms -> pure (default_let_thunk, Just (set_evaluator "SwitchEvaluator" (mangle_binding_as_thunk test <> ", " <> ("[" <> Text.intercalate ", " (map (\ (matcher, res) -> "[" <> convert_matcher matcher <> ", " <> mangle_binding_as_thunk res <> "]") arms) <> "]"))))
 
-                ANFIR.Expr'TupleDestructure1 ty _ -> refer_type_raw ty >>= \ ty -> pure [let_evaluator ("TupleDestructure1Evaluator<" <> ty <> ">") (evaluator "TupleDestructure1Evaluator" "undefined"), default_let_thunk]
-                ANFIR.Expr'TupleDestructure2 ty _ -> refer_type_raw ty >>= \ ty -> pure [let_evaluator ("TupleDestructure2Evaluator<" <> ty <> ">") (evaluator "TupleDestructure2Evaluator" "undefined"), default_let_thunk]
-
-                ANFIR.Expr'Poison _ void -> absurd void
-
-        stringify_binding_set_fields binding_key =
-            let set_field field other_binding = set_field_not_binding field (mangle_binding_as_thunk other_binding)
-                set_field_not_binding field initializer = mangle_binding_as_local_evaluator binding_key <> "." <> field <> " = " <> initializer <> ";"
-            in ANFIR.get_initializer <$> get_binding binding_key >>= \case
-                ANFIR.Expr'Identifier _ i -> pure [set_field "other" i]
-                ANFIR.Expr'Int _ _ -> pure []
-                ANFIR.Expr'Float _ _ -> pure []
-                ANFIR.Expr'Bool _ _ -> pure []
-                ANFIR.Expr'Char _ _ -> pure []
-                ANFIR.Expr'String _ _ -> pure []
-                ANFIR.Expr'Tuple _ a b -> pure [set_field "a" a, set_field "b" b]
-
-                ANFIR.Expr'Lambda _ captures _ _ _ -> pure $ map (\ capt -> set_field ("value." <> mangle_binding_as_capture capt) capt) (toList captures)
-                ANFIR.Expr'Param _ _ -> pure []
-
-                ANFIR.Expr'Switch _ e arms -> pure [set_field "testing" e, set_field_not_binding "arms" ("[" <> Text.intercalate ", " (map (\ (matcher, res) -> "[" <> convert_matcher matcher <> ", " <> mangle_binding_as_thunk res <> "]") arms) <> "]")] -- TODO: exhaustiveness check
-
-                ANFIR.Expr'Call _ callee arg -> pure [set_field "callee" callee, set_field "arg" arg]
-
-                ANFIR.Expr'TupleDestructure1 _ tup -> pure [set_field "tuple" tup]
-                ANFIR.Expr'TupleDestructure2 _ tup -> pure [set_field "tuple" tup]
+                ANFIR.Expr'TupleDestructure1 _ tup -> pure (default_let_thunk, Just (set_evaluator "TupleDestructure1Evaluator" (mangle_binding_as_thunk tup)))
+                ANFIR.Expr'TupleDestructure2 _ tup -> pure (default_let_thunk, Just (set_evaluator "TupleDestructure2Evaluator" (mangle_binding_as_thunk tup)))
 
                 ANFIR.Expr'Poison _ void -> absurd void
 

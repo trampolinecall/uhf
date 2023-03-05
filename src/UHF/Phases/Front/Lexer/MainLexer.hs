@@ -50,6 +50,8 @@ lex_one_token =
             head $ mapMaybe (runWriterT . ($ loc) . runStateT)
                 [ lex_comment
 
+                , lex_delimiter
+
                 , lex_alpha_identifier
                 , lex_symbol_identifier
 
@@ -95,6 +97,19 @@ lex_id_or_kw is_valid_start is_valid_char kws def =
     in get_loc >>= \ end_loc ->
     pure (Sequence.singleton $ Located (new_span_start_and_end start_loc end_loc) tok)
 
+lex_delimiter :: Lexer (Sequence.Seq Token.LInternalToken)
+lex_delimiter =
+    choice
+        [ consume (=='(') >>= \ ch -> pure [const (Token.SingleTypeToken Token.OParen) <$> ch]
+        , consume (==')') >>= \ ch -> pure [const (Token.SingleTypeToken Token.CParen) <$> ch]
+        , consume (=='[') >>= \ ch -> pure [const (Token.SingleTypeToken Token.OBrack) <$> ch]
+        , consume (==']') >>= \ ch -> pure [const (Token.SingleTypeToken Token.CBrack) <$> ch]
+        , consume (=='{') >>= \ ch -> pure [const (Token.SingleTypeToken Token.OBrace) <$> ch]
+        , consume (=='}') >>= \ ch -> pure [const (Token.SingleTypeToken Token.CBrace) <$> ch]
+        , consume (==';') >>= \ ch -> pure [const (Token.SingleTypeToken Token.Semicolon) <$> ch]
+        , consume (==',') >>= \ ch -> pure [const (Token.SingleTypeToken Token.Comma) <$> ch]
+        ]
+
 lex_alpha_identifier :: Lexer (Sequence.Seq Token.LInternalToken)
 lex_alpha_identifier =
     lex_id_or_kw
@@ -119,9 +134,8 @@ lex_alpha_identifier =
 lex_symbol_identifier :: Lexer (Sequence.Seq Token.LInternalToken)
 lex_symbol_identifier =
     lex_id_or_kw
-        -- TODO: fix bug: '(:' is not a symbol identifier but the continuation characters matches the ':' after '('
-        (`elem` ("~!@#$%^&*+`-=|:./<>?()[]\\{};," :: [Char]))
-        (`elem` ("~!@#$%^&*+`-=|:./<>?" :: [Char]))
+        (`elem` ("~!@#$%^&*+`-=|:./<>?\\" :: [Char]))
+        (`elem` ("~!@#$%^&*+`-=|:./<>?\\" :: [Char]))
         [ ("->", Token.SingleTypeToken Token.Arrow)
         , ("::", Token.SingleTypeToken Token.DoubleColon)
         , ("(", Token.SingleTypeToken Token.OParen)

@@ -16,13 +16,13 @@ import UHF.IO.Located (Located (unlocate))
 
 import qualified Data.Text as Text
 
--- TODO: dont dump decls, just dump module
--- TODO: remove Dumable class
+-- TODO: remove Dumpable class
+-- TODO: separate dump as definition and dump as reference
 
 type Dumper iden type_expr type_info binary_ops_allowed = ReaderT (HIR.HIR iden type_expr type_info binary_ops_allowed) DumpUtils.Dumper
 
 dump :: (DumpableIdentifier iden, DumpableType type_expr) => HIR.HIR iden type_expr type_info binary_ops_allowed -> Text
-dump ir@(HIR.HIR decls _ _ _) = DumpUtils.exec_dumper $ runReaderT (Arena.transformM dump_ decls) ir
+dump ir@(HIR.HIR decls _ _ _ mod) = DumpUtils.exec_dumper $ runReaderT (dump_ $ Arena.get decls mod) ir
 
 class Dumpable d where
     dump_ :: DumpableType type_expr => d -> Dumper iden type_expr type_info binary_ops_allowed ()
@@ -34,11 +34,11 @@ dump_text :: DumpableType type_expr => Text -> Dumper iden type_expr type_info b
 dump_text = dump_
 
 get_bv :: Keys.BoundValueKey -> Dumper iden type_expr type_info binary_ops_allowed (HIR.BoundValue type_info)
-get_bv k = reader (\ (HIR.HIR _ _ _ bvs) -> Arena.get bvs k)
+get_bv k = reader (\ (HIR.HIR _ _ _ bvs _) -> Arena.get bvs k)
 get_adt :: Keys.ADTKey -> Dumper iden type_expr type_info binary_ops_allowed (Type.ADT type_expr)
-get_adt k = reader (\ (HIR.HIR _ adts _ _) -> Arena.get adts k)
+get_adt k = reader (\ (HIR.HIR _ adts _ _ _) -> Arena.get adts k)
 get_type_syn :: Keys.TypeSynonymKey -> Dumper iden type_expr type_info binary_ops_allowed (Type.TypeSynonym type_expr)
-get_type_syn k = reader (\ (HIR.HIR _ _ syns _) -> Arena.get syns k)
+get_type_syn k = reader (\ (HIR.HIR _ _ syns _ _) -> Arena.get syns k)
 
 instance (DumpableIdentifier iden, DumpableType type_expr) => Dumpable (HIR.Decl iden type_expr type_info binary_ops_allowed) where
     dump_ (HIR.Decl'Module _ bindings adts type_synonyms) = mapM_ (\ k -> get_adt k >>= dump_) adts >> mapM_ (\ k -> get_type_syn k >>= dump_) type_synonyms >> mapM_ dump_ bindings

@@ -27,7 +27,7 @@ import qualified UHF.Data.IR.Type as Type
 
 import UHF.IO.Span (Span)
 
-data RIR captures = RIR (Arena.Arena (Decl captures) DeclKey) (Arena.Arena (Type.ADT (Maybe (Type.Type Void))) ADTKey) (Arena.Arena (Type.TypeSynonym (Maybe (Type.Type Void))) TypeSynonymKey) (Arena.Arena (BoundValue (Maybe (Type.Type Void))) BoundValueKey)
+data RIR captures = RIR (Arena.Arena (Decl captures) DeclKey) (Arena.Arena (Type.ADT (Maybe (Type.Type Void))) ADTKey) (Arena.Arena (Type.TypeSynonym (Maybe (Type.Type Void))) TypeSynonymKey) (Arena.Arena (BoundValue (Maybe (Type.Type Void))) BoundValueKey) DeclKey
 
 data BoundWhere = InModule | InLambdaBody Unique.Unique deriving Show
 data BoundValue typeinfo = BoundValue typeinfo BoundWhere Span deriving Show

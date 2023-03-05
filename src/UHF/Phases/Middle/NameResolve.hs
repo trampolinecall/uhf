@@ -126,10 +126,10 @@ transform_identifiers transform_t_iden transform_e_iden adts type_synonyms decls
         transform_expr (HIR.Expr'Poison typeinfo sp) = pure $ HIR.Expr'Poison typeinfo sp
 
 resolve :: UnresolvedHIR -> Compiler.WithDiagnostics Error Void ResolvedHIR
-resolve (HIR.HIR decls adts type_synonyms bound_values) =
+resolve (HIR.HIR decls adts type_synonyms bound_values mod) =
     let (adts', type_synonyms', decls') = runIdentity (transform_identifiers Identity split_expr_iden adts type_synonyms decls)
     in transform_identifiers (resolve_type_iden decls) (resolve_expr_iden decls) adts' type_synonyms' decls' >>= \ (adts', type_synonyms', decls') ->
-    pure (HIR.HIR decls' adts' type_synonyms' bound_values)
+    pure (HIR.HIR decls' adts' type_synonyms' bound_values mod)
 
 split_expr_iden :: UnresolvedExprIdentifier -> Identity (HIR.NameContext, Maybe [Located Text], Located Text)
 split_expr_iden (_, []) = error "empty identifier"

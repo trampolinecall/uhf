@@ -24,6 +24,7 @@ type TypeSynonymArena = Arena.Arena TypeSynonym Type.TypeSynonymKey
 type BindingArena = Arena.Arena Binding ANFIR.BindingKey
 type ParamArena = Arena.Arena Param ANFIR.ParamKey
 
+-- TODO: take ANFIR
 to_dot :: DeclArena -> ADTArena -> TypeSynonymArena -> BindingArena -> ParamArena -> Text
 to_dot _ _ _ nodes params =
     snd $ runWriter (

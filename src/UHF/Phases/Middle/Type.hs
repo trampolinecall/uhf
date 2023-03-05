@@ -27,7 +27,7 @@ new_type_variable for_what =
 
 -- also does type inference
 typecheck :: UntypedHIR -> Compiler.WithDiagnostics Error Void TypedHIR
-typecheck (HIR.HIR decls adts type_synonyms bound_values) =
+typecheck (HIR.HIR decls adts type_synonyms bound_values mod) =
     runStateT
         (
             Arena.transformM (convert_type_exprs_in_adts decls) adts >>= \ adts ->
@@ -45,7 +45,7 @@ typecheck (HIR.HIR decls adts type_synonyms bound_values) =
         type_synonyms' = Arena.transform (remove_vars_from_type_synonym vars) type_synonyms
         bound_values' = Arena.transform (remove_vars_from_bound_value vars) bound_values
     in
-    pure (HIR.HIR decls' adts' type_synonyms' bound_values')
+    pure (HIR.HIR decls' adts' type_synonyms' bound_values' mod)
 
 convert_type_exprs_in_adts :: UntypedDeclArena -> UntypedADT -> StateWithVars TypedWithVarsADT
 convert_type_exprs_in_adts decls (Type.ADT name variants) = Type.ADT name <$> mapM (convert_variant decls) variants

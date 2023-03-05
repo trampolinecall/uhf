@@ -10,18 +10,18 @@ import qualified UHF.Data.IR.RIR as RIR
 import qualified UHF.Data.IR.Keys as Keys
 import qualified UHF.Data.IR.Type as Type
 
--- TODO: dont dump decls, just dump module
 -- TODO: dump types too
+-- TODO: separate dump as definition and dump as reference
 
 type Dumper captures = ReaderT (RIR.RIR captures) DumpUtils.Dumper
 
 get_adt :: Keys.ADTKey -> Dumper captures (Type.ADT (Maybe (Type.Type Void)))
-get_adt k = reader (\ (RIR.RIR _ adts _ _) -> Arena.get adts k)
+get_adt k = reader (\ (RIR.RIR _ adts _ _ _) -> Arena.get adts k)
 get_type_synonym :: Keys.TypeSynonymKey -> Dumper captures (Type.TypeSynonym (Maybe (Type.Type Void)))
-get_type_synonym k = reader (\ (RIR.RIR _ _ type_synonyms _) -> Arena.get type_synonyms k)
+get_type_synonym k = reader (\ (RIR.RIR _ _ type_synonyms _ _) -> Arena.get type_synonyms k)
 
 dump :: RIR.RIR captures -> Text
-dump ir@(RIR.RIR decls _ _ _) = DumpUtils.exec_dumper $ runReaderT (Arena.transformM dump_decl decls) ir
+dump ir@(RIR.RIR decls _ _ _ mod) = DumpUtils.exec_dumper $ runReaderT (dump_decl $ Arena.get decls mod) ir
 
 dump_text :: Text -> Dumper captures ()
 dump_text = lift . DumpUtils.dump

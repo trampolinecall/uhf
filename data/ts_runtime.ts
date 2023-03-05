@@ -1,5 +1,54 @@
 interface Lambda<A, R> {
-    call(arg: A): R;
+    call(arg: Thunk<A>): Thunk<R>;
+}
+
+// TODO: make this a typeclass in uhf
+interface Showable {
+    show(): string;
+}
+
+class Int {
+    constructor(public value: number) {}
+
+    show(): string {
+        return this.value.toString();
+    }
+}
+class Float {
+    constructor(public value: number) {}
+
+    show(): string {
+        return this.value.toString();
+    }
+}
+class Char {
+    constructor(public value: string) {}
+
+    show(): string {
+        return this.value;
+    }
+}
+class UHFString {
+    constructor(public value: string) {}
+
+    show(): string {
+        return this.value;
+    }
+}
+class Bool {
+    constructor(public value: boolean) {}
+
+    show(): string {
+        return this.value.toString();
+    }
+}
+// TODO: this should not have these bounds on the parameters
+class Tuple<A extends Showable, B extends Showable> {
+    constructor(public first: Thunk<A>, public second: Thunk<B>) {}
+
+    show(): string {
+        return `(${this.first.get_value().show()}, ${this.second.get_value().show()})`;
+    }
 }
 
 interface Evaluator<T> {
@@ -40,35 +89,36 @@ class PassthroughEvaluator<T> implements Evaluator<T> {
     }
 }
 
-class TupleEvaluator<A, B> implements Evaluator<[Thunk<A>, Thunk<B>]> {
+// TODO: this should also not have bounds on the type parameters
+class TupleEvaluator<A extends Showable, B extends Showable> implements Evaluator<Tuple<A, B>> {
     constructor(public a: Thunk<A>, public b: Thunk<B>) {}
 
-    evaluate(): [Thunk<A>, Thunk<B>] {
-        return [this.a, this.b];
+    evaluate(): Tuple<A, B> {
+        return new Tuple(this.a, this.b);
     }
 }
 
 class CallEvaluator<A, R> implements Evaluator<R> {
-    constructor(public callee: Thunk<Lambda<Thunk<A>, Thunk<R>>>, public arg: Thunk<A>) {}
+    constructor(public callee: Thunk<Lambda<A, R>>, public arg: Thunk<A>) {}
 
     evaluate(): R {
         return this.callee.get_value().call(this.arg).get_value();
     }
 }
 
-class TupleDestructure1Evaluator<A> implements Evaluator<A> {
-    constructor(public tuple: Thunk<[Thunk<A>, Thunk<any>]>) {}
+class TupleDestructure1Evaluator<A extends Showable> implements Evaluator<A> {
+    constructor(public tuple: Thunk<Tuple<A, any>>) {}
 
     evaluate(): A {
-        return this.tuple.get_value()[0].get_value();
+        return this.tuple.get_value().first.get_value();
     }
 }
 
-class TupleDestructure2Evaluator<B> implements Evaluator<B> {
-    constructor(public tuple: Thunk<[Thunk<any>, Thunk<B>]>) {}
+class TupleDestructure2Evaluator<B extends Showable> implements Evaluator<B> {
+    constructor(public tuple: Thunk<Tuple<any, B>>) {}
 
     evaluate(): B {
-        return this.tuple.get_value()[1].get_value();
+        return this.tuple.get_value().second.get_value();
     }
 }
 
@@ -86,8 +136,9 @@ class DefaultMatcher<T> implements Matcher<T> {
         return true;
     }
 }
-class TupleMatcher<A, B> implements Matcher<[A, B]> {
-    matches(t: [A, B]): boolean {
+// TODO: same todo about extends Showable constraint
+class TupleMatcher<A extends Showable, B extends Showable> implements Matcher<Tuple<A, B>> {
+    matches(t: Tuple<A, B>): boolean {
         return true; // tuples only have one constructor so it always matches
     }
 }

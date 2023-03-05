@@ -135,11 +135,11 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures p
                 ANFIR.Expr'Identifier ty _ ->
                     refer_type_raw ty >>= \ ty ->
                     pure [let_evaluator ("PassthroughEvaluator<" <> ty <> ">") (evaluator "PassthroughEvaluator" "undefined"), default_let_thunk]
-                ANFIR.Expr'Int _ i -> pure [let_evaluator "ConstEvaluator<number>" (evaluator "ConstEvaluator" (show i)), default_let_thunk]
-                ANFIR.Expr'Float _ (num :% denom) -> pure [let_evaluator "ConstEvaluator<number>" (evaluator "ConstEvaluator" (show num <> " / " <> show denom)), default_let_thunk]
-                ANFIR.Expr'Bool _ b -> pure [let_evaluator "ConstEvaluator<bool>" (evaluator "ConstEvaluator" (if b then "true" else "false")), default_let_thunk]
-                ANFIR.Expr'Char _ c -> pure [let_evaluator "ConstEvaluator<char>" (evaluator "ConstEvaluator" (show c)), default_let_thunk]
-                ANFIR.Expr'String _ s -> pure [let_evaluator "ConstEvaluator<string>" (evaluator "ConstEvaluator" (show s)), default_let_thunk]
+                ANFIR.Expr'Int _ i -> pure [let_evaluator "ConstEvaluator<Int>" (evaluator "ConstEvaluator" ("new Int(" <> show i <> ")")), default_let_thunk]
+                ANFIR.Expr'Float _ (num :% denom) -> pure [let_evaluator "ConstEvaluator<Float>" (evaluator "ConstEvaluator" ("new Float(" <> show num <> " / " <> show denom <> ")")), default_let_thunk]
+                ANFIR.Expr'Bool _ b -> pure [let_evaluator "ConstEvaluator<Bool>" (evaluator "ConstEvaluator" ("new Bool(" <> if b then "true" else "false" <> ")")), default_let_thunk]
+                ANFIR.Expr'Char _ c -> pure [let_evaluator "ConstEvaluator<Char>" (evaluator "ConstEvaluator" ("new Char(" <> show c <> ")")), default_let_thunk]
+                ANFIR.Expr'String _ s -> pure [let_evaluator "ConstEvaluator<UHFString>" (evaluator "ConstEvaluator" ("new UHFString(" <> show s <> ")")), default_let_thunk]
                 ANFIR.Expr'Tuple _ a b ->
                         binding_type a >>= refer_type_raw >>= \ a_ty ->
                         binding_type b >>= refer_type_raw >>= \ b_ty ->
@@ -193,7 +193,9 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures p
 
 stringify_ts_lambda :: TSLambda -> IRReader Text
 stringify_ts_lambda (TSLambda key captures arg result body_key) =
+    refer_type_raw arg >>= \ arg_type_raw ->
     refer_type arg >>= \ arg_type ->
+    refer_type_raw result >>= \ result_type_raw ->
     refer_type result >>= \ result_type ->
 
     Text.intercalate ", " <$>
@@ -203,7 +205,7 @@ stringify_ts_lambda (TSLambda key captures arg result body_key) =
                 pure ("public " <> mangle_binding_as_capture c <> ": " <> c_ty))
             (toList captures)) >>= \ capture_constructor_params ->
 
-    pure ("class " <> mangle_binding_as_lambda key <> " implements Lambda<" <> arg_type <> ", " <> result_type <> "> {\n"
+    pure ("class " <> mangle_binding_as_lambda key <> " implements Lambda<" <> arg_type_raw <> ", " <> result_type_raw <> "> {\n"
         <> "    constructor(" <> capture_constructor_params  <> ") {}\n"
         <> "    call(arg: " <> arg_type <> "): " <> result_type <> " {\n"
         <> "        return " <> mangle_make_thunk_graph_for (LambdaBody key) <> "(" <> Text.intercalate ", " (map (\ c -> "this." <> mangle_binding_as_capture c) (toList captures) ++ ["arg"]) <> ")." <> mangle_binding_as_binding_var body_key <> ";\n"
@@ -217,13 +219,13 @@ refer_type_raw (Type.Type'ADT ak) = pure $ mangle_adt ak
 refer_type_raw (Type.Type'Synonym sk) =
     get_type_synonym sk >>= \ (Type.TypeSynonym _ expansion) -> refer_type expansion
 
-refer_type_raw Type.Type'Int = pure "number"
-refer_type_raw Type.Type'Float = pure "number"
-refer_type_raw Type.Type'Char = pure "char"
-refer_type_raw Type.Type'String = pure "string"
-refer_type_raw Type.Type'Bool = pure "bool"
-refer_type_raw (Type.Type'Function a r) = refer_type a >>= \ a -> refer_type r >>= \ r -> pure ("Lambda<" <> a <> ", " <> r <> ">")
-refer_type_raw (Type.Type'Tuple a b) = refer_type a >>= \ a -> refer_type b >>= \ b -> pure ("[" <> a <> ", " <> b <> "]")
+refer_type_raw Type.Type'Int = pure "Int"
+refer_type_raw Type.Type'Float = pure "Float"
+refer_type_raw Type.Type'Char = pure "Char"
+refer_type_raw Type.Type'String = pure "UHFString"
+refer_type_raw Type.Type'Bool = pure "Bool"
+refer_type_raw (Type.Type'Function a r) = refer_type_raw a >>= \ a -> refer_type_raw r >>= \ r -> pure ("Lambda<" <> a <> ", " <> r <> ">")
+refer_type_raw (Type.Type'Tuple a b) = refer_type_raw a >>= \ a -> refer_type_raw b >>= \ b -> pure ("Tuple<" <> a <> ", " <> b <> ">")
 refer_type_raw (Type.Type'Variable void) = absurd void
 
 refer_type :: Type.Type Void -> IRReader Text

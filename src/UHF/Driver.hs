@@ -39,6 +39,7 @@ import qualified UHF.Phases.Middle.NameResolve as NameResolve
 import qualified UHF.Phases.Middle.InfixGroup as InfixGroup
 import qualified UHF.Phases.Middle.Type as Type
 import qualified UHF.Phases.Middle.ToRIR as ToRIR
+import qualified UHF.Phases.Middle.AnnotateCaptures as AnnotateCaptures
 import qualified UHF.Phases.Middle.ToANFIR as ToANFIR
 import qualified UHF.Phases.Middle.RemovePoison as RemovePoison
 import qualified UHF.Phases.Back.ToDot as ToDot
@@ -51,7 +52,8 @@ type FirstHIR = HIR.HIR (HIR.NameContext, [Located Text]) (HIR.TypeExpr (HIR.Nam
 type NRHIR = HIR.HIR (Located (Maybe IR.Keys.BoundValueKey)) (HIR.TypeExpr (Maybe IR.Keys.DeclKey)) () ()
 type InfixGroupedHIR = HIR.HIR (Located (Maybe IR.Keys.BoundValueKey)) (HIR.TypeExpr (Maybe IR.Keys.DeclKey)) () Void
 type TypedHIR = HIR.HIR (Located (Maybe IR.Keys.BoundValueKey)) (Maybe (IR.Type.Type Void)) (Maybe (IR.Type.Type Void)) Void
-type RIR = RIR.RIR
+type FirstRIR = RIR.RIR ()
+type RIRWithCaptures = RIR.RIR [IR.Keys.BoundValueKey]
 type ANFIR = ANFIR.ANFIR (Maybe (IR.Type.Type Void)) ()
 type NoPoisonIR = ANFIR.ANFIR (IR.Type.Type Void) Void
 type Dot = Text
@@ -68,7 +70,8 @@ data PhaseResultsCache
         , _get_nrhir :: Maybe NRHIR
         , _get_infix_grouped :: Maybe InfixGroupedHIR
         , _get_typed_hir :: Maybe TypedHIR
-        , _get_rir :: Maybe RIR
+        , _get_first_rir :: Maybe FirstRIR
+        , _get_rir_with_captures :: Maybe RIRWithCaptures
         , _get_anfir :: Maybe ANFIR
         , _get_no_poison_ir :: Maybe (Maybe NoPoisonIR)
         , _get_dot :: Maybe (Maybe Dot)
@@ -76,7 +79,7 @@ data PhaseResultsCache
         }
 type PhaseResultsState = StateT PhaseResultsCache WithDiagnosticsIO
 
-data OutputFormat = AST | HIR | NRHIR | InfixGroupedHIR | TypedHIR | RIR | ANFIR | Dot | TS
+data OutputFormat = AST | HIR | NRHIR | InfixGroupedHIR | TypedHIR | RIR | RIRWithCaptures | ANFIR | Dot | TS
 data CompileOptions
     = CompileOptions
         { input_file :: FilePath
@@ -94,14 +97,15 @@ compile c_needed diagnostic_settings compile_options =
     pure (if Compiler.had_errors diagnostics then Left () else Right ())
 
 print_outputs :: CompileOptions -> File -> WithDiagnosticsIO ()
-print_outputs compile_options file = runStateT (mapM print_output_format (output_formats compile_options)) (PhaseResultsCache file Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing) >> pure ()
+print_outputs compile_options file = runStateT (mapM print_output_format (output_formats compile_options)) (PhaseResultsCache file Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing) >> pure ()
     where
         print_output_format AST = get_ast >>= \ ast -> lift (lift (putTextLn $ AST.Dump.dump ast)) -- TODO
         print_output_format HIR = get_first_hir >>= \ ir -> lift (lift (write_output_file "uhf_hir" (HIR.Dump.dump ir))) -- TODO
         print_output_format NRHIR = get_nrhir >>= \ ir -> lift (lift (write_output_file "uhf_nrhir" (HIR.Dump.dump ir))) -- TODO
         print_output_format InfixGroupedHIR = get_infix_grouped >>= \ ir -> lift (lift (write_output_file "uhf_infix_grouped" (HIR.Dump.dump ir))) -- TODO
         print_output_format TypedHIR = get_typed_hir >>= \ ir -> lift (lift (write_output_file "uhf_typed_hir" (HIR.Dump.dump ir))) -- TODO
-        print_output_format RIR = get_rir >>= \ ir -> lift (lift (write_output_file "uhf_rir" (RIR.Dump.dump ir))) -- TODO
+        print_output_format RIR = get_first_rir >>= \ ir -> lift (lift (write_output_file "uhf_rir" (RIR.Dump.dump ir))) -- TODO
+        print_output_format RIRWithCaptures = get_rir_with_captures >>= \ ir -> lift (lift (write_output_file "uhf_rir_captures" (RIR.Dump.dump ir))) -- TODO
         print_output_format ANFIR = get_anfir >>= \ ir -> lift (lift (write_output_file "uhf_anfir" (ANFIR.Dump.dump ir))) -- TODO
         print_output_format Dot = get_dot >>= lift . lift . maybe (pure ()) (write_output_file "dot")
         print_output_format TS = get_ts >>= lift . lift . maybe (pure ()) (write_output_file "ts")
@@ -153,15 +157,20 @@ get_typed_hir = get_or_calculate _get_typed_hir (\ cache typed_hir -> cache { _g
     where
         type_ = get_infix_grouped >>= \ infix_grouped_ir -> convert_stage (Type.typecheck infix_grouped_ir)
 
-get_rir :: PhaseResultsState RIR
-get_rir = get_or_calculate _get_rir (\ cache rir -> cache { _get_rir = rir }) to_rir
+get_first_rir :: PhaseResultsState FirstRIR
+get_first_rir = get_or_calculate _get_first_rir (\ cache rir -> cache { _get_first_rir = rir }) to_first_rir
     where
-        to_rir = get_typed_hir >>= \ hir -> convert_stage (ToRIR.convert hir)
+        to_first_rir = get_typed_hir >>= \ hir -> convert_stage (ToRIR.convert hir)
+
+get_rir_with_captures :: PhaseResultsState RIRWithCaptures
+get_rir_with_captures = get_or_calculate _get_rir_with_captures (\ cache rir -> cache { _get_rir_with_captures = rir }) to_rir_with_captures
+    where
+        to_rir_with_captures = get_first_rir >>= \ rir -> pure (AnnotateCaptures.annotate rir)
 
 get_anfir :: PhaseResultsState ANFIR
 get_anfir = get_or_calculate _get_anfir (\ cache anfir -> cache { _get_anfir = anfir }) to_anfir
     where
-        to_anfir = get_rir >>= \ rir -> pure (ToANFIR.convert rir)
+        to_anfir = get_rir_with_captures >>= \ rir -> pure (ToANFIR.convert rir)
 
 get_no_poison_ir :: PhaseResultsState (Maybe NoPoisonIR)
 get_no_poison_ir = get_or_calculate _get_no_poison_ir (\ cache no_poison_ir -> cache { _get_no_poison_ir = no_poison_ir }) remove_poison

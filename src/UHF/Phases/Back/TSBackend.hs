@@ -241,7 +241,7 @@ define_decl _ (ANFIR.Decl'Module global_bindings adts _) =
 define_decl _ (ANFIR.Decl'Type _) = pure ()
 
 define_lambda_type :: ANFIR.BindingKey -> Binding -> TSWriter ()
-define_lambda_type key (ANFIR.Binding _ (ANFIR.Expr'Lambda _ param body_included_bindings body)) = -- TODO: annotate with captures
+define_lambda_type key (ANFIR.Binding (ANFIR.Expr'Lambda _ param body_included_bindings body)) = -- TODO: annotate with captures
     lift (get_param param) >>= \ (ANFIR.Param param_ty) ->
     lift (binding_type body) >>= \ body_type ->
     lift (get_included_params body_included_bindings) >>= \ included_params ->

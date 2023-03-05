@@ -25,14 +25,14 @@ class Char {
     constructor(public value: string) {}
 
     show(): string {
-        return this.value;
+        return `'${this.value}'`;
     }
 }
 class UHFString {
     constructor(public value: string) {}
 
     show(): string {
-        return this.value;
+        return `"${this.value.toString()}"`;
     }
 }
 class Bool {

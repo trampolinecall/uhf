@@ -1,7 +1,15 @@
 module UHF.Data.IR.RIR
     ( RIR (..)
+
+    , DeclKey
     , Decl (..)
+
     , Binding (..)
+
+    , BoundValueKey
+    , BoundValue (..)
+    , BoundWhere (..)
+
     , Type
     , Expr (..)
     , SwitchMatcher (..)
@@ -15,11 +23,13 @@ import qualified Arena
 
 import UHF.Data.IR.Keys
 import qualified UHF.Data.IR.Type as Type
-import qualified UHF.Data.IR.HIR as HIR
 
 import UHF.IO.Span (Span)
 
-data RIR = RIR (Arena.Arena Decl DeclKey) (Arena.Arena (Type.ADT (Maybe (Type.Type Void))) ADTKey) (Arena.Arena (Type.TypeSynonym (Maybe (Type.Type Void))) TypeSynonymKey) (Arena.Arena (HIR.BoundValue (Maybe (Type.Type Void))) BoundValueKey)
+data RIR = RIR (Arena.Arena Decl DeclKey) (Arena.Arena (Type.ADT (Maybe (Type.Type Void))) ADTKey) (Arena.Arena (Type.TypeSynonym (Maybe (Type.Type Void))) TypeSynonymKey) (Arena.Arena (BoundValue (Maybe (Type.Type Void))) BoundValueKey)
+
+data BoundWhere = InModule | InLambdaBody deriving Show
+data BoundValue typeinfo = BoundValue typeinfo BoundWhere Span deriving Show
 
 data Decl
     = Decl'Module [Binding] [ADTKey] [TypeSynonymKey]

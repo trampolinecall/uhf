@@ -6,6 +6,7 @@ import qualified Arena
 
 import qualified Data.Text as Text
 import qualified Data.Maybe as Maybe
+import qualified Data.Set as Set
 import qualified Data.FileEmbed as FileEmbed
 
 import qualified UHF.Data.IR.ANFIR as ANFIR
@@ -50,7 +51,8 @@ data TSDecl
 data TSADT = TSADT ADTKey -- TODO: actually implement variants and things
 data TSLambda = TSLambda ANFIR.BindingKey Type Type ANFIR.BindingKey -- TODO: captures
 data MakeThunkGraphFor = LambdaBody ANFIR.BindingKey | Globals
-data TSMakeThunkGraph = TSMakeThunkGraph MakeThunkGraphFor [ANFIR.BindingKey] [ANFIR.BindingKey] (Maybe ANFIR.ParamKey) -- first one is body, second one is captures
+-- TODO: dont use BoundValueKey Ord for order of captures in parameters of function
+data TSMakeThunkGraph = TSMakeThunkGraph MakeThunkGraphFor [ANFIR.BindingKey] (Set ANFIR.BindingKey) (Maybe ANFIR.ParamKey) -- first one is body, second one is captures
 data TS = TS [TSDecl] [TSADT] [TSMakeThunkGraph] [TSLambda]
 
 instance Semigroup TS where
@@ -79,7 +81,7 @@ stringify_ts_adt (TSADT key ) =
 stringify_ts_make_thunk_graph :: TSMakeThunkGraph -> IRReader Text
 stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures param) =
     sequence (stringify_param <$> param) >>= \ stringified_param ->
-    mapM stringify_capture captures >>= \ stringified_captures ->
+    sequence (map stringify_capture $ Set.toList captures) >>= \ stringified_captures ->
 
     concat <$> mapM stringify_binding_decl included_bindings >>= \ binding_decls ->
     concat <$> mapM stringify_binding_set_fields included_bindings >>= \ binding_set_fields ->
@@ -243,7 +245,7 @@ define_decl :: DeclKey -> Decl -> TSWriter ()
 -- TODO: lower adts and type synonyms here
 define_decl _ (ANFIR.Decl'Module global_bindings adts _) =
     mapM_ (tell_adt . TSADT) adts >>
-    tell_make_thunk_graph (TSMakeThunkGraph Globals global_bindings [] Nothing) -- global thunk graph does not have any params
+    tell_make_thunk_graph (TSMakeThunkGraph Globals global_bindings Set.empty Nothing) -- global thunk graph does not have any params
 define_decl _ (ANFIR.Decl'Type _) = pure ()
 
 define_lambda_type :: ANFIR.BindingKey -> Binding -> TSWriter ()

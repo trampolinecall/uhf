@@ -25,9 +25,6 @@ import qualified Data.Text as Text
 import qualified Data.Sequence as Sequence
 import qualified Data.Map as Map
 
--- import Control.Monad.Trans.Writer.CPS
-import qualified Control.Monad.Trans.Writer as LazyWriter
-
 import Data.Char (isAlpha, isDigit, isOctDigit, isHexDigit, isSpace, digitToInt)
 
 -- lexing {{{1
@@ -270,14 +267,14 @@ case_lex :: Assertion
 case_lex =
     let src = "abc *&* ( \"adji\n"
     in File.new "a" src >>= \ f ->
-    case LazyWriter.runWriter $ lex f of
+    case runWriter $ lex f of
         (([Located _ (Token.AlphaIdentifier (Located _ "abc")), Located _ (Token.SymbolIdentifier (Located _ "*&*")), Located _ (Token.SingleTypeToken Token.OParen)], _), Compiler.Diagnostics [LexError.UnclosedStrLit _] []) -> pure ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
 case_lex_empty :: Assertion
 case_lex_empty =
     File.new "a" "" >>= \ f ->
-    case LazyWriter.runWriter $ lex f of
+    case runWriter $ lex f of
         ((Sequence.Empty, _), Compiler.Diagnostics [] []) -> pure ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 

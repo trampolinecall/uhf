@@ -158,8 +158,8 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures p
                     binding_type e >>= refer_type_raw >>= \ e_ty ->
                     pure [let_evaluator ("SwitchEvaluator<" <> e_ty <> ", " <> res_ty <> ">") (evaluator "SwitchEvaluator" "undefined, undefined"), default_let_thunk]
 
-                ANFIR.Expr'TupleDestructure1 _ tup -> binding_type tup >>= refer_type_raw >>= \ tup_ty -> pure [let_evaluator ("TupleDestructure1Evaluator<" <> tup_ty <> ">") (evaluator "TupleDestructure1Evaluator" "undefined"), default_let_thunk] -- TODO: fix this becuase the type parameters should actually be the elements of the tuple
-                ANFIR.Expr'TupleDestructure2 _ tup -> binding_type tup >>= refer_type_raw >>= \ tup_ty -> pure [let_evaluator ("TupleDestructure1Evaluator<" <> tup_ty <> ">") (evaluator "TupleDestructure2Evaluator" "undefined"), default_let_thunk] -- TODO: same as above
+                ANFIR.Expr'TupleDestructure1 ty _ -> refer_type_raw ty >>= \ ty -> pure [let_evaluator ("TupleDestructure1Evaluator<" <> ty <> ">") (evaluator "TupleDestructure1Evaluator" "undefined"), default_let_thunk]
+                ANFIR.Expr'TupleDestructure2 ty _ -> refer_type_raw ty >>= \ ty -> pure [let_evaluator ("TupleDestructure2Evaluator<" <> ty <> ">") (evaluator "TupleDestructure2Evaluator" "undefined"), default_let_thunk]
 
                 ANFIR.Expr'Poison _ void -> absurd void
 

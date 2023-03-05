@@ -80,7 +80,7 @@ convert_expr bv_map (RIR.Expr'Lambda ty _ captures param_bv body) =
         lift (map_bound_value param_bv param_binding) >>
         convert_expr bv_map body
     ) >>= \ (body, body_included_bindings) ->
-    new_binding (ANFIR.Expr'Lambda ty anfir_param body_included_bindings body)
+    new_binding (ANFIR.Expr'Lambda ty (map (bv_map Map.!) captures) anfir_param body_included_bindings body)
 
 convert_expr bv_map (RIR.Expr'Let _ _ bindings e) = mapM (lift . convert_binding bv_map) bindings >>= \ binding_involved_bindings -> tell (concat binding_involved_bindings) >> convert_expr bv_map e
 

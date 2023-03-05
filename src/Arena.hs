@@ -9,6 +9,7 @@ module Arena
     , Arena.modify
 
     , transform
+    , transform_with_key
     , transformM
     , transform_with_keyM
 
@@ -44,6 +45,9 @@ modify (Arena items) key change =
 
 transform :: Key k => (a -> b) -> Arena a k -> Arena b k
 transform t (Arena items) = Arena $ fmap t items
+
+transform_with_key :: Key k => (k -> a -> b) -> Arena a k -> Arena b k
+transform_with_key t (Arena items) = Arena $ fmap (uncurry t) (Sequence.zip (fmap make_key [0 .. Sequence.length items - 1]) items)
 
 transformM :: (Key k, Monad m) => (a -> m b) -> Arena a k -> m (Arena b k)
 transformM t (Arena items) = Arena <$> mapM t items

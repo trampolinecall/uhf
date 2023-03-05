@@ -3,7 +3,6 @@ module UHF.Data.IR.ANFIR
     , Decl (..)
     , BindingKey
     , ParamKey
-    , BoundWhere(..)
     , Binding(..)
     , Param(..)
     , Expr(..)
@@ -29,8 +28,7 @@ data Decl
 
 newtype Param ty = Param ty deriving Show
 
-data BoundWhere = InModule | InLambdaBody
-data Binding ty poison_allowed = Binding BoundWhere (Expr ty poison_allowed)
+data Binding ty poison_allowed = Binding (Expr ty poison_allowed)
 
 data Expr ty poison_allowed
     = Expr'Identifier ty BindingKey
@@ -62,7 +60,7 @@ data SwitchMatcher
     deriving Show
 
 get_initializer :: Binding ty poison_allowed -> Expr ty poison_allowed
-get_initializer (Binding _ e) = e
+get_initializer (Binding e) = e
 
 expr_type :: Expr ty poison_allowed -> ty
 expr_type (Expr'Identifier ty _) = ty

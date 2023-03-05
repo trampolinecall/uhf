@@ -76,7 +76,7 @@ stringify_ts_decl :: TSDecl -> IRReader Text
 stringify_ts_decl = error "unreachable"
 
 stringify_ts_adt :: TSADT -> IRReader Text
-stringify_ts_adt (TSADT key ) =
+stringify_ts_adt (TSADT key) =
     pure $
         "class " <> mangle_adt key <> " {\n"
             <> "}\n"

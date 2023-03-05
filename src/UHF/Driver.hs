@@ -99,14 +99,14 @@ compile c_needed diagnostic_settings compile_options =
 print_outputs :: CompileOptions -> File -> WithDiagnosticsIO ()
 print_outputs compile_options file = runStateT (mapM print_output_format (output_formats compile_options)) (PhaseResultsCache file Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing) >> pure ()
     where
-        print_output_format AST = get_ast >>= \ ast -> lift (lift (putTextLn $ AST.Dump.dump ast)) -- TODO
-        print_output_format HIR = get_first_hir >>= \ ir -> lift (lift (write_output_file "uhf_hir" (HIR.Dump.dump ir))) -- TODO
-        print_output_format NRHIR = get_nrhir >>= \ ir -> lift (lift (write_output_file "uhf_nrhir" (HIR.Dump.dump ir))) -- TODO
-        print_output_format InfixGroupedHIR = get_infix_grouped >>= \ ir -> lift (lift (write_output_file "uhf_infix_grouped" (HIR.Dump.dump ir))) -- TODO
-        print_output_format TypedHIR = get_typed_hir >>= \ ir -> lift (lift (write_output_file "uhf_typed_hir" (HIR.Dump.dump ir))) -- TODO
-        print_output_format RIR = get_first_rir >>= \ ir -> lift (lift (write_output_file "uhf_rir" (RIR.Dump.dump ir))) -- TODO
-        print_output_format RIRWithCaptures = get_rir_with_captures >>= \ ir -> lift (lift (write_output_file "uhf_rir_captures" (RIR.Dump.dump ir))) -- TODO
-        print_output_format ANFIR = get_anfir >>= \ ir -> lift (lift (write_output_file "uhf_anfir" (ANFIR.Dump.dump ir))) -- TODO
+        print_output_format AST = get_ast >>= \ ast -> lift (lift (putTextLn $ AST.Dump.dump ast))
+        print_output_format HIR = get_first_hir >>= \ ir -> lift (lift (write_output_file "uhf_hir" (HIR.Dump.dump ir)))
+        print_output_format NRHIR = get_nrhir >>= \ ir -> lift (lift (write_output_file "uhf_nrhir" (HIR.Dump.dump ir)))
+        print_output_format InfixGroupedHIR = get_infix_grouped >>= \ ir -> lift (lift (write_output_file "uhf_infix_grouped" (HIR.Dump.dump ir)))
+        print_output_format TypedHIR = get_typed_hir >>= \ ir -> lift (lift (write_output_file "uhf_typed_hir" (HIR.Dump.dump ir)))
+        print_output_format RIR = get_first_rir >>= \ ir -> lift (lift (write_output_file "uhf_rir" (RIR.Dump.dump ir)))
+        print_output_format RIRWithCaptures = get_rir_with_captures >>= \ ir -> lift (lift (write_output_file "uhf_rir_captures" (RIR.Dump.dump ir)))
+        print_output_format ANFIR = get_anfir >>= \ ir -> lift (lift (write_output_file "uhf_anfir" (ANFIR.Dump.dump ir)))
         print_output_format Dot = get_dot >>= lift . lift . maybe (pure ()) (write_output_file "dot")
         print_output_format TS = get_ts >>= lift . lift . maybe (pure ()) (write_output_file "ts")
 

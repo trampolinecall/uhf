@@ -161,7 +161,6 @@ primitive_values = pure []
 
 convert :: [AST.Decl] -> Compiler.WithDiagnostics Error Void HIR
 convert decls =
-    -- prim_span = Span.start_of_file file TODO: remove this function
     runStateT
         (
             primitive_decls >>= \ primitive_decls ->

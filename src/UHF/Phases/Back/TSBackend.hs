@@ -259,4 +259,4 @@ mangle_binding_as_thunk key = "thunk" <> show (Arena.unmake_key key)
 
 mangle_make_thunk_graph_for :: MakeThunkGraphFor -> Text
 mangle_make_thunk_graph_for Globals = "make_global_thunk_graph"
-mangle_make_thunk_graph_for (LambdaBody lambda_key) = "make_thunk_graph_for_" <> mangle_binding_as_lambda lambda_key -- TODO: put this in the lambda itself?
+mangle_make_thunk_graph_for (LambdaBody lambda_key) = "make_thunk_graph_for_" <> mangle_binding_as_lambda lambda_key

@@ -55,7 +55,7 @@ rp_expr (ANFIR.Expr'Char ty c) = ty >>= \ ty -> pure (ANFIR.Expr'Char ty c)
 rp_expr (ANFIR.Expr'String ty t) = ty >>= \ ty -> pure (ANFIR.Expr'String ty t)
 rp_expr (ANFIR.Expr'Tuple ty a b) = ty >>= \ ty -> pure (ANFIR.Expr'Tuple ty a b)
 
-rp_expr (ANFIR.Expr'Lambda ty a i b) = ty >>= \ ty -> pure (ANFIR.Expr'Lambda ty a i b)
+rp_expr (ANFIR.Expr'Lambda ty c a i b) = ty >>= \ ty -> pure (ANFIR.Expr'Lambda ty c a i b)
 rp_expr (ANFIR.Expr'Param ty p) = ty >>= \ ty -> pure (ANFIR.Expr'Param ty p)
 
 rp_expr (ANFIR.Expr'Call ty c a) = ty >>= \ ty -> pure (ANFIR.Expr'Call ty c a)

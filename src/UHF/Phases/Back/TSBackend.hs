@@ -5,6 +5,7 @@ import UHF.Util.Prelude
 import qualified Arena
 
 import qualified Data.Text as Text
+import qualified Data.Maybe as Maybe
 import qualified Data.FileEmbed as FileEmbed
 
 import qualified UHF.Data.IR.ANFIR as ANFIR
@@ -49,7 +50,7 @@ data TSDecl
 data TSADT = TSADT ADTKey -- TODO: actually implement variants and things
 data TSLambda = TSLambda ANFIR.BindingKey Type Type ANFIR.BindingKey -- TODO: captures
 data MakeThunkGraphFor = LambdaBody ANFIR.BindingKey | Globals
-data TSMakeThunkGraph = TSMakeThunkGraph MakeThunkGraphFor [ANFIR.BindingKey] [ANFIR.ParamKey]
+data TSMakeThunkGraph = TSMakeThunkGraph MakeThunkGraphFor [ANFIR.BindingKey] [ANFIR.BindingKey] (Maybe ANFIR.ParamKey) -- first one is body, second one is captures
 data TS = TS [TSDecl] [TSADT] [TSMakeThunkGraph] [TSLambda]
 
 instance Semigroup TS where
@@ -76,8 +77,9 @@ stringify_ts_adt (TSADT key ) =
             <> "}\n"
 
 stringify_ts_make_thunk_graph :: TSMakeThunkGraph -> IRReader Text
-stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings included_params) =
-    mapM stringify_param included_params >>= \ params_stringified ->
+stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures param) =
+    sequence (stringify_param <$> param) >>= \ stringified_param ->
+    mapM stringify_capture captures >>= \ stringified_captures ->
 
     concat <$> mapM stringify_binding_decl included_bindings >>= \ binding_decls ->
     concat <$> mapM stringify_binding_set_fields included_bindings >>= \ binding_set_fields ->
@@ -86,7 +88,7 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings included_p
 
     ts_return_type >>= \ ts_return_type ->
 
-    pure ("function " <> mangle_make_thunk_graph_for for <> "(" <> Text.intercalate ", " params_stringified <> "): " <> ts_return_type <> " {\n" -- TODO: captures
+    pure ("function " <> mangle_make_thunk_graph_for for <> "(" <> Text.intercalate ", " (stringified_captures ++ Maybe.maybeToList stringified_param) <> "): " <> ts_return_type <> " {\n" -- TODO: captures
         <> Text.unlines (map ("    " <>) binding_decls)
         <> "\n"
         <> Text.unlines (map ("    " <>) binding_set_fields)
@@ -116,6 +118,10 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings included_p
             refer_type param_ty >>= \ ty_refer ->
             pure ("param_" <> show (Arena.unmake_key param_key) <> ": " <> ty_refer)
 
+        stringify_capture bk =
+            ANFIR.binding_type <$> get_binding bk >>= refer_type >>= \ ty_refer ->
+            pure (mangle_graph_binding_as_local_thunk bk <> ": " <> ty_refer)
+
         stringify_binding_decl binding_key =
             binding_type binding_key >>= refer_type >>= \ cur_binding_type ->
             let evaluator evaluator_name evaluator_args = "new " <> evaluator_name <> "(" <> evaluator_args <> ")"
@@ -138,7 +144,7 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings included_p
                         binding_type b >>= refer_type_raw >>= \ b_ty ->
                         pure [let_evaluator ("TupleEvaluator<" <> a_ty <> ", " <> b_ty <> ">") (evaluator "TupleEvaluator" "undefined, undefined"), default_let_thunk]
 
-                ANFIR.Expr'Lambda _ _ _ _ -> pure [let_evaluator ("ConstEvaluator<" <> mangle_graph_binding_as_lambda binding_key <> ">") (evaluator "ConstEvaluator" ("new " <> mangle_graph_binding_as_lambda binding_key <> "()")), default_let_thunk] -- TODO: put captures here
+                ANFIR.Expr'Lambda _ _ _ _ _ -> pure [let_evaluator ("ConstEvaluator<" <> mangle_graph_binding_as_lambda binding_key <> ">") (evaluator "ConstEvaluator" ("new " <> mangle_graph_binding_as_lambda binding_key <> "()")), default_let_thunk] -- TODO: put captures here
                 ANFIR.Expr'Param _ param_key -> pure [let_thunk $ "param_" <> show (Arena.unmake_key param_key)]
 
                 ANFIR.Expr'Call ty _ arg ->
@@ -168,7 +174,7 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings included_p
                 ANFIR.Expr'String _ _ -> pure []
                 ANFIR.Expr'Tuple _ a b -> pure [set_field "a" a, set_field "b" b]
 
-                ANFIR.Expr'Lambda _ _ _ _ -> pure []
+                ANFIR.Expr'Lambda _ _ _ _ _ -> pure []
                 ANFIR.Expr'Param _ _ -> pure []
 
                 ANFIR.Expr'Switch _ e arms -> pure [set_field "testing" e, set_field_not_binding "arms" ("[" <> Text.intercalate ", " (map (\ (matcher, res) -> "[" <> convert_matcher matcher <> ", " <> mangle_graph_binding_as_local_thunk res <> "]") arms) <> "]")] -- TODO, also TODO: exhaustiveness check
@@ -237,27 +243,15 @@ define_decl :: DeclKey -> Decl -> TSWriter ()
 -- TODO: lower adts and type synonyms here
 define_decl _ (ANFIR.Decl'Module global_bindings adts _) =
     mapM_ (tell_adt . TSADT) adts >>
-    tell_make_thunk_graph (TSMakeThunkGraph Globals global_bindings []) -- global thunk graph does not have any params
+    tell_make_thunk_graph (TSMakeThunkGraph Globals global_bindings [] Nothing) -- global thunk graph does not have any params
 define_decl _ (ANFIR.Decl'Type _) = pure ()
 
 define_lambda_type :: ANFIR.BindingKey -> Binding -> TSWriter ()
-define_lambda_type key (ANFIR.Binding (ANFIR.Expr'Lambda _ param body_included_bindings body)) = -- TODO: annotate with captures
+define_lambda_type key (ANFIR.Binding (ANFIR.Expr'Lambda _ captures param body_included_bindings body)) = -- TODO: annotate with captures
     lift (get_param param) >>= \ (ANFIR.Param param_ty) ->
     lift (binding_type body) >>= \ body_type ->
-    lift (get_included_params body_included_bindings) >>= \ included_params ->
-    tell_make_thunk_graph (TSMakeThunkGraph (LambdaBody key) body_included_bindings included_params) >>
+    tell_make_thunk_graph (TSMakeThunkGraph (LambdaBody key) body_included_bindings captures (Just param)) >>
     tell_lambda (TSLambda key param_ty body_type body)
-    where
-        -- TODO: decide on param order
-        get_included_params :: [ANFIR.BindingKey] -> IRReader [ANFIR.ParamKey]
-        get_included_params bindings =
-            catMaybes <$>
-                mapM
-                    (\ n ->
-                        ANFIR.get_initializer <$> get_binding n >>= \case
-                            ANFIR.Expr'Param _ param -> pure $ Just param
-                            _ -> pure Nothing)
-                    bindings
 
 define_lambda_type _ _ = pure ()
 

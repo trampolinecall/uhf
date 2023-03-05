@@ -64,7 +64,7 @@ to_dot _ _ _ nodes params =
                         ANFIR.Expr'String _ s -> ("string: \\\"" <> s <> "\\\"", [], [])
                         ANFIR.Expr'Tuple _ a b -> ("tuple", [("a", a), ("b", b)], [])
 
-                        ANFIR.Expr'Lambda _ param _ body -> ("lambda", [("body", body)], [("param", param)])
+                        ANFIR.Expr'Lambda _ _ param _ body -> ("lambda", [("body", body)], [("param", param)])
                         ANFIR.Expr'Param _ param -> ("param", [], [("p", param)])
 
                         ANFIR.Expr'Call _ callee arg -> ("call", [("callee", callee), ("arg", arg)], [])

@@ -224,7 +224,8 @@ initialize_global_thunks thunks =
     pure ("function initialize_global_thunks() {\n"
         <> "    let globals = make_global_thunk_graph();\n"
         <> Text.concat (map (\ (TSGlobalThunk k) -> "    " <> mangle_binding_as_thunk k <> " = " <> "globals." <> mangle_binding_as_binding_var k <> ";\n") thunks)
-        <> "}\n")
+        <> "}\n"
+        <> "initialize_global_thunks();\n")
 
 -- referring to types {{{2
 refer_type_raw :: Type.Type Void -> IRReader Text

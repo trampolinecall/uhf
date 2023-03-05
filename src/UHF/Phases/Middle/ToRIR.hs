@@ -34,10 +34,10 @@ type HIRBoundValueArena = Arena.Arena (HIR.BoundValue Type) BoundValueKey
 type ConvertState = Unique.UniqueMakerT (WriterT (Map BoundValueKey RIR.BoundWhere) (StateT HIRBoundValueArena (Compiler.WithDiagnostics Void Void)))
 
 convert :: HIR -> Compiler.WithDiagnostics Void Void (RIR.RIR ())
-convert (HIR.HIR decls adts type_synonyms bvs) =
+convert (HIR.HIR decls adts type_synonyms bvs mod) =
     runStateT (runWriterT (Unique.run_unique_maker_t (Arena.transformM convert_decl decls))) bvs >>= \ ((decls, bound_wheres), bvs) ->
     let bvs' = Arena.transform_with_key (\ key (HIR.BoundValue ty sp) -> RIR.BoundValue ty (bound_wheres Map.! key) sp) bvs
-    in pure (RIR.RIR decls adts type_synonyms bvs')
+    in pure (RIR.RIR decls adts type_synonyms bvs' mod)
 
 convert_decl :: HIRDecl -> ConvertState RIRDecl
 convert_decl (HIR.Decl'Module _ bindings adts syns) = RIR.Decl'Module <$> (concat <$> mapM (convert_binding RIR.InModule) bindings) <*> pure adts <*> pure syns

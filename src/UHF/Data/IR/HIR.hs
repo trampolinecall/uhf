@@ -32,7 +32,7 @@ import qualified Data.Map as Map
 import UHF.IO.Span (Span)
 import UHF.IO.Located (Located)
 
-data HIR iden type_expr type_info binary_ops_allowed = HIR (Arena.Arena (Decl iden type_expr type_info binary_ops_allowed) DeclKey) (Arena.Arena (Type.ADT type_expr) ADTKey) (Arena.Arena (Type.TypeSynonym type_expr) TypeSynonymKey) (Arena.Arena (BoundValue type_info) BoundValueKey)
+data HIR iden type_expr type_info binary_ops_allowed = HIR (Arena.Arena (Decl iden type_expr type_info binary_ops_allowed) DeclKey) (Arena.Arena (Type.ADT type_expr) ADTKey) (Arena.Arena (Type.TypeSynonym type_expr) TypeSynonymKey) (Arena.Arena (BoundValue type_info) BoundValueKey) DeclKey
 
 data Decl identifier typeannotation typeinfo binaryopsallowed
     = Decl'Module NameContext [Binding identifier typeannotation typeinfo binaryopsallowed] [ADTKey] [TypeSynonymKey]

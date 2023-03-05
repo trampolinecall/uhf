@@ -23,6 +23,7 @@ import qualified UHF.Data.Token as Token
 
 import qualified Data.Text as Text
 import qualified Data.Sequence as Sequence
+import qualified Data.Map as Map
 
 -- import Control.Monad.Trans.Writer.CPS
 import qualified Control.Monad.Trans.Writer as LazyWriter
@@ -84,7 +85,7 @@ lex_comment =
                 ]
     in choice [lex_singleline, lex_multiline]
 
-lex_id_or_kw :: (Char -> Bool) -> (Char -> Bool) -> [(Text, Token.InternalToken)] -> (Located Text -> Token.InternalToken) -> Lexer (Sequence.Seq Token.LInternalToken)
+lex_id_or_kw :: (Char -> Bool) -> (Char -> Bool) -> Map Text Token.InternalToken -> (Located Text -> Token.InternalToken) -> Lexer (Sequence.Seq Token.LInternalToken)
 lex_id_or_kw is_valid_start is_valid_char kws def =
     get_loc >>= \ start_loc ->
     consume is_valid_start >>= \ first_char ->
@@ -93,7 +94,7 @@ lex_id_or_kw is_valid_start is_valid_char kws def =
             let chars = first_char : more
                 sp = Located.just_span (head chars) <> Located.just_span (last chars)
             in Located sp (Text.pack $ Located.unlocate <$> chars)
-        tok = fromMaybe (def full) (lookup (Located.unlocate full) kws)
+        tok = fromMaybe (def full) (Map.lookup (Located.unlocate full) kws)
     in get_loc >>= \ end_loc ->
     pure (Sequence.singleton $ Located (new_span_start_and_end start_loc end_loc) tok)
 

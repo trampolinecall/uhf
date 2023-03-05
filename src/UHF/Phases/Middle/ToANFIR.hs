@@ -12,10 +12,11 @@ import qualified UHF.Data.IR.Type as Type
 import UHF.Data.IR.Keys
 
 type Type = Maybe (Type.Type Void)
+type CaptureList = [BoundValueKey]
 
-type RIRDecl = RIR.Decl
-type RIRExpr = RIR.Expr
-type RIRBinding = RIR.Binding
+type RIRDecl = RIR.Decl CaptureList
+type RIRExpr = RIR.Expr CaptureList
+type RIRBinding = RIR.Binding CaptureList
 
 type ANFIR = ANFIR.ANFIR Type ()
 type ANFIRDecl = ANFIR.Decl
@@ -32,7 +33,7 @@ type BoundValueMap = Map.Map BoundValueKey ANFIR.BindingKey
 
 type MakeGraphState = WriterT BoundValueMap (StateT (ANFIRBindingArena, ANFIRParamArena) (Reader BoundValueArena))
 
-convert :: RIR.RIR -> ANFIR
+convert :: RIR.RIR CaptureList -> ANFIR
 convert (RIR.RIR decls adts type_synonyms bound_values) =
     let ((decls', bv_map), (bindings, params)) = runReader (runStateT (runWriterT (Arena.transformM (convert_decl bv_map) decls)) (Arena.new, Arena.new)) bound_values
     in (ANFIR.ANFIR decls' adts type_synonyms bindings params)
@@ -71,7 +72,7 @@ convert_expr _ (RIR.Expr'Bool ty _ b) = new_binding (ANFIR.Expr'Bool ty b)
 
 convert_expr bv_map (RIR.Expr'Tuple ty _ a b) = ANFIR.Expr'Tuple ty <$> convert_expr bv_map a <*> convert_expr bv_map b >>= new_binding
 
-convert_expr bv_map (RIR.Expr'Lambda ty _ param_bv body) =
+convert_expr bv_map (RIR.Expr'Lambda ty _ captures param_bv body) =
     lift (get_bv param_bv) >>= \ (RIR.BoundValue param_ty _ _) ->
     new_param (ANFIR.Param param_ty) >>= \ anfir_param ->
     lift (runWriterT $ -- lambda bodies should not be included in the parent included bindings because they do not need to be evaluated to create the lambda object

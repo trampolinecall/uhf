@@ -40,7 +40,7 @@ data Expr ty poison_allowed
     | Expr'String ty Text
     | Expr'Tuple ty BindingKey BindingKey -- TODO: replace with call constructor expr
 
-    | Expr'Lambda ty ParamKey [BindingKey] BindingKey
+    | Expr'Lambda ty [BindingKey] ParamKey [BindingKey] BindingKey -- first list of binding keys is captures, second is the body
     | Expr'Param ty ParamKey
 
     | Expr'Call ty BindingKey BindingKey
@@ -71,7 +71,7 @@ expr_type (Expr'Char ty _) = ty
 expr_type (Expr'String ty _) = ty
 expr_type (Expr'Tuple ty _ _) = ty
 
-expr_type (Expr'Lambda ty _ _ _) = ty
+expr_type (Expr'Lambda ty _ _ _ _) = ty
 expr_type (Expr'Param ty _) = ty
 
 expr_type (Expr'Call ty _ _) = ty

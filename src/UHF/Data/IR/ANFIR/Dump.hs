@@ -75,7 +75,7 @@ dump_expr (ANFIR.Expr'Bool _ b) = dump_text $ if b then "true" else "false"
 dump_expr (ANFIR.Expr'Char _ c) = dump_text $ show c
 dump_expr (ANFIR.Expr'String _ s) = dump_text $ show s
 dump_expr (ANFIR.Expr'Tuple _ a b) = dump_text "(" >> dump_binding_key a >> dump_text ", " >> dump_binding_key b >> dump_text ")"
-dump_expr (ANFIR.Expr'Lambda _ param bindings body) = dump_text "\\ " >> dump_param_key param >> dump_text " -> {\n" >> lift DumpUtils.indent >> mapM_ (\ k -> get_binding k >>= dump_binding k) bindings >> lift DumpUtils.dedent >> dump_text "}\n" >> dump_binding_key body
+dump_expr (ANFIR.Expr'Lambda _ _ param bindings body) = dump_text "\\ " >> dump_param_key param >> dump_text " -> {\n" >> lift DumpUtils.indent >> mapM_ (\ k -> get_binding k >>= dump_binding k) bindings >> lift DumpUtils.dedent >> dump_text "}\n" >> dump_binding_key body -- TODO: dump captures
 dump_expr (ANFIR.Expr'Param _ pk) = dump_param_key pk
 dump_expr (ANFIR.Expr'Call _ callee arg) = dump_binding_key callee >> dump_text "(" >> dump_binding_key arg >> dump_text ")"
 dump_expr (ANFIR.Expr'Switch _ e arms) = dump_text "switch " >> dump_binding_key e >> dump_text " {\n" >> lift DumpUtils.indent >> mapM_ dump_arm arms >> lift DumpUtils.dedent >> dump_text "}"

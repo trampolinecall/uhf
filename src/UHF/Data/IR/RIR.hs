@@ -59,6 +59,8 @@ data Expr captures
 
     | Expr'Switch (Maybe Type) Span (Expr captures) [(SwitchMatcher, (Expr captures))]
 
+    | Expr'Seq (Maybe Type) Span (Expr captures) (Expr captures)
+
     | Expr'Poison (Maybe Type) Span
     deriving Show
 
@@ -80,6 +82,7 @@ expr_type (Expr'Lambda ty _ _ _ _ _) = ty
 expr_type (Expr'Let ty _ _ _) = ty
 expr_type (Expr'Call ty _ _ _) = ty
 expr_type (Expr'Switch ty _ _ _) = ty
+expr_type (Expr'Seq ty _ _ _) = ty
 expr_type (Expr'Poison ty _) = ty
 
 expr_span :: (Expr captures) -> Span
@@ -94,4 +97,5 @@ expr_span (Expr'Lambda _ sp _ _ _ _) = sp
 expr_span (Expr'Let _ sp _ _) = sp
 expr_span (Expr'Call _ sp _ _) = sp
 expr_span (Expr'Switch _ sp _ _) = sp
+expr_span (Expr'Seq _ sp _ _) = sp
 expr_span (Expr'Poison _ sp) = sp

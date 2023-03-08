@@ -72,6 +72,8 @@ to_dot _ _ _ nodes params =
 
                         ANFIR.Expr'Switch _ e arms -> ("switch", ("e", e) : zipWith (\ arm_i (matcher, result) -> (show arm_i <> " - " <> stringify_matcher matcher, result)) [0 :: Int ..] arms, [])
 
+                        ANFIR.Expr'Seq _ a b -> ("seq", [("a", a), ("b", b)], [])
+
                         ANFIR.Expr'TupleDestructure1 _ tup -> ("tuple destructure 1", [("tuple", tup)], [])
                         ANFIR.Expr'TupleDestructure2 _ tup -> ("tuple destructure 2", [("tuple", tup)], [])
 

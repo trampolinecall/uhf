@@ -83,6 +83,7 @@ dump_expr (ANFIR.Expr'Switch _ e arms) = dump_text "switch " >> dump_binding_key
         dump_arm (ANFIR.Switch'BoolLiteral b, expr) = (if b then dump_text "true" else dump_text "false") >> dump_text " -> " >> dump_binding_key expr >> dump_text "\n"
         dump_arm (ANFIR.Switch'Tuple, expr) = dump_text "(,) -> " >> dump_binding_key expr >> dump_text "\n"
         dump_arm (ANFIR.Switch'Default, expr) = dump_text "-> " >> dump_binding_key expr >> dump_text "\n"
+dump_expr (ANFIR.Expr'Seq _ a b) = dump_text "seq " >> dump_binding_key a >> dump_text ", " >> dump_binding_key b
 dump_expr (ANFIR.Expr'TupleDestructure1 _ other) = dump_binding_key other >> dump_text ".0"
 dump_expr (ANFIR.Expr'TupleDestructure2 _ other) = dump_binding_key other >> dump_text ".1"
 dump_expr (ANFIR.Expr'Poison _ _) = dump_text "poison"

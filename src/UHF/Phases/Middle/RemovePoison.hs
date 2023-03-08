@@ -62,6 +62,8 @@ rp_expr (ANFIR.Expr'Call ty c a) = ty >>= \ ty -> pure (ANFIR.Expr'Call ty c a)
 
 rp_expr (ANFIR.Expr'Switch ty c a) = ty >>= \ ty -> pure (ANFIR.Expr'Switch ty c a)
 
+rp_expr (ANFIR.Expr'Seq ty a b) = ty >>= \ ty -> pure (ANFIR.Expr'Seq ty a b)
+
 rp_expr (ANFIR.Expr'TupleDestructure1 ty t) = ty >>= \ ty -> pure (ANFIR.Expr'TupleDestructure1 ty t)
 rp_expr (ANFIR.Expr'TupleDestructure2 ty t) = ty >>= \ ty -> pure (ANFIR.Expr'TupleDestructure2 ty t)
 

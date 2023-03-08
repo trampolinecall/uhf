@@ -142,6 +142,8 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures p
 
                 ANFIR.Expr'Switch _ test arms -> pure (default_let_thunk, Just (set_evaluator "SwitchEvaluator" (mangle_binding_as_thunk test <> ", " <> ("[" <> Text.intercalate ", " (map (\ (matcher, res) -> "[" <> convert_matcher matcher <> ", " <> mangle_binding_as_thunk res <> "]") arms) <> "]"))))
 
+                ANFIR.Expr'Seq _ a b -> pure (default_let_thunk, Just (set_evaluator "SeqEvaluator" (mangle_binding_as_thunk a <> ", " <> mangle_binding_as_thunk b)))
+
                 ANFIR.Expr'TupleDestructure1 _ tup -> pure (default_let_thunk, Just (set_evaluator "TupleDestructure1Evaluator" (mangle_binding_as_thunk tup)))
                 ANFIR.Expr'TupleDestructure2 _ tup -> pure (default_let_thunk, Just (set_evaluator "TupleDestructure2Evaluator" (mangle_binding_as_thunk tup)))
 

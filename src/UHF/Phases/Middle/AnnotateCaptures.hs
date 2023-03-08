@@ -53,6 +53,7 @@ annotate_expr bvs (RIR.Expr'Lambda ty sp uniq () param body) =
         get_captures (RIR.Expr'Let _ _ bindings result) = Set.unions (map (\ (RIR.Binding _ init) -> get_captures init) bindings) <> get_captures result
         get_captures (RIR.Expr'Call _ _ callee arg) = get_captures callee <> get_captures arg
         get_captures (RIR.Expr'Switch _ _ test arms) = get_captures test <> (Set.unions $ map (\ (_, e) -> get_captures e) arms)
+        get_captures (RIR.Expr'Seq _ _ a b) = get_captures a <> get_captures b
         get_captures (RIR.Expr'Poison _ _) = []
 
         is_capture k = case Arena.get bvs k of
@@ -62,4 +63,5 @@ annotate_expr bvs (RIR.Expr'Lambda ty sp uniq () param body) =
 annotate_expr bvs (RIR.Expr'Let ty sp bindings result) = RIR.Expr'Let ty sp (map (annotate_binding bvs) bindings) (annotate_expr bvs result)
 annotate_expr bvs (RIR.Expr'Call ty sp callee arg) = RIR.Expr'Call ty sp (annotate_expr bvs callee) (annotate_expr bvs arg)
 annotate_expr bvs (RIR.Expr'Switch ty sp test arms) = RIR.Expr'Switch ty sp (annotate_expr bvs test) (map (\ (p, e) -> (p, annotate_expr bvs e)) arms)
+annotate_expr bvs (RIR.Expr'Seq ty sp a b) = RIR.Expr'Seq ty sp (annotate_expr bvs a) (annotate_expr bvs b)
 annotate_expr _ (RIR.Expr'Poison ty sp) = RIR.Expr'Poison ty sp

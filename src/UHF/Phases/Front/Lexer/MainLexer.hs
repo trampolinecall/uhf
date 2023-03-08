@@ -285,12 +285,9 @@ lex_test' fn = lex_test (((\ ((r, loc), Compiler.Diagnostics errs _) -> (loc, to
 lex_test_fail :: Show r => [Char] -> r -> IO a
 lex_test_fail fn_name res = assertFailure $ "'" ++ fn_name ++ "' lexed incorrectly: returned '" ++ show res ++ "'"
 
-convert_seq_to_list :: ((Sequence.Seq a, b), c) -> (([a], b), c)
-convert_seq_to_list ((a, b), c) = ((toList a, b), c)
-
 case_lex_one_token :: Assertion
 case_lex_one_token =
-    lex_test (convert_seq_to_list . runWriter . runStateT lex_one_token) "abc" $ \case
+    lex_test (runWriter . runStateT lex_one_token) "abc" $ \case
         (([Located _ (Token.AlphaIdentifier (Located _ "abc"))], l), Compiler.Diagnostics [] [])
             | remaining l == "" -> pure ()
 

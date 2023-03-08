@@ -74,4 +74,5 @@ dump_expr (RIR.Expr'Switch _ _ e arms) = dump_text "switch " >> dump_expr e >> d
         dump_arm (RIR.Switch'BoolLiteral b, expr) = (if b then dump_text "true" else dump_text "false") >> dump_text " -> " >> dump_expr expr >> dump_text "\n"
         dump_arm (RIR.Switch'Tuple a b, expr) = dump_text "(" >> maybe (dump_text "_") dump_bvk a >> dump_text ", " >> maybe (dump_text "_") dump_bvk b >> dump_text ") -> " >> dump_expr expr >> dump_text "\n"
         dump_arm (RIR.Switch'Default, expr) = dump_text "_ -> " >> dump_expr expr >> dump_text "\n"
+dump_expr (RIR.Expr'Seq _ _ a b) = dump_text "seq " >> dump_expr a >> dump_text ", " >> dump_expr b
 dump_expr (RIR.Expr'Poison _ _) = dump_text "poison"

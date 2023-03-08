@@ -47,6 +47,8 @@ data Expr ty poison_allowed
 
     | Expr'Switch ty BindingKey [(SwitchMatcher, BindingKey)]
 
+    | Expr'Seq ty BindingKey BindingKey
+
     | Expr'TupleDestructure1 ty BindingKey -- TODO: figure out better solution to this (probably general destructure expr for any type, or actually probably use case expressions to match on things)
     | Expr'TupleDestructure2 ty BindingKey
 
@@ -77,6 +79,7 @@ expr_type (Expr'Param ty _) = ty
 expr_type (Expr'Call ty _ _) = ty
 
 expr_type (Expr'Switch ty _ _) = ty
+expr_type (Expr'Seq ty _ _) = ty
 
 expr_type (Expr'TupleDestructure1 ty _) = ty
 expr_type (Expr'TupleDestructure2 ty _) = ty

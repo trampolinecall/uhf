@@ -123,22 +123,22 @@ class TupleDestructure2Evaluator<B extends Showable> implements Evaluator<B> {
 }
 
 interface Matcher<T> {
-    matches(thing: T): boolean;
+    matches(thing: Thunk<T>): boolean;
 }
 class BoolLiteralMatcher implements Matcher<boolean> {
     constructor(public expecting: boolean) {}
-    matches(t: boolean): boolean {
-        return t == this.expecting;
+    matches(t: Thunk<boolean>): boolean {
+        return t.get_value() == this.expecting;
     }
 }
 class DefaultMatcher<T> implements Matcher<T> {
-    matches(t: T): boolean {
+    matches(t: Thunk<T>): boolean {
         return true;
     }
 }
 // TODO: same todo about extends Showable constraint
 class TupleMatcher<A extends Showable, B extends Showable> implements Matcher<Tuple<A, B>> {
-    matches(t: Tuple<A, B>): boolean {
+    matches(t: Thunk<Tuple<A, B>>): boolean {
         return true; // tuples only have one constructor so it always matches
     }
 }
@@ -146,13 +146,21 @@ class SwitchEvaluator<E, R> implements Evaluator<R> {
     constructor(public testing: Thunk<E>, public arms: [Matcher<E>, Thunk<R>][]) {}
 
     evaluate(): R {
-        let testing = this.testing.get_value();
         for (let [matcher, result] of this.arms) {
-            if (matcher.matches(testing)) {
+            if (matcher.matches(this.testing)) {
                 return result.get_value();
             }
         }
 
         throw Error("non-exhaustive matchers in switch");
+    }
+}
+
+class SeqEvaluator<A, B> implements Evaluator<B> {
+    constructor(public a: Thunk<A>, public b: Thunk<B>) {}
+
+    evaluate(): R {
+        this.a.get_value();
+        return this.b.get_value();
     }
 }

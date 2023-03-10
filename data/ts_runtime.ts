@@ -159,7 +159,7 @@ class SwitchEvaluator<E, R> implements Evaluator<R> {
 class SeqEvaluator<A, B> implements Evaluator<B> {
     constructor(public a: Thunk<A>, public b: Thunk<B>) {}
 
-    evaluate(): R {
+    evaluate(): B {
         this.a.get_value();
         return this.b.get_value();
     }

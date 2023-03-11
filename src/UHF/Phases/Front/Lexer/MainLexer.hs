@@ -92,19 +92,19 @@ lex_id_or_kw is_valid_start is_valid_char kws def =
             in Located sp (Text.pack $ Located.unlocate <$> chars)
         tok = fromMaybe (def full) (Map.lookup (Located.unlocate full) kws)
     in get_loc >>= \ end_loc ->
-    pure ([Located (new_span_start_and_end start_loc end_loc) tok])
+    pure [Located (new_span_start_and_end start_loc end_loc) tok]
 
 lex_delimiter :: Lexer (Seq Token.LInternalToken)
 lex_delimiter =
     choice
-        [ consume (=='(') >>= \ ch -> pure [const (Token.SingleTypeToken Token.OParen) <$> ch]
-        , consume (==')') >>= \ ch -> pure [const (Token.SingleTypeToken Token.CParen) <$> ch]
-        , consume (=='[') >>= \ ch -> pure [const (Token.SingleTypeToken Token.OBrack) <$> ch]
-        , consume (==']') >>= \ ch -> pure [const (Token.SingleTypeToken Token.CBrack) <$> ch]
-        , consume (=='{') >>= \ ch -> pure [const (Token.SingleTypeToken Token.OBrace) <$> ch]
-        , consume (=='}') >>= \ ch -> pure [const (Token.SingleTypeToken Token.CBrace) <$> ch]
-        , consume (==';') >>= \ ch -> pure [const (Token.SingleTypeToken Token.Semicolon) <$> ch]
-        , consume (==',') >>= \ ch -> pure [const (Token.SingleTypeToken Token.Comma) <$> ch]
+        [ consume (=='(') >>= \ ch -> pure [Token.SingleTypeToken Token.OParen <$ ch]
+        , consume (==')') >>= \ ch -> pure [Token.SingleTypeToken Token.CParen <$ ch]
+        , consume (=='[') >>= \ ch -> pure [Token.SingleTypeToken Token.OBrack <$ ch]
+        , consume (==']') >>= \ ch -> pure [Token.SingleTypeToken Token.CBrack <$ ch]
+        , consume (=='{') >>= \ ch -> pure [Token.SingleTypeToken Token.OBrace <$ ch]
+        , consume (=='}') >>= \ ch -> pure [Token.SingleTypeToken Token.CBrace <$ ch]
+        , consume (==';') >>= \ ch -> pure [Token.SingleTypeToken Token.Semicolon <$ ch]
+        , consume (==',') >>= \ ch -> pure [Token.SingleTypeToken Token.Comma <$ ch]
         ]
 
 lex_alpha_identifier :: Lexer (Seq Token.LInternalToken)

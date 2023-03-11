@@ -52,7 +52,7 @@ annotate_expr bvs (RIR.Expr'Lambda ty sp uniq () param body) =
         get_captures (RIR.Expr'Lambda _ _ _ captures _ _) = Set.filter is_capture captures
         get_captures (RIR.Expr'Let _ _ bindings result) = Set.unions (map (\ (RIR.Binding _ init) -> get_captures init) bindings) <> get_captures result
         get_captures (RIR.Expr'Call _ _ callee arg) = get_captures callee <> get_captures arg
-        get_captures (RIR.Expr'Switch _ _ test arms) = get_captures test <> (Set.unions $ map (\ (_, e) -> get_captures e) arms)
+        get_captures (RIR.Expr'Switch _ _ test arms) = get_captures test <> Set.unions (map (\ (_, e) -> get_captures e) arms)
         get_captures (RIR.Expr'Seq _ _ a b) = get_captures a <> get_captures b
         get_captures (RIR.Expr'Poison _ _) = []
 

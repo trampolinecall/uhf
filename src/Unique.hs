@@ -27,7 +27,7 @@ instance (Applicative m, Monad m) => Applicative (UniqueMakerT m) where
 instance Monad m => Monad (UniqueMakerT m) where
     (UniqueMakerT a) >>= f = UniqueMakerT $ a >>= un_unique_maker . f
 
-instance Trans.MonadTrans (UniqueMakerT) where
+instance Trans.MonadTrans UniqueMakerT where
     lift other = UniqueMakerT $ lift other
 
 make_unique :: Monad m => UniqueMakerT m Unique

@@ -70,7 +70,7 @@ data SwitchMatcher
     | Switch'Default
     deriving Show
 
-expr_type :: (Expr captures) -> Maybe Type
+expr_type :: Expr captures -> Maybe Type
 expr_type (Expr'Identifier ty _ _) = ty
 expr_type (Expr'Char ty _ _) = ty
 expr_type (Expr'String ty _ _) = ty
@@ -85,7 +85,7 @@ expr_type (Expr'Switch ty _ _ _) = ty
 expr_type (Expr'Seq ty _ _ _) = ty
 expr_type (Expr'Poison ty _) = ty
 
-expr_span :: (Expr captures) -> Span
+expr_span :: Expr captures -> Span
 expr_span (Expr'Identifier _ sp _) = sp
 expr_span (Expr'Char _ sp _) = sp
 expr_span (Expr'String _ sp _) = sp

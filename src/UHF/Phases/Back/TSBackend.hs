@@ -84,7 +84,7 @@ stringify_ts_adt (TSADT key) =
 stringify_ts_make_thunk_graph :: TSMakeThunkGraph -> IRReader Text
 stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures param) =
     sequence (stringify_param <$> param) >>= \ stringified_param ->
-    sequence (map stringify_capture $ Set.toList captures) >>= \ stringified_captures ->
+    mapM stringify_capture (Set.toList captures) >>= \ stringified_captures ->
 
     (unzip <$> mapM stringify_binding_decl included_bindings) >>= \ (binding_decls, binding_set_evaluators) ->
     -- TODO: dont use unmake_key anywhere (probably including outside of this module too)
@@ -122,7 +122,7 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures p
             binding_type binding_key >>= refer_type >>= \ cur_binding_type ->
             let set_evaluator evaluator_name evaluator_args = mangle_binding_as_thunk binding_key <> ".evaluator = new " <> evaluator_name <> "(" <> evaluator_args <> ");"
                 let_thunk initializer = "let " <> mangle_binding_as_thunk binding_key <> ": " <> cur_binding_type <> " = " <> initializer <> ";"
-                default_let_thunk = let_thunk ("new Thunk(undefined)")
+                default_let_thunk = let_thunk "new Thunk(undefined)"
 
             in ANFIR.get_initializer <$> get_binding binding_key >>= \case
                 ANFIR.Expr'Identifier _ i ->

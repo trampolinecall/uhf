@@ -43,11 +43,11 @@ dump_m_type Nothing = dump_text "<type error>"
 dump_type :: Type.Type Void -> Dumper captures ()
 dump_type (Type.Type'ADT k) = get_adt k >>= \ (Type.ADT name _) -> dump_text name -- TODO: dump path
 dump_type (Type.Type'Synonym k) = get_type_synonym k >>= \ (Type.TypeSynonym name _) -> dump_text name
-dump_type (Type.Type'Int) = dump_text "int"
-dump_type (Type.Type'Float) = dump_text "float"
-dump_type (Type.Type'Char) = dump_text "char"
-dump_type (Type.Type'String) = dump_text "string"
-dump_type (Type.Type'Bool) = dump_text "bool"
+dump_type Type.Type'Int = dump_text "int"
+dump_type Type.Type'Float = dump_text "float"
+dump_type Type.Type'Char = dump_text "char"
+dump_type Type.Type'String = dump_text "string"
+dump_type Type.Type'Bool = dump_text "bool"
 dump_type (Type.Type'Function a r) = dump_type a >> dump_text " -> " >> dump_type r
 dump_type (Type.Type'Tuple a b) = dump_text "(" >> dump_type a >> dump_text ", " >> dump_type b >> dump_text ")"
 dump_type (Type.Type'Variable void) = absurd void

@@ -25,7 +25,7 @@ class Dumpable d where
     dump_ :: d -> DumpUtils.Dumper ()
 
 instance Dumpable [AST.Decl] where
-    dump_ decls = mapM_ dump_ decls
+    dump_ = mapM_ dump_
 
 instance Dumpable AST.Decl where
     dump_ (AST.Decl'Value target _ init) = dump_struct "Decl'Value" [("target", dump_ target), ("init", dump_ init)]

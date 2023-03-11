@@ -60,7 +60,7 @@ instance DumpableIdentifier (Located (Maybe Keys.BoundValueKey)) where
     dump_iden k = case unlocate k of
         Just k -> dump_iden k
         Nothing -> dump_text "<name resolution error>"
-instance DumpableIdentifier (Keys.BoundValueKey) where
+instance DumpableIdentifier Keys.BoundValueKey where
     dump_iden k = get_bv k >>= \ (HIR.BoundValue _ _) -> dump_text "_" >> dump_text (show $ Arena.unmake_key k) -- TODO: show names and dont use unmake_key
 instance DumpableIdentifier (Maybe Keys.DeclKey) where
     dump_iden (Just k) = dump_text "decl_" >> dump_text (show $ Arena.unmake_key k)
@@ -78,11 +78,11 @@ instance DumpableType (Maybe (Type.Type Void)) where
 instance DumpableType (Type.Type Void) where
     dump_type (Type.Type'ADT k) = get_adt k >>= \ (Type.ADT name _) -> dump_text name -- TODO: dump path
     dump_type (Type.Type'Synonym k) = get_type_syn k >>= \ (Type.TypeSynonym name _) -> dump_text name
-    dump_type (Type.Type'Int) = dump_text "int"
-    dump_type (Type.Type'Float) = dump_text "float"
-    dump_type (Type.Type'Char) = dump_text "char"
-    dump_type (Type.Type'String) = dump_text "string"
-    dump_type (Type.Type'Bool) = dump_text "bool"
+    dump_type Type.Type'Int = dump_text "int"
+    dump_type Type.Type'Float = dump_text "float"
+    dump_type Type.Type'Char = dump_text "char"
+    dump_type Type.Type'String = dump_text "string"
+    dump_type Type.Type'Bool = dump_text "bool"
     dump_type (Type.Type'Function a r) = dump_type a >> dump_text " -> " >> dump_type r
     dump_type (Type.Type'Tuple a b) = dump_text "(" >> dump_type a >> dump_text ", " >> dump_type b >> dump_text ")"
     dump_type (Type.Type'Variable void) = absurd void

@@ -28,7 +28,7 @@ data Decl
 
 newtype Param ty = Param ty deriving Show
 
-data Binding ty poison_allowed = Binding (Expr ty poison_allowed)
+newtype Binding ty poison_allowed = Binding (Expr ty poison_allowed)
 
 data Expr ty poison_allowed
     = Expr'Identifier ty BindingKey

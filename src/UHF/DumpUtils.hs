@@ -3,6 +3,7 @@ module UHF.DumpUtils
     , run_dumper
     , exec_dumper
 
+    , is_multiline
     , dump
     , dump_ch
     , indent
@@ -28,6 +29,9 @@ instance Applicative Dumper where
 
 instance Monad Dumper where
     (Dumper a) >>= f = Dumper $ a >>= un_dumper . f
+
+is_multiline :: Dumper a -> Bool
+is_multiline = Text.any (=='\n') . exec_dumper
 
 run_dumper :: Dumper a -> (a, Text)
 run_dumper (Dumper d) = runWriter $ evalStateT d (DumpState 0 True)

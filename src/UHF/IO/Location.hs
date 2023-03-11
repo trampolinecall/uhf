@@ -85,15 +85,15 @@ case_seek_1_same_line =
 case_seek_1_up_to_newline :: Assertion
 case_seek_1_up_to_newline =
     File.new "a" "abcd\nefgh" >>= \ f ->
-    Location f (LineCol 3 1 4) "d\nefgh" @=? seek_1 (Location f (LineCol 2 1 3) "abcd\nefgh")
+    Location f (LineCol 3 1 4) "d\nefgh" @=? seek_1 (Location f (LineCol 2 1 3) "cd\nefgh")
 case_seek_1_to_newline :: Assertion
 case_seek_1_to_newline =
     File.new "a" "abcd\nefgh" >>= \ f ->
-    Location f (LineCol 4 1 5) "\nefgh" @=? seek_1 (Location f (LineCol 3 1 4) "abcd\nefgh")
+    Location f (LineCol 4 1 5) "\nefgh" @=? seek_1 (Location f (LineCol 3 1 4) "d\nefgh")
 case_seek_1_past_newline :: Assertion
 case_seek_1_past_newline =
     File.new "a" "abcd\nefgh" >>= \ f ->
-    Location f (LineCol 5 2 1) "efgh" @=? seek_1 (Location f (LineCol 4 1 5) "abcd\nefgh")
+    Location f (LineCol 5 2 1) "efgh" @=? seek_1 (Location f (LineCol 4 1 5) "\nefgh")
 
 case_seek_same :: Assertion
 case_seek_same =

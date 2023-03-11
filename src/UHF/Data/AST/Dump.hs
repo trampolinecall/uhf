@@ -61,10 +61,12 @@ instance Dumpable AST.Identifier where
 
 dump_struct :: Text -> [(Text, DumpUtils.Dumper ())] -> DumpUtils.Dumper ()
 dump_struct name fields =
-    let fields' = map dump_field fields
-    in if length fields' == 1 && not (DumpUtils.is_multiline $ head fields')
-        then DumpUtils.dump name >> DumpUtils.dump " { " >> head fields' >> DumpUtils.dump " }"
-        else DumpUtils.dump name >> DumpUtils.dump " {\n" >> DumpUtils.indent >> mapM (>> DumpUtils.dump ",\n") fields' >> DumpUtils.dedent >> DumpUtils.dump "}"
+    case map dump_field fields of
+        [] -> DumpUtils.dump name >> DumpUtils.dump " {}"
+        [field]
+            | not $ DumpUtils.is_multiline field -> DumpUtils.dump name >> DumpUtils.dump " { " >> field >> DumpUtils.dump " }"
+
+        fields -> DumpUtils.dump name >> DumpUtils.dump " {\n" >> DumpUtils.indent >> mapM (>> DumpUtils.dump ",\n") fields >> DumpUtils.dedent >> DumpUtils.dump "}"
     where
         dump_field (name, value) = DumpUtils.dump name >> DumpUtils.dump " = " >> value
 
@@ -72,9 +74,11 @@ dump_list :: (d -> DumpUtils.Dumper ()) -> [d] -> DumpUtils.Dumper ()
 dump_list dump items =
     let dumped = map dump items
         any_multiline = any DumpUtils.is_multiline dumped
-    in if any_multiline
-        then DumpUtils.dump "[\n" >> DumpUtils.indent >> sequence (map (>> DumpUtils.dump ",\n") dumped) >> DumpUtils.dedent >> DumpUtils.dump "]" -- true if first
-        else DumpUtils.dump "[" >> intercalate_commas True dumped >> DumpUtils.dump "]" -- true if first
+    in if null dumped
+        then DumpUtils.dump "[]"
+        else if any_multiline
+            then DumpUtils.dump "[\n" >> DumpUtils.indent >> sequence (map (>> DumpUtils.dump ",\n") dumped) >> DumpUtils.dedent >> DumpUtils.dump "]" -- true if first
+            else DumpUtils.dump "[" >> intercalate_commas True dumped >> DumpUtils.dump "]" -- true if first
     where
         intercalate_commas _ [] = pure ()
         intercalate_commas True (x:more) = x >> intercalate_commas False more

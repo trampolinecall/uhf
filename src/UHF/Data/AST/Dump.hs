@@ -11,13 +11,6 @@ import UHF.IO.Located (Located (..))
 
 import qualified Data.Text as Text
 
--- TODO: fix newlines becuase sometimes things come out like
---     fields = Type'Identifier {
---         iden = string
---     }, Type'Identifier {
---         iden = int
---     }
-
 dump :: [AST.Decl] -> Text
 dump = DumpUtils.exec_dumper . dump_
 
@@ -25,7 +18,7 @@ class Dumpable d where
     dump_ :: d -> DumpUtils.Dumper ()
 
 instance Dumpable [AST.Decl] where
-    dump_ = mapM_ dump_
+    dump_ = mapM_ (\ decl -> dump_ decl >> DumpUtils.newline)
 
 instance Dumpable AST.Decl where
     dump_ (AST.Decl'Value target _ init) = dump_struct "Decl'Value" [("target", dump_ target), ("init", dump_ init)]
@@ -68,15 +61,21 @@ instance Dumpable AST.Identifier where
 
 dump_struct :: Text -> [(Text, DumpUtils.Dumper ())] -> DumpUtils.Dumper ()
 dump_struct name fields =
-    DumpUtils.dump name >> DumpUtils.dump " {" >> DumpUtils.newline >> DumpUtils.indent
-        >> mapM dump_field fields
-    >> DumpUtils.dedent >> DumpUtils.dump "}"
+    let fields' = map dump_field fields
+    in if length fields' == 1 && not (DumpUtils.is_multiline $ head fields')
+        then DumpUtils.dump name >> DumpUtils.dump " { " >> head fields' >> DumpUtils.dump " }"
+        else DumpUtils.dump name >> DumpUtils.dump " {\n" >> DumpUtils.indent >> mapM (>> DumpUtils.dump ",\n") fields' >> DumpUtils.dedent >> DumpUtils.dump "}"
     where
-        dump_field (name, value) = DumpUtils.dump name >> DumpUtils.dump " = " >> value >> DumpUtils.newline
+        dump_field (name, value) = DumpUtils.dump name >> DumpUtils.dump " = " >> value
 
 dump_list :: (d -> DumpUtils.Dumper ()) -> [d] -> DumpUtils.Dumper ()
-dump_list dump = go True -- true if first
+dump_list dump items =
+    let dumped = map dump items
+        any_multiline = any DumpUtils.is_multiline dumped
+    in if any_multiline
+        then DumpUtils.dump "[\n" >> DumpUtils.indent >> sequence (map (>> DumpUtils.dump ",\n") dumped) >> DumpUtils.dedent >> DumpUtils.dump "]" -- true if first
+        else DumpUtils.dump "[" >> intercalate_commas True dumped >> DumpUtils.dump "]" -- true if first
     where
-        go _ [] = pure ()
-        go True (x:more) = dump x >> go False more
-        go False (x:more) = DumpUtils.dump ", " >> dump x >> go False more
+        intercalate_commas _ [] = pure ()
+        intercalate_commas True (x:more) = x >> intercalate_commas False more
+        intercalate_commas False (x:more) = DumpUtils.dump ", " >> x >> intercalate_commas False more

@@ -22,16 +22,15 @@ import UHF.IO.Located (Located (Located))
 import qualified UHF.Data.Token as Token
 
 import qualified Data.Text as Text
-import qualified Data.Sequence as Sequence
 import qualified Data.Map as Map
 
 import Data.Char (isAlpha, isDigit, isOctDigit, isHexDigit, isSpace, digitToInt)
 
 -- lexing {{{1
-lex :: File -> Compiler.WithDiagnostics LexError.Error Void (Sequence.Seq Token.LInternalToken, Token.LToken)
+lex :: File -> Compiler.WithDiagnostics LexError.Error Void (Seq Token.LInternalToken, Token.LToken)
 lex f =
     let eof = Located (Span.end_of_file f) (Token.EOF ())
-    in evalStateT (run Sequence.Empty) (Location.new f) >>= \ toks ->
+    in evalStateT (run []) (Location.new f) >>= \ toks ->
     pure (toks, eof)
 
     where
@@ -41,7 +40,7 @@ lex f =
                 then pure toks
                 else lex_one_token >>= \ more -> run (toks <> more)
 -- lex_one_token {{{2
-lex_one_token :: StateT Location (Compiler.WithDiagnostics LexError.Error Void) (Sequence.Seq Token.LInternalToken)
+lex_one_token :: StateT Location (Compiler.WithDiagnostics LexError.Error Void) (Seq Token.LInternalToken)
 lex_one_token =
     StateT $ \ loc ->
         writer $
@@ -62,27 +61,27 @@ lex_one_token =
 -- Lexer {{{2
 type Lexer = StateT Location (Compiler.WithDiagnosticsT LexError.Error Void Maybe)
 -- lexing functions {{{2
-lex_comment :: Lexer (Sequence.Seq Token.LInternalToken)
+lex_comment :: Lexer (Seq Token.LInternalToken)
 lex_comment =
     get_loc >>= \ start_loc ->
     let lex_singleline = consume (=='/') >> consume (=='/') >> lex_singleline_body
         lex_singleline_body =
             choice
                 [ consume (/='\n') >> lex_singleline_body
-                , consume (=='\n') >> pure Sequence.Empty
-                , pure Sequence.Empty]
+                , consume (=='\n') >> pure []
+                , pure []]
 
         lex_multiline = consume (=='/') >> consume (=='*') >> lex_multiline_body
         lex_multiline_body =
             choice
-                [ consume (=='*') >> consume (=='/') >> pure Sequence.Empty
+                [ consume (=='*') >> consume (=='/') >> pure []
                 , lex_multiline >> lex_multiline_body
                 , consume (const True) >> lex_multiline_body
-                , get_loc >>= \ loc -> put_error (LexError.UnclosedMComment $ new_span_start_and_end start_loc loc) >> pure Sequence.Empty
+                , get_loc >>= \ loc -> put_error (LexError.UnclosedMComment $ new_span_start_and_end start_loc loc) >> pure []
                 ]
     in choice [lex_singleline, lex_multiline]
 
-lex_id_or_kw :: (Char -> Bool) -> (Char -> Bool) -> Map Text Token.InternalToken -> (Located Text -> Token.InternalToken) -> Lexer (Sequence.Seq Token.LInternalToken)
+lex_id_or_kw :: (Char -> Bool) -> (Char -> Bool) -> Map Text Token.InternalToken -> (Located Text -> Token.InternalToken) -> Lexer (Seq Token.LInternalToken)
 lex_id_or_kw is_valid_start is_valid_char kws def =
     get_loc >>= \ start_loc ->
     consume is_valid_start >>= \ first_char ->
@@ -93,9 +92,9 @@ lex_id_or_kw is_valid_start is_valid_char kws def =
             in Located sp (Text.pack $ Located.unlocate <$> chars)
         tok = fromMaybe (def full) (Map.lookup (Located.unlocate full) kws)
     in get_loc >>= \ end_loc ->
-    pure (Sequence.singleton $ Located (new_span_start_and_end start_loc end_loc) tok)
+    pure ([Located (new_span_start_and_end start_loc end_loc) tok])
 
-lex_delimiter :: Lexer (Sequence.Seq Token.LInternalToken)
+lex_delimiter :: Lexer (Seq Token.LInternalToken)
 lex_delimiter =
     choice
         [ consume (=='(') >>= \ ch -> pure [const (Token.SingleTypeToken Token.OParen) <$> ch]
@@ -108,7 +107,7 @@ lex_delimiter =
         , consume (==',') >>= \ ch -> pure [const (Token.SingleTypeToken Token.Comma) <$> ch]
         ]
 
-lex_alpha_identifier :: Lexer (Sequence.Seq Token.LInternalToken)
+lex_alpha_identifier :: Lexer (Seq Token.LInternalToken)
 lex_alpha_identifier =
     lex_id_or_kw
         (\ ch -> isAlpha ch || ch == '_')
@@ -129,7 +128,7 @@ lex_alpha_identifier =
         ]
         Token.AlphaIdentifier
 
-lex_symbol_identifier :: Lexer (Sequence.Seq Token.LInternalToken)
+lex_symbol_identifier :: Lexer (Seq Token.LInternalToken)
 lex_symbol_identifier =
     lex_id_or_kw
         (`elem` ("~!@#$%^&*+`-=|:./<>?\\" :: [Char]))
@@ -151,7 +150,7 @@ lex_symbol_identifier =
         ]
         Token.SymbolIdentifier
 
-lex_str_or_char_lit :: Lexer (Sequence.Seq Token.LInternalToken)
+lex_str_or_char_lit :: Lexer (Seq Token.LInternalToken)
 lex_str_or_char_lit =
     get_loc >>= \ start_loc ->
     consume (\ c -> c == '\'' || c == '"') >>= \ (Located _ open) ->
@@ -162,18 +161,18 @@ lex_str_or_char_lit =
           let sp = new_span_start_and_end start_loc end_loc
           in if open == '\''
               then case contents of
-                    [c] -> pure $ Sequence.singleton $ Located sp $ Token.Char c
-                    _ -> put_error (LexError.MulticharCharLit sp) >> pure Sequence.Empty
-              else pure $ Sequence.singleton $ Located sp $ Token.String $ Text.pack contents
+                    [c] -> pure [Located sp $ Token.Char c]
+                    _ -> put_error (LexError.MulticharCharLit sp) >> pure []
+              else pure [Located sp $ Token.String $ Text.pack contents]
 
         , get_loc >>= \ end_loc ->
           let sp = new_span_start_and_end start_loc end_loc
           in if open == '\''
-              then put_error (LexError.UnclosedCharLit sp) >> pure Sequence.Empty
-              else put_error (LexError.UnclosedStrLit sp) >> pure Sequence.Empty
+              then put_error (LexError.UnclosedCharLit sp) >> pure []
+              else put_error (LexError.UnclosedStrLit sp) >> pure []
         ]
 
-lex_number :: Lexer (Sequence.Seq Token.LInternalToken)
+lex_number :: Lexer (Seq Token.LInternalToken)
 lex_number =
     get_loc >>= \ start_loc ->
 
@@ -207,28 +206,28 @@ lex_number =
                 illegal_digits = check_digits digit_legal digits
 
             in if null illegal_digits
-                then pure $ Sequence.singleton $ Located num_span (Token.Int tok_base (read_digits ((^) :: Integer -> Int -> Integer) base_num (zip [0..] (map Located.unlocate (reverse digits)))))
-                else mapM_ put_error illegal_digits >> pure Sequence.Empty
+                then pure [Located num_span (Token.Int tok_base (read_digits ((^) :: Integer -> Int -> Integer) base_num (zip [0..] (map Located.unlocate (reverse digits)))))]
+                else mapM_ put_error illegal_digits >> pure []
 
         (Right (tok_base, _), _) ->
             let illegal_digits = check_digits isDigit (digits ++ floats)
                 base_is_dec = if tok_base == Token.Dec then [] else [LexError.NonDecimalFloat num_span]
 
             in if null illegal_digits && null base_is_dec
-                then pure $ Sequence.singleton $ Located num_span (Token.Float $ read_digits ((^^) :: Rational -> Int -> Rational) 10 (zip [0..] (map Located.unlocate $ reverse digits) ++ zip [-1, -2..] (map Located.unlocate floats)))
-                else mapM_ put_error (illegal_digits ++ base_is_dec) >> pure Sequence.Empty
+                then pure [Located num_span (Token.Float $ read_digits ((^^) :: Rational -> Int -> Rational) 10 (zip [0..] (map Located.unlocate $ reverse digits) ++ zip [-1, -2..] (map Located.unlocate floats)))]
+                else mapM_ put_error (illegal_digits ++ base_is_dec) >> pure []
 
-        (Left err, _) -> put_error err >> pure Sequence.Empty
+        (Left err, _) -> put_error err >> pure []
     where
         lex_base = consume (=='0') >> consume isAlpha
         lex_digits = one_or_more (consume isHexDigit)
         lex_float = consume (=='.') >> lex_digits
 
-lex_space :: Lexer (Sequence.Seq Token.LInternalToken)
-lex_space = consume isSpace >> pure Sequence.Empty
+lex_space :: Lexer (Seq Token.LInternalToken)
+lex_space = consume isSpace >> pure []
 
-make_bad_char :: Lexer (Sequence.Seq Token.LInternalToken)
-make_bad_char = consume (const True) >>= \ (Located sp c) -> put_error (LexError.BadChar c sp) >> pure Sequence.Empty
+make_bad_char :: Lexer (Seq Token.LInternalToken)
+make_bad_char = consume (const True) >>= \ (Located sp c) -> put_error (LexError.BadChar c sp) >> pure []
 -- helper functions {{{1
 remaining :: Location -> Text
 remaining = Location.loc_remaining_in_file
@@ -275,7 +274,7 @@ case_lex_empty :: Assertion
 case_lex_empty =
     File.new "a" "" >>= \ f ->
     case runWriter $ lex f of
-        ((Sequence.Empty, _), Compiler.Diagnostics [] []) -> pure ()
+        (([], _), Compiler.Diagnostics [] []) -> pure ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
 lex_test :: (Location -> r) -> Text -> (r -> IO ()) -> IO ()

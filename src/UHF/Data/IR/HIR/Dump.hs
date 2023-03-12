@@ -49,7 +49,11 @@ instance (DumpableType ty) => Dumpable (Type.ADT ty) where
 instance (DumpableType ty) => Dumpable (Type.TypeSynonym ty) where
     dump_ (Type.TypeSynonym name expansion) = dump_text "typesyn " >> dump_text name >> dump_text " = " >> dump_type expansion >> dump_text ";\n"
 instance (DumpableIdentifier iden, DumpableType type_expr) => Dumpable (HIR.Binding iden type_expr type_info binary_ops_allowed) where
-    dump_ (HIR.Binding pat _ init) = dump_ pat >> dump_text " = " >> dump_ init >> dump_text ";\n"
+    dump_ (HIR.Binding pat _ init) =
+        let init' = dump_ init
+        in ask >>= \ ir -> if DumpUtils.is_multiline (runReaderT init' ir)
+            then dump_ pat >> dump_text " = \n" >> lift DumpUtils.indent >> init' >> dump_text "\n" >> lift DumpUtils.dedent >> dump_text ";\n"
+            else dump_ pat >> dump_text " = " >> init' >> dump_text ";\n"
 
 class DumpableIdentifier i where
     dump_iden :: DumpableType type_expr => i -> Dumper iden type_expr type_info binary_ops_allowed ()

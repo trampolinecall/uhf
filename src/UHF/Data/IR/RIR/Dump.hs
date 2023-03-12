@@ -60,6 +60,7 @@ dump_binding (RIR.Binding bvk expr) =
         then name >> dump_text " = \n" >> lift DumpUtils.indent >> initializer >> dump_text "\n" >> lift DumpUtils.dedent >> dump_text ";\n"
         else name >> dump_text " = " >> initializer >> dump_text ";\n"
 
+-- TODO: properly handle when exprs are multiline
 dump_bvk :: Keys.BoundValueKey -> Dumper captures ()
 dump_bvk bvk = dump_text "_" >> dump_text (show $ Arena.unmake_key bvk) -- TODO: dont use unmake_key
 dump_expr :: RIR.Expr captures -> Dumper captures ()
@@ -76,6 +77,7 @@ dump_expr (RIR.Expr'Let _ _ bindings res) = dump_text "let {\n" >> lift DumpUtil
 dump_expr (RIR.Expr'Call _ _ callee arg) = dump_expr callee >> dump_text "(" >> dump_expr arg >> dump_text ")"
 dump_expr (RIR.Expr'Switch _ _ e arms) = dump_text "switch " >> dump_expr e >> dump_text " {\n" >> lift DumpUtils.indent >> mapM_ dump_arm arms >> lift DumpUtils.dedent >> dump_text "}"
     where
+        -- TODO: properly indent these if the expression is multiline
         dump_arm (RIR.Switch'BoolLiteral b, expr) = (if b then dump_text "true" else dump_text "false") >> dump_text " -> " >> dump_expr expr >> dump_text "\n"
         dump_arm (RIR.Switch'Tuple a b, expr) = dump_text "(" >> maybe (dump_text "_") dump_bvk a >> dump_text ", " >> maybe (dump_text "_") dump_bvk b >> dump_text ") -> " >> dump_expr expr >> dump_text "\n"
         dump_arm (RIR.Switch'Default, expr) = dump_text "_ -> " >> dump_expr expr >> dump_text "\n"

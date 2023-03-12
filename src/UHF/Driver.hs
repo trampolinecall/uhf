@@ -61,6 +61,7 @@ type TS = Text
 
 type WithDiagnosticsIO = Compiler.WithDiagnosticsT Diagnostic.Error Diagnostic.Warning IO
 
+-- each output format requests the result of it from the state, which calculates it, caching the result so that any other output formats dont have to recalculate the result of that stage
 data PhaseResultsCache
     = PhaseResultsCache
         { _get_file :: File
@@ -86,8 +87,6 @@ data CompileOptions
         , module_name :: Maybe Text
         , output_formats :: [OutputFormat]
         }
-
--- each output format requests the result of it from the state, which calculates it, caching the result so that any other output formats dont have to recalculate the result of that stage
 
 compile :: FormattedString.ColorsNeeded -> DiagnosticSettings.Settings -> CompileOptions -> IO (Either () ())
 compile c_needed diagnostic_settings compile_options =

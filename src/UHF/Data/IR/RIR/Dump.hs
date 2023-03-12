@@ -53,7 +53,12 @@ dump_type (Type.Type'Tuple a b) = dump_text "(" >> dump_type a >> dump_text ", "
 dump_type (Type.Type'Variable void) = absurd void
 
 dump_binding :: RIR.Binding captures -> Dumper captures ()
-dump_binding (RIR.Binding bvk expr) = dump_bvk bvk >> dump_text " = " >> dump_expr expr >> dump_text ";\n"
+dump_binding (RIR.Binding bvk expr) =
+    let name = dump_bvk bvk
+        initializer = dump_expr expr
+    in ask >>= \ ir -> if DumpUtils.is_multiline (runReaderT initializer ir)
+        then name >> dump_text " = \n" >> lift DumpUtils.indent >> initializer >> dump_text "\n" >> lift DumpUtils.dedent >> dump_text ";\n"
+        else name >> dump_text " = " >> initializer >> dump_text ";\n"
 
 dump_bvk :: Keys.BoundValueKey -> Dumper captures ()
 dump_bvk bvk = dump_text "_" >> dump_text (show $ Arena.unmake_key bvk) -- TODO: dont use unmake_key

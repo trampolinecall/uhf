@@ -31,9 +31,9 @@ to_dot _ _ _ nodes params =
             tell "strict digraph {\n" >>
             tell "    node [shape=record];\n" >>
             tell "    subgraph cluster_params {\n" >>
-            Arena.transform_with_keyM print_param params >>
+            Arena.transform_with_keyM print_param params >> -- TODO: do this by tracing from module
             tell "    }\n" >>
-            Arena.transform_with_keyM print_binding nodes >>
+            Arena.transform_with_keyM print_binding nodes >> -- TODO: same todo as above
             tell "}\n"
         )
     where

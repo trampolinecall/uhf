@@ -45,7 +45,11 @@ dump_param_key :: ANFIR.ParamKey -> Dumper ty poison_allowed ()
 dump_param_key key = dump_text ("p_" <> show (Arena.unmake_key key))
 
 dump_binding :: ANFIR.BindingKey -> ANFIR.Binding ty poison_allowed -> Dumper ty poison_allowed ()
-dump_binding key (ANFIR.Binding expr) = dump_binding_key key >> dump_text " = " >> dump_expr expr >> dump_text ";\n" -- TODO: dont use unmake_key
+dump_binding key (ANFIR.Binding expr) =
+    let expr' = dump_expr expr
+    in ask >>= \ ir -> if DumpUtils.is_multiline (runReaderT expr' ir)
+        then dump_binding_key key >> dump_text " = \n" >> lift DumpUtils.indent >> expr' >> dump_text "\n" >> lift DumpUtils.dedent >> dump_text ";\n"
+        else dump_binding_key key >> dump_text " = " >> expr' >> dump_text ";\n" -- TODO: dont use unmake_key
 
 -- TODO: put this in Type.Dump? because this is duplicated across all the IR dump modules
 class DumpableType t where

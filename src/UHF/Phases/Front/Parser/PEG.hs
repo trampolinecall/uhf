@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 module UHF.Phases.Front.Parser.PEG
     ( TokenStream
 
@@ -35,24 +37,7 @@ import qualified Data.InfList as InfList
 
 type TokenStream = InfList.InfList (Int, Token.LToken)
 
-newtype Parser r = Parser { extract_parser :: [Error.Error] -> TokenStream -> ([Error.Error], Maybe (r, TokenStream)) }
-
-instance Functor Parser where
-    fmap f parser = parser >>= \ res -> pure (f res)
-
-instance Applicative Parser where
-    pure a = Parser $ \ errors toks -> (errors, Just (a, toks))
-    op <*> a =
-        op >>= \ op' ->
-        a >>= \ a' ->
-        pure (op' a')
-
-instance Monad Parser where
-     (Parser a) >>= b = Parser $ \ errors toks ->
-        let (errors', res) = a errors toks
-        in case res of
-            Just (r, toks') -> extract_parser (b r) errors' toks'
-            Nothing -> (errors', Nothing)
+newtype Parser r = Parser { extract_parser :: [Error.Error] -> TokenStream -> ([Error.Error], Maybe (r, TokenStream)) } deriving (Functor, Applicative, Monad)
 
 run_parser :: Parser a -> TokenStream -> ([Error.Error], Maybe (a, TokenStream))
 run_parser p = extract_parser p []

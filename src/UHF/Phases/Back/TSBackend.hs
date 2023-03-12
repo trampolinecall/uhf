@@ -214,7 +214,7 @@ lower decls adts type_synonyms bindings params mod =
         (
             runWriterT (
                 define_decl mod (Arena.get decls mod) >>
-                Arena.transform_with_keyM define_lambda_type bindings >>
+                Arena.transform_with_keyM define_lambda_type bindings >> -- TODO: do this by tracing bindings from module
                 pure ()
             ) >>= \ ((), TS ts_decls ts_adts ts_make_thunk_graphs ts_lambdas ts_global_thunks) ->
 

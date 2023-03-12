@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module UHF.DumpUtils
     ( Dumper
     , run_dumper
@@ -18,17 +19,7 @@ import UHF.Util.Prelude
 import qualified Data.Text as Text
 
 data DumpState = DumpState Int Bool
-newtype Dumper a = Dumper { un_dumper :: StateT DumpState (Writer Text) a }
-
-instance Functor Dumper where
-    fmap f (Dumper a) = Dumper $ f <$> a
-
-instance Applicative Dumper where
-    pure = Dumper . pure
-    (Dumper a) <*> (Dumper b) = Dumper $ a <*> b
-
-instance Monad Dumper where
-    (Dumper a) >>= f = Dumper $ a >>= un_dumper . f
+newtype Dumper a = Dumper { un_dumper :: StateT DumpState (Writer Text) a } deriving (Functor, Applicative, Monad)
 
 is_multiline :: Dumper a -> Bool
 is_multiline = Text.any (=='\n') . exec_dumper

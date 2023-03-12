@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 module Unique
     ( Unique
     , UniqueMaker
@@ -14,21 +16,8 @@ import qualified Data.Functor.Identity as Identity
 import qualified Control.Monad.Trans.Class as Trans
 
 newtype Unique = Unique Int deriving (Show, Eq, Ord)
-newtype UniqueMakerT m r = UniqueMakerT { un_unique_maker :: StateT Int m r }
+newtype UniqueMakerT m r = UniqueMakerT { un_unique_maker :: StateT Int m r } deriving (Functor, Applicative, Monad, Trans.MonadTrans)
 type UniqueMaker = UniqueMakerT Identity.Identity
-
-instance Functor m => Functor (UniqueMakerT m) where
-    fmap f (UniqueMakerT s) = UniqueMakerT $ f <$> s
-
-instance (Applicative m, Monad m) => Applicative (UniqueMakerT m) where
-    pure = UniqueMakerT . pure
-    (UniqueMakerT a) <*> (UniqueMakerT b) = UniqueMakerT $ a <*> b
-
-instance Monad m => Monad (UniqueMakerT m) where
-    (UniqueMakerT a) >>= f = UniqueMakerT $ a >>= un_unique_maker . f
-
-instance Trans.MonadTrans UniqueMakerT where
-    lift other = UniqueMakerT $ lift other
 
 make_unique :: Monad m => UniqueMakerT m Unique
 make_unique = UniqueMakerT $ StateT $ \ u -> pure (Unique u, (u + 1) :: Int)

@@ -61,7 +61,7 @@ class DumpableIdentifier i where
     refer_iden :: i -> Dumper iden type_expr type_info binary_ops_allowed ()
 
 refer_bv :: HIR.BoundValueKey -> Dumper iden type_expr type_info binary_ops_allowed ()
-refer_bv k = get_bv k >>= \ (HIR.BoundValue _ _) -> text "_" >> text (show $ Arena.unmake_key k) -- TODO: show names and dont use unmake_key
+refer_bv k = get_bv k >>= \ (HIR.BoundValue id _ _) -> text (ID.stringify id)
 
 refer_decl :: HIR.DeclKey -> Dumper iden type_expr type_info binary_ops_allowed ()
 refer_decl k = get_decl k >>= \case

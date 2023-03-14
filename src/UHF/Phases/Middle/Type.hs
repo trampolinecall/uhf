@@ -36,4 +36,4 @@ typecheck (HIR.HIR decls adts type_synonyms bound_values mod) =
     pure (HIR.HIR decls adts type_synonyms bound_values mod)
 
 assign_type_variable_to_bound_value :: UntypedBoundValue -> StateWithVars TypedWithVarsBoundValue
-assign_type_variable_to_bound_value (HIR.BoundValue () def_span) = HIR.BoundValue <$> (Type.Type'Variable <$> new_type_variable (BoundValue def_span)) <*> pure def_span
+assign_type_variable_to_bound_value (HIR.BoundValue id () def_span) = HIR.BoundValue id <$> (Type.Type'Variable <$> new_type_variable (BoundValue def_span)) <*> pure def_span

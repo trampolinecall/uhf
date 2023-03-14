@@ -145,4 +145,52 @@ stringify = stringify' . to_general_id
 mangle :: ID i => i -> Text
 mangle = mangle' . to_general_id
     where
-        mangle' = todo
+        mangle' (GM (ModuleID [])) = "root"
+        mangle' (GM (ModuleID segments)) = Text.intercalate "::" segments
+        mangle' (GD (DeclID parent name)) = mangle_decl_parent parent <> "::" <> name
+        mangle' (GE (ExprID parent segments)) = mangle_expr_parent parent <> Text.concat (map (("::"<>) . mangle_expr_segment) segments)
+        mangle' (GP (PatID parent segments)) = mangle_pat_parent parent <> Text.concat (map (("::"<>) . mangle_pat_segment) segments)
+        mangle' (GBV (BoundValueID bv_parent t)) = mangle_bv_parent bv_parent <> "::" <> t
+        mangle' (GBV (BoundValueID'MadeUpPat pat)) = mangle' (GP pat)
+        mangle' (GBV (BoundValueID'MadeUpTupleLeft pat)) = mangle' (GP pat) <> "_left"
+        mangle' (GBV (BoundValueID'MadeUpTupleRight pat)) = mangle' (GP pat) <> "_right"
+        mangle' (GBV (BoundValueID'MadeUpLambdaParam ex)) = mangle' (GE ex) <> "_param"
+
+        mangle_bv_parent (BVParent'Module mod) = mangle' (GM mod)
+        mangle_bv_parent (BVParent'Let e) = mangle' (GE e)
+        mangle_bv_parent (BVParent'LambdaParam e) = mangle' (GE e)
+        mangle_bv_parent (BVParent'CaseArm e i) = mangle' (GE e) <> "::arm" <> show i
+
+        mangle_decl_parent (DeclParent'Module mod) = mangle' (GM mod)
+        mangle_decl_parent (DeclParent'Expr e) = mangle' (GE e)
+
+        mangle_expr_parent (ExprParent'Binding decl_parent ind) = mangle_decl_parent decl_parent <> "::binding" <> show ind
+        mangle_expr_parent (ExprParent'CaseArm expr ind) = mangle' (GE expr) <> "::arm" <> show ind
+        mangle_expr_parent (ExprParent'TupleDestructureL pat) = mangle' (GP pat) <> "::destructure_l"
+        mangle_expr_parent (ExprParent'TupleDestructureR pat) = mangle' (GP pat) <> "::destructure_r"
+        mangle_expr_parent (ExprParent'NamedRefer pat) = mangle' (GP pat)
+
+        mangle_pat_parent (PatParent'Binding decl_parent ind) = mangle_decl_parent decl_parent <> "::binding" <> show ind
+        mangle_pat_parent (PatParent'CaseArm expr ind) = mangle' (GE expr) <> "::arm" <> show ind
+        mangle_pat_parent (PatParent'LambdaParam expr ind) = mangle' (GE expr) <> "::param" <> show ind
+
+        mangle_expr_segment (ExprTupleItem i) = "tuple_item" <> show i
+        mangle_expr_segment (LambdaParam) = "param"
+        mangle_expr_segment (LambdaBody) = "body"
+        mangle_expr_segment (LetResult) = "result"
+        mangle_expr_segment (BinaryOpsArg i) = "arg" <> show i
+        mangle_expr_segment (CallCallee) = "callee"
+        mangle_expr_segment (CallArg i) = "arg" <> show i
+        mangle_expr_segment (IfCond) = "cond"
+        mangle_expr_segment (IfTrue) = "true_branch"
+        mangle_expr_segment (IfFalse) = "false_branch"
+        mangle_expr_segment (CaseTest) = "test"
+        mangle_expr_segment (CaseArm i) = "arm" <> show i
+        mangle_expr_segment (TypeAnnotationExpr) = "expr"
+        mangle_expr_segment (ExprTupleRight) = "right"
+        mangle_expr_segment (LambdaLet) = "let"
+        mangle_expr_segment (LambdaReferParam) = "param"
+
+        mangle_pat_segment (PatTupleItem i) = "item" <> show i
+        mangle_pat_segment (PatTupleRight) = "right"
+        mangle_pat_segment (NamedPatOther) = "other"

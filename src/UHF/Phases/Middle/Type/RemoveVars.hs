@@ -42,7 +42,7 @@ convert_vars vars =
         convert_var _ (TypeVar for_what Fresh) = lift (tell [AmbiguousType for_what]) >> MaybeT (pure Nothing)
 
 decl :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsDecl -> TypedDecl
-decl vars (HIR.Decl'Module nc bindings adts type_synonyms) = HIR.Decl'Module nc (map (binding vars) bindings) adts type_synonyms
+decl vars (HIR.Decl'Module id nc bindings adts type_synonyms) = HIR.Decl'Module id nc (map (binding vars) bindings) adts type_synonyms
 decl _ (HIR.Decl'Type ty) = HIR.Decl'Type ty
 
 bound_value :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsBoundValue -> TypedBoundValue

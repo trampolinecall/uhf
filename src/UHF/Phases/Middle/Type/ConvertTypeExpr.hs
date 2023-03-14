@@ -26,7 +26,7 @@ type_expr :: UntypedDeclArena -> TypeExpr -> StateWithVars TypeWithVars
 type_expr decls (HIR.TypeExpr'Identifier sp iden) =
     case iden of -- TODO: make poison type variable
         Just i -> case Arena.get decls i of
-            HIR.Decl'Module _ _ _ _ -> lift (Compiler.tell_error $ NotAType sp "a module") >> Type.Type'Variable <$> new_type_variable (TypeExpr sp)
+            HIR.Decl'Module _ _ _ _ _ -> lift (Compiler.tell_error $ NotAType sp "a module") >> Type.Type'Variable <$> new_type_variable (TypeExpr sp)
             HIR.Decl'Type ty -> pure $ void_var_to_key ty
         Nothing -> Type.Type'Variable <$> new_type_variable (TypeExpr sp)
     where

@@ -7,6 +7,7 @@ import qualified Arena
 import qualified UHF.Data.AST as AST
 import qualified UHF.Data.IR.HIR as HIR
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.ID as ID
 import UHF.Data.IR.Keys
 
 import UHF.IO.Span (Span)
@@ -166,7 +167,7 @@ convert decls =
             primitive_decls >>= \ primitive_decls ->
             primitive_values >>= \ primitive_values ->
             convert_decls Nothing primitive_decls primitive_values decls >>= \ (name_context, bindings, adts, type_synonyms) ->
-            new_decl (HIR.Decl'Module name_context bindings adts type_synonyms)
+            new_decl (HIR.Decl'Module (ID.ModuleID []) name_context bindings adts type_synonyms) -- TODO: figure out how the module system is going to work
         )
         (Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (mod, (decls, adts, type_synonyms, bound_values)) ->
     pure (HIR.HIR decls adts type_synonyms bound_values mod)

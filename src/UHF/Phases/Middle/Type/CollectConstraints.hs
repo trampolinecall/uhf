@@ -38,7 +38,7 @@ read_bvs = ReaderT $ \ (_, bvs) -> pure bvs
 
 collect :: UntypedDeclArena -> TypedWithVarsBoundValueArena -> UntypedDecl -> WriterT [Constraint] StateWithVars TypedWithVarsDecl
 collect _ _ (HIR.Decl'Type ty) = pure $ HIR.Decl'Type ty
-collect decls bva (HIR.Decl'Module nc bindings adts type_synonyms) = runReaderT (HIR.Decl'Module nc <$> mapM binding bindings <*> pure adts <*> pure type_synonyms) (decls, bva)
+collect decls bva (HIR.Decl'Module id nc bindings adts type_synonyms) = runReaderT (HIR.Decl'Module id nc <$> mapM binding bindings <*> pure adts <*> pure type_synonyms) (decls, bva)
 
 binding :: UntypedBinding -> DeclBVReader TypedWithVarsBinding
 binding (HIR.Binding p eq_sp e) =

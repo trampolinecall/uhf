@@ -32,7 +32,7 @@ data ModuleID = ModuleID [Text] deriving Show
 data DeclID = DeclID DeclParent Text deriving Show
 data DeclParent = DeclParent'Module ModuleID | DeclParent'Expr ExprID deriving Show
 
-data ExprParent = ExprParent'Binding DeclParent Int | ExprParent'CaseArm ExprID Int deriving Show
+data ExprParent = ExprParent'Binding DeclParent Int | ExprParent'CaseArm ExprID Int | ExprParent'TupleDestructureL PatID | ExprParent'TupleDestructureR PatID | ExprParent'NamedRefer PatID deriving Show
 data ExprID = ExprID ExprParent [ExprIDSegment] deriving Show
 data ExprIDSegment
     = ExprTupleItem Int
@@ -113,6 +113,9 @@ stringify = stringify' . to_general_id
 
         stringify_expr_parent (ExprParent'Binding decl_parent ind) = stringify_decl_parent decl_parent <> "::binding" <> show ind
         stringify_expr_parent (ExprParent'CaseArm expr ind) = stringify' (GE expr) <> "::arm" <> show ind
+        stringify_expr_parent (ExprParent'TupleDestructureL pat) = stringify' (GP pat) <> "::destructure_l"
+        stringify_expr_parent (ExprParent'TupleDestructureR pat) = stringify' (GP pat) <> "::destructure_r"
+        stringify_expr_parent (ExprParent'NamedRefer pat) = stringify' (GP pat)
 
         stringify_pat_parent (PatParent'Binding decl_parent ind) = stringify_decl_parent decl_parent <> "::binding" <> show ind
         stringify_pat_parent (PatParent'CaseArm expr ind) = stringify' (GE expr) <> "::arm" <> show ind

@@ -97,9 +97,14 @@ assign_pattern bound_where (HIR.Pattern'Tuple id whole_ty whole_sp a b) expr =
     new_bound_value (ID.BoundValueID'MadeUpTupleLeft id) bound_where a_ty a_sp >>= \ a_bv ->
     new_bound_value (ID.BoundValueID'MadeUpTupleRight id) bound_where b_ty b_sp >>= \ b_bv ->
 
-    let whole_expr = RIR.Expr'Identifier todo whole_ty whole_sp (Just whole_bv)
-        extract_a = RIR.Expr'Switch todo a_ty a_sp whole_expr [(RIR.Switch'Tuple (Just a_bv) Nothing, RIR.Expr'Identifier todo a_ty a_sp (Just a_bv))]
-        extract_b = RIR.Expr'Switch todo b_ty b_sp whole_expr [(RIR.Switch'Tuple Nothing (Just b_bv), RIR.Expr'Identifier todo b_ty b_sp (Just b_bv))]
+    let
+        whole_expr id = RIR.Expr'Identifier id whole_ty whole_sp (Just whole_bv)
+
+        l_switch_id = ID.ExprID (ID.ExprParent'TupleDestructureL id) []
+        r_switch_id = ID.ExprID (ID.ExprParent'TupleDestructureR id) []
+
+        extract_a = RIR.Expr'Switch l_switch_id a_ty a_sp (whole_expr $ ID.add ID.CaseTest l_switch_id) [(RIR.Switch'Tuple (Just a_bv) Nothing, RIR.Expr'Identifier (ID.ExprID (ID.ExprParent'CaseArm l_switch_id 0) []) a_ty a_sp (Just a_bv))]
+        extract_b = RIR.Expr'Switch r_switch_id b_ty b_sp (whole_expr $ ID.add ID.CaseTest r_switch_id) [(RIR.Switch'Tuple Nothing (Just b_bv), RIR.Expr'Identifier (ID.ExprID (ID.ExprParent'CaseArm r_switch_id 0) []) b_ty b_sp (Just b_bv))]
     in
 
     assign_pattern bound_where a extract_a >>= \ assign_a ->
@@ -107,13 +112,13 @@ assign_pattern bound_where (HIR.Pattern'Tuple id whole_ty whole_sp a b) expr =
 
     pure (RIR.Binding whole_bv expr : assign_a ++ assign_b)
 
-assign_pattern bound_where (HIR.Pattern'Named _ ty sp _ bv other) expr =
+assign_pattern bound_where (HIR.Pattern'Named id ty sp _ bv other) expr =
     --      a@... = e
     --  becomes
     --      a = e
     --      ... = a
     map_bound_where (unlocate bv) bound_where >>
-    assign_pattern bound_where other (RIR.Expr'Identifier todo ty sp (Just $ unlocate bv)) >>= \ other_assignments ->
+    assign_pattern bound_where other (RIR.Expr'Identifier (ID.ExprID (ID.ExprParent'NamedRefer id) []) ty sp (Just $ unlocate bv)) >>= \ other_assignments ->
     pure (RIR.Binding (unlocate bv) expr : other_assignments)
 
 assign_pattern _ (HIR.Pattern'Poison _ _ _) _ = pure []

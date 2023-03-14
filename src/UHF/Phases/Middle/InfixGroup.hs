@@ -31,20 +31,20 @@ group_binding :: UngroupedBinding type_annotation -> GroupedBinding type_annotat
 group_binding (HIR.Binding pat eq_sp e) = HIR.Binding pat eq_sp (group_expr e)
 
 group_expr :: UngroupedExpr type_annotation -> GroupedExpr type_annotation
-group_expr (HIR.Expr'Identifier () sp iden) = HIR.Expr'Identifier () sp iden
-group_expr (HIR.Expr'Char () sp c) = HIR.Expr'Char () sp c
-group_expr (HIR.Expr'String () sp t) = HIR.Expr'String () sp t
-group_expr (HIR.Expr'Int () sp i) = HIR.Expr'Int () sp i
-group_expr (HIR.Expr'Float () sp r) = HIR.Expr'Float () sp r
-group_expr (HIR.Expr'Bool () sp b) = HIR.Expr'Bool () sp b
+group_expr (HIR.Expr'Identifier id () sp iden) = HIR.Expr'Identifier id () sp iden
+group_expr (HIR.Expr'Char id () sp c) = HIR.Expr'Char id () sp c
+group_expr (HIR.Expr'String id () sp t) = HIR.Expr'String id () sp t
+group_expr (HIR.Expr'Int id () sp i) = HIR.Expr'Int id () sp i
+group_expr (HIR.Expr'Float id () sp r) = HIR.Expr'Float id () sp r
+group_expr (HIR.Expr'Bool id () sp b) = HIR.Expr'Bool id () sp b
 
-group_expr (HIR.Expr'Tuple () sp a b) = HIR.Expr'Tuple () sp (group_expr a) (group_expr b)
+group_expr (HIR.Expr'Tuple id () sp a b) = HIR.Expr'Tuple id () sp (group_expr a) (group_expr b)
 
-group_expr (HIR.Expr'Lambda () sp param body) = HIR.Expr'Lambda () sp param (group_expr body)
+group_expr (HIR.Expr'Lambda id () sp param body) = HIR.Expr'Lambda id () sp param (group_expr body)
 
-group_expr (HIR.Expr'Let () sp bindings body) = HIR.Expr'Let () sp (map group_binding bindings) (group_expr body)
+group_expr (HIR.Expr'Let id () sp bindings body) = HIR.Expr'Let id () sp (map group_binding bindings) (group_expr body)
 
-group_expr (HIR.Expr'BinaryOps () () _ first ops) =
+group_expr (HIR.Expr'BinaryOps id () () _ first ops) =
     let (r, a) = g (group_expr first) ops 0
     in if null a then r else error "internal error: still operations to group after grouping binary ops"
     where
@@ -60,18 +60,18 @@ group_expr (HIR.Expr'BinaryOps () () _ first ops) =
                         lhs_span = HIR.expr_span left
                         rhs_span = HIR.expr_span rhs
                         op_span = Located.just_span first_op
-                        left' = HIR.Expr'Call () (lhs_span <> rhs_span) (HIR.Expr'Call () (lhs_span <> op_span) (HIR.Expr'Identifier () op_span first_op) left) rhs
+                        left' = HIR.Expr'Call id () (lhs_span <> rhs_span) (HIR.Expr'Call id () (lhs_span <> op_span) (HIR.Expr'Identifier id () op_span first_op) left) rhs
                     in g left' after cur_precedence
 
                 else (left, more)
 
         g left [] _ = (left, [])
 
-group_expr (HIR.Expr'Call () sp callee arg) = HIR.Expr'Call () sp (group_expr callee) (group_expr arg)
+group_expr (HIR.Expr'Call id () sp callee arg) = HIR.Expr'Call id () sp (group_expr callee) (group_expr arg)
 
-group_expr (HIR.Expr'If () sp if_sp cond true false) = HIR.Expr'If () sp if_sp (group_expr cond) (group_expr true) (group_expr false)
-group_expr (HIR.Expr'Case () sp case_sp e arms) = HIR.Expr'Case () sp case_sp (group_expr e) (map (\ (p, e) -> (p, group_expr e)) arms)
+group_expr (HIR.Expr'If id () sp if_sp cond true false) = HIR.Expr'If id () sp if_sp (group_expr cond) (group_expr true) (group_expr false)
+group_expr (HIR.Expr'Case id () sp case_sp e arms) = HIR.Expr'Case id () sp case_sp (group_expr e) (map (\ (p, e) -> (p, group_expr e)) arms)
 
-group_expr (HIR.Expr'Poison () sp) = HIR.Expr'Poison () sp
+group_expr (HIR.Expr'Poison id () sp) = HIR.Expr'Poison id () sp
 
-group_expr (HIR.Expr'TypeAnnotation () sp annotation e) = HIR.Expr'TypeAnnotation () sp annotation (group_expr e)
+group_expr (HIR.Expr'TypeAnnotation id () sp annotation e) = HIR.Expr'TypeAnnotation id () sp annotation (group_expr e)

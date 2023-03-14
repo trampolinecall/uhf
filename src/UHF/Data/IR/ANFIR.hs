@@ -29,7 +29,7 @@ data Decl
     | Decl'Type (Type.Type Void)
     deriving Show
 
-newtype Param ty = Param ty deriving Show
+data Param ty = Param ID.BoundValueID ty deriving Show
 
 newtype Binding ty poison_allowed = Binding (Expr ty poison_allowed)
 

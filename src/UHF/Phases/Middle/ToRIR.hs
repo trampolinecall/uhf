@@ -52,13 +52,13 @@ new_bound_value :: ID.BoundValueID -> RIR.BoundWhere -> Type -> Span -> ConvertS
 new_bound_value id bound_where ty sp = lift (lift (state (Arena.put (HIR.BoundValue id ty sp)))) >>= \ key -> map_bound_where key bound_where >> pure key
 
 convert_expr :: RIR.BoundWhere -> HIRExpr -> ConvertState RIRExpr
-convert_expr _ (HIR.Expr'Identifier id ty sp bv) = pure $ RIR.Expr'Identifier ty sp (unlocate bv)
-convert_expr _ (HIR.Expr'Char id ty sp c) = pure $ RIR.Expr'Char ty sp c
-convert_expr _ (HIR.Expr'String id ty sp s) = pure $ RIR.Expr'String ty sp s
-convert_expr _ (HIR.Expr'Int id ty sp i) = pure $ RIR.Expr'Int ty sp i
-convert_expr _ (HIR.Expr'Float id ty sp f) = pure $ RIR.Expr'Float ty sp f
-convert_expr _ (HIR.Expr'Bool id ty sp b) = pure $ RIR.Expr'Bool ty sp b
-convert_expr bound_where (HIR.Expr'Tuple id ty sp a b) = RIR.Expr'Tuple ty sp <$> convert_expr bound_where a <*> convert_expr bound_where b
+convert_expr _ (HIR.Expr'Identifier id ty sp bv) = pure $ RIR.Expr'Identifier id ty sp (unlocate bv)
+convert_expr _ (HIR.Expr'Char id ty sp c) = pure $ RIR.Expr'Char id ty sp c
+convert_expr _ (HIR.Expr'String id ty sp s) = pure $ RIR.Expr'String id ty sp s
+convert_expr _ (HIR.Expr'Int id ty sp i) = pure $ RIR.Expr'Int id ty sp i
+convert_expr _ (HIR.Expr'Float id ty sp f) = pure $ RIR.Expr'Float id ty sp f
+convert_expr _ (HIR.Expr'Bool id ty sp b) = pure $ RIR.Expr'Bool id ty sp b
+convert_expr bound_where (HIR.Expr'Tuple id ty sp a b) = RIR.Expr'Tuple id ty sp <$> convert_expr bound_where a <*> convert_expr bound_where b
 convert_expr _ (HIR.Expr'Lambda id ty sp param_pat body) =
     let param_ty = HIR.pattern_type param_pat
         body_ty = HIR.expr_type body
@@ -67,15 +67,15 @@ convert_expr _ (HIR.Expr'Lambda id ty sp param_pat body) =
     -- '\ (...) -> body' becomes '\ (arg) -> let ... = arg; body'
     Unique.make_unique >>= \ uniq ->
     new_bound_value (ID.BoundValueID'MadeUpLambdaParam id) (RIR.InLambdaBody uniq) param_ty (HIR.pattern_span param_pat) >>= \ param_bk ->
-    assign_pattern (RIR.InLambdaBody uniq) param_pat (RIR.Expr'Identifier param_ty (HIR.pattern_span param_pat) (Just param_bk)) >>= \ bindings ->
-    RIR.Expr'Lambda ty sp uniq () param_bk <$> (RIR.Expr'Let body_ty body_sp bindings <$> convert_expr (RIR.InLambdaBody uniq) body)
+    assign_pattern (RIR.InLambdaBody uniq) param_pat (RIR.Expr'Identifier id param_ty (HIR.pattern_span param_pat) (Just param_bk)) >>= \ bindings ->
+    RIR.Expr'Lambda id ty sp uniq () param_bk <$> (RIR.Expr'Let id body_ty body_sp bindings <$> convert_expr (RIR.InLambdaBody uniq) body)
 
-convert_expr bound_where (HIR.Expr'Let id ty sp bindings body) = RIR.Expr'Let ty sp <$> (concat <$> mapM (convert_binding bound_where) bindings) <*> convert_expr bound_where body
+convert_expr bound_where (HIR.Expr'Let id ty sp bindings body) = RIR.Expr'Let id ty sp <$> (concat <$> mapM (convert_binding bound_where) bindings) <*> convert_expr bound_where body
 convert_expr _ (HIR.Expr'BinaryOps id void _ _ _ _) = absurd void
-convert_expr bound_where (HIR.Expr'Call id ty sp callee arg) = RIR.Expr'Call ty sp <$> convert_expr bound_where callee <*> convert_expr bound_where arg
-convert_expr bound_where (HIR.Expr'If id ty sp _ cond true false) = RIR.Expr'Switch ty sp <$> convert_expr bound_where cond <*> sequence [(,) (RIR.Switch'BoolLiteral True) <$> convert_expr bound_where true, (,) (RIR.Switch'BoolLiteral False) <$> convert_expr bound_where false]
-convert_expr _ (HIR.Expr'Case id _ _ _ _ _) = todo -- TODO: case desguaring RIR.Expr'Switch ty sp <$> convert_expr expr <*> mapM (\ (pat, expr) -> (,) <$> convert_pattern pat <*> convert_expr expr) arms
-convert_expr _ (HIR.Expr'Poison id ty sp) = pure $ RIR.Expr'Poison ty sp
+convert_expr bound_where (HIR.Expr'Call id ty sp callee arg) = RIR.Expr'Call id ty sp <$> convert_expr bound_where callee <*> convert_expr bound_where arg
+convert_expr bound_where (HIR.Expr'If id ty sp _ cond true false) = RIR.Expr'Switch id ty sp <$> convert_expr bound_where cond <*> sequence [(,) (RIR.Switch'BoolLiteral True) <$> convert_expr bound_where true, (,) (RIR.Switch'BoolLiteral False) <$> convert_expr bound_where false]
+convert_expr _ (HIR.Expr'Case id _ _ _ _ _) = todo -- TODO: case desguaring RIR.Expr'Switch id ty sp <$> convert_expr expr <*> mapM (\ (pat, expr) -> (,) <$> convert_pattern pat <*> convert_expr expr) arms
+convert_expr _ (HIR.Expr'Poison id ty sp) = pure $ RIR.Expr'Poison id ty sp
 convert_expr bound_where (HIR.Expr'TypeAnnotation id _ _ _ other) = convert_expr bound_where other
 
 assign_pattern :: RIR.BoundWhere -> HIRPattern -> RIRExpr -> ConvertState [RIRBinding]
@@ -97,9 +97,9 @@ assign_pattern bound_where (HIR.Pattern'Tuple id whole_ty whole_sp a b) expr =
     new_bound_value (ID.BoundValueID'MadeUpTupleLeft id) bound_where a_ty a_sp >>= \ a_bv ->
     new_bound_value (ID.BoundValueID'MadeUpTupleRight id) bound_where b_ty b_sp >>= \ b_bv ->
 
-    let whole_expr = RIR.Expr'Identifier whole_ty whole_sp (Just whole_bv)
-        extract_a = RIR.Expr'Switch a_ty a_sp whole_expr [(RIR.Switch'Tuple (Just a_bv) Nothing, RIR.Expr'Identifier a_ty a_sp (Just a_bv))]
-        extract_b = RIR.Expr'Switch b_ty b_sp whole_expr [(RIR.Switch'Tuple Nothing (Just b_bv), RIR.Expr'Identifier b_ty b_sp (Just b_bv))]
+    let whole_expr = RIR.Expr'Identifier todo whole_ty whole_sp (Just whole_bv)
+        extract_a = RIR.Expr'Switch todo a_ty a_sp whole_expr [(RIR.Switch'Tuple (Just a_bv) Nothing, RIR.Expr'Identifier todo a_ty a_sp (Just a_bv))]
+        extract_b = RIR.Expr'Switch todo b_ty b_sp whole_expr [(RIR.Switch'Tuple Nothing (Just b_bv), RIR.Expr'Identifier todo b_ty b_sp (Just b_bv))]
     in
 
     assign_pattern bound_where a extract_a >>= \ assign_a ->
@@ -113,7 +113,7 @@ assign_pattern bound_where (HIR.Pattern'Named id ty sp _ bv other) expr =
     --      a = e
     --      ... = a
     map_bound_where (unlocate bv) bound_where >>
-    assign_pattern bound_where other (RIR.Expr'Identifier ty sp (Just $ unlocate bv)) >>= \ other_assignments ->
+    assign_pattern bound_where other (RIR.Expr'Identifier todo ty sp (Just $ unlocate bv)) >>= \ other_assignments ->
     pure (RIR.Binding (unlocate bv) expr : other_assignments)
 
 assign_pattern _ (HIR.Pattern'Poison id _ _) _ = pure []

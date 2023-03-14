@@ -46,7 +46,7 @@ decl vars (HIR.Decl'Module id nc bindings adts type_synonyms) = HIR.Decl'Module 
 decl _ (HIR.Decl'Type ty) = HIR.Decl'Type ty
 
 bound_value :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsBoundValue -> TypedBoundValue
-bound_value vars (HIR.BoundValue ty sp) = HIR.BoundValue (type_ vars ty) sp
+bound_value vars (HIR.BoundValue id ty sp) = HIR.BoundValue id (type_ vars ty) sp
 
 adt :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsADT -> TypedADT
 adt vars (Type.ADT name variants) = Type.ADT name (map variant variants)

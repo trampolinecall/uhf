@@ -12,6 +12,7 @@ module UHF.Data.IR.ID
     , PatParent (..)
     , PatID (..)
     , PatIDSegment (..)
+    , BoundValueParent (..)
     , BoundValueID (..)
 
     , add
@@ -44,6 +45,7 @@ data ExprIDSegment
     | IfTrue
     | IfFalse
     | CaseTest
+    | CaseArm Int
     | TypeAnnotationExpr
     | ExprTupleRight
     | LambdaLet
@@ -54,7 +56,8 @@ data PatParent = PatParent'Binding DeclParent Int | PatParent'CaseArm ExprID Int
 data PatID = PatID PatParent [PatIDSegment] deriving Show
 data PatIDSegment = PatTupleItem Int | PatTupleRight | NamedPatOther deriving Show
 
-data BoundValueID = BoundValueID PatID Text | BoundValueID'MadeUp PatID | BoundValueID'MadeUpTupleLeft PatID | BoundValueID'MadeUpTupleRight PatID | BoundValueID'MadeUpLambdaParam ExprID deriving Show
+data BoundValueParent = BVParent'Module ModuleID | BVParent'LambdaParam ExprID | BVParent'Let ExprID | BVParent'CaseArm ExprID Int deriving Show
+data BoundValueID = BoundValueID BoundValueParent Text | BoundValueID'MadeUp PatID | BoundValueID'MadeUpTupleLeft PatID | BoundValueID'MadeUpTupleRight PatID | BoundValueID'MadeUpLambdaParam ExprID deriving Show
 
 data GeneralID
     = GM ModuleID
@@ -92,11 +95,16 @@ stringify = stringify' . to_general_id
         stringify' (GD (DeclID parent name)) = stringify_decl_parent parent <> "::" <> name
         stringify' (GE (ExprID parent segments)) = stringify_expr_parent parent <> Text.concat (map (("::"<>) . stringify_expr_segment) segments)
         stringify' (GP (PatID parent segments)) = stringify_pat_parent parent <> Text.concat (map (("::"<>) . stringify_pat_segment) segments)
-        stringify' (GBV (BoundValueID (PatID pat_parent _) t)) = stringify_pat_parent pat_parent <> "::" <> t
+        stringify' (GBV (BoundValueID bv_parent t)) = stringify_bv_parent bv_parent <> "::" <> t
         stringify' (GBV (BoundValueID'MadeUp pat)) = "bv" <> stringify' (GP pat)
         stringify' (GBV (BoundValueID'MadeUpTupleLeft pat)) = "bv" <> stringify' (GP pat) <> "::left"
         stringify' (GBV (BoundValueID'MadeUpTupleRight pat)) = "bv" <> stringify' (GP pat) <> "::right"
         stringify' (GBV (BoundValueID'MadeUpLambdaParam ex)) = "bv_e" <> stringify' (GE ex) <> "::param"
+
+        stringify_bv_parent (BVParent'Module mod) = stringify' (GM mod)
+        stringify_bv_parent (BVParent'Let e) = stringify' (GE e)
+        stringify_bv_parent (BVParent'LambdaParam e) = stringify' (GE e)
+        stringify_bv_parent (BVParent'CaseArm e i) = stringify' (GE e) <> "::arm" <> show i
 
         stringify_decl_parent (DeclParent'Module mod) = stringify' (GM mod)
         stringify_decl_parent (DeclParent'Expr e) = stringify' (GE e)
@@ -119,6 +127,7 @@ stringify = stringify' . to_general_id
         stringify_expr_segment (IfTrue) = "true_branch"
         stringify_expr_segment (IfFalse) = "false_branch"
         stringify_expr_segment (CaseTest) = "test"
+        stringify_expr_segment (CaseArm i) = "arm" <> show i
         stringify_expr_segment (TypeAnnotationExpr) = "expr"
         stringify_expr_segment (ExprTupleRight) = "right"
         stringify_expr_segment (LambdaLet) = "let"

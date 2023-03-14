@@ -14,13 +14,14 @@ import qualified UHF.Data.IR.Type as Type
 import UHF.Data.IR.Keys
 
 type Decl = ANFIR.Decl
-type DeclArena = Arena.Arena Decl DeclKey
 
 type Type = Type.Type Void
 type ADT = Type.ADT Type
 type TypeSynonym = Type.TypeSynonym Type
 type Binding = ANFIR.Binding Type Void
 type Param = ANFIR.Param Type
+
+type ANFIR = ANFIR.ANFIR Type Void
 
 type ADTArena = Arena.Arena ADT ADTKey
 type TypeSynonymArena = Arena.Arena TypeSynonym Type.TypeSynonymKey
@@ -207,9 +208,8 @@ refer_type :: Type.Type Void -> IRReader Text
 refer_type ty = refer_type_raw ty >>= \ ty -> pure ("Thunk<" <> ty <> ">")
 
 -- lowering {{{1
--- TODO: take ANFIR
-lower :: DeclArena -> ADTArena -> TypeSynonymArena -> BindingArena -> ParamArena -> DeclKey -> Text
-lower decls adts type_synonyms bindings params mod =
+lower :: ANFIR -> Text
+lower (ANFIR.ANFIR decls adts type_synonyms bindings params mod) =
     runReader
         (
             runWriterT (

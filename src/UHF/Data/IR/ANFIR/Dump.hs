@@ -10,10 +10,16 @@ import qualified UHF.DumpUtils as DumpUtils
 
 import qualified UHF.Data.IR.ANFIR as ANFIR
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.Type.Dump as Type.Dump
 
 -- TODO: dump types too
 
 type Dumper ty poison_allowed = ReaderT (ANFIR.ANFIR ty poison_allowed) DumpUtils.Dumper
+
+get_adt_arena :: Dumper ty poison_allowed (Arena.Arena (Type.ADT ty) Type.ADTKey)
+get_adt_arena = reader (\ (ANFIR.ANFIR _ adts _ _ _ _) -> adts)
+get_type_synonym_arena :: Dumper ty poison_allowed (Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey)
+get_type_synonym_arena = reader (\ (ANFIR.ANFIR _ _ syns _ _ _) -> syns)
 
 get_binding :: ANFIR.BindingKey -> Dumper ty poison_allowed (ANFIR.Binding ty poison_allowed)
 get_binding k = reader (\ (ANFIR.ANFIR _ _ _ bindings _ _) -> Arena.get bindings k)
@@ -29,18 +35,12 @@ text :: Text -> Dumper ty poison_allowed ()
 text = lift . DumpUtils.dump
 
 define_decl :: DumpableType ty => ANFIR.Decl -> Dumper ty poison_allowed ()
-define_decl (ANFIR.Decl'Module bindings adts type_synonyms) = mapM_ define_adt adts >> mapM_ define_type_synonym type_synonyms >> mapM_ (\ k -> get_binding k >>= define_binding k) bindings
+define_decl (ANFIR.Decl'Module bindings adts type_synonyms) =
+    ask >>= \ anfir ->
+    get_adt_arena >>= \ adt_arena ->
+    get_type_synonym_arena >>= \ type_synonym_arena ->
+    mapM_ (lift . Type.Dump.define_adt adt_arena) adts >> mapM_ (lift . Type.Dump.define_type_synonym (\ ty -> runReaderT (refer_type ty) anfir) type_synonym_arena) type_synonyms >> mapM_ (\ k -> get_binding k >>= define_binding k) bindings
 define_decl (ANFIR.Decl'Type _) = pure ()
-
-refer_adt :: Type.ADTKey -> Dumper ty poison_allowed ()
-refer_adt k = get_adt k >>= \ (Type.ADT name _) -> text name -- TODO: dump path
-refer_type_synonym :: Type.TypeSynonymKey -> Dumper ty poison_allowed ()
-refer_type_synonym k = get_type_synonym k >>= \ (Type.TypeSynonym name _) -> text name
-
-define_adt :: Type.ADTKey -> Dumper ty poison_allowed ()
-define_adt k = get_adt k >>= \ (Type.ADT name _) -> text "data " >> text name >> text ";\n" -- TODO
-define_type_synonym :: DumpableType ty => Type.TypeSynonymKey -> Dumper ty poison_allowed ()
-define_type_synonym k = get_type_synonym k >>= \ (Type.TypeSynonym name expansion) -> text "typesyn " >> text name >> text " = " >> refer_type expansion >> text ";\n"
 
 refer_param :: ANFIR.ParamKey -> Dumper ty poison_allowed ()
 refer_param key = text ("p_" <> show (Arena.unmake_key key)) -- TODO: dont use unmake_key
@@ -64,16 +64,10 @@ instance DumpableType (Maybe (Type.Type Void)) where -- TODO: remove this
     refer_type Nothing = text "<type error>"
 
 instance DumpableType (Type.Type Void) where
-    refer_type (Type.Type'ADT k) = refer_adt k
-    refer_type (Type.Type'Synonym k) = refer_type_synonym k
-    refer_type Type.Type'Int = text "int"
-    refer_type Type.Type'Float = text "float"
-    refer_type Type.Type'Char = text "char"
-    refer_type Type.Type'String = text "string"
-    refer_type Type.Type'Bool = text "bool"
-    refer_type (Type.Type'Function a r) = refer_type a >> text " -> " >> refer_type r
-    refer_type (Type.Type'Tuple a b) = text "(" >> refer_type a >> text ", " >> refer_type b >> text ")"
-    refer_type (Type.Type'Variable void) = absurd void
+    refer_type ty =
+        get_adt_arena >>= \ adt_arena ->
+        get_type_synonym_arena >>= \ type_synonym_arena ->
+        lift (Type.Dump.refer_type adt_arena type_synonym_arena ty)
 
 expr :: ANFIR.Expr ty poison_allowed -> Dumper ty poison_allowed ()
 expr (ANFIR.Expr'Identifier _ bk) = refer_binding bk

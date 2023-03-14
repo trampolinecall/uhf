@@ -121,31 +121,26 @@ set_type_var_state var new_state = lift $ modify $ \ ty_arena -> Arena.modify ty
 
 occurs_check :: TypeVarKey -> TypeWithVars -> TypeContextReader StateWithVars Bool
 -- does the variable v occur anywhere in the type ty?
-occurs_check v ty =
-    case ty of
-        Type.Type'Variable other_v ->
-            if v == other_v
-                then pure True
-                else
-                    Arena.get <$> lift get <*> pure other_v >>= \case
-                        TypeVar _ (Substituted other_sub) -> occurs_check v other_sub
-                        TypeVar _ Fresh -> pure False
+occurs_check v (Type.Type'Variable other_v) =
+    if v == other_v
+        then pure True
+        else
+            Arena.get <$> lift get <*> pure other_v >>= \case
+                TypeVar _ (Substituted other_sub) -> occurs_check v other_sub
+                TypeVar _ Fresh -> pure False
 
-        Type.Type'ADT adt_key ->
-            read_adts >>= \ adts ->
-            case Arena.get adts adt_key of
-                Type.ADT _ _ -> pure False -- TODO: check type arguemnts when those are added
+occurs_check _ (Type.Type'ADT _) = pure False
 
-        Type.Type'Synonym syn_key ->
-            read_synonyms >>= \ type_synonyms ->
-            case Arena.get type_synonyms syn_key of
-                Type.TypeSynonym _ other_expansion -> occurs_check v other_expansion
+occurs_check v (Type.Type'Synonym syn_key) =
+    read_synonyms >>= \ type_synonyms ->
+    let Type.TypeSynonym _ other_expansion = Arena.get type_synonyms syn_key
+    in occurs_check v other_expansion
 
-        Type.Type'Int -> pure False
-        Type.Type'Float -> pure False
-        Type.Type'Char -> pure False
-        Type.Type'String -> pure False
-        Type.Type'Bool -> pure False
-        Type.Type'Function a r -> (||) <$> occurs_check v a <*> occurs_check v r
-        Type.Type'Tuple a b -> (||) <$> occurs_check v a <*> occurs_check v b
+occurs_check _ (Type.Type'Int) = pure False
+occurs_check _ (Type.Type'Float) = pure False
+occurs_check _ (Type.Type'Char) = pure False
+occurs_check _ (Type.Type'String) = pure False
+occurs_check _ (Type.Type'Bool) = pure False
+occurs_check v (Type.Type'Function a r) = (||) <$> occurs_check v a <*> occurs_check v r
+occurs_check v (Type.Type'Tuple a b) = (||) <$> occurs_check v a <*> occurs_check v b
 

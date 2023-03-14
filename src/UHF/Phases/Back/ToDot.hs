@@ -8,25 +8,12 @@ import qualified Data.Text as Text
 
 import qualified UHF.Data.IR.ANFIR as ANFIR
 import qualified UHF.Data.IR.Type as Type
-import UHF.Data.IR.Keys
 
-type Decl = ANFIR.Decl
-type DeclArena = Arena.Arena Decl DeclKey
-
+type ANFIR = ANFIR.ANFIR Type Void
 type Type = Type.Type Void
-type ADT = Type.ADT Type
-type TypeSynonym = Type.TypeSynonym Type
-type Binding = ANFIR.Binding Type Void
-type Param = ANFIR.Param Type
 
-type ADTArena = Arena.Arena ADT ADTKey
-type TypeSynonymArena = Arena.Arena TypeSynonym Type.TypeSynonymKey
-type BindingArena = Arena.Arena Binding ANFIR.BindingKey
-type ParamArena = Arena.Arena Param ANFIR.ParamKey
-
--- TODO: take ANFIR
-to_dot :: DeclArena -> ADTArena -> TypeSynonymArena -> BindingArena -> ParamArena -> Text
-to_dot _ _ _ nodes params =
+to_dot :: ANFIR -> Text
+to_dot (ANFIR.ANFIR _ _ _ nodes params _) =
     snd $ runWriter (
             tell "strict digraph {\n" >>
             tell "    node [shape=record];\n" >>

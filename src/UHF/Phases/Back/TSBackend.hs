@@ -126,29 +126,29 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures p
                 default_let_thunk = let_thunk "new Thunk(undefined)"
 
             in ANFIR.get_initializer <$> get_binding binding_key >>= \case
-                ANFIR.Expr'Identifier _ i ->
+                ANFIR.Expr'Identifier id _ i ->
                     pure (default_let_thunk, Just (set_evaluator "PassthroughEvaluator" (mangle_binding_as_thunk i)))
-                ANFIR.Expr'Int _ i -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" ("new Int(" <> show i <> ")")))
-                ANFIR.Expr'Float _ (num :% denom) -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" ("new Float(" <> show num <> " / " <> show denom <> ")")))
-                ANFIR.Expr'Bool _ b -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" ("new Bool(" <> if b then "true" else "false" <> ")")))
-                ANFIR.Expr'Char _ c -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" ("new Char(" <> show c <> ")")))
-                ANFIR.Expr'String _ s -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" ("new UHFString(" <> show s <> ")")))
-                ANFIR.Expr'Tuple _ a b ->
+                ANFIR.Expr'Int id _ i -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" ("new Int(" <> show i <> ")")))
+                ANFIR.Expr'Float id _ (num :% denom) -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" ("new Float(" <> show num <> " / " <> show denom <> ")")))
+                ANFIR.Expr'Bool id _ b -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" ("new Bool(" <> if b then "true" else "false" <> ")")))
+                ANFIR.Expr'Char id _ c -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" ("new Char(" <> show c <> ")")))
+                ANFIR.Expr'String id _ s -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" ("new UHFString(" <> show s <> ")")))
+                ANFIR.Expr'Tuple id _ a b ->
                         pure (default_let_thunk, Just (set_evaluator "TupleEvaluator" (mangle_binding_as_thunk a <> ", " <> mangle_binding_as_thunk b)))
 
-                ANFIR.Expr'Lambda _ captures _ _ _ -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" ("new " <> mangle_binding_as_lambda binding_key <> "(" <> Text.intercalate ", " (map mangle_binding_as_thunk (toList captures)) <> ")")))
-                ANFIR.Expr'Param _ _ -> pure (let_thunk "param", Nothing)
+                ANFIR.Expr'Lambda id _ captures _ _ _ -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" ("new " <> mangle_binding_as_lambda binding_key <> "(" <> Text.intercalate ", " (map mangle_binding_as_thunk (toList captures)) <> ")")))
+                ANFIR.Expr'Param id _ _ -> pure (let_thunk "param", Nothing)
 
-                ANFIR.Expr'Call _ callee arg -> pure (default_let_thunk, Just (set_evaluator "CallEvaluator" (mangle_binding_as_thunk callee <> ", " <> mangle_binding_as_thunk arg)))
+                ANFIR.Expr'Call id _ callee arg -> pure (default_let_thunk, Just (set_evaluator "CallEvaluator" (mangle_binding_as_thunk callee <> ", " <> mangle_binding_as_thunk arg)))
 
-                ANFIR.Expr'Switch _ test arms -> pure (default_let_thunk, Just (set_evaluator "SwitchEvaluator" (mangle_binding_as_thunk test <> ", " <> ("[" <> Text.intercalate ", " (map (\ (matcher, res) -> "[" <> convert_matcher matcher <> ", " <> mangle_binding_as_thunk res <> "]") arms) <> "]"))))
+                ANFIR.Expr'Switch id _ test arms -> pure (default_let_thunk, Just (set_evaluator "SwitchEvaluator" (mangle_binding_as_thunk test <> ", " <> ("[" <> Text.intercalate ", " (map (\ (matcher, res) -> "[" <> convert_matcher matcher <> ", " <> mangle_binding_as_thunk res <> "]") arms) <> "]"))))
 
-                ANFIR.Expr'Seq _ a b -> pure (default_let_thunk, Just (set_evaluator "SeqEvaluator" (mangle_binding_as_thunk a <> ", " <> mangle_binding_as_thunk b)))
+                ANFIR.Expr'Seq id _ a b -> pure (default_let_thunk, Just (set_evaluator "SeqEvaluator" (mangle_binding_as_thunk a <> ", " <> mangle_binding_as_thunk b)))
 
-                ANFIR.Expr'TupleDestructure1 _ tup -> pure (default_let_thunk, Just (set_evaluator "TupleDestructure1Evaluator" (mangle_binding_as_thunk tup)))
-                ANFIR.Expr'TupleDestructure2 _ tup -> pure (default_let_thunk, Just (set_evaluator "TupleDestructure2Evaluator" (mangle_binding_as_thunk tup)))
+                ANFIR.Expr'TupleDestructure1 id _ tup -> pure (default_let_thunk, Just (set_evaluator "TupleDestructure1Evaluator" (mangle_binding_as_thunk tup)))
+                ANFIR.Expr'TupleDestructure2 id _ tup -> pure (default_let_thunk, Just (set_evaluator "TupleDestructure2Evaluator" (mangle_binding_as_thunk tup)))
 
-                ANFIR.Expr'Poison _ void -> absurd void
+                ANFIR.Expr'Poison id _ void -> absurd void
 
         convert_matcher (ANFIR.Switch'BoolLiteral b) = "new BoolLiteralMatcher(" <> if b then "true" else "false" <> ")"
         convert_matcher ANFIR.Switch'Tuple = "new TupleMatcher()"
@@ -237,7 +237,7 @@ define_decl _ (ANFIR.Decl'Module global_bindings adts _) =
 define_decl _ (ANFIR.Decl'Type _) = pure ()
 
 define_lambda_type :: ANFIR.BindingKey -> Binding -> TSWriter ()
-define_lambda_type key (ANFIR.Binding (ANFIR.Expr'Lambda _ captures param body_included_bindings body)) =
+define_lambda_type key (ANFIR.Binding (ANFIR.Expr'Lambda id _ captures param body_included_bindings body)) =
     lift (get_param param) >>= \ (ANFIR.Param param_ty) ->
     lift (binding_type body) >>= \ body_type ->
     tell_make_thunk_graph (TSMakeThunkGraph (LambdaBody key) body_included_bindings captures (Just param)) >>

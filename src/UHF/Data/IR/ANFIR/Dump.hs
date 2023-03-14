@@ -55,7 +55,6 @@ define_binding key (ANFIR.Binding e) =
         then refer_binding key >> text " = \n" >> lift DumpUtils.indent >> e' >> text "\n" >> lift DumpUtils.dedent >> text ";\n"
         else refer_binding key >> text " = " >> e' >> text ";\n"
 
--- TODO: put this in Type.Dump? because this is duplicated across all the IR dump modules
 class DumpableType t where
     refer_type :: t -> Dumper ty poison_allowed ()
 

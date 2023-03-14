@@ -92,15 +92,16 @@ instance ID BoundValueID where
 stringify :: ID i => i -> Text
 stringify = stringify' . to_general_id
     where
+        stringify' (GM (ModuleID [])) = "root"
         stringify' (GM (ModuleID segments)) = Text.intercalate "::" segments
         stringify' (GD (DeclID parent name)) = stringify_decl_parent parent <> "::" <> name
         stringify' (GE (ExprID parent segments)) = stringify_expr_parent parent <> Text.concat (map (("::"<>) . stringify_expr_segment) segments)
         stringify' (GP (PatID parent segments)) = stringify_pat_parent parent <> Text.concat (map (("::"<>) . stringify_pat_segment) segments)
         stringify' (GBV (BoundValueID bv_parent t)) = stringify_bv_parent bv_parent <> "::" <> t
-        stringify' (GBV (BoundValueID'MadeUpPat pat)) = "bv_p" <> stringify' (GP pat)
-        stringify' (GBV (BoundValueID'MadeUpTupleLeft pat)) = "bv_p" <> stringify' (GP pat) <> "_left"
-        stringify' (GBV (BoundValueID'MadeUpTupleRight pat)) = "bv_p" <> stringify' (GP pat) <> "_right"
-        stringify' (GBV (BoundValueID'MadeUpLambdaParam ex)) = "bv_e" <> stringify' (GE ex) <> "_param"
+        stringify' (GBV (BoundValueID'MadeUpPat pat)) = stringify' (GP pat)
+        stringify' (GBV (BoundValueID'MadeUpTupleLeft pat)) = stringify' (GP pat) <> "_left"
+        stringify' (GBV (BoundValueID'MadeUpTupleRight pat)) = stringify' (GP pat) <> "_right"
+        stringify' (GBV (BoundValueID'MadeUpLambdaParam ex)) = stringify' (GE ex) <> "_param"
 
         stringify_bv_parent (BVParent'Module mod) = stringify' (GM mod)
         stringify_bv_parent (BVParent'Let e) = stringify' (GE e)

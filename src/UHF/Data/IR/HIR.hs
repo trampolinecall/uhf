@@ -26,6 +26,7 @@ import qualified Arena
 
 import UHF.Data.IR.Keys
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.ID as ID
 
 import qualified Data.Map as Map
 
@@ -35,7 +36,7 @@ import UHF.IO.Located (Located)
 data HIR iden type_expr type_info binary_ops_allowed = HIR (Arena.Arena (Decl iden type_expr type_info binary_ops_allowed) DeclKey) (Arena.Arena (Type.ADT type_expr) ADTKey) (Arena.Arena (Type.TypeSynonym type_expr) TypeSynonymKey) (Arena.Arena (BoundValue type_info) BoundValueKey) DeclKey
 
 data Decl identifier type_expr type_info binary_ops_allowed
-    = Decl'Module NameContext [Binding identifier type_expr type_info binary_ops_allowed] [ADTKey] [TypeSynonymKey]
+    = Decl'Module ID.ModuleID NameContext [Binding identifier type_expr type_info binary_ops_allowed] [ADTKey] [TypeSynonymKey]
     | Decl'Type (Type.Type Void)
     deriving Show
 

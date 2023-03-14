@@ -26,6 +26,7 @@ import qualified Data.Text as Text
 
 data ModuleID = ModuleID [Text] deriving Show
 
+-- TODO: is this necessary?
 data DeclID = DeclID DeclParent Text deriving Show
 data DeclParent = DeclParent'Module ModuleID | DeclParent'Expr ExprID deriving Show
 

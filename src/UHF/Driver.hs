@@ -121,7 +121,7 @@ print_outputs compile_options file = runStateT (mapM print_output_format (output
 get_or_calculate :: (PhaseResultsCache -> Maybe r) -> (PhaseResultsCache -> Maybe r -> PhaseResultsCache) -> PhaseResultsState r -> PhaseResultsState r
 get_or_calculate extract update calculate = extract <$> get >>= \case
     Just res -> pure res
-    Nothing -> calculate >>= \ res -> modify (flip update (Just res)) >> pure res
+    Nothing -> calculate >>= \ res -> modify (`update` Just res) >> pure res
 
 convert_stage :: (Diagnostic.ToError e, Diagnostic.ToWarning w) => Compiler.WithDiagnostics e w r -> PhaseResultsState r
 convert_stage s = (\ (res, diagnostics) -> lift (tell diagnostics) >> pure res) $ runWriter (Compiler.convert_diagnostics s)

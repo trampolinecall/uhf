@@ -10,6 +10,7 @@ import qualified UHF.Data.IR.RIR as RIR
 import qualified UHF.Data.IR.Keys as Keys
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.Dump as Type.Dump
+import qualified UHF.Data.IR.ID as ID
 
 -- TODO: dump types too
 
@@ -24,6 +25,8 @@ get_adt :: Keys.ADTKey -> Dumper captures (Type.ADT (Maybe (Type.Type Void)))
 get_adt k = reader (\ (RIR.RIR _ adts _ _ _) -> Arena.get adts k)
 get_type_synonym :: Keys.TypeSynonymKey -> Dumper captures (Type.TypeSynonym (Maybe (Type.Type Void)))
 get_type_synonym k = reader (\ (RIR.RIR _ _ type_synonyms _ _) -> Arena.get type_synonyms k)
+get_bv :: Keys.BoundValueKey -> Dumper captures (RIR.BoundValue (Maybe (Type.Type Void)))
+get_bv k = reader (\ (RIR.RIR _ _ _ bvs _) -> Arena.get bvs k)
 
 dump :: RIR.RIR captures -> Text
 dump ir@(RIR.RIR decls _ _ _ mod) = DumpUtils.exec_dumper $ runReaderT (define_decl $ Arena.get decls mod) ir
@@ -54,10 +57,10 @@ define_binding (RIR.Binding bvk e) =
         then name >> text " = \n" >> lift DumpUtils.indent >> initializer >> text "\n" >> lift DumpUtils.dedent >> text ";\n"
         else name >> text " = " >> initializer >> text ";\n"
 
--- TODO: properly handle when exprs are multiline
 refer_bv :: Keys.BoundValueKey -> Dumper captures ()
-refer_bv bvk = text "_" >> text (show $ Arena.unmake_key bvk) -- TODO: dont use unmake_key
+refer_bv bvk = get_bv bvk >>= \ (RIR.BoundValue id _ _ _) -> text (ID.stringify id)
 
+-- TODO: properly handle when exprs are multiline
 expr :: RIR.Expr captures -> Dumper captures ()
 expr (RIR.Expr'Identifier _ _ (Just bvk)) = refer_bv bvk
 expr (RIR.Expr'Identifier _ _ Nothing) = text "<name resolution error>"

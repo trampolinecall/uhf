@@ -35,7 +35,7 @@ type ConvertState = Unique.UniqueMakerT (WriterT (Map BoundValueKey RIR.BoundWhe
 convert :: HIR -> RIR.RIR ()
 convert (HIR.HIR decls adts type_synonyms bvs mod) =
     let ((decls', bound_wheres), bvs') = runState (runWriterT (Unique.run_unique_maker_t (Arena.transformM convert_decl decls))) bvs
-        bvs'' = Arena.transform_with_key (\ key (HIR.BoundValue id ty sp) -> RIR.BoundValue ty (bound_wheres Map.! key) sp) bvs'
+        bvs'' = Arena.transform_with_key (\ key (HIR.BoundValue id ty sp) -> RIR.BoundValue id ty (bound_wheres Map.! key) sp) bvs'
     in RIR.RIR decls' adts type_synonyms bvs'' mod
 
 convert_decl :: HIRDecl -> ConvertState RIRDecl

@@ -97,25 +97,25 @@ instance DumpableType (Type.Type Void) where
 -- TODO: deal with precedence
 
 expr :: (DumpableIdentifier iden, DumpableType type_expr) => HIR.Expr iden type_expr type_info binary_ops_allowed -> Dumper iden type_expr type_info binary_ops_allowed ()
-expr (HIR.Expr'Identifier _ _ i) = refer_iden i
-expr (HIR.Expr'Char _ _ c) = text $ show c
-expr (HIR.Expr'String _ _ s) = text $ show s
-expr (HIR.Expr'Int _ _ i) = text $ show i
-expr (HIR.Expr'Float _ _ (n :% d)) = text $ "(" <> show n <> "/" <> show d <> ")"
-expr (HIR.Expr'Bool _ _ b) = text $ if b then "true" else "false"
-expr (HIR.Expr'Tuple _ _ a b) = text "(" >> expr a >> text ", " >> expr b >> text ")"
-expr (HIR.Expr'Lambda _ _ param body) = text "\\ " >> pattern param >> text " -> " >> expr body -- TODO: decide if this should be \ (x) -> or \ x ->
-expr (HIR.Expr'Let _ _ bindings body) = text "let {\n" >> lift DumpUtils.indent >> mapM_ define_binding bindings >> lift DumpUtils.dedent >> text "}\n" >> expr body
-expr (HIR.Expr'BinaryOps _ _ _ first _) = text "(" >> expr first >> todo >> text ")" -- TODO
-expr (HIR.Expr'Call _ _ callee arg) = text "(" >> expr callee >> text "(" >> expr arg >> text "))"
-expr (HIR.Expr'If _ _ _ cond t f) = text "if " >> expr cond >> text " then " >> expr t >> text " else " >> expr f
-expr (HIR.Expr'Case _ _ _ _ _) = todo
-expr (HIR.Expr'TypeAnnotation _ _ ty e) = text ":" >> refer_type ty >> text ": " >> expr e
-expr (HIR.Expr'Poison _ _) = text "poison"
+expr (HIR.Expr'Identifier id _ _ i) = refer_iden i
+expr (HIR.Expr'Char id _ _ c) = text $ show c
+expr (HIR.Expr'String id _ _ s) = text $ show s
+expr (HIR.Expr'Int id _ _ i) = text $ show i
+expr (HIR.Expr'Float id _ _ (n :% d)) = text $ "(" <> show n <> "/" <> show d <> ")"
+expr (HIR.Expr'Bool id _ _ b) = text $ if b then "true" else "false"
+expr (HIR.Expr'Tuple id _ _ a b) = text "(" >> expr a >> text ", " >> expr b >> text ")"
+expr (HIR.Expr'Lambda id _ _ param body) = text "\\ " >> pattern param >> text " -> " >> expr body -- TODO: decide if this should be \ (x) -> or \ x ->
+expr (HIR.Expr'Let id _ _ bindings body) = text "let {\n" >> lift DumpUtils.indent >> mapM_ define_binding bindings >> lift DumpUtils.dedent >> text "}\n" >> expr body
+expr (HIR.Expr'BinaryOps id _ _ _ first _) = text "(" >> expr first >> todo >> text ")" -- TODO
+expr (HIR.Expr'Call id _ _ callee arg) = text "(" >> expr callee >> text "(" >> expr arg >> text "))"
+expr (HIR.Expr'If id _ _ _ cond t f) = text "if " >> expr cond >> text " then " >> expr t >> text " else " >> expr f
+expr (HIR.Expr'Case id _ _ _ _ _) = todo
+expr (HIR.Expr'TypeAnnotation id _ _ ty e) = text ":" >> refer_type ty >> text ": " >> expr e
+expr (HIR.Expr'Poison id _ _) = text "poison"
 
 pattern :: HIR.Pattern iden type_info -> Dumper iden type_expr type_info binary_ops_allowed ()
-pattern (HIR.Pattern'Identifier _ _ bnk) = refer_iden bnk
-pattern (HIR.Pattern'Wildcard _ _) = text "_"
-pattern (HIR.Pattern'Tuple _ _ a b) = text "(" >> pattern a >> text ", " >> pattern b >> text ")"
-pattern (HIR.Pattern'Named _ _ _ bnk subpat) = text "@" >> refer_iden (unlocate bnk) >> text " " >> pattern subpat
-pattern (HIR.Pattern'Poison _ _) = text "poison"
+pattern (HIR.Pattern'Identifier _ _ _ bnk) = refer_iden bnk
+pattern (HIR.Pattern'Wildcard _ _ _) = text "_"
+pattern (HIR.Pattern'Tuple _ _ _ a b) = text "(" >> pattern a >> text ", " >> pattern b >> text ")"
+pattern (HIR.Pattern'Named _ _ _ _ bnk subpat) = text "@" >> refer_iden (unlocate bnk) >> text " " >> pattern subpat
+pattern (HIR.Pattern'Poison _ _ _) = text "poison"

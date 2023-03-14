@@ -58,7 +58,7 @@ data PatID = PatID PatParent [PatIDSegment] deriving Show
 data PatIDSegment = PatTupleItem Int | PatTupleRight | NamedPatOther deriving Show
 
 data BoundValueParent = BVParent'Module ModuleID | BVParent'LambdaParam ExprID | BVParent'Let ExprID | BVParent'CaseArm ExprID Int deriving Show
-data BoundValueID = BoundValueID BoundValueParent Text | BoundValueID'MadeUp PatID | BoundValueID'MadeUpTupleLeft PatID | BoundValueID'MadeUpTupleRight PatID | BoundValueID'MadeUpLambdaParam ExprID deriving Show
+data BoundValueID = BoundValueID BoundValueParent Text | BoundValueID'MadeUpPat PatID | BoundValueID'MadeUpTupleLeft PatID | BoundValueID'MadeUpTupleRight PatID | BoundValueID'MadeUpLambdaParam ExprID deriving Show
 
 data GeneralID
     = GM ModuleID
@@ -97,10 +97,10 @@ stringify = stringify' . to_general_id
         stringify' (GE (ExprID parent segments)) = stringify_expr_parent parent <> Text.concat (map (("::"<>) . stringify_expr_segment) segments)
         stringify' (GP (PatID parent segments)) = stringify_pat_parent parent <> Text.concat (map (("::"<>) . stringify_pat_segment) segments)
         stringify' (GBV (BoundValueID bv_parent t)) = stringify_bv_parent bv_parent <> "::" <> t
-        stringify' (GBV (BoundValueID'MadeUp pat)) = "bv" <> stringify' (GP pat)
-        stringify' (GBV (BoundValueID'MadeUpTupleLeft pat)) = "bv" <> stringify' (GP pat) <> "::left"
-        stringify' (GBV (BoundValueID'MadeUpTupleRight pat)) = "bv" <> stringify' (GP pat) <> "::right"
-        stringify' (GBV (BoundValueID'MadeUpLambdaParam ex)) = "bv_e" <> stringify' (GE ex) <> "::param"
+        stringify' (GBV (BoundValueID'MadeUpPat pat)) = "bv_p" <> stringify' (GP pat)
+        stringify' (GBV (BoundValueID'MadeUpTupleLeft pat)) = "bv_p" <> stringify' (GP pat) <> "_left"
+        stringify' (GBV (BoundValueID'MadeUpTupleRight pat)) = "bv_p" <> stringify' (GP pat) <> "_right"
+        stringify' (GBV (BoundValueID'MadeUpLambdaParam ex)) = "bv_e" <> stringify' (GE ex) <> "_param"
 
         stringify_bv_parent (BVParent'Module mod) = stringify' (GM mod)
         stringify_bv_parent (BVParent'Let e) = stringify' (GE e)

@@ -71,7 +71,7 @@ instance DumpableType (Type.Type Void) where
 expr :: ANFIR.Expr ty poison_allowed -> Dumper ty poison_allowed ()
 expr (ANFIR.Expr'Identifier _ bk) = refer_binding bk
 expr (ANFIR.Expr'Int _ i) = text $ show i
-expr (ANFIR.Expr'Float _ f) = text $ show f
+expr (ANFIR.Expr'Float _ (n :% d)) = text $ "(" <> show n <> "/" <> show d <> ")"
 expr (ANFIR.Expr'Bool _ b) = text $ if b then "true" else "false"
 expr (ANFIR.Expr'Char _ c) = text $ show c
 expr (ANFIR.Expr'String _ s) = text $ show s

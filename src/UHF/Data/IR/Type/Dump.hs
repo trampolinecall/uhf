@@ -13,26 +13,27 @@ import qualified Arena
 import qualified UHF.DumpUtils as DumpUtils
 
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.ID as ID
 
 define_adt :: Arena.Arena (Type.ADT ty) Type.ADTKey -> Type.ADTKey -> DumpUtils.Dumper ()
 define_adt adts k =
-    let (Type.ADT name _) = Arena.get adts k
+    let (Type.ADT _ name _) = Arena.get adts k
     in DumpUtils.dump "data " >> DumpUtils.dump name >> DumpUtils.dump ";\n" -- TODO
 
 define_type_synonym :: (ty -> DumpUtils.Dumper ()) -> Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey -> Type.TypeSynonymKey -> DumpUtils.Dumper ()
 define_type_synonym show_ty type_synonyms k =
-    let (Type.TypeSynonym name expansion) = Arena.get type_synonyms k
+    let (Type.TypeSynonym _ name expansion) = Arena.get type_synonyms k
     in DumpUtils.dump "typesyn " >> DumpUtils.dump name >> DumpUtils.dump " = " >> show_ty expansion >> DumpUtils.dump ";\n"
 
 refer_adt :: Arena.Arena (Type.ADT ty) Type.ADTKey -> Type.ADTKey -> DumpUtils.Dumper ()
 refer_adt adts k =
-    let (Type.ADT name _) = Arena.get adts k
-    in DumpUtils.dump name -- TODO: dump path
+    let (Type.ADT id _ _) = Arena.get adts k
+    in DumpUtils.dump $ ID.stringify id
 
 refer_type_synonym :: Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey -> Type.TypeSynonymKey -> DumpUtils.Dumper ()
 refer_type_synonym type_synonyms k =
-    let (Type.TypeSynonym name _) = Arena.get type_synonyms k
-    in DumpUtils.dump name
+    let (Type.TypeSynonym id _ _) = Arena.get type_synonyms k
+    in DumpUtils.dump $ ID.stringify id
 
 refer_type :: Arena.Arena (Type.ADT ty) Type.ADTKey -> Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey -> Type.Type Void -> DumpUtils.Dumper ()
 refer_type adts _ (Type.Type'ADT k) = refer_adt adts k

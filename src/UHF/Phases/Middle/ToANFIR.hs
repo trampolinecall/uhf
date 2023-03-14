@@ -10,6 +10,7 @@ import qualified Data.Set as Set
 import qualified UHF.Data.IR.RIR as RIR
 import qualified UHF.Data.IR.ANFIR as ANFIR
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.ID as ID
 
 type Type = Maybe (Type.Type Void)
 type CaptureList = Set RIR.BoundValueKey
@@ -73,10 +74,10 @@ convert_expr _ (RIR.Expr'Bool id ty _ b) = new_binding (ANFIR.Expr'Bool id ty b)
 convert_expr bv_map (RIR.Expr'Tuple id ty _ a b) = ANFIR.Expr'Tuple id ty <$> convert_expr bv_map a <*> convert_expr bv_map b >>= new_binding
 
 convert_expr bv_map (RIR.Expr'Lambda id ty _ _ captures param_bv body) =
-    lift (get_bv param_bv) >>= \ (RIR.BoundValue _ param_ty _ _) ->
-    new_param (ANFIR.Param param_ty) >>= \ anfir_param ->
+    lift (get_bv param_bv) >>= \ (RIR.BoundValue param_id param_ty _ _) ->
+    new_param (ANFIR.Param param_id param_ty) >>= \ anfir_param ->
     lift (runWriterT $ -- lambda bodies should not be included in the parent included bindings because they do not need to be evaluated to create the lambda object
-        new_binding (ANFIR.Expr'Param id param_ty anfir_param) >>= \ param_binding ->
+        new_binding (ANFIR.Expr'Param (ID.add ID.LambdaReferParam id) param_ty anfir_param) >>= \ param_binding ->
         lift (map_bound_value param_bv param_binding) >>
         convert_expr bv_map body
     ) >>= \ (body, body_included_bindings) ->

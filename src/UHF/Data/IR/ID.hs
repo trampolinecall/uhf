@@ -50,7 +50,7 @@ data ExprIDSegment
     | TypeAnnotationExpr
     | ExprTupleRight
     | LambdaLet
-    | LambdaRefParam
+    | LambdaReferParam
     deriving Show
 
 data PatParent = PatParent'Binding DeclParent Int | PatParent'CaseArm ExprID Int | PatParent'LambdaParam ExprID Int deriving Show
@@ -136,7 +136,7 @@ stringify = stringify' . to_general_id
         stringify_expr_segment (TypeAnnotationExpr) = "expr"
         stringify_expr_segment (ExprTupleRight) = "right"
         stringify_expr_segment (LambdaLet) = "let"
-        stringify_expr_segment (LambdaRefParam) = "param"
+        stringify_expr_segment (LambdaReferParam) = "param"
 
         stringify_pat_segment (PatTupleItem i) = "item" <> show i
         stringify_pat_segment (PatTupleRight) = "right"

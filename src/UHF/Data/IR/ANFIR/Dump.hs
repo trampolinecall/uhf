@@ -24,6 +24,8 @@ get_type_synonym_arena = reader (\ (ANFIR.ANFIR _ _ syns _ _ _) -> syns)
 
 get_binding :: ANFIR.BindingKey -> Dumper ty poison_allowed (ANFIR.Binding ty poison_allowed)
 get_binding k = reader (\ (ANFIR.ANFIR _ _ _ bindings _ _) -> Arena.get bindings k)
+get_param :: ANFIR.ParamKey -> Dumper ty poison_allowed (ANFIR.Param ty)
+get_param k = reader (\ (ANFIR.ANFIR _ _ _ _ params _) -> Arena.get params k)
 get_adt :: Type.ADTKey -> Dumper ty poison_allowed (Type.ADT ty)
 get_adt k = reader (\ (ANFIR.ANFIR _ adts _ _ _ _) -> Arena.get adts k)
 get_type_synonym :: Type.TypeSynonymKey -> Dumper ty poison_allowed (Type.TypeSynonym ty)
@@ -44,7 +46,7 @@ define_decl (ANFIR.Decl'Module bindings adts type_synonyms) =
 define_decl (ANFIR.Decl'Type _) = pure ()
 
 refer_param :: ANFIR.ParamKey -> Dumper ty poison_allowed ()
-refer_param key = text ("p_" <> show (Arena.unmake_key key)) -- TODO: dont use unmake_key
+refer_param key = get_param key >>= \ (ANFIR.Param id _) -> text (ID.stringify id)
 
 refer_binding :: ANFIR.BindingKey -> Dumper ty poison_allowed ()
 refer_binding key = ANFIR.binding_id <$> get_binding key >>= \ id -> text (ID.stringify id)

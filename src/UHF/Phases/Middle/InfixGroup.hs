@@ -24,7 +24,7 @@ group :: UngroupedHIR type_annotation -> GroupedHIR type_annotation
 group (HIR.HIR decls adts type_synonyms bound_values mod) = HIR.HIR (Arena.transform group_decl decls) adts type_synonyms bound_values mod
 
 group_decl :: UngroupedDecl type_annotation -> GroupedDecl type_annotation
-group_decl (HIR.Decl'Module nc bindings adts syns) = HIR.Decl'Module nc (map group_binding bindings) adts syns
+group_decl (HIR.Decl'Module id nc bindings adts syns) = HIR.Decl'Module id nc (map group_binding bindings) adts syns
 group_decl (HIR.Decl'Type ty) = HIR.Decl'Type ty
 
 group_binding :: UngroupedBinding type_annotation -> GroupedBinding type_annotation

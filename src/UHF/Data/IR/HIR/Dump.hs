@@ -12,6 +12,7 @@ import qualified UHF.Data.IR.HIR as HIR
 import qualified UHF.Data.IR.Keys as Keys
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.Dump as Type.Dump
+import qualified UHF.Data.IR.ID as ID
 
 import UHF.IO.Located (Located (unlocate))
 
@@ -32,13 +33,15 @@ get_type_synonym_arena = reader (\ (HIR.HIR _ _ syns _ _) -> syns)
 
 get_bv :: Keys.BoundValueKey -> Dumper iden type_expr type_info binary_ops_allowed (HIR.BoundValue type_info)
 get_bv k = reader (\ (HIR.HIR _ _ _ bvs _) -> Arena.get bvs k)
+get_decl :: Keys.DeclKey -> Dumper iden type_expr type_info binary_ops_allowed (HIR.Decl iden type_expr type_info binary_ops_allowed)
+get_decl k = reader (\ (HIR.HIR decls _ _ _ _) -> Arena.get decls k)
 get_adt :: Keys.ADTKey -> Dumper iden type_expr type_info binary_ops_allowed (Type.ADT type_expr)
 get_adt k = reader (\ (HIR.HIR _ adts _ _ _) -> Arena.get adts k)
 get_type_syn :: Keys.TypeSynonymKey -> Dumper iden type_expr type_info binary_ops_allowed (Type.TypeSynonym type_expr)
 get_type_syn k = reader (\ (HIR.HIR _ _ syns _ _) -> Arena.get syns k)
 
 define_decl :: (DumpableType type_expr, DumpableIdentifier iden) => HIR.Decl iden type_expr type_info binary_ops_allowed -> Dumper iden type_expr type_info binary_ops_allowed ()
-define_decl (HIR.Decl'Module _ bindings adts type_synonyms) =
+define_decl (HIR.Decl'Module _ _ bindings adts type_synonyms) =
     ask >>= \ hir ->
     get_adt_arena >>= \ adt_arena ->
     get_type_synonym_arena >>= \ type_synonym_arena ->
@@ -61,7 +64,9 @@ refer_bv :: HIR.BoundValueKey -> Dumper iden type_expr type_info binary_ops_allo
 refer_bv k = get_bv k >>= \ (HIR.BoundValue _ _) -> text "_" >> text (show $ Arena.unmake_key k) -- TODO: show names and dont use unmake_key
 
 refer_decl :: HIR.DeclKey -> Dumper iden type_expr type_info binary_ops_allowed ()
-refer_decl k = text "decl_" >> text (show $ Arena.unmake_key k)
+refer_decl k = get_decl k >>= \case
+    HIR.Decl'Module id _ _ _ _ -> text $ ID.stringify id
+    HIR.Decl'Type ty -> refer_type ty
 
 instance DumpableIdentifier (HIR.NameContext, [Located Text]) where
     refer_iden (_, segments) = text $ Text.intercalate "::" (map unlocate segments)

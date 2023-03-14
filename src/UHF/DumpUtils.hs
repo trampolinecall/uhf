@@ -19,7 +19,7 @@ import UHF.Util.Prelude
 import qualified Data.Text as Text
 
 data DumpState = DumpState Int Bool
-newtype Dumper a = Dumper { un_dumper :: StateT DumpState (Writer Text) a } deriving (Functor, Applicative, Monad)
+newtype Dumper a = Dumper (StateT DumpState (Writer Text) a) deriving (Functor, Applicative, Monad)
 
 is_multiline :: Dumper a -> Bool
 is_multiline = Text.any (=='\n') . exec_dumper

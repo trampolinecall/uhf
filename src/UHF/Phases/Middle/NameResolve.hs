@@ -76,7 +76,7 @@ instance Diagnostic.ToError Error where
                         Nothing -> ""
         in Diagnostic.Error Diagnostic.Codes.undef_name (Just sp) message [] []
 
-transform_identifiers :: Monad m => (t_iden -> m t_iden') -> (e_iden -> m e_iden') -> Arena.Arena (Type.ADT (HIR.TypeExpr t_iden)) ADTKey -> Arena.Arena (Type.TypeSynonym (HIR.TypeExpr t_iden)) Type.TypeSynonymKey -> Arena.Arena (HIR.Decl e_iden (HIR.TypeExpr t_iden) typeinfo binaryopsallowed) DeclKey -> m (Arena.Arena (Type.ADT (HIR.TypeExpr t_iden')) ADTKey, Arena.Arena (Type.TypeSynonym (HIR.TypeExpr t_iden')) Type.TypeSynonymKey, Arena.Arena (HIR.Decl e_iden' (HIR.TypeExpr t_iden') typeinfo binaryopsallowed) DeclKey)
+transform_identifiers :: Monad m => (t_iden -> m t_iden') -> (e_iden -> m e_iden') -> Arena.Arena (Type.ADT (HIR.TypeExpr t_iden)) ADTKey -> Arena.Arena (Type.TypeSynonym (HIR.TypeExpr t_iden)) Type.TypeSynonymKey -> Arena.Arena (HIR.Decl e_iden (HIR.TypeExpr t_iden) type_info binary_ops_allowed) DeclKey -> m (Arena.Arena (Type.ADT (HIR.TypeExpr t_iden')) ADTKey, Arena.Arena (Type.TypeSynonym (HIR.TypeExpr t_iden')) Type.TypeSynonymKey, Arena.Arena (HIR.Decl e_iden' (HIR.TypeExpr t_iden') type_info binary_ops_allowed) DeclKey)
 transform_identifiers transform_t_iden transform_e_iden adts type_synonyms decls = (,,) <$> Arena.transformM transform_adt adts <*> Arena.transformM transform_type_synonym type_synonyms <*> Arena.transformM transform_decl decls
     where
         transform_adt (Type.ADT name variants) = Type.ADT name <$> mapM transform_variant variants
@@ -95,35 +95,35 @@ transform_identifiers transform_t_iden transform_e_iden adts type_synonyms decls
 
         transform_binding (HIR.Binding target eq_sp expr) = HIR.Binding <$> transform_pat target <*> pure eq_sp <*> transform_expr expr
 
-        transform_pat (HIR.Pattern'Identifier typeinfo sp bnk) = pure $ HIR.Pattern'Identifier typeinfo sp bnk
-        transform_pat (HIR.Pattern'Wildcard typeinfo sp) = pure $ HIR.Pattern'Wildcard typeinfo sp
-        transform_pat (HIR.Pattern'Tuple typeinfo sp a b) = HIR.Pattern'Tuple typeinfo sp <$> transform_pat a <*> transform_pat b
-        transform_pat (HIR.Pattern'Named typeinfo sp at_sp bnk subpat) = HIR.Pattern'Named typeinfo sp at_sp bnk <$> transform_pat subpat
-        transform_pat (HIR.Pattern'Poison typeinfo sp) = pure $ HIR.Pattern'Poison typeinfo sp
+        transform_pat (HIR.Pattern'Identifier type_info sp bnk) = pure $ HIR.Pattern'Identifier type_info sp bnk
+        transform_pat (HIR.Pattern'Wildcard type_info sp) = pure $ HIR.Pattern'Wildcard type_info sp
+        transform_pat (HIR.Pattern'Tuple type_info sp a b) = HIR.Pattern'Tuple type_info sp <$> transform_pat a <*> transform_pat b
+        transform_pat (HIR.Pattern'Named type_info sp at_sp bnk subpat) = HIR.Pattern'Named type_info sp at_sp bnk <$> transform_pat subpat
+        transform_pat (HIR.Pattern'Poison type_info sp) = pure $ HIR.Pattern'Poison type_info sp
 
-        transform_expr (HIR.Expr'Identifier typeinfo sp i) = HIR.Expr'Identifier typeinfo sp <$> transform_e_iden i
-        transform_expr (HIR.Expr'Char typeinfo sp c) = pure $ HIR.Expr'Char typeinfo sp c
-        transform_expr (HIR.Expr'String typeinfo sp s) = pure $ HIR.Expr'String typeinfo sp s
-        transform_expr (HIR.Expr'Int typeinfo sp i) = pure $ HIR.Expr'Int typeinfo sp i
-        transform_expr (HIR.Expr'Float typeinfo sp f) = pure $ HIR.Expr'Float typeinfo sp f
-        transform_expr (HIR.Expr'Bool typeinfo sp b) = pure $ HIR.Expr'Bool typeinfo sp b
+        transform_expr (HIR.Expr'Identifier type_info sp i) = HIR.Expr'Identifier type_info sp <$> transform_e_iden i
+        transform_expr (HIR.Expr'Char type_info sp c) = pure $ HIR.Expr'Char type_info sp c
+        transform_expr (HIR.Expr'String type_info sp s) = pure $ HIR.Expr'String type_info sp s
+        transform_expr (HIR.Expr'Int type_info sp i) = pure $ HIR.Expr'Int type_info sp i
+        transform_expr (HIR.Expr'Float type_info sp f) = pure $ HIR.Expr'Float type_info sp f
+        transform_expr (HIR.Expr'Bool type_info sp b) = pure $ HIR.Expr'Bool type_info sp b
 
-        transform_expr (HIR.Expr'Tuple typeinfo sp a b) = HIR.Expr'Tuple typeinfo sp <$> transform_expr a <*> transform_expr b
+        transform_expr (HIR.Expr'Tuple type_info sp a b) = HIR.Expr'Tuple type_info sp <$> transform_expr a <*> transform_expr b
 
-        transform_expr (HIR.Expr'Lambda typeinfo sp param body) = HIR.Expr'Lambda typeinfo sp <$> transform_pat param <*> transform_expr body
+        transform_expr (HIR.Expr'Lambda type_info sp param body) = HIR.Expr'Lambda type_info sp <$> transform_pat param <*> transform_expr body
 
-        transform_expr (HIR.Expr'Let typeinfo sp bindings body) = HIR.Expr'Let typeinfo sp <$> mapM transform_binding bindings <*> transform_expr body
+        transform_expr (HIR.Expr'Let type_info sp bindings body) = HIR.Expr'Let type_info sp <$> mapM transform_binding bindings <*> transform_expr body
 
-        transform_expr (HIR.Expr'BinaryOps allowed typeinfo sp first ops) = HIR.Expr'BinaryOps allowed typeinfo sp <$> transform_expr first <*> mapM (\ (iden, rhs) -> (,) <$> transform_e_iden iden <*> transform_expr rhs) ops
+        transform_expr (HIR.Expr'BinaryOps allowed type_info sp first ops) = HIR.Expr'BinaryOps allowed type_info sp <$> transform_expr first <*> mapM (\ (iden, rhs) -> (,) <$> transform_e_iden iden <*> transform_expr rhs) ops
 
-        transform_expr (HIR.Expr'Call typeinfo sp callee arg) = HIR.Expr'Call typeinfo sp <$> transform_expr callee <*> transform_expr arg
+        transform_expr (HIR.Expr'Call type_info sp callee arg) = HIR.Expr'Call type_info sp <$> transform_expr callee <*> transform_expr arg
 
-        transform_expr (HIR.Expr'If typeinfo sp if_sp cond t f) = HIR.Expr'If typeinfo sp if_sp <$> transform_expr cond <*> transform_expr t <*> transform_expr f
-        transform_expr (HIR.Expr'Case typeinfo sp case_sp e arms) = HIR.Expr'Case typeinfo sp case_sp <$> transform_expr e <*> mapM (\ (pat, expr) -> (,) <$> transform_pat pat <*> transform_expr expr) arms
+        transform_expr (HIR.Expr'If type_info sp if_sp cond t f) = HIR.Expr'If type_info sp if_sp <$> transform_expr cond <*> transform_expr t <*> transform_expr f
+        transform_expr (HIR.Expr'Case type_info sp case_sp e arms) = HIR.Expr'Case type_info sp case_sp <$> transform_expr e <*> mapM (\ (pat, expr) -> (,) <$> transform_pat pat <*> transform_expr expr) arms
 
-        transform_expr (HIR.Expr'TypeAnnotation typeinfo sp ty e) = HIR.Expr'TypeAnnotation typeinfo sp <$> transform_type_expr ty <*> transform_expr e
+        transform_expr (HIR.Expr'TypeAnnotation type_info sp ty e) = HIR.Expr'TypeAnnotation type_info sp <$> transform_type_expr ty <*> transform_expr e
 
-        transform_expr (HIR.Expr'Poison typeinfo sp) = pure $ HIR.Expr'Poison typeinfo sp
+        transform_expr (HIR.Expr'Poison type_info sp) = pure $ HIR.Expr'Poison type_info sp
 
 resolve :: UnresolvedHIR -> Compiler.WithDiagnostics Error Void ResolvedHIR
 resolve (HIR.HIR decls adts type_synonyms bound_values mod) =

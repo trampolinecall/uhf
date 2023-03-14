@@ -57,7 +57,7 @@ data Expr captures
 
     | Expr'Call (Maybe Type) Span (Expr captures) (Expr captures)
 
-    | Expr'Switch (Maybe Type) Span (Expr captures) [(SwitchMatcher, (Expr captures))]
+    | Expr'Switch (Maybe Type) Span (Expr captures) [(SwitchMatcher, Expr captures)]
 
     | Expr'Seq (Maybe Type) Span (Expr captures) (Expr captures)
 

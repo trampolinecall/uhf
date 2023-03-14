@@ -1,6 +1,6 @@
 module UHF.Diagnostic.Settings where
 
-data Settings = Settings ReportStyle
+newtype Settings = Settings ReportStyle
 
 data ReportStyle = ASCII | Unicode
 

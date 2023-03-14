@@ -10,27 +10,27 @@ import UHF.IO.Located (Located)
 import qualified UHF.Data.IR.HIR as HIR
 import UHF.Data.IR.Keys
 
-type UngroupedHIR typeannotation = HIR.HIR (Located (Maybe BoundValueKey)) typeannotation () ()
-type UngroupedDecl typeannotation = HIR.Decl (Located (Maybe BoundValueKey)) typeannotation () ()
-type UngroupedBinding typeannotation = HIR.Binding (Located (Maybe BoundValueKey)) typeannotation () ()
-type UngroupedExpr typeannotation = HIR.Expr (Located (Maybe BoundValueKey)) typeannotation () ()
+type UngroupedHIR type_annotation = HIR.HIR (Located (Maybe BoundValueKey)) type_annotation () ()
+type UngroupedDecl type_annotation = HIR.Decl (Located (Maybe BoundValueKey)) type_annotation () ()
+type UngroupedBinding type_annotation = HIR.Binding (Located (Maybe BoundValueKey)) type_annotation () ()
+type UngroupedExpr type_annotation = HIR.Expr (Located (Maybe BoundValueKey)) type_annotation () ()
 
-type GroupedHIR typeannotation = HIR.HIR (Located (Maybe BoundValueKey)) typeannotation () Void
-type GroupedDecl typeannotation = HIR.Decl (Located (Maybe BoundValueKey)) typeannotation () Void
-type GroupedBinding typeannotation = HIR.Binding (Located (Maybe BoundValueKey)) typeannotation () Void
-type GroupedExpr typeannotation = HIR.Expr (Located (Maybe BoundValueKey)) typeannotation () Void
+type GroupedHIR type_annotation = HIR.HIR (Located (Maybe BoundValueKey)) type_annotation () Void
+type GroupedDecl type_annotation = HIR.Decl (Located (Maybe BoundValueKey)) type_annotation () Void
+type GroupedBinding type_annotation = HIR.Binding (Located (Maybe BoundValueKey)) type_annotation () Void
+type GroupedExpr type_annotation = HIR.Expr (Located (Maybe BoundValueKey)) type_annotation () Void
 
-group :: UngroupedHIR typeannotation -> GroupedHIR typeannotation
+group :: UngroupedHIR type_annotation -> GroupedHIR type_annotation
 group (HIR.HIR decls adts type_synonyms bound_values mod) = HIR.HIR (Arena.transform group_decl decls) adts type_synonyms bound_values mod
 
-group_decl :: UngroupedDecl typeannotation -> GroupedDecl typeannotation
+group_decl :: UngroupedDecl type_annotation -> GroupedDecl type_annotation
 group_decl (HIR.Decl'Module nc bindings adts syns) = HIR.Decl'Module nc (map group_binding bindings) adts syns
 group_decl (HIR.Decl'Type ty) = HIR.Decl'Type ty
 
-group_binding :: UngroupedBinding typeannotation -> GroupedBinding typeannotation
+group_binding :: UngroupedBinding type_annotation -> GroupedBinding type_annotation
 group_binding (HIR.Binding pat eq_sp e) = HIR.Binding pat eq_sp (group_expr e)
 
-group_expr :: UngroupedExpr typeannotation -> GroupedExpr typeannotation
+group_expr :: UngroupedExpr type_annotation -> GroupedExpr type_annotation
 group_expr (HIR.Expr'Identifier () sp iden) = HIR.Expr'Identifier () sp iden
 group_expr (HIR.Expr'Char () sp c) = HIR.Expr'Char () sp c
 group_expr (HIR.Expr'String () sp t) = HIR.Expr'String () sp t

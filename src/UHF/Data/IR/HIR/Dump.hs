@@ -33,7 +33,7 @@ get_adt k = reader (\ (HIR.HIR _ adts _ _ _) -> Arena.get adts k)
 get_type_syn :: Keys.TypeSynonymKey -> Dumper iden type_expr type_info binary_ops_allowed (Type.TypeSynonym type_expr)
 get_type_syn k = reader (\ (HIR.HIR _ _ syns _ _) -> Arena.get syns k)
 
-dump_decl :: (DumpableType type_expr, DumpableIdentifier iden) => HIR.Decl iden type_expr type_info binaryopsallowed -> Dumper iden type_expr type_info binary_ops_allowed ()
+dump_decl :: (DumpableType type_expr, DumpableIdentifier iden) => HIR.Decl iden type_expr type_info binary_ops_allowed -> Dumper iden type_expr type_info binary_ops_allowed ()
 dump_decl (HIR.Decl'Module _ bindings adts type_synonyms) = mapM_ (\ k -> get_adt k >>= dump_adt) adts >> mapM_ (\ k -> get_type_syn k >>= dump_type_synonym) type_synonyms >> mapM_ dump_binding bindings
 dump_decl (HIR.Decl'Type _) = pure ()
 
@@ -43,7 +43,7 @@ dump_adt (Type.ADT name _) = dump_text "data " >> dump_text name >> dump_text ";
 dump_type_synonym :: DumpableType type_expr => Type.TypeSynonym type_expr -> Dumper iden type_expr type_info binary_ops_allowed ()
 dump_type_synonym (Type.TypeSynonym name expansion) = dump_text "typesyn " >> dump_text name >> dump_text " = " >> dump_type expansion >> dump_text ";\n"
 
-dump_binding :: (DumpableType type_expr, DumpableIdentifier iden) => HIR.Binding iden type_expr type_info binaryopsallowed -> Dumper iden type_expr type_info binary_ops_allowed ()
+dump_binding :: (DumpableType type_expr, DumpableIdentifier iden) => HIR.Binding iden type_expr type_info binary_ops_allowed -> Dumper iden type_expr type_info binary_ops_allowed ()
 dump_binding (HIR.Binding pat _ init) =
     let init' = dump_expr init
     in ask >>= \ ir -> if DumpUtils.is_multiline (runReaderT init' ir)
@@ -90,7 +90,7 @@ instance DumpableType (Type.Type Void) where
 
 -- TODO: deal with precedence
 
-dump_expr :: (DumpableIdentifier iden, DumpableType type_expr) => HIR.Expr iden type_expr type_info binaryopsallowed -> Dumper iden type_expr type_info binary_ops_allowed ()
+dump_expr :: (DumpableIdentifier iden, DumpableType type_expr) => HIR.Expr iden type_expr type_info binary_ops_allowed -> Dumper iden type_expr type_info binary_ops_allowed ()
 dump_expr (HIR.Expr'Identifier _ _ i) = dump_iden i
 dump_expr (HIR.Expr'Char _ _ c) = dump_text $ show c
 dump_expr (HIR.Expr'String _ _ s) = dump_text $ show s

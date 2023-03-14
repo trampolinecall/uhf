@@ -16,7 +16,7 @@ import qualified Data.Functor.Identity as Identity
 import qualified Control.Monad.Trans.Class as Trans
 
 newtype Unique = Unique Int deriving (Show, Eq, Ord)
-newtype UniqueMakerT m r = UniqueMakerT { un_unique_maker :: StateT Int m r } deriving (Functor, Applicative, Monad, Trans.MonadTrans)
+newtype UniqueMakerT m r = UniqueMakerT (StateT Int m r) deriving (Functor, Applicative, Monad, Trans.MonadTrans)
 type UniqueMaker = UniqueMakerT Identity.Identity
 
 make_unique :: Monad m => UniqueMakerT m Unique

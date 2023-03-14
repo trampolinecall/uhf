@@ -88,7 +88,7 @@ import Control.Monad.Trans.Except as X (Except, except, runExcept, ExceptT(..), 
 import Control.Monad.Trans.Class as X (lift)
 
 import Control.Applicative as X (Applicative, pure, (<*>))
-import Control.Monad as X (Monad, (>>=), (>>))
+import Control.Monad as X (Monad, (>>=), (>>), zipWithM)
 
 import System.Exit as X (exitFailure, exitSuccess)
 import System.Environment as X (getArgs, getProgName)

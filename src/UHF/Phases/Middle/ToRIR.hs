@@ -11,6 +11,7 @@ import UHF.IO.Located (Located (unlocate))
 import qualified UHF.Data.IR.HIR as HIR
 import qualified UHF.Data.IR.RIR as RIR
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.ID as ID
 import UHF.Data.IR.Keys
 
 import qualified Data.Map as Map
@@ -34,7 +35,7 @@ type ConvertState = Unique.UniqueMakerT (WriterT (Map BoundValueKey RIR.BoundWhe
 convert :: HIR -> RIR.RIR ()
 convert (HIR.HIR decls adts type_synonyms bvs mod) =
     let ((decls', bound_wheres), bvs') = runState (runWriterT (Unique.run_unique_maker_t (Arena.transformM convert_decl decls))) bvs
-        bvs'' = Arena.transform_with_key (\ key (HIR.BoundValue ty sp) -> RIR.BoundValue ty (bound_wheres Map.! key) sp) bvs'
+        bvs'' = Arena.transform_with_key (\ key (HIR.BoundValue id ty sp) -> RIR.BoundValue ty (bound_wheres Map.! key) sp) bvs'
     in RIR.RIR decls' adts type_synonyms bvs'' mod
 
 convert_decl :: HIRDecl -> ConvertState RIRDecl
@@ -47,8 +48,8 @@ convert_binding bound_where (HIR.Binding pat _ expr) = convert_expr bound_where 
 map_bound_where :: BoundValueKey -> RIR.BoundWhere -> ConvertState ()
 map_bound_where k w = lift $ tell (Map.singleton k w)
 
-new_bound_value :: RIR.BoundWhere -> Type -> Span -> ConvertState BoundValueKey
-new_bound_value bound_where ty sp = lift (lift (state (Arena.put (HIR.BoundValue ty sp)))) >>= \ key -> map_bound_where key bound_where >> pure key
+new_bound_value :: ID.BoundValueID -> RIR.BoundWhere -> Type -> Span -> ConvertState BoundValueKey
+new_bound_value id bound_where ty sp = lift (lift (state (Arena.put (HIR.BoundValue id ty sp)))) >>= \ key -> map_bound_where key bound_where >> pure key
 
 convert_expr :: RIR.BoundWhere -> HIRExpr -> ConvertState RIRExpr
 convert_expr _ (HIR.Expr'Identifier ty sp bv) = pure $ RIR.Expr'Identifier ty sp (unlocate bv)
@@ -65,7 +66,7 @@ convert_expr _ (HIR.Expr'Lambda ty sp param_pat body) =
     in
     -- '\ (...) -> body' becomes '\ (arg) -> let ... = arg; body'
     Unique.make_unique >>= \ uniq ->
-    new_bound_value (RIR.InLambdaBody uniq) param_ty (HIR.pattern_span param_pat) >>= \ param_bk ->
+    new_bound_value todo (RIR.InLambdaBody uniq) param_ty (HIR.pattern_span param_pat) >>= \ param_bk ->
     assign_pattern (RIR.InLambdaBody uniq) param_pat (RIR.Expr'Identifier param_ty (HIR.pattern_span param_pat) (Just param_bk)) >>= \ bindings ->
     RIR.Expr'Lambda ty sp uniq () param_bk <$> (RIR.Expr'Let body_ty body_sp bindings <$> convert_expr (RIR.InLambdaBody uniq) body)
 
@@ -92,9 +93,9 @@ assign_pattern bound_where (HIR.Pattern'Tuple whole_ty whole_sp a b) expr =
     --     ... = case whole { (a, _) -> a }
     --     ... = case whole { (_, b) -> b }
 
-    new_bound_value bound_where whole_ty whole_sp >>= \ whole_bv ->
-    new_bound_value bound_where a_ty a_sp >>= \ a_bv ->
-    new_bound_value bound_where b_ty b_sp >>= \ b_bv ->
+    new_bound_value todo bound_where whole_ty whole_sp >>= \ whole_bv ->
+    new_bound_value todo bound_where a_ty a_sp >>= \ a_bv ->
+    new_bound_value todo bound_where b_ty b_sp >>= \ b_bv ->
 
     let whole_expr = RIR.Expr'Identifier whole_ty whole_sp (Just whole_bv)
         extract_a = RIR.Expr'Switch a_ty a_sp whole_expr [(RIR.Switch'Tuple (Just a_bv) Nothing, RIR.Expr'Identifier a_ty a_sp (Just a_bv))]

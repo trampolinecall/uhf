@@ -55,7 +55,7 @@ loc_expr_type expr = Located (HIR.expr_span expr) (HIR.expr_type expr)
 pattern :: UntypedPattern -> DeclBVReader TypedWithVarsPattern
 pattern (HIR.Pattern'Identifier () sp bv) =
     read_bvs >>= \ bvs ->
-    let (HIR.BoundValue ty _) = Arena.get bvs bv
+    let (HIR.BoundValue _ ty _) = Arena.get bvs bv
     in pure (HIR.Pattern'Identifier ty sp bv)
 
 pattern (HIR.Pattern'Wildcard () sp) =
@@ -70,7 +70,7 @@ pattern (HIR.Pattern'Tuple () sp l r) =
 pattern (HIR.Pattern'Named () sp at_sp bvk subpat) =
     pattern subpat >>= \ subpat ->
     read_bvs >>= \ bvs ->
-    let (HIR.BoundValue bv_ty _) = Arena.get bvs (unlocate bvk)
+    let (HIR.BoundValue _ bv_ty _) = Arena.get bvs (unlocate bvk)
     in lift (tell [Eq InNamedPattern at_sp (Located (just_span bvk) bv_ty) (loc_pat_type subpat)]) >>
     pure (HIR.Pattern'Named bv_ty sp at_sp bvk subpat)
 
@@ -80,7 +80,7 @@ expr :: UntypedExpr -> DeclBVReader TypedWithVarsExpr
 expr (HIR.Expr'Identifier () sp bv) =
     read_bvs >>= \ bvs ->
     (case unlocate bv of
-        Just bv -> let (HIR.BoundValue ty _) = Arena.get bvs bv in pure ty
+        Just bv -> let (HIR.BoundValue _ ty _) = Arena.get bvs bv in pure ty
         Nothing -> Type.Type'Variable <$> lift (lift $ new_type_variable (UnresolvedIdenExpr sp))) >>= \ ty ->
 
     pure (HIR.Expr'Identifier ty sp bv)

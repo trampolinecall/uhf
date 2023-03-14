@@ -40,7 +40,7 @@ data Decl identifier type_expr type_info binary_ops_allowed
     | Decl'Type (Type.Type Void)
     deriving Show
 
-data BoundValue type_info = BoundValue type_info Span deriving Show
+data BoundValue type_info = BoundValue ID.BoundValueID type_info Span deriving Show
 
 data Binding identifier type_expr type_info binary_ops_allowed = Binding (Pattern identifier type_info) Span (Expr identifier type_expr type_info binary_ops_allowed) deriving Show
 

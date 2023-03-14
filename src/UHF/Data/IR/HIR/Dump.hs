@@ -57,6 +57,12 @@ define_binding (HIR.Binding pat _ init) =
 class DumpableIdentifier i where
     refer_iden :: i -> Dumper iden type_expr type_info binary_ops_allowed ()
 
+refer_bv :: HIR.BoundValueKey -> Dumper iden type_expr type_info binary_ops_allowed ()
+refer_bv k = get_bv k >>= \ (HIR.BoundValue _ _) -> text "_" >> text (show $ Arena.unmake_key k) -- TODO: show names and dont use unmake_key
+
+refer_decl :: HIR.DeclKey -> Dumper iden type_expr type_info binary_ops_allowed ()
+refer_decl k = text "decl_" >> text (show $ Arena.unmake_key k)
+
 instance DumpableIdentifier (HIR.NameContext, [Located Text]) where
     refer_iden (_, segments) = text $ Text.intercalate "::" (map unlocate segments)
 instance DumpableIdentifier (Located (Maybe Keys.BoundValueKey)) where
@@ -64,9 +70,9 @@ instance DumpableIdentifier (Located (Maybe Keys.BoundValueKey)) where
         Just k -> refer_iden k
         Nothing -> text "<name resolution error>"
 instance DumpableIdentifier Keys.BoundValueKey where
-    refer_iden k = get_bv k >>= \ (HIR.BoundValue _ _) -> text "_" >> text (show $ Arena.unmake_key k) -- TODO: show names and dont use unmake_key
+    refer_iden k = refer_bv k
 instance DumpableIdentifier (Maybe Keys.DeclKey) where
-    refer_iden (Just k) = text "decl_" >> text (show $ Arena.unmake_key k)
+    refer_iden (Just k) = refer_decl k
     refer_iden Nothing = text "<name resolution error>"
 
 class DumpableType t where

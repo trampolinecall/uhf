@@ -187,10 +187,10 @@ convert_decls bv_parent decl_parent parent_name_context prev_decl_entries prev_b
             let binding = HIR.Binding target' eq_sp expr'
             in pure ([], new_bound_values, [binding], [], [])
 
-        convert_decl final_name_context ind (AST.Decl'Data name variants) =
+        convert_decl final_name_context _ (AST.Decl'Data name variants) =
             runMaybeT (
                 iden1_for_type_name name >>= \ (Located name1sp name1) ->
-                Type.ADT name1 <$> mapM (convert_variant final_name_context) variants >>= \ datatype ->
+                Type.ADT (ID.DeclID decl_parent name1) name1 <$> mapM (convert_variant final_name_context) variants >>= \ datatype ->
 
                 lift (new_adt datatype) >>= \ adt_key ->
                 -- TODO: add constructors to bound name table
@@ -201,11 +201,11 @@ convert_decls bv_parent decl_parent parent_name_context prev_decl_entries prev_b
                 Just (name1, decl_at, decl_key, adt_key) -> pure ([(name1, decl_at, decl_key)], [], [], [adt_key], [])
                 Nothing -> pure ([], [], [], [], [])
 
-        convert_decl final_name_context ind (AST.Decl'TypeSyn name expansion) =
+        convert_decl final_name_context _ (AST.Decl'TypeSyn name expansion) =
             runMaybeT (
                 lift (convert_type final_name_context expansion) >>= \ expansion' ->
                 iden1_for_type_name name >>= \ (Located name1sp name1) ->
-                lift (new_type_synonym (Type.TypeSynonym name1 expansion')) >>= \ syn_key ->
+                lift (new_type_synonym (Type.TypeSynonym (ID.DeclID decl_parent name1) name1 expansion')) >>= \ syn_key ->
                 lift (new_decl (HIR.Decl'Type $ Type.Type'Synonym syn_key)) >>= \ decl_key ->
 
                 pure (name1, DeclAt name1sp, decl_key, syn_key)
@@ -239,12 +239,12 @@ convert_type nc (AST.Type'Tuple sp items) = mapM (convert_type nc) items >>= gro
         group_items [] = tell_error (Tuple0 sp) >> pure (HIR.TypeExpr'Poison sp)
 
 convert_expr :: ID.ExprID -> HIR.NameContext -> AST.Expr -> MakeIRState Expr
-convert_expr id nc (AST.Expr'Identifier iden) = pure $ HIR.Expr'Identifier () (just_span iden) (nc, unlocate iden)
-convert_expr id _ (AST.Expr'Char sp c) = pure $ HIR.Expr'Char () sp c
-convert_expr id _ (AST.Expr'String sp s) = pure $ HIR.Expr'String () sp s
-convert_expr id _ (AST.Expr'Int sp i) = pure $ HIR.Expr'Int () sp i
-convert_expr id _ (AST.Expr'Float sp f) = pure $ HIR.Expr'Float () sp f
-convert_expr id _ (AST.Expr'Bool sp b) = pure $ HIR.Expr'Bool () sp b
+convert_expr _ nc (AST.Expr'Identifier iden) = pure $ HIR.Expr'Identifier () (just_span iden) (nc, unlocate iden)
+convert_expr _ _ (AST.Expr'Char sp c) = pure $ HIR.Expr'Char () sp c
+convert_expr _ _ (AST.Expr'String sp s) = pure $ HIR.Expr'String () sp s
+convert_expr _ _ (AST.Expr'Int sp i) = pure $ HIR.Expr'Int () sp i
+convert_expr _ _ (AST.Expr'Float sp f) = pure $ HIR.Expr'Float () sp f
+convert_expr _ _ (AST.Expr'Bool sp b) = pure $ HIR.Expr'Bool () sp b
 
 convert_expr id name_context (AST.Expr'Tuple sp items) =
     zipWithM (\ i -> convert_expr (ID.add (ID.ExprTupleItem i) id) name_context) [0..] items >>= group_items

@@ -193,7 +193,7 @@ refer_type_raw :: Type.Type Void -> IRReader Text
 refer_type_raw (Type.Type'ADT ak) = pure $ mangle_adt ak
 
 refer_type_raw (Type.Type'Synonym sk) =
-    get_type_synonym sk >>= \ (Type.TypeSynonym _ expansion) -> refer_type expansion
+    get_type_synonym sk >>= \ (Type.TypeSynonym _ _ expansion) -> refer_type expansion
 
 refer_type_raw Type.Type'Int = pure "Int"
 refer_type_raw Type.Type'Float = pure "Float"

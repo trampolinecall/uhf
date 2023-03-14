@@ -79,12 +79,12 @@ instance Diagnostic.ToError Error where
 transform_identifiers :: Monad m => (t_iden -> m t_iden') -> (e_iden -> m e_iden') -> Arena.Arena (Type.ADT (HIR.TypeExpr t_iden)) ADTKey -> Arena.Arena (Type.TypeSynonym (HIR.TypeExpr t_iden)) Type.TypeSynonymKey -> Arena.Arena (HIR.Decl e_iden (HIR.TypeExpr t_iden) type_info binary_ops_allowed) DeclKey -> m (Arena.Arena (Type.ADT (HIR.TypeExpr t_iden')) ADTKey, Arena.Arena (Type.TypeSynonym (HIR.TypeExpr t_iden')) Type.TypeSynonymKey, Arena.Arena (HIR.Decl e_iden' (HIR.TypeExpr t_iden') type_info binary_ops_allowed) DeclKey)
 transform_identifiers transform_t_iden transform_e_iden adts type_synonyms decls = (,,) <$> Arena.transformM transform_adt adts <*> Arena.transformM transform_type_synonym type_synonyms <*> Arena.transformM transform_decl decls
     where
-        transform_adt (Type.ADT name variants) = Type.ADT name <$> mapM transform_variant variants
+        transform_adt (Type.ADT id name variants) = Type.ADT id name <$> mapM transform_variant variants
             where
                 transform_variant (Type.ADTVariant'Named name fields) = Type.ADTVariant'Named name <$> mapM (\ (name, ty) -> (,) name <$> transform_type_expr ty) fields
                 transform_variant (Type.ADTVariant'Anon name fields) = Type.ADTVariant'Anon name <$> mapM transform_type_expr fields
 
-        transform_type_synonym (Type.TypeSynonym name expansion) = Type.TypeSynonym name <$> transform_type_expr expansion
+        transform_type_synonym (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name <$> transform_type_expr expansion
 
         transform_type_expr (HIR.TypeExpr'Identifier sp id) = HIR.TypeExpr'Identifier sp <$> transform_t_iden id
         transform_type_expr (HIR.TypeExpr'Tuple a b) = HIR.TypeExpr'Tuple <$> transform_type_expr a <*> transform_type_expr b

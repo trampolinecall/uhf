@@ -35,13 +35,13 @@ remove_poison (ANFIR.ANFIR decls adts type_synonyms bindings params mod) =
 -- rp short for remove poison
 
 rp_adt :: PoisonedADT -> Maybe NoPoisonADT
-rp_adt (Type.ADT name variants) = Type.ADT name <$> mapM rp_variant variants
+rp_adt (Type.ADT id name variants) = Type.ADT id name <$> mapM rp_variant variants
     where
         rp_variant (Type.ADTVariant'Named name fields) = Type.ADTVariant'Named name <$> mapM (\ (field_name, field_ty) -> (field_name,) <$> field_ty) fields
         rp_variant (Type.ADTVariant'Anon name fields) = Type.ADTVariant'Anon name <$> sequence fields
 
 rp_type_synonym :: PoisonedTypeSynonym -> Maybe NoPoisonTypeSynonym
-rp_type_synonym (Type.TypeSynonym name expansion) = Type.TypeSynonym name <$> expansion
+rp_type_synonym (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name <$> expansion
 
 rp_binding :: PoisonedBinding -> Maybe NoPoisonBinding
 rp_binding (ANFIR.Binding initializer) = ANFIR.Binding <$> rp_expr initializer

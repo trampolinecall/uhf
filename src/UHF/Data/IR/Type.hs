@@ -10,6 +10,7 @@ module UHF.Data.IR.Type
 import UHF.Util.Prelude
 
 import UHF.Data.IR.Keys
+import qualified UHF.Data.IR.ID as ID
 
 data Type var
     = Type'ADT ADTKey
@@ -24,10 +25,10 @@ data Type var
     | Type'Variable var
     deriving Show
 
-data ADT ty = ADT Text [ADTVariant ty] deriving Show
+data ADT ty = ADT ID.DeclID Text [ADTVariant ty] deriving Show
 data ADTVariant ty
     = ADTVariant'Named Text [(Text, ty)]
     | ADTVariant'Anon Text [ty]
     deriving Show
 
-data TypeSynonym ty = TypeSynonym Text ty deriving Show
+data TypeSynonym ty = TypeSynonym ID.DeclID Text ty deriving Show

@@ -57,8 +57,8 @@ annotate_expr bvs (RIR.Expr'Lambda ty sp uniq () param body) =
         get_captures (RIR.Expr'Poison _ _) = []
 
         is_capture k = case Arena.get bvs k of
-            RIR.BoundValue _ RIR.InModule _ -> False
-            RIR.BoundValue _ (RIR.InLambdaBody def_l) _ -> def_l /= uniq -- is not defined in this current lambda
+            RIR.BoundValue _ _ RIR.InModule _ -> False
+            RIR.BoundValue _ _ (RIR.InLambdaBody def_l) _ -> def_l /= uniq -- is not defined in this current lambda
 
 annotate_expr bvs (RIR.Expr'Let ty sp bindings result) = RIR.Expr'Let ty sp (map (annotate_binding bvs) bindings) (annotate_expr bvs result)
 annotate_expr bvs (RIR.Expr'Call ty sp callee arg) = RIR.Expr'Call ty sp (annotate_expr bvs callee) (annotate_expr bvs arg)

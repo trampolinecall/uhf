@@ -24,13 +24,14 @@ import qualified Unique
 
 import UHF.Data.IR.Keys
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.ID as ID
 
 import UHF.IO.Span (Span)
 
 data RIR captures = RIR (Arena.Arena (Decl captures) DeclKey) (Arena.Arena (Type.ADT (Maybe (Type.Type Void))) ADTKey) (Arena.Arena (Type.TypeSynonym (Maybe (Type.Type Void))) TypeSynonymKey) (Arena.Arena (BoundValue (Maybe (Type.Type Void))) BoundValueKey) DeclKey
 
 data BoundWhere = InModule | InLambdaBody Unique.Unique deriving Show
-data BoundValue type_info = BoundValue type_info BoundWhere Span deriving Show
+data BoundValue type_info = BoundValue ID.BoundValueID type_info BoundWhere Span deriving Show
 
 data Decl captures
     = Decl'Module [Binding captures] [ADTKey] [TypeSynonymKey]

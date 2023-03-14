@@ -74,7 +74,7 @@ convert_expr _ (RIR.Expr'Bool ty _ b) = new_binding (ANFIR.Expr'Bool ty b)
 convert_expr bv_map (RIR.Expr'Tuple ty _ a b) = ANFIR.Expr'Tuple ty <$> convert_expr bv_map a <*> convert_expr bv_map b >>= new_binding
 
 convert_expr bv_map (RIR.Expr'Lambda ty _ _ captures param_bv body) =
-    lift (get_bv param_bv) >>= \ (RIR.BoundValue param_ty _ _) ->
+    lift (get_bv param_bv) >>= \ (RIR.BoundValue _ param_ty _ _) ->
     new_param (ANFIR.Param param_ty) >>= \ anfir_param ->
     lift (runWriterT $ -- lambda bodies should not be included in the parent included bindings because they do not need to be evaluated to create the lambda object
         new_binding (ANFIR.Expr'Param param_ty anfir_param) >>= \ param_binding ->
@@ -104,10 +104,10 @@ convert_expr bv_map (RIR.Expr'Switch ty _ testing arms) =
             --         e
             -- }
             (case a of
-                Just a -> lift (get_bv a) >>= \ (RIR.BoundValue a_ty _ _) -> new_binding (ANFIR.Expr'TupleDestructure1 a_ty testing) >>= \ a_destructure -> lift (map_bound_value a a_destructure)
+                Just a -> lift (get_bv a) >>= \ (RIR.BoundValue _ a_ty _ _) -> new_binding (ANFIR.Expr'TupleDestructure1 a_ty testing) >>= \ a_destructure -> lift (map_bound_value a a_destructure)
                 Nothing -> pure ()) >>
             (case b of
-                Just b -> lift (get_bv b) >>= \ (RIR.BoundValue b_ty _ _) -> new_binding (ANFIR.Expr'TupleDestructure2 b_ty testing) >>= \ b_destructure -> lift (map_bound_value b b_destructure)
+                Just b -> lift (get_bv b) >>= \ (RIR.BoundValue _ b_ty _ _) -> new_binding (ANFIR.Expr'TupleDestructure2 b_ty testing) >>= \ b_destructure -> lift (map_bound_value b b_destructure)
                 Nothing -> pure ()) >>
             pure ANFIR.Switch'Tuple
         convert_matcher RIR.Switch'Default _ = pure ANFIR.Switch'Default

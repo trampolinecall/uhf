@@ -24,6 +24,7 @@ library
       UHF.Data.IR.RIR
       UHF.Data.IR.RIR.Dump
       UHF.Data.IR.Type
+      UHF.Data.IR.Type.Dump
       UHF.Data.Token
       UHF.Diagnostic
       UHF.Diagnostic.Codes

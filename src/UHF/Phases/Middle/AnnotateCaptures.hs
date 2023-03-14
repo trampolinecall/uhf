@@ -39,22 +39,22 @@ annotate_expr bvs (RIR.Expr'Lambda id ty sp uniq () param body) =
     in RIR.Expr'Lambda id ty sp uniq (get_captures body') param body'
     where
         get_captures :: RIR.Expr CaptureList -> Set BoundValueKey
-        get_captures (RIR.Expr'Identifier id _ _ (Just i))
+        get_captures (RIR.Expr'Identifier _ _ _ (Just i))
             | is_capture i = [i]
             | otherwise = []
-        get_captures (RIR.Expr'Identifier id _ _ Nothing) = []
-        get_captures (RIR.Expr'Char id _ _ _) = []
-        get_captures (RIR.Expr'String id _ _ _) = []
-        get_captures (RIR.Expr'Int id _ _ _) = []
-        get_captures (RIR.Expr'Float id _ _ _) = []
-        get_captures (RIR.Expr'Bool id _ _ _) = []
-        get_captures (RIR.Expr'Tuple id _ _ a b) = get_captures a <> get_captures b
-        get_captures (RIR.Expr'Lambda id _ _ _ captures _ _) = Set.filter is_capture captures
-        get_captures (RIR.Expr'Let id _ _ bindings result) = Set.unions (map (\ (RIR.Binding _ init) -> get_captures init) bindings) <> get_captures result
-        get_captures (RIR.Expr'Call id _ _ callee arg) = get_captures callee <> get_captures arg
-        get_captures (RIR.Expr'Switch id _ _ test arms) = get_captures test <> Set.unions (map (\ (_, e) -> get_captures e) arms)
-        get_captures (RIR.Expr'Seq id _ _ a b) = get_captures a <> get_captures b
-        get_captures (RIR.Expr'Poison id _ _) = []
+        get_captures (RIR.Expr'Identifier _ _ _ Nothing) = []
+        get_captures (RIR.Expr'Char _ _ _ _) = []
+        get_captures (RIR.Expr'String _ _ _ _) = []
+        get_captures (RIR.Expr'Int _ _ _ _) = []
+        get_captures (RIR.Expr'Float _ _ _ _) = []
+        get_captures (RIR.Expr'Bool _ _ _ _) = []
+        get_captures (RIR.Expr'Tuple _ _ _ a b) = get_captures a <> get_captures b
+        get_captures (RIR.Expr'Lambda _ _ _ _ captures _ _) = Set.filter is_capture captures
+        get_captures (RIR.Expr'Let _ _ _ bindings result) = Set.unions (map (\ (RIR.Binding _ init) -> get_captures init) bindings) <> get_captures result
+        get_captures (RIR.Expr'Call _ _ _ callee arg) = get_captures callee <> get_captures arg
+        get_captures (RIR.Expr'Switch _ _ _ test arms) = get_captures test <> Set.unions (map (\ (_, e) -> get_captures e) arms)
+        get_captures (RIR.Expr'Seq _ _ _ a b) = get_captures a <> get_captures b
+        get_captures (RIR.Expr'Poison _ _ _) = []
 
         is_capture k = case Arena.get bvs k of
             RIR.BoundValue _ _ RIR.InModule _ -> False

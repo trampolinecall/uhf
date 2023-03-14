@@ -1,6 +1,7 @@
 module UHF.Data.IR.ANFIR
     ( ANFIR (..)
     , Decl (..)
+    , DeclKey
     , BindingKey
     , ParamKey
     , Binding(..)

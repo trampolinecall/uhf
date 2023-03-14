@@ -15,21 +15,25 @@ import qualified UHF.DumpUtils as DumpUtils
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.ID as ID
 
+-- TODO: just print adt, dont get from adt arena
 define_adt :: Arena.Arena (Type.ADT ty) Type.ADTKey -> Type.ADTKey -> DumpUtils.Dumper ()
 define_adt adts k =
     let (Type.ADT _ name _) = Arena.get adts k
     in DumpUtils.dump "data " >> DumpUtils.dump name >> DumpUtils.dump ";\n" -- TODO
 
+-- TODO: dont get from type_synonyms either
 define_type_synonym :: (ty -> DumpUtils.Dumper ()) -> Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey -> Type.TypeSynonymKey -> DumpUtils.Dumper ()
 define_type_synonym show_ty type_synonyms k =
     let (Type.TypeSynonym _ name expansion) = Arena.get type_synonyms k
     in DumpUtils.dump "typesyn " >> DumpUtils.dump name >> DumpUtils.dump " = " >> show_ty expansion >> DumpUtils.dump ";\n"
 
+-- TODO: just print adt, dont get from adt arena
 refer_adt :: Arena.Arena (Type.ADT ty) Type.ADTKey -> Type.ADTKey -> DumpUtils.Dumper ()
 refer_adt adts k =
     let (Type.ADT id _ _) = Arena.get adts k
     in DumpUtils.dump $ ID.stringify id
 
+-- TODO: dont get from type_synonyms either
 refer_type_synonym :: Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey -> Type.TypeSynonymKey -> DumpUtils.Dumper ()
 refer_type_synonym type_synonyms k =
     let (Type.TypeSynonym id _ _) = Arena.get type_synonyms k

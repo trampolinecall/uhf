@@ -70,4 +70,4 @@ rp_expr (ANFIR.Expr'TupleDestructure2 id ty t) = ty >>= \ ty -> pure (ANFIR.Expr
 rp_expr (ANFIR.Expr'Poison _ _ _) = Nothing
 
 rp_param :: PoisonedParam -> Maybe NoPoisonParam
-rp_param (ANFIR.Param ty) = ANFIR.Param <$> ty
+rp_param (ANFIR.Param id ty) = ANFIR.Param id <$> ty

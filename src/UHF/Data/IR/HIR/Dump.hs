@@ -11,6 +11,7 @@ import qualified UHF.DumpUtils as DumpUtils
 import qualified UHF.Data.IR.HIR as HIR
 import qualified UHF.Data.IR.Keys as Keys
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.Type.Dump as Type.Dump
 
 import UHF.IO.Located (Located (unlocate))
 
@@ -24,6 +25,11 @@ dump ir@(HIR.HIR decls _ _ _ mod) = DumpUtils.exec_dumper $ runReaderT (define_d
 text :: Text -> Dumper iden type_expr type_info binary_ops_allowed ()
 text = lift . DumpUtils.dump
 
+get_adt_arena :: Dumper iden type_expr type_info binary_ops_allowed (Arena.Arena (Type.ADT type_expr) Type.ADTKey)
+get_adt_arena = reader (\ (HIR.HIR _ adts _ _ _) -> adts)
+get_type_synonym_arena :: Dumper iden type_expr type_info binary_ops_allowed (Arena.Arena (Type.TypeSynonym type_expr) Type.TypeSynonymKey)
+get_type_synonym_arena = reader (\ (HIR.HIR _ _ syns _ _) -> syns)
+
 get_bv :: Keys.BoundValueKey -> Dumper iden type_expr type_info binary_ops_allowed (HIR.BoundValue type_info)
 get_bv k = reader (\ (HIR.HIR _ _ _ bvs _) -> Arena.get bvs k)
 get_adt :: Keys.ADTKey -> Dumper iden type_expr type_info binary_ops_allowed (Type.ADT type_expr)
@@ -32,20 +38,14 @@ get_type_syn :: Keys.TypeSynonymKey -> Dumper iden type_expr type_info binary_op
 get_type_syn k = reader (\ (HIR.HIR _ _ syns _ _) -> Arena.get syns k)
 
 define_decl :: (DumpableType type_expr, DumpableIdentifier iden) => HIR.Decl iden type_expr type_info binary_ops_allowed -> Dumper iden type_expr type_info binary_ops_allowed ()
-define_decl (HIR.Decl'Module _ bindings adts type_synonyms) = mapM_ define_adt adts >> mapM_ define_type_synonym type_synonyms >> mapM_ define_binding bindings
+define_decl (HIR.Decl'Module _ bindings adts type_synonyms) =
+    ask >>= \ hir ->
+    get_adt_arena >>= \ adt_arena ->
+    get_type_synonym_arena >>= \ type_synonym_arena ->
+    lift (mapM_ (Type.Dump.define_adt adt_arena) adts) >>
+    lift (mapM_ (Type.Dump.define_type_synonym ((\ ty -> runReaderT (refer_type ty) hir)) type_synonym_arena) type_synonyms) >>
+    mapM_ define_binding bindings
 define_decl (HIR.Decl'Type _) = pure ()
-
-define_adt :: Type.ADTKey -> Dumper iden type_expr type_info binary_ops_allowed ()
-define_adt k = get_adt k >>= \ (Type.ADT name _) -> text "data " >> text name >> text ";\n" -- TODO
-
-define_type_synonym :: DumpableType type_expr => Type.TypeSynonymKey -> Dumper iden type_expr type_info binary_ops_allowed ()
-define_type_synonym k = get_type_syn k >>= \ (Type.TypeSynonym name expansion) -> text "typesyn " >> text name >> text " = " >> refer_type expansion >> text ";\n"
-
-refer_adt :: Type.ADTKey -> Dumper iden type_expr type_info binary_ops_allowed ()
-refer_adt k = get_adt k >>= \ (Type.ADT name _) -> text name -- TODO: dump path
-
-refer_type_synonym :: Type.TypeSynonymKey -> Dumper iden type_expr type_info binary_ops_allowed ()
-refer_type_synonym k = get_type_syn k >>= \ (Type.TypeSynonym name _) -> text name
 
 define_binding :: (DumpableType type_expr, DumpableIdentifier iden) => HIR.Binding iden type_expr type_info binary_ops_allowed -> Dumper iden type_expr type_info binary_ops_allowed ()
 define_binding (HIR.Binding pat _ init) =
@@ -85,16 +85,7 @@ instance DumpableType (Maybe (Type.Type Void)) where
     refer_type (Just ty) = refer_type ty
     refer_type Nothing = text "<type error>"
 instance DumpableType (Type.Type Void) where
-    refer_type (Type.Type'ADT k) = refer_adt k
-    refer_type (Type.Type'Synonym k) = refer_type_synonym k
-    refer_type Type.Type'Int = text "int"
-    refer_type Type.Type'Float = text "float"
-    refer_type Type.Type'Char = text "char"
-    refer_type Type.Type'String = text "string"
-    refer_type Type.Type'Bool = text "bool"
-    refer_type (Type.Type'Function a r) = refer_type a >> text " -> " >> refer_type r
-    refer_type (Type.Type'Tuple a b) = text "(" >> refer_type a >> text ", " >> refer_type b >> text ")"
-    refer_type (Type.Type'Variable void) = absurd void
+    refer_type ty = get_adt_arena >>= \ adt_arena -> get_type_synonym_arena >>= \ type_synonym_arena -> lift (Type.Dump.refer_type adt_arena type_synonym_arena ty)
 
 -- TODO: dump types too
 

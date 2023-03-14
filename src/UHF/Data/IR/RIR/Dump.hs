@@ -9,10 +9,16 @@ import qualified UHF.DumpUtils as DumpUtils
 import qualified UHF.Data.IR.RIR as RIR
 import qualified UHF.Data.IR.Keys as Keys
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.Type.Dump as Type.Dump
 
 -- TODO: dump types too
 
 type Dumper captures = ReaderT (RIR.RIR captures) DumpUtils.Dumper
+
+get_adt_arena :: Dumper captures (Arena.Arena (Type.ADT (Maybe (Type.Type Void))) Type.ADTKey)
+get_adt_arena = reader (\ (RIR.RIR _ adts _ _ _) -> adts)
+get_type_synonym_arena :: Dumper captures (Arena.Arena (Type.TypeSynonym (Maybe (Type.Type Void))) Type.TypeSynonymKey)
+get_type_synonym_arena = reader (\ (RIR.RIR _ _ syns _ _) -> syns)
 
 get_adt :: Keys.ADTKey -> Dumper captures (Type.ADT (Maybe (Type.Type Void)))
 get_adt k = reader (\ (RIR.RIR _ adts _ _ _) -> Arena.get adts k)
@@ -26,35 +32,19 @@ text :: Text -> Dumper captures ()
 text = lift . DumpUtils.dump
 
 define_decl :: RIR.Decl captures -> Dumper captures ()
-define_decl (RIR.Decl'Module bindings adts type_synonyms) = mapM_ define_adt adts >> mapM_ define_type_synonym type_synonyms >> mapM_ define_binding bindings
+define_decl (RIR.Decl'Module bindings adts type_synonyms) =
+    ask >>= \ rir ->
+    get_adt_arena >>= \ adt_arena ->
+    get_type_synonym_arena >>= \ type_synonym_arena ->
+    mapM_ (lift . Type.Dump.define_adt adt_arena) adts >> mapM_ (lift . Type.Dump.define_type_synonym (\ ty -> runReaderT (refer_m_type ty) rir) type_synonym_arena) type_synonyms >> mapM_ define_binding bindings
 define_decl (RIR.Decl'Type _) = pure ()
 
--- TODO: move this to Type.Dump? because this is also duplicated across all the ir dumps
-define_adt :: Type.ADTKey -> Dumper captures ()
-define_adt k = get_adt k >>= \ (Type.ADT name _) -> text "data " >> text name >> text ";\n" -- TODO
-define_type_synonym :: Type.TypeSynonymKey  -> Dumper captures ()
-define_type_synonym k = get_type_synonym k >>= \ (Type.TypeSynonym name expansion) -> text "typesyn " >> text name >> text " = " >> refer_m_type expansion >> text ";\n"
-
 refer_m_type :: Maybe (Type.Type Void) -> Dumper captures () -- TODO: remove
-refer_m_type (Just ty) = refer_type ty
+refer_m_type (Just ty) =
+    get_adt_arena >>= \ adt_arena ->
+    get_type_synonym_arena >>= \ type_synonym_arena ->
+    lift (Type.Dump.refer_type adt_arena type_synonym_arena ty)
 refer_m_type Nothing = text "<type error>"
-
-refer_adt :: Type.ADTKey -> Dumper captures ()
-refer_adt k = get_adt k >>= \ (Type.ADT name _) -> text name -- TODO: dump path
-refer_type_synonym :: Type.TypeSynonymKey -> Dumper captures ()
-refer_type_synonym k = get_type_synonym k >>= \ (Type.TypeSynonym name _) -> text name
-
-refer_type :: Type.Type Void -> Dumper captures ()
-refer_type (Type.Type'ADT k) = refer_adt k
-refer_type (Type.Type'Synonym k) = refer_type_synonym k
-refer_type Type.Type'Int = text "int"
-refer_type Type.Type'Float = text "float"
-refer_type Type.Type'Char = text "char"
-refer_type Type.Type'String = text "string"
-refer_type Type.Type'Bool = text "bool"
-refer_type (Type.Type'Function a r) = refer_type a >> text " -> " >> refer_type r
-refer_type (Type.Type'Tuple a b) = text "(" >> refer_type a >> text ", " >> refer_type b >> text ")"
-refer_type (Type.Type'Variable void) = absurd void
 
 define_binding :: RIR.Binding captures -> Dumper captures ()
 define_binding (RIR.Binding bvk e) =

@@ -47,27 +47,27 @@ rp_binding :: PoisonedBinding -> Maybe NoPoisonBinding
 rp_binding (ANFIR.Binding initializer) = ANFIR.Binding <$> rp_expr initializer
 
 rp_expr :: PoisonedExpr -> Maybe NoPoisonExpr
-rp_expr (ANFIR.Expr'Identifier ty b) = ty >>= \ ty -> pure (ANFIR.Expr'Identifier ty b)
-rp_expr (ANFIR.Expr'Int ty i) = ty >>= \ ty -> pure (ANFIR.Expr'Int ty i)
-rp_expr (ANFIR.Expr'Float ty f) = ty >>= \ ty -> pure (ANFIR.Expr'Float ty f)
-rp_expr (ANFIR.Expr'Bool ty b) = ty >>= \ ty -> pure (ANFIR.Expr'Bool ty b)
-rp_expr (ANFIR.Expr'Char ty c) = ty >>= \ ty -> pure (ANFIR.Expr'Char ty c)
-rp_expr (ANFIR.Expr'String ty t) = ty >>= \ ty -> pure (ANFIR.Expr'String ty t)
-rp_expr (ANFIR.Expr'Tuple ty a b) = ty >>= \ ty -> pure (ANFIR.Expr'Tuple ty a b)
+rp_expr (ANFIR.Expr'Identifier id ty b) = ty >>= \ ty -> pure (ANFIR.Expr'Identifier id ty b)
+rp_expr (ANFIR.Expr'Int id ty i) = ty >>= \ ty -> pure (ANFIR.Expr'Int id ty i)
+rp_expr (ANFIR.Expr'Float id ty f) = ty >>= \ ty -> pure (ANFIR.Expr'Float id ty f)
+rp_expr (ANFIR.Expr'Bool id ty b) = ty >>= \ ty -> pure (ANFIR.Expr'Bool id ty b)
+rp_expr (ANFIR.Expr'Char id ty c) = ty >>= \ ty -> pure (ANFIR.Expr'Char id ty c)
+rp_expr (ANFIR.Expr'String id ty t) = ty >>= \ ty -> pure (ANFIR.Expr'String id ty t)
+rp_expr (ANFIR.Expr'Tuple id ty a b) = ty >>= \ ty -> pure (ANFIR.Expr'Tuple id ty a b)
 
-rp_expr (ANFIR.Expr'Lambda ty c a i b) = ty >>= \ ty -> pure (ANFIR.Expr'Lambda ty c a i b)
-rp_expr (ANFIR.Expr'Param ty p) = ty >>= \ ty -> pure (ANFIR.Expr'Param ty p)
+rp_expr (ANFIR.Expr'Lambda id ty c a i b) = ty >>= \ ty -> pure (ANFIR.Expr'Lambda id ty c a i b)
+rp_expr (ANFIR.Expr'Param id ty p) = ty >>= \ ty -> pure (ANFIR.Expr'Param id ty p)
 
-rp_expr (ANFIR.Expr'Call ty c a) = ty >>= \ ty -> pure (ANFIR.Expr'Call ty c a)
+rp_expr (ANFIR.Expr'Call id ty c a) = ty >>= \ ty -> pure (ANFIR.Expr'Call id ty c a)
 
-rp_expr (ANFIR.Expr'Switch ty c a) = ty >>= \ ty -> pure (ANFIR.Expr'Switch ty c a)
+rp_expr (ANFIR.Expr'Switch id ty c a) = ty >>= \ ty -> pure (ANFIR.Expr'Switch id ty c a)
 
-rp_expr (ANFIR.Expr'Seq ty a b) = ty >>= \ ty -> pure (ANFIR.Expr'Seq ty a b)
+rp_expr (ANFIR.Expr'Seq id ty a b) = ty >>= \ ty -> pure (ANFIR.Expr'Seq id ty a b)
 
-rp_expr (ANFIR.Expr'TupleDestructure1 ty t) = ty >>= \ ty -> pure (ANFIR.Expr'TupleDestructure1 ty t)
-rp_expr (ANFIR.Expr'TupleDestructure2 ty t) = ty >>= \ ty -> pure (ANFIR.Expr'TupleDestructure2 ty t)
+rp_expr (ANFIR.Expr'TupleDestructure1 id ty t) = ty >>= \ ty -> pure (ANFIR.Expr'TupleDestructure1 id ty t)
+rp_expr (ANFIR.Expr'TupleDestructure2 id ty t) = ty >>= \ ty -> pure (ANFIR.Expr'TupleDestructure2 id ty t)
 
-rp_expr (ANFIR.Expr'Poison _ _) = Nothing
+rp_expr (ANFIR.Expr'Poison id _ _) = Nothing
 
 rp_param :: PoisonedParam -> Maybe NoPoisonParam
 rp_param (ANFIR.Param ty) = ANFIR.Param <$> ty

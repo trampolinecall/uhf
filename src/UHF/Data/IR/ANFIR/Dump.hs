@@ -11,6 +11,7 @@ import qualified UHF.DumpUtils as DumpUtils
 import qualified UHF.Data.IR.ANFIR as ANFIR
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.Dump as Type.Dump
+import qualified UHF.Data.IR.ID as ID
 
 -- TODO: dump types too
 
@@ -46,7 +47,7 @@ refer_param :: ANFIR.ParamKey -> Dumper ty poison_allowed ()
 refer_param key = text ("p_" <> show (Arena.unmake_key key)) -- TODO: dont use unmake_key
 
 refer_binding :: ANFIR.BindingKey -> Dumper ty poison_allowed ()
-refer_binding key = text ("_" <> show (Arena.unmake_key key)) -- TODO: dont use unmake_key
+refer_binding key = ANFIR.binding_id <$> get_binding key >>= \ id -> text (ID.stringify id)
 
 define_binding :: ANFIR.BindingKey -> ANFIR.Binding ty poison_allowed -> Dumper ty poison_allowed ()
 define_binding key (ANFIR.Binding e) =
@@ -69,22 +70,22 @@ instance DumpableType (Type.Type Void) where
         lift (Type.Dump.refer_type adt_arena type_synonym_arena ty)
 
 expr :: ANFIR.Expr ty poison_allowed -> Dumper ty poison_allowed ()
-expr (ANFIR.Expr'Identifier _ bk) = refer_binding bk
-expr (ANFIR.Expr'Int _ i) = text $ show i
-expr (ANFIR.Expr'Float _ (n :% d)) = text $ "(" <> show n <> "/" <> show d <> ")"
-expr (ANFIR.Expr'Bool _ b) = text $ if b then "true" else "false"
-expr (ANFIR.Expr'Char _ c) = text $ show c
-expr (ANFIR.Expr'String _ s) = text $ show s
-expr (ANFIR.Expr'Tuple _ a b) = text "(" >> refer_binding a >> text ", " >> refer_binding b >> text ")"
-expr (ANFIR.Expr'Lambda _ _ param bindings body) = text "\\ " >> refer_param param >> text " -> {\n" >> lift DumpUtils.indent >> mapM_ (\ k -> get_binding k >>= define_binding k) bindings >> lift DumpUtils.dedent >> text "}\n" >> refer_binding body -- TODO: dump captures
-expr (ANFIR.Expr'Param _ pk) = refer_param pk
-expr (ANFIR.Expr'Call _ callee arg) = refer_binding callee >> text "(" >> refer_binding arg >> text ")"
-expr (ANFIR.Expr'Switch _ e arms) = text "switch " >> refer_binding e >> text " {\n" >> lift DumpUtils.indent >> mapM_ arm arms >> lift DumpUtils.dedent >> text "}"
+expr (ANFIR.Expr'Identifier id _ bk) = refer_binding bk
+expr (ANFIR.Expr'Int id _ i) = text $ show i
+expr (ANFIR.Expr'Float id _ (n :% d)) = text $ "(" <> show n <> "/" <> show d <> ")"
+expr (ANFIR.Expr'Bool id _ b) = text $ if b then "true" else "false"
+expr (ANFIR.Expr'Char id _ c) = text $ show c
+expr (ANFIR.Expr'String id _ s) = text $ show s
+expr (ANFIR.Expr'Tuple id _ a b) = text "(" >> refer_binding a >> text ", " >> refer_binding b >> text ")"
+expr (ANFIR.Expr'Lambda id _ _ param bindings body) = text "\\ " >> refer_param param >> text " -> {\n" >> lift DumpUtils.indent >> mapM_ (\ k -> get_binding k >>= define_binding k) bindings >> lift DumpUtils.dedent >> text "}\n" >> refer_binding body -- TODO: dump captures
+expr (ANFIR.Expr'Param id _ pk) = refer_param pk
+expr (ANFIR.Expr'Call id _ callee arg) = refer_binding callee >> text "(" >> refer_binding arg >> text ")"
+expr (ANFIR.Expr'Switch id _ e arms) = text "switch " >> refer_binding e >> text " {\n" >> lift DumpUtils.indent >> mapM_ arm arms >> lift DumpUtils.dedent >> text "}"
     where
         arm (ANFIR.Switch'BoolLiteral b, expr) = (if b then text "true" else text "false") >> text " -> " >> refer_binding expr >> text "\n"
         arm (ANFIR.Switch'Tuple, expr) = text "(,) -> " >> refer_binding expr >> text "\n"
         arm (ANFIR.Switch'Default, expr) = text "-> " >> refer_binding expr >> text "\n"
-expr (ANFIR.Expr'Seq _ a b) = text "seq " >> refer_binding a >> text ", " >> refer_binding b
-expr (ANFIR.Expr'TupleDestructure1 _ other) = refer_binding other >> text ".0"
-expr (ANFIR.Expr'TupleDestructure2 _ other) = refer_binding other >> text ".1"
-expr (ANFIR.Expr'Poison _ _) = text "poison"
+expr (ANFIR.Expr'Seq id _ a b) = text "seq " >> refer_binding a >> text ", " >> refer_binding b
+expr (ANFIR.Expr'TupleDestructure1 id _ other) = refer_binding other >> text ".0"
+expr (ANFIR.Expr'TupleDestructure2 id _ other) = refer_binding other >> text ".1"
+expr (ANFIR.Expr'Poison id _ _) = text "poison"

@@ -62,22 +62,22 @@ refer_bv bvk = get_bv bvk >>= \ (RIR.BoundValue id _ _ _) -> text (ID.stringify 
 
 -- TODO: properly handle when exprs are multiline
 expr :: RIR.Expr captures -> Dumper captures ()
-expr (RIR.Expr'Identifier _ _ (Just bvk)) = refer_bv bvk
-expr (RIR.Expr'Identifier _ _ Nothing) = text "<name resolution error>"
-expr (RIR.Expr'Char _ _ c) = text $ show c
-expr (RIR.Expr'String _ _ s) = text $ show s
-expr (RIR.Expr'Int _ _ i) = text $ show i
-expr (RIR.Expr'Float _ _ (n :% d)) = text $ "(" <> show n <> "/" <> show d <> ")"
-expr (RIR.Expr'Bool _ _ b) = text $ if b then "true" else "false"
-expr (RIR.Expr'Tuple _ _ a b) = text "(" >> expr a >> text ", " >> expr b >> text ")"
-expr (RIR.Expr'Lambda _ _ _ _ param body) = text "\\ " >> refer_bv param >> text " -> " >> expr body -- TODO: show captures
-expr (RIR.Expr'Let _ _ bindings res) = text "let {\n" >> lift DumpUtils.indent >> mapM_ define_binding bindings >> lift DumpUtils.dedent >> text "}\n" >> expr res
-expr (RIR.Expr'Call _ _ callee arg) = expr callee >> text "(" >> expr arg >> text ")"
-expr (RIR.Expr'Switch _ _ e arms) = text "switch " >> expr e >> text " {\n" >> lift DumpUtils.indent >> mapM_ dump_arm arms >> lift DumpUtils.dedent >> text "}"
+expr (RIR.Expr'Identifier id _ _ (Just bvk)) = refer_bv bvk
+expr (RIR.Expr'Identifier id _ _ Nothing) = text "<name resolution error>"
+expr (RIR.Expr'Char id _ _ c) = text $ show c
+expr (RIR.Expr'String id _ _ s) = text $ show s
+expr (RIR.Expr'Int id _ _ i) = text $ show i
+expr (RIR.Expr'Float id _ _ (n :% d)) = text $ "(" <> show n <> "/" <> show d <> ")"
+expr (RIR.Expr'Bool id _ _ b) = text $ if b then "true" else "false"
+expr (RIR.Expr'Tuple id _ _ a b) = text "(" >> expr a >> text ", " >> expr b >> text ")"
+expr (RIR.Expr'Lambda id _ _ _ _ param body) = text "\\ " >> refer_bv param >> text " -> " >> expr body -- TODO: show captures
+expr (RIR.Expr'Let id _ _ bindings res) = text "let {\n" >> lift DumpUtils.indent >> mapM_ define_binding bindings >> lift DumpUtils.dedent >> text "}\n" >> expr res
+expr (RIR.Expr'Call id _ _ callee arg) = expr callee >> text "(" >> expr arg >> text ")"
+expr (RIR.Expr'Switch id _ _ e arms) = text "switch " >> expr e >> text " {\n" >> lift DumpUtils.indent >> mapM_ dump_arm arms >> lift DumpUtils.dedent >> text "}"
     where
         -- TODO: properly indent these if the expression is multiline
         dump_arm (RIR.Switch'BoolLiteral b, e) = (if b then text "true" else text "false") >> text " -> " >> expr e >> text "\n"
         dump_arm (RIR.Switch'Tuple a b, e) = text "(" >> maybe (text "_") refer_bv a >> text ", " >> maybe (text "_") refer_bv b >> text ") -> " >> expr e >> text "\n"
         dump_arm (RIR.Switch'Default, e) = text "_ -> " >> expr e >> text "\n"
-expr (RIR.Expr'Seq _ _ a b) = text "seq " >> expr a >> text ", " >> expr b
-expr (RIR.Expr'Poison _ _) = text "poison"
+expr (RIR.Expr'Seq id _ _ a b) = text "seq " >> expr a >> text ", " >> expr b
+expr (RIR.Expr'Poison id _ _) = text "poison"

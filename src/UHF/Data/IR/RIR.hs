@@ -43,26 +43,26 @@ data Binding captures = Binding BoundValueKey (Expr captures) deriving Show
 type Type = Type.Type Void
 
 data Expr captures
-    = Expr'Identifier (Maybe Type) Span (Maybe BoundValueKey)
-    | Expr'Char (Maybe Type) Span Char
-    | Expr'String (Maybe Type) Span Text
-    | Expr'Int (Maybe Type) Span Integer
-    | Expr'Float (Maybe Type) Span Rational
-    | Expr'Bool (Maybe Type) Span Bool -- TODO: replace with identifier exprs
+    = Expr'Identifier ID.ExprID (Maybe Type) Span (Maybe BoundValueKey)
+    | Expr'Char ID.ExprID (Maybe Type) Span Char
+    | Expr'String ID.ExprID (Maybe Type) Span Text
+    | Expr'Int ID.ExprID (Maybe Type) Span Integer
+    | Expr'Float ID.ExprID (Maybe Type) Span Rational
+    | Expr'Bool ID.ExprID (Maybe Type) Span Bool -- TODO: replace with identifier exprs
 
-    | Expr'Tuple (Maybe Type) Span (Expr captures) (Expr captures)
+    | Expr'Tuple ID.ExprID (Maybe Type) Span (Expr captures) (Expr captures)
 
-    | Expr'Lambda (Maybe Type) Span Unique.Unique captures BoundValueKey (Expr captures)
+    | Expr'Lambda ID.ExprID (Maybe Type) Span Unique.Unique captures BoundValueKey (Expr captures)
 
-    | Expr'Let (Maybe Type) Span [Binding captures] (Expr captures)
+    | Expr'Let ID.ExprID (Maybe Type) Span [Binding captures] (Expr captures)
 
-    | Expr'Call (Maybe Type) Span (Expr captures) (Expr captures)
+    | Expr'Call ID.ExprID (Maybe Type) Span (Expr captures) (Expr captures)
 
-    | Expr'Switch (Maybe Type) Span (Expr captures) [(SwitchMatcher, Expr captures)]
+    | Expr'Switch ID.ExprID (Maybe Type) Span (Expr captures) [(SwitchMatcher, Expr captures)]
 
-    | Expr'Seq (Maybe Type) Span (Expr captures) (Expr captures)
+    | Expr'Seq ID.ExprID (Maybe Type) Span (Expr captures) (Expr captures)
 
-    | Expr'Poison (Maybe Type) Span
+    | Expr'Poison ID.ExprID (Maybe Type) Span
     deriving Show
 
 data SwitchMatcher
@@ -72,31 +72,31 @@ data SwitchMatcher
     deriving Show
 
 expr_type :: Expr captures -> Maybe Type
-expr_type (Expr'Identifier ty _ _) = ty
-expr_type (Expr'Char ty _ _) = ty
-expr_type (Expr'String ty _ _) = ty
-expr_type (Expr'Int ty _ _) = ty
-expr_type (Expr'Float ty _ _) = ty
-expr_type (Expr'Bool ty _ _) = ty
-expr_type (Expr'Tuple ty _ _ _) = ty
-expr_type (Expr'Lambda ty _ _ _ _ _) = ty
-expr_type (Expr'Let ty _ _ _) = ty
-expr_type (Expr'Call ty _ _ _) = ty
-expr_type (Expr'Switch ty _ _ _) = ty
-expr_type (Expr'Seq ty _ _ _) = ty
-expr_type (Expr'Poison ty _) = ty
+expr_type (Expr'Identifier _ ty _ _) = ty
+expr_type (Expr'Char _ ty _ _) = ty
+expr_type (Expr'String _ ty _ _) = ty
+expr_type (Expr'Int _ ty _ _) = ty
+expr_type (Expr'Float _ ty _ _) = ty
+expr_type (Expr'Bool _ ty _ _) = ty
+expr_type (Expr'Tuple _ ty _ _ _) = ty
+expr_type (Expr'Lambda _ ty _ _ _ _ _) = ty
+expr_type (Expr'Let _ ty _ _ _) = ty
+expr_type (Expr'Call _ ty _ _ _) = ty
+expr_type (Expr'Switch _ ty _ _ _) = ty
+expr_type (Expr'Seq _ ty _ _ _) = ty
+expr_type (Expr'Poison _ ty _) = ty
 
 expr_span :: Expr captures -> Span
-expr_span (Expr'Identifier _ sp _) = sp
-expr_span (Expr'Char _ sp _) = sp
-expr_span (Expr'String _ sp _) = sp
-expr_span (Expr'Int _ sp _) = sp
-expr_span (Expr'Float _ sp _) = sp
-expr_span (Expr'Bool _ sp _) = sp
-expr_span (Expr'Tuple _ sp _ _) = sp
-expr_span (Expr'Lambda _ sp _ _ _ _) = sp
-expr_span (Expr'Let _ sp _ _) = sp
-expr_span (Expr'Call _ sp _ _) = sp
-expr_span (Expr'Switch _ sp _ _) = sp
-expr_span (Expr'Seq _ sp _ _) = sp
-expr_span (Expr'Poison _ sp) = sp
+expr_span (Expr'Identifier _ _ sp _) = sp
+expr_span (Expr'Char _ _ sp _) = sp
+expr_span (Expr'String _ _ sp _) = sp
+expr_span (Expr'Int _ _ sp _) = sp
+expr_span (Expr'Float _ _ sp _) = sp
+expr_span (Expr'Bool _ _ sp _) = sp
+expr_span (Expr'Tuple _ _ sp _ _) = sp
+expr_span (Expr'Lambda _ _ sp _ _ _ _) = sp
+expr_span (Expr'Let _ _ sp _ _) = sp
+expr_span (Expr'Call _ _ sp _ _) = sp
+expr_span (Expr'Switch _ _ sp _ _) = sp
+expr_span (Expr'Seq _ _ sp _ _) = sp
+expr_span (Expr'Poison _ _ sp) = sp

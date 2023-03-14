@@ -43,28 +43,28 @@ to_dot (ANFIR.ANFIR _ _ _ nodes params _) =
             let (name, graph_connections, param_connections) =
                     -- TODO: print types
                     case initializer of
-                        ANFIR.Expr'Identifier _ b -> ("identifier", [("identifier", b)], [])
+                        ANFIR.Expr'Identifier _ _ b -> ("identifier", [("identifier", b)], [])
 
-                        ANFIR.Expr'Int _ i -> ("int: " <> show i, [], [])
-                        ANFIR.Expr'Float _ f -> ("float: " <> show f, [], [])
-                        ANFIR.Expr'Bool _ b -> ("bool: " <> show b, [], [])
-                        ANFIR.Expr'Char _ c -> ("char: " <> show c, [], [])
-                        ANFIR.Expr'String _ s -> ("string: \\\"" <> s <> "\\\"", [], [])
-                        ANFIR.Expr'Tuple _ a b -> ("tuple", [("a", a), ("b", b)], [])
+                        ANFIR.Expr'Int _ _ i -> ("int: " <> show i, [], [])
+                        ANFIR.Expr'Float _ _ f -> ("float: " <> show f, [], [])
+                        ANFIR.Expr'Bool _ _ b -> ("bool: " <> show b, [], [])
+                        ANFIR.Expr'Char _ _ c -> ("char: " <> show c, [], [])
+                        ANFIR.Expr'String _ _ s -> ("string: \\\"" <> s <> "\\\"", [], [])
+                        ANFIR.Expr'Tuple _ _ a b -> ("tuple", [("a", a), ("b", b)], [])
 
-                        ANFIR.Expr'Lambda _ _ param _ body -> ("lambda", [("body", body)], [("param", param)])
-                        ANFIR.Expr'Param _ param -> ("param", [], [("p", param)])
+                        ANFIR.Expr'Lambda _ _ _ param _ body -> ("lambda", [("body", body)], [("param", param)])
+                        ANFIR.Expr'Param _ _ param -> ("param", [], [("p", param)])
 
-                        ANFIR.Expr'Call _ callee arg -> ("call", [("callee", callee), ("arg", arg)], [])
+                        ANFIR.Expr'Call _ _ callee arg -> ("call", [("callee", callee), ("arg", arg)], [])
 
-                        ANFIR.Expr'Switch _ e arms -> ("switch", ("e", e) : zipWith (\ arm_i (matcher, result) -> (show arm_i <> " - " <> stringify_matcher matcher, result)) [0 :: Int ..] arms, [])
+                        ANFIR.Expr'Switch _ _ e arms -> ("switch", ("e", e) : zipWith (\ arm_i (matcher, result) -> (show arm_i <> " - " <> stringify_matcher matcher, result)) [0 :: Int ..] arms, [])
 
-                        ANFIR.Expr'Seq _ a b -> ("seq", [("a", a), ("b", b)], [])
+                        ANFIR.Expr'Seq _ _ a b -> ("seq", [("a", a), ("b", b)], [])
 
-                        ANFIR.Expr'TupleDestructure1 _ tup -> ("tuple destructure 1", [("tuple", tup)], [])
-                        ANFIR.Expr'TupleDestructure2 _ tup -> ("tuple destructure 2", [("tuple", tup)], [])
+                        ANFIR.Expr'TupleDestructure1 _ _ tup -> ("tuple destructure 1", [("tuple", tup)], [])
+                        ANFIR.Expr'TupleDestructure2 _ _ tup -> ("tuple destructure 2", [("tuple", tup)], [])
 
-                        ANFIR.Expr'Poison _ void -> absurd void
+                        ANFIR.Expr'Poison _ _ void -> absurd void
 
                 make_port (name, _) = "<" <> name <> ">" <> name
                 ports = if null graph_connections && null param_connections

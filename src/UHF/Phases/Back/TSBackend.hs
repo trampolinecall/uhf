@@ -111,7 +111,7 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures p
         object_of_bindings = "{ " <> Text.intercalate ", " (map mangle_binding_as_thunk included_bindings) <> " }"
 
         stringify_param param_key =
-            get_param param_key >>= \ (ANFIR.Param param_ty) ->
+            get_param param_key >>= \ (ANFIR.Param _ param_ty) ->
             refer_type param_ty >>= \ ty_refer ->
             pure ("param: " <> ty_refer)
 
@@ -238,7 +238,7 @@ define_decl _ (ANFIR.Decl'Type _) = pure ()
 
 define_lambda_type :: ANFIR.BindingKey -> Binding -> TSWriter ()
 define_lambda_type key (ANFIR.Binding (ANFIR.Expr'Lambda _ _ captures param body_included_bindings body)) =
-    lift (get_param param) >>= \ (ANFIR.Param param_ty) ->
+    lift (get_param param) >>= \ (ANFIR.Param _ param_ty) ->
     lift (binding_type body) >>= \ body_type ->
     tell_make_thunk_graph (TSMakeThunkGraph (LambdaBody key) body_included_bindings captures (Just param)) >>
     tell_lambda (TSLambda key captures param_ty body_type body)

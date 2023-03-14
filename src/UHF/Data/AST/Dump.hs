@@ -77,7 +77,7 @@ dump_list dump items =
     in if null dumped
         then DumpUtils.dump "[]"
         else if any_multiline
-            then DumpUtils.dump "[\n" >> DumpUtils.indent >> sequence (map (>> DumpUtils.dump ",\n") dumped) >> DumpUtils.dedent >> DumpUtils.dump "]" -- true if first
+            then DumpUtils.dump "[\n" >> DumpUtils.indent >> mapM (>> DumpUtils.dump ",\n") dumped >> DumpUtils.dedent >> DumpUtils.dump "]" -- true if first
             else DumpUtils.dump "[" >> intercalate_commas True dumped >> DumpUtils.dump "]" -- true if first
     where
         intercalate_commas _ [] = pure ()

@@ -14,13 +14,13 @@ import UHF.Phases.Middle.Type.Error
 import UHF.Phases.Middle.Type.StateWithVars
 
 adt :: UntypedDeclArena -> UntypedADT -> StateWithVars TypedWithVarsADT
-adt decls (Type.ADT name variants) = Type.ADT name <$> mapM (convert_variant decls) variants
+adt decls (Type.ADT id name variants) = Type.ADT id name <$> mapM (convert_variant decls) variants
     where
         convert_variant decls (Type.ADTVariant'Named name fields) = Type.ADTVariant'Named name <$> mapM (\ (name, ty) -> (,) name <$> type_expr decls ty) fields
         convert_variant decls (Type.ADTVariant'Anon name fields) = Type.ADTVariant'Anon name <$> mapM (type_expr decls) fields
 
 type_synonym :: UntypedDeclArena -> UntypedTypeSynonym -> StateWithVars TypedWithVarsTypeSynonym
-type_synonym decls (Type.TypeSynonym name expansion) = Type.TypeSynonym name <$> type_expr decls expansion
+type_synonym decls (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name <$> type_expr decls expansion
 
 type_expr :: UntypedDeclArena -> TypeExpr -> StateWithVars TypeWithVars
 type_expr decls (HIR.TypeExpr'Identifier sp iden) =

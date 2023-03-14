@@ -49,13 +49,13 @@ bound_value :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsBoundValue ->
 bound_value vars (HIR.BoundValue id ty sp) = HIR.BoundValue id (type_ vars ty) sp
 
 adt :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsADT -> TypedADT
-adt vars (Type.ADT name variants) = Type.ADT name (map variant variants)
+adt vars (Type.ADT id name variants) = Type.ADT id name (map variant variants)
     where
         variant (Type.ADTVariant'Named name fields) = Type.ADTVariant'Named name (map (\ (name, ty) -> (name, type_ vars ty)) fields)
         variant (Type.ADTVariant'Anon name fields) = Type.ADTVariant'Anon name (map (type_ vars) fields)
 
 type_synonym :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsTypeSynonym -> TypedTypeSynonym
-type_synonym vars (Type.TypeSynonym name expansion) = Type.TypeSynonym name (type_ vars expansion)
+type_synonym vars (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name (type_ vars expansion)
 
 binding :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsBinding -> TypedBinding
 binding vars (HIR.Binding p eq_sp e) = HIR.Binding (pattern vars p) eq_sp (expr vars e)

@@ -71,12 +71,12 @@ unify a@(Type.Type'ADT a_adt_key) b@(Type.Type'ADT b_adt_key)
 unify (Type.Type'Synonym a_syn_key) b =
     lift read_synonyms >>= \ type_synonyms ->
     case Arena.get type_synonyms a_syn_key of
-        Type.TypeSynonym _ a_expansion -> unify a_expansion b
+        Type.TypeSynonym _ _ a_expansion -> unify a_expansion b
 
 unify a (Type.Type'Synonym b_syn_key) =
     lift read_synonyms >>= \ type_synonyms ->
     case Arena.get type_synonyms b_syn_key of
-        Type.TypeSynonym _ b_expansion -> unify a b_expansion
+        Type.TypeSynonym _ _ b_expansion -> unify a b_expansion
 
 unify (Type.Type'Variable a) b = unify_var a b False
 unify a (Type.Type'Variable b) = unify_var b a True
@@ -133,7 +133,7 @@ occurs_check _ (Type.Type'ADT _) = pure False
 
 occurs_check v (Type.Type'Synonym syn_key) =
     read_synonyms >>= \ type_synonyms ->
-    let Type.TypeSynonym _ other_expansion = Arena.get type_synonyms syn_key
+    let Type.TypeSynonym _ _ other_expansion = Arena.get type_synonyms syn_key
     in occurs_check v other_expansion
 
 occurs_check _ (Type.Type'Int) = pure False

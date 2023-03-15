@@ -114,8 +114,8 @@ expr (HIR.Expr'TypeAnnotation _ _ _ ty e) = text ":" >> refer_type ty >> text ":
 expr (HIR.Expr'Poison _ _ _) = text "poison"
 
 pattern :: HIR.Pattern iden type_info -> Dumper iden type_expr type_info binary_ops_allowed ()
-pattern (HIR.Pattern'Identifier _ _ _ bnk) = refer_iden bnk
-pattern (HIR.Pattern'Wildcard _ _ _) = text "_"
-pattern (HIR.Pattern'Tuple _ _ _ a b) = text "(" >> pattern a >> text ", " >> pattern b >> text ")"
-pattern (HIR.Pattern'Named _ _ _ _ bnk subpat) = text "@" >> refer_iden (unlocate bnk) >> text " " >> pattern subpat
-pattern (HIR.Pattern'Poison _ _ _) = text "poison"
+pattern (HIR.Pattern'Identifier _ _ bnk) = refer_iden bnk
+pattern (HIR.Pattern'Wildcard _ _) = text "_"
+pattern (HIR.Pattern'Tuple _ _ a b) = text "(" >> pattern a >> text ", " >> pattern b >> text ")"
+pattern (HIR.Pattern'Named _ _ _ bnk subpat) = text "@" >> refer_iden (unlocate bnk) >> text " " >> pattern subpat
+pattern (HIR.Pattern'Poison _ _) = text "poison"

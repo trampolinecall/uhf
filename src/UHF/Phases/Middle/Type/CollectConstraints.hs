@@ -53,28 +53,28 @@ loc_expr_type :: HIR.Expr identifier type_expr type_info binary_ops_allowed -> L
 loc_expr_type expr = Located (HIR.expr_span expr) (HIR.expr_type expr)
 
 pattern :: UntypedPattern -> DeclBVReader TypedWithVarsPattern
-pattern (HIR.Pattern'Identifier id () sp bv) =
+pattern (HIR.Pattern'Identifier () sp bv) =
     read_bvs >>= \ bvs ->
     let (HIR.BoundValue _ ty _) = Arena.get bvs bv
-    in pure (HIR.Pattern'Identifier id ty sp bv)
+    in pure (HIR.Pattern'Identifier ty sp bv)
 
-pattern (HIR.Pattern'Wildcard id () sp) =
+pattern (HIR.Pattern'Wildcard () sp) =
     lift (lift (Type.Type'Variable <$> new_type_variable (WildcardPattern sp))) >>= \ ty ->
-    pure (HIR.Pattern'Wildcard id ty sp)
+    pure (HIR.Pattern'Wildcard ty sp)
 
-pattern (HIR.Pattern'Tuple id () sp l r) =
+pattern (HIR.Pattern'Tuple () sp l r) =
     pattern l >>= \ l ->
     pattern r >>= \ r ->
-    pure (HIR.Pattern'Tuple id (Type.Type'Tuple (HIR.pattern_type l) (HIR.pattern_type r)) sp l r)
+    pure (HIR.Pattern'Tuple (Type.Type'Tuple (HIR.pattern_type l) (HIR.pattern_type r)) sp l r)
 
-pattern (HIR.Pattern'Named id () sp at_sp bvk subpat) =
+pattern (HIR.Pattern'Named () sp at_sp bvk subpat) =
     pattern subpat >>= \ subpat ->
     read_bvs >>= \ bvs ->
     let (HIR.BoundValue _ bv_ty _) = Arena.get bvs (unlocate bvk)
     in lift (tell [Eq InNamedPattern at_sp (Located (just_span bvk) bv_ty) (loc_pat_type subpat)]) >>
-    pure (HIR.Pattern'Named id bv_ty sp at_sp bvk subpat)
+    pure (HIR.Pattern'Named bv_ty sp at_sp bvk subpat)
 
-pattern (HIR.Pattern'Poison id () sp) = HIR.Pattern'Poison id <$> (Type.Type'Variable <$> lift (lift $ new_type_variable $ PoisonPattern sp)) <*> pure sp
+pattern (HIR.Pattern'Poison () sp) = HIR.Pattern'Poison <$> (Type.Type'Variable <$> lift (lift $ new_type_variable $ PoisonPattern sp)) <*> pure sp
 
 expr :: UntypedExpr -> DeclBVReader TypedWithVarsExpr
 expr (HIR.Expr'Identifier id () sp bv) =

@@ -61,6 +61,9 @@ new_binding expr = lift (lift $ state $ \ (g, p) -> let (i, g') = Arena.put (ANF
 new_param :: ANFIRParam -> WriterT [ANFIR.BindingKey] MakeGraphState ANFIR.ParamKey
 new_param param = lift (lift $ state $ \ (g, p) -> let (i, p') = Arena.put param p in (i, (g, p')))
 
+new_expr_id :: MakeGraphState ID.ExprID
+new_expr_id = lift $ lift IDGen.gen_id
+
 convert_expr :: BoundValueMap -> RIRExpr -> WriterT [ANFIR.BindingKey] MakeGraphState ANFIR.BindingKey
 convert_expr bv_map (RIR.Expr'Identifier id ty _ bvkey) =
     case bvkey of
@@ -78,7 +81,8 @@ convert_expr bv_map (RIR.Expr'Lambda id ty _ _ captures param_bv body) =
     lift (get_bv param_bv) >>= \ (RIR.BoundValue param_id param_ty _ _) ->
     new_param (ANFIR.Param param_id param_ty) >>= \ anfir_param ->
     lift (runWriterT $ -- lambda bodies should not be included in the parent included bindings because they do not need to be evaluated to create the lambda object
-        new_binding (ANFIR.Expr'Param (ID.add ID.LambdaReferParam id) param_ty anfir_param) >>= \ param_binding ->
+        lift new_expr_id >>= \ param_binding_id ->
+        new_binding (ANFIR.Expr'Param param_binding_id param_ty anfir_param) >>= \ param_binding ->
         lift (map_bound_value param_bv param_binding) >>
         convert_expr bv_map body
     ) >>= \ (body, body_included_bindings) ->
@@ -105,10 +109,10 @@ convert_expr bv_map (RIR.Expr'Switch id ty _ testing arms) =
             --         e
             -- }
             (case a of
-                Just a -> lift (get_bv a) >>= \ (RIR.BoundValue _ a_ty _ _) -> lift (lift $ lift IDGen.gen_id) >>= \ id -> new_binding (ANFIR.Expr'TupleDestructure1 id a_ty testing) >>= \ a_destructure -> lift (map_bound_value a a_destructure)
+                Just a -> lift (get_bv a) >>= \ (RIR.BoundValue _ a_ty _ _) -> lift new_expr_id >>= \ id -> new_binding (ANFIR.Expr'TupleDestructure1 id a_ty testing) >>= \ a_destructure -> lift (map_bound_value a a_destructure)
                 Nothing -> pure ()) >>
             (case b of
-                Just b -> lift (get_bv b) >>= \ (RIR.BoundValue _ b_ty _ _) -> lift (lift $ lift IDGen.gen_id) >>= \ id -> new_binding (ANFIR.Expr'TupleDestructure2 id b_ty testing) >>= \ b_destructure -> lift (map_bound_value b b_destructure)
+                Just b -> lift (get_bv b) >>= \ (RIR.BoundValue _ b_ty _ _) -> lift new_expr_id >>= \ id -> new_binding (ANFIR.Expr'TupleDestructure2 id b_ty testing) >>= \ b_destructure -> lift (map_bound_value b b_destructure)
                 Nothing -> pure ()) >>
             pure ANFIR.Switch'Tuple
         convert_matcher RIR.Switch'Default _ = pure ANFIR.Switch'Default

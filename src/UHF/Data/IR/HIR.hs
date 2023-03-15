@@ -79,12 +79,12 @@ data Expr identifier type_expr type_info binary_ops_allowed
     deriving Show
 
 data Pattern identifier type_info
-    = Pattern'Identifier ID.PatID type_info Span BoundValueKey
-    | Pattern'Wildcard ID.PatID type_info Span
-    | Pattern'Tuple ID.PatID type_info Span (Pattern identifier type_info) (Pattern identifier type_info)
-    | Pattern'Named ID.PatID type_info Span Span (Located BoundValueKey) (Pattern identifier type_info)
+    = Pattern'Identifier type_info Span BoundValueKey
+    | Pattern'Wildcard type_info Span
+    | Pattern'Tuple type_info Span (Pattern identifier type_info) (Pattern identifier type_info)
+    | Pattern'Named type_info Span Span (Located BoundValueKey) (Pattern identifier type_info)
 
-    | Pattern'Poison ID.PatID type_info Span
+    | Pattern'Poison type_info Span
     deriving Show
 
 expr_type :: Expr identifier type_expr type_info binary_ops_allowed -> type_info
@@ -122,15 +122,15 @@ expr_span (Expr'Poison _ _ sp) = sp
 expr_span (Expr'TypeAnnotation _ _ sp _ _) = sp
 
 pattern_type :: Pattern type_expr type_info -> type_info
-pattern_type (Pattern'Identifier _ type_info _ _) = type_info
-pattern_type (Pattern'Wildcard _ type_info _) = type_info
-pattern_type (Pattern'Tuple _ type_info _ _ _) = type_info
-pattern_type (Pattern'Named _ type_info _ _ _ _) = type_info
-pattern_type (Pattern'Poison _ type_info _) = type_info
+pattern_type (Pattern'Identifier type_info _ _) = type_info
+pattern_type (Pattern'Wildcard type_info _) = type_info
+pattern_type (Pattern'Tuple type_info _ _ _) = type_info
+pattern_type (Pattern'Named type_info _ _ _ _) = type_info
+pattern_type (Pattern'Poison type_info _) = type_info
 
 pattern_span :: Pattern type_expr type_info -> Span
-pattern_span (Pattern'Identifier _ _ sp _) = sp
-pattern_span (Pattern'Wildcard _ _ sp) = sp
-pattern_span (Pattern'Tuple _ _ sp _ _) = sp
-pattern_span (Pattern'Named _ _ sp _ _ _) = sp
-pattern_span (Pattern'Poison _ _ sp) = sp
+pattern_span (Pattern'Identifier _ sp _) = sp
+pattern_span (Pattern'Wildcard _ sp) = sp
+pattern_span (Pattern'Tuple _ sp _ _) = sp
+pattern_span (Pattern'Named _ sp _ _ _) = sp
+pattern_span (Pattern'Poison _ sp) = sp

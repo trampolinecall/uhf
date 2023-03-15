@@ -21,6 +21,7 @@ library
       UHF.Data.IR.HIR
       UHF.Data.IR.HIR.Dump
       UHF.Data.IR.ID
+      UHF.Data.IR.IDGen
       UHF.Data.IR.Keys
       UHF.Data.IR.RIR
       UHF.Data.IR.RIR.Dump

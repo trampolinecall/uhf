@@ -35,7 +35,10 @@ data DeclID = DeclID DeclParent Text deriving Show
 data DeclParent = DeclParent'Module ModuleID | DeclParent'Expr ExprID deriving Show
 
 data ExprParent = ExprParent'Binding DeclParent Int | ExprParent'CaseArm ExprID Int | ExprParent'TupleDestructureL PatID | ExprParent'TupleDestructureR PatID | ExprParent'NamedRefer PatID deriving Show
-data ExprID = ExprID ExprParent [ExprIDSegment] deriving Show
+data ExprID
+    = ExprID ExprParent [ExprIDSegment]
+    | ExprID'ANFIRGen Int
+    deriving Show
 data ExprIDSegment
     = ExprTupleItem Int
     | LambdaParam
@@ -59,7 +62,7 @@ data PatID = PatID PatParent [PatIDSegment] deriving Show
 data PatIDSegment = PatTupleItem Int | PatTupleRight | NamedPatOther deriving Show
 
 data BoundValueParent = BVParent'Module ModuleID | BVParent'LambdaParam ExprID | BVParent'Let ExprID | BVParent'CaseArm ExprID Int deriving Show
-data BoundValueID = BoundValueID BoundValueParent Text | BoundValueID'MadeUpPat PatID | BoundValueID'MadeUpTupleLeft PatID | BoundValueID'MadeUpTupleRight PatID | BoundValueID'MadeUpLambdaParam ExprID deriving Show
+data BoundValueID = BoundValueID BoundValueParent Text | BoundValueID'MadeUp Int | BoundValueID'MadeUpTupleLeft PatID | BoundValueID'MadeUpTupleRight PatID | BoundValueID'MadeUpLambdaParam ExprID deriving Show
 
 data GeneralID
     = GM ModuleID
@@ -99,7 +102,7 @@ stringify = stringify' . to_general_id
         stringify' (GE (ExprID parent segments)) = stringify_expr_parent parent <> Text.concat (map (("::"<>) . stringify_expr_segment) segments)
         stringify' (GP (PatID parent segments)) = stringify_pat_parent parent <> Text.concat (map (("::"<>) . stringify_pat_segment) segments)
         stringify' (GBV (BoundValueID bv_parent t)) = stringify_bv_parent bv_parent <> "::" <> t
-        stringify' (GBV (BoundValueID'MadeUpPat pat)) = stringify' (GP pat)
+        stringify' (GBV (BoundValueID'MadeUp i)) = "made_up_" <> show i
         stringify' (GBV (BoundValueID'MadeUpTupleLeft pat)) = stringify' (GP pat) <> "_left"
         stringify' (GBV (BoundValueID'MadeUpTupleRight pat)) = stringify' (GP pat) <> "_right"
         stringify' (GBV (BoundValueID'MadeUpLambdaParam ex)) = stringify' (GE ex) <> "_param"
@@ -162,7 +165,8 @@ instance Mangle DeclParent where
     mangle' (DeclParent'Expr e) = "e" <> mangle' e
 
 instance Mangle ExprID where
-    mangle' (ExprID parent pieces) = mangle' parent <> mangle' pieces
+    mangle' (ExprID parent pieces) = "n" <> mangle' parent <> mangle' pieces
+    mangle' (ExprID'ANFIRGen i) = "a" <> mangle' i
 instance Mangle ExprParent where
     mangle' (ExprParent'Binding db ind) = "b" <> mangle' db <> mangle' ind
     mangle' (ExprParent'CaseArm e ind) = "c" <> mangle' e <> mangle' ind
@@ -199,7 +203,7 @@ instance Mangle PatIDSegment where
 
 instance Mangle BoundValueID where
     mangle' (BoundValueID parent pieces) = "b" <> mangle' parent <> mangle' pieces
-    mangle' (BoundValueID'MadeUpPat p) = "p" <> mangle' p
+    mangle' (BoundValueID'MadeUp i) = "p" <> mangle' i
     mangle' (BoundValueID'MadeUpTupleLeft t) = "l" <> mangle' t
     mangle' (BoundValueID'MadeUpTupleRight t) = "r" <> mangle' t
     mangle' (BoundValueID'MadeUpLambdaParam e) = "m" <> mangle' e -- m is the letter after l

@@ -10,8 +10,6 @@ module UHF.Data.IR.ID
     , BoundValueParent (..)
     , BoundValueID (..)
 
-    , add
-
     , stringify
     , mangle
     ) where
@@ -39,10 +37,6 @@ data GeneralID
     | GD DeclID
     | GE ExprID
     | GBV BoundValueID
-
--- TODO: remove
-class Add i seg where
-    add :: seg -> i -> i
 
 class ID i where
     to_general_id :: i -> GeneralID

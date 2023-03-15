@@ -18,13 +18,13 @@ library
       UHF.Data.AST.Dump
       UHF.Data.IR.ANFIR
       UHF.Data.IR.ANFIR.Dump
-      UHF.Data.IR.HIR
-      UHF.Data.IR.HIR.Dump
       UHF.Data.IR.ID
       UHF.Data.IR.IDGen
       UHF.Data.IR.Keys
       UHF.Data.IR.RIR
       UHF.Data.IR.RIR.Dump
+      UHF.Data.IR.SIR
+      UHF.Data.IR.SIR.Dump
       UHF.Data.IR.Type
       UHF.Data.IR.Type.Dump
       UHF.Data.Token
@@ -62,8 +62,8 @@ library
       UHF.Phases.Middle.NameResolve
       UHF.Phases.Middle.RemovePoison
       UHF.Phases.Middle.ToANFIR
-      UHF.Phases.Middle.ToHIR
       UHF.Phases.Middle.ToRIR
+      UHF.Phases.Middle.ToSIR
       UHF.Phases.Middle.Type
       UHF.Phases.Middle.Type.Aliases
       UHF.Phases.Middle.Type.CollectConstraints

@@ -3,7 +3,7 @@ module UHF.Phases.Middle.Type.RemoveVars (remove) where
 import UHF.Util.Prelude
 
 import qualified Arena
-import qualified UHF.Data.IR.HIR as HIR
+import qualified UHF.Data.IR.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
 
 import qualified UHF.Compiler as Compiler
@@ -42,11 +42,11 @@ convert_vars vars =
         convert_var _ (TypeVar for_what Fresh) = lift (tell [AmbiguousType for_what]) >> MaybeT (pure Nothing)
 
 decl :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsDecl -> TypedDecl
-decl vars (HIR.Decl'Module id nc bindings adts type_synonyms) = HIR.Decl'Module id nc (map (binding vars) bindings) adts type_synonyms
-decl _ (HIR.Decl'Type ty) = HIR.Decl'Type ty
+decl vars (SIR.Decl'Module id nc bindings adts type_synonyms) = SIR.Decl'Module id nc (map (binding vars) bindings) adts type_synonyms
+decl _ (SIR.Decl'Type ty) = SIR.Decl'Type ty
 
 bound_value :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsBoundValue -> TypedBoundValue
-bound_value vars (HIR.BoundValue id ty sp) = HIR.BoundValue id (type_ vars ty) sp
+bound_value vars (SIR.BoundValue id ty sp) = SIR.BoundValue id (type_ vars ty) sp
 
 adt :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsADT -> TypedADT
 adt vars (Type.ADT id name variants) = Type.ADT id name (map variant variants)
@@ -58,31 +58,31 @@ type_synonym :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsTypeSynonym 
 type_synonym vars (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name (type_ vars expansion)
 
 binding :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsBinding -> TypedBinding
-binding vars (HIR.Binding p eq_sp e) = HIR.Binding (pattern vars p) eq_sp (expr vars e)
+binding vars (SIR.Binding p eq_sp e) = SIR.Binding (pattern vars p) eq_sp (expr vars e)
 
 pattern :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsPattern -> TypedPattern
-pattern vars (HIR.Pattern'Identifier ty sp bn) = HIR.Pattern'Identifier (type_ vars ty) sp bn
-pattern vars (HIR.Pattern'Wildcard ty sp) = HIR.Pattern'Wildcard (type_ vars ty) sp
-pattern vars (HIR.Pattern'Tuple ty sp l r) = HIR.Pattern'Tuple (type_ vars ty) sp (pattern vars l) (pattern vars r)
-pattern vars (HIR.Pattern'Named ty sp at_sp bnk subpat) = HIR.Pattern'Named (type_ vars ty) sp at_sp bnk (pattern vars subpat)
-pattern vars (HIR.Pattern'Poison ty sp) = HIR.Pattern'Poison (type_ vars ty) sp
+pattern vars (SIR.Pattern'Identifier ty sp bn) = SIR.Pattern'Identifier (type_ vars ty) sp bn
+pattern vars (SIR.Pattern'Wildcard ty sp) = SIR.Pattern'Wildcard (type_ vars ty) sp
+pattern vars (SIR.Pattern'Tuple ty sp l r) = SIR.Pattern'Tuple (type_ vars ty) sp (pattern vars l) (pattern vars r)
+pattern vars (SIR.Pattern'Named ty sp at_sp bnk subpat) = SIR.Pattern'Named (type_ vars ty) sp at_sp bnk (pattern vars subpat)
+pattern vars (SIR.Pattern'Poison ty sp) = SIR.Pattern'Poison (type_ vars ty) sp
 
 expr :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsExpr -> TypedExpr
-expr vars (HIR.Expr'Identifier id ty sp bn) = HIR.Expr'Identifier id (type_ vars ty) sp bn
-expr vars (HIR.Expr'Char id ty sp c) = HIR.Expr'Char id (type_ vars ty) sp c
-expr vars (HIR.Expr'String id ty sp t) = HIR.Expr'String id (type_ vars ty) sp t
-expr vars (HIR.Expr'Int id ty sp i) = HIR.Expr'Int id (type_ vars ty) sp i
-expr vars (HIR.Expr'Float id ty sp r) = HIR.Expr'Float id (type_ vars ty) sp r
-expr vars (HIR.Expr'Bool id ty sp b) = HIR.Expr'Bool id (type_ vars ty) sp b
-expr vars (HIR.Expr'Tuple id ty sp l r) = HIR.Expr'Tuple id (type_ vars ty) sp (expr vars l) (expr vars r)
-expr vars (HIR.Expr'Lambda id ty sp param body) = HIR.Expr'Lambda id (type_ vars ty) sp (pattern vars param) (expr vars body)
-expr vars (HIR.Expr'Let id ty sp bindings result) = HIR.Expr'Let id (type_ vars ty) sp (map (binding vars) bindings) (expr vars result)
-expr _ (HIR.Expr'BinaryOps _ void _ _ _ _) = absurd void
-expr vars (HIR.Expr'Call id ty sp callee arg) = HIR.Expr'Call id (type_ vars ty) sp (expr vars callee) (expr vars arg)
-expr vars (HIR.Expr'If id ty sp if_sp cond true false) = HIR.Expr'If id (type_ vars ty) sp if_sp (expr vars cond) (expr vars true) (expr vars false)
-expr vars (HIR.Expr'Case id ty sp case_sp testing arms) = HIR.Expr'Case id (type_ vars ty) sp case_sp (expr vars testing) (map (\ (p, e) -> (pattern vars p, expr vars e)) arms)
-expr vars (HIR.Expr'Poison id ty sp) = HIR.Expr'Poison id (type_ vars ty) sp
-expr vars (HIR.Expr'TypeAnnotation id ty sp annotation e) = HIR.Expr'TypeAnnotation id (type_ vars ty) sp (type_ vars annotation) (expr vars e)
+expr vars (SIR.Expr'Identifier id ty sp bn) = SIR.Expr'Identifier id (type_ vars ty) sp bn
+expr vars (SIR.Expr'Char id ty sp c) = SIR.Expr'Char id (type_ vars ty) sp c
+expr vars (SIR.Expr'String id ty sp t) = SIR.Expr'String id (type_ vars ty) sp t
+expr vars (SIR.Expr'Int id ty sp i) = SIR.Expr'Int id (type_ vars ty) sp i
+expr vars (SIR.Expr'Float id ty sp r) = SIR.Expr'Float id (type_ vars ty) sp r
+expr vars (SIR.Expr'Bool id ty sp b) = SIR.Expr'Bool id (type_ vars ty) sp b
+expr vars (SIR.Expr'Tuple id ty sp l r) = SIR.Expr'Tuple id (type_ vars ty) sp (expr vars l) (expr vars r)
+expr vars (SIR.Expr'Lambda id ty sp param body) = SIR.Expr'Lambda id (type_ vars ty) sp (pattern vars param) (expr vars body)
+expr vars (SIR.Expr'Let id ty sp bindings result) = SIR.Expr'Let id (type_ vars ty) sp (map (binding vars) bindings) (expr vars result)
+expr _ (SIR.Expr'BinaryOps _ void _ _ _ _) = absurd void
+expr vars (SIR.Expr'Call id ty sp callee arg) = SIR.Expr'Call id (type_ vars ty) sp (expr vars callee) (expr vars arg)
+expr vars (SIR.Expr'If id ty sp if_sp cond true false) = SIR.Expr'If id (type_ vars ty) sp if_sp (expr vars cond) (expr vars true) (expr vars false)
+expr vars (SIR.Expr'Case id ty sp case_sp testing arms) = SIR.Expr'Case id (type_ vars ty) sp case_sp (expr vars testing) (map (\ (p, e) -> (pattern vars p, expr vars e)) arms)
+expr vars (SIR.Expr'Poison id ty sp) = SIR.Expr'Poison id (type_ vars ty) sp
+expr vars (SIR.Expr'TypeAnnotation id ty sp annotation e) = SIR.Expr'TypeAnnotation id (type_ vars ty) sp (type_ vars annotation) (expr vars e)
 
 type_ :: Arena.Arena (Maybe Type) TypeVarKey -> TypeWithVars -> Maybe Type
 type_ vars = r

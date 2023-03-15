@@ -1,5 +1,5 @@
-module UHF.Data.IR.HIR
-    ( HIR (..)
+module UHF.Data.IR.SIR
+    ( SIR (..)
 
     , DeclKey
     , Decl(..)
@@ -33,7 +33,8 @@ import qualified Data.Map as Map
 import UHF.IO.Span (Span)
 import UHF.IO.Located (Located)
 
-data HIR iden type_expr type_info binary_ops_allowed = HIR (Arena.Arena (Decl iden type_expr type_info binary_ops_allowed) DeclKey) (Arena.Arena (Type.ADT type_expr) ADTKey) (Arena.Arena (Type.TypeSynonym type_expr) TypeSynonymKey) (Arena.Arena (BoundValue type_info) BoundValueKey) DeclKey
+-- syntax based ir
+data SIR iden type_expr type_info binary_ops_allowed = SIR (Arena.Arena (Decl iden type_expr type_info binary_ops_allowed) DeclKey) (Arena.Arena (Type.ADT type_expr) ADTKey) (Arena.Arena (Type.TypeSynonym type_expr) TypeSynonymKey) (Arena.Arena (BoundValue type_info) BoundValueKey) DeclKey
 
 data Decl identifier type_expr type_info binary_ops_allowed
     = Decl'Module ID.ModuleID NameContext [Binding identifier type_expr type_info binary_ops_allowed] [ADTKey] [TypeSynonymKey]

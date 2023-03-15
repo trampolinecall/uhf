@@ -61,11 +61,11 @@ binding :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsBinding -> TypedB
 binding vars (HIR.Binding p eq_sp e) = HIR.Binding (pattern vars p) eq_sp (expr vars e)
 
 pattern :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsPattern -> TypedPattern
-pattern vars (HIR.Pattern'Identifier id ty sp bn) = HIR.Pattern'Identifier id (type_ vars ty) sp bn
-pattern vars (HIR.Pattern'Wildcard id ty sp) = HIR.Pattern'Wildcard id (type_ vars ty) sp
-pattern vars (HIR.Pattern'Tuple id ty sp l r) = HIR.Pattern'Tuple id (type_ vars ty) sp (pattern vars l) (pattern vars r)
-pattern vars (HIR.Pattern'Named id ty sp at_sp bnk subpat) = HIR.Pattern'Named id (type_ vars ty) sp at_sp bnk (pattern vars subpat)
-pattern vars (HIR.Pattern'Poison id ty sp) = HIR.Pattern'Poison id (type_ vars ty) sp
+pattern vars (HIR.Pattern'Identifier ty sp bn) = HIR.Pattern'Identifier (type_ vars ty) sp bn
+pattern vars (HIR.Pattern'Wildcard ty sp) = HIR.Pattern'Wildcard (type_ vars ty) sp
+pattern vars (HIR.Pattern'Tuple ty sp l r) = HIR.Pattern'Tuple (type_ vars ty) sp (pattern vars l) (pattern vars r)
+pattern vars (HIR.Pattern'Named ty sp at_sp bnk subpat) = HIR.Pattern'Named (type_ vars ty) sp at_sp bnk (pattern vars subpat)
+pattern vars (HIR.Pattern'Poison ty sp) = HIR.Pattern'Poison (type_ vars ty) sp
 
 expr :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsExpr -> TypedExpr
 expr vars (HIR.Expr'Identifier id ty sp bn) = HIR.Expr'Identifier id (type_ vars ty) sp bn

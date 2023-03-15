@@ -95,11 +95,11 @@ transform_identifiers transform_t_iden transform_e_iden adts type_synonyms decls
 
         transform_binding (HIR.Binding target eq_sp expr) = HIR.Binding <$> transform_pat target <*> pure eq_sp <*> transform_expr expr
 
-        transform_pat (HIR.Pattern'Identifier id type_info sp bnk) = pure $ HIR.Pattern'Identifier id type_info sp bnk
-        transform_pat (HIR.Pattern'Wildcard id type_info sp) = pure $ HIR.Pattern'Wildcard id type_info sp
-        transform_pat (HIR.Pattern'Tuple id type_info sp a b) = HIR.Pattern'Tuple id type_info sp <$> transform_pat a <*> transform_pat b
-        transform_pat (HIR.Pattern'Named id type_info sp at_sp bnk subpat) = HIR.Pattern'Named id type_info sp at_sp bnk <$> transform_pat subpat
-        transform_pat (HIR.Pattern'Poison id type_info sp) = pure $ HIR.Pattern'Poison id type_info sp
+        transform_pat (HIR.Pattern'Identifier type_info sp bnk) = pure $ HIR.Pattern'Identifier type_info sp bnk
+        transform_pat (HIR.Pattern'Wildcard type_info sp) = pure $ HIR.Pattern'Wildcard type_info sp
+        transform_pat (HIR.Pattern'Tuple type_info sp a b) = HIR.Pattern'Tuple type_info sp <$> transform_pat a <*> transform_pat b
+        transform_pat (HIR.Pattern'Named type_info sp at_sp bnk subpat) = HIR.Pattern'Named type_info sp at_sp bnk <$> transform_pat subpat
+        transform_pat (HIR.Pattern'Poison type_info sp) = pure $ HIR.Pattern'Poison type_info sp
 
         transform_expr (HIR.Expr'Identifier id type_info sp i) = HIR.Expr'Identifier id type_info sp <$> transform_e_iden i
         transform_expr (HIR.Expr'Char id type_info sp c) = pure $ HIR.Expr'Char id type_info sp c

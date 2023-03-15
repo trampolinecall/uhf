@@ -60,7 +60,7 @@ stringify = stringify' . to_general_id
         stringify' (GE (ExprID'RIRGen i)) = "r" <> show i
         stringify' (GE (ExprID'ANFIRGen i)) = "a" <> show i
         stringify' (GBV (BoundValueID bv_parent t)) = stringify_bv_parent bv_parent <> "::" <> t
-        stringify' (GBV (BoundValueID'RIRMadeUp i)) = "rir_made_up_" <> show i
+        stringify' (GBV (BoundValueID'RIRMadeUp i)) = "rir_" <> show i
 
         stringify_bv_parent (BVParent'Module mod) = stringify' (GM mod)
         stringify_bv_parent (BVParent'Let e) = stringify' (GE e)

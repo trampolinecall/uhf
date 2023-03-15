@@ -8,27 +8,30 @@ import qualified Data.Text as Text
 
 import qualified UHF.Data.IR.ANFIR as ANFIR
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.ID as ID
 
 type ANFIR = ANFIR.ANFIR Type Void
 type Type = Type.Type Void
 
 to_dot :: ANFIR -> Text
-to_dot (ANFIR.ANFIR _ _ _ nodes params _) =
+to_dot (ANFIR.ANFIR _ _ _ bindings params _) =
     snd $ runWriter (
             tell "strict digraph {\n" >>
             tell "    node [shape=record];\n" >>
             tell "    subgraph cluster_params {\n" >>
             Arena.transform_with_keyM print_param params >> -- TODO: do this by tracing from module
             tell "    }\n" >>
-            Arena.transform_with_keyM print_binding nodes >> -- TODO: same todo as above
+            Arena.transform_with_keyM print_binding bindings >> -- TODO: same todo as above
             tell "}\n"
         )
     where
         binding_key_to_dot_id :: ANFIR.BindingKey -> Text
-        binding_key_to_dot_id key = "node" <> show (Arena.unmake_key key)
+        binding_key_to_dot_id key = "binding" <> ID.mangle (ANFIR.binding_id $ Arena.get bindings key)
 
         param_key_to_dot_id :: ANFIR.ParamKey -> Text
-        param_key_to_dot_id key = "param" <> show (Arena.unmake_key key)
+        param_key_to_dot_id key =
+            let (ANFIR.Param id _) = Arena.get params key
+            in "param" <> ID.mangle id
 
         print_param key _ =
             tell ("    " <> param_key_to_dot_id key <> " [label = \"<name> param\"]\n")

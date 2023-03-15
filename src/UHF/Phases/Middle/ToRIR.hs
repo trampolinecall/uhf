@@ -40,7 +40,7 @@ new_made_up_expr_id = lift $ lift $ lift $ lift IDGen.gen_id
 
 convert :: HIR -> RIR.RIR ()
 convert (HIR.HIR decls adts type_synonyms bvs mod) =
-    let ((decls', bound_wheres), bvs') = IDGen.run_id_gen ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.BoundValueID'MadeUp $ runStateT (runWriterT (Unique.run_unique_maker_t (Arena.transformM convert_decl decls))) bvs
+    let ((decls', bound_wheres), bvs') = IDGen.run_id_gen ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.BoundValueID'RIRMadeUp $ runStateT (runWriterT (Unique.run_unique_maker_t (Arena.transformM convert_decl decls))) bvs
         bvs'' = Arena.transform_with_key (\ key (HIR.BoundValue id ty sp) -> RIR.BoundValue id ty (bound_wheres Map.! key) sp) bvs'
     in RIR.RIR decls' adts type_synonyms bvs'' mod
 
@@ -72,7 +72,8 @@ convert_expr _ (HIR.Expr'Lambda id ty sp param_pat body) =
     in
     -- '\ (...) -> body' becomes '\ (arg) -> let ... = arg; body'
     Unique.make_unique >>= \ uniq ->
-    new_bound_value (ID.BoundValueID'MadeUpLambdaParam id) (RIR.InLambdaBody uniq) param_ty (HIR.pattern_span param_pat) >>= \ param_bk ->
+    new_made_up_bv_id >>= \ param_bv_id ->
+    new_bound_value param_bv_id (RIR.InLambdaBody uniq) param_ty (HIR.pattern_span param_pat) >>= \ param_bk ->
     assign_pattern (RIR.InLambdaBody uniq) param_pat (RIR.Expr'Identifier id param_ty (HIR.pattern_span param_pat) (Just param_bk)) >>= \ bindings ->
     RIR.Expr'Lambda id ty sp uniq () param_bk <$> (RIR.Expr'Let id body_ty body_sp bindings <$> convert_expr (RIR.InLambdaBody uniq) body)
 
@@ -85,9 +86,9 @@ convert_expr _ (HIR.Expr'Poison id ty sp) = pure $ RIR.Expr'Poison id ty sp
 convert_expr bound_where (HIR.Expr'TypeAnnotation _ _ _ _ other) = convert_expr bound_where other
 
 assign_pattern :: RIR.BoundWhere -> HIRPattern -> RIRExpr -> ConvertState [RIRBinding]
-assign_pattern bound_where (HIR.Pattern'Identifier _ _ _ bv) expr = map_bound_where bv bound_where >> pure [RIR.Binding bv expr]
-assign_pattern _ (HIR.Pattern'Wildcard _ _ _) _ = pure []
-assign_pattern bound_where (HIR.Pattern'Tuple id whole_ty whole_sp a b) expr =
+assign_pattern bound_where (HIR.Pattern'Identifier _ _ bv) expr = map_bound_where bv bound_where >> pure [RIR.Binding bv expr]
+assign_pattern _ (HIR.Pattern'Wildcard _ _) _ = pure []
+assign_pattern bound_where (HIR.Pattern'Tuple whole_ty whole_sp a b) expr =
     let a_sp = HIR.pattern_span a
         b_sp = HIR.pattern_span b
         a_ty = HIR.pattern_type a
@@ -125,13 +126,14 @@ assign_pattern bound_where (HIR.Pattern'Tuple id whole_ty whole_sp a b) expr =
 
     pure (RIR.Binding whole_bv expr : assign_a ++ assign_b)
 
-assign_pattern bound_where (HIR.Pattern'Named id ty sp _ bv other) expr =
+assign_pattern bound_where (HIR.Pattern'Named ty sp _ bv other) expr =
     --      a@... = e
     --  becomes
     --      a = e
     --      ... = a
     map_bound_where (unlocate bv) bound_where >>
-    assign_pattern bound_where other (RIR.Expr'Identifier (ID.ExprID (ID.ExprParent'NamedRefer id) []) ty sp (Just $ unlocate bv)) >>= \ other_assignments ->
+    new_made_up_expr_id >>= \ refer ->
+    assign_pattern bound_where other (RIR.Expr'Identifier refer ty sp (Just $ unlocate bv)) >>= \ other_assignments ->
     pure (RIR.Binding (unlocate bv) expr : other_assignments)
 
-assign_pattern _ (HIR.Pattern'Poison _ _ _) _ = pure []
+assign_pattern _ (HIR.Pattern'Poison _ _) _ = pure []

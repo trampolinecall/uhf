@@ -27,7 +27,7 @@ data ModuleID = ModuleID [Text] deriving Show
 data DeclID = DeclID DeclParent Text deriving Show
 data DeclParent = DeclParent'Module ModuleID | DeclParent'Expr ExprID deriving Show
 
-data ExprID = ExprID'SIRGen Int | ExprID'RIRGen Int | ExprID'ANFIRGen Int deriving Show
+data ExprID = ExprID'SIRGen Int | ExprID'InfixGroupGen Int | ExprID'RIRGen Int | ExprID'ANFIRGen Int deriving Show
 
 data BoundValueParent = BVParent'Module ModuleID | BVParent'LambdaParam ExprID | BVParent'Let ExprID | BVParent'CaseArm ExprID Int deriving Show
 data BoundValueID = BoundValueID BoundValueParent Text | BoundValueID'RIRMadeUp Int deriving Show
@@ -59,6 +59,7 @@ stringify = stringify' . to_general_id
         stringify' (GE (ExprID'SIRGen i)) = "s" <> show i
         stringify' (GE (ExprID'RIRGen i)) = "r" <> show i
         stringify' (GE (ExprID'ANFIRGen i)) = "a" <> show i
+        stringify' (GE (ExprID'InfixGroupGen i)) = "i" <> show i
         stringify' (GBV (BoundValueID bv_parent t)) = stringify_bv_parent bv_parent <> "::" <> t
         stringify' (GBV (BoundValueID'RIRMadeUp i)) = "rir_" <> show i
 
@@ -90,6 +91,7 @@ instance Mangle DeclParent where
 
 instance Mangle ExprID where
     mangle' (ExprID'SIRGen i) = "s" <> mangle' i
+    mangle' (ExprID'InfixGroupGen i) = "i" <> mangle' i
     mangle' (ExprID'RIRGen i) = "r" <> mangle' i
     mangle' (ExprID'ANFIRGen i) = "a" <> mangle' i
 

@@ -12,6 +12,7 @@ import qualified UHF.Data.IR.HIR as HIR
 import qualified UHF.Data.IR.RIR as RIR
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.ID as ID
+import qualified UHF.Data.IR.IDGen as IDGen
 import UHF.Data.IR.Keys
 
 import qualified Data.Map as Map
@@ -30,11 +31,14 @@ type RIRBinding = RIR.Binding ()
 
 type HIRBoundValueArena = Arena.Arena (HIR.BoundValue Type) BoundValueKey
 
-type ConvertState = Unique.UniqueMakerT (WriterT (Map BoundValueKey RIR.BoundWhere) (State HIRBoundValueArena))
+type ConvertState = Unique.UniqueMakerT (WriterT (Map BoundValueKey RIR.BoundWhere) (StateT HIRBoundValueArena (IDGen.IDGen ID.BoundValueID)))
+
+new_made_up_bv_id :: ConvertState ID.BoundValueID
+new_made_up_bv_id = lift $ lift $ lift IDGen.gen_id
 
 convert :: HIR -> RIR.RIR ()
 convert (HIR.HIR decls adts type_synonyms bvs mod) =
-    let ((decls', bound_wheres), bvs') = runState (runWriterT (Unique.run_unique_maker_t (Arena.transformM convert_decl decls))) bvs
+    let ((decls', bound_wheres), bvs') = IDGen.run_id_gen ID.BoundValueID'MadeUp $ runStateT (runWriterT (Unique.run_unique_maker_t (Arena.transformM convert_decl decls))) bvs
         bvs'' = Arena.transform_with_key (\ key (HIR.BoundValue id ty sp) -> RIR.BoundValue id ty (bound_wheres Map.! key) sp) bvs'
     in RIR.RIR decls' adts type_synonyms bvs'' mod
 
@@ -93,9 +97,12 @@ assign_pattern bound_where (HIR.Pattern'Tuple id whole_ty whole_sp a b) expr =
     --     ... = case whole { (a, _) -> a }
     --     ... = case whole { (_, b) -> b }
 
-    new_bound_value (ID.BoundValueID'MadeUpPat id) bound_where whole_ty whole_sp >>= \ whole_bv ->
-    new_bound_value (ID.BoundValueID'MadeUpTupleLeft id) bound_where a_ty a_sp >>= \ a_bv ->
-    new_bound_value (ID.BoundValueID'MadeUpTupleRight id) bound_where b_ty b_sp >>= \ b_bv ->
+    new_made_up_bv_id >>= \ whole_id ->
+    new_made_up_bv_id >>= \ a_id ->
+    new_made_up_bv_id >>= \ b_id ->
+    new_bound_value whole_id bound_where whole_ty whole_sp >>= \ whole_bv ->
+    new_bound_value a_id bound_where a_ty a_sp >>= \ a_bv ->
+    new_bound_value b_id bound_where b_ty b_sp >>= \ b_bv ->
 
     let
         whole_expr id = RIR.Expr'Identifier id whole_ty whole_sp (Just whole_bv)

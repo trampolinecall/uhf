@@ -3,7 +3,7 @@ module UHF.Phases.Middle.Type (typecheck) where
 import UHF.Util.Prelude
 
 import qualified Arena
-import qualified UHF.Data.IR.HIR as HIR
+import qualified UHF.Data.IR.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
 
 import qualified UHF.Compiler as Compiler
@@ -19,8 +19,8 @@ import qualified UHF.Phases.Middle.Type.SolveConstraints as SolveConstraints
 import qualified UHF.Phases.Middle.Type.RemoveVars as RemoveVars
 
 -- also does type inference
-typecheck :: UntypedHIR -> Compiler.WithDiagnostics Error Void TypedHIR
-typecheck (HIR.HIR decls adts type_synonyms bound_values mod) =
+typecheck :: UntypedSIR -> Compiler.WithDiagnostics Error Void TypedSIR
+typecheck (SIR.SIR decls adts type_synonyms bound_values mod) =
     runStateT
         (
             Arena.transformM (ConvertTypeExpr.adt decls) adts >>= \ adts ->
@@ -33,7 +33,7 @@ typecheck (HIR.HIR decls adts type_synonyms bound_values mod) =
         Arena.new >>= \ ((decls, adts, type_synonyms, bound_values), vars) ->
 
     RemoveVars.remove vars decls adts type_synonyms bound_values >>= \ (decls, adts, type_synonyms, bound_values) ->
-    pure (HIR.HIR decls adts type_synonyms bound_values mod)
+    pure (SIR.SIR decls adts type_synonyms bound_values mod)
 
 assign_type_variable_to_bound_value :: UntypedBoundValue -> StateWithVars TypedWithVarsBoundValue
-assign_type_variable_to_bound_value (HIR.BoundValue id () def_span) = HIR.BoundValue id <$> (Type.Type'Variable <$> new_type_variable (BoundValue def_span)) <*> pure def_span
+assign_type_variable_to_bound_value (SIR.BoundValue id () def_span) = SIR.BoundValue id <$> (Type.Type'Variable <$> new_type_variable (BoundValue def_span)) <*> pure def_span

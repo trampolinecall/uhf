@@ -34,13 +34,14 @@ data ModuleID = ModuleID [Text] deriving Show
 data DeclID = DeclID DeclParent Text deriving Show
 data DeclParent = DeclParent'Module ModuleID | DeclParent'Expr ExprID deriving Show
 
-data ExprParent = ExprParent'Binding DeclParent Int | ExprParent'CaseArm ExprID Int | ExprParent'TupleDestructureL PatID | ExprParent'TupleDestructureR PatID | ExprParent'NamedRefer PatID deriving Show
+data ExprParent = ExprParent'Binding DeclParent Int | ExprParent'CaseArm ExprID Int | ExprParent'TupleDestructureL PatID | ExprParent'TupleDestructureR PatID | ExprParent'NamedRefer PatID deriving Show -- TODO: remove
 data ExprID
-    = ExprID ExprParent [ExprIDSegment]
+    = ExprID ExprParent [ExprIDSegment] -- TODO: remove
     | ExprID'ANFIRGen Int
     | ExprID'RIRGen Int
+    | ExprID'HIRGen Int
     deriving Show
-data ExprIDSegment
+data ExprIDSegment -- TODO: remove
     = ExprTupleItem Int
     | LambdaParam
     | LambdaBody
@@ -58,6 +59,7 @@ data ExprIDSegment
     | LambdaReferParam
     deriving Show
 
+ -- TODO: remove?
 data PatParent = PatParent'Binding DeclParent Int | PatParent'CaseArm ExprID Int | PatParent'LambdaParam ExprID Int deriving Show
 data PatID = PatID PatParent [PatIDSegment] deriving Show
 data PatIDSegment = PatTupleItem Int | PatTupleRight | NamedPatOther deriving Show
@@ -72,6 +74,7 @@ data GeneralID
     | GP PatID
     | GBV BoundValueID
 
+-- TODO: remove
 class Add i seg where
     add :: seg -> i -> i
 
@@ -169,6 +172,7 @@ instance Mangle ExprID where
     mangle' (ExprID parent pieces) = "n" <> mangle' parent <> mangle' pieces
     mangle' (ExprID'ANFIRGen i) = "a" <> mangle' i
     mangle' (ExprID'RIRGen i) = "r" <> mangle' i
+    mangle' (ExprID'HIRGen i) = "h" <> mangle' i
 instance Mangle ExprParent where
     mangle' (ExprParent'Binding db ind) = "b" <> mangle' db <> mangle' ind
     mangle' (ExprParent'CaseArm e ind) = "c" <> mangle' e <> mangle' ind

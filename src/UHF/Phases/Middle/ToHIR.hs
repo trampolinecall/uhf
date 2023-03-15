@@ -181,18 +181,18 @@ convert decls =
 convert_decls :: ID.BoundValueParent -> ID.DeclParent -> Maybe HIR.NameContext -> DeclChildrenList -> BoundValueList -> [AST.Decl] -> MakeIRState (HIR.NameContext, [Binding], [ADTKey], [TypeSynonymKey])
 convert_decls bv_parent decl_parent parent_name_context prev_decl_entries prev_bv_entries decls =
     mfix (\ ~(final_name_context, _, _, _) -> -- mfix needed because the name context to put the expressions into is this one
-        List.unzip5 <$> zipWithM (convert_decl final_name_context) [0..] decls >>= \ (decl_entries, bound_value_entries, bindings, adts, type_synonyms) ->
+        List.unzip5 <$> mapM (convert_decl final_name_context) decls >>= \ (decl_entries, bound_value_entries, bindings, adts, type_synonyms) ->
         make_name_context (prev_decl_entries ++ concat decl_entries) (prev_bv_entries ++ concat bound_value_entries) parent_name_context >>= \ name_context ->
         pure (name_context, concat bindings, concat adts, concat type_synonyms)
     )
     where
-        convert_decl final_name_context ind (AST.Decl'Value target eq_sp expr) =
+        convert_decl final_name_context (AST.Decl'Value target eq_sp expr) =
             convert_expr final_name_context expr >>= \ expr' ->
             convert_pattern bv_parent target >>= \ (new_bound_values, target') ->
             let binding = HIR.Binding target' eq_sp expr'
             in pure ([], new_bound_values, [binding], [], [])
 
-        convert_decl final_name_context _ (AST.Decl'Data name variants) =
+        convert_decl final_name_context (AST.Decl'Data name variants) =
             runMaybeT (
                 iden1_for_type_name name >>= \ (Located name1sp name1) ->
                 Type.ADT (ID.DeclID decl_parent name1) name1 <$> mapM (convert_variant final_name_context) variants >>= \ datatype ->
@@ -206,7 +206,7 @@ convert_decls bv_parent decl_parent parent_name_context prev_decl_entries prev_b
                 Just (name1, decl_at, decl_key, adt_key) -> pure ([(name1, decl_at, decl_key)], [], [], [adt_key], [])
                 Nothing -> pure ([], [], [], [], [])
 
-        convert_decl final_name_context _ (AST.Decl'TypeSyn name expansion) =
+        convert_decl final_name_context (AST.Decl'TypeSyn name expansion) =
             runMaybeT (
                 lift (convert_type final_name_context expansion) >>= \ expansion' ->
                 iden1_for_type_name name >>= \ (Located name1sp name1) ->
@@ -252,16 +252,16 @@ convert_expr _ (AST.Expr'Float sp f) = new_expr_id >>= \ id -> pure (HIR.Expr'Fl
 convert_expr _ (AST.Expr'Bool sp b) = new_expr_id >>= \ id -> pure (HIR.Expr'Bool id () sp b)
 
 convert_expr name_context (AST.Expr'Tuple sp items) =
-    zipWithM (\ i -> convert_expr name_context) [0..] items >>= group_items
+    mapM (convert_expr name_context)  items >>= group_items
     where
         group_items [a, b] = new_expr_id >>= \ id -> pure (HIR.Expr'Tuple id () sp a b)
         group_items (a:b:more) = new_expr_id >>= \ id -> HIR.Expr'Tuple id () sp a <$> group_items (b:more) -- TODO: properly do span of b:more because this just takes the span of the whole thing
         group_items [_] = tell_error (Tuple1 sp) >> new_expr_id >>= \ id -> pure (HIR.Expr'Poison id () sp)
         group_items [] = tell_error (Tuple0 sp) >> new_expr_id >>= \ id -> pure (HIR.Expr'Poison id () sp)
 
-convert_expr name_context (AST.Expr'Lambda sp params body) = convert_lambda name_context (zip [0..] params) body
+convert_expr name_context (AST.Expr'Lambda sp params body) = convert_lambda name_context params body
     where
-        convert_lambda name_context ((param_i, param):more) body =
+        convert_lambda name_context (param:more) body =
             new_expr_id >>= \ id ->
             convert_pattern (ID.BVParent'LambdaParam id) param >>= \ (bound_value_list, param) ->
             make_name_context [] bound_value_list (Just name_context) >>= \ lambda_nc ->
@@ -281,11 +281,11 @@ convert_expr name_context (AST.Expr'LetRec sp decls subexpr) =
     convert_decls (ID.BVParent'Let id) (ID.DeclParent'Expr id) (Just name_context) [] [] decls >>= \ (let_context, bindings, _, _) -> -- TODO: put adts and type synonyms into module
     HIR.Expr'Let id () sp bindings <$> convert_expr let_context subexpr
 
-convert_expr name_context (AST.Expr'BinaryOps sp first ops) = new_expr_id >>= \ id -> HIR.Expr'BinaryOps id () () sp <$> convert_expr name_context first <*> zipWithM (\ ind (op, right) -> convert_expr name_context right >>= \ right' -> pure ((name_context, unlocate op), right')) [1..] ops
+convert_expr name_context (AST.Expr'BinaryOps sp first ops) = new_expr_id >>= \ id -> HIR.Expr'BinaryOps id () () sp <$> convert_expr name_context first <*> mapM (\ (op, right) -> convert_expr name_context right >>= \ right' -> pure ((name_context, unlocate op), right')) ops
 
 convert_expr name_context (AST.Expr'Call sp callee args) =
     convert_expr name_context callee >>= \ callee ->
-    foldlM (\ callee (arg_i, arg) -> new_expr_id >>= \ id -> HIR.Expr'Call id () sp callee <$> convert_expr name_context arg) callee (zip [0..] args)
+    foldlM (\ callee arg -> new_expr_id >>= \ id -> HIR.Expr'Call id () sp callee <$> convert_expr name_context arg) callee args
 
 convert_expr name_context (AST.Expr'If sp if_sp cond t f) = new_expr_id >>= \ id -> HIR.Expr'If id () sp if_sp <$> convert_expr name_context cond <*> convert_expr name_context t <*> convert_expr name_context f
 convert_expr name_context (AST.Expr'Case sp case_sp e arms) =
@@ -314,7 +314,7 @@ convert_pattern parent (AST.Pattern'Identifier iden) =
         Nothing -> pure ([], HIR.Pattern'Poison () (just_span iden))
 convert_pattern _ (AST.Pattern'Wildcard sp) = pure ([], HIR.Pattern'Wildcard () sp)
 convert_pattern parent (AST.Pattern'Tuple sp subpats) =
-    List.unzip <$> zipWithM (\ ind -> convert_pattern parent) [0..] subpats >>= \ (bound_values, subpats') ->
+    List.unzip <$> mapM (convert_pattern parent) subpats >>= \ (bound_values, subpats') ->
     go subpats' >>= \ subpats_grouped ->
     pure (concat bound_values, subpats_grouped)
     where

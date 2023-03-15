@@ -33,7 +33,7 @@ import qualified Data.Map as Map
 import UHF.IO.Span (Span)
 import UHF.IO.Located (Located)
 
--- syntax based ir
+-- "syntax based ir"
 data SIR iden type_expr type_info binary_ops_allowed = SIR (Arena.Arena (Decl iden type_expr type_info binary_ops_allowed) DeclKey) (Arena.Arena (Type.ADT type_expr) ADTKey) (Arena.Arena (Type.TypeSynonym type_expr) TypeSynonymKey) (Arena.Arena (BoundValue type_info) BoundValueKey) DeclKey
 
 data Decl identifier type_expr type_info binary_ops_allowed

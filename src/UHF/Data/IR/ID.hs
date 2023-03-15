@@ -38,6 +38,7 @@ data ExprParent = ExprParent'Binding DeclParent Int | ExprParent'CaseArm ExprID 
 data ExprID
     = ExprID ExprParent [ExprIDSegment]
     | ExprID'ANFIRGen Int
+    | ExprID'RIRGen Int
     deriving Show
 data ExprIDSegment
     = ExprTupleItem Int
@@ -167,6 +168,7 @@ instance Mangle DeclParent where
 instance Mangle ExprID where
     mangle' (ExprID parent pieces) = "n" <> mangle' parent <> mangle' pieces
     mangle' (ExprID'ANFIRGen i) = "a" <> mangle' i
+    mangle' (ExprID'RIRGen i) = "r" <> mangle' i
 instance Mangle ExprParent where
     mangle' (ExprParent'Binding db ind) = "b" <> mangle' db <> mangle' ind
     mangle' (ExprParent'CaseArm e ind) = "c" <> mangle' e <> mangle' ind

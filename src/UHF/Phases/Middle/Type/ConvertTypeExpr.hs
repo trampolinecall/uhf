@@ -3,7 +3,7 @@ module UHF.Phases.Middle.Type.ConvertTypeExpr (adt, type_synonym, type_expr) whe
 import UHF.Util.Prelude
 
 import qualified Arena
-import qualified UHF.Data.IR.HIR as HIR
+import qualified UHF.Data.IR.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
 
 import qualified UHF.Compiler as Compiler
@@ -23,11 +23,11 @@ type_synonym :: UntypedDeclArena -> UntypedTypeSynonym -> StateWithVars TypedWit
 type_synonym decls (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name <$> type_expr decls expansion
 
 type_expr :: UntypedDeclArena -> TypeExpr -> StateWithVars TypeWithVars
-type_expr decls (HIR.TypeExpr'Identifier sp iden) =
+type_expr decls (SIR.TypeExpr'Identifier sp iden) =
     case iden of -- TODO: make poison type variable
         Just i -> case Arena.get decls i of
-            HIR.Decl'Module _ _ _ _ _ -> lift (Compiler.tell_error $ NotAType sp "a module") >> Type.Type'Variable <$> new_type_variable (TypeExpr sp)
-            HIR.Decl'Type ty -> pure $ void_var_to_key ty
+            SIR.Decl'Module _ _ _ _ _ -> lift (Compiler.tell_error $ NotAType sp "a module") >> Type.Type'Variable <$> new_type_variable (TypeExpr sp)
+            SIR.Decl'Type ty -> pure $ void_var_to_key ty
         Nothing -> Type.Type'Variable <$> new_type_variable (TypeExpr sp)
     where
         -- basically useless function for converting Type Void to Type TypeVarKey
@@ -42,5 +42,5 @@ type_expr decls (HIR.TypeExpr'Identifier sp iden) =
         void_var_to_key (Type.Type'Tuple a b) = Type.Type'Tuple (void_var_to_key a) (void_var_to_key b)
         void_var_to_key (Type.Type'Variable void) = absurd void
 
-type_expr decls (HIR.TypeExpr'Tuple a b) = Type.Type'Tuple <$> type_expr decls a <*> type_expr decls b
-type_expr _ (HIR.TypeExpr'Poison sp) = Type.Type'Variable <$> new_type_variable (TypeExpr sp)
+type_expr decls (SIR.TypeExpr'Tuple a b) = Type.Type'Tuple <$> type_expr decls a <*> type_expr decls b
+type_expr _ (SIR.TypeExpr'Poison sp) = Type.Type'Variable <$> new_type_variable (TypeExpr sp)

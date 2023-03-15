@@ -22,19 +22,19 @@ import qualified UHF.Compiler as Compiler
 
 import qualified UHF.Data.Token as Token
 import qualified UHF.Data.AST as AST
-import qualified UHF.Data.IR.HIR as HIR
+import qualified UHF.Data.IR.SIR as SIR
 import qualified UHF.Data.IR.RIR as RIR
 import qualified UHF.Data.IR.ANFIR as ANFIR
 import qualified UHF.Data.IR.Keys as IR.Keys
 import qualified UHF.Data.IR.Type as IR.Type
 import qualified UHF.Data.AST.Dump as AST.Dump
-import qualified UHF.Data.IR.HIR.Dump as HIR.Dump
+import qualified UHF.Data.IR.SIR.Dump as SIR.Dump
 import qualified UHF.Data.IR.RIR.Dump as RIR.Dump
 import qualified UHF.Data.IR.ANFIR.Dump as ANFIR.Dump
 
 import qualified UHF.Phases.Front.Lexer as Lexer
 import qualified UHF.Phases.Front.Parser as Parser
-import qualified UHF.Phases.Middle.ToHIR as ToHIR
+import qualified UHF.Phases.Middle.ToSIR as ToSIR
 import qualified UHF.Phases.Middle.NameResolve as NameResolve
 import qualified UHF.Phases.Middle.InfixGroup as InfixGroup
 import qualified UHF.Phases.Middle.Type as Type
@@ -48,10 +48,10 @@ import qualified UHF.Phases.Back.TSBackend as TSBackend
 -- TODO: only print unerrored versions of each (double each thing in the PhaseResultsState, each one has ErrorsPossible and NoErrors variant, only print the NoErrors variant, but future phases use the ErrorsPossible variant to keep compilation going as long as possible)
 type Tokens = ([Token.LToken], Token.LToken)
 type AST = [AST.Decl]
-type FirstHIR = HIR.HIR (HIR.NameContext, [Located Text]) (HIR.TypeExpr (HIR.NameContext, [Located Text])) () ()
-type NRHIR = HIR.HIR (Located (Maybe IR.Keys.BoundValueKey)) (HIR.TypeExpr (Maybe IR.Keys.DeclKey)) () ()
-type InfixGroupedHIR = HIR.HIR (Located (Maybe IR.Keys.BoundValueKey)) (HIR.TypeExpr (Maybe IR.Keys.DeclKey)) () Void
-type TypedHIR = HIR.HIR (Located (Maybe IR.Keys.BoundValueKey)) (Maybe (IR.Type.Type Void)) (Maybe (IR.Type.Type Void)) Void
+type FirstSIR = SIR.SIR (SIR.NameContext, [Located Text]) (SIR.TypeExpr (SIR.NameContext, [Located Text])) () ()
+type NRSIR = SIR.SIR (Located (Maybe IR.Keys.BoundValueKey)) (SIR.TypeExpr (Maybe IR.Keys.DeclKey)) () ()
+type InfixGroupedSIR = SIR.SIR (Located (Maybe IR.Keys.BoundValueKey)) (SIR.TypeExpr (Maybe IR.Keys.DeclKey)) () Void
+type TypedSIR = SIR.SIR (Located (Maybe IR.Keys.BoundValueKey)) (Maybe (IR.Type.Type Void)) (Maybe (IR.Type.Type Void)) Void
 type FirstRIR = RIR.RIR ()
 type RIRWithCaptures = RIR.RIR (Set IR.Keys.BoundValueKey)
 type ANFIR = ANFIR.ANFIR (Maybe (IR.Type.Type Void)) ()
@@ -67,10 +67,10 @@ data PhaseResultsCache
         { _get_file :: File
         , _get_tokens :: Maybe Tokens
         , _get_ast :: Maybe AST
-        , _get_first_hir :: Maybe FirstHIR
-        , _get_nrhir :: Maybe NRHIR
-        , _get_infix_grouped :: Maybe InfixGroupedHIR
-        , _get_typed_hir :: Maybe TypedHIR
+        , _get_first_sir :: Maybe FirstSIR
+        , _get_nrsir :: Maybe NRSIR
+        , _get_infix_grouped :: Maybe InfixGroupedSIR
+        , _get_typed_sir :: Maybe TypedSIR
         , _get_first_rir :: Maybe FirstRIR
         , _get_rir_with_captures :: Maybe RIRWithCaptures
         , _get_anfir :: Maybe ANFIR
@@ -80,7 +80,7 @@ data PhaseResultsCache
         }
 type PhaseResultsState = StateT PhaseResultsCache WithDiagnosticsIO
 
-data OutputFormat = AST | HIR | NRHIR | InfixGroupedHIR | TypedHIR | RIR | RIRWithCaptures | ANFIR | Dot | TS
+data OutputFormat = AST | SIR | NRSIR | InfixGroupedSIR | TypedSIR | RIR | RIRWithCaptures | ANFIR | Dot | TS
 data CompileOptions
     = CompileOptions
         { input_file :: FilePath
@@ -99,10 +99,10 @@ print_outputs :: CompileOptions -> File -> WithDiagnosticsIO ()
 print_outputs compile_options file = runStateT (mapM print_output_format (output_formats compile_options)) (PhaseResultsCache file Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing) >> pure ()
     where
         print_output_format AST = get_ast >>= \ ast -> lift (lift (putTextLn $ AST.Dump.dump ast))
-        print_output_format HIR = get_first_hir >>= \ ir -> lift (lift (write_output_file "uhf_hir" (HIR.Dump.dump ir)))
-        print_output_format NRHIR = get_nrhir >>= \ ir -> lift (lift (write_output_file "uhf_nrhir" (HIR.Dump.dump ir)))
-        print_output_format InfixGroupedHIR = get_infix_grouped >>= \ ir -> lift (lift (write_output_file "uhf_infix_grouped" (HIR.Dump.dump ir)))
-        print_output_format TypedHIR = get_typed_hir >>= \ ir -> lift (lift (write_output_file "uhf_typed_hir" (HIR.Dump.dump ir)))
+        print_output_format SIR = get_first_sir >>= \ ir -> lift (lift (write_output_file "uhf_sir" (SIR.Dump.dump ir)))
+        print_output_format NRSIR = get_nrsir >>= \ ir -> lift (lift (write_output_file "uhf_nrsir" (SIR.Dump.dump ir)))
+        print_output_format InfixGroupedSIR = get_infix_grouped >>= \ ir -> lift (lift (write_output_file "uhf_infix_grouped" (SIR.Dump.dump ir)))
+        print_output_format TypedSIR = get_typed_sir >>= \ ir -> lift (lift (write_output_file "uhf_typed_sir" (SIR.Dump.dump ir)))
         print_output_format RIR = get_first_rir >>= \ ir -> lift (lift (write_output_file "uhf_rir" (RIR.Dump.dump ir)))
         print_output_format RIRWithCaptures = get_rir_with_captures >>= \ ir -> lift (lift (write_output_file "uhf_rir_captures" (RIR.Dump.dump ir)))
         print_output_format ANFIR = get_anfir >>= \ ir -> lift (lift (write_output_file "uhf_anfir" (ANFIR.Dump.dump ir)))
@@ -136,30 +136,30 @@ get_ast = get_or_calculate _get_ast (\ cache ast -> cache { _get_ast = ast }) pa
     where
         parse_phase = get_tokens >>= \ (tokens, eof) -> convert_stage $ Parser.parse tokens eof
 
-get_first_hir :: PhaseResultsState FirstHIR
-get_first_hir = get_or_calculate _get_first_hir (\ cache first_hir -> cache { _get_first_hir = first_hir }) to_hir
+get_first_sir :: PhaseResultsState FirstSIR
+get_first_sir = get_or_calculate _get_first_sir (\ cache first_sir -> cache { _get_first_sir = first_sir }) to_sir
     where
-        to_hir = get_ast >>= \ ast -> convert_stage (ToHIR.convert ast)
+        to_sir = get_ast >>= \ ast -> convert_stage (ToSIR.convert ast)
 
-get_nrhir :: PhaseResultsState NRHIR
-get_nrhir = get_or_calculate _get_nrhir (\ cache nrhir -> cache { _get_nrhir = nrhir }) name_resolve
+get_nrsir :: PhaseResultsState NRSIR
+get_nrsir = get_or_calculate _get_nrsir (\ cache nrsir -> cache { _get_nrsir = nrsir }) name_resolve
     where
-        name_resolve = get_first_hir >>= \ hir -> convert_stage (NameResolve.resolve hir)
+        name_resolve = get_first_sir >>= \ sir -> convert_stage (NameResolve.resolve sir)
 
-get_infix_grouped :: PhaseResultsState InfixGroupedHIR
+get_infix_grouped :: PhaseResultsState InfixGroupedSIR
 get_infix_grouped = get_or_calculate _get_infix_grouped (\ cache infix_grouped -> cache { _get_infix_grouped = infix_grouped }) group_infix
     where
-        group_infix = get_nrhir >>= \ hir -> pure (InfixGroup.group hir)
+        group_infix = get_nrsir >>= \ sir -> pure (InfixGroup.group sir)
 
-get_typed_hir :: PhaseResultsState TypedHIR
-get_typed_hir = get_or_calculate _get_typed_hir (\ cache typed_hir -> cache { _get_typed_hir = typed_hir }) type_
+get_typed_sir :: PhaseResultsState TypedSIR
+get_typed_sir = get_or_calculate _get_typed_sir (\ cache typed_sir -> cache { _get_typed_sir = typed_sir }) type_
     where
         type_ = get_infix_grouped >>= \ infix_grouped_ir -> convert_stage (Type.typecheck infix_grouped_ir)
 
 get_first_rir :: PhaseResultsState FirstRIR
 get_first_rir = get_or_calculate _get_first_rir (\ cache rir -> cache { _get_first_rir = rir }) to_first_rir
     where
-        to_first_rir = get_typed_hir >>= \ hir -> pure (ToRIR.convert hir)
+        to_first_rir = get_typed_sir >>= \ sir -> pure (ToRIR.convert sir)
 
 get_rir_with_captures :: PhaseResultsState RIRWithCaptures
 get_rir_with_captures = get_or_calculate _get_rir_with_captures (\ cache rir -> cache { _get_rir_with_captures = rir }) to_rir_with_captures

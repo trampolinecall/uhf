@@ -49,9 +49,9 @@ runtime_code :: Text
 runtime_code = $(FileEmbed.embedStringFile "data/ts_runtime.ts")
 
 data TSDecl
-data TSADT = TSADT Type.ADTKey -- TODO: actually implement variants and things
+newtype TSADT = TSADT Type.ADTKey -- TODO: actually implement variants and things
 data TSLambda = TSLambda ANFIR.BindingKey (Set ANFIR.BindingKey) Type Type ANFIR.BindingKey
-data TSGlobalThunk = TSGlobalThunk ANFIR.BindingKey
+newtype TSGlobalThunk = TSGlobalThunk ANFIR.BindingKey
 -- TODO: dont use BoundValueKey Ord for order of captures in parameters of function
 data TSMakeThunkGraph = TSMakeThunkGraph MakeThunkGraphFor [ANFIR.BindingKey] (Set ANFIR.BindingKey) (Maybe ANFIR.ParamKey) -- list of bindings is body, set of bindings is captures
 data MakeThunkGraphFor = LambdaBody ANFIR.BindingKey | Globals
@@ -85,10 +85,10 @@ stringify_ts_adt (TSADT key) =
 
 stringify_ts_make_thunk_graph :: TSMakeThunkGraph -> IRReader Text
 stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures param) =
-    sequence (stringify_param <$> param) >>= \ stringified_param ->
+    mapM stringify_param param >>= \ stringified_param ->
     mapM stringify_capture (Set.toList captures) >>= \ stringified_captures ->
 
-    (unzip <$> mapM stringify_binding_decl included_bindings) >>= \ (binding_decls, binding_set_evaluators) ->
+    unzip <$> mapM stringify_binding_decl included_bindings >>= \ (binding_decls, binding_set_evaluators) ->
     mangle_make_thunk_graph_for for >>= \ fn_name ->
     ts_return_type >>= \ ts_return_type ->
     object_of_bindings >>= \ object_of_bindings ->
@@ -111,7 +111,7 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures p
                     pure (mangled <> ": " <> ty)
 
         object_of_bindings =
-            Text.intercalate ", " <$> (mapM mangle_binding_as_thunk included_bindings) >>= \ contents ->
+            Text.intercalate ", " <$> mapM mangle_binding_as_thunk included_bindings >>= \ contents ->
             pure ("{ " <> contents <> " }")
 
         stringify_param param_key =
@@ -134,7 +134,7 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures p
             in ANFIR.get_initializer <$> get_binding binding_key >>= \case
                 ANFIR.Expr'Identifier _ _ i ->
                     mangle_binding_as_thunk i >>= \ i_mangled ->
-                    pure (default_let_thunk, Just (set_evaluator "PassthroughEvaluator" (i_mangled)))
+                    pure (default_let_thunk, Just (set_evaluator "PassthroughEvaluator" i_mangled))
                 ANFIR.Expr'Int _ _ i -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" ("new Int(" <> show i <> ")")))
                 ANFIR.Expr'Float _ _ (num :% denom) -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" ("new Float(" <> show num <> " / " <> show denom <> ")")))
                 ANFIR.Expr'Bool _ _ b -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" ("new Bool(" <> if b then "true" else "false" <> ")")))
@@ -169,10 +169,10 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures p
                     pure (default_let_thunk, Just (set_evaluator "SeqEvaluator" (a_mangled <> ", " <> b_mangled)))
 
                 ANFIR.Expr'TupleDestructure1 _ _ tup ->
-                    (mangle_binding_as_thunk tup) >>= \ tup_mangled ->
+                    mangle_binding_as_thunk tup >>= \ tup_mangled ->
                     pure (default_let_thunk, Just (set_evaluator "TupleDestructure1Evaluator" tup_mangled))
                 ANFIR.Expr'TupleDestructure2 _ _ tup ->
-                    (mangle_binding_as_thunk tup) >>= \ tup_mangled ->
+                    mangle_binding_as_thunk tup >>= \ tup_mangled ->
                     pure (default_let_thunk, Just (set_evaluator "TupleDestructure2Evaluator" tup_mangled))
 
                 ANFIR.Expr'Poison _ _ void -> absurd void
@@ -189,12 +189,12 @@ stringify_ts_lambda (TSLambda key captures arg result body_key) =
     refer_type result >>= \ result_type ->
 
     Text.intercalate ", " <$>
-        (mapM
+        mapM
             (\ c ->
                 ANFIR.binding_type <$> get_binding c >>= refer_type >>= \ c_ty ->
                 mangle_binding_as_capture c >>= \ c_as_capture ->
                 pure ("public " <> c_as_capture <> ": " <> c_ty))
-            (toList captures)) >>= \ capture_constructor_params ->
+            (toList captures) >>= \ capture_constructor_params ->
 
     mangle_binding_as_lambda key >>= \ lambda_mangled ->
     mangle_binding_as_thunk body_key >>= \ body_as_thunk ->
@@ -217,7 +217,7 @@ stringify_ts_global_thunk (TSGlobalThunk key) =
 initialize_global_thunks :: [TSGlobalThunk] -> IRReader Text
 initialize_global_thunks thunks =
     Text.concat <$>
-        (mapM (\ (TSGlobalThunk k) -> mangle_binding_as_thunk k >>= \ binding_as_thunk -> pure ("    " <> binding_as_thunk <> " = " <> "globals." <> binding_as_thunk <> ";\n")) thunks) >>= \ assigns ->
+        mapM (\ (TSGlobalThunk k) -> mangle_binding_as_thunk k >>= \ binding_as_thunk -> pure ("    " <> binding_as_thunk <> " = " <> "globals." <> binding_as_thunk <> ";\n")) thunks >>= \ assigns ->
     pure ("function initialize_global_thunks() {\n"
         <> "    let globals = make_global_thunk_graph();\n"
         <> assigns

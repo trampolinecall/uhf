@@ -53,5 +53,5 @@ msg_warning m = (Nothing, MsgWarning, Just m)
 msg_note m = (Nothing, MsgNote, Just m)
 msg_hint m = (Nothing, MsgHint, Just m)
 
-data OtherSection
+newtype OtherSection
     = Section'Messages MessagesSection

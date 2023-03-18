@@ -108,7 +108,7 @@ unify_var var other var_on_right = Arena.get <$> lift (lift get) <*> pure var >>
                     -- if the other type is a fresh type variable, both of them are fresh type variables and the only thing that can be done is to unify them
                     TypeVar _ Fresh ->
                         if var /= other_var
-                            then (lift (set_type_var_state var (Substituted other)))
+                            then lift (set_type_var_state var (Substituted other))
                             else pure ()
 
             -- if the other type is a type and not a variable
@@ -136,11 +136,11 @@ occurs_check v (Type.Type'Synonym syn_key) =
     let Type.TypeSynonym _ _ other_expansion = Arena.get type_synonyms syn_key
     in occurs_check v other_expansion
 
-occurs_check _ (Type.Type'Int) = pure False
-occurs_check _ (Type.Type'Float) = pure False
-occurs_check _ (Type.Type'Char) = pure False
-occurs_check _ (Type.Type'String) = pure False
-occurs_check _ (Type.Type'Bool) = pure False
+occurs_check _ Type.Type'Int = pure False
+occurs_check _ Type.Type'Float = pure False
+occurs_check _ Type.Type'Char = pure False
+occurs_check _ Type.Type'String = pure False
+occurs_check _ Type.Type'Bool = pure False
 occurs_check v (Type.Type'Function a r) = (||) <$> occurs_check v a <*> occurs_check v r
 occurs_check v (Type.Type'Tuple a b) = (||) <$> occurs_check v a <*> occurs_check v b
 

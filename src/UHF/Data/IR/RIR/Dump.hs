@@ -54,7 +54,7 @@ define_binding (RIR.Binding bvk e) =
     let name = refer_bv bvk
         initializer = expr e
     in ask >>= \ ir -> if DumpUtils.is_multiline (runReaderT initializer ir)
-        then name >> text " = \n" >> lift DumpUtils.indent >> initializer >> text "\n" >> lift DumpUtils.dedent >> text ";\n"
+        then name >> text " =\n" >> lift DumpUtils.indent >> initializer >> text "\n" >> lift DumpUtils.dedent >> text ";\n"
         else name >> text " = " >> initializer >> text ";\n"
 
 refer_bv :: Keys.BoundValueKey -> Dumper captures ()

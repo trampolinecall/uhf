@@ -54,7 +54,7 @@ define_binding :: (DumpableType type_expr, DumpableIdentifier iden) => SIR.Bindi
 define_binding (SIR.Binding pat _ init) =
     let init' = expr init
     in ask >>= \ ir -> if DumpUtils.is_multiline (runReaderT init' ir)
-        then pattern pat >> text " = \n" >> lift DumpUtils.indent >> init' >> text "\n" >> lift DumpUtils.dedent >> text ";\n"
+        then pattern pat >> text " =\n" >> lift DumpUtils.indent >> init' >> text "\n" >> lift DumpUtils.dedent >> text ";\n"
         else pattern pat >> text " = " >> init' >> text ";\n"
 
 class DumpableIdentifier i where

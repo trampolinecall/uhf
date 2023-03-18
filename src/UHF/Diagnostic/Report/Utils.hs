@@ -16,7 +16,7 @@ import qualified Data.Text as Text
 import qualified Data.List as List
 import qualified Data.Map as Map
 
-newtype FileCmpByPath = FileCmpByPath { un_fcbp :: File }
+newtype FileCmpByPath = FileCmpByPath { un_fcbp :: File } deriving (Show)
 instance Ord FileCmpByPath where
     compare = comparing (File.path . un_fcbp)
 instance Eq FileCmpByPath where
@@ -30,16 +30,13 @@ group_by_spans get_span = Map.map (group_by (Span.start_row . get_span)) . group
                 (\ m thing -> Map.alter (\ old_entry -> Just $ thing : fromMaybe [] old_entry) (get thing) m)
                 Map.empty
 
-context_lines :: File -> Int -> [(File, Int)]
-context_lines f n = filter (uncurry can_be_context_line) $ map (f,) [n-1..n+1]
+context_lines :: Show a => Map FileCmpByPath (Map Int [a]) -> Map FileCmpByPath (Map Int [a])
+context_lines = Map.mapWithKey (\ (FileCmpByPath fl) -> Map.unionsWith (<>) . map Map.fromList . map (:[]) . concatMap (\ (ln, msgs) -> (ln, msgs) : map (,[]) (filter (can_be_context_line fl) [ln-2..ln+2])) . Map.toAscList)
     where
         can_be_context_line fl nr = exists fl nr && not_empty fl nr
 
-        exists fl nr =
-            nr > 0 && nr <= length (Text.lines $ File.contents fl)
-
-        not_empty fl nr =
-            not $ Text.null $ Text.lines (File.contents fl) List.!! (nr - 1)
+        exists fl nr = nr > 0 && nr <= length (Text.lines $ File.contents fl)
+        not_empty fl nr = not $ Text.null $ Text.lines (File.contents fl) List.!! (nr - 1)
 
 flnr_comparator :: (File, Int) -> (File, Int) -> Ordering
 flnr_comparator (f1, n1) (f2, n2)

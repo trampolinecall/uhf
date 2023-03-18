@@ -105,9 +105,9 @@ show_line style (last, (fl, nr, messages)) =
 
     in Utils.file_and_elipsis_lines style ((\ (lastfl, lastnr, _) -> (lastfl, lastnr)) <$> last) (fl, nr) ++
         [Line.numbered_line style nr quote] ++
-        (if not $ null messages
+        if not $ null messages
             then [Line.other_line style underline_line]
-            else []) ++
+            else [] ++
         map (uncurry $ show_msg_row style) msg_rows
 
 get_render_messages :: [MessageWithSpan] -> [RenderMessage]
@@ -285,11 +285,9 @@ case_messages =
     make_spans ["abc", "def\nghi\njklm\n"] >>= \ (_, [single_sp, multi_sp]) ->
 
     let lines = render Style.default_style
-            (
-                [ (Just single_sp, Diagnostic.MsgError, Just "message 1"), (Just single_sp, Diagnostic.MsgHint, Just "message 2")
-                , (Just multi_sp, Diagnostic.MsgWarning, Just "message 3")
-                ] -- TODO: test no span messages and no message messages
-            )
+            [ (Just single_sp, Diagnostic.MsgError, Just "message 1"), (Just single_sp, Diagnostic.MsgHint, Just "message 2")
+            , (Just multi_sp, Diagnostic.MsgWarning, Just "message 3")
+            ] -- TODO: test no span messages and no message messages
     in Line.compare_lines
         [ ("", '>',  "")
         , ("1", '|', "abc def")

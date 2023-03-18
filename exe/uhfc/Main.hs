@@ -51,7 +51,7 @@ argparser =
                                 <> help "The type of output to emit")
                         )))
                 )
-            <*> (option
+            <*> option
                     (eitherReader $ \case
                         "always" -> Right FormattedString.Colors
                         "never" -> Right FormattedString.NoColors
@@ -63,7 +63,6 @@ argparser =
                         <> value FormattedString.AutoDetect
                         <> help "When to print colors in diagnostics"
                     )
-                )
             <*> (DiagnosticSettings.Settings <$> option
                     (eitherReader $ \case
                         "original-ascii" -> Right DiagnosticSettings.ASCII

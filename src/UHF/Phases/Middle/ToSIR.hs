@@ -114,7 +114,7 @@ tell_error :: Error -> MakeIRState ()
 tell_error = lift . lift . Compiler.tell_error
 
 new_expr_id :: MakeIRState ID.ExprID
-new_expr_id = lift $ IDGen.gen_id
+new_expr_id = lift IDGen.gen_id
 
 make_name_context :: DeclChildrenList -> BoundValueList -> Maybe SIR.NameContext -> MakeIRState SIR.NameContext
 make_name_context decls bound_values parent =

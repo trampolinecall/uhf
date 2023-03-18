@@ -55,7 +55,7 @@ define_binding :: ANFIR.BindingKey -> ANFIR.Binding ty poison_allowed -> Dumper 
 define_binding key (ANFIR.Binding e) =
     let e' = expr e
     in ask >>= \ ir -> if DumpUtils.is_multiline (runReaderT e' ir)
-        then refer_binding key >> text " = \n" >> lift DumpUtils.indent >> e' >> text "\n" >> lift DumpUtils.dedent >> text ";\n"
+        then refer_binding key >> text " =\n" >> lift DumpUtils.indent >> e' >> text "\n" >> lift DumpUtils.dedent >> text ";\n"
         else refer_binding key >> text " = " >> e' >> text ";\n"
 
 class DumpableType t where

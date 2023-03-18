@@ -372,7 +372,8 @@ case_show_line_multiple_overlapping =
      make_spans ["sp1", "sp2"] >>= \ (f, [sp1, sp2]) ->
 
     Line.compare_lines
-        [ ("1", '|', "sp1 sp2")
+        [ ( "", '>', "")
+        , ("1", '|', "sp1 sp2")
         , ( "", '|', "^^^ --- ")
         , ( "", '|', "  |   `-- message3")
         , ( "", '|', "  |-- message1")
@@ -385,7 +386,8 @@ case_show_line_assign_out_of_order =
      make_spans ["sp1", "abcdefghijklmnop", "sp2", "sp3"] >>= \ (f, [sp1, _, sp2, sp3]) ->
 
     Line.compare_lines
-        [ ("1", '|', "sp1 abcdefghijklmnop sp2 sp3")
+        [ ( "", '>', "")
+        , ("1", '|', "sp1 abcdefghijklmnop sp2 sp3")
         , ( "", '|', "^^^                  --- --- ")
         , ( "", '|', "  `-- message1         |   `-- message3")
         , ( "", '|', "                       `-- message2")

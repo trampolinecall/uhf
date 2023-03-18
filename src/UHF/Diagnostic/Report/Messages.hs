@@ -85,7 +85,7 @@ rm_end_col style (loc, _, text) = Location.loc_col loc + 1 + Text.length (Style.
 -- show_singleline {{{2
 show_singleline :: Style.Style -> [MessageWithSpan] -> [Line.Line]
 show_singleline style unds =
-    let grouped = Utils.group_by_spans (\ (sp, _, _) -> sp) unds
+    let grouped = Utils.context_lines $ Utils.group_by_spans (\ (sp, _, _) -> sp) unds
         flattened =
             concatMap
                 (\ (file, lines) ->
@@ -95,11 +95,6 @@ show_singleline style unds =
                 (Map.toAscList grouped)
 
     in concatMap (show_line style) $ zip (Nothing : map Just flattened) flattened
-    -- concatMap (concatMap show_line . Map.toAscList) $
-    -- Utils.file_and_elipsis_lines identity $ TODO: context lines
-    -- List.sortBy Utils.flnr_comparator $
-    -- List.nub $
-    -- concatMap (uncurry Utils.context_lines) $
 -- show_line {{{2
 show_line :: Style.Style -> (Maybe (File, Int, [MessageWithSpan]), (File, Int, [MessageWithSpan])) -> [Line.Line]
 show_line style (last, (fl, nr, messages)) =
@@ -328,25 +323,23 @@ case_show_singleline =
             ]
 
     in Line.compare_lines
-        [ (   "", '>', "zyx")
-        , (  "1", '|', "zyx1")
-        , (   "", '|', "^^^^ ")
-        , (   "", '|', "   `-- error")
-        , (   "", '>', "abc")
+        [ (   "", '>', "abc")
         , (  "1", '|', "abc1abc2")
-        , (   "", '|', "^^^^~~~~ ")
+        , (   "", '|', "^^^^---- ")
         , (   "", '|', "   |   `-- note")
         , (   "", '|', "   `-- warning")
-        , (  "2", '|', "")
-        , (  "3", '|', "")
         , ("...", '|', "...")
         , (  "6", '|', "context1")
         , (  "7", '|', "context2")
         , (  "8", '|', "abc3")
-        , (   "", '|', "~~~~~")
+        , (   "", '|', "-----")
         , (   "", '|', "    `-- hint")
         , (  "9", '|', "context3")
         , ( "10", '|', "context4")
+        , (   "", '>', "zyx")
+        , (  "1", '|', "zyx1")
+        , (   "", '|', "^^^^ ")
+        , (   "", '|', "   `-- error")
         ]
         (show_singleline Style.default_style unds)
 

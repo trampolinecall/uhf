@@ -108,7 +108,7 @@ case_group_identifiers_multiple_symbol =
 case_group_identifiers_symbol_start :: Assertion
 case_group_identifiers_symbol_start =
     SpanHelper.make_spans ["*", "::", "$", "::", "$"] >>= \ (_, [star, dc1, amper, dc2, dollar]) ->
-    [Located star $ Token.SymbolIdentifier [Located star "*"], Located dc1 (Token.SingleTypeToken Token.DoubleColon), Located amper $ Token.SymbolIdentifier [Located amper "&"], Located dc1 (Token.SingleTypeToken Token.DoubleColon), Located dollar $ Token.SymbolIdentifier [Located dollar "$"]]
+    [Located star $ Token.SymbolIdentifier [Located star "*"], Located dc1 (Token.SingleTypeToken Token.DoubleColon), Located amper $ Token.SymbolIdentifier [Located amper "&"], Located dc2 (Token.SingleTypeToken Token.DoubleColon), Located dollar $ Token.SymbolIdentifier [Located dollar "$"]]
     @=?
     group_identifiers
         [ Located star $ Token.SymbolIdentifier (Located star "*")

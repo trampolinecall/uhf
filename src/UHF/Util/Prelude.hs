@@ -60,7 +60,7 @@ import Data.Function as X (const, (.), flip, ($), (&), on)
 
 import Data.Tuple as X
 import Data.Void as X (Void, absurd)
-import Data.List as X ((++), head, last, init, tail, uncons, map, reverse, intersperse, intercalate, iterate, iterate', repeat, replicate, take, drop, splitAt, takeWhile, dropWhile, span, break, filter, zip, zip3, zipWith, zipWith3, unzip, unzip3) -- TODO: remove head, last, init, tail, also probably just clean it up anyways
+import Data.List as X ((++), head, last, init, tail, uncons, map, reverse, intersperse, intercalate, iterate, iterate', repeat, replicate, take, drop, splitAt, takeWhile, dropWhile, span, break, filter, zip, zip3, zipWith, zipWith3, unzip, unzip3)
 
 import Data.Functor as X (Functor, fmap, (<$>), (<&>), (<$))
 import Data.Eq as X

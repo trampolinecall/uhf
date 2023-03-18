@@ -105,9 +105,9 @@ show_line style (last, (fl, nr, messages)) =
 
     in Utils.file_and_elipsis_lines style ((\ (lastfl, lastnr, _) -> (lastfl, lastnr)) <$> last) (fl, nr) ++
         [Line.numbered_line style nr quote] ++
-        if not $ null messages
+        (if not $ null messages
             then [Line.other_line style underline_line]
-            else [] ++
+            else []) ++
         map (uncurry $ show_msg_row style) msg_rows
 
 get_render_messages :: [MessageWithSpan] -> [RenderMessage]

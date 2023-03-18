@@ -25,7 +25,7 @@ group :: UngroupedSIR type_annotation -> GroupedSIR type_annotation
 group (SIR.SIR decls adts type_synonyms bound_values mod) = SIR.SIR (IDGen.run_id_gen ID.ExprID'InfixGroupGen (Arena.transformM group_decl decls)) adts type_synonyms bound_values mod
 
 group_decl :: UngroupedDecl type_annotation -> IDGen.IDGen ID.ExprID (GroupedDecl type_annotation)
-group_decl (SIR.Decl'Module id nc bindings adts syns) = SIR.Decl'Module id nc <$> (mapM group_binding bindings) <*> pure adts <*> pure syns
+group_decl (SIR.Decl'Module id nc bindings adts syns) = SIR.Decl'Module id nc <$> mapM group_binding bindings <*> pure adts <*> pure syns
 group_decl (SIR.Decl'Type ty) = pure $ SIR.Decl'Type ty
 
 group_binding :: UngroupedBinding type_annotation -> IDGen.IDGen ID.ExprID (GroupedBinding type_annotation)
@@ -76,7 +76,7 @@ group_expr (SIR.Expr'BinaryOps _ () () _ first ops) =
 group_expr (SIR.Expr'Call id () sp callee arg) = SIR.Expr'Call id () sp <$> group_expr callee <*> group_expr arg
 
 group_expr (SIR.Expr'If id () sp if_sp cond true false) = SIR.Expr'If id () sp if_sp <$> group_expr cond <*> group_expr true <*> group_expr false
-group_expr (SIR.Expr'Case id () sp case_sp e arms) = SIR.Expr'Case id () sp case_sp <$> (group_expr e) <*> (mapM (\ (p, e) -> (p,) <$> group_expr e) arms)
+group_expr (SIR.Expr'Case id () sp case_sp e arms) = SIR.Expr'Case id () sp case_sp <$> group_expr e <*> mapM (\ (p, e) -> (p,) <$> group_expr e) arms
 
 group_expr (SIR.Expr'Poison id () sp) = pure $ SIR.Expr'Poison id () sp
 

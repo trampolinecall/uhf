@@ -20,7 +20,7 @@ import qualified Data.Text as Text
 import qualified Data.Char as Char
 import qualified Numeric
 
-data ModuleID = ModuleID [Text] deriving Show
+newtype ModuleID = ModuleID [Text] deriving Show
 
 -- TODO: remove unused things
 

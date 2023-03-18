@@ -21,7 +21,7 @@ data Error
     | NonDecimalFloat Span
     | MissingDigits Span
     | InvalidDoubleColon Span
-    deriving (Eq, Show)
+    deriving Show
 
 instance Diagnostic.ToError Error where
     to_error (BadChar ch sp) = Diagnostic.Error Codes.bad_char (Just sp) ("bad character '" <> Text.singleton ch <> "'") [] []

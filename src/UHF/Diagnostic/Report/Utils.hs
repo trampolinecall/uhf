@@ -31,7 +31,7 @@ group_by_spans get_span = Map.map (group_by (Span.start_row . get_span)) . group
                 Map.empty
 
 context_lines :: Show a => Map FileCmpByPath (Map Int [a]) -> Map FileCmpByPath (Map Int [a])
-context_lines = Map.mapWithKey (\ (FileCmpByPath fl) -> Map.unionsWith (<>) . map Map.fromList . map (:[]) . concatMap (\ (ln, msgs) -> (ln, msgs) : map (,[]) (filter (can_be_context_line fl) [ln-2..ln+2])) . Map.toAscList)
+context_lines = Map.mapWithKey (\ (FileCmpByPath fl) -> Map.unionsWith (<>) . map Map.fromList . map (:[]) . concatMap (\ (ln, msgs) -> (ln, msgs) : map (,[]) (filter (can_be_context_line fl) [ln-1..ln+1])) . Map.toAscList)
     where
         can_be_context_line fl nr = exists fl nr && not_empty fl nr
 

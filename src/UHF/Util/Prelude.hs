@@ -65,7 +65,7 @@ import Data.List as X ((++), head, last, init, tail, uncons, map, reverse, inter
 import Data.Functor as X (Functor, fmap, (<$>), (<&>), (<$))
 import Data.Eq as X
 import Data.Ord as X
-import Data.Semigroup as X (Semigroup, (<>))
+import Data.Semigroup as X (Semigroup, (<>), sconcat, stimes)
 import Data.Monoid as X (Monoid, mempty)
 import Data.Foldable as X hiding (foldr1, foldl1)
 import Data.Traversable as X (Traversable(..), for, forM, mapAccumL, mapAccumR)

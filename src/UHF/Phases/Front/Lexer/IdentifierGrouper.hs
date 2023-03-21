@@ -33,7 +33,7 @@ group_identifiers ((Located start_sp (Token.AlphaIdentifier start_iden)):more) =
                 else Token.AlphaIdentifier iden_names
 
         more'_grouped  = group_identifiers more'
-    in (Located iden_sp iden_tok : more'_grouped)
+    in Located iden_sp iden_tok : more'_grouped
 
 group_identifiers (other:more) =
     let more' = group_identifiers more

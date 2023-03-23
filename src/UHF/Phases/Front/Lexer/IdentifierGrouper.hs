@@ -13,17 +13,7 @@ import UHF.IO.Located (Located (..))
 
 group_identifiers :: [Token.LInternalToken] -> [Token.LToken]
 group_identifiers ((Located start_sp (Token.AlphaIdentifier start_iden)):more) =
-    let find_iden ((Located _ (Token.SingleTypeToken Token.DoubleColon)) : (Located sp (Token.AlphaIdentifier iden)) : m) =
-            let (more_iden, is_symbol, m') = find_iden m
-            in ((iden, sp):more_iden, is_symbol, m')
-
-        find_iden ((Located _ (Token.SingleTypeToken Token.DoubleColon)) : (Located sp (Token.SymbolIdentifier iden)) : m) =
-            ([(iden, sp)], True, m)
-
-        find_iden t =
-            ([], False, t)
-
-        (iden_found, is_symbol_identifier, more') = find_iden more
+    let (iden_found, is_symbol_identifier, more') = find_iden more
         iden_names = start_iden : map fst iden_found
         iden_sp = start_sp <> lastDef start_sp (map snd iden_found)
 
@@ -34,6 +24,16 @@ group_identifiers ((Located start_sp (Token.AlphaIdentifier start_iden)):more) =
 
         more'_grouped  = group_identifiers more'
     in Located iden_sp iden_tok : more'_grouped
+    where
+        find_iden ((Located _ (Token.SingleTypeToken Token.DoubleColon)) : (Located sp (Token.AlphaIdentifier iden)) : m) =
+            let (more_iden, is_symbol, m') = find_iden m
+            in ((iden, sp):more_iden, is_symbol, m')
+
+        find_iden ((Located _ (Token.SingleTypeToken Token.DoubleColon)) : (Located sp (Token.SymbolIdentifier iden)) : m) =
+            ([(iden, sp)], True, m)
+
+        find_iden t =
+            ([], False, t)
 
 group_identifiers (other:more) =
     let more' = group_identifiers more

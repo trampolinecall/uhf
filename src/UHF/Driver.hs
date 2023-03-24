@@ -149,7 +149,7 @@ get_nrsir = get_or_calculate _get_nrsir (\ cache nrsir -> cache { _get_nrsir = n
 get_infix_grouped :: PhaseResultsState InfixGroupedSIR
 get_infix_grouped = get_or_calculate _get_infix_grouped (\ cache infix_grouped -> cache { _get_infix_grouped = infix_grouped }) group_infix
     where
-        group_infix = get_nrsir >>= \ sir -> pure (InfixGroup.group sir)
+        group_infix = InfixGroup.group <$> get_nrsir
 
 get_typed_sir :: PhaseResultsState TypedSIR
 get_typed_sir = get_or_calculate _get_typed_sir (\ cache typed_sir -> cache { _get_typed_sir = typed_sir }) type_
@@ -159,22 +159,22 @@ get_typed_sir = get_or_calculate _get_typed_sir (\ cache typed_sir -> cache { _g
 get_first_rir :: PhaseResultsState FirstRIR
 get_first_rir = get_or_calculate _get_first_rir (\ cache rir -> cache { _get_first_rir = rir }) to_first_rir
     where
-        to_first_rir = get_typed_sir >>= \ sir -> pure (ToRIR.convert sir)
+        to_first_rir = ToRIR.convert <$> get_typed_sir
 
 get_rir_with_captures :: PhaseResultsState RIRWithCaptures
 get_rir_with_captures = get_or_calculate _get_rir_with_captures (\ cache rir -> cache { _get_rir_with_captures = rir }) to_rir_with_captures
     where
-        to_rir_with_captures = get_first_rir >>= \ rir -> pure (AnnotateCaptures.annotate rir)
+        to_rir_with_captures = AnnotateCaptures.annotate <$> get_first_rir
 
 get_anfir :: PhaseResultsState ANFIR
 get_anfir = get_or_calculate _get_anfir (\ cache anfir -> cache { _get_anfir = anfir }) to_anfir
     where
-        to_anfir = get_rir_with_captures >>= \ rir -> pure (ToANFIR.convert rir)
+        to_anfir = ToANFIR.convert <$> get_rir_with_captures
 
 get_no_poison_ir :: PhaseResultsState (Maybe NoPoisonIR)
 get_no_poison_ir = get_or_calculate _get_no_poison_ir (\ cache no_poison_ir -> cache { _get_no_poison_ir = no_poison_ir }) remove_poison
     where
-        remove_poison = get_anfir >>= \ anfir -> pure (RemovePoison.remove_poison anfir)
+        remove_poison = RemovePoison.remove_poison <$> get_anfir
 
 get_dot :: PhaseResultsState (Maybe Dot)
 get_dot = get_or_calculate _get_dot (\ cache dot -> cache { _get_dot = dot }) to_dot

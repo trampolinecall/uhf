@@ -32,7 +32,7 @@ get_type_synonym :: Type.TypeSynonymKey -> PP ty poison_allowed (Type.TypeSynony
 get_type_synonym k = reader (\ (ANFIR.ANFIR _ _ type_synonyms _ _ _) -> Arena.get type_synonyms k)
 
 dump_main_module :: DumpableType ty => ANFIR.ANFIR ty poison_allowed -> Text
-dump_main_module ir@(ANFIR.ANFIR decls _ _ _ _ mod) = PPUtils.exec_dumper $ runReaderT (define_decl $ Arena.get decls mod) ir
+dump_main_module ir@(ANFIR.ANFIR decls _ _ _ _ mod) = PPUtils.exec_pp $ runReaderT (define_decl $ Arena.get decls mod) ir
 
 text :: Text -> PP ty poison_allowed ()
 text = lift . PPUtils.write
@@ -69,7 +69,7 @@ instance DumpableType (Type.Type Void) where
     refer_type ty =
         get_adt_arena >>= \ adt_arena ->
         get_type_synonym_arena >>= \ type_synonym_arena ->
-        lift (Type.PP.refer_type adt_arena type_synonym_arena ty)
+        lift (Type.PP.refer_type absurd adt_arena type_synonym_arena ty)
 
 expr :: ANFIR.Expr ty poison_allowed -> PP ty poison_allowed ()
 expr (ANFIR.Expr'Identifier _ _ bk) = refer_binding bk

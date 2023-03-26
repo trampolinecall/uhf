@@ -29,7 +29,7 @@ get_bv :: Keys.BoundValueKey -> PP captures (RIR.BoundValue (Maybe (Type.Type Vo
 get_bv k = reader (\ (RIR.RIR _ _ _ bvs _) -> Arena.get bvs k)
 
 dump_main_module :: RIR.RIR captures -> Text
-dump_main_module ir@(RIR.RIR decls _ _ _ mod) = PPUtils.exec_dumper $ runReaderT (define_decl $ Arena.get decls mod) ir
+dump_main_module ir@(RIR.RIR decls _ _ _ mod) = PPUtils.exec_pp $ runReaderT (define_decl $ Arena.get decls mod) ir
 
 text :: Text -> PP captures ()
 text = lift . PPUtils.write
@@ -46,7 +46,7 @@ refer_m_type :: Maybe (Type.Type Void) -> PP captures () -- TODO: remove
 refer_m_type (Just ty) =
     get_adt_arena >>= \ adt_arena ->
     get_type_synonym_arena >>= \ type_synonym_arena ->
-    lift (Type.PP.refer_type adt_arena type_synonym_arena ty)
+    lift (Type.PP.refer_type absurd adt_arena type_synonym_arena ty)
 refer_m_type Nothing = text "<type error>"
 
 define_binding :: RIR.Binding captures -> PP captures ()
@@ -75,11 +75,11 @@ expr (RIR.Expr'Let _ _ _ [] res) = text "let {}\n" >> expr res
 expr (RIR.Expr'Let _ _ _ [binding] res) = text "let " >> define_binding binding >> expr res
 expr (RIR.Expr'Let _ _ _ bindings res) = text "let {\n" >> lift PPUtils.indent >> mapM_ define_binding bindings >> lift PPUtils.dedent >> text "}\n" >> expr res
 expr (RIR.Expr'Call _ _ _ callee arg) = expr callee >> text "(" >> expr arg >> text ")"
-expr (RIR.Expr'Switch _ _ _ e arms) = text "switch " >> expr e >> text " {\n" >> lift PPUtils.indent >> mapM_ dump_arm arms >> lift PPUtils.dedent >> text "}"
+expr (RIR.Expr'Switch _ _ _ e arms) = text "switch " >> expr e >> text " {\n" >> lift PPUtils.indent >> mapM_ pp_arm arms >> lift PPUtils.dedent >> text "}"
     where
         -- TODO: properly indent these if the expression is multiline
-        dump_arm (RIR.Switch'BoolLiteral b, e) = (if b then text "true" else text "false") >> text " -> " >> expr e >> text "\n"
-        dump_arm (RIR.Switch'Tuple a b, e) = text "(" >> maybe (text "_") refer_bv a >> text ", " >> maybe (text "_") refer_bv b >> text ") -> " >> expr e >> text "\n"
-        dump_arm (RIR.Switch'Default, e) = text "_ -> " >> expr e >> text "\n"
+        pp_arm (RIR.Switch'BoolLiteral b, e) = (if b then text "true" else text "false") >> text " -> " >> expr e >> text "\n"
+        pp_arm (RIR.Switch'Tuple a b, e) = text "(" >> maybe (text "_") refer_bv a >> text ", " >> maybe (text "_") refer_bv b >> text ") -> " >> expr e >> text "\n"
+        pp_arm (RIR.Switch'Default, e) = text "_ -> " >> expr e >> text "\n"
 expr (RIR.Expr'Seq _ _ _ a b) = text "seq " >> expr a >> text ", " >> expr b
 expr (RIR.Expr'Poison _ _ _) = text "poison"

@@ -4,7 +4,9 @@ import UHF.Util.Prelude
 
 import qualified Arena
 import qualified UHF.Data.IR.Type as Type
-import qualified UHF.Data.IR.ID as ID
+import qualified UHF.Data.IR.Type.PP as Type.PP
+
+import qualified UHF.PPUtils as PPUtils
 
 import qualified Data.Map as Map
 
@@ -94,7 +96,7 @@ instance Diagnostic.ToError Error where
                     print_type False adts type_synonyms vars b_part >>= \ b_part_printed ->
                     print_type False adts type_synonyms vars (unlocate a_whole) >>= \ a_whole_printed ->
                     print_type False adts type_synonyms vars (unlocate b_whole) >>= \ b_whole_printed ->
-                    pure (a_part_printed, b_part_printed, a_whole_printed, b_whole_printed)
+                    pure (PPUtils.exec_pp a_part_printed, PPUtils.exec_pp b_part_printed, PPUtils.exec_pp a_whole_printed, PPUtils.exec_pp b_whole_printed)
         in Diagnostic.Error Diagnostic.Codes.type_mismatch
             (Just span)
             ("conflicting types in " <> what <> ": '" <> a_part_printed <> "' vs '" <> b_part_printed <> "'")
@@ -117,7 +119,7 @@ instance Diagnostic.ToError Error where
                     print_type False adts type_synonyms vars got_part >>= \ got_part_printed ->
                     print_type False adts type_synonyms vars expect_whole >>= \ expect_whole_printed ->
                     print_type False adts type_synonyms vars (unlocate got_whole) >>= \ got_whole_printed ->
-                    pure (expect_part_printed, got_part_printed, expect_whole_printed, got_whole_printed)
+                    pure (PPUtils.exec_pp expect_part_printed, PPUtils.exec_pp got_part_printed, PPUtils.exec_pp expect_whole_printed, PPUtils.exec_pp got_whole_printed)
 
         in Diagnostic.Error Diagnostic.Codes.type_mismatch
             (Just sp)
@@ -132,7 +134,7 @@ instance Diagnostic.ToError Error where
                 run_var_namer $
                     print_type True adts type_synonyms vars ty >>= \ ty_printed ->
                     print_type True adts type_synonyms vars var_as_type >>= \ var_printed ->
-                    pure (ty_printed, var_printed)
+                    pure (PPUtils.exec_pp ty_printed, PPUtils.exec_pp var_printed)
         in Diagnostic.Error Diagnostic.Codes.occurs_check
             (Just span)
             ("occurs check failure: infinite cyclic type arising from constraint '" <> var_printed <> " = " <> ty_printed <> "'")
@@ -150,27 +152,13 @@ instance Diagnostic.ToError Error where
 
     to_error (NotAType sp instead) = Diagnostic.Error Diagnostic.Codes.not_a_type (Just sp) ("not a type: got " <> instead) [] []
 
-print_type :: Bool -> TypedWithVarsADTArena -> TypedWithVarsTypeSynonymArena ->TypeVarArena -> TypeWithVars -> VarNamer Text -- TODO: since this already a monad, put the arenas and things into a reader monad?
--- TODO: construct an ast and print it
-print_type _ adts _ _ (Type.Type'ADT key) =
-    case Arena.get adts key of
-        Type.ADT id _ _ -> pure $ ID.stringify id
-
-print_type _ _ type_synonyms _ (Type.Type'Synonym key) =
-    case Arena.get type_synonyms key of
-        Type.TypeSynonym id _ _ -> pure $ ID.stringify id
-
-print_type _ _ _ _ Type.Type'Int = pure "int"
-print_type _ _ _ _ Type.Type'Float = pure "float"
-print_type _ _ _ _ Type.Type'Char = pure "char"
-print_type _ _ _ _ Type.Type'String = pure "string"
-print_type _ _ _ _ Type.Type'Bool = pure "bool"
-print_type vars_show_index adts type_synonyms vars (Type.Type'Function a r) = print_type vars_show_index adts type_synonyms vars a >>= \ a -> print_type vars_show_index adts type_synonyms vars r >>= \ r -> pure (a <> " -> " <> r) -- TODO: parentheses and grouping
-print_type vars_show_index adts type_synonyms vars (Type.Type'Tuple a b) = print_type vars_show_index adts type_synonyms vars a >>= \ a -> print_type vars_show_index adts type_synonyms vars b >>= \ b -> pure ("(" <> a <> ", " <> b <> ")")
-print_type vars_show_index adts type_synonyms vars (Type.Type'Variable var) =
-    case Arena.get vars var of
-        TypeVar _ Fresh
-            | vars_show_index -> name_var var
-            | otherwise -> pure "_"
-        TypeVar _ (Substituted other) -> print_type vars_show_index adts type_synonyms vars other
+print_type :: Bool -> TypedWithVarsADTArena -> TypedWithVarsTypeSynonymArena -> TypeVarArena -> TypeWithVars -> VarNamer (PPUtils.PP ()) -- TODO: since this already a monad, put the arenas and things into a reader monad?
+print_type vars_show_index adts type_synonyms vars ty = Type.PP.refer_type_m show_var adts type_synonyms ty
+    where
+        show_var var =
+            case Arena.get vars var of
+                TypeVar _ Fresh
+                    | vars_show_index -> name_var var >>= pure . PPUtils.write
+                    | otherwise -> pure $ PPUtils.write "_"
+                TypeVar _ (Substituted other) -> print_type vars_show_index adts type_synonyms vars other
 

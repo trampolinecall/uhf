@@ -1,8 +1,8 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module UHF.PPUtils
     ( PP
-    , run_dumper
-    , exec_dumper
+    , run_pp
+    , exec_pp
 
     , is_multiline
     , write
@@ -22,13 +22,13 @@ data IndentState = IndentState Int Bool
 newtype PP a = PP (StateT IndentState (Writer Text) a) deriving (Functor, Applicative, Monad)
 
 is_multiline :: PP a -> Bool
-is_multiline = Text.any (=='\n') . exec_dumper
+is_multiline = Text.any (=='\n') . exec_pp
 
-run_dumper :: PP a -> (a, Text)
-run_dumper (PP d) = runWriter $ evalStateT d (IndentState 0 True)
+run_pp :: PP a -> (a, Text)
+run_pp (PP d) = runWriter $ evalStateT d (IndentState 0 True)
 
-exec_dumper :: PP a -> Text
-exec_dumper = snd . run_dumper
+exec_pp :: PP a -> Text
+exec_pp = snd . run_pp
 
 write :: Text -> PP ()
 write t = mapM_ write_ch $ Text.unpack t

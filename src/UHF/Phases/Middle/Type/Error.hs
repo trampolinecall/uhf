@@ -121,7 +121,7 @@ instance Diagnostic.ToError Error where
 
         in Diagnostic.Error Diagnostic.Codes.type_mismatch
             (Just sp)
-            (convert_str $ "conflicting types in " <> what <> ": '" <> expect_part_printed <> "' vs '" <> got_part_printed <> "'")
+            ("conflicting types in " <> what <> ": '" <> expect_part_printed <> "' vs '" <> got_part_printed <> "'")
             ((sp `Diagnostic.msg_note_at` convert_str ("expected '" <> expect_whole_printed <> "', got '" <> got_whole_printed <> "'")) : make_var_name_messages vars var_names)
             []
 

@@ -16,6 +16,7 @@ library
       UHF.Compiler
       UHF.Data.AST
       UHF.Data.AST.Dump
+      UHF.Data.AST.PP
       UHF.Data.IR.ANFIR
       UHF.Data.IR.ANFIR.PP
       UHF.Data.IR.ID

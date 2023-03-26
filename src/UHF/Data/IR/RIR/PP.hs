@@ -37,9 +37,9 @@ text = lift . PPUtils.write
 define_decl :: RIR.Decl captures -> PP captures ()
 define_decl (RIR.Decl'Module bindings adts type_synonyms) =
     ask >>= \ rir ->
-    get_adt_arena >>= \ adt_arena ->
-    get_type_synonym_arena >>= \ type_synonym_arena ->
-    mapM_ (lift . Type.PP.define_adt adt_arena) adts >> mapM_ (lift . Type.PP.define_type_synonym (\ ty -> runReaderT (refer_m_type ty) rir) type_synonym_arena) type_synonyms >> mapM_ define_binding bindings
+    mapM_ (\ k -> get_adt k >>= lift . Type.PP.define_adt) adts >>
+    mapM_ (\ k -> get_type_synonym k >>= lift . Type.PP.define_type_synonym (\ ty -> runReaderT (refer_m_type ty) rir)) type_synonyms >>
+    mapM_ define_binding bindings
 define_decl (RIR.Decl'Type _) = pure ()
 
 refer_m_type :: Maybe (Type.Type Void) -> PP captures () -- TODO: remove

@@ -40,9 +40,9 @@ text = lift . PPUtils.write
 define_decl :: DumpableType ty => ANFIR.Decl -> PP ty poison_allowed ()
 define_decl (ANFIR.Decl'Module bindings adts type_synonyms) =
     ask >>= \ anfir ->
-    get_adt_arena >>= \ adt_arena ->
-    get_type_synonym_arena >>= \ type_synonym_arena ->
-    mapM_ (lift . Type.PP.define_adt adt_arena) adts >> mapM_ (lift . Type.PP.define_type_synonym (\ ty -> runReaderT (refer_type ty) anfir) type_synonym_arena) type_synonyms >> mapM_ (\ k -> get_binding k >>= define_binding k) bindings
+    mapM_ (\ k -> get_adt k >>= lift . Type.PP.define_adt) adts >>
+    mapM_ (\ k -> get_type_synonym k >>= lift . Type.PP.define_type_synonym (\ ty -> runReaderT (refer_type ty) anfir)) type_synonyms >>
+    mapM_ (\ k -> get_binding k >>= define_binding k) bindings
 define_decl (ANFIR.Decl'Type _) = pure ()
 
 refer_param :: ANFIR.ParamKey -> PP ty poison_allowed ()

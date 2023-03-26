@@ -43,10 +43,8 @@ get_type_syn k = reader (\ (SIR.SIR _ _ syns _ _) -> Arena.get syns k)
 define_decl :: (DumpableType type_expr, DumpableIdentifier iden) => SIR.Decl iden type_expr type_info binary_ops_allowed -> PP iden type_expr type_info binary_ops_allowed ()
 define_decl (SIR.Decl'Module _ _ bindings adts type_synonyms) =
     ask >>= \ sir ->
-    get_adt_arena >>= \ adt_arena ->
-    get_type_synonym_arena >>= \ type_synonym_arena ->
-    lift (mapM_ (Type.PP.define_adt adt_arena) adts) >>
-    lift (mapM_ (Type.PP.define_type_synonym ((\ ty -> runReaderT (refer_type ty) sir)) type_synonym_arena) type_synonyms) >>
+    mapM_ (\ k -> get_adt k >>= lift . Type.PP.define_adt) adts >>
+    mapM_ (\ k -> get_type_syn k >>= lift . Type.PP.define_type_synonym ((\ ty -> runReaderT (refer_type ty) sir))) type_synonyms >>
     mapM_ define_binding bindings
 define_decl (SIR.Decl'Type _) = pure ()
 

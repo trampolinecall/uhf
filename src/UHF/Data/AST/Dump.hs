@@ -12,7 +12,7 @@ import UHF.IO.Located (Located (..))
 import qualified Data.Text as Text
 
 dump :: [AST.Decl] -> Text
-dump = PPUtils.exec_dumper . dump_decl_list
+dump = PPUtils.exec_pp . dump_decl_list
 
 dump_decl_list :: [AST.Decl] -> PPUtils.PP ()
 dump_decl_list = mapM_ (\ decl -> dump_decl decl >> PPUtils.newline)

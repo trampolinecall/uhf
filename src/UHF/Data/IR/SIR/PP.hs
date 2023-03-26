@@ -21,7 +21,7 @@ import qualified Data.Text as Text
 type PP iden type_expr type_info binary_ops_allowed = ReaderT (SIR.SIR iden type_expr type_info binary_ops_allowed) PPUtils.PP
 
 dump_main_module :: (DumpableType type_expr, DumpableIdentifier iden) => SIR.SIR iden type_expr type_info binary_ops_allowed -> Text
-dump_main_module ir@(SIR.SIR decls _ _ _ mod) = PPUtils.exec_dumper $ runReaderT (define_decl $ Arena.get decls mod) ir
+dump_main_module ir@(SIR.SIR decls _ _ _ mod) = PPUtils.exec_pp $ runReaderT (define_decl $ Arena.get decls mod) ir
 
 text :: Text -> PP iden type_expr type_info binary_ops_allowed ()
 text = lift . PPUtils.write
@@ -88,7 +88,7 @@ instance DumpableType (Maybe (Type.Type Void)) where
     refer_type (Just ty) = refer_type ty
     refer_type Nothing = text "<type error>"
 instance DumpableType (Type.Type Void) where
-    refer_type ty = get_adt_arena >>= \ adt_arena -> get_type_synonym_arena >>= \ type_synonym_arena -> lift (Type.PP.refer_type adt_arena type_synonym_arena ty)
+    refer_type ty = get_adt_arena >>= \ adt_arena -> get_type_synonym_arena >>= \ type_synonym_arena -> lift (Type.PP.refer_type absurd adt_arena type_synonym_arena ty)
 
 -- TODO: dump types too
 

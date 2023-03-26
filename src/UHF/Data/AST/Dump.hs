@@ -1,5 +1,3 @@
-{-# LANGUAGE FlexibleInstances #-}
-
 module UHF.Data.AST.Dump (dump) where
 
 import UHF.Util.Prelude

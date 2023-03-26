@@ -28,9 +28,9 @@ import qualified UHF.Data.IR.ANFIR as ANFIR
 import qualified UHF.Data.IR.Keys as IR.Keys
 import qualified UHF.Data.IR.Type as IR.Type
 import qualified UHF.Data.AST.Dump as AST.Dump
-import qualified UHF.Data.IR.SIR.Dump as SIR.Dump
-import qualified UHF.Data.IR.RIR.Dump as RIR.Dump
-import qualified UHF.Data.IR.ANFIR.Dump as ANFIR.Dump
+import qualified UHF.Data.IR.SIR.PP as SIR.PP
+import qualified UHF.Data.IR.RIR.PP as RIR.PP
+import qualified UHF.Data.IR.ANFIR.PP as ANFIR.PP
 
 import qualified UHF.Phases.Front.Lexer as Lexer
 import qualified UHF.Phases.Front.Parser as Parser
@@ -99,13 +99,13 @@ print_outputs :: CompileOptions -> File -> WithDiagnosticsIO ()
 print_outputs compile_options file = runStateT (mapM print_output_format (output_formats compile_options)) (PhaseResultsCache file Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing) >> pure ()
     where
         print_output_format AST = get_ast >>= \ ast -> lift (lift (putTextLn $ AST.Dump.dump ast))
-        print_output_format SIR = get_first_sir >>= \ ir -> lift (lift (write_output_file "uhf_sir" (SIR.Dump.dump ir)))
-        print_output_format NRSIR = get_nrsir >>= \ ir -> lift (lift (write_output_file "uhf_nrsir" (SIR.Dump.dump ir)))
-        print_output_format InfixGroupedSIR = get_infix_grouped >>= \ ir -> lift (lift (write_output_file "uhf_infix_grouped" (SIR.Dump.dump ir)))
-        print_output_format TypedSIR = get_typed_sir >>= \ ir -> lift (lift (write_output_file "uhf_typed_sir" (SIR.Dump.dump ir)))
-        print_output_format RIR = get_first_rir >>= \ ir -> lift (lift (write_output_file "uhf_rir" (RIR.Dump.dump ir)))
-        print_output_format RIRWithCaptures = get_rir_with_captures >>= \ ir -> lift (lift (write_output_file "uhf_rir_captures" (RIR.Dump.dump ir)))
-        print_output_format ANFIR = get_anfir >>= \ ir -> lift (lift (write_output_file "uhf_anfir" (ANFIR.Dump.dump ir)))
+        print_output_format SIR = get_first_sir >>= \ ir -> lift (lift (write_output_file "uhf_sir" (SIR.PP.dump_main_module ir)))
+        print_output_format NRSIR = get_nrsir >>= \ ir -> lift (lift (write_output_file "uhf_nrsir" (SIR.PP.dump_main_module ir)))
+        print_output_format InfixGroupedSIR = get_infix_grouped >>= \ ir -> lift (lift (write_output_file "uhf_infix_grouped" (SIR.PP.dump_main_module ir)))
+        print_output_format TypedSIR = get_typed_sir >>= \ ir -> lift (lift (write_output_file "uhf_typed_sir" (SIR.PP.dump_main_module ir)))
+        print_output_format RIR = get_first_rir >>= \ ir -> lift (lift (write_output_file "uhf_rir" (RIR.PP.dump_main_module ir)))
+        print_output_format RIRWithCaptures = get_rir_with_captures >>= \ ir -> lift (lift (write_output_file "uhf_rir_captures" (RIR.PP.dump_main_module ir)))
+        print_output_format ANFIR = get_anfir >>= \ ir -> lift (lift (write_output_file "uhf_anfir" (ANFIR.PP.dump_main_module ir)))
         print_output_format Dot = get_dot >>= lift . lift . maybe (pure ()) (write_output_file "dot")
         print_output_format TS = get_ts >>= lift . lift . maybe (pure ()) (write_output_file "ts")
 

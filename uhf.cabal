@@ -17,16 +17,16 @@ library
       UHF.Data.AST
       UHF.Data.AST.Dump
       UHF.Data.IR.ANFIR
-      UHF.Data.IR.ANFIR.Dump
+      UHF.Data.IR.ANFIR.PP
       UHF.Data.IR.ID
       UHF.Data.IR.IDGen
       UHF.Data.IR.Keys
       UHF.Data.IR.RIR
-      UHF.Data.IR.RIR.Dump
+      UHF.Data.IR.RIR.PP
       UHF.Data.IR.SIR
-      UHF.Data.IR.SIR.Dump
+      UHF.Data.IR.SIR.PP
       UHF.Data.IR.Type
-      UHF.Data.IR.Type.Dump
+      UHF.Data.IR.Type.PP
       UHF.Data.Token
       UHF.Diagnostic
       UHF.Diagnostic.Codes
@@ -40,7 +40,6 @@ library
       UHF.Diagnostic.Report.Utils
       UHF.Diagnostic.Settings
       UHF.Driver
-      UHF.DumpUtils
       UHF.IO.File
       UHF.IO.FormattedString
       UHF.IO.Located
@@ -74,6 +73,7 @@ library
       UHF.Phases.Middle.Type.SolveConstraints
       UHF.Phases.Middle.Type.StateWithVars
       UHF.Phases.Middle.Type.Var
+      UHF.PPUtils
       UHF.Util.Prelude
       Unique
   other-modules:

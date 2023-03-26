@@ -1,5 +1,4 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE ExistentialQuantification #-}
 
 module UHF.Diagnostic.Diagnostic
     ( Error(..)

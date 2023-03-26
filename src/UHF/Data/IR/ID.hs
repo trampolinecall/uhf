@@ -1,6 +1,4 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE EmptyDataDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 
 module UHF.Data.IR.ID
     ( ModuleID (..)

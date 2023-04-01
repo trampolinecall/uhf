@@ -30,6 +30,7 @@ pp_data_variant (AST.DataVariant'Named name fields) = pp_iden name >> PPUtils.wr
 pp_type :: AST.Type -> PPUtils.PP ()
 pp_type (AST.Type'Identifier iden) = pp_iden iden
 pp_type (AST.Type'Tuple _ items) = PPUtils.write "(" >> pp_comma_separated pp_type items >> PPUtils.write ")"
+pp_type (AST.Type'Hole _ name) = PPUtils.write "?" >> pp_iden name
 
 -- TODO: precedence
 pp_expr :: AST.Expr -> PPUtils.PP ()
@@ -48,6 +49,7 @@ pp_expr (AST.Expr'Call _ callee args) = pp_expr callee >> PPUtils.write "(" >> p
 pp_expr (AST.Expr'If _ _ cond true false) = PPUtils.write "if " >> pp_expr cond >> PPUtils.write " then " >> pp_expr true >> PPUtils.write " else " >> pp_expr false
 pp_expr (AST.Expr'Case _ _ e arms) = PPUtils.write "case " >> pp_expr e >> PPUtils.write " {\n" >> PPUtils.indent >> mapM_ (\ (pat, expr) -> pp_pattern pat >> PPUtils.write " -> " >> pp_expr expr >> PPUtils.write ";\n") arms >> PPUtils.dedent >> PPUtils.write "}\n"
 pp_expr (AST.Expr'TypeAnnotation _ ty e) = PPUtils.write ":" >> pp_type ty >> PPUtils.write ": " >> pp_expr e -- TODO: add trailing : to parser
+pp_expr (AST.Expr'Hole _ name) = PPUtils.write "?" >> pp_iden name
 
 pp_let :: Text -> [AST.Decl] -> AST.Expr -> PPUtils.PP ()
 pp_let let_str [] res = PPUtils.write let_str >> PPUtils.write " {}\n" >> pp_expr res

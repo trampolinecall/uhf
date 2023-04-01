@@ -9,6 +9,8 @@ import UHF.IO.Located (Located (..))
 
 import qualified Data.Text as Text
 
+-- TODO: figure out how to automate this?
+
 dump :: [AST.Decl] -> Text
 dump = PPUtils.exec_pp . dump_decl_list
 
@@ -27,6 +29,7 @@ dump_data_variant (AST.DataVariant'Named name fields) = dump_struct "DataVariant
 dump_type :: AST.Type -> PPUtils.PP ()
 dump_type (AST.Type'Identifier iden) = dump_struct "Type'Identifier" [("iden", dump_identifier iden)]
 dump_type (AST.Type'Tuple _ items) = dump_struct "Type'Tuple" [("items", dump_list dump_type items)]
+dump_type (AST.Type'Hole _ name) = dump_struct "Type'Hole" [("name", dump_identifier name)]
 
 dump_expr :: AST.Expr -> PPUtils.PP ()
 dump_expr (AST.Expr'Identifier iden) = dump_struct "Expr'Identifier" [("iden", dump_identifier iden)]
@@ -44,6 +47,7 @@ dump_expr (AST.Expr'Call _ callee args) = dump_struct "Expr'Call" [("callee", du
 dump_expr (AST.Expr'If _ _ cond true false) = dump_struct "Expr'If" [("cond", dump_expr cond), ("true", dump_expr true), ("false", dump_expr false)]
 dump_expr (AST.Expr'Case _ _ e arms) = dump_struct "Expr'Case" [("e", dump_expr e), ("arms", dump_list (\ (pat, expr) -> dump_pattern pat >> PPUtils.write " -> " >> dump_expr expr) arms)]
 dump_expr (AST.Expr'TypeAnnotation _ ty e) = dump_struct "Expr'TypeAnnotation" [("ty", dump_type ty), ("e", dump_expr e)]
+dump_expr (AST.Expr'Hole _ name) = dump_struct "Expr'Hole" [("name", dump_identifier name)]
 
 dump_pattern :: AST.Pattern -> PPUtils.PP ()
 dump_pattern (AST.Pattern'Identifier i) = dump_struct "Pattern'Identifier" [("i", dump_identifier i)]

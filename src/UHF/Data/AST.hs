@@ -26,6 +26,7 @@ data DataVariant
 data Type
     = Type'Identifier Identifier
     | Type'Tuple Span [Type] -- TODO: anonymous named products? (ie field names, but no datatype name)
+    | Type'Hole Span Identifier
     deriving (Eq, Show)
 
 data Expr
@@ -51,6 +52,8 @@ data Expr
     | Expr'Case Span Span Expr [(Pattern, Expr)]
 
     | Expr'TypeAnnotation Span Type Expr
+
+    | Expr'Hole Span Identifier
     deriving (Eq, Show)
 
 data Pattern
@@ -76,6 +79,7 @@ expr_span (Expr'Call sp _ _) = sp
 expr_span (Expr'If sp _ _ _ _) = sp
 expr_span (Expr'Case sp _ _ _) = sp
 expr_span (Expr'TypeAnnotation sp _ _) = sp
+expr_span (Expr'Hole sp _) = sp
 
 pattern_span :: Pattern -> Span
 pattern_span (Pattern'Identifier i) = just_span i

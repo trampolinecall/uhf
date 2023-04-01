@@ -46,6 +46,7 @@ data SingleTypeToken
     | Colon
     | Arrow
     | At
+    | Question
     | Backslash
 
     | DoubleColon
@@ -93,6 +94,7 @@ instance Format SingleTypeToken where
     format Arrow = "'->'"
     format DoubleColon = "'::'"
     format At = "'@'"
+    format Question = "'?'"
     format Backslash = "'\\'"
 
     format Underscore = "'_'"

@@ -138,6 +138,7 @@ expr_primary :: PEG.Parser AST.Expr
 expr_primary =
     PEG.choice
         [ expr_identifier
+        , expr_hole
         , expr_char_lit
         , expr_string_lit
         , expr_int_lit
@@ -159,6 +160,12 @@ expr_identifier :: PEG.Parser AST.Expr
 expr_identifier =
     PEG.consume' "identifier" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
     pure (AST.Expr'Identifier (Located iden_sp iden))
+
+expr_hole :: PEG.Parser AST.Expr
+expr_hole =
+    PEG.consume' "'?'" (Token.SingleTypeToken Token.Question) >>= \ (Located question_sp _) ->
+    PEG.consume' "identifier" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
+    pure (AST.Expr'Hole (question_sp <> iden_sp) (Located iden_sp iden))
 
 expr_char_lit :: PEG.Parser AST.Expr
 expr_char_lit =
@@ -255,12 +262,18 @@ expr_type_annotation =
     pure (AST.Expr'TypeAnnotation (colon_sp <> AST.expr_span e) ty e)
 -- type {{{1
 type_ :: PEG.Parser AST.Type
-type_ = PEG.choice [type_iden, type_tuple]
+type_ = PEG.choice [type_iden, type_hole, type_tuple]
 
 type_iden :: PEG.Parser AST.Type
 type_iden =
     PEG.consume' "type" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
     pure (AST.Type'Identifier (Located iden_sp iden))
+
+type_hole :: PEG.Parser AST.Type
+type_hole =
+    PEG.consume' "'?'" (Token.SingleTypeToken Token.Question) >>= \ (Located question_sp _) ->
+    PEG.consume' "identifier" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
+    pure (AST.Type'Hole (question_sp <> iden_sp) (Located iden_sp iden))
 
 type_tuple :: PEG.Parser AST.Type
 type_tuple =

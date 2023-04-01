@@ -146,6 +146,7 @@ lex_symbol_identifier =
         , ("=", Token.SingleTypeToken Token.Equal)
         , (":", Token.SingleTypeToken Token.Colon)
         , ("@", Token.SingleTypeToken Token.At)
+        , ("?", Token.SingleTypeToken Token.Question)
         , ("\\", Token.SingleTypeToken Token.Backslash)
         ]
         Token.SymbolIdentifier

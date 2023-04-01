@@ -21,6 +21,24 @@ read_decls = ReaderT $ \ (ds, _) -> pure ds
 read_bvs :: DeclBVReader TypedWithVarsBoundValueArena
 read_bvs = ReaderT $ \ (_, bvs) -> pure bvs
 
+-- TODO: sort constraints by priority so that certain weird things dont happen
+-- for example:
+-- ```
+-- use_wrong = thing(0);
+-- thing = \ (x) -> :string x;
+-- ```
+-- produces "
+--     scratch.uhf:51:7: error: conflicting types in assignment: 'int' vs 'string'
+--        ╭ scratch.uhf
+--     50 │ use_wrong = thing(0);
+--     51 │ thing = \ (x) -> :string x;
+--        │ ───── ━ ──────────────────
+--        │     ╰── int -> _         ╰── string -> string
+--       ═╧══[E0401] type-mismatch
+-- "
+-- but it really should produce an error at `thing(0)` saying that thing takes a string and not an int
+-- (this happens because bindings are processed in order and the constraint from 'thing(0)' is processed before the constraint from 'thing = ...')
+
 collect :: UntypedDeclArena -> TypedWithVarsBoundValueArena -> UntypedDecl -> WriterT [Constraint] StateWithVars TypedWithVarsDecl
 collect _ _ (SIR.Decl'Type ty) = pure $ SIR.Decl'Type ty
 collect decls bva (SIR.Decl'Module id nc bindings adts type_synonyms) = runReaderT (SIR.Decl'Module id nc <$> mapM binding bindings <*> pure adts <*> pure type_synonyms) (decls, bva)

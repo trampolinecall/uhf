@@ -97,7 +97,8 @@ lex_id_or_kw is_valid_start is_valid_char kws def =
 lex_delimiter :: Lexer (Seq Token.LInternalToken)
 lex_delimiter =
     choice
-        [ consume (=='(') >>= \ ch -> pure [Token.SingleTypeToken Token.OParen <$ ch]
+        [ consume (==':') >>= \ c1 -> consume (==':') >>= \ c2 -> pure [Located (Located.just_span c1 <> Located.just_span c2) (Token.SingleTypeToken Token.DoubleColon)]
+        , consume (=='(') >>= \ ch -> pure [Token.SingleTypeToken Token.OParen <$ ch]
         , consume (==')') >>= \ ch -> pure [Token.SingleTypeToken Token.CParen <$ ch]
         , consume (=='[') >>= \ ch -> pure [Token.SingleTypeToken Token.OBrack <$ ch]
         , consume (==']') >>= \ ch -> pure [Token.SingleTypeToken Token.CBrack <$ ch]
@@ -134,7 +135,6 @@ lex_symbol_identifier =
         (`elem` ("~!@#$%^&*+`-=|:./<>?\\" :: [Char]))
         (`elem` ("~!@#$%^&*+`-=|:./<>?\\" :: [Char]))
         [ ("->", Token.SingleTypeToken Token.Arrow)
-        , ("::", Token.SingleTypeToken Token.DoubleColon)
         , ("(", Token.SingleTypeToken Token.OParen)
         , (")", Token.SingleTypeToken Token.CParen)
         , ("[", Token.SingleTypeToken Token.OBrack)
@@ -358,25 +358,38 @@ case_lex_symbol_identifier =
     lex_test' lex_symbol_identifier "*" $ \case
         Just (l, [], [Located _ (Token.SymbolIdentifier (Located _ "*"))])
             | remaining l == "" -> pure ()
-        x -> lex_test_fail "lex_alpha_identifier" x
+        x -> lex_test_fail "lex_symbol_identifier" x
 case_lex_symbol_identifier_multiple :: Assertion
 case_lex_symbol_identifier_multiple =
     lex_test' lex_symbol_identifier "*^&*&" $ \case
         Just (l, [], [Located _ (Token.SymbolIdentifier (Located _ "*^&*&"))])
             | remaining l == "" -> pure ()
-        x -> lex_test_fail "lex_alpha_identifier" x
+        x -> lex_test_fail "lex_symbol_identifier" x
 case_lex_symbol_identifier_kw :: Assertion
 case_lex_symbol_identifier_kw =
     lex_test' lex_symbol_identifier ":" $ \case
         Just (l, [], [Located _ (Token.SingleTypeToken Token.Colon)])
             | remaining l == "" -> pure ()
-        x -> lex_test_fail "lex_alpha_identifier" x
+        x -> lex_test_fail "lex_symbol_identifier" x
 case_lex_symbol_identifier_long_kw :: Assertion
 case_lex_symbol_identifier_long_kw =
     lex_test' lex_symbol_identifier "->" $ \case
         Just (l, [], [Located _ (Token.SingleTypeToken Token.Arrow)])
             | remaining l == "" -> pure ()
-        x -> lex_test_fail "lex_alpha_identifier" x
+        x -> lex_test_fail "lex_symbol_identifier" x
+
+case_lex_delimiter :: Assertion
+case_lex_delimiter =
+    lex_test' lex_delimiter "((:))" $ \case
+        Just (l, [], [Located _ (Token.SingleTypeToken Token.OParen)])
+            | remaining l == "(:))" -> pure ()
+        x -> lex_test_fail "lex_delimiter" x
+case_lex_delimiter_double_colon_then_symbol_identifier :: Assertion
+case_lex_delimiter_double_colon_then_symbol_identifier =
+    lex_test' lex_delimiter "::*&" $ \case
+        Just (l, [], [Located _ (Token.SingleTypeToken Token.DoubleColon)])
+            | remaining l == "*&" -> pure ()
+        x -> lex_test_fail "lex_delimiter" x
 
 case_lex_char_lit :: Assertion
 case_lex_char_lit =

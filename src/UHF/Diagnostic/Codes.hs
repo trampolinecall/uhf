@@ -11,8 +11,7 @@ $(error_code 0005 "missing_digits")
 $(error_code 0006 "unclosed_string_lit")
 $(error_code 0007 "unclosed_char_lit")
 $(error_code 0008 "invalid_char_lit")
-$(error_code 0009 "bad_dedent")
-$(error_code 0010 "invalid_double_colon")
+$(error_code 0009 "invalid_double_colon")
 
 $(error_code 0100 "parse_error")
 

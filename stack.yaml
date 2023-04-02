@@ -1,7 +1,11 @@
-resolver: lts-20.14
+resolver: lts-20.16
 
 packages:
   - .
 
+ghc-options:
+  "$locals": -fwrite-ide-info
+
 extra-deps:
   - inflist-0.0.1
+  - weeder-2.4.1

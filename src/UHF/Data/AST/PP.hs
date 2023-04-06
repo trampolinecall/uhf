@@ -13,7 +13,7 @@ pp_decls :: [AST.Decl] -> Text
 pp_decls = PPUtils.exec_pp . pp_decls'
 
 pp_decls' :: [AST.Decl] -> PPUtils.PP ()
-pp_decls' = mapM_ (\ decl -> pp_decl decl)
+pp_decls' = mapM_ pp_decl
 
 -- TODO: handle multiline things correctly everywhere
 

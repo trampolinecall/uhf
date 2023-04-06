@@ -153,12 +153,12 @@ instance Diagnostic.ToError Error where
     to_error (NotAType sp instead) = Diagnostic.Error Diagnostic.Codes.not_a_type (Just sp) ("not a type: got " <> instead) [] []
 
 print_type :: Bool -> TypedWithVarsADTArena -> TypedWithVarsTypeSynonymArena -> TypeVarArena -> TypeWithVars -> VarNamer (PPUtils.PP ()) -- TODO: since this already a monad, put the arenas and things into a reader monad?
-print_type vars_show_index adts type_synonyms vars ty = Type.PP.refer_type_m show_var adts type_synonyms ty
+print_type vars_show_index adts type_synonyms vars = Type.PP.refer_type_m show_var adts type_synonyms
     where
         show_var var =
             case Arena.get vars var of
                 TypeVar _ Fresh
-                    | vars_show_index -> name_var var >>= pure . PPUtils.write
+                    | vars_show_index -> PPUtils.write <$> name_var var
                     | otherwise -> pure $ PPUtils.write "_"
                 TypeVar _ (Substituted other) -> print_type vars_show_index adts type_synonyms vars other
 

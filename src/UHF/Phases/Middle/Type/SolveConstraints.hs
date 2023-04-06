@@ -107,9 +107,8 @@ unify_var var other var_on_right = Arena.get <$> lift (lift get) <*> pure var >>
 
                     -- if the other type is a fresh type variable, both of them are fresh type variables and the only thing that can be done is to unify them
                     TypeVar _ Fresh ->
-                        if var /= other_var
-                            then lift (set_type_var_state var (Substituted other))
-                            else pure ()
+                        when (var /= other_var) $
+                            lift (set_type_var_state var (Substituted other))
 
             -- if the other type is a type and not a variable
             _ -> lift (occurs_check var other) >>= \case

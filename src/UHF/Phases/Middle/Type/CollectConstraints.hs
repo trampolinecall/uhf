@@ -145,6 +145,7 @@ expr (SIR.Expr'Case id () sp case_tok_sp testing arms) =
     pure (SIR.Expr'Case id result_ty sp case_tok_sp testing arms)
 
 expr (SIR.Expr'Poison id () sp) = SIR.Expr'Poison id <$> (Type.Type'Variable <$> lift (lift $ new_type_variable $ PoisonExpr sp)) <*> pure sp
+expr (SIR.Expr'Hole id () sp hid) = SIR.Expr'Hole id <$> (Type.Type'Variable <$> lift (lift $ new_type_variable $ HoleExpr sp)) <*> pure sp <*> pure hid
 
 expr (SIR.Expr'TypeAnnotation id () sp annotation e) =
     read_decls >>= \ decls ->

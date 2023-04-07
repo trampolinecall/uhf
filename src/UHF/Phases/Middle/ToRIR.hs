@@ -83,6 +83,7 @@ convert_expr bound_where (SIR.Expr'Call id ty sp callee arg) = RIR.Expr'Call id 
 convert_expr bound_where (SIR.Expr'If id ty sp _ cond true false) = RIR.Expr'Switch id ty sp <$> convert_expr bound_where cond <*> sequence [(,) (RIR.Switch'BoolLiteral True) <$> convert_expr bound_where true, (,) (RIR.Switch'BoolLiteral False) <$> convert_expr bound_where false]
 convert_expr _ (SIR.Expr'Case _ _ _ _ _ _) = todo -- TODO: case desguaring RIR.Expr'Switch id ty sp <$> convert_expr expr <*> mapM (\ (pat, expr) -> (,) <$> convert_pattern pat <*> convert_expr expr) arms
 convert_expr _ (SIR.Expr'Poison id ty sp) = pure $ RIR.Expr'Poison id ty sp
+convert_expr _ (SIR.Expr'Hole id ty sp _) = pure $ RIR.Expr'Poison id ty sp -- TODO: this should be reported in a phase before this
 convert_expr bound_where (SIR.Expr'TypeAnnotation _ _ _ _ other) = convert_expr bound_where other
 
 assign_pattern :: RIR.BoundWhere -> SIRPattern -> RIRExpr -> ConvertState [RIRBinding]

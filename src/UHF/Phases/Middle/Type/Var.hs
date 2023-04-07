@@ -30,6 +30,7 @@ data TypeVarForWhat
     | PoisonExpr Span
     | PoisonPattern Span
     | TypeExpr Span
+    | HoleExpr Span
     | WildcardPattern Span
 data TypeVarState = Fresh | Substituted (Type.Type TypeVarKey)
 
@@ -41,6 +42,7 @@ type_var_for_what_sp (CaseExpr sp) = sp
 type_var_for_what_sp (PoisonExpr sp) = sp
 type_var_for_what_sp (PoisonPattern sp) = sp
 type_var_for_what_sp (TypeExpr sp) = sp
+type_var_for_what_sp (HoleExpr sp) = sp
 type_var_for_what_sp (WildcardPattern sp) = sp
 
 type_var_for_what_name :: TypeVarForWhat -> Text
@@ -51,5 +53,6 @@ type_var_for_what_name (CaseExpr _) = "case expression"
 type_var_for_what_name (PoisonExpr _) = "expression"
 type_var_for_what_name (PoisonPattern _) = "pattern"
 type_var_for_what_name (TypeExpr _) = "type expression"
+type_var_for_what_name (HoleExpr _) = "hole expression"
 type_var_for_what_name (WildcardPattern _) = "wildcard pattern"
 

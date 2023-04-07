@@ -66,8 +66,11 @@ refer_decl k = get_decl k >>= \case
     SIR.Decl'Module id _ _ _ _ -> text $ ID.stringify id
     SIR.Decl'Type ty -> refer_type ty
 
+put_iden_list_of_text :: [Located Text] -> PP iden type_expr type_info binary_ops_allowed ()
+put_iden_list_of_text = text . Text.intercalate "::" . map unlocate
+
 instance DumpableIdentifier (SIR.NameContext, [Located Text]) where
-    refer_iden (_, segments) = text $ Text.intercalate "::" (map unlocate segments)
+    refer_iden (_, segments) = put_iden_list_of_text segments
 instance DumpableIdentifier (Located (Maybe Keys.BoundValueKey)) where
     refer_iden k = case unlocate k of
         Just k -> refer_iden k
@@ -83,6 +86,7 @@ class DumpableType t where
 instance DumpableIdentifier iden => DumpableType (SIR.TypeExpr iden) where
     refer_type (SIR.TypeExpr'Identifier _ iden) = refer_iden iden
     refer_type (SIR.TypeExpr'Tuple a b) = text "(" >> refer_type a >> text ", " >> refer_type b >> text ")"
+    refer_type (SIR.TypeExpr'Hole hid) = text "?" >> put_iden_list_of_text (unlocate hid)
     refer_type (SIR.TypeExpr'Poison _) = text "poison"
 instance DumpableType (Maybe (Type.Type Void)) where
     refer_type (Just ty) = refer_type ty
@@ -111,6 +115,7 @@ expr (SIR.Expr'Call _ _ _ callee arg) = text "(" >> expr callee >> text "(" >> e
 expr (SIR.Expr'If _ _ _ _ cond t f) = text "if " >> expr cond >> text " then " >> expr t >> text " else " >> expr f
 expr (SIR.Expr'Case _ _ _ _ _ _) = todo
 expr (SIR.Expr'TypeAnnotation _ _ _ ty e) = text ":" >> refer_type ty >> text ": " >> expr e
+expr (SIR.Expr'Hole _ _ _ hid) = text "?" >> put_iden_list_of_text (unlocate hid)
 expr (SIR.Expr'Poison _ _ _) = text "poison"
 
 pattern :: SIR.Pattern iden type_info -> PP iden type_expr type_info binary_ops_allowed ()

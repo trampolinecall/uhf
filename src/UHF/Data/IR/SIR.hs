@@ -47,9 +47,12 @@ data Binding identifier type_expr type_info binary_ops_allowed = Binding (Patter
 
 data NameContext = NameContext (Map.Map Text DeclKey) (Map.Map Text BoundValueKey) (Maybe NameContext) deriving Show
 
+type HoleIdentifier = Located [Located Text]
+
 data TypeExpr identifier
     = TypeExpr'Identifier Span identifier
     | TypeExpr'Tuple (TypeExpr identifier) (TypeExpr identifier)
+    | TypeExpr'Hole HoleIdentifier
     | TypeExpr'Poison Span
     deriving Show
 
@@ -75,6 +78,8 @@ data Expr identifier type_expr type_info binary_ops_allowed
     | Expr'Case ID.ExprID type_info Span Span (Expr identifier type_expr type_info binary_ops_allowed) [(Pattern identifier type_info, Expr identifier type_expr type_info binary_ops_allowed)]
 
     | Expr'TypeAnnotation ID.ExprID type_info Span type_expr (Expr identifier type_expr type_info binary_ops_allowed)
+
+    | Expr'Hole ID.ExprID type_info Span HoleIdentifier
 
     | Expr'Poison ID.ExprID type_info Span
     deriving Show
@@ -103,6 +108,7 @@ expr_type (Expr'Call _ type_info _ _ _) = type_info
 expr_type (Expr'If _ type_info _ _ _ _ _) = type_info
 expr_type (Expr'Case _ type_info _ _ _ _) = type_info
 expr_type (Expr'Poison _ type_info _) = type_info
+expr_type (Expr'Hole _ type_info _ _) = type_info
 expr_type (Expr'TypeAnnotation _ type_info _ _ _) = type_info
 
 expr_span :: Expr identifier type_expr type_info binary_ops_allowed -> Span
@@ -120,6 +126,7 @@ expr_span (Expr'Call _ _ sp _ _) = sp
 expr_span (Expr'If _ _ sp _ _ _ _) = sp
 expr_span (Expr'Case _ _ sp _ _ _) = sp
 expr_span (Expr'Poison _ _ sp) = sp
+expr_span (Expr'Hole _ _ sp _) = sp
 expr_span (Expr'TypeAnnotation _ _ sp _ _) = sp
 
 pattern_type :: Pattern type_expr type_info -> type_info

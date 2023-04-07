@@ -80,4 +80,6 @@ group_expr (SIR.Expr'Case id () sp case_sp e arms) = SIR.Expr'Case id () sp case
 
 group_expr (SIR.Expr'Poison id () sp) = pure $ SIR.Expr'Poison id () sp
 
+group_expr (SIR.Expr'Hole id () sp hid) = pure $ SIR.Expr'Hole id () sp hid
+
 group_expr (SIR.Expr'TypeAnnotation id () sp annotation e) = SIR.Expr'TypeAnnotation id () sp annotation <$> group_expr e

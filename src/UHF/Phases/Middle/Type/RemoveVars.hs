@@ -81,8 +81,9 @@ expr _ (SIR.Expr'BinaryOps _ void _ _ _ _) = absurd void
 expr vars (SIR.Expr'Call id ty sp callee arg) = SIR.Expr'Call id (type_ vars ty) sp (expr vars callee) (expr vars arg)
 expr vars (SIR.Expr'If id ty sp if_sp cond true false) = SIR.Expr'If id (type_ vars ty) sp if_sp (expr vars cond) (expr vars true) (expr vars false)
 expr vars (SIR.Expr'Case id ty sp case_sp testing arms) = SIR.Expr'Case id (type_ vars ty) sp case_sp (expr vars testing) (map (\ (p, e) -> (pattern vars p, expr vars e)) arms)
-expr vars (SIR.Expr'Poison id ty sp) = SIR.Expr'Poison id (type_ vars ty) sp
 expr vars (SIR.Expr'TypeAnnotation id ty sp annotation e) = SIR.Expr'TypeAnnotation id (type_ vars ty) sp (type_ vars annotation) (expr vars e)
+expr vars (SIR.Expr'Hole id ty sp hid) = SIR.Expr'Hole id (type_ vars ty) sp hid
+expr vars (SIR.Expr'Poison id ty sp) = SIR.Expr'Poison id (type_ vars ty) sp
 
 type_ :: Arena.Arena (Maybe Type) TypeVarKey -> TypeWithVars -> Maybe Type
 type_ vars = r

@@ -43,4 +43,5 @@ type_expr decls (SIR.TypeExpr'Identifier sp iden) =
         void_var_to_key (Type.Type'Variable void) = absurd void
 
 type_expr decls (SIR.TypeExpr'Tuple a b) = Type.Type'Tuple <$> type_expr decls a <*> type_expr decls b
+type_expr _ (SIR.TypeExpr'Hole _) = todo
 type_expr _ (SIR.TypeExpr'Poison sp) = Type.Type'Variable <$> new_type_variable (TypeExpr sp)

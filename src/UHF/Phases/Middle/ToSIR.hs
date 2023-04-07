@@ -242,7 +242,7 @@ convert_type nc (AST.Type'Tuple sp items) = mapM (convert_type nc) items >>= gro
         group_items (a:b:more) = SIR.TypeExpr'Tuple a <$> group_items (b:more)
         group_items [_] = tell_error (Tuple1 sp) >> pure (SIR.TypeExpr'Poison sp)
         group_items [] = tell_error (Tuple0 sp) >> pure (SIR.TypeExpr'Poison sp)
-convert_type _ (AST.Type'Hole _ _) = todo
+convert_type _ (AST.Type'Hole _ id) = pure $ SIR.TypeExpr'Hole id
 
 convert_expr :: SIR.NameContext -> AST.Expr -> MakeIRState Expr
 convert_expr nc (AST.Expr'Identifier iden) = new_expr_id >>= \ id -> pure (SIR.Expr'Identifier id () (just_span iden) (nc, unlocate iden))
@@ -304,7 +304,7 @@ convert_expr name_context (AST.Expr'Case sp case_sp e arms) =
     pure (SIR.Expr'Case id () sp case_sp e arms)
 
 convert_expr nc (AST.Expr'TypeAnnotation sp ty e) = new_expr_id >>= \ id -> SIR.Expr'TypeAnnotation id () sp <$> convert_type nc ty <*> convert_expr nc e
-convert_expr _ (AST.Expr'Hole _ _) = todo
+convert_expr _ (AST.Expr'Hole sp hid) = new_expr_id >>= \ eid -> pure (SIR.Expr'Hole eid () sp hid)
 
 convert_pattern :: ID.BoundValueParent -> AST.Pattern -> MakeIRState (BoundValueList, Pattern)
 convert_pattern parent (AST.Pattern'Identifier iden) =

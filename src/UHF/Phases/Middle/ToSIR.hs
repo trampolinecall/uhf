@@ -257,7 +257,9 @@ convert_type nc (AST.Type'Forall _ tys ty) =
     mapM (((unlocate <$>) <$>) . make_iden1_with_err PathInTypeName) tys >>= \ tys ->
     let tys' = catMaybes tys
     in SIR.TypeExpr'Forall () <$> mapM new_type_var tys' <*> convert_type nc ty -- TODO: add to name context
-convert_type nc (AST.Type'Apply _ ty args) = SIR.TypeExpr'Apply () <$> convert_type nc ty <*> mapM (convert_type nc) args
+convert_type nc (AST.Type'Apply _ ty args) =
+    convert_type nc ty >>= \ ty ->
+    foldlM (\ ty arg -> SIR.TypeExpr'Apply () ty <$> convert_type nc arg) ty args
 convert_type _ (AST.Type'Wild sp) = pure $ SIR.TypeExpr'Wild () sp
 
 convert_expr :: SIR.NameContext -> AST.Expr -> MakeIRState Expr
@@ -302,7 +304,7 @@ convert_expr name_context (AST.Expr'BinaryOps sp first ops) = new_expr_id >>= \ 
 
 convert_expr name_context (AST.Expr'Call sp callee args) =
     convert_expr name_context callee >>= \ callee ->
-    foldlM (\ callee arg -> new_expr_id >>= \ id -> SIR.Expr'Call id () sp callee <$> convert_expr name_context arg) callee args
+    foldlM (\ callee arg -> new_expr_id >>= \ id -> SIR.Expr'Call id () sp callee <$> convert_expr name_context arg) callee args -- TODO: fix span for this
 
 convert_expr name_context (AST.Expr'If sp if_sp cond t f) = new_expr_id >>= \ id -> SIR.Expr'If id () sp if_sp <$> convert_expr name_context cond <*> convert_expr name_context t <*> convert_expr name_context f
 convert_expr name_context (AST.Expr'Case sp case_sp e arms) =
@@ -324,7 +326,9 @@ convert_expr nc (AST.Expr'Forall sp tys e) =
     mapM (((unlocate <$>) <$>) . make_iden1_with_err PathInTypeName) tys >>= \ tys ->
     let tys' = catMaybes tys
     in new_expr_id >>= \ id -> SIR.Expr'Forall id () sp <$> mapM new_type_var tys' <*> convert_expr nc e -- TODO: add to name context
-convert_expr nc (AST.Expr'TypeApply sp e args) = new_expr_id >>= \ id -> SIR.Expr'TypeApply id () sp <$> convert_expr nc e <*> mapM (convert_type nc) args
+convert_expr nc (AST.Expr'TypeApply sp e args) =
+    convert_expr nc e >>= \ e ->
+    foldlM (\ e arg -> new_expr_id >>= \ id -> SIR.Expr'TypeApply id () sp e <$> convert_type nc arg) e args -- TODO: fix span for this
 convert_expr _ (AST.Expr'Hole sp hid) = new_expr_id >>= \ eid -> pure (SIR.Expr'Hole eid () sp hid)
 
 convert_pattern :: ID.BoundValueParent -> AST.Pattern -> MakeIRState (BoundValueList, Pattern)

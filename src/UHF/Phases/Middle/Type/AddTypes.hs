@@ -101,7 +101,7 @@ type_expr (SIR.TypeExpr'Hole () hid) = SIR.TypeExpr'Hole <$> (Type.Type'Unknown 
 type_expr (SIR.TypeExpr'Forall () names ty) =
     type_expr ty >>= \ ty ->
     pure (SIR.TypeExpr'Forall (Type.Type'Forall names (SIR.type_expr_type_info ty)) names ty)
-type_expr (SIR.TypeExpr'Apply () ty args) = SIR.TypeExpr'Apply todo <$> type_expr ty <*> mapM type_expr args
+type_expr (SIR.TypeExpr'Apply () ty args) = SIR.TypeExpr'Apply todo <$> type_expr ty <*> type_expr args
 type_expr (SIR.TypeExpr'Wild () sp) = Type.Type'Unknown <$> lift (lift $ new_type_unknown (TypeExpr sp)) >>= \ ty -> pure (SIR.TypeExpr'Wild ty sp)
 type_expr (SIR.TypeExpr'Poison () sp) = Type.Type'Unknown <$> lift (lift $ new_type_unknown (TypeExpr sp)) >>= \ ty -> pure (SIR.TypeExpr'Poison ty sp)
 
@@ -209,7 +209,9 @@ expr (SIR.Expr'Hole id () sp hid) = SIR.Expr'Hole id <$> (Type.Type'Unknown <$> 
 expr (SIR.Expr'Forall id () sp vars e) =
     expr e >>= \ e ->
     pure (SIR.Expr'Forall id (Type.Type'Forall vars (SIR.expr_type e)) sp vars e)
-expr (SIR.Expr'TypeApply _ () _ _ _) = todo
+expr (SIR.Expr'TypeApply id () sp e arg) =
+    expr e >>= \ e ->
+    SIR.Expr'TypeApply id todo sp e <$> type_expr arg
 
 expr (SIR.Expr'TypeAnnotation id () sp annotation e) =
     type_expr annotation >>= \ annotation ->

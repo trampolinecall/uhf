@@ -83,32 +83,39 @@ type DeclArena = Arena.Arena Decl DeclKey
 type ADTArena = Arena.Arena ADT ADTKey
 type TypeSynonymArena = Arena.Arena TypeSynonym TypeSynonymKey
 type BoundValueArena = Arena.Arena BoundValue BoundValueKey
+type TypeVarArena = Arena.Arena Type.Var TypeVarKey
 
-type MakeIRState = StateT (DeclArena, ADTArena, TypeSynonymArena, BoundValueArena) (IDGen.IDGenT ID.ExprID (Compiler.WithDiagnostics Error Void))
+type MakeIRState = StateT (DeclArena, ADTArena, TypeSynonymArena, TypeVarArena, BoundValueArena) (IDGen.IDGenT ID.ExprID (Compiler.WithDiagnostics Error Void))
 
 new_decl :: Decl -> MakeIRState DeclKey
 new_decl d =
-    state $ \ (decls, adts, type_synonyms, bound_values) ->
+    state $ \ (decls, adts, type_synonyms, type_vars, bound_values) ->
         let (key, decls') = Arena.put d decls
-        in (key, (decls', adts, type_synonyms, bound_values))
-
-new_bound_value :: ID.BoundValueID -> Span -> MakeIRState BoundValueKey
-new_bound_value id sp =
-    state $ \ (decls, adts, type_synonyms, bound_values) ->
-        let (key, bound_values') = Arena.put (SIR.BoundValue id () sp) bound_values
-        in (key, (decls, adts, type_synonyms, bound_values'))
+        in (key, (decls', adts, type_synonyms, type_vars, bound_values))
 
 new_adt :: ADT -> MakeIRState ADTKey
 new_adt adt =
-    state $ \ (decls, adts, type_synonyms, bound_values) ->
+    state $ \ (decls, adts, type_synonyms, type_vars, bound_values) ->
         let (key, adts') = Arena.put adt adts
-        in (key, (decls, adts', type_synonyms, bound_values))
+        in (key, (decls, adts', type_synonyms, type_vars, bound_values))
 
 new_type_synonym :: TypeSynonym -> MakeIRState Type.TypeSynonymKey
 new_type_synonym ts =
-    state $ \ (decls, adts, type_synonyms, bound_values) ->
+    state $ \ (decls, adts, type_synonyms, type_vars, bound_values) ->
         let (key, type_synonyms') = Arena.put ts type_synonyms
-        in (key, (decls, adts, type_synonyms', bound_values))
+        in (key, (decls, adts, type_synonyms', type_vars, bound_values))
+
+new_type_var :: Text -> MakeIRState TypeVarKey
+new_type_var name =
+    state $ \ (decls, adts, type_synonyms, type_vars, bound_values) ->
+        let (key, type_vars') = Arena.put (Type.Var name) type_vars
+        in (key, (decls, adts, type_synonyms, type_vars', bound_values))
+
+new_bound_value :: ID.BoundValueID -> Span -> MakeIRState BoundValueKey
+new_bound_value id sp =
+    state $ \ (decls, adts, type_synonyms, type_vars, bound_values) ->
+        let (key, bound_values') = Arena.put (SIR.BoundValue id () sp) bound_values
+        in (key, (decls, adts, type_synonyms, type_vars, bound_values'))
 
 tell_error :: Error -> MakeIRState ()
 tell_error = lift . lift . Compiler.tell_error
@@ -178,8 +185,8 @@ convert decls =
                 convert_decls (ID.BVParent'Module module_id) (ID.DeclParent'Module module_id) Nothing primitive_decls primitive_values decls >>= \ (name_context, bindings, adts, type_synonyms) ->
                 new_decl (SIR.Decl'Module module_id name_context bindings adts type_synonyms)
             )
-            (Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (mod, (decls, adts, type_synonyms, bound_values)) ->
-        pure (SIR.SIR decls adts type_synonyms bound_values mod)
+            (Arena.new, Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (mod, (decls, adts, type_synonyms, type_vars, bound_values)) ->
+        pure (SIR.SIR decls adts type_synonyms type_vars bound_values mod)
 
 convert_decls :: ID.BoundValueParent -> ID.DeclParent -> Maybe SIR.NameContext -> DeclChildrenList -> BoundValueList -> [AST.Decl] -> MakeIRState (SIR.NameContext, [Binding], [ADTKey], [TypeSynonymKey])
 convert_decls bv_parent decl_parent parent_name_context prev_decl_entries prev_bv_entries decls =
@@ -246,7 +253,10 @@ convert_type nc (AST.Type'Tuple sp items) = mapM (convert_type nc) items >>= gro
         group_items [_] = tell_error (Tuple1 sp) >> pure (SIR.TypeExpr'Poison () sp)
         group_items [] = tell_error (Tuple0 sp) >> pure (SIR.TypeExpr'Poison () sp)
 convert_type _ (AST.Type'Hole _ id) = pure $ SIR.TypeExpr'Hole () id
-convert_type nc (AST.Type'Forall _ tys ty) = SIR.TypeExpr'Forall () <$> mapM (const (pure ())) tys <*> convert_type nc ty
+convert_type nc (AST.Type'Forall _ tys ty) =
+    mapM (((unlocate <$>) <$>) . make_iden1_with_err PathInTypeName) tys >>= \ tys ->
+    let tys' = catMaybes tys
+    in SIR.TypeExpr'Forall () <$> mapM new_type_var tys' <*> convert_type nc ty -- TODO: add to name context
 convert_type nc (AST.Type'Apply _ ty args) = SIR.TypeExpr'Apply () <$> convert_type nc ty <*> mapM (convert_type nc) args
 convert_type _ (AST.Type'Wild sp) = pure $ SIR.TypeExpr'Wild () sp
 
@@ -310,7 +320,10 @@ convert_expr name_context (AST.Expr'Case sp case_sp e arms) =
     pure (SIR.Expr'Case id () sp case_sp e arms)
 
 convert_expr nc (AST.Expr'TypeAnnotation sp ty e) = new_expr_id >>= \ id -> SIR.Expr'TypeAnnotation id () sp <$> convert_type nc ty <*> convert_expr nc e
-convert_expr nc (AST.Expr'Forall sp tys e) = new_expr_id >>= \ id -> SIR.Expr'Forall id () sp <$> mapM (const (pure ())) tys <*> convert_expr nc e
+convert_expr nc (AST.Expr'Forall sp tys e) =
+    mapM (((unlocate <$>) <$>) . make_iden1_with_err PathInTypeName) tys >>= \ tys ->
+    let tys' = catMaybes tys
+    in new_expr_id >>= \ id -> SIR.Expr'Forall id () sp <$> mapM new_type_var tys' <*> convert_expr nc e -- TODO: add to name context
 convert_expr nc (AST.Expr'TypeApply sp e args) = new_expr_id >>= \ id -> SIR.Expr'TypeApply id () sp <$> convert_expr nc e <*> mapM (convert_type nc) args
 convert_expr _ (AST.Expr'Hole sp hid) = new_expr_id >>= \ eid -> pure (SIR.Expr'Hole eid () sp hid)
 

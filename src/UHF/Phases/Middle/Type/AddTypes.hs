@@ -8,6 +8,8 @@ import qualified UHF.Data.IR.Type as Type
 
 import qualified UHF.Compiler as Compiler
 
+import UHF.IO.Located (just_span)
+
 import UHF.Phases.Middle.Type.Unknown
 import UHF.Phases.Middle.Type.Aliases
 import UHF.Phases.Middle.Type.Error
@@ -42,14 +44,18 @@ type_expr decls (SIR.TypeExpr'Identifier () sp iden) = do
         void_var_to_key (Type.Type'Function a r) = Type.Type'Function (void_var_to_key a) (void_var_to_key r)
         void_var_to_key (Type.Type'Tuple a b) = Type.Type'Tuple (void_var_to_key a) (void_var_to_key b)
         void_var_to_key (Type.Type'Unknown void) = absurd void
+        void_var_to_key (Type.Type'Variable v) = Type.Type'Variable v
+        void_var_to_key (Type.Type'Forall vars ty) = Type.Type'Forall vars (void_var_to_key ty)
 
 type_expr decls (SIR.TypeExpr'Tuple () a b) =
     type_expr decls a >>= \ a_conv ->
     type_expr decls b >>= \ b_conv ->
     pure (SIR.TypeExpr'Tuple (Type.Type'Tuple (SIR.type_expr_type_info a_conv) (SIR.type_expr_type_info b_conv)) a_conv b_conv)
 
-type_expr _ (SIR.TypeExpr'Hole () hid) = pure $ SIR.TypeExpr'Hole (todo) hid
-type_expr decls (SIR.TypeExpr'Forall () names ty) = SIR.TypeExpr'Forall todo names <$> type_expr decls ty
+type_expr _ (SIR.TypeExpr'Hole () hid) = SIR.TypeExpr'Hole <$> (Type.Type'Unknown <$> new_type_unknown (TypeExpr $ just_span hid)) <*> pure hid
+type_expr decls (SIR.TypeExpr'Forall () names ty) =
+    type_expr decls ty >>= \ ty ->
+    pure (SIR.TypeExpr'Forall (Type.Type'Forall names (SIR.type_expr_type_info ty)) names ty)
 type_expr decls (SIR.TypeExpr'Apply () ty args) = SIR.TypeExpr'Apply todo <$> type_expr decls ty <*> mapM (type_expr decls) args
 type_expr _ (SIR.TypeExpr'Wild () sp) = Type.Type'Unknown <$> new_type_unknown (TypeExpr sp) >>= \ ty -> pure (SIR.TypeExpr'Wild ty sp)
 type_expr _ (SIR.TypeExpr'Poison () sp) = Type.Type'Unknown <$> new_type_unknown (TypeExpr sp) >>= \ ty -> pure (SIR.TypeExpr'Poison ty sp)

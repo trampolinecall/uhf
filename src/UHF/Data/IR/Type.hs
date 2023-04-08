@@ -1,10 +1,15 @@
 module UHF.Data.IR.Type
     ( Type (..)
+
     , ADTKey
     , ADT (..)
     , ADTVariant (..)
+
     , TypeSynonymKey
     , TypeSynonym (..)
+
+    , TypeVarKey
+    , Var(..)
     ) where
 
 import UHF.Util.Prelude
@@ -23,6 +28,8 @@ data Type unk
     | Type'Function (Type unk) (Type unk)
     | Type'Tuple (Type unk) (Type unk)
     | Type'Unknown unk
+    | Type'Variable TypeVarKey
+    | Type'Forall [TypeVarKey] (Type unk)
     deriving Show
 
 data ADT ty = ADT ID.DeclID Text [ADTVariant ty] deriving Show
@@ -32,3 +39,5 @@ data ADTVariant ty
     deriving Show
 
 data TypeSynonym ty = TypeSynonym ID.DeclID Text ty deriving Show
+
+data Var = Var Text deriving Show

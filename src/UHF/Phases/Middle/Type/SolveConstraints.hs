@@ -143,4 +143,5 @@ occurs_check _ Type.Type'String = pure False
 occurs_check _ Type.Type'Bool = pure False
 occurs_check v (Type.Type'Function a r) = (||) <$> occurs_check v a <*> occurs_check v r
 occurs_check v (Type.Type'Tuple a b) = (||) <$> occurs_check v a <*> occurs_check v b
-
+occurs_check _ (Type.Type'Variable _) = pure False
+occurs_check v (Type.Type'Forall _ ty) = occurs_check v ty

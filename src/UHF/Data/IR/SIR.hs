@@ -18,6 +18,7 @@ module UHF.Data.IR.SIR
     , pattern_type
     , expr_span
     , pattern_span
+    , type_expr_type_info
     ) where
 
 import UHF.Util.Prelude
@@ -34,6 +35,7 @@ import UHF.IO.Span (Span)
 import UHF.IO.Located (Located)
 
 -- "syntax based ir"
+-- TODO: parameterize based d_iden and v_iden instead of (v_)iden and type_expr
 data SIR iden type_expr type_info binary_ops_allowed = SIR (Arena.Arena (Decl iden type_expr type_info binary_ops_allowed) DeclKey) (Arena.Arena (Type.ADT type_expr) ADTKey) (Arena.Arena (Type.TypeSynonym type_expr) TypeSynonymKey) (Arena.Arena (BoundValue type_info) BoundValueKey) DeclKey
 
 data Decl identifier type_expr type_info binary_ops_allowed
@@ -49,14 +51,14 @@ data NameContext = NameContext (Map.Map Text DeclKey) (Map.Map Text BoundValueKe
 
 type HoleIdentifier = Located [Located Text]
 
-data TypeExpr identifier
-    = TypeExpr'Identifier Span identifier
-    | TypeExpr'Tuple (TypeExpr identifier) (TypeExpr identifier)
-    | TypeExpr'Hole HoleIdentifier
-    | TypeExpr'Forall [()] (TypeExpr identifier) -- TODO: add variables
-    | TypeExpr'Apply (TypeExpr identifier) [TypeExpr identifier]
-    | TypeExpr'Wild Span
-    | TypeExpr'Poison Span
+data TypeExpr identifier type_info
+    = TypeExpr'Identifier type_info Span identifier
+    | TypeExpr'Tuple type_info (TypeExpr identifier type_info) (TypeExpr identifier type_info)
+    | TypeExpr'Hole type_info HoleIdentifier
+    | TypeExpr'Forall type_info [()] (TypeExpr identifier type_info) -- TODO: add variables
+    | TypeExpr'Apply type_info (TypeExpr identifier type_info) [TypeExpr identifier type_info]
+    | TypeExpr'Wild type_info Span
+    | TypeExpr'Poison type_info Span
     deriving Show
 
 data Expr identifier type_expr type_info binary_ops_allowed
@@ -98,6 +100,15 @@ data Pattern identifier type_info
 
     | Pattern'Poison type_info Span
     deriving Show
+
+type_expr_type_info :: TypeExpr identifier type_info -> type_info
+type_expr_type_info (TypeExpr'Identifier type_info _ _) = type_info
+type_expr_type_info (TypeExpr'Tuple type_info _ _) = type_info
+type_expr_type_info (TypeExpr'Hole type_info _) = type_info
+type_expr_type_info (TypeExpr'Forall type_info _ _) = type_info
+type_expr_type_info (TypeExpr'Apply type_info _ _) = type_info
+type_expr_type_info (TypeExpr'Wild type_info _) = type_info
+type_expr_type_info (TypeExpr'Poison type_info _) = type_info
 
 expr_type :: Expr identifier type_expr type_info binary_ops_allowed -> type_info
 expr_type (Expr'Identifier _ type_info _ _) = type_info

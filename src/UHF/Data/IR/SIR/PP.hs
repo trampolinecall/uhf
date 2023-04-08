@@ -64,7 +64,7 @@ refer_bv k = get_bv k >>= \ (SIR.BoundValue id _ _) -> text (ID.stringify id)
 refer_decl :: SIR.DeclKey -> PP d_iden v_iden type_info binary_ops_allowed ()
 refer_decl k = get_decl k >>= \case
     SIR.Decl'Module id _ _ _ _ -> text $ ID.stringify id
-    SIR.Decl'Type ty -> refer_type ty
+    SIR.Decl'Type ty -> get_adt_arena >>= \ adt_arena -> get_type_synonym_arena >>= \ type_synonym_arena -> lift (Type.PP.refer_type absurd adt_arena type_synonym_arena ty)
 
 put_iden_list_of_text :: [Located Text] -> PP d_iden v_iden type_info binary_ops_allowed ()
 put_iden_list_of_text = text . Text.intercalate "::" . map unlocate
@@ -80,12 +80,6 @@ instance DumpableIdentifier Keys.BoundValueKey where
 instance DumpableIdentifier (Maybe Keys.DeclKey) where
     refer_iden (Just k) = refer_decl k
     refer_iden Nothing = text "<name resolution error>"
-
--- TODO: remove this?
-class DumpableType t where
-    refer_type :: t -> PP d_iden v_iden type_info binary_ops_allowed ()
-instance DumpableType (Type.Type Void) where
-    refer_type ty = get_adt_arena >>= \ adt_arena -> get_type_synonym_arena >>= \ type_synonym_arena -> lift (Type.PP.refer_type absurd adt_arena type_synonym_arena ty)
 
 -- TODO: dump type info too
 

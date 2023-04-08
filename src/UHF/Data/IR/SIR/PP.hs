@@ -83,21 +83,23 @@ instance DumpableIdentifier (Maybe Keys.DeclKey) where
 
 class DumpableType t where
     refer_type :: t -> PP iden type_expr type_info binary_ops_allowed ()
-instance DumpableIdentifier iden => DumpableType (SIR.TypeExpr iden) where
-    refer_type (SIR.TypeExpr'Identifier _ iden) = refer_iden iden
-    refer_type (SIR.TypeExpr'Tuple a b) = text "(" >> refer_type a >> text ", " >> refer_type b >> text ")"
-    refer_type (SIR.TypeExpr'Hole hid) = text "?" >> put_iden_list_of_text (unlocate hid)
-    refer_type (SIR.TypeExpr'Forall _ _) = todo
-    refer_type (SIR.TypeExpr'Apply _ _) = todo
-    refer_type (SIR.TypeExpr'Wild _) = text "_"
-    refer_type (SIR.TypeExpr'Poison _) = text "poison"
+instance DumpableIdentifier iden => DumpableType (SIR.TypeExpr iden type_info) where
+    refer_type (SIR.TypeExpr'Identifier _ _ iden) = refer_iden iden
+    refer_type (SIR.TypeExpr'Tuple _ a b) = text "(" >> refer_type a >> text ", " >> refer_type b >> text ")"
+    refer_type (SIR.TypeExpr'Hole _ hid) = text "?" >> put_iden_list_of_text (unlocate hid)
+    refer_type (SIR.TypeExpr'Forall _ _ _) = todo
+    refer_type (SIR.TypeExpr'Apply _ _ _) = todo
+    refer_type (SIR.TypeExpr'Wild _ _) = text "_"
+    refer_type (SIR.TypeExpr'Poison _ _) = text "poison"
+{- TODO: remove this?
 instance DumpableType (Maybe (Type.Type Void)) where
     refer_type (Just ty) = refer_type ty
     refer_type Nothing = text "<type error>"
+-}
 instance DumpableType (Type.Type Void) where
     refer_type ty = get_adt_arena >>= \ adt_arena -> get_type_synonym_arena >>= \ type_synonym_arena -> lift (Type.PP.refer_type absurd adt_arena type_synonym_arena ty)
 
--- TODO: dump types too
+-- TODO: dump type info too
 
 -- TODO: deal with precedence
 

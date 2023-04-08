@@ -154,5 +154,5 @@ expr (SIR.Expr'TypeAnnotation id () sp annotation e) =
     read_decls >>= \ decls ->
     lift (lift $ ConvertTypeExpr.type_expr decls annotation) >>= \ annotation ->
     expr e >>= \ e ->
-    lift (tell [Expect InTypeAnnotation (loc_expr_type e) annotation]) >> -- TODO: use annotation span
-    pure (SIR.Expr'TypeAnnotation id annotation sp annotation e)
+    lift (tell [Expect InTypeAnnotation (loc_expr_type e) (SIR.type_expr_type_info annotation)]) >> -- TODO: use annotation span
+    pure (SIR.Expr'TypeAnnotation id (SIR.type_expr_type_info annotation) sp annotation e)

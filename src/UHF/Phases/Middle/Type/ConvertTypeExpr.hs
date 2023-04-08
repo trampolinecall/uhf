@@ -1,3 +1,4 @@
+-- TODO: rename to FillWithEmptyTypes
 module UHF.Phases.Middle.Type.ConvertTypeExpr (adt, type_synonym, type_expr) where
 
 import UHF.Util.Prelude
@@ -22,13 +23,14 @@ adt decls (Type.ADT id name variants) = Type.ADT id name <$> mapM (convert_varia
 type_synonym :: UntypedDeclArena -> UntypedTypeSynonym -> StateWithUnk TypedWithUnkTypeSynonym
 type_synonym decls (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name <$> type_expr decls expansion
 
-type_expr :: UntypedDeclArena -> TypeExpr -> StateWithUnk TypeWithUnk
-type_expr decls (SIR.TypeExpr'Identifier sp iden) =
-    case iden of -- TODO: make poison type variable
+type_expr :: UntypedDeclArena -> UntypedTypeExpr -> StateWithUnk TypedWithUnkTypeExpr
+type_expr decls (SIR.TypeExpr'Identifier () sp iden) = do
+    ty <- case iden of -- TODO: make poison type variable
         Just i -> case Arena.get decls i of
             SIR.Decl'Module _ _ _ _ _ -> lift (Compiler.tell_error $ NotAType sp "a module") >> Type.Type'Unknown <$> new_type_unknown (TypeExpr sp)
             SIR.Decl'Type ty -> pure $ void_var_to_key ty
         Nothing -> Type.Type'Unknown <$> new_type_unknown (TypeExpr sp)
+    pure (SIR.TypeExpr'Identifier ty sp iden)
     where
         -- basically useless function for converting Type Void to Type TypeUnknownKey
         void_var_to_key (Type.Type'ADT k) = Type.Type'ADT k
@@ -42,9 +44,13 @@ type_expr decls (SIR.TypeExpr'Identifier sp iden) =
         void_var_to_key (Type.Type'Tuple a b) = Type.Type'Tuple (void_var_to_key a) (void_var_to_key b)
         void_var_to_key (Type.Type'Unknown void) = absurd void
 
-type_expr decls (SIR.TypeExpr'Tuple a b) = Type.Type'Tuple <$> type_expr decls a <*> type_expr decls b
-type_expr _ (SIR.TypeExpr'Hole _) = todo
-type_expr _ (SIR.TypeExpr'Forall _ _) = todo
-type_expr _ (SIR.TypeExpr'Apply _ _) = todo
-type_expr _ (SIR.TypeExpr'Wild sp) = Type.Type'Unknown <$> new_type_unknown (TypeExpr sp)
-type_expr _ (SIR.TypeExpr'Poison sp) = Type.Type'Unknown <$> new_type_unknown (TypeExpr sp)
+type_expr decls (SIR.TypeExpr'Tuple () a b) =
+    type_expr decls a >>= \ a_conv ->
+    type_expr decls b >>= \ b_conv ->
+    pure (SIR.TypeExpr'Tuple (Type.Type'Tuple (SIR.type_expr_type_info a_conv) (SIR.type_expr_type_info b_conv)) a_conv b_conv)
+
+type_expr _ (SIR.TypeExpr'Hole () hid) = pure $ SIR.TypeExpr'Hole (todo) hid
+type_expr decls (SIR.TypeExpr'Forall () names ty) = SIR.TypeExpr'Forall todo names <$> type_expr decls ty
+type_expr decls (SIR.TypeExpr'Apply () ty args) = SIR.TypeExpr'Apply todo <$> type_expr decls ty <*> mapM (type_expr decls) args
+type_expr _ (SIR.TypeExpr'Wild () sp) = Type.Type'Unknown <$> new_type_unknown (TypeExpr sp) >>= \ ty -> pure (SIR.TypeExpr'Wild ty sp)
+type_expr _ (SIR.TypeExpr'Poison () sp) = Type.Type'Unknown <$> new_type_unknown (TypeExpr sp) >>= \ ty -> pure (SIR.TypeExpr'Poison ty sp)

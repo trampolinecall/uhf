@@ -44,7 +44,7 @@ define_decl :: (DumpableType type_expr, DumpableIdentifier iden) => SIR.Decl ide
 define_decl (SIR.Decl'Module _ _ bindings adts type_synonyms) =
     ask >>= \ sir ->
     mapM_ (\ k -> get_adt k >>= lift . Type.PP.define_adt) adts >>
-    mapM_ (\ k -> get_type_syn k >>= lift . Type.PP.define_type_synonym ((\ ty -> runReaderT (refer_type ty) sir))) type_synonyms >>
+    mapM_ (\ k -> get_type_syn k >>= lift . Type.PP.define_type_synonym (\ ty -> runReaderT (refer_type ty) sir)) type_synonyms >>
     mapM_ define_binding bindings
 define_decl (SIR.Decl'Type _) = pure ()
 
@@ -76,7 +76,7 @@ instance DumpableIdentifier (Located (Maybe Keys.BoundValueKey)) where
         Just k -> refer_iden k
         Nothing -> text "<name resolution error>"
 instance DumpableIdentifier Keys.BoundValueKey where
-    refer_iden k = refer_bv k
+    refer_iden = refer_bv
 instance DumpableIdentifier (Maybe Keys.DeclKey) where
     refer_iden (Just k) = refer_decl k
     refer_iden Nothing = text "<name resolution error>"

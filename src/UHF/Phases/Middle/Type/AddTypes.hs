@@ -68,6 +68,12 @@ adt (Type.ADT id name variants) = Type.ADT id name <$> mapM convert_variant vari
 type_synonym :: UntypedTypeSynonym -> DeclBVReader TypedWithUnkTypeSynonym
 type_synonym (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name <$> type_expr expansion
 
+apply_type :: TypeUnknownForWhat -> TypeWithUnk -> TypeWithUnk -> DeclBVReader TypeWithUnk
+apply_type for_what ty arg =
+    lift (lift $ new_type_unknown for_what) >>= \ tyu ->
+    -- tell [UnkIsApplyResult tyu ty arg] >> TODO
+    pure (Type.Type'Unknown tyu)
+
 type_expr :: UntypedTypeExpr -> DeclBVReader TypedWithUnkTypeExpr
 type_expr (SIR.TypeExpr'Identifier () sp iden) = do
     (decls, _) <- ask
@@ -101,7 +107,11 @@ type_expr (SIR.TypeExpr'Hole () hid) = SIR.TypeExpr'Hole <$> (Type.Type'Unknown 
 type_expr (SIR.TypeExpr'Forall () names ty) =
     type_expr ty >>= \ ty ->
     pure (SIR.TypeExpr'Forall (Type.Type'Forall names (SIR.type_expr_type_info ty)) names ty)
-type_expr (SIR.TypeExpr'Apply () ty args) = SIR.TypeExpr'Apply todo <$> type_expr ty <*> type_expr args
+type_expr (SIR.TypeExpr'Apply () sp ty arg) =
+    type_expr ty >>= \ ty ->
+    type_expr arg >>= \ arg ->
+    apply_type (TypeExpr sp) (SIR.type_expr_type_info ty) (SIR.type_expr_type_info arg) >>= \ result_ty ->
+    pure (SIR.TypeExpr'Apply result_ty sp ty arg)
 type_expr (SIR.TypeExpr'Wild () sp) = Type.Type'Unknown <$> lift (lift $ new_type_unknown (TypeExpr sp)) >>= \ ty -> pure (SIR.TypeExpr'Wild ty sp)
 type_expr (SIR.TypeExpr'Poison () sp) = Type.Type'Unknown <$> lift (lift $ new_type_unknown (TypeExpr sp)) >>= \ ty -> pure (SIR.TypeExpr'Poison ty sp)
 
@@ -211,7 +221,9 @@ expr (SIR.Expr'Forall id () sp vars e) =
     pure (SIR.Expr'Forall id (Type.Type'Forall vars (SIR.expr_type e)) sp vars e)
 expr (SIR.Expr'TypeApply id () sp e arg) =
     expr e >>= \ e ->
-    SIR.Expr'TypeApply id todo sp e <$> type_expr arg
+    type_expr arg >>= \ arg ->
+    apply_type (TypeApplyExpr sp) (SIR.expr_type e) (SIR.type_expr_type_info arg) >>= \ result_ty ->
+    pure (SIR.Expr'TypeApply id result_ty sp e arg)
 
 expr (SIR.Expr'TypeAnnotation id () sp annotation e) =
     type_expr annotation >>= \ annotation ->

@@ -32,6 +32,7 @@ data TypeUnknownForWhat
     | TypeExpr Span
     | HoleExpr Span
     | WildcardPattern Span
+    | TypeApplyExpr Span
 data TypeUnknownState = Fresh | Substituted (Type.Type TypeUnknownKey)
 
 type_var_for_what_sp :: TypeUnknownForWhat -> Span
@@ -44,6 +45,7 @@ type_var_for_what_sp (PoisonPattern sp) = sp
 type_var_for_what_sp (TypeExpr sp) = sp
 type_var_for_what_sp (HoleExpr sp) = sp
 type_var_for_what_sp (WildcardPattern sp) = sp
+type_var_for_what_sp (TypeApplyExpr sp) = sp
 
 type_var_for_what_name :: TypeUnknownForWhat -> Text
 type_var_for_what_name (BoundValue _) = "binding"
@@ -55,4 +57,4 @@ type_var_for_what_name (PoisonPattern _) = "pattern"
 type_var_for_what_name (TypeExpr _) = "type expression"
 type_var_for_what_name (HoleExpr _) = "hole expression"
 type_var_for_what_name (WildcardPattern _) = "wildcard pattern"
-
+type_var_for_what_name (TypeApplyExpr _) = "type application expression"

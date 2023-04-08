@@ -257,9 +257,9 @@ convert_type nc (AST.Type'Forall _ tys ty) =
     mapM (((unlocate <$>) <$>) . make_iden1_with_err PathInTypeName) tys >>= \ tys ->
     let tys' = catMaybes tys
     in SIR.TypeExpr'Forall () <$> mapM new_type_var tys' <*> convert_type nc ty -- TODO: add to name context
-convert_type nc (AST.Type'Apply _ ty args) =
+convert_type nc (AST.Type'Apply sp ty args) =
     convert_type nc ty >>= \ ty ->
-    foldlM (\ ty arg -> SIR.TypeExpr'Apply () ty <$> convert_type nc arg) ty args
+    foldlM (\ ty arg -> SIR.TypeExpr'Apply () sp ty <$> convert_type nc arg) ty args -- TODO: fix spans
 convert_type _ (AST.Type'Wild sp) = pure $ SIR.TypeExpr'Wild () sp
 
 convert_expr :: SIR.NameContext -> AST.Expr -> MakeIRState Expr

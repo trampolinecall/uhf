@@ -45,6 +45,7 @@ data SingleTypeToken
     | Equal
     | Colon
     | Arrow
+    | Hash
     | At
     | Question
     | Backslash
@@ -92,6 +93,7 @@ instance Format SingleTypeToken where
     format Equal = "'='"
     format Colon = "':'"
     format Arrow = "'->'"
+    format Hash = "'#'"
     format DoubleColon = "'::'"
     format At = "'@'"
     format Question = "'?'"

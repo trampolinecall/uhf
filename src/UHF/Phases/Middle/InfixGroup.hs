@@ -23,7 +23,7 @@ type GroupedBinding d_iden = SIR.Binding d_iden VIden () Void
 type GroupedExpr d_iden = SIR.Expr d_iden VIden () Void
 
 group :: UngroupedSIR d_iden -> GroupedSIR d_iden
-group (SIR.SIR decls adts type_synonyms bound_values mod) = SIR.SIR (IDGen.run_id_gen ID.ExprID'InfixGroupGen (Arena.transformM group_decl decls)) adts type_synonyms bound_values mod
+group (SIR.SIR decls adts type_synonyms type_vars bound_values mod) = SIR.SIR (IDGen.run_id_gen ID.ExprID'InfixGroupGen (Arena.transformM group_decl decls)) adts type_synonyms type_vars bound_values mod
 
 group_decl :: UngroupedDecl d_iden -> IDGen.IDGen ID.ExprID (GroupedDecl d_iden)
 group_decl (SIR.Decl'Module id nc bindings adts syns) = SIR.Decl'Module id nc <$> mapM group_binding bindings <*> pure adts <*> pure syns

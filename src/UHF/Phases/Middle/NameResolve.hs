@@ -139,10 +139,10 @@ transform_identifiers transform_d_iden transform_e_iden adts type_synonyms decls
         transform_expr (SIR.Expr'Poison id type_info sp) = pure $ SIR.Expr'Poison id type_info sp
 
 resolve :: UnresolvedSIR -> Compiler.WithDiagnostics Error Void ResolvedSIR
-resolve (SIR.SIR decls adts type_synonyms bound_values mod) =
+resolve (SIR.SIR decls adts type_synonyms type_vars bound_values mod) =
     let (adts', type_synonyms', decls') = runIdentity (transform_identifiers Identity split_expr_iden adts type_synonyms decls)
     in transform_identifiers (resolve_type_iden decls) (resolve_expr_iden decls) adts' type_synonyms' decls' >>= \ (adts', type_synonyms', decls') ->
-    pure (SIR.SIR decls' adts' type_synonyms' bound_values mod)
+    pure (SIR.SIR decls' adts' type_synonyms' type_vars bound_values mod)
 
 split_expr_iden :: UnresolvedVIden -> Identity (SIR.NameContext, Maybe [Located Text], Located Text)
 split_expr_iden (_, []) = error "empty identifier"

@@ -17,7 +17,7 @@ import qualified UHF.Phases.Middle.Type.RemoveUnknowns as RemoveUnknowns
 
 -- also does type inference
 typecheck :: UntypedSIR -> Compiler.WithDiagnostics Error Void TypedSIR
-typecheck (SIR.SIR decls adts type_synonyms bound_values mod) =
+typecheck (SIR.SIR decls adts type_synonyms type_vars bound_values mod) =
     runStateT
         (
             Arena.transformM (AddTypes.adt decls) adts >>= \ adts ->
@@ -30,4 +30,4 @@ typecheck (SIR.SIR decls adts type_synonyms bound_values mod) =
         Arena.new >>= \ ((decls, adts, type_synonyms, bound_values), vars) ->
 
     RemoveUnknowns.remove vars decls adts type_synonyms bound_values >>= \ (decls, adts, type_synonyms, bound_values) ->
-    pure (SIR.SIR decls adts type_synonyms bound_values mod)
+    pure (SIR.SIR decls adts type_synonyms type_vars bound_values mod)

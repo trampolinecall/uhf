@@ -86,7 +86,7 @@ instance DumpableIdentifier (Maybe Keys.DeclKey) where -- TODO: remove this
 type_expr :: DumpableIdentifier d_iden => SIR.TypeExpr d_iden type_info -> PP d_iden v_iden type_info binary_ops_allowed ()
 type_expr (SIR.TypeExpr'Identifier _ _ iden) = refer_iden iden
 type_expr (SIR.TypeExpr'Tuple _ a b) = text "(" >> type_expr a >> text ", " >> type_expr b >> text ")"
-type_expr (SIR.TypeExpr'Hole _ hid) = text "?" >> put_iden_list_of_text (unlocate hid)
+type_expr (SIR.TypeExpr'Hole _ _ hid) = text "?" >> put_iden_list_of_text (unlocate hid)
 type_expr (SIR.TypeExpr'Forall _ _ _) = todo
 type_expr (SIR.TypeExpr'Apply _ _ _ _) = todo
 type_expr (SIR.TypeExpr'Wild _ _) = text "_"

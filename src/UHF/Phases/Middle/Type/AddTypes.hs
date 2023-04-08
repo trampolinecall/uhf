@@ -1,5 +1,4 @@
--- TODO: rename to FillWithEmptyTypes
-module UHF.Phases.Middle.Type.ConvertTypeExpr (adt, type_synonym, type_expr) where
+module UHF.Phases.Middle.Type.AddTypes (adt, type_synonym, type_expr, bound_value) where
 
 import UHF.Util.Prelude
 
@@ -54,3 +53,6 @@ type_expr decls (SIR.TypeExpr'Forall () names ty) = SIR.TypeExpr'Forall todo nam
 type_expr decls (SIR.TypeExpr'Apply () ty args) = SIR.TypeExpr'Apply todo <$> type_expr decls ty <*> mapM (type_expr decls) args
 type_expr _ (SIR.TypeExpr'Wild () sp) = Type.Type'Unknown <$> new_type_unknown (TypeExpr sp) >>= \ ty -> pure (SIR.TypeExpr'Wild ty sp)
 type_expr _ (SIR.TypeExpr'Poison () sp) = Type.Type'Unknown <$> new_type_unknown (TypeExpr sp) >>= \ ty -> pure (SIR.TypeExpr'Poison ty sp)
+
+bound_value :: UntypedBoundValue -> StateWithUnk TypedWithUnkBoundValue
+bound_value (SIR.BoundValue id () def_span) = SIR.BoundValue id <$> (Type.Type'Unknown <$> new_type_unknown (BoundValue def_span)) <*> pure def_span

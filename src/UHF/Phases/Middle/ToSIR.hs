@@ -64,16 +64,16 @@ instance Diagnostic.ToError Error where
 
     to_error (Tuple0 sp) = Diagnostic.Error Codes.tuple0 (Just sp) "tuple of 0 elements" [] []
 
-type SIR = SIR.SIR Identifier TypeExpr () ()
+type SIR = SIR.SIR Identifier Identifier () ()
 
 type Identifier = (SIR.NameContext, [Located Text])
-type Decl = SIR.Decl Identifier TypeExpr () ()
-type Binding = SIR.Binding Identifier TypeExpr () ()
+type Decl = SIR.Decl Identifier Identifier () ()
+type Binding = SIR.Binding Identifier Identifier () ()
 type ADT = Type.ADT TypeExpr
 type TypeSynonym = Type.TypeSynonym TypeExpr
 type TypeExpr = SIR.TypeExpr Identifier ()
-type Expr = SIR.Expr Identifier TypeExpr () ()
-type Pattern = SIR.Pattern Identifier ()
+type Expr = SIR.Expr Identifier Identifier () ()
+type Pattern = SIR.Pattern ()
 type BoundValue = SIR.BoundValue ()
 
 type DeclChildrenList = [(Text, DeclAt, DeclKey)]

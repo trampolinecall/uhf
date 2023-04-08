@@ -19,12 +19,14 @@ import qualified Data.Map as Map
 
 type Type = Maybe (Type.Type Void)
 
-type SIR = SIR.SIR (Located (Maybe BoundValueKey)) SIRTypeExpr Type Void
-type SIRDecl = SIR.Decl (Located (Maybe BoundValueKey)) SIRTypeExpr Type Void
-type SIRExpr = SIR.Expr (Located (Maybe BoundValueKey)) SIRTypeExpr Type Void
-type SIRTypeExpr = SIR.TypeExpr (Maybe SIR.DeclKey) Type
-type SIRPattern = SIR.Pattern (Located (Maybe BoundValueKey)) Type
-type SIRBinding = SIR.Binding (Located (Maybe BoundValueKey)) SIRTypeExpr Type Void
+type DIden = Maybe SIR.DeclKey
+type VIden = Located (Maybe BoundValueKey)
+type SIR = SIR.SIR DIden VIden Type Void
+type SIRDecl = SIR.Decl DIden VIden Type Void
+type SIRExpr = SIR.Expr DIden VIden Type Void
+type SIRTypeExpr = SIR.TypeExpr DIden Type
+type SIRPattern = SIR.Pattern Type
+type SIRBinding = SIR.Binding DIden VIden Type Void
 
 type RIRDecl = RIR.Decl ()
 type RIRExpr = RIR.Expr ()

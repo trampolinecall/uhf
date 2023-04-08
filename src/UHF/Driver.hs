@@ -49,10 +49,10 @@ import qualified UHF.Phases.Back.TSBackend as TSBackend
 -- TODO: only print unerrored versions of each (double each thing in the PhaseResultsState, each one has ErrorsPossible and NoErrors variant, only print the NoErrors variant, but future phases use the ErrorsPossible variant to keep compilation going as long as possible)
 type Tokens = ([Token.LToken], Token.LToken)
 type AST = [AST.Decl]
-type FirstSIR = SIR.SIR (SIR.NameContext, [Located Text]) (SIR.TypeExpr (SIR.NameContext, [Located Text]) ()) () ()
-type NRSIR = SIR.SIR (Located (Maybe IR.Keys.BoundValueKey)) (SIR.TypeExpr (Maybe IR.Keys.DeclKey) ()) () ()
-type InfixGroupedSIR = SIR.SIR (Located (Maybe IR.Keys.BoundValueKey)) (SIR.TypeExpr (Maybe IR.Keys.DeclKey) ()) () Void
-type TypedSIR = SIR.SIR (Located (Maybe IR.Keys.BoundValueKey)) ((SIR.TypeExpr (Maybe IR.Keys.DeclKey) (Maybe (IR.Type.Type Void)))) (Maybe (IR.Type.Type Void)) Void
+type FirstSIR = SIR.SIR (SIR.NameContext, [Located Text]) (SIR.NameContext, [Located Text]) () ()
+type NRSIR = SIR.SIR (Maybe IR.Keys.DeclKey) (Located (Maybe IR.Keys.BoundValueKey)) () ()
+type InfixGroupedSIR = SIR.SIR (Maybe IR.Keys.DeclKey) (Located (Maybe IR.Keys.BoundValueKey)) () Void
+type TypedSIR = SIR.SIR (Maybe IR.Keys.DeclKey) (Located (Maybe IR.Keys.BoundValueKey)) (Maybe (IR.Type.Type Void)) Void
 type FirstRIR = RIR.RIR ()
 type RIRWithCaptures = RIR.RIR (Set IR.Keys.BoundValueKey)
 type ANFIR = ANFIR.ANFIR (Maybe (IR.Type.Type Void)) ()

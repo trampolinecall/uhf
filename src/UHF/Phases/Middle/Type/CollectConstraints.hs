@@ -12,7 +12,7 @@ import UHF.Phases.Middle.Type.Unknown
 import UHF.Phases.Middle.Type.Aliases
 import UHF.Phases.Middle.Type.Constraint
 import UHF.Phases.Middle.Type.StateWithUnk
-import qualified UHF.Phases.Middle.Type.ConvertTypeExpr as ConvertTypeExpr
+import qualified UHF.Phases.Middle.Type.AddTypes as AddTypes
 
 type DeclBVReader = ReaderT (UntypedDeclArena, TypedWithUnkBoundValueArena) (WriterT [Constraint] StateWithUnk)
 
@@ -50,7 +50,7 @@ binding (SIR.Binding p eq_sp e) =
     lift (tell [Eq InAssignment eq_sp (loc_pat_type p) (loc_expr_type e)]) >>
     pure (SIR.Binding p eq_sp e)
 
-loc_pat_type :: SIR.Pattern type_expr type_info -> Located type_info
+loc_pat_type :: SIR.Pattern type_info -> Located type_info
 loc_pat_type pattern = Located (SIR.pattern_span pattern) (SIR.pattern_type pattern)
 loc_expr_type :: SIR.Expr identifier type_expr type_info binary_ops_allowed -> Located type_info
 loc_expr_type expr = Located (SIR.expr_span expr) (SIR.expr_type expr)
@@ -152,7 +152,7 @@ expr (SIR.Expr'TypeApply _ () _ _ _) = todo
 
 expr (SIR.Expr'TypeAnnotation id () sp annotation e) =
     read_decls >>= \ decls ->
-    lift (lift $ ConvertTypeExpr.type_expr decls annotation) >>= \ annotation ->
+    lift (lift $ AddTypes.type_expr decls annotation) >>= \ annotation ->
     expr e >>= \ e ->
     lift (tell [Expect InTypeAnnotation (loc_expr_type e) (SIR.type_expr_type_info annotation)]) >> -- TODO: use annotation span
     pure (SIR.Expr'TypeAnnotation id (SIR.type_expr_type_info annotation) sp annotation e)

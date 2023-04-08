@@ -87,6 +87,9 @@ instance DumpableIdentifier iden => DumpableType (SIR.TypeExpr iden) where
     refer_type (SIR.TypeExpr'Identifier _ iden) = refer_iden iden
     refer_type (SIR.TypeExpr'Tuple a b) = text "(" >> refer_type a >> text ", " >> refer_type b >> text ")"
     refer_type (SIR.TypeExpr'Hole hid) = text "?" >> put_iden_list_of_text (unlocate hid)
+    refer_type (SIR.TypeExpr'Forall _ _) = todo
+    refer_type (SIR.TypeExpr'Apply _ _) = todo
+    refer_type (SIR.TypeExpr'Wild _) = text "_"
     refer_type (SIR.TypeExpr'Poison _) = text "poison"
 instance DumpableType (Maybe (Type.Type Void)) where
     refer_type (Just ty) = refer_type ty
@@ -116,6 +119,8 @@ expr (SIR.Expr'If _ _ _ _ cond t f) = text "if " >> expr cond >> text " then " >
 expr (SIR.Expr'Case _ _ _ _ _ _) = todo
 expr (SIR.Expr'TypeAnnotation _ _ _ ty e) = text ":" >> refer_type ty >> text ": " >> expr e
 expr (SIR.Expr'Hole _ _ _ hid) = text "?" >> put_iden_list_of_text (unlocate hid)
+expr (SIR.Expr'Forall _ _ _ _ _) = todo
+expr (SIR.Expr'TypeApply _ _ _ _ _) = todo
 expr (SIR.Expr'Poison _ _ _) = text "poison"
 
 pattern :: SIR.Pattern iden type_info -> PP iden type_expr type_info binary_ops_allowed ()

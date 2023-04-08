@@ -133,7 +133,10 @@ make_name_context decls bound_values parent =
 
         make_map x = Map.fromList (map (\ (n, _, v) -> (n, v)) x)
 
-        report_dups = mapM_ (\ decls@((first_name, _, _):_) -> tell_error $ MultipleDecls first_name (map get_decl_at decls))
+        report_dups = mapM_
+            (\ decls ->
+                let (first_name, _, _) = head decls
+                in tell_error $ MultipleDecls first_name (map get_decl_at decls))
             where
                 get_decl_at (_, d, _) = d
 
@@ -243,9 +246,9 @@ convert_type nc (AST.Type'Tuple sp items) = mapM (convert_type nc) items >>= gro
         group_items [_] = tell_error (Tuple1 sp) >> pure (SIR.TypeExpr'Poison sp)
         group_items [] = tell_error (Tuple0 sp) >> pure (SIR.TypeExpr'Poison sp)
 convert_type _ (AST.Type'Hole _ id) = pure $ SIR.TypeExpr'Hole id
-convert_type _ (AST.Type'Forall _ _ _) = todo
-convert_type _ (AST.Type'Apply _ _ _) = todo
-convert_type _ (AST.Type'Wild _) = todo
+convert_type nc (AST.Type'Forall _ tys ty) = SIR.TypeExpr'Forall <$> mapM (const (pure ())) tys <*> convert_type nc ty
+convert_type nc (AST.Type'Apply _ ty args) = SIR.TypeExpr'Apply <$> convert_type nc ty <*> mapM (convert_type nc) args
+convert_type _ (AST.Type'Wild sp) = pure $ SIR.TypeExpr'Wild sp
 
 convert_expr :: SIR.NameContext -> AST.Expr -> MakeIRState Expr
 convert_expr nc (AST.Expr'Identifier iden) = new_expr_id >>= \ id -> pure (SIR.Expr'Identifier id () (just_span iden) (nc, unlocate iden))
@@ -307,8 +310,8 @@ convert_expr name_context (AST.Expr'Case sp case_sp e arms) =
     pure (SIR.Expr'Case id () sp case_sp e arms)
 
 convert_expr nc (AST.Expr'TypeAnnotation sp ty e) = new_expr_id >>= \ id -> SIR.Expr'TypeAnnotation id () sp <$> convert_type nc ty <*> convert_expr nc e
-convert_expr _ (AST.Expr'Forall _ _ _) = todo
-convert_expr _ (AST.Expr'TypeApply _ _ _) = todo
+convert_expr nc (AST.Expr'Forall sp tys e) = new_expr_id >>= \ id -> SIR.Expr'Forall id () sp <$> mapM (const (pure ())) tys <*> convert_expr nc e
+convert_expr nc (AST.Expr'TypeApply sp e args) = new_expr_id >>= \ id -> SIR.Expr'TypeApply id () sp <$> convert_expr nc e <*> mapM (convert_type nc) args
 convert_expr _ (AST.Expr'Hole sp hid) = new_expr_id >>= \ eid -> pure (SIR.Expr'Hole eid () sp hid)
 
 convert_pattern :: ID.BoundValueParent -> AST.Pattern -> MakeIRState (BoundValueList, Pattern)

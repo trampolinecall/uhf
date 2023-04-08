@@ -44,4 +44,7 @@ type_expr decls (SIR.TypeExpr'Identifier sp iden) =
 
 type_expr decls (SIR.TypeExpr'Tuple a b) = Type.Type'Tuple <$> type_expr decls a <*> type_expr decls b
 type_expr _ (SIR.TypeExpr'Hole _) = todo
+type_expr _ (SIR.TypeExpr'Forall _ _) = todo
+type_expr _ (SIR.TypeExpr'Apply _ _) = todo
+type_expr _ (SIR.TypeExpr'Wild sp) = Type.Type'Unknown <$> new_type_unknown (TypeExpr sp)
 type_expr _ (SIR.TypeExpr'Poison sp) = Type.Type'Unknown <$> new_type_unknown (TypeExpr sp)

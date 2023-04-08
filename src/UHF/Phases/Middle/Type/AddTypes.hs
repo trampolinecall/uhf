@@ -103,7 +103,7 @@ type_expr (SIR.TypeExpr'Tuple () a b) =
     type_expr b >>= \ b_conv ->
     pure (SIR.TypeExpr'Tuple (Type.Type'Tuple (SIR.type_expr_type_info a_conv) (SIR.type_expr_type_info b_conv)) a_conv b_conv)
 
-type_expr (SIR.TypeExpr'Hole () hid) = SIR.TypeExpr'Hole <$> (Type.Type'Unknown <$> lift (lift $ new_type_unknown (TypeExpr $ just_span hid))) <*> pure hid
+type_expr (SIR.TypeExpr'Hole () sp hid) = SIR.TypeExpr'Hole <$> (Type.Type'Unknown <$> lift (lift $ new_type_unknown (TypeHole sp))) <*> pure sp <*> pure hid
 type_expr (SIR.TypeExpr'Forall () names ty) =
     type_expr ty >>= \ ty ->
     pure (SIR.TypeExpr'Forall (Type.Type'Forall names (SIR.type_expr_type_info ty)) names ty)

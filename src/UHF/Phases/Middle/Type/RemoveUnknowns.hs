@@ -92,7 +92,7 @@ expr unks (SIR.Expr'Poison id ty sp) = SIR.Expr'Poison id (type_ unks ty) sp
 type_expr :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkTypeExpr -> TypedTypeExpr
 type_expr unks (SIR.TypeExpr'Identifier ty sp iden) = SIR.TypeExpr'Identifier (type_ unks ty) sp iden
 type_expr unks (SIR.TypeExpr'Tuple ty a b) = SIR.TypeExpr'Tuple (type_ unks ty) (type_expr unks a) (type_expr unks b)
-type_expr unks (SIR.TypeExpr'Hole ty hid) = SIR.TypeExpr'Hole (type_ unks ty) hid
+type_expr unks (SIR.TypeExpr'Hole ty sp hid) = SIR.TypeExpr'Hole (type_ unks ty) sp hid
 type_expr unks (SIR.TypeExpr'Forall ty names sub) = SIR.TypeExpr'Forall (type_ unks ty) names (type_expr unks sub)
 type_expr unks (SIR.TypeExpr'Apply ty sp applied_to args) = SIR.TypeExpr'Apply (type_ unks ty) sp (type_expr unks applied_to) (type_expr unks args)
 type_expr unks (SIR.TypeExpr'Wild ty sp) = SIR.TypeExpr'Wild (type_ unks ty) sp

@@ -27,6 +27,8 @@ data Type
     = Type'Identifier Identifier
     | Type'Tuple Span [Type] -- TODO: anonymous named products? (ie field names, but no datatype name)
     | Type'Hole Span Identifier
+    | Type'Forall Span [Identifier] Type
+    | Type'Apply Span Type [Type]
     deriving (Eq, Show)
 
 data Expr
@@ -50,6 +52,9 @@ data Expr
 
     | Expr'If Span Span Expr Expr Expr
     | Expr'Case Span Span Expr [(Pattern, Expr)]
+
+    | Expr'Forall Span [Identifier] Expr -- TODO: add constraints like '#(T, U; Constraint#(T, U)) ...'
+    | Expr'TypeApply Span Expr [Type]
 
     | Expr'TypeAnnotation Span Type Expr
 
@@ -78,6 +83,8 @@ expr_span (Expr'BinaryOps sp _ _) = sp
 expr_span (Expr'Call sp _ _) = sp
 expr_span (Expr'If sp _ _ _ _) = sp
 expr_span (Expr'Case sp _ _ _) = sp
+expr_span (Expr'Forall sp _ _) = sp
+expr_span (Expr'TypeApply sp _ _) = sp
 expr_span (Expr'TypeAnnotation sp _ _) = sp
 expr_span (Expr'Hole sp _) = sp
 

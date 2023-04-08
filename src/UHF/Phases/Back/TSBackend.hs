@@ -175,6 +175,9 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures p
                     mangle_binding_as_thunk tup >>= \ tup_mangled ->
                     pure (default_let_thunk, Just (set_evaluator "TupleDestructure2Evaluator" tup_mangled))
 
+                ANFIR.Expr'Forall _ _ _ _ -> todo
+                ANFIR.Expr'TypeApply _ _ _ _ -> todo
+
                 ANFIR.Expr'Poison _ _ void -> absurd void
 
         convert_matcher (ANFIR.Switch'BoolLiteral b) = "new BoolLiteralMatcher(" <> if b then "true" else "false" <> ")"

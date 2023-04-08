@@ -57,6 +57,9 @@ data Expr ty poison_allowed
     | Expr'TupleDestructure1 ID.ExprID ty BindingKey -- TODO: figure out better solution to this (probably general destructure expr for any type, or actually probably use case expressions to match on things)
     | Expr'TupleDestructure2 ID.ExprID ty BindingKey
 
+    | Expr'Forall ID.ExprID ty [TypeVarKey] BindingKey -- TODO: put child bindings
+    | Expr'TypeApply ID.ExprID ty BindingKey ty
+
     | Expr'Poison ID.ExprID ty poison_allowed
     deriving Show
 
@@ -89,6 +92,9 @@ expr_type (Expr'Seq _ ty _ _) = ty
 expr_type (Expr'TupleDestructure1 _ ty _) = ty
 expr_type (Expr'TupleDestructure2 _ ty _) = ty
 
+expr_type (Expr'Forall _ ty _ _) = ty
+expr_type (Expr'TypeApply _ ty _ _) = ty
+
 expr_type (Expr'Poison _ ty _) = ty
 
 expr_id :: Expr ty poison_allowed -> ID.ExprID
@@ -110,6 +116,9 @@ expr_id (Expr'Seq id _ _ _) = id
 
 expr_id (Expr'TupleDestructure1 id _ _) = id
 expr_id (Expr'TupleDestructure2 id _ _) = id
+
+expr_id (Expr'Forall id _ _ _) = id
+expr_id (Expr'TypeApply id _ _ _) = id
 
 expr_id (Expr'Poison id _ _) = id
 

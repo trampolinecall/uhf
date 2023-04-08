@@ -82,4 +82,6 @@ expr (RIR.Expr'Switch _ _ _ e arms) = text "switch " >> expr e >> text " {\n" >>
         pp_arm (RIR.Switch'Tuple a b, e) = text "(" >> maybe (text "_") refer_bv a >> text ", " >> maybe (text "_") refer_bv b >> text ") -> " >> expr e >> text "\n"
         pp_arm (RIR.Switch'Default, e) = text "_ -> " >> expr e >> text "\n"
 expr (RIR.Expr'Seq _ _ _ a b) = text "seq " >> expr a >> text ", " >> expr b
+expr (RIR.Expr'Forall _ _ _ _ _) = todo
+expr (RIR.Expr'TypeApply _ _ _ _ _) = todo
 expr (RIR.Expr'Poison _ _ _) = text "poison"

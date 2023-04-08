@@ -67,6 +67,9 @@ rp_expr (ANFIR.Expr'Seq id ty a b) = ty >>= \ ty -> pure (ANFIR.Expr'Seq id ty a
 rp_expr (ANFIR.Expr'TupleDestructure1 id ty t) = ty >>= \ ty -> pure (ANFIR.Expr'TupleDestructure1 id ty t)
 rp_expr (ANFIR.Expr'TupleDestructure2 id ty t) = ty >>= \ ty -> pure (ANFIR.Expr'TupleDestructure2 id ty t)
 
+rp_expr (ANFIR.Expr'Forall id ty vars e) = ty >>= \ ty -> pure (ANFIR.Expr'Forall id ty vars e)
+rp_expr (ANFIR.Expr'TypeApply id ty e arg) = ty >>= \ ty -> arg >>= \ arg -> pure (ANFIR.Expr'TypeApply id ty e arg)
+
 rp_expr (ANFIR.Expr'Poison _ _ _) = Nothing
 
 rp_param :: PoisonedParam -> Maybe NoPoisonParam

@@ -11,7 +11,6 @@ import UHF.Phases.Middle.Type.Aliases
 import UHF.Phases.Middle.Type.Error
 
 import qualified UHF.Phases.Middle.Type.AddTypes as AddTypes
-import qualified UHF.Phases.Middle.Type.CollectConstraints as CollectConstraints
 import qualified UHF.Phases.Middle.Type.SolveConstraints as SolveConstraints
 import qualified UHF.Phases.Middle.Type.RemoveUnknowns as RemoveUnknowns
 
@@ -20,10 +19,7 @@ typecheck :: UntypedSIR -> Compiler.WithDiagnostics Error Void TypedSIR
 typecheck (SIR.SIR decls adts type_synonyms type_vars bound_values mod) =
     runStateT
         (
-            Arena.transformM (AddTypes.adt decls) adts >>= \ adts ->
-            Arena.transformM (AddTypes.type_synonym decls) type_synonyms >>= \ type_synonyms ->
-            Arena.transformM AddTypes.bound_value bound_values >>= \ bound_values ->
-            runWriterT (Arena.transformM (CollectConstraints.collect decls bound_values) decls) >>= \ (decls, constraints) ->
+            runWriterT (AddTypes.add adts type_synonyms bound_values decls) >>= \ ((adts, type_synonyms, bound_values, decls), constraints) ->
             SolveConstraints.solve adts type_synonyms constraints >>
             pure (decls, adts, type_synonyms, bound_values)
         )

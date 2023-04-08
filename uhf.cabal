@@ -67,7 +67,6 @@ library
       UHF.Phases.Middle.Type
       UHF.Phases.Middle.Type.AddTypes
       UHF.Phases.Middle.Type.Aliases
-      UHF.Phases.Middle.Type.CollectConstraints
       UHF.Phases.Middle.Type.Constraint
       UHF.Phases.Middle.Type.Error
       UHF.Phases.Middle.Type.RemoveUnknowns

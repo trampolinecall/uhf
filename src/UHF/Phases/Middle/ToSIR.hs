@@ -71,7 +71,7 @@ type Decl = SIR.Decl Identifier TypeExpr () ()
 type Binding = SIR.Binding Identifier TypeExpr () ()
 type ADT = Type.ADT TypeExpr
 type TypeSynonym = Type.TypeSynonym TypeExpr
-type TypeExpr = SIR.TypeExpr Identifier
+type TypeExpr = SIR.TypeExpr Identifier ()
 type Expr = SIR.Expr Identifier TypeExpr () ()
 type Pattern = SIR.Pattern Identifier ()
 type BoundValue = SIR.BoundValue ()
@@ -238,17 +238,17 @@ convert_decls bv_parent decl_parent parent_name_context prev_decl_entries prev_b
                     fields
 
 convert_type :: SIR.NameContext -> AST.Type -> MakeIRState TypeExpr
-convert_type nc (AST.Type'Identifier id) = pure $ SIR.TypeExpr'Identifier (just_span id) (nc, unlocate id)
+convert_type nc (AST.Type'Identifier id) = pure $ SIR.TypeExpr'Identifier () (just_span id) (nc, unlocate id)
 convert_type nc (AST.Type'Tuple sp items) = mapM (convert_type nc) items >>= group_items
     where
-        group_items [a, b] = pure $ SIR.TypeExpr'Tuple a b
-        group_items (a:b:more) = SIR.TypeExpr'Tuple a <$> group_items (b:more)
-        group_items [_] = tell_error (Tuple1 sp) >> pure (SIR.TypeExpr'Poison sp)
-        group_items [] = tell_error (Tuple0 sp) >> pure (SIR.TypeExpr'Poison sp)
-convert_type _ (AST.Type'Hole _ id) = pure $ SIR.TypeExpr'Hole id
-convert_type nc (AST.Type'Forall _ tys ty) = SIR.TypeExpr'Forall <$> mapM (const (pure ())) tys <*> convert_type nc ty
-convert_type nc (AST.Type'Apply _ ty args) = SIR.TypeExpr'Apply <$> convert_type nc ty <*> mapM (convert_type nc) args
-convert_type _ (AST.Type'Wild sp) = pure $ SIR.TypeExpr'Wild sp
+        group_items [a, b] = pure $ SIR.TypeExpr'Tuple () a b
+        group_items (a:b:more) = SIR.TypeExpr'Tuple () a <$> group_items (b:more)
+        group_items [_] = tell_error (Tuple1 sp) >> pure (SIR.TypeExpr'Poison () sp)
+        group_items [] = tell_error (Tuple0 sp) >> pure (SIR.TypeExpr'Poison () sp)
+convert_type _ (AST.Type'Hole _ id) = pure $ SIR.TypeExpr'Hole () id
+convert_type nc (AST.Type'Forall _ tys ty) = SIR.TypeExpr'Forall () <$> mapM (const (pure ())) tys <*> convert_type nc ty
+convert_type nc (AST.Type'Apply _ ty args) = SIR.TypeExpr'Apply () <$> convert_type nc ty <*> mapM (convert_type nc) args
+convert_type _ (AST.Type'Wild sp) = pure $ SIR.TypeExpr'Wild () sp
 
 convert_expr :: SIR.NameContext -> AST.Expr -> MakeIRState Expr
 convert_expr nc (AST.Expr'Identifier iden) = new_expr_id >>= \ id -> pure (SIR.Expr'Identifier id () (just_span iden) (nc, unlocate iden))

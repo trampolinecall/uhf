@@ -19,11 +19,12 @@ import qualified Data.Map as Map
 
 type Type = Maybe (Type.Type Void)
 
-type SIR = SIR.SIR (Located (Maybe BoundValueKey)) Type Type Void
-type SIRDecl = SIR.Decl (Located (Maybe BoundValueKey)) Type Type Void
-type SIRExpr = SIR.Expr (Located (Maybe BoundValueKey)) Type Type Void
+type SIR = SIR.SIR (Located (Maybe BoundValueKey)) SIRTypeExpr Type Void
+type SIRDecl = SIR.Decl (Located (Maybe BoundValueKey)) SIRTypeExpr Type Void
+type SIRExpr = SIR.Expr (Located (Maybe BoundValueKey)) SIRTypeExpr Type Void
+type SIRTypeExpr = SIR.TypeExpr (Maybe SIR.DeclKey) Type
 type SIRPattern = SIR.Pattern (Located (Maybe BoundValueKey)) Type
-type SIRBinding = SIR.Binding (Located (Maybe BoundValueKey)) Type Type Void
+type SIRBinding = SIR.Binding (Located (Maybe BoundValueKey)) SIRTypeExpr Type Void
 
 type RIRDecl = RIR.Decl ()
 type RIRExpr = RIR.Expr ()
@@ -42,7 +43,18 @@ convert :: SIR -> RIR.RIR ()
 convert (SIR.SIR decls adts type_synonyms bvs mod) =
     let ((decls', bound_wheres), bvs') = IDGen.run_id_gen ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.BoundValueID'RIRMadeUp $ runStateT (runWriterT (Unique.run_unique_maker_t (Arena.transformM convert_decl decls))) bvs
         bvs'' = Arena.transform_with_key (\ key (SIR.BoundValue id ty sp) -> RIR.BoundValue id ty (bound_wheres Map.! key) sp) bvs'
-    in RIR.RIR decls' adts type_synonyms bvs'' mod
+        adts' = Arena.transform convert_adt adts
+        type_synonyms' = Arena.transform convert_type_synonym type_synonyms
+    in RIR.RIR decls' adts' type_synonyms' bvs'' mod
+
+convert_adt :: Type.ADT SIRTypeExpr -> Type.ADT Type
+convert_adt (Type.ADT id name variants) = Type.ADT id name (map convert_variant variants)
+    where
+        convert_variant (Type.ADTVariant'Named name fields) = Type.ADTVariant'Named name (map (\ (name, ty) -> (name, SIR.type_expr_type_info ty)) fields)
+        convert_variant (Type.ADTVariant'Anon name fields) = Type.ADTVariant'Anon name (map SIR.type_expr_type_info fields)
+
+convert_type_synonym :: Type.TypeSynonym SIRTypeExpr -> Type.TypeSynonym Type
+convert_type_synonym (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name (SIR.type_expr_type_info expansion)
 
 convert_decl :: SIRDecl -> ConvertState RIRDecl
 convert_decl (SIR.Decl'Module _ _ bindings adts syns) = RIR.Decl'Module <$> (concat <$> mapM (convert_binding RIR.InModule) bindings) <*> pure adts <*> pure syns

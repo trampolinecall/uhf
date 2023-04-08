@@ -56,12 +56,12 @@ decl =
 
 decl_data :: PEG.Parser AST.Decl
 decl_data =
-    PEG.consume' "data declaration" (Token.SingleTypeToken Token.Data) >>= \ _ ->
+    PEG.consume' "data declaration" (Token.SingleTypeToken Token.Data) >>
     PEG.consume' "datatype name" (Token.AlphaIdentifier ()) >>= \ (Located name_sp (Token.AlphaIdentifier name)) ->
-    PEG.consume' "'{'" (Token.SingleTypeToken Token.OBrace) >>= \ _ ->
+    PEG.consume' "'{'" (Token.SingleTypeToken Token.OBrace) >>
     PEG.star variant >>= \ variants ->
-    PEG.consume' "'}'" (Token.SingleTypeToken Token.CBrace) >>= \ _ ->
-    PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>= \ _ ->
+    PEG.consume' "'}'" (Token.SingleTypeToken Token.CBrace) >>
+    PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>
     pure (AST.Decl'Data (Located name_sp name) variants)
     where
         variant =
@@ -69,23 +69,23 @@ decl_data =
             PEG.choice [anon_variant $ Located name_sp name, named_variant $ Located name_sp name]
 
         anon_variant name =
-            PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ _ ->
+            PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>
             PEG.delim_star type_ (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ field_types ->
-            PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ _ ->
-            PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>= \ _ ->
+            PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>
+            PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>
             pure (AST.DataVariant'Anon name field_types)
 
         named_variant name =
-            PEG.consume' "'{'" (Token.SingleTypeToken Token.OBrace) >>= \ _ ->
+            PEG.consume' "'{'" (Token.SingleTypeToken Token.OBrace) >>
             PEG.star (
                 PEG.consume' "field name" (Token.AlphaIdentifier ()) >>= \ (Located field_name_sp (Token.AlphaIdentifier field_name)) ->
-                PEG.consume' "':'" (Token.SingleTypeToken Token.Colon) >>= \ _ ->
+                PEG.consume' "':'" (Token.SingleTypeToken Token.Colon) >>
                 type_ >>= \ field_ty ->
-                PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>= \ _ ->
+                PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>
                 pure (Located field_name_sp field_name, field_ty)
             ) >>= \ fields ->
-            PEG.consume' "'}'" (Token.SingleTypeToken Token.CBrace) >>= \ _ ->
-            PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>= \ _ ->
+            PEG.consume' "'}'" (Token.SingleTypeToken Token.CBrace) >>
+            PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>
             pure (AST.DataVariant'Named name fields)
 
 decl_binding :: PEG.Parser AST.Decl
@@ -93,16 +93,16 @@ decl_binding =
     pattern >>= \ target ->
     PEG.consume' "'='" (Token.SingleTypeToken Token.Equal) >>= \ (Located eq_sp _) ->
     expr >>= \ val ->
-    PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>= \ _ ->
+    PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>
     pure (AST.Decl'Value target eq_sp val)
 
 decl_typesyn :: PEG.Parser AST.Decl
 decl_typesyn =
-    PEG.consume' "type synonym" (Token.SingleTypeToken Token.TypeSyn) >>= \ _ ->
+    PEG.consume' "type synonym" (Token.SingleTypeToken Token.TypeSyn) >>
     PEG.consume' "type synonym name" (Token.AlphaIdentifier ()) >>= \ (Located name_sp (Token.AlphaIdentifier name)) ->
-    PEG.consume' "'='" (Token.SingleTypeToken Token.Equal) >>= \ _ ->
+    PEG.consume' "'='" (Token.SingleTypeToken Token.Equal) >>
     type_ >>= \ ty ->
-    PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>= \ _ ->
+    PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>
     pure (AST.Decl'TypeSyn (Located name_sp name) ty)
 -- expr {{{1
 expr :: PEG.Parser AST.Expr
@@ -127,14 +127,14 @@ expr_call = expr_primary >>= calls
             PEG.choice [normal_call callee, type_application callee, pure callee]
 
         normal_call callee =
-            PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ _ ->
+            PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>
             PEG.delim_star expr (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ args ->
             PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ (Located cp_sp _) ->
             calls (AST.Expr'Call (AST.expr_span callee <> cp_sp) callee args)
 
         type_application callee =
-            PEG.consume' "'#'" (Token.SingleTypeToken Token.Hash) >>= \ _ ->
-            PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ _ ->
+            PEG.consume' "'#'" (Token.SingleTypeToken Token.Hash) >>
+            PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>
             PEG.delim_star type_ (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ args ->
             PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ (Located cp_sp _) ->
             calls (AST.Expr'TypeApply (AST.expr_span callee <> cp_sp) callee args)
@@ -202,14 +202,14 @@ expr_bool_lit =
 expr_forall :: PEG.Parser AST.Expr
 expr_forall =
     PEG.consume' "'#'" (Token.SingleTypeToken Token.Hash) >>= \ (Located sp _) ->
-    PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ _ ->
+    PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>
     PEG.delim_star
         (
             PEG.consume' "type variable name" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
             pure (Located iden_sp iden)
         )
         (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ tys ->
-    PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ _ ->
+    PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>
     expr >>= \ e ->
     pure (AST.Expr'Forall (sp <> AST.expr_span e) tys e)
 
@@ -223,10 +223,10 @@ expr_tuple =
 expr_lambda :: PEG.Parser AST.Expr
 expr_lambda =
     PEG.consume' "'\\'" (Token.SingleTypeToken Token.Backslash) >>= \ (Located backslash_sp _) ->
-    PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ _ ->
+    PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>
     PEG.delim_star pattern (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ params ->
-    PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ _ ->
-    PEG.consume' "'->'" (Token.SingleTypeToken Token.Arrow) >>= \ _ ->
+    PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>
+    PEG.consume' "'->'" (Token.SingleTypeToken Token.Arrow) >>
     expr >>= \ body ->
     pure (AST.Expr'Lambda (backslash_sp <> AST.expr_span body) params body)
 
@@ -254,9 +254,9 @@ expr_if :: PEG.Parser AST.Expr
 expr_if =
     PEG.consume' "'if'" (Token.SingleTypeToken Token.If) >>= \ (Located if_sp _) ->
     expr >>= \ cond ->
-    PEG.consume' "'then'" (Token.SingleTypeToken Token.Then) >>= \ _ ->
+    PEG.consume' "'then'" (Token.SingleTypeToken Token.Then) >>
     expr >>= \ true_choice ->
-    PEG.consume' "'else'" (Token.SingleTypeToken Token.Else) >>= \ _ ->
+    PEG.consume' "'else'" (Token.SingleTypeToken Token.Else) >>
     expr >>= \ false_choice ->
     pure (AST.Expr'If (if_sp <> AST.expr_span false_choice) if_sp cond true_choice false_choice)
 
@@ -267,7 +267,7 @@ expr_case =
     PEG.consume' "'{'" (Token.SingleTypeToken Token.OBrace) >>
     PEG.star (
         pattern >>= \ pat ->
-        PEG.consume' "'->'" (Token.SingleTypeToken Token.Arrow) >>= \ _ ->
+        PEG.consume' "'->'" (Token.SingleTypeToken Token.Arrow) >>
         expr >>= \ choice ->
         PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>
         pure (pat, choice)

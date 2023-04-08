@@ -32,6 +32,7 @@ dump_type (AST.Type'Tuple _ items) = dump_struct "Type'Tuple" [("items", dump_li
 dump_type (AST.Type'Hole _ name) = dump_struct "Type'Hole" [("name", dump_identifier name)]
 dump_type (AST.Type'Forall _ tys ty) = dump_struct "Type'Forall" [("new", dump_list dump_identifier tys), ("ty", dump_type ty)]
 dump_type (AST.Type'Apply _ ty tys) = dump_struct "Type'Apply" [("ty", dump_type ty), ("args", dump_list dump_type tys)]
+dump_type (AST.Type'Wild _) = dump_struct "Type'Wild" []
 
 dump_expr :: AST.Expr -> PPUtils.PP ()
 dump_expr (AST.Expr'Identifier iden) = dump_struct "Expr'Identifier" [("iden", dump_identifier iden)]

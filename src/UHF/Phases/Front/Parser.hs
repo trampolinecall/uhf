@@ -124,15 +124,23 @@ expr_binary_ops =
         else pure (AST.Expr'BinaryOps (AST.expr_span first <> AST.expr_span (snd $ last ops)) first ops)
 
 expr_call :: PEG.Parser AST.Expr
-expr_call =
-    expr_primary >>= \ callee ->
-    PEG.star (
-        PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ _ ->
-        PEG.delim_star expr (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ args ->
-        PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ (Located cp_sp _) ->
-        pure (args, cp_sp)
-    ) >>= \ calls ->
-    pure (foldl' (\ callee (args, cp_sp) -> AST.Expr'Call (AST.expr_span callee <> cp_sp) callee args) callee calls)
+expr_call = expr_primary >>= calls
+    where
+        calls callee =
+            PEG.choice [normal_call callee, type_application callee, pure callee]
+
+        normal_call callee =
+            PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ _ ->
+            PEG.delim_star expr (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ args ->
+            PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ (Located cp_sp _) ->
+            calls (AST.Expr'Call (AST.expr_span callee <> cp_sp) callee args)
+
+        type_application callee =
+            PEG.consume' "'#'" (Token.SingleTypeToken Token.Hash) >>= \ _ ->
+            PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ _ ->
+            PEG.delim_star type_ (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ args ->
+            PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ (Located cp_sp _) ->
+            calls (AST.Expr'TypeApply (AST.expr_span callee <> cp_sp) callee args)
 
 expr_primary :: PEG.Parser AST.Expr
 expr_primary =
@@ -147,6 +155,8 @@ expr_primary =
 
         , expr_if
         , expr_case
+
+        , expr_forall
 
         , expr_type_annotation
 
@@ -191,6 +201,20 @@ expr_bool_lit :: PEG.Parser AST.Expr
 expr_bool_lit =
     PEG.consume' "bool literal" (Token.Bool ()) >>= \ (Located sp (Token.Bool b)) ->
     pure (AST.Expr'Bool sp b)
+
+expr_forall :: PEG.Parser AST.Expr
+expr_forall =
+    PEG.consume' "'#'" (Token.SingleTypeToken Token.Hash) >>= \ (Located sp _) ->
+    PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ _ ->
+    PEG.delim_star
+        (
+            PEG.consume' "type variable name" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
+            pure (Located iden_sp iden)
+        )
+        (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ tys ->
+    PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ _ ->
+    expr >>= \ e ->
+    pure (AST.Expr'Forall (sp <> AST.expr_span e) tys e)
 
 expr_tuple :: PEG.Parser AST.Expr
 expr_tuple =
@@ -262,12 +286,17 @@ expr_type_annotation =
     pure (AST.Expr'TypeAnnotation (colon_sp <> AST.expr_span e) ty e)
 -- type {{{1
 type_ :: PEG.Parser AST.Type
-type_ = PEG.choice [type_iden, type_hole, type_tuple]
+type_ = PEG.choice [type_iden, type_wild, type_hole, type_tuple]
 
 type_iden :: PEG.Parser AST.Type
 type_iden =
     PEG.consume' "type" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
     pure (AST.Type'Identifier (Located iden_sp iden))
+
+type_wild :: PEG.Parser AST.Type
+type_wild =
+    PEG.consume' "'_'" (Token.SingleTypeToken Token.Underscore) >>= \ (Located sp _) ->
+    pure (AST.Type'Wild sp)
 
 type_hole :: PEG.Parser AST.Type
 type_hole =

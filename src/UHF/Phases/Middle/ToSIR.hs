@@ -245,6 +245,7 @@ convert_type nc (AST.Type'Tuple sp items) = mapM (convert_type nc) items >>= gro
 convert_type _ (AST.Type'Hole _ id) = pure $ SIR.TypeExpr'Hole id
 convert_type _ (AST.Type'Forall _ _ _) = todo
 convert_type _ (AST.Type'Apply _ _ _) = todo
+convert_type _ (AST.Type'Wild _) = todo
 
 convert_expr :: SIR.NameContext -> AST.Expr -> MakeIRState Expr
 convert_expr nc (AST.Expr'Identifier iden) = new_expr_id >>= \ id -> pure (SIR.Expr'Identifier id () (just_span iden) (nc, unlocate iden))

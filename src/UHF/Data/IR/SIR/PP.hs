@@ -71,13 +71,13 @@ put_iden_list_of_text = text . Text.intercalate "::" . map unlocate
 
 instance DumpableIdentifier (SIR.NameContext, [Located Text]) where
     refer_iden (_, segments) = put_iden_list_of_text segments
-instance DumpableIdentifier (Located (Maybe Keys.BoundValueKey)) where
+instance DumpableIdentifier (Located (Maybe Keys.BoundValueKey)) where -- TODO: remove this
     refer_iden k = case unlocate k of
         Just k -> refer_iden k
         Nothing -> text "<name resolution error>"
 instance DumpableIdentifier Keys.BoundValueKey where
     refer_iden = refer_bv
-instance DumpableIdentifier (Maybe Keys.DeclKey) where
+instance DumpableIdentifier (Maybe Keys.DeclKey) where -- TODO: remove this
     refer_iden (Just k) = refer_decl k
     refer_iden Nothing = text "<name resolution error>"
 

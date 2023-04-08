@@ -239,6 +239,8 @@ refer_type_raw Type.Type'Bool = pure "Bool"
 refer_type_raw (Type.Type'Function a r) = refer_type_raw a >>= \ a -> refer_type_raw r >>= \ r -> pure ("Lambda<" <> a <> ", " <> r <> ">")
 refer_type_raw (Type.Type'Tuple a b) = refer_type_raw a >>= \ a -> refer_type_raw b >>= \ b -> pure ("Tuple<" <> a <> ", " <> b <> ">")
 refer_type_raw (Type.Type'Unknown void) = absurd void
+refer_type_raw (Type.Type'Variable _) = todo
+refer_type_raw (Type.Type'Forall _ _) = todo
 
 refer_type :: Type.Type Void -> IRReader Text
 refer_type ty = refer_type_raw ty >>= \ ty -> pure ("Thunk<" <> ty <> ">")
@@ -282,7 +284,6 @@ define_lambda_type key (ANFIR.Binding (ANFIR.Expr'Lambda _ _ captures param body
 define_lambda_type _ _ = pure ()
 
 -- mangling {{{2
--- TODO: better mangling and unified mangling for everything
 mangle_adt :: Type.ADTKey -> IRReader Text
 mangle_adt key = get_adt key >>= \ (Type.ADT id _ _) -> pure (ID.mangle id)
 

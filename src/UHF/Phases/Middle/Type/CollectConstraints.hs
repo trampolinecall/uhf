@@ -147,7 +147,9 @@ expr (SIR.Expr'Case id () sp case_tok_sp testing arms) =
 expr (SIR.Expr'Poison id () sp) = SIR.Expr'Poison id <$> (Type.Type'Unknown <$> lift (lift $ new_type_unknown $ PoisonExpr sp)) <*> pure sp
 expr (SIR.Expr'Hole id () sp hid) = SIR.Expr'Hole id <$> (Type.Type'Unknown <$> lift (lift $ new_type_unknown $ HoleExpr sp)) <*> pure sp <*> pure hid
 
-expr (SIR.Expr'Forall _ () _ _ _) = todo
+expr (SIR.Expr'Forall id () sp vars e) =
+    expr e >>= \ e ->
+    pure (SIR.Expr'Forall id (Type.Type'Forall vars (SIR.expr_type e)) sp vars e)
 expr (SIR.Expr'TypeApply _ () _ _ _) = todo
 
 expr (SIR.Expr'TypeAnnotation id () sp annotation e) =

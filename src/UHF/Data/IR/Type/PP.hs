@@ -51,3 +51,5 @@ refer_type_m show_tyunk adts type_synonyms (Type.Type'Tuple a b) = do
     b_shown <- refer_type_m show_tyunk adts type_synonyms b
     pure (PPUtils.write "(" >> a_shown >> PPUtils.write ", " >> b_shown >> PPUtils.write ")")
 refer_type_m show_tyunk _ _ (Type.Type'Unknown unk) = show_tyunk unk
+refer_type_m _ _ _ (Type.Type'Variable var) = todo
+refer_type_m _ _ _ (Type.Type'Forall vars ty) = todo

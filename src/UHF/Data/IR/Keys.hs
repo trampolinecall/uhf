@@ -2,6 +2,7 @@ module UHF.Data.IR.Keys
     ( DeclKey
     , ADTKey
     , TypeSynonymKey
+    , TypeVarKey
     , BoundValueKey
     , BindingKey
     , ParamKey
@@ -27,6 +28,11 @@ newtype TypeSynonymKey = TypeSynonymKey Int deriving (Show, Eq)
 instance Arena.Key TypeSynonymKey where
     make_key = TypeSynonymKey
     unmake_key (TypeSynonymKey i) = i
+
+newtype TypeVarKey = TypeVarKey Int deriving (Show, Eq)
+instance Arena.Key TypeVarKey where
+    make_key = TypeVarKey
+    unmake_key (TypeVarKey i) = i
 
 newtype BoundValueKey = BoundValueKey Int deriving (Show, Eq, Ord) -- TODO: remove Eq and Ord when BoundValues store their graph nodes
 instance Arena.Key BoundValueKey where

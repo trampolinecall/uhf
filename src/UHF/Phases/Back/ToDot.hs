@@ -67,6 +67,9 @@ to_dot (ANFIR.ANFIR _ _ _ bindings params _) =
                         ANFIR.Expr'TupleDestructure1 _ _ tup -> ("tuple destructure 1", [("tuple", tup)], [])
                         ANFIR.Expr'TupleDestructure2 _ _ tup -> ("tuple destructure 2", [("tuple", tup)], [])
 
+                        ANFIR.Expr'Forall _ _ _ e -> ("forall", [("e", e)], []) -- TODO: put vars
+                        ANFIR.Expr'TypeApply _ _ e ty -> ("type apply", [("e", e)], []) -- TODO: put type
+
                         ANFIR.Expr'Poison _ _ void -> absurd void
 
                 make_port (name, _) = "<" <> name <> ">" <> name

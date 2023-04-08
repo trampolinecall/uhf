@@ -34,6 +34,7 @@ pp_type (AST.Type'Tuple _ items) = PPUtils.write "(" >> pp_comma_separated pp_ty
 pp_type (AST.Type'Hole _ name) = PPUtils.write "?" >> pp_iden name
 pp_type (AST.Type'Forall _ names subty) = PPUtils.write "#(" >> pp_comma_separated pp_iden names >> PPUtils.write ") " >> pp_type subty
 pp_type (AST.Type'Apply _ callee args) = pp_type callee >> PPUtils.write "#(" >> pp_comma_separated pp_type args >> PPUtils.write ")"
+pp_type (AST.Type'Wild _) = PPUtils.write "_"
 
 -- TODO: precedence
 pp_expr :: AST.Expr -> PPUtils.PP ()

@@ -94,7 +94,7 @@ transform_identifiers transform_d_iden transform_e_iden adts type_synonyms decls
         transform_type_expr (SIR.TypeExpr'Tuple type_info a b) = SIR.TypeExpr'Tuple type_info <$> transform_type_expr a <*> transform_type_expr b
         transform_type_expr (SIR.TypeExpr'Hole type_info hid) = pure $ SIR.TypeExpr'Hole type_info hid
         transform_type_expr (SIR.TypeExpr'Forall type_info names ty) = SIR.TypeExpr'Forall type_info names <$> transform_type_expr ty
-        transform_type_expr (SIR.TypeExpr'Apply type_info ty args) = SIR.TypeExpr'Apply type_info <$> transform_type_expr ty <*> mapM transform_type_expr args
+        transform_type_expr (SIR.TypeExpr'Apply type_info ty args) = SIR.TypeExpr'Apply type_info <$> transform_type_expr ty <*> transform_type_expr args
         transform_type_expr (SIR.TypeExpr'Wild type_info sp) = pure $ SIR.TypeExpr'Wild type_info sp
         transform_type_expr (SIR.TypeExpr'Poison type_info sp) = pure $ SIR.TypeExpr'Poison type_info sp
 
@@ -132,7 +132,7 @@ transform_identifiers transform_d_iden transform_e_iden adts type_synonyms decls
         transform_expr (SIR.Expr'TypeAnnotation id type_info sp ty e) = SIR.Expr'TypeAnnotation id type_info sp <$> transform_type_expr ty <*> transform_expr e
 
         transform_expr (SIR.Expr'Forall id type_info sp names e) = SIR.Expr'Forall id type_info sp names <$> transform_expr e
-        transform_expr (SIR.Expr'TypeApply id type_info sp e args) = SIR.Expr'TypeApply id type_info sp <$> transform_expr e <*> mapM transform_type_expr args
+        transform_expr (SIR.Expr'TypeApply id type_info sp e args) = SIR.Expr'TypeApply id type_info sp <$> transform_expr e <*> transform_type_expr args
 
         transform_expr (SIR.Expr'Hole id type_info sp hid) = pure $ SIR.Expr'Hole id type_info sp hid
 

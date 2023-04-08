@@ -29,6 +29,7 @@ data Type
     | Type'Hole Span Identifier
     | Type'Forall Span [Identifier] Type
     | Type'Apply Span Type [Type]
+    | Type'Wild Span -- TODO: come up with better name for this
     deriving (Eq, Show)
 
 data Expr

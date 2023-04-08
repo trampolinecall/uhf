@@ -82,6 +82,8 @@ expr vars (SIR.Expr'Call id ty sp callee arg) = SIR.Expr'Call id (type_ vars ty)
 expr vars (SIR.Expr'If id ty sp if_sp cond true false) = SIR.Expr'If id (type_ vars ty) sp if_sp (expr vars cond) (expr vars true) (expr vars false)
 expr vars (SIR.Expr'Case id ty sp case_sp testing arms) = SIR.Expr'Case id (type_ vars ty) sp case_sp (expr vars testing) (map (\ (p, e) -> (pattern vars p, expr vars e)) arms)
 expr vars (SIR.Expr'TypeAnnotation id ty sp annotation e) = SIR.Expr'TypeAnnotation id (type_ vars ty) sp (type_ vars annotation) (expr vars e)
+expr vars (SIR.Expr'Forall id ty sp names e) = SIR.Expr'Forall id (type_ vars ty) sp (map identity names) (expr vars e)
+expr vars (SIR.Expr'TypeApply id ty sp e args) = SIR.Expr'TypeApply id (type_ vars ty) sp (expr vars e) (map (type_ vars) args)
 expr vars (SIR.Expr'Hole id ty sp hid) = SIR.Expr'Hole id (type_ vars ty) sp hid
 expr vars (SIR.Expr'Poison id ty sp) = SIR.Expr'Poison id (type_ vars ty) sp
 

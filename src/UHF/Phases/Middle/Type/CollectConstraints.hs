@@ -62,7 +62,7 @@ pattern (SIR.Pattern'Identifier () sp bv) =
     in pure (SIR.Pattern'Identifier ty sp bv)
 
 pattern (SIR.Pattern'Wildcard () sp) =
-    lift (lift (Type.Type'Unknown <$> new_type_variable (WildcardPattern sp))) >>= \ ty ->
+    lift (lift (Type.Type'Unknown <$> new_type_unknown (WildcardPattern sp))) >>= \ ty ->
     pure (SIR.Pattern'Wildcard ty sp)
 
 pattern (SIR.Pattern'Tuple () sp l r) =
@@ -77,14 +77,14 @@ pattern (SIR.Pattern'Named () sp at_sp bvk subpat) =
     in lift (tell [Eq InNamedPattern at_sp (Located (just_span bvk) bv_ty) (loc_pat_type subpat)]) >>
     pure (SIR.Pattern'Named bv_ty sp at_sp bvk subpat)
 
-pattern (SIR.Pattern'Poison () sp) = SIR.Pattern'Poison <$> (Type.Type'Unknown <$> lift (lift $ new_type_variable $ PoisonPattern sp)) <*> pure sp
+pattern (SIR.Pattern'Poison () sp) = SIR.Pattern'Poison <$> (Type.Type'Unknown <$> lift (lift $ new_type_unknown $ PoisonPattern sp)) <*> pure sp
 
 expr :: UntypedExpr -> DeclBVReader TypedWithUnkExpr
 expr (SIR.Expr'Identifier id () sp bv) =
     read_bvs >>= \ bvs ->
     (case unlocate bv of
         Just bv -> let (SIR.BoundValue _ ty _) = Arena.get bvs bv in pure ty
-        Nothing -> Type.Type'Unknown <$> lift (lift $ new_type_variable (UnresolvedIdenExpr sp))) >>= \ ty ->
+        Nothing -> Type.Type'Unknown <$> lift (lift $ new_type_unknown (UnresolvedIdenExpr sp))) >>= \ ty ->
 
     pure (SIR.Expr'Identifier id ty sp bv)
 
@@ -111,7 +111,7 @@ expr (SIR.Expr'BinaryOps _ void _ _ _ _) = absurd void
 expr (SIR.Expr'Call id () sp callee arg) =
     expr callee >>= \ callee ->
     expr arg >>= \ arg ->
-    lift (lift $ new_type_variable (CallExpr sp)) >>= \ res_ty_var ->
+    lift (lift $ new_type_unknown (CallExpr sp)) >>= \ res_ty_var ->
 
     lift (tell [Expect InCallExpr (loc_expr_type callee) (Type.Type'Function (SIR.expr_type arg) (Type.Type'Unknown res_ty_var))]) >>
 
@@ -140,12 +140,12 @@ expr (SIR.Expr'Case id () sp case_tok_sp testing arms) =
 
     (case headMay arms of
         Just (_, first_arm_result) -> pure $ SIR.expr_type first_arm_result
-        Nothing -> Type.Type'Unknown <$> lift (lift $ new_type_variable $ CaseExpr sp)) >>= \ result_ty ->
+        Nothing -> Type.Type'Unknown <$> lift (lift $ new_type_unknown $ CaseExpr sp)) >>= \ result_ty ->
 
     pure (SIR.Expr'Case id result_ty sp case_tok_sp testing arms)
 
-expr (SIR.Expr'Poison id () sp) = SIR.Expr'Poison id <$> (Type.Type'Unknown <$> lift (lift $ new_type_variable $ PoisonExpr sp)) <*> pure sp
-expr (SIR.Expr'Hole id () sp hid) = SIR.Expr'Hole id <$> (Type.Type'Unknown <$> lift (lift $ new_type_variable $ HoleExpr sp)) <*> pure sp <*> pure hid
+expr (SIR.Expr'Poison id () sp) = SIR.Expr'Poison id <$> (Type.Type'Unknown <$> lift (lift $ new_type_unknown $ PoisonExpr sp)) <*> pure sp
+expr (SIR.Expr'Hole id () sp hid) = SIR.Expr'Hole id <$> (Type.Type'Unknown <$> lift (lift $ new_type_unknown $ HoleExpr sp)) <*> pure sp <*> pure hid
 
 expr (SIR.Expr'TypeAnnotation id () sp annotation e) =
     read_decls >>= \ decls ->

@@ -31,10 +31,10 @@ refer_type_synonym :: Type.TypeSynonym ty -> PPUtils.PP ()
 refer_type_synonym (Type.TypeSynonym id _ _) = PPUtils.write $ ID.stringify id
 
 -- TODO: construct an ast and print it
-refer_type :: (tyvar -> PPUtils.PP ()) -> Arena.Arena (Type.ADT ty) Type.ADTKey -> Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey -> Type.Type tyvar -> PPUtils.PP ()
-refer_type show_tyvar adts type_synonyms ty = runIdentity $ refer_type_m (pure . show_tyvar) adts type_synonyms ty
+refer_type :: (tyunk -> PPUtils.PP ()) -> Arena.Arena (Type.ADT ty) Type.ADTKey -> Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey -> Type.Type tyunk -> PPUtils.PP ()
+refer_type show_tyunk adts type_synonyms ty = runIdentity $ refer_type_m (pure . show_tyunk) adts type_synonyms ty
 
-refer_type_m :: Monad m => (tyvar -> m (PPUtils.PP ())) -> Arena.Arena (Type.ADT ty) Type.ADTKey -> Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey -> Type.Type tyvar -> m (PPUtils.PP ())
+refer_type_m :: Monad m => (tyunk -> m (PPUtils.PP ())) -> Arena.Arena (Type.ADT ty) Type.ADTKey -> Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey -> Type.Type tyunk -> m (PPUtils.PP ())
 refer_type_m _ adts _ (Type.Type'ADT k) = pure $ refer_adt $ Arena.get adts k
 refer_type_m _ _ type_synonyms (Type.Type'Synonym k) = pure $ refer_type_synonym $ Arena.get type_synonyms k
 refer_type_m _ _ _ Type.Type'Int = pure $ PPUtils.write "int"
@@ -42,12 +42,12 @@ refer_type_m _ _ _ Type.Type'Float = pure $ PPUtils.write "float"
 refer_type_m _ _ _ Type.Type'Char = pure $ PPUtils.write "char"
 refer_type_m _ _ _ Type.Type'String = pure $ PPUtils.write "string"
 refer_type_m _ _ _ Type.Type'Bool = pure $ PPUtils.write "bool"
-refer_type_m show_tyvar adts type_synonyms (Type.Type'Function a r) = do
-    a_shown <- refer_type_m show_tyvar adts type_synonyms a
-    r_shown <- refer_type_m show_tyvar adts type_synonyms r
+refer_type_m show_tyunk adts type_synonyms (Type.Type'Function a r) = do
+    a_shown <- refer_type_m show_tyunk adts type_synonyms a
+    r_shown <- refer_type_m show_tyunk adts type_synonyms r
     pure (a_shown >> PPUtils.write " -> " >> r_shown)
-refer_type_m show_tyvar adts type_synonyms (Type.Type'Tuple a b) = do
-    a_shown <- refer_type_m show_tyvar adts type_synonyms a
-    b_shown <- refer_type_m show_tyvar adts type_synonyms b
+refer_type_m show_tyunk adts type_synonyms (Type.Type'Tuple a b) = do
+    a_shown <- refer_type_m show_tyunk adts type_synonyms a
+    b_shown <- refer_type_m show_tyunk adts type_synonyms b
     pure (PPUtils.write "(" >> a_shown >> PPUtils.write ", " >> b_shown >> PPUtils.write ")")
-refer_type_m show_tyvar _ _ (Type.Type'Variable var) = show_tyvar var
+refer_type_m show_tyunk _ _ (Type.Type'Unknown unk) = show_tyunk unk

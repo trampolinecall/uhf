@@ -9,10 +9,10 @@ import UHF.Data.IR.Keys
 
 import UHF.IO.Located (Located (..))
 
-import qualified UHF.Phases.Middle.Type.Var as Var
+import qualified UHF.Phases.Middle.Type.Unknown as Unknown
 
 type TypeExpr = SIR.TypeExpr (Maybe DeclKey)
-type TypeWithVars = Type.Type Var.TypeVarKey
+type TypeWithUnk = Type.Type Unknown.TypeUnknownKey
 type Type = Type.Type Void
 
 type UntypedSIR = SIR.SIR (Located (Maybe BoundValueKey)) TypeExpr () Void
@@ -29,19 +29,19 @@ type UntypedTypeSynonymArena = Arena.Arena UntypedTypeSynonym Type.TypeSynonymKe
 type UntypedBoundValueArena = Arena.Arena UntypedBoundValue BoundValueKey
 type UntypedDeclArena = Arena.Arena UntypedDecl DeclKey
 
-type TypedWithVarsSIR = SIR.SIR (Located (Maybe BoundValueKey)) TypeWithVars TypeWithVars Void
-type TypedWithVarsDecl = SIR.Decl (Located (Maybe BoundValueKey)) TypeWithVars TypeWithVars Void
-type TypedWithVarsADT = Type.ADT TypeWithVars
-type TypedWithVarsTypeSynonym = Type.TypeSynonym TypeWithVars
-type TypedWithVarsBinding = SIR.Binding (Located (Maybe BoundValueKey)) TypeWithVars TypeWithVars Void
-type TypedWithVarsExpr = SIR.Expr (Located (Maybe BoundValueKey)) TypeWithVars TypeWithVars Void
-type TypedWithVarsPattern = SIR.Pattern (Located (Maybe BoundValueKey)) TypeWithVars
-type TypedWithVarsBoundValue = SIR.BoundValue TypeWithVars
+type TypedWithUnkSIR = SIR.SIR (Located (Maybe BoundValueKey)) TypeWithUnk TypeWithUnk Void
+type TypedWithUnkDecl = SIR.Decl (Located (Maybe BoundValueKey)) TypeWithUnk TypeWithUnk Void
+type TypedWithUnkADT = Type.ADT TypeWithUnk
+type TypedWithUnkTypeSynonym = Type.TypeSynonym TypeWithUnk
+type TypedWithUnkBinding = SIR.Binding (Located (Maybe BoundValueKey)) TypeWithUnk TypeWithUnk Void
+type TypedWithUnkExpr = SIR.Expr (Located (Maybe BoundValueKey)) TypeWithUnk TypeWithUnk Void
+type TypedWithUnkPattern = SIR.Pattern (Located (Maybe BoundValueKey)) TypeWithUnk
+type TypedWithUnkBoundValue = SIR.BoundValue TypeWithUnk
 
-type TypedWithVarsADTArena = Arena.Arena TypedWithVarsADT ADTKey
-type TypedWithVarsTypeSynonymArena = Arena.Arena TypedWithVarsTypeSynonym Type.TypeSynonymKey
-type TypedWithVarsBoundValueArena = Arena.Arena TypedWithVarsBoundValue BoundValueKey
-type TypedWithVarsDeclArena = Arena.Arena TypedWithVarsDecl DeclKey
+type TypedWithUnkADTArena = Arena.Arena TypedWithUnkADT ADTKey
+type TypedWithUnkTypeSynonymArena = Arena.Arena TypedWithUnkTypeSynonym Type.TypeSynonymKey
+type TypedWithUnkBoundValueArena = Arena.Arena TypedWithUnkBoundValue BoundValueKey
+type TypedWithUnkDeclArena = Arena.Arena TypedWithUnkDecl DeclKey
 
 type TypedSIR = SIR.SIR (Located (Maybe BoundValueKey)) (Maybe Type) (Maybe Type) Void
 type TypedDecl = SIR.Decl (Located (Maybe BoundValueKey)) (Maybe Type) (Maybe Type) Void

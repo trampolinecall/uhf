@@ -70,10 +70,10 @@ library
       UHF.Phases.Middle.Type.Constraint
       UHF.Phases.Middle.Type.ConvertTypeExpr
       UHF.Phases.Middle.Type.Error
-      UHF.Phases.Middle.Type.RemoveVars
+      UHF.Phases.Middle.Type.RemoveUnknowns
       UHF.Phases.Middle.Type.SolveConstraints
-      UHF.Phases.Middle.Type.StateWithVars
-      UHF.Phases.Middle.Type.Var
+      UHF.Phases.Middle.Type.StateWithUnk
+      UHF.Phases.Middle.Type.Unknown
       UHF.PPUtils
       UHF.Util.Prelude
       Unique

@@ -9,24 +9,24 @@ import qualified UHF.Compiler as Compiler
 
 import UHF.IO.Located (Located (..))
 
-import UHF.Phases.Middle.Type.Var
+import UHF.Phases.Middle.Type.Unknown
 import UHF.Phases.Middle.Type.Aliases
 import UHF.Phases.Middle.Type.Error
 import UHF.Phases.Middle.Type.Constraint
-import UHF.Phases.Middle.Type.StateWithVars
+import UHF.Phases.Middle.Type.StateWithUnk
 
-type TypeContextReader = ReaderT (TypedWithVarsADTArena, TypedWithVarsTypeSynonymArena)
+type TypeContextReader = ReaderT (TypedWithUnkADTArena, TypedWithUnkTypeSynonymArena)
 
-read_adts :: Applicative m => TypeContextReader m TypedWithVarsADTArena
+read_adts :: Applicative m => TypeContextReader m TypedWithUnkADTArena
 read_adts = ReaderT (\ (adts, _) -> pure adts)
-read_synonyms :: Applicative m => TypeContextReader m TypedWithVarsTypeSynonymArena
+read_synonyms :: Applicative m => TypeContextReader m TypedWithUnkTypeSynonymArena
 read_synonyms = ReaderT (\ (_, synonyms) -> pure synonyms)
 
-solve :: TypedWithVarsADTArena -> TypedWithVarsTypeSynonymArena -> [Constraint] -> StateWithVars ()
+solve :: TypedWithUnkADTArena -> TypedWithUnkTypeSynonymArena -> [Constraint] -> StateWithUnk ()
 solve adts type_synonyms constraints = runReaderT (mapM_ solve' constraints) (adts, type_synonyms)
 
 -- TODO: figure out how to gracefully handle errors because the type variables become ambiguous if they cant be unified
-solve' :: Constraint -> TypeContextReader StateWithVars ()
+solve' :: Constraint -> TypeContextReader StateWithUnk ()
 solve' (Eq in_what sp a b) =
     runExceptT (unify (unlocate a) (unlocate b)) >>= \case
         Right () -> pure ()
@@ -63,7 +63,7 @@ solve' (Expect in_what got expect) =
             lift (lift $ Compiler.tell_error $ OccursCheckError adts type_synonyms vars (just_span got) var ty) >>
             pure ()
 
-unify :: TypeWithVars -> TypeWithVars -> ExceptT (Either (TypeWithVars, TypeWithVars) (TypeVarKey, TypeWithVars)) (TypeContextReader StateWithVars) ()
+unify :: TypeWithUnk -> TypeWithUnk -> ExceptT (Either (TypeWithUnk, TypeWithUnk) (TypeUnknownKey, TypeWithUnk)) (TypeContextReader StateWithUnk) ()
 unify a@(Type.Type'ADT a_adt_key) b@(Type.Type'ADT b_adt_key)
     | a_adt_key == b_adt_key = pure ()
     | otherwise = ExceptT (pure $ Left $ Left (a, b))
@@ -78,8 +78,8 @@ unify a (Type.Type'Synonym b_syn_key) =
     case Arena.get type_synonyms b_syn_key of
         Type.TypeSynonym _ _ b_expansion -> unify a b_expansion
 
-unify (Type.Type'Variable a) b = unify_var a b False
-unify a (Type.Type'Variable b) = unify_var b a True
+unify (Type.Type'Unknown a) b = unify_var a b False
+unify a (Type.Type'Unknown b) = unify_var b a True
 unify Type.Type'Int Type.Type'Int = pure ()
 unify Type.Type'Float Type.Type'Float = pure ()
 unify Type.Type'Char Type.Type'Char = pure ()
@@ -89,24 +89,24 @@ unify (Type.Type'Function a1 r1) (Type.Type'Function a2 r2) = unify a1 a2 >> uni
 unify (Type.Type'Tuple a1 b1) (Type.Type'Tuple a2 b2) = unify a1 a2 >> unify b1 b2
 unify a b = ExceptT (pure $ Left $ Left (a, b))
 
-unify_var :: TypeVarKey -> TypeWithVars -> Bool -> ExceptT (Either (TypeWithVars, TypeWithVars) (TypeVarKey, TypeWithVars)) (TypeContextReader StateWithVars) ()
+unify_var :: TypeUnknownKey -> TypeWithUnk -> Bool -> ExceptT (Either (TypeWithUnk, TypeWithUnk) (TypeUnknownKey, TypeWithUnk)) (TypeContextReader StateWithUnk) ()
 unify_var var other var_on_right = Arena.get <$> lift (lift get) <*> pure var >>= \ case
     -- if this variable can be expanded, unify its expansion
-    TypeVar _ (Substituted var_sub) ->
+    TypeUnknown _ (Substituted var_sub) ->
         if var_on_right
             then unify other var_sub
             else unify var_sub other
 
     -- if this variable has no substitution, what happens depends on the other type
-    TypeVar _ Fresh ->
+    TypeUnknown _ Fresh ->
         case other of
-            Type.Type'Variable other_var ->
+            Type.Type'Unknown other_var ->
                 Arena.get <$> lift (lift get) <*> pure other_var >>= \case
                     -- if the other type is a substituted type variable, unify this variable with the other's expansion
-                    TypeVar _ (Substituted other_var_sub) -> unify_var var other_var_sub var_on_right
+                    TypeUnknown _ (Substituted other_var_sub) -> unify_var var other_var_sub var_on_right
 
                     -- if the other type is a fresh type variable, both of them are fresh type variables and the only thing that can be done is to unify them
-                    TypeVar _ Fresh ->
+                    TypeUnknown _ Fresh ->
                         when (var /= other_var) $
                             lift (set_type_var_state var (Substituted other))
 
@@ -115,18 +115,18 @@ unify_var var other var_on_right = Arena.get <$> lift (lift get) <*> pure var >>
                 True -> ExceptT (pure $ Left $ Right (var, other))
                 False -> lift (set_type_var_state var (Substituted other))
 
-set_type_var_state :: TypeVarKey -> TypeVarState -> TypeContextReader StateWithVars ()
-set_type_var_state var new_state = lift $ modify $ \ ty_arena -> Arena.modify ty_arena var (\ (TypeVar for _) -> TypeVar for new_state)
+set_type_var_state :: TypeUnknownKey -> TypeUnknownState -> TypeContextReader StateWithUnk ()
+set_type_var_state var new_state = lift $ modify $ \ ty_arena -> Arena.modify ty_arena var (\ (TypeUnknown for _) -> TypeUnknown for new_state)
 
-occurs_check :: TypeVarKey -> TypeWithVars -> TypeContextReader StateWithVars Bool
+occurs_check :: TypeUnknownKey -> TypeWithUnk -> TypeContextReader StateWithUnk Bool
 -- does the variable v occur anywhere in the type ty?
-occurs_check v (Type.Type'Variable other_v) =
+occurs_check v (Type.Type'Unknown other_v) =
     if v == other_v
         then pure True
         else
             Arena.get <$> lift get <*> pure other_v >>= \case
-                TypeVar _ (Substituted other_sub) -> occurs_check v other_sub
-                TypeVar _ Fresh -> pure False
+                TypeUnknown _ (Substituted other_sub) -> occurs_check v other_sub
+                TypeUnknown _ Fresh -> pure False
 
 occurs_check _ (Type.Type'ADT _) = pure False
 

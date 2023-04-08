@@ -8,6 +8,6 @@ import UHF.Phases.Middle.Type.Aliases
 data EqInWhat = InAssignment | InNamedPattern | InIfBranches | InCasePatterns | InCaseArms
 data ExpectInWhat = InTypeAnnotation | InCallExpr | InIfCondition
 data Constraint
-    = Eq EqInWhat Span (Located TypeWithVars) (Located TypeWithVars)
-    | Expect ExpectInWhat (Located TypeWithVars) TypeWithVars
+    = Eq EqInWhat Span (Located TypeWithUnk) (Located TypeWithUnk)
+    | Expect ExpectInWhat (Located TypeWithUnk) TypeWithUnk
 

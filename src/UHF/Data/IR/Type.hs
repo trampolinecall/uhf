@@ -12,7 +12,7 @@ import UHF.Util.Prelude
 import UHF.Data.IR.Keys
 import qualified UHF.Data.IR.ID as ID
 
-data Type var
+data Type unk
     = Type'ADT ADTKey
     | Type'Synonym TypeSynonymKey
     | Type'Int
@@ -20,9 +20,9 @@ data Type var
     | Type'Char
     | Type'String
     | Type'Bool
-    | Type'Function (Type var) (Type var)
-    | Type'Tuple (Type var) (Type var)
-    | Type'Variable var
+    | Type'Function (Type unk) (Type unk)
+    | Type'Tuple (Type unk) (Type unk)
+    | Type'Unknown unk
     deriving Show
 
 data ADT ty = ADT ID.DeclID Text [ADTVariant ty] deriving Show

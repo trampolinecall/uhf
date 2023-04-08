@@ -36,4 +36,4 @@ typecheck (SIR.SIR decls adts type_synonyms bound_values mod) =
     pure (SIR.SIR decls adts type_synonyms bound_values mod)
 
 assign_type_variable_to_bound_value :: UntypedBoundValue -> StateWithUnk TypedWithUnkBoundValue
-assign_type_variable_to_bound_value (SIR.BoundValue id () def_span) = SIR.BoundValue id <$> (Type.Type'Unknown <$> new_type_variable (BoundValue def_span)) <*> pure def_span
+assign_type_variable_to_bound_value (SIR.BoundValue id () def_span) = SIR.BoundValue id <$> (Type.Type'Unknown <$> new_type_unknown (BoundValue def_span)) <*> pure def_span

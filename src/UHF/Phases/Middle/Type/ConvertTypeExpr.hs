@@ -26,9 +26,9 @@ type_expr :: UntypedDeclArena -> TypeExpr -> StateWithUnk TypeWithUnk
 type_expr decls (SIR.TypeExpr'Identifier sp iden) =
     case iden of -- TODO: make poison type variable
         Just i -> case Arena.get decls i of
-            SIR.Decl'Module _ _ _ _ _ -> lift (Compiler.tell_error $ NotAType sp "a module") >> Type.Type'Unknown <$> new_type_variable (TypeExpr sp)
+            SIR.Decl'Module _ _ _ _ _ -> lift (Compiler.tell_error $ NotAType sp "a module") >> Type.Type'Unknown <$> new_type_unknown (TypeExpr sp)
             SIR.Decl'Type ty -> pure $ void_var_to_key ty
-        Nothing -> Type.Type'Unknown <$> new_type_variable (TypeExpr sp)
+        Nothing -> Type.Type'Unknown <$> new_type_unknown (TypeExpr sp)
     where
         -- basically useless function for converting Type Void to Type TypeUnknownKey
         void_var_to_key (Type.Type'ADT k) = Type.Type'ADT k
@@ -44,4 +44,4 @@ type_expr decls (SIR.TypeExpr'Identifier sp iden) =
 
 type_expr decls (SIR.TypeExpr'Tuple a b) = Type.Type'Tuple <$> type_expr decls a <*> type_expr decls b
 type_expr _ (SIR.TypeExpr'Hole _) = todo
-type_expr _ (SIR.TypeExpr'Poison sp) = Type.Type'Unknown <$> new_type_variable (TypeExpr sp)
+type_expr _ (SIR.TypeExpr'Poison sp) = Type.Type'Unknown <$> new_type_unknown (TypeExpr sp)

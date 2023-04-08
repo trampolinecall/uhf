@@ -8,7 +8,7 @@ ghc-options:
   - -Wall
   - -Wextra
   - -Wno-name-shadowing
-
+  - -Werror=incomplete-patterns
 default-extensions:
   - LambdaCase
   - TupleSections

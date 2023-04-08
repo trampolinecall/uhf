@@ -30,6 +30,8 @@ dump_type :: AST.Type -> PPUtils.PP ()
 dump_type (AST.Type'Identifier iden) = dump_struct "Type'Identifier" [("iden", dump_identifier iden)]
 dump_type (AST.Type'Tuple _ items) = dump_struct "Type'Tuple" [("items", dump_list dump_type items)]
 dump_type (AST.Type'Hole _ name) = dump_struct "Type'Hole" [("name", dump_identifier name)]
+dump_type (AST.Type'Forall _ tys ty) = dump_struct "Type'Forall" [("new", dump_list dump_identifier tys), ("ty", dump_type ty)]
+dump_type (AST.Type'Apply _ ty tys) = dump_struct "Type'Apply" [("ty", dump_type ty), ("args", dump_list dump_type tys)]
 
 dump_expr :: AST.Expr -> PPUtils.PP ()
 dump_expr (AST.Expr'Identifier iden) = dump_struct "Expr'Identifier" [("iden", dump_identifier iden)]
@@ -47,6 +49,8 @@ dump_expr (AST.Expr'Call _ callee args) = dump_struct "Expr'Call" [("callee", du
 dump_expr (AST.Expr'If _ _ cond true false) = dump_struct "Expr'If" [("cond", dump_expr cond), ("true", dump_expr true), ("false", dump_expr false)]
 dump_expr (AST.Expr'Case _ _ e arms) = dump_struct "Expr'Case" [("e", dump_expr e), ("arms", dump_list (\ (pat, expr) -> dump_pattern pat >> PPUtils.write " -> " >> dump_expr expr) arms)]
 dump_expr (AST.Expr'TypeAnnotation _ ty e) = dump_struct "Expr'TypeAnnotation" [("ty", dump_type ty), ("e", dump_expr e)]
+dump_expr (AST.Expr'Forall _ tys e) = dump_struct "Expr'Forall" [("new", dump_list dump_identifier tys), ("e", dump_expr e)]
+dump_expr (AST.Expr'TypeApply _ e tys) = dump_struct "Expr'TypeApply" [("e", dump_expr e), ("args", dump_list dump_type tys)]
 dump_expr (AST.Expr'Hole _ name) = dump_struct "Expr'Hole" [("name", dump_identifier name)]
 
 dump_pattern :: AST.Pattern -> PPUtils.PP ()

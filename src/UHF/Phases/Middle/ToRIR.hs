@@ -85,6 +85,8 @@ convert_expr _ (SIR.Expr'Case _ _ _ _ _ _) = todo -- TODO: case desguaring RIR.E
 convert_expr _ (SIR.Expr'Poison id ty sp) = pure $ RIR.Expr'Poison id ty sp
 convert_expr _ (SIR.Expr'Hole id ty sp _) = pure $ RIR.Expr'Poison id ty sp -- TODO: report holes phase
 convert_expr bound_where (SIR.Expr'TypeAnnotation _ _ _ _ other) = convert_expr bound_where other
+convert_expr _ (SIR.Expr'Forall _ _ _ _ _) = todo
+convert_expr _ (SIR.Expr'TypeApply _ _ _ _ _) = todo
 
 assign_pattern :: RIR.BoundWhere -> SIRPattern -> RIRExpr -> ConvertState [RIRBinding]
 assign_pattern bound_where (SIR.Pattern'Identifier _ _ bv) expr = map_bound_where bv bound_where >> pure [RIR.Binding bv expr]

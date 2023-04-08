@@ -42,7 +42,7 @@ new_made_up_expr_id :: ConvertState ID.ExprID
 new_made_up_expr_id = lift $ lift $ lift $ lift IDGen.gen_id
 
 convert :: SIR -> RIR.RIR ()
-convert (SIR.SIR decls adts type_synonyms type_vars bvs mod) =
+convert (SIR.SIR decls adts type_synonyms type_vars bvs mod) = -- TODO: add type_vars to rir
     let ((decls', bound_wheres), bvs') = IDGen.run_id_gen ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.BoundValueID'RIRMadeUp $ runStateT (runWriterT (Unique.run_unique_maker_t (Arena.transformM convert_decl decls))) bvs
         bvs'' = Arena.transform_with_key (\ key (SIR.BoundValue id ty sp) -> RIR.BoundValue id ty (bound_wheres Map.! key) sp) bvs'
         adts' = Arena.transform convert_adt adts
@@ -99,8 +99,8 @@ convert_expr _ (SIR.Expr'Case _ _ _ _ _ _) = todo -- TODO: case desguaring RIR.E
 convert_expr _ (SIR.Expr'Poison id ty sp) = pure $ RIR.Expr'Poison id ty sp
 convert_expr _ (SIR.Expr'Hole id ty sp _) = pure $ RIR.Expr'Poison id ty sp -- TODO: report holes phase
 convert_expr bound_where (SIR.Expr'TypeAnnotation _ _ _ _ other) = convert_expr bound_where other
-convert_expr _ (SIR.Expr'Forall _ _ _ _ _) = todo
-convert_expr _ (SIR.Expr'TypeApply _ _ _ _ _) = todo
+convert_expr bound_where (SIR.Expr'Forall id ty sp vars e) = RIR.Expr'Forall id ty sp vars <$> convert_expr bound_where e
+convert_expr bound_where (SIR.Expr'TypeApply id ty sp e arg) = RIR.Expr'TypeApply id ty sp <$> convert_expr bound_where e <*> pure (SIR.type_expr_type_info arg)
 
 assign_pattern :: RIR.BoundWhere -> SIRPattern -> RIRExpr -> ConvertState [RIRBinding]
 assign_pattern bound_where (SIR.Pattern'Identifier _ _ bv) expr = map_bound_where bv bound_where >> pure [RIR.Binding bv expr]

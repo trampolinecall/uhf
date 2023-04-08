@@ -81,7 +81,7 @@ data Expr d_iden v_iden type_info binary_ops_allowed
     | Expr'If ID.ExprID type_info Span Span (Expr d_iden v_iden type_info binary_ops_allowed) (Expr d_iden v_iden type_info binary_ops_allowed) (Expr d_iden v_iden type_info binary_ops_allowed)
     | Expr'Case ID.ExprID type_info Span Span (Expr d_iden v_iden type_info binary_ops_allowed) [(Pattern type_info, Expr d_iden v_iden type_info binary_ops_allowed)]
 
-    | Expr'Forall ID.ExprID type_info Span [TypeVarKey] (Expr d_iden v_iden type_info binary_ops_allowed) -- TODO: add variables
+    | Expr'Forall ID.ExprID type_info Span [TypeVarKey] (Expr d_iden v_iden type_info binary_ops_allowed)
     | Expr'TypeApply ID.ExprID type_info Span (Expr d_iden v_iden type_info binary_ops_allowed) (TypeExpr d_iden type_info)
 
     | Expr'TypeAnnotation ID.ExprID type_info Span (TypeExpr d_iden type_info) (Expr d_iden v_iden type_info binary_ops_allowed)

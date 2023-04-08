@@ -90,4 +90,7 @@ expr (ANFIR.Expr'Switch _ _ e arms) = text "switch " >> refer_binding e >> text 
 expr (ANFIR.Expr'Seq _ _ a b) = text "seq " >> refer_binding a >> text ", " >> refer_binding b
 expr (ANFIR.Expr'TupleDestructure1 _ _ other) = refer_binding other >> text ".0"
 expr (ANFIR.Expr'TupleDestructure2 _ _ other) = refer_binding other >> text ".1"
+expr (ANFIR.Expr'Forall _ _ vars e) = todo
+expr (ANFIR.Expr'TypeApply _ _ e arg) = todo
+
 expr (ANFIR.Expr'Poison _ _ _) = text "poison"

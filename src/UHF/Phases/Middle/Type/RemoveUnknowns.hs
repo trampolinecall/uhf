@@ -85,7 +85,7 @@ expr unks (SIR.Expr'If id ty sp if_sp cond true false) = SIR.Expr'If id (type_ u
 expr unks (SIR.Expr'Case id ty sp case_sp testing arms) = SIR.Expr'Case id (type_ unks ty) sp case_sp (expr unks testing) (map (\ (p, e) -> (pattern unks p, expr unks e)) arms)
 expr unks (SIR.Expr'TypeAnnotation id ty sp annotation e) = SIR.Expr'TypeAnnotation id (type_ unks ty) sp (type_expr unks annotation) (expr unks e)
 expr unks (SIR.Expr'Forall id ty sp names e) = SIR.Expr'Forall id (type_ unks ty) sp (map identity names) (expr unks e)
-expr unks (SIR.Expr'TypeApply id ty sp e args) = SIR.Expr'TypeApply id (type_ unks ty) sp (expr unks e) (map (type_expr unks) args)
+expr unks (SIR.Expr'TypeApply id ty sp e args) = SIR.Expr'TypeApply id (type_ unks ty) sp (expr unks e) (type_expr unks args)
 expr unks (SIR.Expr'Hole id ty sp hid) = SIR.Expr'Hole id (type_ unks ty) sp hid
 expr unks (SIR.Expr'Poison id ty sp) = SIR.Expr'Poison id (type_ unks ty) sp
 
@@ -94,7 +94,7 @@ type_expr unks (SIR.TypeExpr'Identifier ty sp iden) = SIR.TypeExpr'Identifier (t
 type_expr unks (SIR.TypeExpr'Tuple ty a b) = SIR.TypeExpr'Tuple (type_ unks ty) (type_expr unks a) (type_expr unks b)
 type_expr unks (SIR.TypeExpr'Hole ty hid) = SIR.TypeExpr'Hole (type_ unks ty) hid
 type_expr unks (SIR.TypeExpr'Forall ty names sub) = SIR.TypeExpr'Forall (type_ unks ty) names (type_expr unks sub)
-type_expr unks (SIR.TypeExpr'Apply ty applied_to args) = SIR.TypeExpr'Apply (type_ unks ty) (type_expr unks applied_to) (map (type_expr unks) args)
+type_expr unks (SIR.TypeExpr'Apply ty applied_to args) = SIR.TypeExpr'Apply (type_ unks ty) (type_expr unks applied_to) (type_expr unks args)
 type_expr unks (SIR.TypeExpr'Wild ty sp) = SIR.TypeExpr'Wild (type_ unks ty) sp
 type_expr unks (SIR.TypeExpr'Poison ty sp) = SIR.TypeExpr'Poison (type_ unks ty) sp
 

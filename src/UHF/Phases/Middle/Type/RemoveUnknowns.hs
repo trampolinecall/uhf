@@ -51,11 +51,11 @@ bound_value vars (SIR.BoundValue id ty sp) = SIR.BoundValue id (type_ vars ty) s
 adt :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkADT -> TypedADT
 adt vars (Type.ADT id name variants) = Type.ADT id name (map variant variants)
     where
-        variant (Type.ADTVariant'Named name fields) = Type.ADTVariant'Named name (map (\ (name, ty) -> (name, type_ vars ty)) fields)
-        variant (Type.ADTVariant'Anon name fields) = Type.ADTVariant'Anon name (map (type_ vars) fields)
+        variant (Type.ADTVariant'Named name fields) = Type.ADTVariant'Named name (map (\ (name, ty) -> (name, type_expr vars ty)) fields)
+        variant (Type.ADTVariant'Anon name fields) = Type.ADTVariant'Anon name (map (type_expr vars) fields)
 
 type_synonym :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkTypeSynonym -> TypedTypeSynonym
-type_synonym vars (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name (type_ vars expansion)
+type_synonym vars (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name (type_expr vars expansion)
 
 binding :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkBinding -> TypedBinding
 binding vars (SIR.Binding p eq_sp e) = SIR.Binding (pattern vars p) eq_sp (expr vars e)
@@ -81,11 +81,20 @@ expr _ (SIR.Expr'BinaryOps _ void _ _ _ _) = absurd void
 expr vars (SIR.Expr'Call id ty sp callee arg) = SIR.Expr'Call id (type_ vars ty) sp (expr vars callee) (expr vars arg)
 expr vars (SIR.Expr'If id ty sp if_sp cond true false) = SIR.Expr'If id (type_ vars ty) sp if_sp (expr vars cond) (expr vars true) (expr vars false)
 expr vars (SIR.Expr'Case id ty sp case_sp testing arms) = SIR.Expr'Case id (type_ vars ty) sp case_sp (expr vars testing) (map (\ (p, e) -> (pattern vars p, expr vars e)) arms)
-expr vars (SIR.Expr'TypeAnnotation id ty sp annotation e) = SIR.Expr'TypeAnnotation id (type_ vars ty) sp (type_ vars annotation) (expr vars e)
+expr vars (SIR.Expr'TypeAnnotation id ty sp annotation e) = SIR.Expr'TypeAnnotation id (type_ vars ty) sp (type_expr vars annotation) (expr vars e)
 expr vars (SIR.Expr'Forall id ty sp names e) = SIR.Expr'Forall id (type_ vars ty) sp (map identity names) (expr vars e)
-expr vars (SIR.Expr'TypeApply id ty sp e args) = SIR.Expr'TypeApply id (type_ vars ty) sp (expr vars e) (map (type_ vars) args)
+expr vars (SIR.Expr'TypeApply id ty sp e args) = SIR.Expr'TypeApply id (type_ vars ty) sp (expr vars e) (map (type_expr vars) args)
 expr vars (SIR.Expr'Hole id ty sp hid) = SIR.Expr'Hole id (type_ vars ty) sp hid
 expr vars (SIR.Expr'Poison id ty sp) = SIR.Expr'Poison id (type_ vars ty) sp
+
+type_expr :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkTypeExpr -> TypedTypeExpr
+type_expr vars (SIR.TypeExpr'Identifier ty sp iden) = SIR.TypeExpr'Identifier (type_ vars ty) sp iden
+type_expr vars (SIR.TypeExpr'Tuple ty a b) = SIR.TypeExpr'Tuple (type_ vars ty) (type_expr vars a) (type_expr vars b)
+type_expr vars (SIR.TypeExpr'Hole ty hid) = SIR.TypeExpr'Hole (type_ vars ty) hid
+type_expr vars (SIR.TypeExpr'Forall ty names sub) = SIR.TypeExpr'Forall (type_ vars ty) names (type_expr vars sub)
+type_expr vars (SIR.TypeExpr'Apply ty applied_to args) = SIR.TypeExpr'Apply (type_ vars ty) (type_expr vars applied_to) (map (type_expr vars) args)
+type_expr vars (SIR.TypeExpr'Wild ty sp) = SIR.TypeExpr'Wild (type_ vars ty) sp
+type_expr vars (SIR.TypeExpr'Poison ty sp) = SIR.TypeExpr'Poison (type_ vars ty) sp
 
 type_ :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypeWithUnk -> Maybe Type
 type_ vars = r

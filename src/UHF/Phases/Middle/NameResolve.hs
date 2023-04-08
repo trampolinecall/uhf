@@ -42,7 +42,7 @@ type UnresolvedTypeIdentifier = (SIR.NameContext, [Located Text])
 type UnresolvedExprIdentifier = (SIR.NameContext, [Located Text])
 type UnresolvedADT = Type.ADT UnresolvedType
 type UnresolvedTypeSynonym = Type.TypeSynonym UnresolvedType
-type UnresolvedType = SIR.TypeExpr UnresolvedTypeIdentifier
+type UnresolvedType = SIR.TypeExpr UnresolvedTypeIdentifier ()
 type UnresolvedBinding = SIR.Binding UnresolvedExprIdentifier UnresolvedType () ()
 type UnresolvedExpr = SIR.Expr UnresolvedExprIdentifier UnresolvedType () ()
 type UnresolvedPattern = SIR.Pattern UnresolvedExprIdentifier
@@ -55,7 +55,7 @@ type ResolvedSIR = SIR.SIR (Located (Maybe BoundValueKey)) ResolvedType () ()
 type ResolvedDecl = SIR.Decl (Located (Maybe BoundValueKey)) ResolvedType () ()
 type ResolvedADT = Type.ADT ResolvedType
 type ResolvedTypeSynonym = Type.TypeSynonym ResolvedType
-type ResolvedType = SIR.TypeExpr (Maybe DeclKey)
+type ResolvedType = SIR.TypeExpr (Maybe DeclKey) ()
 type ResolvedBinding = SIR.Binding (Located (Maybe BoundValueKey)) ResolvedType () ()
 type ResolvedExpr = SIR.Expr (Located (Maybe BoundValueKey)) ResolvedType () ()
 type ResolvedPattern = SIR.Pattern (Located (Maybe BoundValueKey))
@@ -76,7 +76,7 @@ instance Diagnostic.ToError Error where
                         Nothing -> ""
         in Diagnostic.Error Diagnostic.Codes.undef_name (Just sp) message [] []
 
-transform_identifiers :: Monad m => (t_iden -> m t_iden') -> (e_iden -> m e_iden') -> Arena.Arena (Type.ADT (SIR.TypeExpr t_iden)) ADTKey -> Arena.Arena (Type.TypeSynonym (SIR.TypeExpr t_iden)) Type.TypeSynonymKey -> Arena.Arena (SIR.Decl e_iden (SIR.TypeExpr t_iden) type_info binary_ops_allowed) DeclKey -> m (Arena.Arena (Type.ADT (SIR.TypeExpr t_iden')) ADTKey, Arena.Arena (Type.TypeSynonym (SIR.TypeExpr t_iden')) Type.TypeSynonymKey, Arena.Arena (SIR.Decl e_iden' (SIR.TypeExpr t_iden') type_info binary_ops_allowed) DeclKey)
+transform_identifiers :: Monad m => (t_iden -> m t_iden') -> (e_iden -> m e_iden') -> Arena.Arena (Type.ADT (SIR.TypeExpr t_iden type_info)) ADTKey -> Arena.Arena (Type.TypeSynonym (SIR.TypeExpr t_iden type_info)) Type.TypeSynonymKey -> Arena.Arena (SIR.Decl e_iden (SIR.TypeExpr t_iden type_info) type_info binary_ops_allowed) DeclKey -> m (Arena.Arena (Type.ADT (SIR.TypeExpr t_iden' type_info)) ADTKey, Arena.Arena (Type.TypeSynonym (SIR.TypeExpr t_iden' type_info)) Type.TypeSynonymKey, Arena.Arena (SIR.Decl e_iden' (SIR.TypeExpr t_iden' type_info) type_info binary_ops_allowed) DeclKey)
 transform_identifiers transform_t_iden transform_e_iden adts type_synonyms decls = (,,) <$> Arena.transformM transform_adt adts <*> Arena.transformM transform_type_synonym type_synonyms <*> Arena.transformM transform_decl decls
     where
         transform_adt (Type.ADT id name variants) = Type.ADT id name <$> mapM transform_variant variants
@@ -86,13 +86,13 @@ transform_identifiers transform_t_iden transform_e_iden adts type_synonyms decls
 
         transform_type_synonym (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name <$> transform_type_expr expansion
 
-        transform_type_expr (SIR.TypeExpr'Identifier sp id) = SIR.TypeExpr'Identifier sp <$> transform_t_iden id
-        transform_type_expr (SIR.TypeExpr'Tuple a b) = SIR.TypeExpr'Tuple <$> transform_type_expr a <*> transform_type_expr b
-        transform_type_expr (SIR.TypeExpr'Hole hid) = pure $ SIR.TypeExpr'Hole hid
-        transform_type_expr (SIR.TypeExpr'Forall names ty) = SIR.TypeExpr'Forall names <$> transform_type_expr ty
-        transform_type_expr (SIR.TypeExpr'Apply ty args) = SIR.TypeExpr'Apply <$> transform_type_expr ty <*> mapM transform_type_expr args
-        transform_type_expr (SIR.TypeExpr'Wild sp) = pure $ SIR.TypeExpr'Wild sp
-        transform_type_expr (SIR.TypeExpr'Poison sp) = pure $ SIR.TypeExpr'Poison sp
+        transform_type_expr (SIR.TypeExpr'Identifier type_info sp id) = SIR.TypeExpr'Identifier type_info sp <$> transform_t_iden id
+        transform_type_expr (SIR.TypeExpr'Tuple type_info a b) = SIR.TypeExpr'Tuple type_info <$> transform_type_expr a <*> transform_type_expr b
+        transform_type_expr (SIR.TypeExpr'Hole type_info hid) = pure $ SIR.TypeExpr'Hole type_info hid
+        transform_type_expr (SIR.TypeExpr'Forall type_info names ty) = SIR.TypeExpr'Forall type_info names <$> transform_type_expr ty
+        transform_type_expr (SIR.TypeExpr'Apply type_info ty args) = SIR.TypeExpr'Apply type_info <$> transform_type_expr ty <*> mapM transform_type_expr args
+        transform_type_expr (SIR.TypeExpr'Wild type_info sp) = pure $ SIR.TypeExpr'Wild type_info sp
+        transform_type_expr (SIR.TypeExpr'Poison type_info sp) = pure $ SIR.TypeExpr'Poison type_info sp
 
         transform_decl (SIR.Decl'Module id nc bindings adts syns) = SIR.Decl'Module id nc <$> mapM transform_binding bindings <*> pure adts <*> pure syns
         transform_decl (SIR.Decl'Type ty) = pure $ SIR.Decl'Type ty

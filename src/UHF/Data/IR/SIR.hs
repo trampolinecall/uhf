@@ -53,7 +53,7 @@ type HoleIdentifier = Located [Located Text]
 data TypeExpr d_iden type_info
     = TypeExpr'Identifier type_info Span d_iden
     | TypeExpr'Tuple type_info (TypeExpr d_iden type_info) (TypeExpr d_iden type_info)
-    | TypeExpr'Hole type_info HoleIdentifier
+    | TypeExpr'Hole type_info Span HoleIdentifier
     | TypeExpr'Forall type_info [TypeVarKey] (TypeExpr d_iden type_info)
     | TypeExpr'Apply type_info Span (TypeExpr d_iden type_info) (TypeExpr d_iden type_info)
     | TypeExpr'Wild type_info Span
@@ -103,7 +103,7 @@ data Pattern type_info
 type_expr_type_info :: TypeExpr d_iden type_info -> type_info
 type_expr_type_info (TypeExpr'Identifier type_info _ _) = type_info
 type_expr_type_info (TypeExpr'Tuple type_info _ _) = type_info
-type_expr_type_info (TypeExpr'Hole type_info _) = type_info
+type_expr_type_info (TypeExpr'Hole type_info _ _) = type_info
 type_expr_type_info (TypeExpr'Forall type_info _ _) = type_info
 type_expr_type_info (TypeExpr'Apply type_info _ _ _) = type_info
 type_expr_type_info (TypeExpr'Wild type_info _) = type_info

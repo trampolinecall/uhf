@@ -1,4 +1,4 @@
-module UHF.Phases.Middle.Type.RemoveVars (remove) where
+module UHF.Phases.Middle.Type.RemoveUnknowns (remove) where
 
 import UHF.Util.Prelude
 
@@ -8,19 +8,19 @@ import qualified UHF.Data.IR.Type as Type
 
 import qualified UHF.Compiler as Compiler
 
-import UHF.Phases.Middle.Type.Var
+import UHF.Phases.Middle.Type.Unknown
 import UHF.Phases.Middle.Type.Aliases
 import UHF.Phases.Middle.Type.Error
 
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Control.Monad.Fix (mfix)
 
-remove :: TypeVarArena -> TypedWithVarsDeclArena -> TypedWithVarsADTArena -> TypedWithVarsTypeSynonymArena -> TypedWithVarsBoundValueArena -> Compiler.WithDiagnostics Error Void (TypedDeclArena, TypedADTArena, TypedTypeSynonymArena, TypedBoundValueArena)
+remove :: TypeUnknownArena -> TypedWithUnkDeclArena -> TypedWithUnkADTArena -> TypedWithUnkTypeSynonymArena -> TypedWithUnkBoundValueArena -> Compiler.WithDiagnostics Error Void (TypedDeclArena, TypedADTArena, TypedTypeSynonymArena, TypedBoundValueArena)
 remove vars decls adts type_synonyms bvs =
     convert_vars vars >>= \ vars ->
     pure (Arena.transform (decl vars) decls, Arena.transform (adt vars) adts, Arena.transform (type_synonym vars) type_synonyms, Arena.transform (bound_value vars) bvs)
 
-convert_vars :: TypeVarArena -> Compiler.WithDiagnostics Error Void (Arena.Arena (Maybe Type) TypeVarKey)
+convert_vars :: TypeUnknownArena -> Compiler.WithDiagnostics Error Void (Arena.Arena (Maybe Type) TypeUnknownKey)
 convert_vars vars =
     -- infinite recursion is not possible because occurs check prevents loops in substitution
     let (res, errs) = (runWriter $ mfix (\ vars_converted -> Arena.transformM (runMaybeT . convert_var vars_converted) vars))
@@ -36,38 +36,38 @@ convert_vars vars =
         r _ (Type.Type'Synonym s) = pure $ Type.Type'Synonym s
         r vars_converted (Type.Type'Function arg res) = Type.Type'Function <$> r vars_converted arg <*> r vars_converted res
         r vars_converted (Type.Type'Tuple a b) = Type.Type'Tuple <$> r vars_converted a <*> r vars_converted b
-        r vars_converted (Type.Type'Variable v) = MaybeT $ pure $ Arena.get vars_converted v
+        r vars_converted (Type.Type'Unknown v) = MaybeT $ pure $ Arena.get vars_converted v
 
-        convert_var vars_converted (TypeVar _ (Substituted s)) = r vars_converted s
-        convert_var _ (TypeVar for_what Fresh) = lift (tell [AmbiguousType for_what]) >> MaybeT (pure Nothing)
+        convert_var vars_converted (TypeUnknown _ (Substituted s)) = r vars_converted s
+        convert_var _ (TypeUnknown for_what Fresh) = lift (tell [AmbiguousType for_what]) >> MaybeT (pure Nothing)
 
-decl :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsDecl -> TypedDecl
+decl :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkDecl -> TypedDecl
 decl vars (SIR.Decl'Module id nc bindings adts type_synonyms) = SIR.Decl'Module id nc (map (binding vars) bindings) adts type_synonyms
 decl _ (SIR.Decl'Type ty) = SIR.Decl'Type ty
 
-bound_value :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsBoundValue -> TypedBoundValue
+bound_value :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkBoundValue -> TypedBoundValue
 bound_value vars (SIR.BoundValue id ty sp) = SIR.BoundValue id (type_ vars ty) sp
 
-adt :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsADT -> TypedADT
+adt :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkADT -> TypedADT
 adt vars (Type.ADT id name variants) = Type.ADT id name (map variant variants)
     where
         variant (Type.ADTVariant'Named name fields) = Type.ADTVariant'Named name (map (\ (name, ty) -> (name, type_ vars ty)) fields)
         variant (Type.ADTVariant'Anon name fields) = Type.ADTVariant'Anon name (map (type_ vars) fields)
 
-type_synonym :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsTypeSynonym -> TypedTypeSynonym
+type_synonym :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkTypeSynonym -> TypedTypeSynonym
 type_synonym vars (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name (type_ vars expansion)
 
-binding :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsBinding -> TypedBinding
+binding :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkBinding -> TypedBinding
 binding vars (SIR.Binding p eq_sp e) = SIR.Binding (pattern vars p) eq_sp (expr vars e)
 
-pattern :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsPattern -> TypedPattern
+pattern :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkPattern -> TypedPattern
 pattern vars (SIR.Pattern'Identifier ty sp bn) = SIR.Pattern'Identifier (type_ vars ty) sp bn
 pattern vars (SIR.Pattern'Wildcard ty sp) = SIR.Pattern'Wildcard (type_ vars ty) sp
 pattern vars (SIR.Pattern'Tuple ty sp l r) = SIR.Pattern'Tuple (type_ vars ty) sp (pattern vars l) (pattern vars r)
 pattern vars (SIR.Pattern'Named ty sp at_sp bnk subpat) = SIR.Pattern'Named (type_ vars ty) sp at_sp bnk (pattern vars subpat)
 pattern vars (SIR.Pattern'Poison ty sp) = SIR.Pattern'Poison (type_ vars ty) sp
 
-expr :: Arena.Arena (Maybe Type) TypeVarKey -> TypedWithVarsExpr -> TypedExpr
+expr :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkExpr -> TypedExpr
 expr vars (SIR.Expr'Identifier id ty sp bn) = SIR.Expr'Identifier id (type_ vars ty) sp bn
 expr vars (SIR.Expr'Char id ty sp c) = SIR.Expr'Char id (type_ vars ty) sp c
 expr vars (SIR.Expr'String id ty sp t) = SIR.Expr'String id (type_ vars ty) sp t
@@ -85,7 +85,7 @@ expr vars (SIR.Expr'TypeAnnotation id ty sp annotation e) = SIR.Expr'TypeAnnotat
 expr vars (SIR.Expr'Hole id ty sp hid) = SIR.Expr'Hole id (type_ vars ty) sp hid
 expr vars (SIR.Expr'Poison id ty sp) = SIR.Expr'Poison id (type_ vars ty) sp
 
-type_ :: Arena.Arena (Maybe Type) TypeVarKey -> TypeWithVars -> Maybe Type
+type_ :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypeWithUnk -> Maybe Type
 type_ vars = r
     where
         r Type.Type'Int = pure Type.Type'Int
@@ -97,4 +97,4 @@ type_ vars = r
         r (Type.Type'Synonym s) = pure $ Type.Type'Synonym s
         r (Type.Type'Function arg res) = Type.Type'Function <$> r arg <*> r res
         r (Type.Type'Tuple a b) = Type.Type'Tuple <$> r a <*> r b
-        r (Type.Type'Variable v) = Arena.get vars v
+        r (Type.Type'Unknown v) = Arena.get vars v

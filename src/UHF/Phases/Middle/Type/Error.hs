@@ -16,23 +16,23 @@ import UHF.IO.Located (Located (..))
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Codes as Diagnostic.Codes
 
-import UHF.Phases.Middle.Type.Var
+import UHF.Phases.Middle.Type.Unknown
 import UHF.Phases.Middle.Type.Aliases
 import UHF.Phases.Middle.Type.Constraint
 
-type VarNamer = State (Int, Map TypeVarKey Text)
-run_var_namer :: VarNamer a -> (a, Map TypeVarKey Text)
+type VarNamer = State (Int, Map TypeUnknownKey Text)
+run_var_namer :: VarNamer a -> (a, Map TypeUnknownKey Text)
 run_var_namer s = let (r, (_, n)) = runState s (1, Map.empty) in (r, n)
-make_var_name_messages :: TypeVarArena -> Map TypeVarKey Text -> [Diagnostic.Message]
+make_var_name_messages :: TypeUnknownArena -> Map TypeUnknownKey Text -> [Diagnostic.Message]
 make_var_name_messages vars names =
     map
         (\ (key, name) ->
-            let (TypeVar var_for_what _) = Arena.get vars key
+            let (TypeUnknown var_for_what _) = Arena.get vars key
                 var_sp = type_var_for_what_sp var_for_what
                 var_name = type_var_for_what_name var_for_what
              in var_sp `Diagnostic.msg_note_at` convert_str ("where '" <> name <> "' is the type of this " <> var_name))
         (Map.toList names)
-name_var :: TypeVarKey -> VarNamer Text
+name_var :: TypeUnknownKey -> VarNamer Text
 name_var var = state $
     \ (cur_n, cache) ->
         case Map.lookup var cache of
@@ -54,30 +54,30 @@ name_var var = state $
 
 data Error
     = EqError
-        { eq_error_adts :: TypedWithVarsADTArena
-        , eq_error_type_synonyms :: TypedWithVarsTypeSynonymArena
-        , eq_error_vars :: TypeVarArena
+        { eq_error_adts :: TypedWithUnkADTArena
+        , eq_error_type_synonyms :: TypedWithUnkTypeSynonymArena
+        , eq_error_vars :: TypeUnknownArena
         , eq_error_in_what :: EqInWhat
         , eq_error_span :: Span
-        , eq_error_a_whole :: Located TypeWithVars
-        , eq_error_b_whole :: Located TypeWithVars
-        , eq_error_a_part :: TypeWithVars
-        , eq_error_b_part :: TypeWithVars
+        , eq_error_a_whole :: Located TypeWithUnk
+        , eq_error_b_whole :: Located TypeWithUnk
+        , eq_error_a_part :: TypeWithUnk
+        , eq_error_b_part :: TypeWithUnk
         }
     | ExpectError
-        { expect_error_adts :: TypedWithVarsADTArena
-        , expect_error_type_synonyms :: TypedWithVarsTypeSynonymArena
-        , expect_error_vars :: TypeVarArena
+        { expect_error_adts :: TypedWithUnkADTArena
+        , expect_error_type_synonyms :: TypedWithUnkTypeSynonymArena
+        , expect_error_vars :: TypeUnknownArena
         , expect_error_in_what :: ExpectInWhat
-        , expect_error_got_whole :: Located TypeWithVars
-        , expect_error_expect_whole :: TypeWithVars
-        , expect_error_got_part :: TypeWithVars
-        , expect_error_expect_part :: TypeWithVars
+        , expect_error_got_whole :: Located TypeWithUnk
+        , expect_error_expect_whole :: TypeWithUnk
+        , expect_error_got_part :: TypeWithUnk
+        , expect_error_expect_part :: TypeWithUnk
         }
 
-    | OccursCheckError TypedWithVarsADTArena TypedWithVarsTypeSynonymArena TypeVarArena Span TypeVarKey TypeWithVars
+    | OccursCheckError TypedWithUnkADTArena TypedWithUnkTypeSynonymArena TypeUnknownArena Span TypeUnknownKey TypeWithUnk
 
-    | AmbiguousType TypeVarForWhat
+    | AmbiguousType TypeUnknownForWhat
 
     | NotAType Span Text
 
@@ -128,7 +128,7 @@ instance Diagnostic.ToError Error where
             []
 
     to_error (OccursCheckError adts type_synonyms vars span var_key ty) =
-        let var_as_type = Type.Type'Variable var_key
+        let var_as_type = Type.Type'Unknown var_key
 
             ((ty_printed, var_printed), var_names) =
                 run_var_namer $
@@ -152,13 +152,13 @@ instance Diagnostic.ToError Error where
 
     to_error (NotAType sp instead) = Diagnostic.Error Diagnostic.Codes.not_a_type (Just sp) ("not a type: got " <> instead) [] []
 
-print_type :: Bool -> TypedWithVarsADTArena -> TypedWithVarsTypeSynonymArena -> TypeVarArena -> TypeWithVars -> VarNamer (PPUtils.PP ()) -- TODO: since this already a monad, put the arenas and things into a reader monad?
+print_type :: Bool -> TypedWithUnkADTArena -> TypedWithUnkTypeSynonymArena -> TypeUnknownArena -> TypeWithUnk -> VarNamer (PPUtils.PP ()) -- TODO: since this already a monad, put the arenas and things into a reader monad?
 print_type vars_show_index adts type_synonyms vars = Type.PP.refer_type_m show_var adts type_synonyms
     where
         show_var var =
             case Arena.get vars var of
-                TypeVar _ Fresh
+                TypeUnknown _ Fresh
                     | vars_show_index -> PPUtils.write <$> name_var var
                     | otherwise -> pure $ PPUtils.write "_"
-                TypeVar _ (Substituted other) -> print_type vars_show_index adts type_synonyms vars other
+                TypeUnknown _ (Substituted other) -> print_type vars_show_index adts type_synonyms vars other
 

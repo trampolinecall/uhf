@@ -8,17 +8,17 @@ import qualified UHF.Data.IR.Type as Type
 
 import UHF.IO.Located (Located (..))
 
-import UHF.Phases.Middle.Type.Var
+import UHF.Phases.Middle.Type.Unknown
 import UHF.Phases.Middle.Type.Aliases
 import UHF.Phases.Middle.Type.Constraint
-import UHF.Phases.Middle.Type.StateWithVars
+import UHF.Phases.Middle.Type.StateWithUnk
 import qualified UHF.Phases.Middle.Type.ConvertTypeExpr as ConvertTypeExpr
 
-type DeclBVReader = ReaderT (UntypedDeclArena, TypedWithVarsBoundValueArena) (WriterT [Constraint] StateWithVars)
+type DeclBVReader = ReaderT (UntypedDeclArena, TypedWithUnkBoundValueArena) (WriterT [Constraint] StateWithUnk)
 
 read_decls :: DeclBVReader UntypedDeclArena
 read_decls = ReaderT $ \ (ds, _) -> pure ds
-read_bvs :: DeclBVReader TypedWithVarsBoundValueArena
+read_bvs :: DeclBVReader TypedWithUnkBoundValueArena
 read_bvs = ReaderT $ \ (_, bvs) -> pure bvs
 
 -- TODO: sort constraints by priority so that certain weird things dont happen
@@ -39,11 +39,11 @@ read_bvs = ReaderT $ \ (_, bvs) -> pure bvs
 -- but it really should produce an error at `thing(0)` saying that thing takes a string and not an int
 -- (this happens because bindings are processed in order and the constraint from 'thing(0)' is processed before the constraint from 'thing = ...')
 
-collect :: UntypedDeclArena -> TypedWithVarsBoundValueArena -> UntypedDecl -> WriterT [Constraint] StateWithVars TypedWithVarsDecl
+collect :: UntypedDeclArena -> TypedWithUnkBoundValueArena -> UntypedDecl -> WriterT [Constraint] StateWithUnk TypedWithUnkDecl
 collect _ _ (SIR.Decl'Type ty) = pure $ SIR.Decl'Type ty
 collect decls bva (SIR.Decl'Module id nc bindings adts type_synonyms) = runReaderT (SIR.Decl'Module id nc <$> mapM binding bindings <*> pure adts <*> pure type_synonyms) (decls, bva)
 
-binding :: UntypedBinding -> DeclBVReader TypedWithVarsBinding
+binding :: UntypedBinding -> DeclBVReader TypedWithUnkBinding
 binding (SIR.Binding p eq_sp e) =
     pattern p >>= \ p ->
     expr e >>= \ e ->
@@ -55,14 +55,14 @@ loc_pat_type pattern = Located (SIR.pattern_span pattern) (SIR.pattern_type patt
 loc_expr_type :: SIR.Expr identifier type_expr type_info binary_ops_allowed -> Located type_info
 loc_expr_type expr = Located (SIR.expr_span expr) (SIR.expr_type expr)
 
-pattern :: UntypedPattern -> DeclBVReader TypedWithVarsPattern
+pattern :: UntypedPattern -> DeclBVReader TypedWithUnkPattern
 pattern (SIR.Pattern'Identifier () sp bv) =
     read_bvs >>= \ bvs ->
     let (SIR.BoundValue _ ty _) = Arena.get bvs bv
     in pure (SIR.Pattern'Identifier ty sp bv)
 
 pattern (SIR.Pattern'Wildcard () sp) =
-    lift (lift (Type.Type'Variable <$> new_type_variable (WildcardPattern sp))) >>= \ ty ->
+    lift (lift (Type.Type'Unknown <$> new_type_variable (WildcardPattern sp))) >>= \ ty ->
     pure (SIR.Pattern'Wildcard ty sp)
 
 pattern (SIR.Pattern'Tuple () sp l r) =
@@ -77,14 +77,14 @@ pattern (SIR.Pattern'Named () sp at_sp bvk subpat) =
     in lift (tell [Eq InNamedPattern at_sp (Located (just_span bvk) bv_ty) (loc_pat_type subpat)]) >>
     pure (SIR.Pattern'Named bv_ty sp at_sp bvk subpat)
 
-pattern (SIR.Pattern'Poison () sp) = SIR.Pattern'Poison <$> (Type.Type'Variable <$> lift (lift $ new_type_variable $ PoisonPattern sp)) <*> pure sp
+pattern (SIR.Pattern'Poison () sp) = SIR.Pattern'Poison <$> (Type.Type'Unknown <$> lift (lift $ new_type_variable $ PoisonPattern sp)) <*> pure sp
 
-expr :: UntypedExpr -> DeclBVReader TypedWithVarsExpr
+expr :: UntypedExpr -> DeclBVReader TypedWithUnkExpr
 expr (SIR.Expr'Identifier id () sp bv) =
     read_bvs >>= \ bvs ->
     (case unlocate bv of
         Just bv -> let (SIR.BoundValue _ ty _) = Arena.get bvs bv in pure ty
-        Nothing -> Type.Type'Variable <$> lift (lift $ new_type_variable (UnresolvedIdenExpr sp))) >>= \ ty ->
+        Nothing -> Type.Type'Unknown <$> lift (lift $ new_type_variable (UnresolvedIdenExpr sp))) >>= \ ty ->
 
     pure (SIR.Expr'Identifier id ty sp bv)
 
@@ -113,9 +113,9 @@ expr (SIR.Expr'Call id () sp callee arg) =
     expr arg >>= \ arg ->
     lift (lift $ new_type_variable (CallExpr sp)) >>= \ res_ty_var ->
 
-    lift (tell [Expect InCallExpr (loc_expr_type callee) (Type.Type'Function (SIR.expr_type arg) (Type.Type'Variable res_ty_var))]) >>
+    lift (tell [Expect InCallExpr (loc_expr_type callee) (Type.Type'Function (SIR.expr_type arg) (Type.Type'Unknown res_ty_var))]) >>
 
-    pure (SIR.Expr'Call id (Type.Type'Variable res_ty_var) sp callee arg)
+    pure (SIR.Expr'Call id (Type.Type'Unknown res_ty_var) sp callee arg)
 
 expr (SIR.Expr'If id () sp if_sp cond true false) =
     expr cond >>= \ cond ->
@@ -140,12 +140,12 @@ expr (SIR.Expr'Case id () sp case_tok_sp testing arms) =
 
     (case headMay arms of
         Just (_, first_arm_result) -> pure $ SIR.expr_type first_arm_result
-        Nothing -> Type.Type'Variable <$> lift (lift $ new_type_variable $ CaseExpr sp)) >>= \ result_ty ->
+        Nothing -> Type.Type'Unknown <$> lift (lift $ new_type_variable $ CaseExpr sp)) >>= \ result_ty ->
 
     pure (SIR.Expr'Case id result_ty sp case_tok_sp testing arms)
 
-expr (SIR.Expr'Poison id () sp) = SIR.Expr'Poison id <$> (Type.Type'Variable <$> lift (lift $ new_type_variable $ PoisonExpr sp)) <*> pure sp
-expr (SIR.Expr'Hole id () sp hid) = SIR.Expr'Hole id <$> (Type.Type'Variable <$> lift (lift $ new_type_variable $ HoleExpr sp)) <*> pure sp <*> pure hid
+expr (SIR.Expr'Poison id () sp) = SIR.Expr'Poison id <$> (Type.Type'Unknown <$> lift (lift $ new_type_variable $ PoisonExpr sp)) <*> pure sp
+expr (SIR.Expr'Hole id () sp hid) = SIR.Expr'Hole id <$> (Type.Type'Unknown <$> lift (lift $ new_type_variable $ HoleExpr sp)) <*> pure sp <*> pure hid
 
 expr (SIR.Expr'TypeAnnotation id () sp annotation e) =
     read_decls >>= \ decls ->

@@ -1,9 +1,9 @@
-module UHF.Phases.Middle.Type.Var
-    ( TypeVarKey
-    , TypeVar (..)
-    , TypeVarForWhat (..)
-    , TypeVarState (..)
-    , TypeVarArena
+module UHF.Phases.Middle.Type.Unknown
+    ( TypeUnknownKey
+    , TypeUnknown (..)
+    , TypeUnknownForWhat (..)
+    , TypeUnknownState (..)
+    , TypeUnknownArena
     , type_var_for_what_sp
     , type_var_for_what_name
     ) where
@@ -15,14 +15,14 @@ import qualified UHF.Data.IR.Type as Type
 
 import UHF.IO.Span (Span)
 
-newtype TypeVarKey = TypeVarKey Int deriving (Show, Eq, Ord)
-instance Arena.Key TypeVarKey where
-    make_key = TypeVarKey
-    unmake_key (TypeVarKey i) = i
-type TypeVarArena = Arena.Arena TypeVar TypeVarKey
+newtype TypeUnknownKey = TypeUnknownKey Int deriving (Show, Eq, Ord)
+instance Arena.Key TypeUnknownKey where
+    make_key = TypeUnknownKey
+    unmake_key (TypeUnknownKey i) = i
+type TypeUnknownArena = Arena.Arena TypeUnknown TypeUnknownKey
 
-data TypeVar = TypeVar TypeVarForWhat TypeVarState
-data TypeVarForWhat
+data TypeUnknown = TypeUnknown TypeUnknownForWhat TypeUnknownState
+data TypeUnknownForWhat
     = BoundValue Span
     | UnresolvedIdenExpr Span
     | CallExpr Span
@@ -32,9 +32,9 @@ data TypeVarForWhat
     | TypeExpr Span
     | HoleExpr Span
     | WildcardPattern Span
-data TypeVarState = Fresh | Substituted (Type.Type TypeVarKey)
+data TypeUnknownState = Fresh | Substituted (Type.Type TypeUnknownKey)
 
-type_var_for_what_sp :: TypeVarForWhat -> Span
+type_var_for_what_sp :: TypeUnknownForWhat -> Span
 type_var_for_what_sp (BoundValue sp) = sp
 type_var_for_what_sp (UnresolvedIdenExpr sp) = sp
 type_var_for_what_sp (CallExpr sp) = sp
@@ -45,7 +45,7 @@ type_var_for_what_sp (TypeExpr sp) = sp
 type_var_for_what_sp (HoleExpr sp) = sp
 type_var_for_what_sp (WildcardPattern sp) = sp
 
-type_var_for_what_name :: TypeVarForWhat -> Text
+type_var_for_what_name :: TypeUnknownForWhat -> Text
 type_var_for_what_name (BoundValue _) = "binding"
 type_var_for_what_name (UnresolvedIdenExpr _) = "identifier expression"
 type_var_for_what_name (CallExpr _) = "call expression"

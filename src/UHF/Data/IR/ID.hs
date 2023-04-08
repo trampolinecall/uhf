@@ -20,8 +20,6 @@ import qualified Numeric
 
 newtype ModuleID = ModuleID [Text] deriving Show
 
--- TODO: remove unused things
-
 data DeclID = DeclID DeclParent Text deriving Show
 data DeclParent = DeclParent'Module ModuleID | DeclParent'Expr ExprID deriving Show
 

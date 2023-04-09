@@ -41,13 +41,12 @@ solve adts type_synonyms vars constraints =
         solve' constraints =
             mapM (\ cons -> (cons,) <$> solve1 cons) constraints >>= \ results ->
             catMaybes <$> mapM
-                (\ (cons, res) ->
-                    case res of
-                    Ok -> pure Nothing
-                    Error err -> lift (lift $ Compiler.tell_error err) >> pure Nothing
-                    Defer -> pure (Just cons)
-                 )
-                 results >>= \ next_constraints ->
+                (\ (cons, res) -> case res of
+                        Ok -> pure Nothing
+                        Error err -> lift (lift $ Compiler.tell_error err) >> pure Nothing
+                        Defer -> pure (Just cons)
+                )
+                results >>= \ next_constraints ->
             if length constraints == length next_constraints
                 then pure () -- deferred all constraints, removing unknowns will report all the ambiguous types
                 else solve' next_constraints

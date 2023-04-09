@@ -30,6 +30,8 @@ get_adt_arena :: PP d_iden v_iden type_info binary_ops_allowed (Arena.Arena (Typ
 get_adt_arena = reader (\ (SIR.SIR _ adts _ _ _ _) -> adts)
 get_type_synonym_arena :: PP d_iden v_iden type_info binary_ops_allowed (Arena.Arena (Type.TypeSynonym (SIR.TypeExpr d_iden type_info)) Type.TypeSynonymKey)
 get_type_synonym_arena = reader (\ (SIR.SIR _ _ syns _ _ _) -> syns)
+get_type_var_arena :: PP d_iden v_iden type_info binary_ops_allowed (Arena.Arena Type.Var Type.TypeVarKey)
+get_type_var_arena = reader (\ (SIR.SIR _ _ _ vars _ _) -> vars)
 
 get_bv :: Keys.BoundValueKey -> PP d_iden v_iden type_info binary_ops_allowed (SIR.BoundValue type_info)
 get_bv k = reader (\ (SIR.SIR _ _ _ _ bvs _) -> Arena.get bvs k)
@@ -64,7 +66,11 @@ refer_bv k = get_bv k >>= \ (SIR.BoundValue id _ _) -> text (ID.stringify id)
 refer_decl :: SIR.DeclKey -> PP d_iden v_iden type_info binary_ops_allowed ()
 refer_decl k = get_decl k >>= \case
     SIR.Decl'Module id _ _ _ _ -> text $ ID.stringify id
-    SIR.Decl'Type ty -> get_adt_arena >>= \ adt_arena -> get_type_synonym_arena >>= \ type_synonym_arena -> lift (Type.PP.refer_type absurd adt_arena type_synonym_arena ty)
+    SIR.Decl'Type ty ->
+        get_adt_arena >>= \ adt_arena ->
+        get_type_synonym_arena >>= \ type_synonym_arena ->
+        get_type_var_arena >>= \ type_var_arena ->
+        lift (Type.PP.refer_type absurd adt_arena type_synonym_arena type_var_arena ty)
 
 put_iden_list_of_text :: [Located Text] -> PP d_iden v_iden type_info binary_ops_allowed ()
 put_iden_list_of_text = text . Text.intercalate "::" . map unlocate

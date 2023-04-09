@@ -20,7 +20,7 @@ typecheck (SIR.SIR decls adts type_synonyms type_vars bound_values mod) =
     runStateT
         (
             runWriterT (AddTypes.add adts type_synonyms bound_values decls) >>= \ ((adts, type_synonyms, bound_values, decls), constraints) ->
-            SolveConstraints.solve adts type_synonyms constraints >>
+            SolveConstraints.solve adts type_synonyms type_vars constraints >>
             pure (decls, adts, type_synonyms, bound_values)
         )
         Arena.new >>= \ ((decls, adts, type_synonyms, bound_values), vars) ->

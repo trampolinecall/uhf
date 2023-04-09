@@ -250,7 +250,7 @@ refer_type ty = refer_type_raw ty >>= \ ty -> pure ("Thunk<" <> ty <> ">")
 
 -- lowering {{{1
 lower :: ANFIR -> Text
-lower (ANFIR.ANFIR decls adts type_synonyms bindings params mod) =
+lower (ANFIR.ANFIR decls adts type_synonyms type_vars bindings params mod) =
     runReader
         (
             runWriterT (

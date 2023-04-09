@@ -9,6 +9,7 @@ ghc-options:
   - -Wextra
   - -Wno-name-shadowing
   - -Werror=incomplete-patterns # TODO: also add -Werror=incomplete-uni-patterns when parser is fixed
+  - -Werror=missing-fields
 
 default-extensions:
   - LambdaCase

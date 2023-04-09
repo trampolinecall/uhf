@@ -24,10 +24,11 @@ type NoPoisonBinding = ANFIR.Binding NoPoisonType Void
 type NoPoisonParam = ANFIR.Param NoPoisonType
 
 remove_poison :: PoisonedANFIR -> Maybe NoPoisonANFIR
-remove_poison (ANFIR.ANFIR decls adts type_synonyms bindings params mod) =
+remove_poison (ANFIR.ANFIR decls adts type_synonyms type_vars bindings params mod) =
     ANFIR.ANFIR decls
         <$> Arena.transformM rp_adt adts
         <*> Arena.transformM rp_type_synonym type_synonyms
+        <*> pure type_vars
         <*> Arena.transformM rp_binding bindings
         <*> Arena.transformM rp_param params
         <*> pure mod

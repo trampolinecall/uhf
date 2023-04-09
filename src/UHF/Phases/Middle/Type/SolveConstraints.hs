@@ -16,7 +16,7 @@ import UHF.Phases.Middle.Type.Error
 import UHF.Phases.Middle.Type.Constraint
 import UHF.Phases.Middle.Type.StateWithUnk
 
-type TypeContextReader = ReaderT (TypedWithUnkADTArena, TypedWithUnkTypeSynonymArena)
+type TypeContextReader = ReaderT (TypedWithUnkADTArena, TypedWithUnkTypeSynonymArena, TypeVarArena)
 
 data UnifyError
     = Mismatch TypeWithUnk TypeWithUnk
@@ -28,13 +28,15 @@ data Solve1Result
     | Defer
 
 read_adts :: Applicative m => TypeContextReader m TypedWithUnkADTArena
-read_adts = ReaderT (\ (adts, _) -> pure adts)
+read_adts = ReaderT (\ (adts, _, _) -> pure adts)
 read_synonyms :: Applicative m => TypeContextReader m TypedWithUnkTypeSynonymArena
-read_synonyms = ReaderT (\ (_, synonyms) -> pure synonyms)
+read_synonyms = ReaderT (\ (_, synonyms, _) -> pure synonyms)
+read_vars :: Applicative m => TypeContextReader m TypeVarArena
+read_vars = ReaderT (\ (_, _, vars) -> pure vars)
 
-solve :: TypedWithUnkADTArena -> TypedWithUnkTypeSynonymArena -> [Constraint] -> StateWithUnk ()
-solve adts type_synonyms constraints =
-    runReaderT (solve' constraints) (adts, type_synonyms)
+solve :: TypedWithUnkADTArena -> TypedWithUnkTypeSynonymArena -> TypeVarArena -> [Constraint] -> StateWithUnk ()
+solve adts type_synonyms vars constraints =
+    runReaderT (solve' constraints) (adts, type_synonyms, vars)
     where
         solve' constraints =
             mapM (\ cons -> (cons,) <$> solve1 cons) constraints >>= \ results ->
@@ -57,32 +59,36 @@ solve1 (Eq in_what sp a b) =
         Right () -> pure Ok
 
         Left (Mismatch a_part b_part) ->
-            lift get >>= \ vars ->
+            lift get >>= \ unks ->
             read_adts >>= \ adts ->
             read_synonyms >>= \ type_synonyms ->
-            pure (Error $ EqError { eq_error_adts = adts, eq_error_type_synonyms = type_synonyms, eq_error_vars = vars, eq_error_in_what = in_what, eq_error_span = sp, eq_error_a_whole = a, eq_error_b_whole = b, eq_error_a_part = a_part, eq_error_b_part = b_part })
+            read_vars >>= \ vars ->
+            pure (Error $ EqError { eq_error_adts = adts, eq_error_type_synonyms = type_synonyms, eq_error_vars = vars, eq_error_unks = unks, eq_error_in_what = in_what, eq_error_span = sp, eq_error_a_whole = a, eq_error_b_whole = b, eq_error_a_part = a_part, eq_error_b_part = b_part })
 
         Left (OccursCheck var ty) ->
-            lift get >>= \ vars ->
+            lift get >>= \ unks ->
             read_adts >>= \ adts ->
             read_synonyms >>= \ type_synonyms ->
-            pure (Error $ OccursCheckError adts type_synonyms vars sp var ty)
+            read_vars >>= \ vars ->
+            pure (Error $ OccursCheckError adts type_synonyms vars unks sp var ty)
 
 solve1 (Expect in_what got expect) =
     runExceptT (unify (unlocate got) expect) >>= \case
         Right () -> pure Ok
 
         Left (Mismatch got_part expect_part) ->
-            lift get >>= \ vars ->
+            lift get >>= \ unks ->
             read_adts >>= \ adts ->
             read_synonyms >>= \ type_synonyms ->
-            pure (Error $ ExpectError { expect_error_adts = adts, expect_error_type_synonyms = type_synonyms, expect_error_vars = vars, expect_error_in_what = in_what, expect_error_got_whole = got, expect_error_expect_whole = expect, expect_error_got_part = got_part, expect_error_expect_part = expect_part })
+            read_vars >>= \ vars ->
+            pure (Error $ ExpectError { expect_error_adts = adts, expect_error_type_synonyms = type_synonyms, expect_error_vars = vars, expect_error_unks = unks, expect_error_in_what = in_what, expect_error_got_whole = got, expect_error_expect_whole = expect, expect_error_got_part = got_part, expect_error_expect_part = expect_part })
 
         Left (OccursCheck var ty) ->
-            lift get >>= \ vars ->
+            lift get >>= \ unks ->
             read_adts >>= \ adts ->
             read_synonyms >>= \ type_synonyms ->
-            pure (Error $ OccursCheckError adts type_synonyms vars (just_span got) var ty)
+            read_vars >>= \ vars ->
+            pure (Error $ OccursCheckError adts type_synonyms vars unks (just_span got) var ty)
 
 solve1 (UnkIsApplyResult sp unk ty arg) =
     apply_ty ty arg >>= \case
@@ -91,16 +97,18 @@ solve1 (UnkIsApplyResult sp unk ty arg) =
                 Right () -> pure Ok
 
                 Left (Mismatch unk_part applied_part) ->
-                    lift get >>= \ vars ->
+                    lift get >>= \ unks ->
                     read_adts >>= \ adts ->
                     read_synonyms >>= \ type_synonyms ->
-                    pure (Error $ ExpectError { expect_error_adts = adts, expect_error_type_synonyms = type_synonyms, expect_error_vars = vars, expect_error_in_what = InTypeApplication, expect_error_got_whole = Located sp applied, expect_error_expect_whole = Type.Type'Unknown unk, expect_error_got_part = applied_part, expect_error_expect_part = unk_part })
+                    read_vars >>= \ vars ->
+                    pure (Error $ ExpectError { expect_error_adts = adts, expect_error_type_synonyms = type_synonyms, expect_error_vars = vars, expect_error_unks = unks, expect_error_in_what = InTypeApplication, expect_error_got_whole = Located sp applied, expect_error_expect_whole = Type.Type'Unknown unk, expect_error_got_part = applied_part, expect_error_expect_part = unk_part })
 
                 Left (OccursCheck var ty) ->
-                    lift get >>= \ vars ->
+                    lift get >>= \ unks ->
                     read_adts >>= \ adts ->
                     read_synonyms >>= \ type_synonyms ->
-                    pure (Error $ OccursCheckError adts type_synonyms vars sp var ty)
+                    read_vars >>= \ vars ->
+                    pure (Error $ OccursCheckError adts type_synonyms vars unks sp var ty)
 
         Just (Left ()) -> pure (Error $ todo) -- TODO: error "cannot apply type argument to type"
         Nothing -> pure $ Defer

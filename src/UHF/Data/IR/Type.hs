@@ -40,4 +40,4 @@ data ADTVariant ty
 
 data TypeSynonym ty = TypeSynonym ID.DeclID Text ty deriving Show
 
-data Var = Var Text deriving Show
+data Var = Var Text deriving Show -- TODO: put id

@@ -17,6 +17,8 @@ type Type = Type.Type Void
 type VIden = Located (Maybe BoundValueKey)
 type DIden = Maybe DeclKey
 
+type TypeVarArena = Arena.Arena Type.Var Type.TypeVarKey
+
 type UntypedSIR = SIR.SIR DIden VIden () Void
 type UntypedDecl = SIR.Decl DIden VIden () Void
 type UntypedADT = Type.ADT UntypedTypeExpr

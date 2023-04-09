@@ -64,6 +64,63 @@ solve' (Expect in_what got expect) =
             lift (lift $ Compiler.tell_error $ OccursCheckError adts type_synonyms vars (just_span got) var ty) >>
             pure ()
 
+solve' (UnkIsApplyResult sp unk ty arg) =
+    case apply_ty ty arg of
+        Just (Right applied) ->
+            runExceptT (unify_var unk applied False) >>= \case
+                Right () -> pure ()
+
+                Left (Left (unk_part, applied_part)) -> -- mismatch error
+                    lift get >>= \ vars ->
+                    read_adts >>= \ adts ->
+                    read_synonyms >>= \ type_synonyms ->
+                    lift (lift $ Compiler.tell_error $ ExpectError { expect_error_adts = adts, expect_error_type_synonyms = type_synonyms, expect_error_vars = vars, expect_error_in_what = InTypeApplication, expect_error_got_whole = Located sp applied, expect_error_expect_whole = Type.Type'Unknown unk, expect_error_got_part = applied_part, expect_error_expect_part = unk_part }) >>
+                    pure ()
+
+                Left (Right (var, ty)) -> -- occurs check failure
+                    lift get >>= \ vars ->
+                    read_adts >>= \ adts ->
+                    read_synonyms >>= \ type_synonyms ->
+                    lift (lift $ Compiler.tell_error $ OccursCheckError adts type_synonyms vars sp var ty) >>
+                    pure ()
+
+        Just (Left ()) -> pure () -- TODO: error "cannot apply type argument to type"
+        Nothing -> pure () -- TODO: defer
+
+apply_ty :: TypeWithUnk -> TypeWithUnk -> Maybe (Either () TypeWithUnk)
+-- TODO: error
+apply_ty (Type.Type'Unknown _) _ = Nothing
+apply_ty (Type.Type'ADT _) _ = Just $ Left () -- TODO: parameterized datatypes
+apply_ty (Type.Type'Synonym _) _ = Just $ Left () -- TODO: type synonyms with arguments
+apply_ty Type.Type'Int _ = Just $ Left ()
+apply_ty Type.Type'Float _ = Just $ Left ()
+apply_ty Type.Type'Char _ = Just $ Left ()
+apply_ty Type.Type'String _ = Just $ Left ()
+apply_ty Type.Type'Bool _ = Just $ Left ()
+apply_ty (Type.Type'Function _ _) _ = Just $ Left ()
+apply_ty (Type.Type'Tuple _ _) _ = Just $ Left ()
+apply_ty (Type.Type'Variable _) _ = Just $ Left () -- TODO: higher kinded types
+apply_ty (Type.Type'Forall (first_var:vars) ty) arg
+    | null vars = Just $ Right $ subst first_var arg ty
+    | otherwise = Just $ Right $ Type.Type'Forall vars (subst first_var arg ty)
+    where
+        subst _ _ ty@(Type.Type'Unknown _) = ty
+        subst var replacement ty@(Type.Type'Variable v)
+            | var == v = replacement
+            | otherwise = ty
+        subst _ _ ty@(Type.Type'ADT _) = ty -- TODO: replace in arguments
+        subst _ _ ty@(Type.Type'Synonym _) = ty -- TODO: replace in arguments
+        subst _ _ Type.Type'Int = Type.Type'Int
+        subst _ _ Type.Type'Float = Type.Type'Float
+        subst _ _ Type.Type'Char = Type.Type'Char
+        subst _ _ Type.Type'String = Type.Type'String
+        subst _ _ Type.Type'Bool = Type.Type'Bool
+        subst var replacement (Type.Type'Function a r) = Type.Type'Function (subst var replacement a) (subst var replacement r)
+        subst var replacement (Type.Type'Tuple a b) = Type.Type'Tuple (subst var replacement a) (subst var replacement b)
+        subst var replacement (Type.Type'Forall vars ty) = (Type.Type'Forall vars (subst var replacement ty))
+
+apply_ty (Type.Type'Forall [] ty) _ = Just $ Left () -- TODO: replace with NonEmpty
+
 unify :: TypeWithUnk -> TypeWithUnk -> ExceptT (Either (TypeWithUnk, TypeWithUnk) (TypeUnknownKey, TypeWithUnk)) (TypeContextReader StateWithUnk) ()
 unify a@(Type.Type'ADT a_adt_key) b@(Type.Type'ADT b_adt_key)
     | a_adt_key == b_adt_key = pure ()
@@ -88,6 +145,9 @@ unify Type.Type'String Type.Type'String = pure ()
 unify Type.Type'Bool Type.Type'Bool = pure ()
 unify (Type.Type'Function a1 r1) (Type.Type'Function a2 r2) = unify a1 a2 >> unify r1 r2
 unify (Type.Type'Tuple a1 b1) (Type.Type'Tuple a2 b2) = unify a1 a2 >> unify b1 b2
+unify (Type.Type'Variable v1) (Type.Type'Variable v2) -- TODO: temporary substitutions
+    | v1 == v2 = pure ()
+-- TODO: unifying forall
 unify a b = ExceptT (pure $ Left $ Left (a, b))
 
 unify_var :: TypeUnknownKey -> TypeWithUnk -> Bool -> ExceptT (Either (TypeWithUnk, TypeWithUnk) (TypeUnknownKey, TypeWithUnk)) (TypeContextReader StateWithUnk) ()

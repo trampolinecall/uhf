@@ -29,7 +29,7 @@ data Type unk
     | Type'Tuple (Type unk) (Type unk)
     | Type'Unknown unk
     | Type'Variable TypeVarKey
-    | Type'Forall [TypeVarKey] (Type unk)
+    | Type'Forall (NonEmpty TypeVarKey) (Type unk)
     deriving Show
 
 data ADT ty = ADT ID.DeclID Text [ADTVariant ty] deriving Show

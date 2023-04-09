@@ -190,6 +190,7 @@ convert decls =
 
 convert_decls :: ID.BoundValueParent -> ID.DeclParent -> Maybe SIR.NameContext -> DeclChildrenList -> BoundValueList -> [AST.Decl] -> MakeIRState (SIR.NameContext, [Binding], [ADTKey], [TypeSynonymKey])
 convert_decls bv_parent decl_parent parent_name_context prev_decl_entries prev_bv_entries decls =
+    -- TODO: dont put the expressions in the final name context for non recursive lets
     mfix (\ ~(final_name_context, _, _, _) -> -- mfix needed because the name context to put the expressions into is this one
         List.unzip5 <$> mapM (convert_decl final_name_context) decls >>= \ (decl_entries, bound_value_entries, bindings, adts, type_synonyms) ->
         make_name_context (prev_decl_entries ++ concat decl_entries) (prev_bv_entries ++ concat bound_value_entries) parent_name_context >>= \ name_context ->
@@ -255,10 +256,16 @@ convert_type nc (AST.Type'Tuple sp items) = mapM (convert_type nc) items >>= gro
 convert_type _ (AST.Type'Hole sp id) = pure $ SIR.TypeExpr'Hole () sp id
 convert_type nc (AST.Type'Forall _ tys ty) =
     catMaybes <$> mapM (make_iden1_with_err PathInTypeName) tys >>= \ tys ->
+
     mapM (\ t -> new_type_var $ unlocate t) tys >>= \ ty_vars ->
     zipWithM (\ (Located sp name) var -> (name, DeclAt sp,) <$> new_decl (SIR.Decl'Type $ Type.Type'Variable var)) tys ty_vars >>= \ new_decls ->
+
     make_name_context new_decls [] (Just nc) >>= \ new_nc ->
-    SIR.TypeExpr'Forall () ty_vars <$> convert_type new_nc ty
+
+    case ty_vars of
+        [] -> convert_type new_nc ty -- can happen if there are errors in all the type names or if the user passed none
+        tyv1:tyv_more -> SIR.TypeExpr'Forall () (tyv1 :| tyv_more) <$> convert_type new_nc ty
+
 convert_type nc (AST.Type'Apply sp ty args) =
     convert_type nc ty >>= \ ty ->
     foldlM (\ ty arg -> SIR.TypeExpr'Apply () sp ty <$> convert_type nc arg) ty args -- TODO: fix spans
@@ -327,10 +334,16 @@ convert_expr name_context (AST.Expr'Case sp case_sp e arms) =
 convert_expr nc (AST.Expr'TypeAnnotation sp ty e) = new_expr_id >>= \ id -> SIR.Expr'TypeAnnotation id () sp <$> convert_type nc ty <*> convert_expr nc e
 convert_expr nc (AST.Expr'Forall sp tys e) =
     catMaybes <$> mapM (make_iden1_with_err PathInTypeName) tys >>= \ tys ->
+
     mapM (\ t -> new_type_var $ unlocate t) tys >>= \ ty_vars ->
     zipWithM (\ (Located sp name) var -> (name, DeclAt sp,) <$> new_decl (SIR.Decl'Type $ Type.Type'Variable var)) tys ty_vars >>= \ new_decls ->
+
     make_name_context new_decls [] (Just nc) >>= \ new_nc ->
-    new_expr_id >>= \ id -> SIR.Expr'Forall id () sp ty_vars <$> convert_expr new_nc e
+
+    new_expr_id >>= \ id ->
+    case ty_vars of
+        [] -> convert_expr new_nc e
+        tyv1:tyv_more -> SIR.Expr'Forall id () sp (tyv1 :| tyv_more) <$> convert_expr new_nc e
 
 convert_expr nc (AST.Expr'TypeApply sp e args) =
     convert_expr nc e >>= \ e ->

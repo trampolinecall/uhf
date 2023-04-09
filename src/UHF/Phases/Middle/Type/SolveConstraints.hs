@@ -9,6 +9,7 @@ import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Compiler as Compiler
 
 import UHF.IO.Located (Located (..))
+import UHF.IO.Span (Span)
 
 import UHF.Phases.Middle.Type.Unknown
 import UHF.Phases.Middle.Type.Aliases
@@ -18,6 +19,12 @@ import UHF.Phases.Middle.Type.StateWithUnk
 
 type TypeContextReader = ReaderT (TypedWithUnkADTArena, TypedWithUnkTypeSynonymArena, TypeVarArena)
 
+get_error_type_context :: TypeContextReader StateWithUnk ErrorTypeContext
+get_error_type_context =
+    lift get >>= \ unks ->
+    ask >>= \ (adts, type_synonyms, vars) ->
+    pure (ErrorTypeContext adts type_synonyms vars unks)
+
 data UnifyError
     = Mismatch TypeWithUnk TypeWithUnk
     | OccursCheck TypeUnknownKey TypeWithUnk
@@ -26,13 +33,6 @@ data Solve1Result
     = Ok
     | Error Error
     | Defer
-
-read_adts :: Applicative m => TypeContextReader m TypedWithUnkADTArena
-read_adts = ReaderT (\ (adts, _, _) -> pure adts)
-read_synonyms :: Applicative m => TypeContextReader m TypedWithUnkTypeSynonymArena
-read_synonyms = ReaderT (\ (_, synonyms, _) -> pure synonyms)
-read_vars :: Applicative m => TypeContextReader m TypeVarArena
-read_vars = ReaderT (\ (_, _, vars) -> pure vars)
 
 solve :: TypedWithUnkADTArena -> TypedWithUnkTypeSynonymArena -> TypeVarArena -> [Constraint] -> StateWithUnk ()
 solve adts type_synonyms vars constraints =
@@ -59,86 +59,69 @@ solve1 (Eq in_what sp a b) =
         Right () -> pure Ok
 
         Left (Mismatch a_part b_part) ->
-            lift get >>= \ unks ->
-            read_adts >>= \ adts ->
-            read_synonyms >>= \ type_synonyms ->
-            read_vars >>= \ vars ->
-            pure (Error $ EqError { eq_error_adts = adts, eq_error_type_synonyms = type_synonyms, eq_error_vars = vars, eq_error_unks = unks, eq_error_in_what = in_what, eq_error_span = sp, eq_error_a_whole = a, eq_error_b_whole = b, eq_error_a_part = a_part, eq_error_b_part = b_part })
+            get_error_type_context >>= \ context ->
+            pure (Error $ EqError { eq_error_context = context, eq_error_in_what = in_what, eq_error_span = sp, eq_error_a_whole = a, eq_error_b_whole = b, eq_error_a_part = a_part, eq_error_b_part = b_part })
 
         Left (OccursCheck var ty) ->
-            lift get >>= \ unks ->
-            read_adts >>= \ adts ->
-            read_synonyms >>= \ type_synonyms ->
-            read_vars >>= \ vars ->
-            pure (Error $ OccursCheckError adts type_synonyms vars unks sp var ty)
+            get_error_type_context >>= \ context ->
+            pure (Error $ OccursCheckError context sp var ty)
 
 solve1 (Expect in_what got expect) =
     runExceptT (unify (unlocate got) expect) >>= \case
         Right () -> pure Ok
 
         Left (Mismatch got_part expect_part) ->
-            lift get >>= \ unks ->
-            read_adts >>= \ adts ->
-            read_synonyms >>= \ type_synonyms ->
-            read_vars >>= \ vars ->
-            pure (Error $ ExpectError { expect_error_adts = adts, expect_error_type_synonyms = type_synonyms, expect_error_vars = vars, expect_error_unks = unks, expect_error_in_what = in_what, expect_error_got_whole = got, expect_error_expect_whole = expect, expect_error_got_part = got_part, expect_error_expect_part = expect_part })
+            get_error_type_context >>= \ context ->
+            pure (Error $ ExpectError { expect_error_context = context, expect_error_in_what = in_what, expect_error_got_whole = got, expect_error_expect_whole = expect, expect_error_got_part = got_part, expect_error_expect_part = expect_part })
 
         Left (OccursCheck var ty) ->
-            lift get >>= \ unks ->
-            read_adts >>= \ adts ->
-            read_synonyms >>= \ type_synonyms ->
-            read_vars >>= \ vars ->
-            pure (Error $ OccursCheckError adts type_synonyms vars unks (just_span got) var ty)
+            get_error_type_context >>= \ context ->
+            pure (Error $ OccursCheckError context (just_span got) var ty)
 
 solve1 (UnkIsApplyResult sp unk ty arg) =
-    apply_ty ty arg >>= \case
+    apply_ty sp ty arg >>= \case
         Just (Right applied) ->
             runExceptT (unify_unk unk applied False) >>= \case
                 Right () -> pure Ok
 
                 Left (Mismatch unk_part applied_part) ->
-                    lift get >>= \ unks ->
-                    read_adts >>= \ adts ->
-                    read_synonyms >>= \ type_synonyms ->
-                    read_vars >>= \ vars ->
-                    pure (Error $ ExpectError { expect_error_adts = adts, expect_error_type_synonyms = type_synonyms, expect_error_vars = vars, expect_error_unks = unks, expect_error_in_what = InTypeApplication, expect_error_got_whole = Located sp applied, expect_error_expect_whole = Type.Type'Unknown unk, expect_error_got_part = applied_part, expect_error_expect_part = unk_part })
+                    get_error_type_context >>= \ context ->
+                    pure (Error $ ExpectError { expect_error_context = context, expect_error_in_what = InTypeApplication, expect_error_got_whole = Located sp applied, expect_error_expect_whole = Type.Type'Unknown unk, expect_error_got_part = applied_part, expect_error_expect_part = unk_part })
 
                 Left (OccursCheck var ty) ->
-                    lift get >>= \ unks ->
-                    read_adts >>= \ adts ->
-                    read_synonyms >>= \ type_synonyms ->
-                    read_vars >>= \ vars ->
-                    pure (Error $ OccursCheckError adts type_synonyms vars unks sp var ty)
+                    get_error_type_context >>= \ context ->
+                    pure (Error $ OccursCheckError context sp var ty)
 
-        Just (Left ()) -> pure (Error $ todo) -- TODO: error "cannot apply type argument to type"
+        Just (Left e) -> pure (Error e)
         Nothing -> pure $ Defer
 
-apply_ty :: TypeWithUnk -> TypeWithUnk -> TypeContextReader StateWithUnk (Maybe (Either () TypeWithUnk))
--- TODO: errors
-apply_ty (Type.Type'Unknown unk) arg =
+apply_ty :: Span -> TypeWithUnk -> TypeWithUnk -> TypeContextReader StateWithUnk (Maybe (Either Error TypeWithUnk))
+apply_ty sp (Type.Type'Unknown unk) arg =
     Arena.get <$> lift get <*> pure unk >>= \case
-        TypeUnknown _ (Substituted sub) -> apply_ty sub arg
+        TypeUnknown _ (Substituted sub) -> apply_ty sp sub arg
         TypeUnknown _ Fresh -> pure Nothing
-apply_ty (Type.Type'ADT _) _ = pure $ Just $ Left () -- TODO: parameterized datatypes
-apply_ty (Type.Type'Synonym _) _ = pure $ Just $ Left () -- TODO: type synonyms with arguments
-apply_ty Type.Type'Int _ = pure $ Just $ Left ()
-apply_ty Type.Type'Float _ = pure $ Just $ Left ()
-apply_ty Type.Type'Char _ = pure $ Just $ Left ()
-apply_ty Type.Type'String _ = pure $ Just $ Left ()
-apply_ty Type.Type'Bool _ = pure $ Just $ Left ()
-apply_ty (Type.Type'Function _ _) _ = pure $ Just $ Left ()
-apply_ty (Type.Type'Tuple _ _) _ = pure $ Just $ Left ()
-apply_ty (Type.Type'Variable _) _ = pure $ Just $ Left () -- TODO: higher kinded types
-apply_ty (Type.Type'Forall (first_var:more_vars) ty) arg
-    | null more_vars = Just <$> (Right <$> subst first_var arg ty)
-    | otherwise = Just <$> (Right <$> (Type.Type'Forall more_vars <$> (subst first_var arg ty)))
+apply_ty sp ty@(Type.Type'ADT _) _ = Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty)) -- TODO: parameterized datatypes
+apply_ty sp ty@(Type.Type'Synonym _) _ = Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty)) -- TODO: type synonyms with arguments, also TODO: make sure that type synonyms are always fully applied
+apply_ty sp ty@Type.Type'Int _ = Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty))
+apply_ty sp ty@Type.Type'Float _ = Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty))
+apply_ty sp ty@Type.Type'Char _ = Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty))
+apply_ty sp ty@Type.Type'String _ = Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty))
+apply_ty sp ty@Type.Type'Bool _ = Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty))
+apply_ty sp ty@(Type.Type'Function _ _) _ = Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty))
+apply_ty sp ty@(Type.Type'Tuple _ _) _ = Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty))
+apply_ty sp ty@(Type.Type'Variable _) _ = Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty)) -- TODO: higher kinded variables
+apply_ty _ (Type.Type'Forall (first_var :| more_vars) ty) arg =
+    -- TODO: check kind of first_var
+    case more_vars of
+        [] -> Just <$> (Right <$> subst first_var arg ty)
+        more_1:more_more -> Just <$> (Right <$> (Type.Type'Forall (more_1 :| more_more) <$> (subst first_var arg ty)))
     where
-        subst var replacement ty@(Type.Type'Unknown unk) =
+        subst looking_for replacement ty@(Type.Type'Unknown unk) =
             Arena.get <$> lift get <*> pure unk >>= \case
-                TypeUnknown _ (Substituted sub) -> subst var replacement sub
+                TypeUnknown _ (Substituted sub) -> subst looking_for replacement sub
                 TypeUnknown _ Fresh -> pure ty -- TODO: reconsider if this is correct
-        subst var replacement ty@(Type.Type'Variable v)
-            | var == v = pure replacement
+        subst looking_for replacement ty@(Type.Type'Variable v)
+            | looking_for == v = pure replacement
             | otherwise = pure ty
         subst _ _ ty@(Type.Type'ADT _) = pure ty -- TODO: replace in arguments
         subst _ _ ty@(Type.Type'Synonym _) = pure ty -- TODO: replace in arguments
@@ -147,11 +130,9 @@ apply_ty (Type.Type'Forall (first_var:more_vars) ty) arg
         subst _ _ Type.Type'Char = pure Type.Type'Char
         subst _ _ Type.Type'String = pure Type.Type'String
         subst _ _ Type.Type'Bool = pure Type.Type'Bool
-        subst var replacement (Type.Type'Function a r) = Type.Type'Function <$> (subst var replacement a) <*> (subst var replacement r)
-        subst var replacement (Type.Type'Tuple a b) = Type.Type'Tuple <$> (subst var replacement a) <*> (subst var replacement b)
-        subst var replacement (Type.Type'Forall vars ty) = (Type.Type'Forall vars <$> (subst var replacement ty))
-
-apply_ty (Type.Type'Forall [] ty) _ = pure $ Just $ Left () -- TODO: replace with NonEmpty
+        subst looking_for replacement (Type.Type'Function a r) = Type.Type'Function <$> (subst looking_for replacement a) <*> (subst looking_for replacement r)
+        subst looking_for replacement (Type.Type'Tuple a b) = Type.Type'Tuple <$> (subst looking_for replacement a) <*> (subst looking_for replacement b)
+        subst looking_for replacement (Type.Type'Forall vars ty) = (Type.Type'Forall vars <$> (subst looking_for replacement ty))
 
 unify :: TypeWithUnk -> TypeWithUnk -> ExceptT UnifyError (TypeContextReader StateWithUnk) ()
 unify (Type.Type'Unknown a) b = unify_unk a b False
@@ -161,12 +142,12 @@ unify (Type.Type'ADT a_adt_key) (Type.Type'ADT b_adt_key)
     | a_adt_key == b_adt_key = pure ()
 
 unify (Type.Type'Synonym a_syn_key) b =
-    lift read_synonyms >>= \ type_synonyms ->
+    lift ask >>= \ (_, type_synonyms, _) ->
     case Arena.get type_synonyms a_syn_key of
         Type.TypeSynonym _ _ a_expansion -> unify (SIR.type_expr_type_info a_expansion) b
 
 unify a (Type.Type'Synonym b_syn_key) =
-    lift read_synonyms >>= \ type_synonyms ->
+    lift ask >>= \ (_, type_synonyms, _) ->
     case Arena.get type_synonyms b_syn_key of
         Type.TypeSynonym _ _ b_expansion -> unify a (SIR.type_expr_type_info b_expansion)
 
@@ -181,6 +162,9 @@ unify (Type.Type'Variable v1) (Type.Type'Variable v2) -- TODO: temporary substit
     | v1 == v2 = pure ()
 -- TODO: unifying forall
 unify a b = ExceptT (pure $ Left $ Mismatch a b)
+
+set_type_var_state :: TypeUnknownKey -> TypeUnknownState -> TypeContextReader StateWithUnk ()
+set_type_var_state var new_state = lift $ modify $ \ ty_arena -> Arena.modify ty_arena var (\ (TypeUnknown for _) -> TypeUnknown for new_state)
 
 unify_unk :: TypeUnknownKey -> TypeWithUnk -> Bool -> ExceptT UnifyError (TypeContextReader StateWithUnk) ()
 unify_unk var other var_on_right = Arena.get <$> lift (lift get) <*> pure var >>= \ case
@@ -208,32 +192,29 @@ unify_unk var other var_on_right = Arena.get <$> lift (lift get) <*> pure var >>
                 True -> ExceptT (pure $ Left $ OccursCheck var other)
                 False -> lift (set_type_var_state var (Substituted other))
 
-set_type_var_state :: TypeUnknownKey -> TypeUnknownState -> TypeContextReader StateWithUnk ()
-set_type_var_state var new_state = lift $ modify $ \ ty_arena -> Arena.modify ty_arena var (\ (TypeUnknown for _) -> TypeUnknown for new_state)
-
 occurs_check :: TypeUnknownKey -> TypeWithUnk -> TypeContextReader StateWithUnk Bool
--- does the variable v occur anywhere in the type ty?
-occurs_check v (Type.Type'Unknown other_v) =
-    if v == other_v
+-- does the unknown u occur anywhere in the type ty?
+occurs_check u (Type.Type'Unknown other_v) =
+    if u == other_v
         then pure True
         else
             Arena.get <$> lift get <*> pure other_v >>= \case
-                TypeUnknown _ (Substituted other_sub) -> occurs_check v other_sub
+                TypeUnknown _ (Substituted other_sub) -> occurs_check u other_sub
                 TypeUnknown _ Fresh -> pure False
 
 occurs_check _ (Type.Type'ADT _) = pure False
 
-occurs_check v (Type.Type'Synonym syn_key) =
-    read_synonyms >>= \ type_synonyms ->
+occurs_check u (Type.Type'Synonym syn_key) =
+    ask >>= \ (_, type_synonyms, _) ->
     let Type.TypeSynonym _ _ other_expansion = Arena.get type_synonyms syn_key
-    in occurs_check v (SIR.type_expr_type_info other_expansion)
+    in occurs_check u (SIR.type_expr_type_info other_expansion)
 
 occurs_check _ Type.Type'Int = pure False
 occurs_check _ Type.Type'Float = pure False
 occurs_check _ Type.Type'Char = pure False
 occurs_check _ Type.Type'String = pure False
 occurs_check _ Type.Type'Bool = pure False
-occurs_check v (Type.Type'Function a r) = (||) <$> occurs_check v a <*> occurs_check v r
-occurs_check v (Type.Type'Tuple a b) = (||) <$> occurs_check v a <*> occurs_check v b
+occurs_check u (Type.Type'Function a r) = (||) <$> occurs_check u a <*> occurs_check u r
+occurs_check u (Type.Type'Tuple a b) = (||) <$> occurs_check u a <*> occurs_check u b
 occurs_check _ (Type.Type'Variable _) = pure False
-occurs_check v (Type.Type'Forall _ ty) = occurs_check v ty
+occurs_check u (Type.Type'Forall _ ty) = occurs_check u ty

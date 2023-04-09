@@ -19,6 +19,8 @@ import qualified UHF.Compiler as Compiler
 
 type DeclBVReader = ReaderT (UntypedDeclArena, TypedWithUnkBoundValueArena) (WriterT [Constraint] StateWithUnk)
 
+-- TODO: make helper functions to not use lift
+
 get_bv_type :: SIR.BoundValueKey -> DeclBVReader TypeWithUnk
 get_bv_type bv = do
     (_, bvs) <- ask

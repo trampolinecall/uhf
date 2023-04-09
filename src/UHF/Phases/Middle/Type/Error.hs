@@ -110,6 +110,7 @@ instance Diagnostic.ToError Error where
                 InTypeAnnotation -> "type annotation"
                 InIfCondition -> "'if' condition"
                 InCallExpr -> "call expression"
+                InTypeApplication -> "type application"
 
             sp = just_span got_whole
 

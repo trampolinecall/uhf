@@ -175,8 +175,13 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures p
                     mangle_binding_as_thunk tup >>= \ tup_mangled ->
                     pure (default_let_thunk, Just (set_evaluator "TupleDestructure2Evaluator" tup_mangled))
 
-                ANFIR.Expr'Forall _ _ _ _ -> todo
-                ANFIR.Expr'TypeApply _ _ _ _ -> todo
+                -- foralls and type applications get erased, TODO: explain this better and also reconsider if this is actually correct
+                ANFIR.Expr'Forall _ _ _ e ->
+                    mangle_binding_as_thunk e >>= \ e ->
+                    pure (let_thunk e, Nothing)
+                ANFIR.Expr'TypeApply _ _ e _ ->
+                    mangle_binding_as_thunk e >>= \ e ->
+                    pure (let_thunk e, Nothing)
 
                 ANFIR.Expr'Poison _ _ void -> absurd void
 
@@ -242,8 +247,8 @@ refer_type_raw Type.Type'Bool = pure "Bool"
 refer_type_raw (Type.Type'Function a r) = refer_type_raw a >>= \ a -> refer_type_raw r >>= \ r -> pure ("Lambda<" <> a <> ", " <> r <> ">")
 refer_type_raw (Type.Type'Tuple a b) = refer_type_raw a >>= \ a -> refer_type_raw b >>= \ b -> pure ("Tuple<" <> a <> ", " <> b <> ">")
 refer_type_raw (Type.Type'Unknown void) = absurd void
-refer_type_raw (Type.Type'Variable _) = todo
-refer_type_raw (Type.Type'Forall _ _) = todo
+refer_type_raw (Type.Type'Variable _) = pure "any" -- best approximation
+refer_type_raw (Type.Type'Forall _ t) = refer_type_raw t
 
 refer_type :: Type.Type Void -> IRReader Text
 refer_type ty = refer_type_raw ty >>= \ ty -> pure ("Thunk<" <> ty <> ">")

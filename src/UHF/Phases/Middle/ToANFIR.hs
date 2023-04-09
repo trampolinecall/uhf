@@ -119,7 +119,7 @@ convert_expr bv_map (RIR.Expr'Switch id ty _ testing arms) =
 
 convert_expr bv_map (RIR.Expr'Seq id ty _ a b) = ANFIR.Expr'Seq id ty <$> convert_expr bv_map a <*> convert_expr bv_map b >>= new_binding
 
-convert_expr bv_map (RIR.Expr'Forall id ty _ vars e) = ANFIR.Expr'Forall id ty vars <$> (convert_expr bv_map e) >>= new_binding
-convert_expr bv_map (RIR.Expr'TypeApply id ty _ e arg) = ANFIR.Expr'TypeApply id ty <$> (convert_expr bv_map e) <*> pure arg >>= new_binding
+convert_expr bv_map (RIR.Expr'Forall id ty _ vars e) = ANFIR.Expr'Forall id ty vars <$> convert_expr bv_map e >>= new_binding
+convert_expr bv_map (RIR.Expr'TypeApply id ty _ e arg) = ANFIR.Expr'TypeApply id ty <$> convert_expr bv_map e <*> pure arg >>= new_binding
 
 convert_expr _ (RIR.Expr'Poison id ty _) = new_binding (ANFIR.Expr'Poison id ty ())

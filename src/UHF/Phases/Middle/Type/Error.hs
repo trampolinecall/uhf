@@ -1,4 +1,4 @@
-module UHF.Phases.Middle.Type.Error (Error(..)) where
+module UHF.Phases.Middle.Type.Error (Error(..), ErrorTypeContext(..)) where
 
 import UHF.Util.Prelude
 
@@ -52,12 +52,11 @@ name_unk var = state $
         to_characters n = chr $ 65 + n
     -}
 
+data ErrorTypeContext = ErrorTypeContext TypedWithUnkADTArena TypedWithUnkTypeSynonymArena TypeVarArena TypeUnknownArena
+
 data Error
     = EqError
-        { eq_error_adts :: TypedWithUnkADTArena
-        , eq_error_type_synonyms :: TypedWithUnkTypeSynonymArena
-        , eq_error_vars :: TypeVarArena
-        , eq_error_unks :: TypeUnknownArena
+        { eq_error_context :: ErrorTypeContext
         , eq_error_in_what :: EqInWhat
         , eq_error_span :: Span
         , eq_error_a_whole :: Located TypeWithUnk
@@ -66,10 +65,7 @@ data Error
         , eq_error_b_part :: TypeWithUnk
         }
     | ExpectError
-        { expect_error_adts :: TypedWithUnkADTArena
-        , expect_error_type_synonyms :: TypedWithUnkTypeSynonymArena
-        , expect_error_vars :: TypeVarArena
-        , expect_error_unks :: TypeUnknownArena
+        { expect_error_context :: ErrorTypeContext
         , expect_error_in_what :: ExpectInWhat
         , expect_error_got_whole :: Located TypeWithUnk
         , expect_error_expect_whole :: TypeWithUnk
@@ -77,14 +73,17 @@ data Error
         , expect_error_expect_part :: TypeWithUnk
         }
 
-    | OccursCheckError TypedWithUnkADTArena TypedWithUnkTypeSynonymArena TypeVarArena TypeUnknownArena Span TypeUnknownKey TypeWithUnk
+    | OccursCheckError ErrorTypeContext Span TypeUnknownKey TypeWithUnk
 
     | AmbiguousType TypeUnknownForWhat
 
     | NotAType Span Text
 
+    | DoesNotTakeTypeArgument ErrorTypeContext Span TypeWithUnk
+    | WrongTypeArgument ErrorTypeContext Span TypeWithUnk TypeWithUnk
+
 instance Diagnostic.ToError Error where
-    to_error (EqError adts type_synonyms vars unks in_what span a_whole b_whole a_part b_part) =
+    to_error (EqError context@(ErrorTypeContext _ _ _ unks) in_what span a_whole b_whole a_part b_part) =
         let what = case in_what of
                 InAssignment -> "assignment"
                 InNamedPattern -> "named pattern"
@@ -94,10 +93,10 @@ instance Diagnostic.ToError Error where
 
             ((a_part_printed, b_part_printed, a_whole_printed, b_whole_printed), var_names) =
                 run_unk_namer $ -- TODO: somehow make it so that this can be used without UnkNamer
-                    print_type False adts type_synonyms vars unks a_part >>= \ a_part_printed ->
-                    print_type False adts type_synonyms vars unks b_part >>= \ b_part_printed ->
-                    print_type False adts type_synonyms vars unks (unlocate a_whole) >>= \ a_whole_printed ->
-                    print_type False adts type_synonyms vars unks (unlocate b_whole) >>= \ b_whole_printed ->
+                    print_type False context a_part >>= \ a_part_printed ->
+                    print_type False context b_part >>= \ b_part_printed ->
+                    print_type False context (unlocate a_whole) >>= \ a_whole_printed ->
+                    print_type False context (unlocate b_whole) >>= \ b_whole_printed ->
                     pure (PPUtils.exec_pp a_part_printed, PPUtils.exec_pp b_part_printed, PPUtils.exec_pp a_whole_printed, PPUtils.exec_pp b_whole_printed)
         in Diagnostic.Error Diagnostic.Codes.type_mismatch
             (Just span)
@@ -107,7 +106,7 @@ instance Diagnostic.ToError Error where
                 : make_unk_name_messages unks var_names)
             []
 
-    to_error (ExpectError adts type_synonyms vars unks in_what got_whole expect_whole got_part expect_part) =
+    to_error (ExpectError context@(ErrorTypeContext _ _ _ unks) in_what got_whole expect_whole got_part expect_part) =
         let what = case in_what of
                 InTypeAnnotation -> "type annotation"
                 InIfCondition -> "'if' condition"
@@ -118,10 +117,10 @@ instance Diagnostic.ToError Error where
 
             ((expect_part_printed, got_part_printed, expect_whole_printed, got_whole_printed), var_names) =
                 run_unk_namer $
-                    print_type False adts type_synonyms vars unks expect_part >>= \ expect_part_printed ->
-                    print_type False adts type_synonyms vars unks got_part >>= \ got_part_printed ->
-                    print_type False adts type_synonyms vars unks expect_whole >>= \ expect_whole_printed ->
-                    print_type False adts type_synonyms vars unks (unlocate got_whole) >>= \ got_whole_printed ->
+                    print_type False context expect_part >>= \ expect_part_printed ->
+                    print_type False context got_part >>= \ got_part_printed ->
+                    print_type False context expect_whole >>= \ expect_whole_printed ->
+                    print_type False context (unlocate got_whole) >>= \ got_whole_printed ->
                     pure (PPUtils.exec_pp expect_part_printed, PPUtils.exec_pp got_part_printed, PPUtils.exec_pp expect_whole_printed, PPUtils.exec_pp got_whole_printed)
 
         in Diagnostic.Error Diagnostic.Codes.type_mismatch
@@ -130,13 +129,13 @@ instance Diagnostic.ToError Error where
             ((sp `Diagnostic.msg_note_at` convert_str ("expected '" <> expect_whole_printed <> "', got '" <> got_whole_printed <> "'")) : make_unk_name_messages unks var_names)
             []
 
-    to_error (OccursCheckError adts type_synonyms vars unks span var_key ty) =
+    to_error (OccursCheckError context@(ErrorTypeContext _ _ _ unks) span var_key ty) =
         let var_as_type = Type.Type'Unknown var_key
 
             ((ty_printed, var_printed), var_names) =
                 run_unk_namer $
-                    print_type True adts type_synonyms vars unks ty >>= \ ty_printed ->
-                    print_type True adts type_synonyms vars unks var_as_type >>= \ var_printed ->
+                    print_type True context ty >>= \ ty_printed ->
+                    print_type True context var_as_type >>= \ var_printed ->
                     pure (PPUtils.exec_pp ty_printed, PPUtils.exec_pp var_printed)
         in Diagnostic.Error Diagnostic.Codes.occurs_check
             (Just span)
@@ -155,13 +154,38 @@ instance Diagnostic.ToError Error where
 
     to_error (NotAType sp instead) = Diagnostic.Error Diagnostic.Codes.not_a_type (Just sp) ("not a type: got " <> instead) [] []
 
-print_type :: Bool -> TypedWithUnkADTArena -> TypedWithUnkTypeSynonymArena -> TypeVarArena -> TypeUnknownArena -> TypeWithUnk -> UnkNamer (PPUtils.PP ()) -- TODO: since this already a monad, put the arenas and things into a reader monad?
-print_type unks_show_index adts type_synonyms vars unks = Type.PP.refer_type_m show_unk adts type_synonyms vars
+    to_error (DoesNotTakeTypeArgument context@(ErrorTypeContext _ _ _ unks) sp ty) =
+        let ((ty_printed), var_names) =
+                run_unk_namer $
+                    print_type False context ty >>= \ ty_printed ->
+                    pure (PPUtils.exec_pp ty_printed)
+        in Diagnostic.Error Diagnostic.Codes.does_not_take_type_argument
+            (Just sp)
+            -- TODO: type '' of kind does not take a type argument
+            ("type '" <> ty_printed <> "' does not accept a type argument")
+            (make_unk_name_messages unks var_names)
+            []
+
+    to_error (WrongTypeArgument context@(ErrorTypeContext _ _ _ unks) sp ty arg) =
+        let ((ty_printed, arg_printed), var_names) =
+                run_unk_namer $
+                    print_type False context ty >>= \ ty_printed ->
+                    print_type False context arg >>= \ arg_printed ->
+                    pure (PPUtils.exec_pp ty_printed, PPUtils.exec_pp arg_printed)
+        in Diagnostic.Error Diagnostic.Codes.wrong_type_argument
+            (Just sp)
+            -- TODO: type '' of kind '' expects type argument of kind '', but got argument of kind ''
+            ("type '" <> ty_printed <> "' does not accept a type argument '" <> arg_printed <> "'")
+            (make_unk_name_messages unks var_names)
+            []
+
+print_type :: Bool -> ErrorTypeContext -> TypeWithUnk -> UnkNamer (PPUtils.PP ()) -- TODO: since this already a monad, put the arenas and things into a reader monad?
+print_type unks_show_index context@(ErrorTypeContext adts type_synonyms vars unks) = Type.PP.refer_type_m show_unk adts type_synonyms vars
     where
         show_unk unk =
             case Arena.get unks unk of
                 TypeUnknown _ Fresh
                     | unks_show_index -> PPUtils.write <$> name_unk unk
                     | otherwise -> pure $ PPUtils.write "_"
-                TypeUnknown _ (Substituted other) -> print_type unks_show_index adts type_synonyms vars unks other
+                TypeUnknown _ (Substituted other) -> print_type unks_show_index context other
 

@@ -63,7 +63,7 @@ data Expr captures
 
     | Expr'Seq ID.ExprID (Maybe Type) Span (Expr captures) (Expr captures)
 
-    | Expr'Forall ID.ExprID (Maybe Type) Span [TypeVarKey] (Expr captures)
+    | Expr'Forall ID.ExprID (Maybe Type) Span (NonEmpty TypeVarKey) (Expr captures)
     | Expr'TypeApply ID.ExprID (Maybe Type) Span (Expr captures) (Maybe Type)
 
     | Expr'Poison ID.ExprID (Maybe Type) Span

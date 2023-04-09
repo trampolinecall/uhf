@@ -57,7 +57,7 @@ data Expr ty poison_allowed
     | Expr'TupleDestructure1 ID.ExprID ty BindingKey -- TODO: figure out better solution to this (probably general destructure expr for any type, or actually probably use case expressions to match on things)
     | Expr'TupleDestructure2 ID.ExprID ty BindingKey
 
-    | Expr'Forall ID.ExprID ty [TypeVarKey] BindingKey -- TODO: put child bindings
+    | Expr'Forall ID.ExprID ty (NonEmpty TypeVarKey) BindingKey -- TODO: put child bindings
     | Expr'TypeApply ID.ExprID ty BindingKey ty
 
     | Expr'Poison ID.ExprID ty poison_allowed

@@ -17,7 +17,7 @@ type BoundValue = RIR.BoundValue (Maybe (Type.Type Void))
 type CaptureList = Set BoundValueKey -- TODO: dont use BoundValueKey Ord for order of captures in ts backend arguments
 
 annotate :: RIR.RIR () -> RIR.RIR CaptureList
-annotate (RIR.RIR decls adts type_synonyms bvs mod) = RIR.RIR (Arena.transform (annotate_decl bvs) decls) adts type_synonyms bvs mod
+annotate (RIR.RIR decls adts type_synonyms type_vars bvs mod) = RIR.RIR (Arena.transform (annotate_decl bvs) decls) adts type_synonyms type_vars bvs mod
 
 annotate_decl :: Arena.Arena BoundValue BoundValueKey -> RIR.Decl () -> RIR.Decl CaptureList
 annotate_decl bvs (RIR.Decl'Module bindings adts type_synonyms) = RIR.Decl'Module (map (annotate_binding bvs) bindings) adts type_synonyms

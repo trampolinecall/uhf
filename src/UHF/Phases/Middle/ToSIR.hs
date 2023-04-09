@@ -295,6 +295,7 @@ convert_expr name_context (AST.Expr'Let sp decls subexpr) = go name_context decl
         go parent [] = convert_expr parent subexpr
         go parent (first:more) =
             new_expr_id >>= \ id ->
+                -- TODO: not recursive bindings (eg `let x = x` is allowed because convert_decls puts the names into the same name context)
             convert_decls (ID.BVParent'Let id) (ID.DeclParent'Expr id) (Just parent) [] [] [first] >>= \ (let_context, bindings, _, _) -> -- TODO: put adts and type synonyms into module
             SIR.Expr'Let id () sp bindings <$> go let_context more
 convert_expr name_context (AST.Expr'LetRec sp decls subexpr) =

@@ -39,6 +39,7 @@ import qualified UHF.Phases.Middle.ToSIR as ToSIR
 import qualified UHF.Phases.Middle.NameResolve as NameResolve
 import qualified UHF.Phases.Middle.InfixGroup as InfixGroup
 import qualified UHF.Phases.Middle.Type as Type
+import qualified UHF.Phases.Middle.ReportHoles as ReportHoles
 import qualified UHF.Phases.Middle.ToRIR as ToRIR
 import qualified UHF.Phases.Middle.AnnotateCaptures as AnnotateCaptures
 import qualified UHF.Phases.Middle.ToANFIR as ToANFIR
@@ -156,7 +157,11 @@ get_infix_grouped = get_or_calculate _get_infix_grouped (\ cache infix_grouped -
 get_typed_sir :: PhaseResultsState TypedSIR
 get_typed_sir = get_or_calculate _get_typed_sir (\ cache typed_sir -> cache { _get_typed_sir = typed_sir }) type_
     where
-        type_ = get_infix_grouped >>= \ infix_grouped_ir -> convert_stage (Type.typecheck infix_grouped_ir)
+        type_ =
+            get_infix_grouped >>= \ infix_grouped_ir ->
+            convert_stage (Type.typecheck infix_grouped_ir) >>= \ typed_ir ->
+            convert_stage (ReportHoles.report_holes typed_ir) >>
+            pure typed_ir
 
 get_first_rir :: PhaseResultsState FirstRIR
 get_first_rir = get_or_calculate _get_first_rir (\ cache rir -> cache { _get_first_rir = rir }) to_first_rir

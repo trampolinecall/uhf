@@ -12,4 +12,3 @@ data Constraint
     = Eq EqInWhat Span (Located TypeWithUnk) (Located TypeWithUnk)
     | Expect ExpectInWhat (Located TypeWithUnk) TypeWithUnk
     | UnkIsApplyResult Span TypeUnknownKey TypeWithUnk TypeWithUnk
-

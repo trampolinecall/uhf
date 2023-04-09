@@ -17,19 +17,21 @@ import qualified UHF.Data.IR.ID as ID
 type PP captures = ReaderT (RIR.RIR captures) PPUtils.PP
 
 get_adt_arena :: PP captures (Arena.Arena (Type.ADT (Maybe (Type.Type Void))) Type.ADTKey)
-get_adt_arena = reader (\ (RIR.RIR _ adts _ _ _) -> adts)
+get_adt_arena = reader (\ (RIR.RIR _ adts _ _ _ _) -> adts)
 get_type_synonym_arena :: PP captures (Arena.Arena (Type.TypeSynonym (Maybe (Type.Type Void))) Type.TypeSynonymKey)
-get_type_synonym_arena = reader (\ (RIR.RIR _ _ syns _ _) -> syns)
+get_type_synonym_arena = reader (\ (RIR.RIR _ _ syns _ _ _) -> syns)
+get_type_var_arena :: PP captures (Arena.Arena Type.Var Type.TypeVarKey)
+get_type_var_arena = reader (\ (RIR.RIR _ _ _ vars _ _) -> vars)
 
 get_adt :: Keys.ADTKey -> PP captures (Type.ADT (Maybe (Type.Type Void)))
-get_adt k = reader (\ (RIR.RIR _ adts _ _ _) -> Arena.get adts k)
+get_adt k = reader (\ (RIR.RIR _ adts _ _ _ _) -> Arena.get adts k)
 get_type_synonym :: Keys.TypeSynonymKey -> PP captures (Type.TypeSynonym (Maybe (Type.Type Void)))
-get_type_synonym k = reader (\ (RIR.RIR _ _ type_synonyms _ _) -> Arena.get type_synonyms k)
+get_type_synonym k = reader (\ (RIR.RIR _ _ type_synonyms _ _ _) -> Arena.get type_synonyms k)
 get_bv :: Keys.BoundValueKey -> PP captures (RIR.BoundValue (Maybe (Type.Type Void)))
-get_bv k = reader (\ (RIR.RIR _ _ _ bvs _) -> Arena.get bvs k)
+get_bv k = reader (\ (RIR.RIR _ _ _ _ bvs _) -> Arena.get bvs k)
 
 dump_main_module :: RIR.RIR captures -> Text
-dump_main_module ir@(RIR.RIR decls _ _ _ mod) = PPUtils.exec_pp $ runReaderT (define_decl $ Arena.get decls mod) ir
+dump_main_module ir@(RIR.RIR decls _ _ _ _ mod) = PPUtils.exec_pp $ runReaderT (define_decl $ Arena.get decls mod) ir
 
 text :: Text -> PP captures ()
 text = lift . PPUtils.write
@@ -46,7 +48,8 @@ refer_m_type :: Maybe (Type.Type Void) -> PP captures () -- TODO: remove
 refer_m_type (Just ty) =
     get_adt_arena >>= \ adt_arena ->
     get_type_synonym_arena >>= \ type_synonym_arena ->
-    lift (Type.PP.refer_type absurd adt_arena type_synonym_arena ty)
+    get_type_var_arena >>= \ type_var_arena ->
+    lift (Type.PP.refer_type absurd adt_arena type_synonym_arena type_var_arena ty)
 refer_m_type Nothing = text "<type error>"
 
 define_binding :: RIR.Binding captures -> PP captures ()

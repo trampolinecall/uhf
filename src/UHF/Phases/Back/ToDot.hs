@@ -14,7 +14,7 @@ type ANFIR = ANFIR.ANFIR Type Void
 type Type = Type.Type Void
 
 to_dot :: ANFIR -> Text
-to_dot (ANFIR.ANFIR _ _ _ bindings params _) =
+to_dot (ANFIR.ANFIR _ _ _ _ bindings params _) =
     snd $ runWriter (
             tell "strict digraph {\n" >>
             tell "    node [shape=record];\n" >>

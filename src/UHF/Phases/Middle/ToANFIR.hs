@@ -36,9 +36,9 @@ type BoundValueMap = Map.Map RIR.BoundValueKey ANFIR.BindingKey
 type MakeGraphState = WriterT BoundValueMap (StateT (ANFIRBindingArena, ANFIRParamArena) (IDGen.IDGenT ID.ExprID (Reader BoundValueArena)))
 
 convert :: RIR.RIR CaptureList -> ANFIR
-convert (RIR.RIR decls adts type_synonyms bound_values mod) =
+convert (RIR.RIR decls adts type_synonyms type_vars bound_values mod) =
     let ((decls', bv_map), (bindings, params)) = runReader (IDGen.run_id_gen_t ID.ExprID'ANFIRGen (runStateT (runWriterT (Arena.transformM (convert_decl bv_map) decls)) (Arena.new, Arena.new))) bound_values
-    in ANFIR.ANFIR decls' adts type_synonyms bindings params mod
+    in ANFIR.ANFIR decls' adts type_synonyms type_vars bindings params mod
 
 convert_decl :: BoundValueMap -> RIRDecl -> MakeGraphState ANFIRDecl
 convert_decl bv_map (RIR.Decl'Module bindings adts type_synonyms) = ANFIR.Decl'Module <$> (concat <$> mapM (convert_binding bv_map) bindings) <*> pure adts <*> pure type_synonyms

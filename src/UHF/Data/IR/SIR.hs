@@ -48,7 +48,7 @@ data Binding d_iden v_iden type_info binary_ops_allowed = Binding (Pattern type_
 
 data NameContext = NameContext (Map.Map Text DeclKey) (Map.Map Text BoundValueKey) (Maybe NameContext) deriving Show
 
-type HoleIdentifier = Located [Located Text]
+type HoleIdentifier = Located [Located Text] -- TODO: disallow paths in holes?
 
 data TypeExpr d_iden type_info
     = TypeExpr'Identifier type_info Span d_iden

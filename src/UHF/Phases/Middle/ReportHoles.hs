@@ -35,7 +35,7 @@ type ADTArena d_iden = Arena.Arena (ADT d_iden) ADTKey
 type TypeSynonymArena d_iden = Arena.Arena (TypeSynonym d_iden) Type.TypeSynonymKey
 type TypeVarArena = Arena.Arena Type.Var Type.TypeVarKey
 
-data Error d_iden = Error (ADTArena d_iden) (TypeSynonymArena d_iden) (TypeVarArena) Span [Located Text] Type
+data Error d_iden = Error (ADTArena d_iden) (TypeSynonymArena d_iden) TypeVarArena Span [Located Text] Type
 instance Diagnostic.ToError (Error d_iden) where
     to_error (Error adts type_synonyms vars sp name ty) =
         let message = "hole: '?" <> Text.intercalate "::" (map unlocate name) <> "' of type '" <> PPUtils.exec_pp (Type.PP.refer_type absurd adts type_synonyms vars ty) <> "'"

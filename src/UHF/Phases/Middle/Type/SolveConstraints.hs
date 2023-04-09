@@ -92,7 +92,7 @@ solve1 (UnkIsApplyResult sp unk ty arg) =
                     pure (Error $ OccursCheckError context sp var ty)
 
         Just (Left e) -> pure (Error e)
-        Nothing -> pure $ Defer
+        Nothing -> pure Defer
 
 apply_ty :: Span -> TypeWithUnk -> TypeWithUnk -> TypeContextReader StateWithUnk (Maybe (Either Error TypeWithUnk))
 apply_ty sp (Type.Type'Unknown unk) arg =
@@ -113,7 +113,7 @@ apply_ty _ (Type.Type'Forall (first_var :| more_vars) ty) arg =
     -- TODO: check kind of first_var
     case more_vars of
         [] -> Just <$> (Right <$> subst first_var arg ty)
-        more_1:more_more -> Just <$> (Right <$> (Type.Type'Forall (more_1 :| more_more) <$> (subst first_var arg ty)))
+        more_1:more_more -> Just <$> (Right <$> (Type.Type'Forall (more_1 :| more_more) <$> subst first_var arg ty))
     where
         subst looking_for replacement ty@(Type.Type'Unknown unk) =
             Arena.get <$> lift get <*> pure unk >>= \case
@@ -129,9 +129,9 @@ apply_ty _ (Type.Type'Forall (first_var :| more_vars) ty) arg =
         subst _ _ Type.Type'Char = pure Type.Type'Char
         subst _ _ Type.Type'String = pure Type.Type'String
         subst _ _ Type.Type'Bool = pure Type.Type'Bool
-        subst looking_for replacement (Type.Type'Function a r) = Type.Type'Function <$> (subst looking_for replacement a) <*> (subst looking_for replacement r)
-        subst looking_for replacement (Type.Type'Tuple a b) = Type.Type'Tuple <$> (subst looking_for replacement a) <*> (subst looking_for replacement b)
-        subst looking_for replacement (Type.Type'Forall vars ty) = (Type.Type'Forall vars <$> (subst looking_for replacement ty))
+        subst looking_for replacement (Type.Type'Function a r) = Type.Type'Function <$> subst looking_for replacement a <*> subst looking_for replacement r
+        subst looking_for replacement (Type.Type'Tuple a b) = Type.Type'Tuple <$> subst looking_for replacement a <*> subst looking_for replacement b
+        subst looking_for replacement (Type.Type'Forall vars ty) = Type.Type'Forall vars <$> subst looking_for replacement ty
 
 unify :: TypeWithUnk -> TypeWithUnk -> ExceptT UnifyError (TypeContextReader StateWithUnk) ()
 unify (Type.Type'Unknown a) b = unify_unk a b False

@@ -155,7 +155,7 @@ instance Diagnostic.ToError Error where
     to_error (NotAType sp instead) = Diagnostic.Error Diagnostic.Codes.not_a_type (Just sp) ("not a type: got " <> instead) [] []
 
     to_error (DoesNotTakeTypeArgument context@(ErrorTypeContext _ _ _ unks) sp ty) =
-        let ((ty_printed), var_names) =
+        let (ty_printed, var_names) =
                 run_unk_namer $
                     print_type False context ty >>= \ ty_printed ->
                     pure (PPUtils.exec_pp ty_printed)

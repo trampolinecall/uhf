@@ -35,7 +35,7 @@ import UHF.IO.Span (Span)
 import UHF.IO.Located (Located)
 
 -- "syntax based ir"
-data SIR d_iden v_iden type_info binary_ops_allowed = SIR (Arena.Arena (Decl d_iden v_iden type_info binary_ops_allowed) DeclKey) (Arena.Arena (Type.ADT (TypeExpr d_iden type_info)) ADTKey) (Arena.Arena (Type.TypeSynonym (TypeExpr d_iden type_info)) TypeSynonymKey) (Arena.Arena (Type.Var) TypeVarKey) (Arena.Arena (BoundValue type_info) BoundValueKey) DeclKey
+data SIR d_iden v_iden type_info binary_ops_allowed = SIR (Arena.Arena (Decl d_iden v_iden type_info binary_ops_allowed) DeclKey) (Arena.Arena (Type.ADT (TypeExpr d_iden type_info)) ADTKey) (Arena.Arena (Type.TypeSynonym (TypeExpr d_iden type_info)) TypeSynonymKey) (Arena.Arena Type.Var TypeVarKey) (Arena.Arena (BoundValue type_info) BoundValueKey) DeclKey
 
 data Decl d_iden v_iden type_info binary_ops_allowed
     = Decl'Module ID.ModuleID NameContext [Binding d_iden v_iden type_info binary_ops_allowed] [ADTKey] [TypeSynonymKey]

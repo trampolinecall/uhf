@@ -257,7 +257,7 @@ convert_type _ (AST.Type'Hole sp id) = pure $ SIR.TypeExpr'Hole () sp id
 convert_type nc (AST.Type'Forall _ tys ty) =
     catMaybes <$> mapM (make_iden1_with_err PathInTypeName) tys >>= \ tys ->
 
-    mapM (\ t -> new_type_var $ unlocate t) tys >>= \ ty_vars ->
+    mapM (new_type_var . unlocate) tys >>= \ ty_vars ->
     zipWithM (\ (Located sp name) var -> (name, DeclAt sp,) <$> new_decl (SIR.Decl'Type $ Type.Type'Variable var)) tys ty_vars >>= \ new_decls ->
 
     make_name_context new_decls [] (Just nc) >>= \ new_nc ->
@@ -335,7 +335,7 @@ convert_expr nc (AST.Expr'TypeAnnotation sp ty e) = new_expr_id >>= \ id -> SIR.
 convert_expr nc (AST.Expr'Forall sp tys e) =
     catMaybes <$> mapM (make_iden1_with_err PathInTypeName) tys >>= \ tys ->
 
-    mapM (\ t -> new_type_var $ unlocate t) tys >>= \ ty_vars ->
+    mapM (new_type_var . unlocate) tys >>= \ ty_vars ->
     zipWithM (\ (Located sp name) var -> (name, DeclAt sp,) <$> new_decl (SIR.Decl'Type $ Type.Type'Variable var)) tys ty_vars >>= \ new_decls ->
 
     make_name_context new_decls [] (Just nc) >>= \ new_nc ->

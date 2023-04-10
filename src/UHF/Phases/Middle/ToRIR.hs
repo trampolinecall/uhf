@@ -44,7 +44,13 @@ new_made_up_expr_id = lift $ lift $ lift $ lift IDGen.gen_id
 convert :: SIR -> RIR.RIR ()
 convert (SIR.SIR decls adts type_synonyms type_vars bvs mod) =
     let ((decls', bound_wheres), bvs') = IDGen.run_id_gen ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.BoundValueID'RIRMadeUp $ runStateT (runWriterT (Unique.run_unique_maker_t (Arena.transformM convert_decl decls))) bvs
-        bvs'' = Arena.transform_with_key (\ key (SIR.BoundValue id ty sp) -> RIR.BoundValue id ty (bound_wheres Map.! key) sp) bvs'
+        bvs'' =
+            Arena.transform_with_key
+            (\key -> \case
+                SIR.BoundValue id ty sp -> RIR.BoundValue id ty (bound_wheres Map.! key) sp
+                SIR.BoundValue'ADTVariant id _ ty sp -> RIR.BoundValue id ty (bound_wheres Map.! key) sp
+            )
+            bvs'
         adts' = Arena.transform convert_adt adts
         type_synonyms' = Arena.transform convert_type_synonym type_synonyms
     in RIR.RIR decls' adts' type_synonyms' type_vars bvs'' mod

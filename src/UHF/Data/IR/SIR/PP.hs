@@ -61,7 +61,9 @@ class DumpableIdentifier i where
     refer_iden :: i -> PP d_iden v_iden type_info binary_ops_allowed ()
 
 refer_bv :: SIR.BoundValueKey -> PP d_iden v_iden type_info binary_ops_allowed ()
-refer_bv k = get_bv k >>= \ (SIR.BoundValue id _ _) -> text (ID.stringify id)
+refer_bv k = get_bv k >>= \case
+    SIR.BoundValue id _ _ -> text (ID.stringify id)
+    SIR.BoundValue'ADTVariant id _ _ _ -> text (ID.stringify id)
 
 refer_decl :: SIR.DeclKey -> PP d_iden v_iden type_info binary_ops_allowed ()
 refer_decl k = get_decl k >>= \case

@@ -248,7 +248,7 @@ convert_decls bv_parent decl_parent parent_name_context prev_decl_entries prev_b
         iden1_for_type_name = MaybeT . make_iden1_with_err PathInTypeName
         iden1_for_field_name = MaybeT . make_iden1_with_err PathInFieldName
 
-        convert_variant name_context (AST.DataVariant'Anon name fields) = Type.ADTVariant'Anon <$> unlocate <$> iden1_for_variant_name name <*> lift (mapM (convert_type name_context) fields)
+        convert_variant name_context (AST.DataVariant'Anon name fields) = Type.ADTVariant'Anon <$> (unlocate <$> iden1_for_variant_name name) <*> lift (mapM (convert_type name_context) fields)
         convert_variant name_context (AST.DataVariant'Named name fields) =
             -- TOOD: making getter functions
             Type.ADTVariant'Named

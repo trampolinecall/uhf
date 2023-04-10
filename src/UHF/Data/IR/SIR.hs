@@ -42,7 +42,10 @@ data Decl d_iden v_iden type_info binary_ops_allowed
     | Decl'Type (Type.Type Void)
     deriving Show
 
-data BoundValue type_info = BoundValue ID.BoundValueID type_info Span deriving Show
+data BoundValue type_info
+    = BoundValue ID.BoundValueID type_info Span
+    | BoundValue'ADTVariant ID.BoundValueID Type.ADTVariantIndex type_info Span
+    deriving Show
 
 data Binding d_iden v_iden type_info binary_ops_allowed = Binding (Pattern type_info) Span (Expr d_iden v_iden type_info binary_ops_allowed) deriving Show
 

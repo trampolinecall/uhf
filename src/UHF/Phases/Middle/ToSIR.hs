@@ -111,10 +111,10 @@ new_type_var name =
         let (key, type_vars') = Arena.put (Type.Var name) type_vars
         in (key, (decls, adts, type_synonyms, type_vars', bound_values))
 
-new_bound_value :: ID.BoundValueID -> Span -> MakeIRState BoundValueKey
-new_bound_value id sp =
+new_bound_value :: BoundValue -> MakeIRState BoundValueKey
+new_bound_value bv =
     state $ \ (decls, adts, type_synonyms, type_vars, bound_values) ->
-        let (key, bound_values') = Arena.put (SIR.BoundValue id () sp) bound_values
+        let (key, bound_values') = Arena.put bv bound_values
         in (key, (decls, adts, type_synonyms, type_vars, bound_values'))
 
 tell_error :: Error -> MakeIRState ()
@@ -197,6 +197,7 @@ convert_decls bv_parent decl_parent parent_name_context prev_decl_entries prev_b
         pure (name_context, concat bindings, concat adts, concat type_synonyms)
     )
     where
+        convert_decl :: SIR.NameContext -> AST.Decl -> MakeIRState (DeclChildrenList, BoundValueList, [Binding], [ADTKey], [TypeSynonymKey])
         convert_decl final_name_context (AST.Decl'Value target eq_sp expr) =
             convert_expr final_name_context expr >>= \ expr' ->
             convert_pattern bv_parent target >>= \ (new_bound_values, target') ->
@@ -206,15 +207,29 @@ convert_decls bv_parent decl_parent parent_name_context prev_decl_entries prev_b
         convert_decl final_name_context (AST.Decl'Data name variants) =
             runMaybeT (
                 iden1_for_type_name name >>= \ (Located name1sp name1) ->
-                Type.ADT (ID.DeclID decl_parent name1) name1 <$> mapM (convert_variant final_name_context) variants >>= \ datatype ->
+                mapM (convert_variant final_name_context) variants >>= \ variants_converted ->
+                let datatype = Type.ADT (ID.DeclID decl_parent name1) name1 variants_converted
+                in
 
                 lift (new_adt datatype) >>= \ adt_key ->
-                -- TODO: add constructors to bound name table
                 lift (new_decl (SIR.Decl'Type $ Type.Type'ADT adt_key)) >>= \ decl_key ->
 
-                pure (name1, DeclAt name1sp, decl_key, adt_key)
+                catMaybes <$> mapM
+                    (\ case
+                        (Type.ADTVariant'Anon name _, index, adt_variant_ast) ->
+                            let name_sp = case adt_variant_ast of
+                                    AST.DataVariant'Anon name _ -> just_span name
+                                    AST.DataVariant'Named name _ -> just_span name -- technically not possible for a named ast to become an anonymous data variant but it is nice to have this not emit a warning
+                            in
+                            lift (new_bound_value (SIR.BoundValue'ADTVariant (ID.BoundValueID bv_parent name) (Type.ADTVariantIndex adt_key index) () name_sp)) >>= \ bv_key ->
+                            pure (Just (name, DeclAt name_sp, bv_key))
+                        (Type.ADTVariant'Named _ _, _, _) -> pure Nothing
+                    )
+                    (zip3 variants_converted [0..] variants) >>= \ variant_bvs ->
+
+                pure (name1, DeclAt name1sp, decl_key, adt_key, variant_bvs)
             ) >>= \case
-                Just (name1, decl_at, decl_key, adt_key) -> pure ([(name1, decl_at, decl_key)], [], [], [adt_key], [])
+                Just (name1, decl_at, decl_key, adt_key, constructors) -> pure ([(name1, decl_at, decl_key)], constructors, [], [adt_key], []) -- constructors are added directly to the current namespace and are not namespaced under the type name
                 Nothing -> pure ([], [], [], [], [])
 
         convert_decl final_name_context (AST.Decl'TypeSyn name expansion) =
@@ -233,7 +248,7 @@ convert_decls bv_parent decl_parent parent_name_context prev_decl_entries prev_b
         iden1_for_type_name = MaybeT . make_iden1_with_err PathInTypeName
         iden1_for_field_name = MaybeT . make_iden1_with_err PathInFieldName
 
-        convert_variant name_context (AST.DataVariant'Anon name fields) = Type.ADTVariant'Anon <$> (unlocate <$> iden1_for_variant_name name) <*> lift (mapM (convert_type name_context) fields)
+        convert_variant name_context (AST.DataVariant'Anon name fields) = Type.ADTVariant'Anon <$> unlocate <$> iden1_for_variant_name name <*> lift (mapM (convert_type name_context) fields)
         convert_variant name_context (AST.DataVariant'Named name fields) =
             -- TOOD: making getter functions
             Type.ADTVariant'Named
@@ -354,7 +369,7 @@ convert_pattern :: ID.BoundValueParent -> AST.Pattern -> MakeIRState (BoundValue
 convert_pattern parent (AST.Pattern'Identifier iden) =
     make_iden1_with_err PathInPattern iden >>= \case
         Just (Located name_sp name) ->
-            new_bound_value (ID.BoundValueID parent name) name_sp >>= \ bn ->
+            new_bound_value (SIR.BoundValue (ID.BoundValueID parent name) () name_sp) >>= \ bn ->
             pure ([(name, DeclAt name_sp, bn)], SIR.Pattern'Identifier () name_sp bn)
 
         Nothing -> pure ([], SIR.Pattern'Poison () (just_span iden))
@@ -372,7 +387,7 @@ convert_pattern parent (AST.Pattern'Named sp iden at_sp subpat) =
     convert_pattern parent subpat >>= \ (sub_bn, subpat') ->
     make_iden1_with_err PathInPattern iden >>= \case
         Just (Located name_sp name) ->
-            new_bound_value (ID.BoundValueID parent name) name_sp >>= \ bn ->
+            new_bound_value (SIR.BoundValue (ID.BoundValueID parent name) () name_sp) >>= \ bn ->
             pure ((name, DeclAt name_sp, bn) : sub_bn, SIR.Pattern'Named () sp at_sp (Located name_sp bn) subpat')
 
         Nothing ->

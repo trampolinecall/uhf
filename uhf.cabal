@@ -87,7 +87,7 @@ library
       TemplateHaskell
       OverloadedStrings
       NoImplicitPrelude
-  ghc-options: -Wall -Wextra -Wno-name-shadowing -Werror=incomplete-patterns -Werror=missing-fields
+  ghc-options: -Wall -Wextra -Wno-name-shadowing -Werror=incomplete-patterns -Werror=incomplete-uni-patterns -Werror=missing-fields
   build-depends:
       ansi-terminal
     , base >=4.13 && <5
@@ -116,7 +116,7 @@ executable uhfc
       TemplateHaskell
       OverloadedStrings
       NoImplicitPrelude
-  ghc-options: -Wall -Wextra -Wno-name-shadowing -Werror=incomplete-patterns -Werror=missing-fields -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Wextra -Wno-name-shadowing -Werror=incomplete-patterns -Werror=incomplete-uni-patterns -Werror=missing-fields -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.13 && <5
     , optparse-applicative
@@ -137,7 +137,7 @@ test-suite uhf-test
       TemplateHaskell
       OverloadedStrings
       NoImplicitPrelude
-  ghc-options: -Wall -Wextra -Wno-name-shadowing -Werror=incomplete-patterns -Werror=missing-fields
+  ghc-options: -Wall -Wextra -Wno-name-shadowing -Werror=incomplete-patterns -Werror=incomplete-uni-patterns -Werror=missing-fields
   build-depends:
       base >=4.13 && <5
     , uhf

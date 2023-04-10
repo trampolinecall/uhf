@@ -51,6 +51,7 @@ decl _ (SIR.Decl'Type ty) = SIR.Decl'Type ty
 
 bound_value :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkBoundValue -> TypedBoundValue
 bound_value unks (SIR.BoundValue id ty sp) = SIR.BoundValue id (type_ unks ty) sp
+bound_value unks (SIR.BoundValue'ADTVariant id index ty sp) = SIR.BoundValue'ADTVariant id index (type_ unks ty) sp
 
 adt :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkADT -> TypedADT
 adt unks (Type.ADT id name variants) = Type.ADT id name (map variant variants)

@@ -4,6 +4,8 @@ module UHF.Data.IR.Type
     , ADTKey
     , ADT (..)
     , ADTVariant (..)
+    , ADTVariantIndex (..)
+    , get_adt_variant
 
     , TypeSynonymKey
     , TypeSynonym (..)
@@ -14,8 +16,12 @@ module UHF.Data.IR.Type
 
 import UHF.Util.Prelude
 
+import qualified Arena
+
 import UHF.Data.IR.Keys
 import qualified UHF.Data.IR.ID as ID
+
+import qualified Data.List as List
 
 data Type unk
     = Type'ADT ADTKey
@@ -37,6 +43,13 @@ data ADTVariant ty
     = ADTVariant'Named Text [(Text, ty)]
     | ADTVariant'Anon Text [ty]
     deriving Show
+
+data ADTVariantIndex = ADTVariantIndex ADTKey Int deriving Show
+-- technically can error, but every ADTVariantIndex constructed should be a valid variant, so hopefully if everything is functioning correctly, this should never fail
+get_adt_variant :: Arena.Arena (ADT ty) ADTKey -> ADTVariantIndex  -> ADTVariant ty
+get_adt_variant adts (ADTVariantIndex key i) =
+    let (ADT _ _ variants) = Arena.get adts key
+    in variants List.!! i
 
 data TypeSynonym ty = TypeSynonym ID.DeclID Text ty deriving Show
 

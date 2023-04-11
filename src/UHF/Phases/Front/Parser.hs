@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-} -- TODO: remove this
+
 module UHF.Phases.Front.Parser
     ( parse
 

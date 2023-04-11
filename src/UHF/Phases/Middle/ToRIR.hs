@@ -48,7 +48,7 @@ convert (SIR.SIR decls adts type_synonyms type_vars bvs mod) =
             Arena.transform_with_key
             (\key -> \case
                 SIR.BoundValue id ty sp -> RIR.BoundValue id ty (bound_wheres Map.! key) sp
-                SIR.BoundValue'ADTVariant id _ ty sp -> RIR.BoundValue id ty (bound_wheres Map.! key) sp
+                SIR.BoundValue'ADTVariant id _ ty sp -> RIR.BoundValue id ty (bound_wheres Map.! key) sp -- TODO: make function
             )
             bvs'
         adts' = Arena.transform convert_adt adts

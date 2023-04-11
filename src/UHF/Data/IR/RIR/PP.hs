@@ -87,4 +87,5 @@ expr (RIR.Expr'Switch _ _ _ e arms) = text "switch " >> expr e >> text " {\n" >>
 expr (RIR.Expr'Seq _ _ _ a b) = text "seq " >> expr a >> text ", " >> expr b
 expr (RIR.Expr'Forall _ _ _ _ _) = todo
 expr (RIR.Expr'TypeApply _ _ _ _ _) = todo
+expr (RIR.Expr'MakeADT _ _ _ _ _) = todo
 expr (RIR.Expr'Poison _ _ _) = text "poison"

@@ -214,22 +214,23 @@ convert_decls bv_parent decl_parent parent_name_context prev_decl_entries prev_b
                 lift (new_adt datatype) >>= \ adt_key ->
                 lift (new_decl (SIR.Decl'Type $ Type.Type'ADT adt_key)) >>= \ decl_key ->
 
-                catMaybes <$> mapM
+                unzip <$> (catMaybes <$> mapM
                     (\ case
                         (Type.ADTVariant'Anon name _, index, adt_variant_ast) ->
                             let name_sp = case adt_variant_ast of
                                     AST.DataVariant'Anon name _ -> just_span name
                                     AST.DataVariant'Named name _ -> just_span name -- technically not possible for a named ast to become an anonymous data variant but it is nice to have this not emit a warning
                             in
-                            lift (new_bound_value (SIR.BoundValue'ADTVariant (ID.BoundValueID bv_parent name) (Type.ADTVariantIndex adt_key index) () name_sp)) >>= \ bv_key ->
-                            pure (Just (name, DeclAt name_sp, bv_key))
+                            let variant_index = Type.ADTVariantIndex adt_key index
+                             in lift (new_bound_value (SIR.BoundValue'ADTVariant (ID.BoundValueID bv_parent name) variant_index () name_sp)) >>= \ bv_key ->
+                            pure (Just ((name, DeclAt name_sp, bv_key), SIR.Binding'ADTVariant bv_key variant_index))
                         (Type.ADTVariant'Named _ _, _, _) -> pure Nothing
                     )
-                    (zip3 variants_converted [0..] variants) >>= \ variant_bvs ->
+                    (zip3 variants_converted [0..] variants)) >>= \ (variant_bvs, constructor_bindings) ->
 
-                pure (name1, DeclAt name1sp, decl_key, adt_key, variant_bvs)
+                pure (name1, DeclAt name1sp, decl_key, adt_key, variant_bvs, constructor_bindings)
             ) >>= \case
-                Just (name1, decl_at, decl_key, adt_key, constructors) -> pure ([(name1, decl_at, decl_key)], constructors, [], [adt_key], []) -- constructors are added directly to the current namespace and are not namespaced under the type name
+                Just (name1, decl_at, decl_key, adt_key, constructors, constructor_bindings) -> pure ([(name1, decl_at, decl_key)], constructors, constructor_bindings, [adt_key], []) -- constructors are added directly to the current namespace and are not namespaced under the type name
                 Nothing -> pure ([], [], [], [], [])
 
         convert_decl final_name_context (AST.Decl'TypeSyn name expansion) =

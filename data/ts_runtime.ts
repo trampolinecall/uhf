@@ -164,3 +164,11 @@ class SeqEvaluator<A, B> implements Evaluator<B> {
         return this.b.get_value();
     }
 }
+
+class FunctionEvaluator<T> implements Evaluator<T> {
+    constructor(public f: () => T) {}
+
+    evaluate(): T {
+        return this.f();
+    }
+}

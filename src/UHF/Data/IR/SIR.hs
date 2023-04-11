@@ -47,7 +47,10 @@ data BoundValue type_info
     | BoundValue'ADTVariant ID.BoundValueID Type.ADTVariantIndex type_info Span
     deriving Show
 
-data Binding d_iden v_iden type_info binary_ops_allowed = Binding (Pattern type_info) Span (Expr d_iden v_iden type_info binary_ops_allowed) deriving Show
+data Binding d_iden v_iden type_info binary_ops_allowed
+    = Binding (Pattern type_info) Span (Expr d_iden v_iden type_info binary_ops_allowed)
+    | Binding'ADTVariant BoundValueKey Type.ADTVariantIndex
+    deriving Show
 
 data NameContext = NameContext (Map.Map Text DeclKey) (Map.Map Text BoundValueKey) (Maybe NameContext) deriving Show
 

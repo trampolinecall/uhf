@@ -31,6 +31,7 @@ group_decl (SIR.Decl'Type ty) = pure $ SIR.Decl'Type ty
 
 group_binding :: UngroupedBinding d_iden -> IDGen.IDGen ID.ExprID (GroupedBinding d_iden)
 group_binding (SIR.Binding pat eq_sp e) = SIR.Binding pat eq_sp <$> group_expr e
+group_binding (SIR.Binding'ADTVariant bvk variant) = pure $ SIR.Binding'ADTVariant bvk variant
 
 group_expr :: UngroupedExpr d_iden -> IDGen.IDGen ID.ExprID (GroupedExpr d_iden)
 group_expr (SIR.Expr'Identifier id () sp iden) = pure $ SIR.Expr'Identifier id () sp iden

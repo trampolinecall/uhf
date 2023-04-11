@@ -183,6 +183,8 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures p
                     mangle_binding_as_thunk e >>= \ e ->
                     pure (let_thunk e, Nothing)
 
+                ANFIR.Expr'MakeADT _ _ variant args -> todo
+
                 ANFIR.Expr'Poison _ _ void -> absurd void
 
         convert_matcher (ANFIR.Switch'BoolLiteral b) = "new BoolLiteralMatcher(" <> if b then "true" else "false" <> ")"

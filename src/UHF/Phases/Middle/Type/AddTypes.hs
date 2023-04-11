@@ -137,6 +137,7 @@ binding (SIR.Binding p eq_sp e) =
     expr e >>= \ e ->
     lift (tell [Eq InAssignment eq_sp (loc_pat_type p) (loc_expr_type e)]) >>
     pure (SIR.Binding p eq_sp e)
+binding (SIR.Binding'ADTVariant bvk variant) = pure $ SIR.Binding'ADTVariant bvk variant
 
 loc_pat_type :: SIR.Pattern type_info -> Located type_info
 loc_pat_type pattern = Located (SIR.pattern_span pattern) (SIR.pattern_type pattern)

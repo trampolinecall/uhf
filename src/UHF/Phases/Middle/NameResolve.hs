@@ -102,6 +102,7 @@ transform_identifiers transform_d_iden transform_e_iden adts type_synonyms decls
         transform_decl (SIR.Decl'Type ty) = pure $ SIR.Decl'Type ty
 
         transform_binding (SIR.Binding target eq_sp expr) = SIR.Binding <$> transform_pat target <*> pure eq_sp <*> transform_expr expr
+        transform_binding (SIR.Binding'ADTVariant bvk variant) = pure $ SIR.Binding'ADTVariant bvk variant
 
         transform_pat (SIR.Pattern'Identifier type_info sp bnk) = pure $ SIR.Pattern'Identifier type_info sp bnk
         transform_pat (SIR.Pattern'Wildcard type_info sp) = pure $ SIR.Pattern'Wildcard type_info sp

@@ -91,8 +91,7 @@ convert_binding bound_where (SIR.Binding'ADTVariant bvk variant_index) =
             in new_made_up_expr_id >>= \ lambda_id ->
             make_lambdas variant_index (refer_to_params <> [refer_expr]) more_field_tys >>= \ lambda_result ->
             let lambda_ty = Type.Type'Function <$> cur_field_ty <*> RIR.expr_type lambda_result
-            in
-            pure (RIR.Expr'Lambda lambda_id lambda_ty todo lambda_uniq () param_bvk lambda_result)
+            in pure (RIR.Expr'Lambda lambda_id lambda_ty todo lambda_uniq () param_bvk lambda_result)
 
 map_bound_where :: BoundValueKey -> RIR.BoundWhere -> ConvertState ()
 map_bound_where k w = lift $ lift $ tell (Map.singleton k w)

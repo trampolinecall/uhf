@@ -321,13 +321,13 @@ mangle_adt :: Type.ADTKey -> IRReader Text
 mangle_adt key = get_adt key >>= \ (Type.ADT id _ _) -> pure (ID.mangle id)
 
 mangle_binding_as_lambda :: ANFIR.BindingKey -> IRReader Text
-mangle_binding_as_lambda key = ANFIR.binding_id <$> get_binding key >>= \ id -> pure ("Lambda" <> ID.mangle id)
+mangle_binding_as_lambda key = ANFIR.binding_id <$> get_binding key >>= \ id -> pure ("Lambda" <> ANFIR.mangle_id id)
 
 mangle_binding_as_capture :: ANFIR.BindingKey -> IRReader Text
-mangle_binding_as_capture key = ANFIR.binding_id <$> get_binding key >>= \ id -> pure ("capture" <> ID.mangle id)
+mangle_binding_as_capture key = ANFIR.binding_id <$> get_binding key >>= \ id -> pure ("capture" <> ANFIR.mangle_id id)
 
 mangle_binding_as_thunk :: ANFIR.BindingKey -> IRReader Text
-mangle_binding_as_thunk key = ANFIR.binding_id <$> get_binding key >>= \ id -> pure ("thunk" <> ID.mangle id)
+mangle_binding_as_thunk key = ANFIR.binding_id <$> get_binding key >>= \ id -> pure ("thunk" <> ANFIR.mangle_id id)
 
 mangle_make_thunk_graph_for :: MakeThunkGraphFor -> IRReader Text
 mangle_make_thunk_graph_for Globals = pure "make_global_thunk_graph"

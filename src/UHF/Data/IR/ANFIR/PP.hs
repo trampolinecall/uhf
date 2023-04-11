@@ -51,7 +51,7 @@ refer_param :: ANFIR.ParamKey -> PP ty poison_allowed ()
 refer_param key = get_param key >>= \ (ANFIR.Param id _) -> text (ID.stringify id)
 
 refer_binding :: ANFIR.BindingKey -> PP ty poison_allowed ()
-refer_binding key = ANFIR.binding_id <$> get_binding key >>= \ id -> text (ID.stringify id)
+refer_binding key = ANFIR.binding_id <$> get_binding key >>= \ id -> text (ANFIR.stringify_id id)
 
 define_binding :: ANFIR.BindingKey -> ANFIR.Binding ty poison_allowed -> PP ty poison_allowed ()
 define_binding key (ANFIR.Binding e) =

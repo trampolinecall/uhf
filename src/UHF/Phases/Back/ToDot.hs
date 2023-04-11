@@ -26,7 +26,7 @@ to_dot (ANFIR.ANFIR _ _ _ _ bindings params _) =
         )
     where
         binding_key_to_dot_id :: ANFIR.BindingKey -> Text
-        binding_key_to_dot_id key = "binding" <> ID.mangle (ANFIR.binding_id $ Arena.get bindings key)
+        binding_key_to_dot_id key = "binding" <> ANFIR.mangle_id (ANFIR.binding_id $ Arena.get bindings key)
 
         param_key_to_dot_id :: ANFIR.ParamKey -> Text
         param_key_to_dot_id key =

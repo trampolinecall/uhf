@@ -4,10 +4,13 @@ module UHF.Data.IR.ANFIR
     , DeclKey
     , BindingKey
     , ParamKey
-    , Binding(..)
-    , Param(..)
-    , Expr(..)
-    , SwitchMatcher(..)
+    , Binding (..)
+    , Param (..)
+    , ID (..)
+    , mangle_id
+    , stringify_id
+    , Expr (..)
+    , SwitchMatcher (..)
     , get_initializer
     , expr_type
     , expr_id
@@ -35,34 +38,45 @@ data Param ty = Param ID.BoundValueID ty deriving Show
 
 newtype Binding ty poison_allowed = Binding (Expr ty poison_allowed)
 
+data ID
+    = ExprID ID.ExprID
+    | BVID ID.BoundValueID
+    deriving Show
+mangle_id :: ID -> Text
+mangle_id (ExprID id) = ID.mangle id
+mangle_id (BVID id) = ID.mangle id
+stringify_id :: ID -> Text
+stringify_id (ExprID id) = ID.stringify id
+stringify_id (BVID id) = ID.stringify id
+
 data Expr ty poison_allowed
-    = Expr'Identifier ID.ExprID ty BindingKey
+    = Expr'Identifier ID ty BindingKey
 
-    | Expr'Int ID.ExprID ty Integer
-    | Expr'Float ID.ExprID ty Rational
-    | Expr'Bool ID.ExprID ty Bool
-    | Expr'Char ID.ExprID ty Char
-    | Expr'String ID.ExprID ty Text
-    | Expr'Tuple ID.ExprID ty BindingKey BindingKey -- TODO: replace with call constructor expr
+    | Expr'Int ID ty Integer
+    | Expr'Float ID ty Rational
+    | Expr'Bool ID ty Bool
+    | Expr'Char ID ty Char
+    | Expr'String ID ty Text
+    | Expr'Tuple ID ty BindingKey BindingKey -- TODO: replace with call constructor expr
 
-    | Expr'Lambda ID.ExprID ty (Set BindingKey) ParamKey [BindingKey] BindingKey -- first collection of binding keys is captures, second is the body
-    | Expr'Param ID.ExprID ty ParamKey
+    | Expr'Lambda ID ty (Set BindingKey) ParamKey [BindingKey] BindingKey -- first collection of binding keys is captures, second is the body
+    | Expr'Param ID ty ParamKey
 
-    | Expr'Call ID.ExprID ty BindingKey BindingKey
+    | Expr'Call ID ty BindingKey BindingKey
 
-    | Expr'Switch ID.ExprID ty BindingKey [(SwitchMatcher, BindingKey)]
+    | Expr'Switch ID ty BindingKey [(SwitchMatcher, BindingKey)]
 
-    | Expr'Seq ID.ExprID ty BindingKey BindingKey
+    | Expr'Seq ID ty BindingKey BindingKey
 
-    | Expr'TupleDestructure1 ID.ExprID ty BindingKey -- TODO: figure out better solution to this (probably general destructure expr for any type, or actually probably use case expressions to match on things)
-    | Expr'TupleDestructure2 ID.ExprID ty BindingKey
+    | Expr'TupleDestructure1 ID ty BindingKey -- TODO: figure out better solution to this (probably general destructure expr for any type, or actually probably use case expressions to match on things)
+    | Expr'TupleDestructure2 ID ty BindingKey
 
-    | Expr'Forall ID.ExprID ty (NonEmpty TypeVarKey) BindingKey -- TODO: put child bindings
-    | Expr'TypeApply ID.ExprID ty BindingKey ty
+    | Expr'Forall ID ty (NonEmpty TypeVarKey) BindingKey -- TODO: put child bindings
+    | Expr'TypeApply ID ty BindingKey ty
 
-    | Expr'MakeADT ID.ExprID ty Type.ADTVariantIndex [BindingKey]
+    | Expr'MakeADT ID ty Type.ADTVariantIndex [BindingKey]
 
-    | Expr'Poison ID.ExprID ty poison_allowed
+    | Expr'Poison ID ty poison_allowed
     deriving Show
 
 data SwitchMatcher
@@ -94,7 +108,7 @@ expr_type (Expr'TypeApply _ ty _ _) = ty
 expr_type (Expr'MakeADT _ ty _ _) = ty
 expr_type (Expr'Poison _ ty _) = ty
 
-expr_id :: Expr ty poison_allowed -> ID.ExprID
+expr_id :: Expr ty poison_allowed -> ID
 expr_id (Expr'Identifier id _ _) = id
 expr_id (Expr'Int id _ _) = id
 expr_id (Expr'Float id _ _) = id
@@ -116,5 +130,5 @@ expr_id (Expr'Poison id _ _) = id
 
 binding_type :: Binding ty poison_allowed -> ty
 binding_type = expr_type . get_initializer
-binding_id :: Binding ty poison_allowed -> ID.ExprID
+binding_id :: Binding ty poison_allowed -> ID
 binding_id = expr_id . get_initializer

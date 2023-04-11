@@ -27,6 +27,8 @@ instance IsString FormattedString where
     fromString = Literal . Text.pack
 instance Semigroup FormattedString where
     (<>) = Join
+instance Monoid FormattedString where
+    mempty = Literal ""
 
 color_text :: [ANSI.SGR] -> Text.Text -> FormattedString
 color_text sgr = Colored sgr . Literal

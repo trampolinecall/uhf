@@ -122,4 +122,6 @@ convert_expr bv_map (RIR.Expr'Seq id ty _ a b) = ANFIR.Expr'Seq id ty <$> conver
 convert_expr bv_map (RIR.Expr'Forall id ty _ vars e) = ANFIR.Expr'Forall id ty vars <$> convert_expr bv_map e >>= new_binding
 convert_expr bv_map (RIR.Expr'TypeApply id ty _ e arg) = ANFIR.Expr'TypeApply id ty <$> convert_expr bv_map e <*> pure arg >>= new_binding
 
+convert_expr bv_map (RIR.Expr'MakeADT id ty _ variant args) = ANFIR.Expr'MakeADT id (Just ty) variant <$> mapM (convert_expr bv_map) args >>= new_binding
+
 convert_expr _ (RIR.Expr'Poison id ty _) = new_binding (ANFIR.Expr'Poison id ty ())

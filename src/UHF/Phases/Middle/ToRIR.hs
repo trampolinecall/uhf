@@ -70,33 +70,29 @@ convert_decl (SIR.Decl'Type ty) = pure $ RIR.Decl'Type ty
 
 convert_binding :: RIR.BoundWhere -> SIRBinding -> ConvertState [RIRBinding]
 convert_binding bound_where (SIR.Binding pat _ expr) = convert_expr bound_where expr >>= assign_pattern bound_where pat
-convert_binding bound_where (SIR.Binding'ADTVariant bvk variant_index@(Type.ADTVariantIndex adt_key _)) =
+convert_binding bound_where (SIR.Binding'ADTVariant bvk variant_index) =
     map_bound_where bvk bound_where >>
     Type.get_adt_variant <$> (lift ask) <*> pure variant_index >>= \ variant ->
-    let fields = Type.variant_field_types variant
-
-    in unzip <$> mapM
-        (\ field_ty ->
-            new_made_up_bv_id >>= \ bv_id ->
-            new_bound_value bv_id bound_where field_ty todo >>= \ bvk -> -- TODO: bound_where not correct
-            new_made_up_expr_id >>= \ expr_id ->
-            let refer_expr = RIR.Expr'Identifier expr_id field_ty todo (Just bvk)
-            in pure (bvk, refer_expr))
-        fields >>= \ (param_bvs, refer_to_params) ->
-
-    new_made_up_expr_id >>= \ make_adt_id ->
-    let final_expr = RIR.Expr'MakeADT make_adt_id (Type.Type'ADT adt_key) todo variant_index refer_to_params
-
-    in foldrM
-        (\ (param_ty, param) lambda_result ->
-            new_made_up_expr_id >>= \ expr_id ->
-            Unique.make_unique >>= \ uniq ->
-            let ty = Type.Type'Function <$> param_ty <*> RIR.expr_type lambda_result
-            in pure (RIR.Expr'Lambda expr_id ty todo uniq () param lambda_result))
-        final_expr
-        (zip fields param_bvs) >>= \ lambdas ->
+    make_lambdas variant_index [] (Type.variant_field_types variant) >>= \ lambdas ->
 
     pure [RIR.Binding bvk lambdas]
+    where
+        make_lambdas variant_index@(Type.ADTVariantIndex adt_key _) refer_to_params [] =
+            new_made_up_expr_id >>= \ make_adt_id ->
+            pure $ RIR.Expr'MakeADT make_adt_id (Type.Type'ADT adt_key) todo variant_index refer_to_params
+
+        make_lambdas variant_index refer_to_params (cur_field_ty:more_field_tys) =
+            Unique.make_unique >>= \ lambda_uniq ->
+            new_made_up_bv_id >>= \ bv_id ->
+            new_bound_value bv_id (RIR.InLambdaBody lambda_uniq) cur_field_ty todo >>= \ param_bvk ->
+            new_made_up_expr_id >>= \ expr_id ->
+            let refer_expr = RIR.Expr'Identifier expr_id cur_field_ty todo (Just param_bvk)
+
+            in new_made_up_expr_id >>= \ lambda_id ->
+            make_lambdas variant_index (refer_to_params <> [refer_expr]) more_field_tys >>= \ lambda_result ->
+            let lambda_ty = Type.Type'Function <$> cur_field_ty <*> RIR.expr_type lambda_result
+            in
+            pure (RIR.Expr'Lambda lambda_id lambda_ty todo lambda_uniq () param_bvk lambda_result)
 
 map_bound_where :: BoundValueKey -> RIR.BoundWhere -> ConvertState ()
 map_bound_where k w = lift $ lift $ tell (Map.singleton k w)

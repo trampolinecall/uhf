@@ -74,7 +74,7 @@ instance Mangle GeneralID where
     mangle' (GM m) = "m" <> mangle' m
     mangle' (GD d) = "d" <> mangle' d
     mangle' (GE e) = "e" <> mangle' e
-    mangle' (GBV bv) = "bv" <> mangle' bv
+    mangle' (GBV bv) = "b" <> mangle' bv
 
 instance Mangle ModuleID where
     mangle' (ModuleID path) = mangle' path

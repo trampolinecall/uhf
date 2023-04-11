@@ -33,13 +33,15 @@ type ParamArena = Arena.Arena Param ANFIR.ParamKey
 type IRReader = Reader (ADTArena, TypeSynonymArena, BindingArena, ParamArena)
 
 get_binding :: ANFIR.BindingKey -> IRReader Binding
-get_binding k = reader (\ (_, _, a, _) -> Arena.get a k)
+get_binding k = reader $ \ (_, _, a, _) -> Arena.get a k
 get_param :: ANFIR.ParamKey -> IRReader Param
-get_param k = reader (\ (_, _, _, a) -> Arena.get a k)
+get_param k = reader $ \ (_, _, _, a) -> Arena.get a k
 get_adt :: Type.ADTKey -> IRReader ADT
-get_adt k = reader (\ (a, _, _, _) -> Arena.get a k)
+get_adt k = reader $ \ (a, _, _, _) -> Arena.get a k
+get_adt_arena :: IRReader ADTArena
+get_adt_arena = reader $ \ (a, _, _, _) -> a
 get_type_synonym :: Type.TypeSynonymKey -> IRReader TypeSynonym
-get_type_synonym k = reader (\ (_, a, _, _) -> Arena.get a k)
+get_type_synonym k = reader $ \ (_, a, _, _) -> Arena.get a k
 
 binding_type :: ANFIR.BindingKey -> IRReader Type
 binding_type k = ANFIR.binding_type <$> get_binding k
@@ -94,7 +96,7 @@ stringify_ts_adt (TSADT key) =
                         (\ variant ->
                             let name_field = ("discriminant", "\"" <> Type.variant_name variant <> "\"")
                             in (case variant of
-                                Type.ADTVariant'Named _ fields -> mapM (\ (n, f) -> (n,) <$> refer_type f) fields
+                                Type.ADTVariant'Named _ fields -> zipWithM (\ i (_, f) -> ("_" <> show (i :: Int),) <$> refer_type f) [0..] fields
                                 Type.ADTVariant'Anon _ fields -> zipWithM (\ i f -> ("_" <> show (i :: Int),) <$> refer_type f) [0..] fields) >>= \ fields ->
                             pure ("{" <> Text.intercalate "; " (map (\ (n, t) -> n <> ": " <> t) (name_field : fields)) <> "}"))
                         variants >>= \ variant_types ->
@@ -202,7 +204,9 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures p
 
                 ANFIR.Expr'MakeADT _ _ variant_index@(Type.ADTVariantIndex adt_key _) args ->
                     mangle_adt adt_key >>= \ adt_mangled ->
-                    pure (default_let_thunk, Just $ set_evaluator "FunctionEvaluator" ("() => new " <> adt_mangled <> "(" <> ")")) -- TODO
+                    Type.variant_name <$> (Type.get_adt_variant <$> get_adt_arena <*> pure variant_index) >>= \ variant_name ->
+                    zipWithM (\ i arg -> mangle_binding_as_thunk arg >>= \ arg -> pure ("_" <> show (i :: Int), arg)) [0..] args >>= \ object_fields ->
+                    pure (default_let_thunk, Just $ set_evaluator "FunctionEvaluator" ("() => new " <> adt_mangled <> "({ " <> Text.intercalate ", " (map (\ (n, a) -> n <> ": " <> a) (("discriminant", "\"" <> variant_name <> "\""):object_fields)) <> " })")) -- TODO
 
                 ANFIR.Expr'Poison _ _ void -> absurd void
 

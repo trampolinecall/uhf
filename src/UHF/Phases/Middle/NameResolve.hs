@@ -194,7 +194,7 @@ get_decl_child :: UnresolvedDeclArena -> DeclKey -> Located Text -> Either Error
 get_decl_child decls thing name =
     let res = case Arena.get decls thing of
             SIR.Decl'Module _ (SIR.NameContext d_children _ _) _ _ _ -> Map.lookup (Located.unlocate name) d_children
-            SIR.Decl'Type _ -> Nothing -- TODO: implement children of types through impl blocks, this will also need infinite recursion checking
+            SIR.Decl'Type _ -> Nothing
     in case res of
         Just res -> Right res
         Nothing -> Left $ CouldNotFind Nothing name -- TODO: put previous
@@ -203,7 +203,7 @@ get_value_child :: UnresolvedDeclArena -> DeclKey -> Located Text -> Either Erro
 get_value_child decls thing name =
     let res = case Arena.get decls thing of
             SIR.Decl'Module _ (SIR.NameContext _ v_children _) _ _ _ -> Map.lookup (Located.unlocate name) v_children
-            SIR.Decl'Type _ -> Nothing -- TODO: implement children of types through impl blocks
+            SIR.Decl'Type _ -> Nothing
     in case res of
         Just res -> Right res
         Nothing -> Left $ CouldNotFind Nothing name -- TODO: put previous

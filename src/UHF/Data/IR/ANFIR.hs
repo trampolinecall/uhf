@@ -58,6 +58,7 @@ data Expr ty poison_allowed
     | Expr'Char ID ty Char
     | Expr'String ID ty Text
     | Expr'Tuple ID ty BindingKey BindingKey -- TODO: replace with call constructor expr
+    | Expr'MakeADT ID ty Type.ADTVariantIndex [BindingKey]
 
     | Expr'Lambda ID ty (Set BindingKey) ParamKey [BindingKey] BindingKey -- first collection of binding keys is captures, second is the body
     | Expr'Param ID ty ParamKey
@@ -73,8 +74,6 @@ data Expr ty poison_allowed
 
     | Expr'Forall ID ty (NonEmpty TypeVarKey) BindingKey -- TODO: put child bindings
     | Expr'TypeApply ID ty BindingKey ty
-
-    | Expr'MakeADT ID ty Type.ADTVariantIndex [BindingKey]
 
     | Expr'Poison ID ty poison_allowed
     deriving Show

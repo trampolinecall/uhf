@@ -40,8 +40,9 @@ get (Arena items) key = items `Sequence.index` unmake_key key
 
 modify :: Key k => Arena a k -> k -> (a -> a) -> Arena a k
 modify (Arena items) key change =
-    let (before, old Sequence.:<| after) = Sequence.splitAt (unmake_key key) items
-    in Arena $ before <> (change old Sequence.<| after)
+    case Sequence.splitAt (unmake_key key) items of
+        (before, old Sequence.:<| after) -> Arena $ before <> (change old Sequence.<| after)
+        (_, Sequence.Empty) -> unreachable -- because the key should always be valid
 
 transform :: Key k => (a -> b) -> Arena a k -> Arena b k
 transform t (Arena items) = Arena $ fmap t items

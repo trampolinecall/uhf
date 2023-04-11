@@ -126,7 +126,7 @@ get_colored_quote_and_underline_line style fl nr unds =
 
         quote = Text.unpack $ Utils.get_quote fl nr
         colored_quote =
-            foldl' (<>) "" $
+            mconcat $
             zipWith
                 (\ ch m_und ->
                     case m_und of
@@ -136,7 +136,7 @@ get_colored_quote_and_underline_line style fl nr unds =
                 quote underline_for_cols
 
         underline_line =
-            foldl' (<>) "" $
+            mconcat $
             map
                 (\case
                     Nothing -> " "
@@ -159,7 +159,7 @@ show_msg_row style below msgs =
                    <> format_render_message style (start_col `notElem` below_pipes) msg
                )
 
-    in Line.other_line style $ foldl' (<>) "" $ snd $ List.mapAccumL render_msg 1 sorted_msgs
+    in Line.other_line style $ mconcat $ snd $ List.mapAccumL render_msg 1 sorted_msgs
 -- assigning rows {{{3
 assign_messages :: Style.Style -> [RenderMessage] -> [([RenderMessage], [RenderMessage])]
 assign_messages style msgs =

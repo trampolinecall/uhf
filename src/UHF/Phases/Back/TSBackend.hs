@@ -49,7 +49,7 @@ runtime_code :: Text
 runtime_code = $(FileEmbed.embedStringFile "data/ts_runtime.ts")
 
 data TSDecl
-newtype TSADT = TSADT Type.ADTKey -- TODO: actually implement variants and things
+newtype TSADT = TSADT Type.ADTKey
 data TSLambda = TSLambda ANFIR.BindingKey (Set ANFIR.BindingKey) Type Type ANFIR.BindingKey
 newtype TSGlobalThunk = TSGlobalThunk ANFIR.BindingKey
 -- TODO: dont use BoundValueKey Ord for order of captures in parameters of function
@@ -79,9 +79,26 @@ stringify_ts_decl = error "unreachable"
 stringify_ts_adt :: TSADT -> IRReader Text
 stringify_ts_adt (TSADT key) =
     mangle_adt key >>= \ mangled ->
+    data_type >>= \ data_type ->
     pure $
         "class " <> mangled <> " {\n"
+            <> "    type: \"" <> mangled <> "\";\n"
+            <> "    constructor(public data: " <> data_type <> ") {}\n"
             <> "}\n"
+    where
+        data_type =
+            get_adt key >>= \ (Type.ADT _ _ variants) ->
+            if null variants
+                then pure "never"
+                else mapM
+                        (\ variant ->
+                            let name_field = ("discriminant", "\"" <> Type.variant_name variant <> "\"")
+                            in (case variant of
+                                Type.ADTVariant'Named _ fields -> mapM (\ (n, f) -> (n,) <$> refer_type f) fields
+                                Type.ADTVariant'Anon _ fields -> zipWithM (\ i f -> ("_" <> show (i :: Int),) <$> refer_type f) [0..] fields) >>= \ fields ->
+                            pure ("{" <> Text.intercalate "; " (map (\ (n, t) -> n <> ": " <> t) (name_field : fields)) <> "}"))
+                        variants >>= \ variant_types ->
+                    pure (Text.intercalate " | " variant_types)
 
 stringify_ts_make_thunk_graph :: TSMakeThunkGraph -> IRReader Text
 stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures param) =
@@ -183,7 +200,9 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures p
                     mangle_binding_as_thunk e >>= \ e ->
                     pure (let_thunk e, Nothing)
 
-                ANFIR.Expr'MakeADT _ _ variant args -> todo
+                ANFIR.Expr'MakeADT _ _ variant_index@(Type.ADTVariantIndex adt_key _) args ->
+                    mangle_adt adt_key >>= \ adt_mangled ->
+                    pure (default_let_thunk, Just $ set_evaluator "FunctionEvaluator" ("() => new " <> adt_mangled <> "(" <> ")")) -- TODO
 
                 ANFIR.Expr'Poison _ _ void -> absurd void
 

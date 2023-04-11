@@ -57,9 +57,10 @@ define_binding (SIR.Binding pat _ init) =
         then pattern pat >> text " =\n" >> lift PPUtils.indent >> init' >> text "\n" >> lift PPUtils.dedent >> text ";\n"
         else pattern pat >> text " = " >> init' >> text ";\n"
 define_binding (SIR.Binding'ADTVariant bvk variant_index@(Type.ADTVariantIndex adt_key _)) =
+    Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
     Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
     let variant_name = Type.variant_name variant
-    in refer_bv bvk >> text " = <constructor for " >> text variant_name >> text ">;\n"
+    in refer_bv bvk >> text " = <constructor for " >> lift adt_refer >> text " " >> text variant_name >> text ">;\n"
 
 class DumpableIdentifier i where
     refer_iden :: i -> PP d_iden v_iden type_info binary_ops_allowed ()

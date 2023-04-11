@@ -95,5 +95,9 @@ expr (ANFIR.Expr'TupleDestructure1 _ _ other) = refer_binding other >> text ".0"
 expr (ANFIR.Expr'TupleDestructure2 _ _ other) = refer_binding other >> text ".1"
 expr (ANFIR.Expr'Forall _ _ vars e) = todo
 expr (ANFIR.Expr'TypeApply _ _ e arg) = todo
-expr (ANFIR.Expr'MakeADT _ _ variant args) = todo
+expr (ANFIR.Expr'MakeADT _ _ variant_index@(Type.ADTVariantIndex adt_key _) args) =
+    Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
+    Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
+    let variant_name = Type.variant_name variant
+     in text "adt " >> lift adt_refer >> text " " >> text variant_name >> text "[" >> mapM refer_binding args >> text "]" -- TODO: comma separated list of arguments
 expr (ANFIR.Expr'Poison _ _ _) = text "poison"

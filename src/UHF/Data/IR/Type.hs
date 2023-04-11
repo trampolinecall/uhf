@@ -6,6 +6,8 @@ module UHF.Data.IR.Type
     , ADTVariant (..)
     , ADTVariantIndex (..)
     , get_adt_variant
+    , variant_name
+    , variant_field_types
 
     , TypeSynonymKey
     , TypeSynonym (..)
@@ -43,8 +45,15 @@ data ADTVariant ty
     = ADTVariant'Named Text [(Text, ty)]
     | ADTVariant'Anon Text [ty]
     deriving Show
-
 data ADTVariantIndex = ADTVariantIndex ADTKey Int deriving Show
+
+variant_name :: ADTVariant ty -> Text
+variant_name (ADTVariant'Anon name _) = name
+variant_name (ADTVariant'Named name _) = name
+variant_field_types :: ADTVariant ty -> [ty]
+variant_field_types (ADTVariant'Anon _ tys) = tys
+variant_field_types (ADTVariant'Named _ tys) = map snd tys
+
 -- technically can error, but every ADTVariantIndex constructed should be a valid variant, so hopefully if everything is functioning correctly, this should never fail
 get_adt_variant :: Arena.Arena (ADT ty) ADTKey -> ADTVariantIndex  -> ADTVariant ty
 get_adt_variant adts (ADTVariantIndex key i) =

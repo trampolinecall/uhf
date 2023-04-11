@@ -71,6 +71,8 @@ rp_expr (ANFIR.Expr'TupleDestructure2 id ty t) = ty >>= \ ty -> pure (ANFIR.Expr
 rp_expr (ANFIR.Expr'Forall id ty vars e) = ty >>= \ ty -> pure (ANFIR.Expr'Forall id ty vars e)
 rp_expr (ANFIR.Expr'TypeApply id ty e arg) = ty >>= \ ty -> arg >>= \ arg -> pure (ANFIR.Expr'TypeApply id ty e arg)
 
+rp_expr (ANFIR.Expr'MakeADT id ty variant args) = ty >>= \ ty -> pure (ANFIR.Expr'MakeADT id ty variant args)
+
 rp_expr (ANFIR.Expr'Poison _ _ _) = Nothing
 
 rp_param :: PoisonedParam -> Maybe NoPoisonParam

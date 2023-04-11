@@ -60,6 +60,8 @@ data Expr ty poison_allowed
     | Expr'Forall ID.ExprID ty (NonEmpty TypeVarKey) BindingKey -- TODO: put child bindings
     | Expr'TypeApply ID.ExprID ty BindingKey ty
 
+    | Expr'MakeADT ID.ExprID ty Type.ADTVariantIndex [BindingKey]
+
     | Expr'Poison ID.ExprID ty poison_allowed
     deriving Show
 
@@ -80,21 +82,16 @@ expr_type (Expr'Bool _ ty _) = ty
 expr_type (Expr'Char _ ty _) = ty
 expr_type (Expr'String _ ty _) = ty
 expr_type (Expr'Tuple _ ty _ _) = ty
-
 expr_type (Expr'Lambda _ ty _ _ _ _) = ty
 expr_type (Expr'Param _ ty _) = ty
-
 expr_type (Expr'Call _ ty _ _) = ty
-
 expr_type (Expr'Switch _ ty _ _) = ty
 expr_type (Expr'Seq _ ty _ _) = ty
-
 expr_type (Expr'TupleDestructure1 _ ty _) = ty
 expr_type (Expr'TupleDestructure2 _ ty _) = ty
-
 expr_type (Expr'Forall _ ty _ _) = ty
 expr_type (Expr'TypeApply _ ty _ _) = ty
-
+expr_type (Expr'MakeADT _ ty _ _) = ty
 expr_type (Expr'Poison _ ty _) = ty
 
 expr_id :: Expr ty poison_allowed -> ID.ExprID
@@ -105,21 +102,16 @@ expr_id (Expr'Bool id _ _) = id
 expr_id (Expr'Char id _ _) = id
 expr_id (Expr'String id _ _) = id
 expr_id (Expr'Tuple id _ _ _) = id
-
 expr_id (Expr'Lambda id _ _ _ _ _) = id
 expr_id (Expr'Param id _ _) = id
-
 expr_id (Expr'Call id _ _ _) = id
-
 expr_id (Expr'Switch id _ _ _) = id
 expr_id (Expr'Seq id _ _ _) = id
-
 expr_id (Expr'TupleDestructure1 id _ _) = id
 expr_id (Expr'TupleDestructure2 id _ _) = id
-
 expr_id (Expr'Forall id _ _ _) = id
 expr_id (Expr'TypeApply id _ _ _) = id
-
+expr_id (Expr'MakeADT id _ _ _) = id
 expr_id (Expr'Poison id _ _) = id
 
 binding_type :: Binding ty poison_allowed -> ty

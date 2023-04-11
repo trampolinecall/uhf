@@ -56,6 +56,10 @@ define_binding (SIR.Binding pat _ init) =
     in ask >>= \ ir -> if PPUtils.is_multiline (runReaderT init' ir)
         then pattern pat >> text " =\n" >> lift PPUtils.indent >> init' >> text "\n" >> lift PPUtils.dedent >> text ";\n"
         else pattern pat >> text " = " >> init' >> text ";\n"
+define_binding (SIR.Binding'ADTVariant bvk variant_index@(Type.ADTVariantIndex adt_key _)) =
+    Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
+    let variant_name = Type.variant_name variant
+    in refer_bv bvk >> text " = <constructor for " >> text variant_name >> text ">;\n"
 
 class DumpableIdentifier i where
     refer_iden :: i -> PP d_iden v_iden type_info binary_ops_allowed ()
@@ -125,8 +129,8 @@ expr (SIR.Expr'TypeApply _ _ _ _ _) = todo
 expr (SIR.Expr'Poison _ _ _) = text "poison"
 
 pattern :: SIR.Pattern type_info -> PP d_iden v_iden type_info binary_ops_allowed ()
-pattern (SIR.Pattern'Identifier _ _ bnk) = refer_iden bnk
+pattern (SIR.Pattern'Identifier _ _ bvk) = refer_iden bvk
 pattern (SIR.Pattern'Wildcard _ _) = text "_"
 pattern (SIR.Pattern'Tuple _ _ a b) = text "(" >> pattern a >> text ", " >> pattern b >> text ")"
-pattern (SIR.Pattern'Named _ _ _ bnk subpat) = text "@" >> refer_iden (unlocate bnk) >> text " " >> pattern subpat
+pattern (SIR.Pattern'Named _ _ _ bvk subpat) = text "@" >> refer_iden (unlocate bvk) >> text " " >> pattern subpat
 pattern (SIR.Pattern'Poison _ _) = text "poison"

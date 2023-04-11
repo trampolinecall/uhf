@@ -95,5 +95,5 @@ expr (ANFIR.Expr'TupleDestructure1 _ _ other) = refer_binding other >> text ".0"
 expr (ANFIR.Expr'TupleDestructure2 _ _ other) = refer_binding other >> text ".1"
 expr (ANFIR.Expr'Forall _ _ vars e) = todo
 expr (ANFIR.Expr'TypeApply _ _ e arg) = todo
-
+expr (ANFIR.Expr'MakeADT _ _ variant args) = todo
 expr (ANFIR.Expr'Poison _ _ _) = text "poison"

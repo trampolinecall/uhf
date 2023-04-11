@@ -34,16 +34,18 @@ type RIRBinding = RIR.Binding ()
 
 type SIRBoundValueArena = Arena.Arena (SIR.BoundValue Type) BoundValueKey
 
-type ConvertState = Unique.UniqueMakerT (WriterT (Map BoundValueKey RIR.BoundWhere) (StateT SIRBoundValueArena (IDGen.IDGenT ID.BoundValueID (IDGen.IDGen ID.ExprID))))
+type ConvertState = Unique.UniqueMakerT (ReaderT (Arena.Arena (Type.ADT Type) Type.ADTKey) (WriterT (Map BoundValueKey RIR.BoundWhere) (StateT SIRBoundValueArena (IDGen.IDGenT ID.BoundValueID (IDGen.IDGen ID.ExprID)))))
 
 new_made_up_bv_id :: ConvertState ID.BoundValueID
-new_made_up_bv_id = lift $ lift $ lift IDGen.gen_id
+new_made_up_bv_id = lift $ lift $ lift $ lift IDGen.gen_id
 new_made_up_expr_id :: ConvertState ID.ExprID
-new_made_up_expr_id = lift $ lift $ lift $ lift IDGen.gen_id
+new_made_up_expr_id = lift $ lift $ lift $ lift $ lift IDGen.gen_id
 
 convert :: SIR -> RIR.RIR ()
 convert (SIR.SIR decls adts type_synonyms type_vars bvs mod) =
-    let ((decls', bound_wheres), bvs_with_new) = IDGen.run_id_gen ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.BoundValueID'RIRMadeUp $ runStateT (runWriterT (Unique.run_unique_maker_t (Arena.transformM convert_decl decls))) bvs
+    let adts_converted = Arena.transform convert_adt adts
+        type_synonyms_converted = Arena.transform convert_type_synonym type_synonyms
+        ((decls', bound_wheres), bvs_with_new) = IDGen.run_id_gen ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.BoundValueID'RIRMadeUp $ runStateT (runWriterT (runReaderT (Unique.run_unique_maker_t (Arena.transformM convert_decl decls)) adts_converted)) bvs
         bvs_converted =
             Arena.transform_with_key
             (\key -> \case
@@ -51,8 +53,6 @@ convert (SIR.SIR decls adts type_synonyms type_vars bvs mod) =
                 SIR.BoundValue'ADTVariant id _ ty sp -> RIR.BoundValue id ty (bound_wheres Map.! key) sp -- TODO: make function
             )
             bvs_with_new
-        adts_converted = Arena.transform convert_adt adts
-        type_synonyms_converted = Arena.transform convert_type_synonym type_synonyms
     in RIR.RIR decls' adts_converted type_synonyms_converted type_vars bvs_converted mod
 
 convert_adt :: Type.ADT SIRTypeExpr -> Type.ADT Type
@@ -70,12 +70,39 @@ convert_decl (SIR.Decl'Type ty) = pure $ RIR.Decl'Type ty
 
 convert_binding :: RIR.BoundWhere -> SIRBinding -> ConvertState [RIRBinding]
 convert_binding bound_where (SIR.Binding pat _ expr) = convert_expr bound_where expr >>= assign_pattern bound_where pat
+convert_binding bound_where (SIR.Binding'ADTVariant bvk variant_index@(Type.ADTVariantIndex adt_key _)) =
+    map_bound_where bvk bound_where >>
+    Type.get_adt_variant <$> (lift ask) <*> pure variant_index >>= \ variant ->
+    let fields = Type.variant_field_types variant
+
+    in unzip <$> mapM
+        (\ field_ty ->
+            new_made_up_bv_id >>= \ bv_id ->
+            new_bound_value bv_id bound_where field_ty todo >>= \ bvk ->
+            new_made_up_expr_id >>= \ expr_id ->
+            let refer_expr = RIR.Expr'Identifier expr_id field_ty todo (Just bvk)
+            in pure (bvk, refer_expr))
+        fields >>= \ (param_bvs, refer_to_params) ->
+
+    new_made_up_expr_id >>= \ make_adt_id ->
+    let final_expr = RIR.Expr'MakeADT make_adt_id (Type.Type'ADT adt_key) todo variant_index refer_to_params
+
+    in foldrM
+        (\ (param_ty, param) lambda_result ->
+            new_made_up_expr_id >>= \ expr_id ->
+            Unique.make_unique >>= \ uniq ->
+            let ty = Type.Type'Function <$> param_ty <*> RIR.expr_type lambda_result
+            in pure (RIR.Expr'Lambda expr_id ty todo uniq () param lambda_result))
+        final_expr
+        (zip fields param_bvs) >>= \ lambdas ->
+
+    pure [RIR.Binding bvk lambdas]
 
 map_bound_where :: BoundValueKey -> RIR.BoundWhere -> ConvertState ()
-map_bound_where k w = lift $ tell (Map.singleton k w)
+map_bound_where k w = lift $ lift $ tell (Map.singleton k w)
 
 new_bound_value :: ID.BoundValueID -> RIR.BoundWhere -> Type -> Span -> ConvertState BoundValueKey
-new_bound_value id bound_where ty sp = lift (lift (state (Arena.put (SIR.BoundValue id ty sp)))) >>= \ key -> map_bound_where key bound_where >> pure key
+new_bound_value id bound_where ty sp = lift (lift $ lift $ state $ Arena.put (SIR.BoundValue id ty sp)) >>= \ key -> map_bound_where key bound_where >> pure key
 
 convert_expr :: RIR.BoundWhere -> SIRExpr -> ConvertState RIRExpr
 convert_expr _ (SIR.Expr'Identifier id ty sp bv) = pure $ RIR.Expr'Identifier id ty sp (unlocate bv)
@@ -91,7 +118,7 @@ convert_expr _ (SIR.Expr'Lambda id ty sp param_pat body) =
         body_sp = SIR.expr_span body
     in
     -- '\ (...) -> body' becomes '\ (arg) -> let ... = arg; body'
-    Unique.make_unique >>= \ uniq ->
+    Unique.make_unique >>= \ uniq -> -- TODO: remove?
     new_made_up_bv_id >>= \ param_bv_id ->
     new_bound_value param_bv_id (RIR.InLambdaBody uniq) param_ty (SIR.pattern_span param_pat) >>= \ param_bk ->
     assign_pattern (RIR.InLambdaBody uniq) param_pat (RIR.Expr'Identifier id param_ty (SIR.pattern_span param_pat) (Just param_bk)) >>= \ bindings ->

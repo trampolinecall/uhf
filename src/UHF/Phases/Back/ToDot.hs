@@ -70,6 +70,8 @@ to_dot (ANFIR.ANFIR _ _ _ _ bindings params _) =
                         ANFIR.Expr'Forall _ _ _ e -> ("forall", [("e", e)], []) -- TODO: put vars
                         ANFIR.Expr'TypeApply _ _ e ty -> ("type apply", [("e", e)], []) -- TODO: put type
 
+                        ANFIR.Expr'MakeADT _ _ _ args -> ("type apply", zipWith (\ i a -> ("arg" <> show (i :: Int), a)) [0..] args, []) -- TODO: connect to variant
+
                         ANFIR.Expr'Poison _ _ void -> absurd void
 
                 make_port (name, _) = "<" <> name <> ">" <> name

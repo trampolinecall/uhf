@@ -64,6 +64,7 @@ type_synonym unks (Type.TypeSynonym id name expansion) = Type.TypeSynonym id nam
 
 binding :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkBinding -> TypedBinding
 binding unks (SIR.Binding p eq_sp e) = SIR.Binding (pattern unks p) eq_sp (expr unks e)
+binding _ (SIR.Binding'ADTVariant bvk variant) = SIR.Binding'ADTVariant bvk variant
 
 pattern :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkPattern -> TypedPattern
 pattern unks (SIR.Pattern'Identifier ty sp bn) = SIR.Pattern'Identifier (type_ unks ty) sp bn

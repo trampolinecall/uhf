@@ -78,7 +78,7 @@ convert_binding bound_where (SIR.Binding'ADTVariant bvk variant_index@(Type.ADTV
     in unzip <$> mapM
         (\ field_ty ->
             new_made_up_bv_id >>= \ bv_id ->
-            new_bound_value bv_id bound_where field_ty todo >>= \ bvk ->
+            new_bound_value bv_id bound_where field_ty todo >>= \ bvk -> -- TODO: bound_where not correct
             new_made_up_expr_id >>= \ expr_id ->
             let refer_expr = RIR.Expr'Identifier expr_id field_ty todo (Just bvk)
             in pure (bvk, refer_expr))

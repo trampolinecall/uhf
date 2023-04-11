@@ -87,5 +87,9 @@ expr (RIR.Expr'Switch _ _ _ e arms) = text "switch " >> expr e >> text " {\n" >>
 expr (RIR.Expr'Seq _ _ _ a b) = text "seq " >> expr a >> text ", " >> expr b
 expr (RIR.Expr'Forall _ _ _ _ _) = todo
 expr (RIR.Expr'TypeApply _ _ _ _ _) = todo
-expr (RIR.Expr'MakeADT _ _ _ _ _) = todo
+expr (RIR.Expr'MakeADT _ _ _ variant_index@(Type.ADTVariantIndex adt_key _) args) =
+    Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
+    Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
+    let variant_name = Type.variant_name variant
+     in text "adt " >> lift adt_refer >> text " " >> text variant_name >> text "[" >> mapM expr args >> text "]" -- TODO: comma separated list of arguments
 expr (RIR.Expr'Poison _ _ _) = text "poison"

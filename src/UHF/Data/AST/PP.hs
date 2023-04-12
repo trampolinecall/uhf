@@ -19,8 +19,14 @@ pp_decls' = mapM_ pp_decl
 
 pp_decl :: AST.Decl -> PPUtils.PP ()
 pp_decl (AST.Decl'Value target _ init) = pp_pattern target >> PPUtils.write " = " >> pp_expr init >> PPUtils.write ";\n" -- TODO: handle the initializer being multiline
-pp_decl (AST.Decl'Data name []) = PPUtils.write "data " >> pp_iden name >> PPUtils.write " {};\n"
-pp_decl (AST.Decl'Data name variants) = PPUtils.write "data " >> pp_iden name >> PPUtils.write " {\n" >> PPUtils.indent >> mapM_ pp_data_variant variants >> PPUtils.dedent >> PPUtils.write "};\n"
+pp_decl (AST.Decl'Data name params variants) =
+    let variants'
+            | null variants = PPUtils.write "{}"
+            | otherwise = PPUtils.write "{\n" >> PPUtils.indent >> mapM_ pp_data_variant variants >> PPUtils.dedent >> PPUtils.write "}"
+        params'
+            | null params = PPUtils.write ""
+            | otherwise = PPUtils.write "#(" >> pp_comma_separated pp_iden params >> PPUtils.write ")"
+    in PPUtils.write "data " >> pp_iden name >> params' >> PPUtils.write " " >> variants' >> PPUtils.write ";\n"
 pp_decl (AST.Decl'TypeSyn name ty) = PPUtils.write "typesyn " >> pp_iden name >> PPUtils.write " = " >> pp_type ty >> PPUtils.write ";\n"
 
 pp_data_variant :: AST.DataVariant -> PPUtils.PP ()

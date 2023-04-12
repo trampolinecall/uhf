@@ -34,7 +34,7 @@ convert_vars unks =
         r _ Type.Type'Char = pure Type.Type'Char
         r _ Type.Type'String = pure Type.Type'String
         r _ Type.Type'Bool = pure Type.Type'Bool
-        r _ (Type.Type'ADT a) = pure $ Type.Type'ADT a
+        r unks_converted (Type.Type'ADT a params) = Type.Type'ADT a <$> mapM (r unks_converted) params
         r _ (Type.Type'Synonym s) = pure $ Type.Type'Synonym s
         r unks_converted (Type.Type'Function arg res) = Type.Type'Function <$> r unks_converted arg <*> r unks_converted res
         r unks_converted (Type.Type'Tuple a b) = Type.Type'Tuple <$> r unks_converted a <*> r unks_converted b
@@ -54,7 +54,7 @@ bound_value unks (SIR.BoundValue id ty sp) = SIR.BoundValue id (type_ unks ty) s
 bound_value unks (SIR.BoundValue'ADTVariant id index ty sp) = SIR.BoundValue'ADTVariant id index (type_ unks ty) sp
 
 adt :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkADT -> TypedADT
-adt unks (Type.ADT id name variants) = Type.ADT id name (map variant variants)
+adt unks (Type.ADT id name type_var variants) = Type.ADT id name type_var (map variant variants)
     where
         variant (Type.ADTVariant'Named name fields) = Type.ADTVariant'Named name (map (\ (name, ty) -> (name, type_expr unks ty)) fields)
         variant (Type.ADTVariant'Anon name fields) = Type.ADTVariant'Anon name (map (type_expr unks) fields)
@@ -110,7 +110,7 @@ type_ unks = r
         r Type.Type'Char = pure Type.Type'Char
         r Type.Type'String = pure Type.Type'String
         r Type.Type'Bool = pure Type.Type'Bool
-        r (Type.Type'ADT a) = pure $ Type.Type'ADT a
+        r (Type.Type'ADT a params) = Type.Type'ADT a <$> mapM r params
         r (Type.Type'Synonym s) = pure $ Type.Type'Synonym s
         r (Type.Type'Function arg res) = Type.Type'Function <$> r arg <*> r res
         r (Type.Type'Tuple a b) = Type.Type'Tuple <$> r a <*> r b

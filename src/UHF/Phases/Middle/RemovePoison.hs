@@ -36,7 +36,7 @@ remove_poison (ANFIR.ANFIR decls adts type_synonyms type_vars bindings params mo
 -- rp short for remove poison
 
 rp_adt :: PoisonedADT -> Maybe NoPoisonADT
-rp_adt (Type.ADT id name variants) = Type.ADT id name <$> mapM rp_variant variants
+rp_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM rp_variant variants
     where
         rp_variant (Type.ADTVariant'Named name fields) = Type.ADTVariant'Named name <$> mapM (\ (field_name, field_ty) -> (field_name,) <$> field_ty) fields
         rp_variant (Type.ADTVariant'Anon name fields) = Type.ADTVariant'Anon name <$> sequence fields

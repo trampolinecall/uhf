@@ -19,13 +19,13 @@ import qualified UHF.Data.IR.ID as ID
 import Data.Functor.Identity (runIdentity)
 
 define_adt :: Type.ADT ty -> PPUtils.PP ()
-define_adt (Type.ADT _ name _) = PPUtils.write "data " >> PPUtils.write name >> PPUtils.write ";\n" -- TODO
+define_adt (Type.ADT _ name _ _) = PPUtils.write "data " >> PPUtils.write name >> PPUtils.write ";\n" -- TODO: variants and type vars
 
 define_type_synonym :: (ty -> PPUtils.PP ()) -> Type.TypeSynonym ty -> PPUtils.PP ()
 define_type_synonym show_ty (Type.TypeSynonym _ name expansion) = PPUtils.write "typesyn " >> PPUtils.write name >> PPUtils.write " = " >> show_ty expansion >> PPUtils.write ";\n"
 
 refer_adt :: Type.ADT ty -> PPUtils.PP ()
-refer_adt (Type.ADT id _ _) = PPUtils.write $ ID.stringify id
+refer_adt (Type.ADT id _ _ _) = PPUtils.write $ ID.stringify id
 
 refer_type_synonym :: Type.TypeSynonym ty -> PPUtils.PP ()
 refer_type_synonym (Type.TypeSynonym id _ _) = PPUtils.write $ ID.stringify id
@@ -35,7 +35,11 @@ refer_type :: (tyunk -> PPUtils.PP ()) -> Arena.Arena (Type.ADT ty) Type.ADTKey 
 refer_type show_tyunk adts type_synonyms vars ty = runIdentity $ refer_type_m (pure . show_tyunk) adts type_synonyms vars ty
 
 refer_type_m :: Monad m => (tyunk -> m (PPUtils.PP ())) -> Arena.Arena (Type.ADT ty) Type.ADTKey -> Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey -> Arena.Arena Type.Var Type.TypeVarKey -> Type.Type tyunk -> m (PPUtils.PP ())
-refer_type_m _ adts _ _ (Type.Type'ADT k) = pure $ refer_adt $ Arena.get adts k
+refer_type_m _ adts _ _ (Type.Type'ADT k params) =
+    let params'
+            | null params = PPUtils.write ""
+            | otherwise = PPUtils.write "#(" >> PPUtils.write ")" -- TODO
+    in pure $ refer_adt (Arena.get adts k) >> params'
 refer_type_m _ _ type_synonyms _ (Type.Type'Synonym k) = pure $ refer_type_synonym $ Arena.get type_synonyms k
 refer_type_m _ _ _ _ Type.Type'Int = pure $ PPUtils.write "int"
 refer_type_m _ _ _ _ Type.Type'Float = pure $ PPUtils.write "float"

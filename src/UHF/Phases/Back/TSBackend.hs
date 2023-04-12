@@ -89,7 +89,7 @@ stringify_ts_adt (TSADT key) =
             <> "}\n"
     where
         data_type =
-            get_adt key >>= \ (Type.ADT _ _ variants) ->
+            get_adt key >>= \ (Type.ADT _ _ _ variants) ->
             if null variants
                 then pure "never"
                 else mapM
@@ -259,7 +259,10 @@ initialize_global_thunks thunks =
 
 -- referring to types {{{2
 refer_type_raw :: Type.Type Void -> IRReader Text
-refer_type_raw (Type.Type'ADT ak) = mangle_adt ak
+refer_type_raw (Type.Type'ADT ak params) =
+    mangle_adt ak >>= \ ak_mangled ->
+    mapM refer_type_raw params >>= \ params_referred ->
+    pure (ak_mangled <> " /* #(" <> Text.intercalate ", " params_referred <> ") */") -- not necessary but
 
 refer_type_raw (Type.Type'Synonym sk) =
     get_type_synonym sk >>= \ (Type.TypeSynonym _ _ expansion) -> refer_type expansion
@@ -318,7 +321,7 @@ define_lambda_type _ _ = pure ()
 
 -- mangling {{{2
 mangle_adt :: Type.ADTKey -> IRReader Text
-mangle_adt key = get_adt key >>= \ (Type.ADT id _ _) -> pure (ID.mangle id)
+mangle_adt key = get_adt key >>= \ (Type.ADT id _ _ _) -> pure (ID.mangle id)
 
 mangle_binding_as_lambda :: ANFIR.BindingKey -> IRReader Text
 mangle_binding_as_lambda key = ANFIR.binding_id <$> get_binding key >>= \ id -> pure ("Lambda" <> ANFIR.mangle_id id)

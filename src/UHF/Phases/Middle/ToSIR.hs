@@ -204,15 +204,20 @@ convert_decls bv_parent decl_parent parent_name_context prev_decl_entries prev_b
             let binding = SIR.Binding target' eq_sp expr'
             in pure ([], new_bound_values, [binding], [], [])
 
-        convert_decl final_name_context (AST.Decl'Data name variants) =
+        convert_decl final_name_context (AST.Decl'Data name type_params variants) = -- TODO: type_params
             runMaybeT (
+                mapM iden1_for_type_name type_params >>= \ type_param_names ->
+                mapM (lift . new_type_var . unlocate) type_param_names >>= \ ty_param_vars ->
+                zipWithM (\ (Located sp name) var -> (name, DeclAt sp,) <$> lift (new_decl $ SIR.Decl'Type $ Type.Type'Variable var)) type_param_names ty_param_vars >>= \ new_decls ->
+                lift (make_name_context new_decls [] (Just final_name_context)) >>= \ new_nc ->
+
                 iden1_for_type_name name >>= \ (Located name1sp name1) ->
-                mapM (convert_variant final_name_context) variants >>= \ variants_converted ->
-                let datatype = Type.ADT (ID.DeclID decl_parent name1) name1 variants_converted
+                mapM (convert_variant new_nc) variants >>= \ variants_converted ->
+                let datatype = Type.ADT (ID.DeclID decl_parent name1) name1 ty_param_vars variants_converted
                 in
 
                 lift (new_adt datatype) >>= \ adt_key ->
-                lift (new_decl (SIR.Decl'Type $ Type.Type'ADT adt_key)) >>= \ decl_key ->
+                lift (new_decl (SIR.Decl'Type $ Type.Type'ADT adt_key [])) >>= \ decl_key ->
 
                 unzip <$> (catMaybes <$> mapM
                     (\ case

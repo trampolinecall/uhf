@@ -65,10 +65,15 @@ bound_value :: UntypedBoundValue -> ContextReader decls bvs (TypedWithUnkADTAren
 bound_value (SIR.BoundValue id () def_span) = SIR.BoundValue id <$> (lift $ lift $ Type.Type'Unknown <$> new_type_unknown (BoundValue def_span)) <*> pure def_span
 bound_value (SIR.BoundValue'ADTVariant id variant_index@(Type.ADTVariantIndex adt_key _) () def_span) = do
     (_, _, adts) <- ask
+    let (Type.ADT _ _ type_params _) = Arena.get adts adt_key
     let variant = Type.get_adt_variant adts variant_index
     let ty = case variant of
             Type.ADTVariant'Named _ _ -> error "bound value should not be made for a named adt variant" -- TODO: statically make sure this cant happen?
-            Type.ADTVariant'Anon _ fields -> foldr (\ field_ty result_ty -> Type.Type'Function (SIR.type_expr_type_info field_ty) result_ty) (Type.Type'ADT adt_key) fields -- function type that takes all the field types and then results in the adt type
+            Type.ADTVariant'Anon _ fields ->
+                let wrap_in_forall = case type_params of
+                        [] -> identity
+                        param:more -> Type.Type'Forall (param :| more)
+                 in wrap_in_forall $ foldr (\ field_ty result_ty -> Type.Type'Function (SIR.type_expr_type_info field_ty) result_ty) (Type.Type'ADT adt_key (map Type.Type'Variable type_params)) fields -- function type that takes all the field types and then results in the adt type
     pure (SIR.BoundValue'ADTVariant id variant_index ty def_span)
 
 decl :: UntypedDecl -> ContextReader UntypedDeclArena TypedWithUnkBoundValueArena adts TypedWithUnkDecl
@@ -76,7 +81,7 @@ decl (SIR.Decl'Type ty) = pure $ SIR.Decl'Type ty
 decl (SIR.Decl'Module id nc bindings adts type_synonyms) = SIR.Decl'Module id nc <$> mapM binding bindings <*> pure adts <*> pure type_synonyms
 
 adt :: UntypedADT -> ContextReader UntypedDeclArena bvs adts TypedWithUnkADT
-adt (Type.ADT id name variants) = Type.ADT id name <$> mapM convert_variant variants
+adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM convert_variant variants
     where
         convert_variant (Type.ADTVariant'Named name fields) = Type.ADTVariant'Named name <$> mapM (\ (name, ty) -> (,) name <$> type_expr ty) fields
         convert_variant (Type.ADTVariant'Anon name fields) = Type.ADTVariant'Anon name <$> mapM type_expr fields
@@ -101,7 +106,7 @@ type_expr (SIR.TypeExpr'Identifier () sp iden) = do
     pure (SIR.TypeExpr'Identifier ty sp iden)
     where
         -- basically useless function for converting Type Void to Type TypeUnknownKey
-        void_var_to_key (Type.Type'ADT k) = Type.Type'ADT k
+        void_var_to_key (Type.Type'ADT k params) = Type.Type'ADT k (map void_var_to_key params)
         void_var_to_key (Type.Type'Synonym k) = Type.Type'Synonym k
         void_var_to_key Type.Type'Int = Type.Type'Int
         void_var_to_key Type.Type'Float = Type.Type'Float

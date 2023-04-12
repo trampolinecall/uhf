@@ -1,7 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- eventually will replace the old one
-module UHF.PPUtilsNew
+module UHF.PPUtilsNew -- TODO: rename to UHF.PPUtils
     ( Consistency(..)
     , Token(..)
     , render
@@ -32,6 +32,7 @@ data Token
     | FirstOnLineIfMultiline Token
     | List [Token]
     | String Text
+    | OldPP (PPUtilsOld.PP ()) -- TODO: remove
 
 instance IsString Token where
     fromString = String . Text.pack
@@ -51,6 +52,7 @@ render = PPUtilsOld.exec_pp . render'
                   else tok'
         render' (List items) = mapM_ render' items
         render' (String s) = PPUtilsOld.write s
+        render' (OldPP p) = p
 
         -- TODO: break consistency; right now everything is treated as consistent breaking
         render_block needs_indent consistency delim_if_broken delim_if_single_line left_if_single_line right_if_single_line items =

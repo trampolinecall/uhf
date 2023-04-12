@@ -57,7 +57,7 @@ decl key = ask >>= \ (SIR.SIR decls _ _ _ _ _) ->
         SIR.Decl'Type _ -> pure ()
 
 adt :: ADTKey -> ReaderT (SIR d_iden v_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()
-adt key = ask >>= \ (SIR.SIR _ adts _ _ _ _) -> let (Type.ADT _ _ variants) = Arena.get adts key in mapM_ variant variants
+adt key = ask >>= \ (SIR.SIR _ adts _ _ _ _) -> let (Type.ADT _ _ _ variants) = Arena.get adts key in mapM_ variant variants
     where
         variant (Type.ADTVariant'Named _ fields) = mapM_ (\ (_, ty) -> type_expr ty) fields
         variant (Type.ADTVariant'Anon _ fields) = mapM_ type_expr fields

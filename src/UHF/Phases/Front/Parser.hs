@@ -60,11 +60,23 @@ decl_data :: PEG.Parser AST.Decl
 decl_data =
     PEG.consume' "data declaration" (Token.SingleTypeToken Token.Data) >>
     PEG.consume' "datatype name" (Token.AlphaIdentifier ()) >>= \ (Located name_sp (Token.AlphaIdentifier name)) ->
+    PEG.optional (
+        PEG.consume' "'#'" (Token.SingleTypeToken Token.Hash) >>
+        PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>
+        PEG.delim_star
+            (
+                PEG.consume' "type variable name" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
+                pure (Located iden_sp iden)
+            )
+            (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ vars ->
+        PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>
+        pure vars
+    ) >>= \ type_params ->
     PEG.consume' "'{'" (Token.SingleTypeToken Token.OBrace) >>
     PEG.star variant >>= \ variants ->
     PEG.consume' "'}'" (Token.SingleTypeToken Token.CBrace) >>
     PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>
-    pure (AST.Decl'Data (Located name_sp name) variants)
+    pure (AST.Decl'Data (Located name_sp name) (fromMaybe [] type_params) variants)
     where
         variant =
             PEG.consume' "variant name" (Token.AlphaIdentifier ()) >>= \ (Located name_sp (Token.AlphaIdentifier name)) ->

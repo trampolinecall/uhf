@@ -13,7 +13,7 @@ type Identifier = Located [Located Text]
 
 data Decl
     = Decl'Value Pattern Span Expr
-    | Decl'Data Identifier [DataVariant]
+    | Decl'Data Identifier [Identifier] [DataVariant]
     | Decl'TypeSyn Identifier Type
     -- TODO: | Decl'Import Type
     deriving (Eq, Show)

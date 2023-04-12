@@ -19,7 +19,7 @@ dump_decl_list = mapM_ (\ decl -> dump_decl decl >> PPUtils.newline)
 
 dump_decl :: AST.Decl -> PPUtils.PP ()
 dump_decl (AST.Decl'Value target _ init) = dump_struct "Decl'Value" [("target", dump_pattern target), ("init", dump_expr init)]
-dump_decl (AST.Decl'Data name variants) = dump_struct "Decl'Data" [("name", dump_identifier name), ("variants", dump_list dump_data_variant variants)]
+dump_decl (AST.Decl'Data name type_params variants) = dump_struct "Decl'Data" [("name", dump_identifier name), ("type_params", dump_list dump_identifier type_params), ("variants", dump_list dump_data_variant variants)]
 dump_decl (AST.Decl'TypeSyn name ty) = dump_struct "Decl'TypeSyn" [("name", dump_identifier name), ("ty", dump_type ty)]
 
 dump_data_variant :: AST.DataVariant -> PPUtils.PP ()

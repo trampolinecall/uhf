@@ -99,7 +99,12 @@ apply_ty sp (Type.Type'Unknown unk) arg =
     Arena.get <$> lift get <*> pure unk >>= \case
         TypeUnknown _ (Substituted sub) -> apply_ty sp sub arg
         TypeUnknown _ Fresh -> pure Nothing
-apply_ty sp ty@(Type.Type'ADT _) _ = Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty)) -- TODO: parameterized datatypes
+apply_ty sp ty@(Type.Type'ADT adt params_already_applied) arg = do
+    (adts, _, _) <- ask
+    let (Type.ADT _ _ type_params _) = Arena.get adts adt
+    if length params_already_applied < length type_params -- TODO: check kind of arg when higher kinds are implemented
+          then pure $ Just $ Right $ Type.Type'ADT adt (params_already_applied <> [arg])
+          else Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty))
 apply_ty sp ty@(Type.Type'Synonym _) _ = Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty)) -- TODO: type synonyms with arguments, also TODO: make sure that type synonyms are always fully applied
 apply_ty sp ty@Type.Type'Int _ = Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty))
 apply_ty sp ty@Type.Type'Float _ = Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty))
@@ -110,7 +115,7 @@ apply_ty sp ty@(Type.Type'Function _ _) _ = Just <$> (Left <$> (DoesNotTakeTypeA
 apply_ty sp ty@(Type.Type'Tuple _ _) _ = Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty))
 apply_ty sp ty@(Type.Type'Variable _) _ = Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty)) -- TODO: higher kinded variables
 apply_ty _ (Type.Type'Forall (first_var :| more_vars) ty) arg =
-    -- TODO: check kind of first_var
+    -- TODO: check kind of first_var when higher kinded variables are implemented
     case more_vars of
         [] -> Just <$> (Right <$> subst first_var arg ty)
         more_1:more_more -> Just <$> (Right <$> (Type.Type'Forall (more_1 :| more_more) <$> subst first_var arg ty))
@@ -122,7 +127,7 @@ apply_ty _ (Type.Type'Forall (first_var :| more_vars) ty) arg =
         subst looking_for replacement ty@(Type.Type'Variable v)
             | looking_for == v = pure replacement
             | otherwise = pure ty
-        subst _ _ ty@(Type.Type'ADT _) = pure ty -- TODO: replace in arguments
+        subst looking_for replacement (Type.Type'ADT adt_key params) = Type.Type'ADT adt_key <$> mapM (subst looking_for replacement) params
         subst _ _ ty@(Type.Type'Synonym _) = pure ty -- TODO: replace in arguments
         subst _ _ Type.Type'Int = pure Type.Type'Int
         subst _ _ Type.Type'Float = pure Type.Type'Float
@@ -137,8 +142,10 @@ unify :: TypeWithUnk -> TypeWithUnk -> ExceptT UnifyError (TypeContextReader Sta
 unify (Type.Type'Unknown a) b = unify_unk a b False
 unify a (Type.Type'Unknown b) = unify_unk b a True
 
-unify (Type.Type'ADT a_adt_key) (Type.Type'ADT b_adt_key)
-    | a_adt_key == b_adt_key = pure ()
+unify (Type.Type'ADT a_adt_key a_params) (Type.Type'ADT b_adt_key b_params)
+    | a_adt_key == b_adt_key
+        && length a_params == length b_params =
+        zipWithM unify a_params b_params >> pure ()
 
 unify (Type.Type'Synonym a_syn_key) b =
     lift ask >>= \ (_, type_synonyms, _) ->
@@ -157,8 +164,9 @@ unify Type.Type'String Type.Type'String = pure ()
 unify Type.Type'Bool Type.Type'Bool = pure ()
 unify (Type.Type'Function a1 r1) (Type.Type'Function a2 r2) = unify a1 a2 >> unify r1 r2
 unify (Type.Type'Tuple a1 b1) (Type.Type'Tuple a2 b2) = unify a1 a2 >> unify b1 b2
+-- variables do not automatically unify beacuse one type variable can be used in multiple places
 unify (Type.Type'Variable v1) (Type.Type'Variable v2) -- TODO: temporary substitutions
-    | v1 == v2 = pure ()
+    | False = pure () -- TODO: only check temporary substitutions
 -- TODO: unifying forall
 unify a b = ExceptT (pure $ Left $ Mismatch a b)
 
@@ -201,7 +209,7 @@ occurs_check u (Type.Type'Unknown other_v) =
                 TypeUnknown _ (Substituted other_sub) -> occurs_check u other_sub
                 TypeUnknown _ Fresh -> pure False
 
-occurs_check _ (Type.Type'ADT _) = pure False
+occurs_check u (Type.Type'ADT _ params) = or <$> mapM (occurs_check u) params
 
 occurs_check u (Type.Type'Synonym syn_key) =
     ask >>= \ (_, type_synonyms, _) ->

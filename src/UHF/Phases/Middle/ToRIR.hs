@@ -56,7 +56,7 @@ convert (SIR.SIR decls adts type_synonyms type_vars bvs mod) =
     in RIR.RIR decls' adts_converted type_synonyms_converted type_vars bvs_converted mod
 
 convert_adt :: Type.ADT SIRTypeExpr -> Type.ADT Type
-convert_adt (Type.ADT id name variants) = Type.ADT id name (map convert_variant variants)
+convert_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars (map convert_variant variants)
     where
         convert_variant (Type.ADTVariant'Named name fields) = Type.ADTVariant'Named name (map (\ (name, ty) -> (name, SIR.type_expr_type_info ty)) fields)
         convert_variant (Type.ADTVariant'Anon name fields) = Type.ADTVariant'Anon name (map SIR.type_expr_type_info fields)
@@ -70,18 +70,25 @@ convert_decl (SIR.Decl'Type ty) = pure $ RIR.Decl'Type ty
 
 convert_binding :: RIR.BoundWhere -> SIRBinding -> ConvertState [RIRBinding]
 convert_binding bound_where (SIR.Binding pat _ expr) = convert_expr bound_where expr >>= assign_pattern bound_where pat
-convert_binding bound_where (SIR.Binding'ADTVariant bvk variant_index) =
+convert_binding bound_where (SIR.Binding'ADTVariant bvk variant_index@(Type.ADTVariantIndex adt_key _)) =
     map_bound_where bvk bound_where >>
-    Type.get_adt_variant <$> (lift ask) <*> pure variant_index >>= \ variant ->
-    make_lambdas variant_index [] (Type.variant_field_types variant) >>= \ lambdas ->
+    lift ask >>= \ adts ->
+    let (Type.ADT _ _ type_params _) = Arena.get adts adt_key
+        variant = Type.get_adt_variant adts variant_index
 
+        wrap_in_forall = case type_params of
+            [] -> pure
+            param:more -> \ lambda ->
+                new_made_up_expr_id >>= \ forall_id ->
+                pure (RIR.Expr'Forall forall_id (Type.Type'Forall (param :| more) <$> (RIR.expr_type lambda)) todo (param :| more) lambda)
+    in make_lambdas type_params variant_index [] (Type.variant_field_types variant) >>= wrap_in_forall >>= \ lambdas ->
     pure [RIR.Binding bvk lambdas]
     where
-        make_lambdas variant_index@(Type.ADTVariantIndex adt_key _) refer_to_params [] =
+        make_lambdas type_params variant_index@(Type.ADTVariantIndex adt_key _) refer_to_params [] =
             new_made_up_expr_id >>= \ make_adt_id ->
-            pure $ RIR.Expr'MakeADT make_adt_id (Type.Type'ADT adt_key) todo variant_index refer_to_params
+            pure $ RIR.Expr'MakeADT make_adt_id (Type.Type'ADT adt_key (map Type.Type'Variable type_params)) todo variant_index refer_to_params
 
-        make_lambdas variant_index refer_to_params (cur_field_ty:more_field_tys) =
+        make_lambdas type_params variant_index refer_to_params (cur_field_ty:more_field_tys) =
             Unique.make_unique >>= \ lambda_uniq ->
             new_made_up_bv_id >>= \ bv_id ->
             new_bound_value bv_id (RIR.InLambdaBody lambda_uniq) cur_field_ty todo >>= \ param_bvk ->
@@ -89,7 +96,7 @@ convert_binding bound_where (SIR.Binding'ADTVariant bvk variant_index) =
             let refer_expr = RIR.Expr'Identifier expr_id cur_field_ty todo (Just param_bvk)
 
             in new_made_up_expr_id >>= \ lambda_id ->
-            make_lambdas variant_index (refer_to_params <> [refer_expr]) more_field_tys >>= \ lambda_result ->
+            make_lambdas type_params variant_index (refer_to_params <> [refer_expr]) more_field_tys >>= \ lambda_result ->
             let lambda_ty = Type.Type'Function <$> cur_field_ty <*> RIR.expr_type lambda_result
             in pure (RIR.Expr'Lambda lambda_id lambda_ty todo lambda_uniq () param_bvk lambda_result)
 

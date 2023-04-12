@@ -26,7 +26,7 @@ import qualified UHF.Data.IR.ID as ID
 import qualified Data.List as List
 
 data Type unk
-    = Type'ADT ADTKey
+    = Type'ADT ADTKey [Type unk]
     | Type'Synonym TypeSynonymKey
     | Type'Int
     | Type'Float
@@ -40,7 +40,7 @@ data Type unk
     | Type'Forall (NonEmpty TypeVarKey) (Type unk)
     deriving Show
 
-data ADT ty = ADT ID.DeclID Text [ADTVariant ty] deriving Show
+data ADT ty = ADT ID.DeclID Text [TypeVarKey] [ADTVariant ty] deriving Show
 data ADTVariant ty
     = ADTVariant'Named Text [(Text, ty)]
     | ADTVariant'Anon Text [ty]
@@ -57,7 +57,7 @@ variant_field_types (ADTVariant'Named _ tys) = map snd tys
 -- technically can error, but every ADTVariantIndex constructed should be a valid variant, so hopefully if everything is functioning correctly, this should never fail
 get_adt_variant :: Arena.Arena (ADT ty) ADTKey -> ADTVariantIndex  -> ADTVariant ty
 get_adt_variant adts (ADTVariantIndex key i) =
-    let (ADT _ _ variants) = Arena.get adts key
+    let (ADT _ _ _ variants) = Arena.get adts key
     in variants List.!! i
 
 data TypeSynonym ty = TypeSynonym ID.DeclID Text ty deriving Show

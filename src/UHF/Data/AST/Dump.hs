@@ -15,7 +15,7 @@ dump :: [AST.Decl] -> Text
 dump = PP.render . dump_decl_list
 
 dump_decl_list :: [AST.Decl] -> PP.Token
-dump_decl_list = PP.vertical_list . map dump_decl
+dump_decl_list = PP.bracketed_comma_list . map dump_decl
 
 dump_decl :: AST.Decl -> PP.Token
 dump_decl (AST.Decl'Value target _ init) = dump_struct "Decl'Value" [("target", dump_pattern target), ("init", dump_expr init)]
@@ -24,7 +24,7 @@ dump_decl (AST.Decl'TypeSyn name ty) = dump_struct "Decl'TypeSyn" [("name", dump
 
 dump_data_variant :: AST.DataVariant -> PP.Token
 dump_data_variant (AST.DataVariant'Anon name fields) = dump_struct "DataVariant'Anon" [("name", dump_identifier name), ("fields", dump_list dump_type fields)]
-dump_data_variant (AST.DataVariant'Named name fields) = dump_struct "DataVariant'Named" [("name", dump_identifier name), ("fields", dump_list (\ (name, ty) -> PP.List [dump_identifier name, PP.String ": ", dump_type ty]) fields)]
+dump_data_variant (AST.DataVariant'Named name fields) = dump_struct "DataVariant'Named" [("name", dump_identifier name), ("fields", dump_list (\ (name, ty) -> PP.List [dump_identifier name, ": ", dump_type ty]) fields)]
 
 dump_type :: AST.Type -> PP.Token
 dump_type (AST.Type'Identifier iden) = dump_struct "Type'Identifier" [("iden", dump_identifier iden)]
@@ -45,10 +45,10 @@ dump_expr (AST.Expr'Tuple _ items) = dump_struct "Expr'Tuple" [("items", dump_li
 dump_expr (AST.Expr'Lambda _ args body) = dump_struct "Expr'Lambda" [("args", dump_list dump_pattern args), ("body", dump_expr body)]
 dump_expr (AST.Expr'Let _ decls res) = dump_struct "Expr'Let" [("decls", dump_decl_list decls), ("res", dump_expr res)]
 dump_expr (AST.Expr'LetRec _ decls res) = dump_struct "Expr'LetRec" [("decls", dump_decl_list decls), ("res", dump_expr res)]
-dump_expr (AST.Expr'BinaryOps _ first ops) = dump_struct "Expr'BinaryOps" [("first", dump_expr first), ("ops", dump_list (\ (op, rhs) -> PP.List [dump_identifier op, PP.String " ", dump_expr rhs]) ops)]
+dump_expr (AST.Expr'BinaryOps _ first ops) = dump_struct "Expr'BinaryOps" [("first", dump_expr first), ("ops", dump_list (\ (op, rhs) -> PP.List [dump_identifier op, " ", dump_expr rhs]) ops)]
 dump_expr (AST.Expr'Call _ callee args) = dump_struct "Expr'Call" [("callee", dump_expr callee), ("args", dump_list dump_expr args)]
 dump_expr (AST.Expr'If _ _ cond true false) = dump_struct "Expr'If" [("cond", dump_expr cond), ("true", dump_expr true), ("false", dump_expr false)]
-dump_expr (AST.Expr'Case _ _ e arms) = dump_struct "Expr'Case" [("e", dump_expr e), ("arms", dump_list (\ (pat, expr) -> PP.List [dump_pattern pat, PP.String " -> ", dump_expr expr]) arms)]
+dump_expr (AST.Expr'Case _ _ e arms) = dump_struct "Expr'Case" [("e", dump_expr e), ("arms", dump_list (\ (pat, expr) -> PP.List [dump_pattern pat, " -> ", dump_expr expr]) arms)]
 dump_expr (AST.Expr'TypeAnnotation _ ty e) = dump_struct "Expr'TypeAnnotation" [("ty", dump_type ty), ("e", dump_expr e)]
 dump_expr (AST.Expr'Forall _ tys e) = dump_struct "Expr'Forall" [("new", dump_list dump_identifier tys), ("e", dump_expr e)]
 dump_expr (AST.Expr'TypeApply _ e tys) = dump_struct "Expr'TypeApply" [("e", dump_expr e), ("args", dump_list dump_type tys)]
@@ -64,9 +64,9 @@ dump_identifier :: Located [Located Text] -> PP.Token
 dump_identifier (Located _ items) = PP.String $ Text.intercalate "::" (map unlocate items)
 
 dump_struct :: Text -> [(Text, PP.Token)] -> PP.Token
-dump_struct name fields = PP.List [PP.String name, " ", PP.braced_block (map dump_field fields)]
+dump_struct name fields = PP.List [PP.String name, " ", PP.braced_comma_list (map dump_field fields)]
     where
-        dump_field (name, value) = PP.List [PP.String name, PP.String " = ", value]
+        dump_field (name, value) = PP.List [PP.String name, " = ", value]
 
 dump_list :: (d -> PP.Token) -> [d] -> PP.Token
-dump_list dump = PP.bracketed_block . map dump
+dump_list dump = PP.bracketed_comma_list . map dump

@@ -75,6 +75,7 @@ library
       UHF.Phases.Middle.Type.StateWithUnk
       UHF.Phases.Middle.Type.Unknown
       UHF.PPUtils
+      UHF.PPUtilsNew
       UHF.Util.Prelude
       Unique
   other-modules:

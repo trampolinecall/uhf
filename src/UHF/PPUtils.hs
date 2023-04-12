@@ -4,6 +4,7 @@ module UHF.PPUtils
     , run_pp
     , exec_pp
 
+    , first_on_line
     , is_multiline
     , write
     , write_ch
@@ -23,6 +24,9 @@ newtype PP a = PP (StateT IndentState (Writer Text) a) deriving (Functor, Applic
 
 is_multiline :: PP a -> Bool
 is_multiline = Text.any (=='\n') . exec_pp
+
+first_on_line :: PP Bool
+first_on_line = PP $ get >>= \ (IndentState _ is_first) -> pure is_first
 
 run_pp :: PP a -> (a, Text)
 run_pp (PP d) = runWriter $ evalStateT d (IndentState 0 True)

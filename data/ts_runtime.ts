@@ -122,32 +122,29 @@ class TupleDestructure2Evaluator<B extends Showable> implements Evaluator<B> {
     }
 }
 
-interface Matcher<T> {
-    matches(thing: Thunk<T>): boolean;
-}
-class BoolLiteralMatcher implements Matcher<boolean> {
-    constructor(public expecting: boolean) {}
-    matches(t: Thunk<boolean>): boolean {
-        return t.get_value() == this.expecting;
+type SwitchMatcher<T> = (a: Thunk<T>) => boolean;
+function bool_literal_matcher(expecting: boolean): SwitchMatcher<Bool> {
+    return (b: Thunk<Bool>) => {
+        return b.get_value().value == expecting;
     }
 }
-class DefaultMatcher<T> implements Matcher<T> {
-    matches(t: Thunk<T>): boolean {
+function default_matcher<T>(): SwitchMatcher<T> {
+    return (_: Thunk<T>) => {
         return true;
     }
 }
 // TODO: same todo about extends Showable constraint
-class TupleMatcher<A extends Showable, B extends Showable> implements Matcher<Tuple<A, B>> {
-    matches(t: Thunk<Tuple<A, B>>): boolean {
-        return true; // tuples only have one constructor so it always matches
+function tuple_matcher<A extends Showable, B extends Showable>(): SwitchMatcher<Tuple<A, B>> {
+    return (_: Thunk<Tuple<A, B>>) => {
+        return true;
     }
 }
 class SwitchEvaluator<E, R> implements Evaluator<R> {
-    constructor(public testing: Thunk<E>, public arms: [Matcher<E>, Thunk<R>][]) {}
+    constructor(public testing: Thunk<E>, public arms: [SwitchMatcher<E>, Thunk<R>][]) {}
 
     evaluate(): R {
         for (let [matcher, result] of this.arms) {
-            if (matcher.matches(this.testing)) {
+            if (matcher(this.testing)) {
                 return result.get_value();
             }
         }

@@ -15,7 +15,7 @@ dump :: [AST.Decl] -> Text
 dump = PP.render . dump_decl_list
 
 dump_decl_list :: [AST.Decl] -> PP.Token
-dump_decl_list = PP.bracketed_comma_list . map dump_decl
+dump_decl_list = PP.bracketed_comma_list PP.Consistent . map dump_decl
 
 dump_decl :: AST.Decl -> PP.Token
 dump_decl (AST.Decl'Value target _ init) = dump_struct "Decl'Value" [("target", dump_pattern target), ("init", dump_expr init)]
@@ -64,9 +64,9 @@ dump_identifier :: Located [Located Text] -> PP.Token
 dump_identifier (Located _ items) = PP.String $ Text.intercalate "::" (map unlocate items)
 
 dump_struct :: Text -> [(Text, PP.Token)] -> PP.Token
-dump_struct name fields = PP.List [PP.String name, " ", PP.braced_comma_list (map dump_field fields)]
+dump_struct name fields = PP.List [PP.String name, " ", PP.braced_comma_list PP.Consistent (map dump_field fields)]
     where
         dump_field (name, value) = PP.List [PP.String name, " = ", value]
 
 dump_list :: (d -> PP.Token) -> [d] -> PP.Token
-dump_list dump = PP.bracketed_comma_list . map dump
+dump_list dump = PP.bracketed_comma_list PP.Inconsistent . map dump

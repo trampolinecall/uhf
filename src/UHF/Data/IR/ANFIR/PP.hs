@@ -84,8 +84,8 @@ expr (ANFIR.Expr'Float _ _ (n :% d)) = pure $ PP.String $ "(" <> show n <> "/" <
 expr (ANFIR.Expr'Bool _ _ b) = pure $ PP.String $ if b then "true" else "false"
 expr (ANFIR.Expr'Char _ _ c) = pure $ PP.String $ show c
 expr (ANFIR.Expr'String _ _ s) = pure $ PP.String $ show s
-expr (ANFIR.Expr'Tuple _ _ a b) = refer_binding a >>= \ a -> refer_binding b >>= \ b -> pure (PP.parenthesized_comma_list [a, b])
-expr (ANFIR.Expr'Lambda _ _ _ param bindings body) = refer_param param >>= \ param -> mapM define_binding bindings >>= \ bindings -> refer_binding body >>= \ body -> pure (PP.List ["\\ ", param, " -> ", PP.braced_block bindings, "\n", body]) -- TODO: dump captures
+expr (ANFIR.Expr'Tuple _ _ a b) = refer_binding a >>= \ a -> refer_binding b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b])
+expr (ANFIR.Expr'Lambda _ _ _ param bindings body) = refer_param param >>= \ param -> mapM define_binding bindings >>= \ bindings -> refer_binding body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, " -> ", PP.braced_block bindings, "\n", body]) -- TODO: dump captures
 expr (ANFIR.Expr'Param _ _ pk) = refer_param pk
 expr (ANFIR.Expr'Call _ _ callee arg) = refer_binding callee >>= \ callee -> refer_binding arg >>= \ arg -> pure (PP.List [callee, "(", arg, ")"])
 expr (ANFIR.Expr'Switch _ _ e arms) = refer_binding e >>= \ e -> mapM arm arms >>= \ arms -> pure (PP.List ["switch ", e, " ", PP.braced_block arms])
@@ -96,12 +96,12 @@ expr (ANFIR.Expr'Switch _ _ e arms) = refer_binding e >>= \ e -> mapM arm arms >
 expr (ANFIR.Expr'Seq _ _ a b) = refer_binding a >>= \ a -> refer_binding b >>= \ b -> pure (PP.List ["seq ", a, ", ", b])
 expr (ANFIR.Expr'TupleDestructure1 _ _ other) = refer_binding other >>= \ other ->  pure (PP.List [other, ".0"])
 expr (ANFIR.Expr'TupleDestructure2 _ _ other) = refer_binding other >>= \ other ->  pure (PP.List [other, ".1"])
-expr (ANFIR.Expr'Forall _ _ vars e) = mapM type_var vars >>= \ vars -> refer_binding e >>= \ e -> pure (PP.List ["#", PP.parenthesized_comma_list $ toList vars, " ", e])
+expr (ANFIR.Expr'Forall _ _ vars e) = mapM type_var vars >>= \ vars -> refer_binding e >>= \ e -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList vars, " ", e])
 expr (ANFIR.Expr'TypeApply _ _ e arg) = refer_binding e >>= \ e -> refer_type arg >>= \ arg -> pure (PP.List [e, "#(", arg, ")"])
 expr (ANFIR.Expr'MakeADT _ _ variant_index@(Type.ADTVariantIndex adt_key _) args) =
     Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_referred ->
     Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
     mapM refer_binding args >>= \ args ->
     let variant_name = Type.variant_name variant
-    in pure $ PP.List ["adt ", adt_referred, " ", PP.String variant_name, PP.bracketed_comma_list args]
+    in pure $ PP.List ["adt ", adt_referred, " ", PP.String variant_name, PP.bracketed_comma_list PP.Inconsistent args]
 expr (ANFIR.Expr'Poison _ _ _) = pure $ PP.String "poison"

@@ -10,23 +10,22 @@ import qualified Data.Set as Set
 
 import qualified UHF.Data.IR.RIR as RIR
 import qualified UHF.Data.IR.Type as Type
-import UHF.Data.IR.Keys
 
 type BoundValue = RIR.BoundValue (Maybe (Type.Type Void))
 
-type CaptureList = Set BoundValueKey -- TODO: dont use BoundValueKey Ord for order of captures in ts backend arguments
+type CaptureList = Set RIR.BoundValueKey -- TODO: dont use BoundValueKey Ord for order of captures in ts backend arguments
 
 annotate :: RIR.RIR () -> RIR.RIR CaptureList
 annotate (RIR.RIR decls adts type_synonyms type_vars bvs mod) = RIR.RIR (Arena.transform (annotate_decl bvs) decls) adts type_synonyms type_vars bvs mod
 
-annotate_decl :: Arena.Arena BoundValue BoundValueKey -> RIR.Decl () -> RIR.Decl CaptureList
+annotate_decl :: Arena.Arena BoundValue RIR.BoundValueKey -> RIR.Decl () -> RIR.Decl CaptureList
 annotate_decl bvs (RIR.Decl'Module bindings adts type_synonyms) = RIR.Decl'Module (map (annotate_binding bvs) bindings) adts type_synonyms
 annotate_decl _ (RIR.Decl'Type ty) = RIR.Decl'Type ty
 
-annotate_binding :: Arena.Arena BoundValue BoundValueKey -> RIR.Binding () -> RIR.Binding CaptureList
+annotate_binding :: Arena.Arena BoundValue RIR.BoundValueKey -> RIR.Binding () -> RIR.Binding CaptureList
 annotate_binding bvs (RIR.Binding bv initializer) = RIR.Binding bv (annotate_expr bvs initializer)
 
-annotate_expr :: Arena.Arena BoundValue BoundValueKey -> RIR.Expr () -> RIR.Expr CaptureList
+annotate_expr :: Arena.Arena BoundValue RIR.BoundValueKey -> RIR.Expr () -> RIR.Expr CaptureList
 annotate_expr _ (RIR.Expr'Identifier id ty sp i) = RIR.Expr'Identifier id ty sp i
 annotate_expr _ (RIR.Expr'Char id ty sp c) = RIR.Expr'Char id ty sp c
 annotate_expr _ (RIR.Expr'String id ty sp s) = RIR.Expr'String id ty sp s
@@ -38,7 +37,7 @@ annotate_expr bvs (RIR.Expr'Lambda id ty sp uniq () param body) =
     let body' = annotate_expr bvs body
     in RIR.Expr'Lambda id ty sp uniq (get_captures body') param body'
     where
-        get_captures :: RIR.Expr CaptureList -> Set BoundValueKey
+        get_captures :: RIR.Expr CaptureList -> Set RIR.BoundValueKey
         get_captures (RIR.Expr'Identifier _ _ _ (Just i))
             | is_capture i = [i]
             | otherwise = []

@@ -2,7 +2,7 @@ module UHF.Data.AST.PP (pp_decls) where
 
 import UHF.Util.Prelude
 
-import qualified UHF.PPUtilsNew as PP
+import qualified UHF.PP as PP
 import qualified UHF.Data.AST as AST
 
 import UHF.IO.Located (Located (..))
@@ -15,10 +15,8 @@ pp_decls = PP.render . pp_decls'
 pp_decls' :: [AST.Decl] -> PP.Token
 pp_decls' = PP.flat_block . map pp_decl
 
--- TODO: handle multiline things correctly everywhere
-
 pp_decl :: AST.Decl -> PP.Token
-pp_decl (AST.Decl'Value target _ init) = PP.List [pp_pattern target, " = ", pp_expr init, ";"] -- TODO: handle the initializer being multiline
+pp_decl (AST.Decl'Value target _ init) = PP.List [pp_pattern target, " = ", pp_expr init, ";"]
 pp_decl (AST.Decl'Data name params variants) =
     let variants' = PP.braced_block $ map pp_data_variant variants
         params'
@@ -52,7 +50,7 @@ pp_expr (AST.Expr'Tuple _ items) = PP.parenthesized_comma_list $ map pp_expr ite
 pp_expr (AST.Expr'Lambda _ args body) = PP.FirstOnLineIfMultiline $ PP.List ["\\ ", PP.parenthesized_comma_list $ map pp_pattern args, " -> ", pp_expr body]
 pp_expr (AST.Expr'Let _ decls res) = pp_let "let" decls res
 pp_expr (AST.Expr'LetRec _ decls res) = pp_let "letrec" decls res
-pp_expr (AST.Expr'BinaryOps _ first ops) = PP.List [pp_expr first, PP.indented_block $ (map (\ (op, rhs) -> PP.List [pp_iden op, " ", pp_expr rhs]) ops)]
+pp_expr (AST.Expr'BinaryOps _ first ops) = PP.List [pp_expr first, PP.indented_block $ map (\ (op, rhs) -> PP.List [pp_iden op, " ", pp_expr rhs]) ops]
 pp_expr (AST.Expr'Call _ callee args) = PP.List [pp_expr callee, PP.parenthesized_comma_list $ map pp_expr args]
 pp_expr (AST.Expr'If _ _ cond true false) = PP.FirstOnLineIfMultiline $ PP.List ["if ", pp_expr cond, " then ", pp_expr true, " else ", pp_expr false]
 pp_expr (AST.Expr'Case _ _ e arms) = PP.List ["case ", pp_expr e, " ", PP.braced_block $ map (\ (pat, expr) -> PP.List [pp_pattern pat, " -> ", pp_expr expr, ";"]) arms]

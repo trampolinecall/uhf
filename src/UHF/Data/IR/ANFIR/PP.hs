@@ -6,8 +6,7 @@ import UHF.Util.Prelude
 
 import qualified Arena
 
-import qualified UHF.PPUtilsNew as PP
-import qualified UHF.PPUtils as OldPP
+import qualified UHF.PP as PP
 
 import qualified UHF.Data.IR.ANFIR as ANFIR
 import qualified UHF.Data.IR.Type as Type
@@ -42,8 +41,8 @@ dump_main_module ir@(ANFIR.ANFIR decls _ _ _ _ _ mod) = PP.render $ runReader (d
 define_decl :: DumpableType ty => ANFIR.Decl -> IRReader ty poison_allowed PP.Token
 define_decl (ANFIR.Decl'Module bindings adts type_synonyms) =
     ask >>= \ anfir ->
-    mapM (\ k -> get_adt k >>= pure . PP.OldPP . Type.PP.define_adt) adts >>= \ adts ->
-    mapM (\ k -> get_type_synonym k >>= pure . PP.OldPP . Type.PP.define_type_synonym (\ ty -> runReader (PP.render <$> refer_type ty >>= pure . OldPP.write) anfir)) type_synonyms >>= \ type_synonyms ->
+    mapM (fmap Type.PP.define_adt . get_adt) adts >>= \ adts ->
+    mapM (fmap (Type.PP.define_type_synonym (\ ty -> runReader (refer_type ty) anfir)) . get_type_synonym) type_synonyms >>= \ type_synonyms ->
     mapM define_binding bindings >>= \ bindings ->
     pure (PP.flat_block $ adts <> type_synonyms <> bindings)
 define_decl (ANFIR.Decl'Type _) = pure $ PP.List []
@@ -73,7 +72,7 @@ instance DumpableType (Type.Type Void) where
         get_adt_arena >>= \ adt_arena ->
         get_type_synonym_arena >>= \ type_synonym_arena ->
         get_type_var_arena >>= \ type_var_arena ->
-        pure (PP.OldPP $ Type.PP.refer_type absurd adt_arena type_synonym_arena type_var_arena ty)
+        pure (Type.PP.refer_type absurd adt_arena type_synonym_arena type_var_arena ty)
 
 type_var :: Type.TypeVarKey -> IRReader ty poison_allowed PP.Token
 type_var k = get_type_var k >>= \ (Type.Var name) -> pure (PP.String name)
@@ -91,7 +90,7 @@ expr (ANFIR.Expr'Param _ _ pk) = refer_param pk
 expr (ANFIR.Expr'Call _ _ callee arg) = refer_binding callee >>= \ callee -> refer_binding arg >>= \ arg -> pure (PP.List [callee, "(", arg, ")"])
 expr (ANFIR.Expr'Switch _ _ e arms) = refer_binding e >>= \ e -> mapM arm arms >>= \ arms -> pure (PP.List ["switch ", e, " ", PP.braced_block arms])
     where
-        arm (ANFIR.Switch'BoolLiteral b, expr) = refer_binding expr >>= \ expr -> pure (PP.List [(if b then "true" else "false"), " -> ", expr, ";"])
+        arm (ANFIR.Switch'BoolLiteral b, expr) = refer_binding expr >>= \ expr -> pure (PP.List [if b then "true" else "false", " -> ", expr, ";"])
         arm (ANFIR.Switch'Tuple, expr) = refer_binding expr >>= \ expr -> pure (PP.List ["(,) -> ", expr, ";"])
         arm (ANFIR.Switch'Default, expr) = refer_binding expr >>= \ expr -> pure (PP.List ["_ -> ", expr, ";"])
 expr (ANFIR.Expr'Seq _ _ a b) = refer_binding a >>= \ a -> refer_binding b >>= \ b -> pure (PP.List ["seq ", a, ", ", b])
@@ -104,5 +103,5 @@ expr (ANFIR.Expr'MakeADT _ _ variant_index@(Type.ADTVariantIndex adt_key _) args
     Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
     mapM refer_binding args >>= \ args ->
     let variant_name = Type.variant_name variant
-    in pure $ PP.List ["adt ", PP.OldPP adt_referred, " ", PP.String variant_name, PP.bracketed_comma_list args]
+    in pure $ PP.List ["adt ", adt_referred, " ", PP.String variant_name, PP.bracketed_comma_list args]
 expr (ANFIR.Expr'Poison _ _ _) = pure $ PP.String "poison"

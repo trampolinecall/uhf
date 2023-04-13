@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module UHF.PPUtils -- TODO: rename to UHF.PPUtils.IndentationMonad
+
+module UHF.PP.IndentationMonad
     ( PP
     , run_pp
     , exec_pp
@@ -10,7 +11,6 @@ module UHF.PPUtils -- TODO: rename to UHF.PPUtils.IndentationMonad
     , write_ch
     , indent
     , dedent
-    , newline
     ) where
 
 -- TODO: write tests
@@ -55,5 +55,3 @@ indent :: PP ()
 indent = PP $ modify $ \ (IndentState indent at_start) -> IndentState (indent + 4) at_start
 dedent :: PP ()
 dedent = PP $ modify $ \ (IndentState indent at_start) -> IndentState (indent - 4) at_start
-newline :: PP ()
-newline = write_ch '\n'

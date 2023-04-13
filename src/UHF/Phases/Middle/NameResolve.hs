@@ -31,7 +31,6 @@ import qualified UHF.Diagnostic.Codes as Diagnostic.Codes
 
 import qualified UHF.Data.IR.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
-import UHF.Data.IR.Keys
 
 import qualified Data.Map as Map
 import Data.Functor.Identity (Identity (Identity, runIdentity))
@@ -48,24 +47,24 @@ type UnresolvedBinding = SIR.Binding UnresolvedDIden UnresolvedVIden () ()
 type UnresolvedExpr = SIR.Expr UnresolvedDIden UnresolvedVIden () ()
 type UnresolvedPattern = SIR.Pattern UnresolvedVIden
 
-type UnresolvedDeclArena = Arena.Arena UnresolvedDecl DeclKey
-type UnresolvedADTArena = Arena.Arena UnresolvedADT ADTKey
+type UnresolvedDeclArena = Arena.Arena UnresolvedDecl SIR.DeclKey
+type UnresolvedADTArena = Arena.Arena UnresolvedADT Type.ADTKey
 type UnresolvedTypeSynonymArena = Arena.Arena UnresolvedTypeSynonym Type.TypeSynonymKey
 
-type ResolvedDIden = Maybe DeclKey
-type ResolvedVIden = Located (Maybe BoundValueKey)
+type ResolvedDIden = Maybe SIR.DeclKey
+type ResolvedVIden = Located (Maybe SIR.BoundValueKey)
 
 type ResolvedSIR = SIR.SIR ResolvedDIden ResolvedVIden () ()
 type ResolvedDecl = SIR.Decl ResolvedDIden ResolvedVIden () ()
 type ResolvedADT = Type.ADT ResolvedTypeExpr
 type ResolvedTypeSynonym = Type.TypeSynonym ResolvedTypeExpr
-type ResolvedTypeExpr = SIR.TypeExpr (Maybe DeclKey) ()
+type ResolvedTypeExpr = SIR.TypeExpr (Maybe SIR.DeclKey) ()
 type ResolvedBinding = SIR.Binding ResolvedDIden ResolvedVIden () ()
 type ResolvedExpr = SIR.Expr ResolvedDIden ResolvedVIden () ()
-type ResolvedPattern = SIR.Pattern (Located (Maybe BoundValueKey))
+type ResolvedPattern = SIR.Pattern (Located (Maybe SIR.BoundValueKey))
 
-type ResolvedDeclArena = Arena.Arena ResolvedDecl DeclKey
-type ResolvedADTArena = Arena.Arena ResolvedADT ADTKey
+type ResolvedDeclArena = Arena.Arena ResolvedDecl SIR.DeclKey
+type ResolvedADTArena = Arena.Arena ResolvedADT Type.ADTKey
 type ResolvedTypeSynonymArena = Arena.Arena ResolvedTypeSynonym Type.TypeSynonymKey
 
 data Error
@@ -80,7 +79,7 @@ instance Diagnostic.ToError Error where
                         Nothing -> ""
         in Diagnostic.Error Diagnostic.Codes.undef_name (Just sp) message [] []
 
-transform_identifiers :: Monad m => (d_iden -> m d_iden') -> (v_iden -> m v_iden') -> Arena.Arena (Type.ADT (SIR.TypeExpr d_iden type_info)) ADTKey -> Arena.Arena (Type.TypeSynonym (SIR.TypeExpr d_iden type_info)) Type.TypeSynonymKey -> Arena.Arena (SIR.Decl d_iden v_iden type_info binary_ops_allowed) DeclKey -> m (Arena.Arena (Type.ADT (SIR.TypeExpr d_iden' type_info)) ADTKey, Arena.Arena (Type.TypeSynonym (SIR.TypeExpr d_iden' type_info)) Type.TypeSynonymKey, Arena.Arena (SIR.Decl d_iden' v_iden' type_info binary_ops_allowed) DeclKey)
+transform_identifiers :: Monad m => (d_iden -> m d_iden') -> (v_iden -> m v_iden') -> Arena.Arena (Type.ADT (SIR.TypeExpr d_iden type_info)) Type.ADTKey -> Arena.Arena (Type.TypeSynonym (SIR.TypeExpr d_iden type_info)) Type.TypeSynonymKey -> Arena.Arena (SIR.Decl d_iden v_iden type_info binary_ops_allowed) SIR.DeclKey -> m (Arena.Arena (Type.ADT (SIR.TypeExpr d_iden' type_info)) Type.ADTKey, Arena.Arena (Type.TypeSynonym (SIR.TypeExpr d_iden' type_info)) Type.TypeSynonymKey, Arena.Arena (SIR.Decl d_iden' v_iden' type_info binary_ops_allowed) SIR.DeclKey)
 transform_identifiers transform_d_iden transform_e_iden adts type_synonyms decls = (,,) <$> Arena.transformM transform_adt adts <*> Arena.transformM transform_type_synonym type_synonyms <*> Arena.transformM transform_decl decls
     where
         transform_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM transform_variant variants
@@ -150,7 +149,7 @@ split_expr_iden (_, []) = error "empty identifier"
 split_expr_iden (nc, [x]) = pure (nc, Nothing, x)
 split_expr_iden (nc, x) = pure (nc, Just $ init x, last x)
 
-resolve_expr_iden :: UnresolvedDeclArena -> (SIR.NameContext, Maybe [Located Text], Located Text) -> Compiler.WithDiagnostics Error Void (Located (Maybe BoundValueKey))
+resolve_expr_iden :: UnresolvedDeclArena -> (SIR.NameContext, Maybe [Located Text], Located Text) -> Compiler.WithDiagnostics Error Void (Located (Maybe SIR.BoundValueKey))
 resolve_expr_iden decls (nc, Just type_iden, last_segment) =
     let sp = Located.just_span (head type_iden) <> Located.just_span last_segment
     in resolve_type_iden decls (nc, type_iden) >>= \ resolved_type ->
@@ -172,7 +171,7 @@ resolve_expr_iden _ (nc, Nothing, last_segment@(Located last_segment_sp _)) =
                         Just parent -> resolve parent name
                         Nothing -> Left $ CouldNotFind Nothing name
 
-resolve_type_iden :: UnresolvedDeclArena -> UnresolvedDIden -> Compiler.WithDiagnostics Error Void (Maybe DeclKey)
+resolve_type_iden :: UnresolvedDeclArena -> UnresolvedDIden -> Compiler.WithDiagnostics Error Void (Maybe SIR.DeclKey)
 resolve_type_iden _ (_, []) = error "empty identifier"
 resolve_type_iden decls (nc, first:more) =
     case resolve_first nc first of
@@ -190,7 +189,7 @@ resolve_type_iden decls (nc, first:more) =
                         Just parent -> resolve_first parent first
                         Nothing -> Left $ CouldNotFind Nothing first -- TODO: put previous in error
 
-get_decl_child :: UnresolvedDeclArena -> DeclKey -> Located Text -> Either Error DeclKey
+get_decl_child :: UnresolvedDeclArena -> SIR.DeclKey -> Located Text -> Either Error SIR.DeclKey
 get_decl_child decls thing name =
     let res = case Arena.get decls thing of
             SIR.Decl'Module _ (SIR.NameContext d_children _ _) _ _ _ -> Map.lookup (Located.unlocate name) d_children
@@ -199,7 +198,7 @@ get_decl_child decls thing name =
         Just res -> Right res
         Nothing -> Left $ CouldNotFind Nothing name -- TODO: put previous
 
-get_value_child :: UnresolvedDeclArena -> DeclKey -> Located Text -> Either Error BoundValueKey
+get_value_child :: UnresolvedDeclArena -> SIR.DeclKey -> Located Text -> Either Error SIR.BoundValueKey
 get_value_child decls thing name =
     let res = case Arena.get decls thing of
             SIR.Decl'Module _ (SIR.NameContext _ v_children _) _ _ _ -> Map.lookup (Located.unlocate name) v_children

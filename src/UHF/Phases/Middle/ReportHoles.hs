@@ -17,7 +17,6 @@ import qualified UHF.Diagnostic.Codes as Diagnostic.Codes
 import qualified UHF.Data.IR.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.PP as Type.PP
-import UHF.Data.IR.Keys
 
 import qualified Data.Text as Text
 
@@ -31,7 +30,7 @@ type Expr d_iden v_iden binary_ops_allowed = SIR.Expr d_iden v_iden (Maybe Type)
 type Pattern = SIR.Pattern (Maybe Type)
 type TypeExpr d_iden = SIR.TypeExpr d_iden (Maybe Type)
 
-type ADTArena d_iden = Arena.Arena (ADT d_iden) ADTKey
+type ADTArena d_iden = Arena.Arena (ADT d_iden) Type.ADTKey
 type TypeSynonymArena d_iden = Arena.Arena (TypeSynonym d_iden) Type.TypeSynonymKey
 type TypeVarArena = Arena.Arena Type.Var Type.TypeVarKey
 
@@ -50,19 +49,19 @@ report_holes sir@(SIR.SIR _ _ _ _ _ mod) =
     -- mapM_ adt adts >>
     -- mapM_ type_synonym type_synonyms
 
-decl :: DeclKey -> ReaderT (SIR d_iden v_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()
+decl :: SIR.DeclKey -> ReaderT (SIR d_iden v_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()
 decl key = ask >>= \ (SIR.SIR decls _ _ _ _ _) ->
     case Arena.get decls key of
         SIR.Decl'Module _ _ bindings adts type_synonyms -> mapM_ binding bindings >> mapM_ adt adts >> mapM_ type_synonym type_synonyms
         SIR.Decl'Type _ -> pure ()
 
-adt :: ADTKey -> ReaderT (SIR d_iden v_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()
+adt :: Type.ADTKey -> ReaderT (SIR d_iden v_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()
 adt key = ask >>= \ (SIR.SIR _ adts _ _ _ _) -> let (Type.ADT _ _ _ variants) = Arena.get adts key in mapM_ variant variants
     where
         variant (Type.ADTVariant'Named _ fields) = mapM_ (\ (_, ty) -> type_expr ty) fields
         variant (Type.ADTVariant'Anon _ fields) = mapM_ type_expr fields
 
-type_synonym :: TypeSynonymKey -> ReaderT (SIR d_iden v_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()
+type_synonym :: Type.TypeSynonymKey -> ReaderT (SIR d_iden v_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()
 type_synonym key = ask >>= \ (SIR.SIR _ _ type_synonyms _ _ _) -> let (Type.TypeSynonym _ _ expansion) = Arena.get type_synonyms key in type_expr expansion
 
 binding :: Binding d_iden v_iden binary_ops_allowed -> ReaderT (SIR d_iden v_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()

@@ -13,14 +13,13 @@ import qualified UHF.Data.IR.RIR as RIR
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.IDGen as IDGen
-import UHF.Data.IR.Keys
 
 import qualified Data.Map as Map
 
 type Type = Maybe (Type.Type Void)
 
 type DIden = Maybe SIR.DeclKey
-type VIden = Located (Maybe BoundValueKey)
+type VIden = Located (Maybe SIR.BoundValueKey)
 type SIR = SIR.SIR DIden VIden Type Void
 type SIRDecl = SIR.Decl DIden VIden Type Void
 type SIRExpr = SIR.Expr DIden VIden Type Void
@@ -32,9 +31,9 @@ type RIRDecl = RIR.Decl ()
 type RIRExpr = RIR.Expr ()
 type RIRBinding = RIR.Binding ()
 
-type SIRBoundValueArena = Arena.Arena (SIR.BoundValue Type) BoundValueKey
+type SIRBoundValueArena = Arena.Arena (SIR.BoundValue Type) SIR.BoundValueKey
 
-type ConvertState = Unique.UniqueMakerT (ReaderT (Arena.Arena (Type.ADT Type) Type.ADTKey) (WriterT (Map BoundValueKey RIR.BoundWhere) (StateT SIRBoundValueArena (IDGen.IDGenT ID.BoundValueID (IDGen.IDGen ID.ExprID)))))
+type ConvertState = Unique.UniqueMakerT (ReaderT (Arena.Arena (Type.ADT Type) Type.ADTKey) (WriterT (Map SIR.BoundValueKey RIR.BoundWhere) (StateT SIRBoundValueArena (IDGen.IDGenT ID.BoundValueID (IDGen.IDGen ID.ExprID)))))
 
 new_made_up_bv_id :: ConvertState ID.BoundValueID
 new_made_up_bv_id = lift $ lift $ lift $ lift IDGen.gen_id
@@ -100,10 +99,10 @@ convert_binding bound_where (SIR.Binding'ADTVariant bvk variant_index@(Type.ADTV
             let lambda_ty = Type.Type'Function <$> cur_field_ty <*> RIR.expr_type lambda_result
             in pure (RIR.Expr'Lambda lambda_id lambda_ty todo lambda_uniq () param_bvk lambda_result)
 
-map_bound_where :: BoundValueKey -> RIR.BoundWhere -> ConvertState ()
+map_bound_where :: SIR.BoundValueKey -> RIR.BoundWhere -> ConvertState ()
 map_bound_where k w = lift $ lift $ tell (Map.singleton k w)
 
-new_bound_value :: ID.BoundValueID -> RIR.BoundWhere -> Type -> Span -> ConvertState BoundValueKey
+new_bound_value :: ID.BoundValueID -> RIR.BoundWhere -> Type -> Span -> ConvertState SIR.BoundValueKey
 new_bound_value id bound_where ty sp = lift (lift $ lift $ state $ Arena.put (SIR.BoundValue id ty sp)) >>= \ key -> map_bound_where key bound_where >> pure key
 
 convert_expr :: RIR.BoundWhere -> SIRExpr -> ConvertState RIRExpr

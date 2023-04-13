@@ -1,7 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
--- eventually will replace the old one
-module UHF.PPUtilsNew -- TODO: rename to UHF.PPUtils
+module UHF.PP
     ( Consistency(..)
     , Token(..)
     , render
@@ -17,7 +14,7 @@ module UHF.PPUtilsNew -- TODO: rename to UHF.PPUtils
 
 import UHF.Util.Prelude
 
-import qualified UHF.PPUtils as PPUtilsOld
+import qualified UHF.PP.IndentationMonad as IndentationMonad
 
 import qualified Data.Text as Text
 import Data.String (IsString (..))
@@ -32,13 +29,12 @@ data Token
     | FirstOnLineIfMultiline Token
     | List [Token]
     | String Text
-    | OldPP (PPUtilsOld.PP ()) -- TODO: remove
 
 instance IsString Token where
     fromString = String . Text.pack
 
 render :: Token -> Text
-render = PPUtilsOld.exec_pp . render'
+render = IndentationMonad.exec_pp . render'
     where
         render' (Block consistency Nothing left_if_single_line right_if_single_line items) = render_block True consistency "" " " left_if_single_line right_if_single_line items
         render' (Block consistency (Just delim) left_if_single_line right_if_single_line items) = render_block True consistency delim (delim <> " ") left_if_single_line right_if_single_line items
@@ -46,38 +42,34 @@ render = PPUtilsOld.exec_pp . render'
         render' (NoIndentBlock consistency (Just delim) left_if_single_line right_if_single_line items) = render_block False consistency delim (delim <> " ") left_if_single_line right_if_single_line items
         render' (FirstOnLineIfMultiline tok) =
             let tok' = render' tok
-            in PPUtilsOld.first_on_line >>= \ first_on_line ->
-            if PPUtilsOld.is_multiline tok' && not first_on_line
-                  then PPUtilsOld.write "\n" >> PPUtilsOld.indent >> tok' >> PPUtilsOld.dedent
+            in IndentationMonad.first_on_line >>= \ first_on_line ->
+            if IndentationMonad.is_multiline tok' && not first_on_line
+                  then IndentationMonad.write "\n" >> IndentationMonad.indent >> tok' >> IndentationMonad.dedent
                   else tok'
         render' (List items) = mapM_ render' items
-        render' (String s) = PPUtilsOld.write s
-        render' (OldPP p) = p
+        render' (String s) = IndentationMonad.write s
 
         -- TODO: break consistency; right now everything is treated as consistent breaking
         render_block needs_indent consistency delim_if_broken delim_if_single_line left_if_single_line right_if_single_line items =
             let items' = map render' items
-                any_multiline = any PPUtilsOld.is_multiline items'
+                any_multiline = any IndentationMonad.is_multiline items'
             in if any_multiline || length items > 1 -- needs to be broken
                 then
-                    (if needs_indent
-                        then PPUtilsOld.write "\n" >> PPUtilsOld.indent
-                        else pure ()) >>
-                    mapM (>> PPUtilsOld.write (delim_if_broken <> "\n")) items' >>
-                    (if needs_indent
-                        then PPUtilsOld.dedent
-                        else pure ())
+                    when needs_indent
+                        (IndentationMonad.write "\n" >> IndentationMonad.indent) >>
+                    mapM (>> IndentationMonad.write (delim_if_broken <> "\n")) items' >>
+                    when needs_indent IndentationMonad.dedent
                 else
                     if null items'
                        then pure ()
                        else
-                            PPUtilsOld.write (fromMaybe "" left_if_single_line) >>
+                            IndentationMonad.write (fromMaybe "" left_if_single_line) >>
                             intercalate_delim True items' >> -- true if first
-                            PPUtilsOld.write (fromMaybe "" right_if_single_line)
+                            IndentationMonad.write (fromMaybe "" right_if_single_line)
             where
                 intercalate_delim _ [] = pure ()
                 intercalate_delim True (x:more) = x >> intercalate_delim False more
-                intercalate_delim False (x:more) = PPUtilsOld.write delim_if_single_line >> x >> intercalate_delim False more
+                intercalate_delim False (x:more) = IndentationMonad.write delim_if_single_line >> x >> intercalate_delim False more
 
 flat_block :: [Token] -> Token
 flat_block = NoIndentBlock Consistent Nothing Nothing Nothing

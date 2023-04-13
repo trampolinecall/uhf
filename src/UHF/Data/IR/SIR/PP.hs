@@ -6,8 +6,7 @@ import UHF.Util.Prelude
 
 import qualified Arena
 
-import qualified UHF.PPUtilsNew as PP
-import qualified UHF.PPUtils as OldPP
+import qualified UHF.PP as PP
 
 import qualified UHF.Data.IR.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
@@ -22,10 +21,6 @@ type IRReader d_iden v_iden type_info binary_ops_allowed = Reader (SIR.SIR d_ide
 
 dump_main_module :: (DumpableIdentifier d_iden, DumpableIdentifier v_iden) => SIR.SIR d_iden v_iden type_info binary_ops_allowed -> Text
 dump_main_module ir@(SIR.SIR decls _ _ _ _ mod) = PP.render $ runReader (define_decl $ Arena.get decls mod) ir
-
--- TODO: remove
-text :: Text -> IRReader d_iden v_iden type_info binary_ops_allowed PP.Token
-text = pure . PP.String
 
 get_adt_arena :: IRReader d_iden v_iden type_info binary_ops_allowed (Arena.Arena (Type.ADT (SIR.TypeExpr d_iden type_info)) Type.ADTKey)
 get_adt_arena = reader (\ (SIR.SIR _ adts _ _ _ _) -> adts)
@@ -42,14 +37,14 @@ get_adt :: Type.ADTKey -> IRReader d_iden v_iden type_info binary_ops_allowed (T
 get_adt k = reader (\ (SIR.SIR _ adts _ _ _ _) -> Arena.get adts k)
 get_type_syn :: Type.TypeSynonymKey -> IRReader d_iden v_iden type_info binary_ops_allowed (Type.TypeSynonym (SIR.TypeExpr d_iden type_info))
 get_type_syn k = reader (\ (SIR.SIR _ _ syns _ _ _) -> Arena.get syns k)
-get_type_var :: Type.TypeVarKey -> IRReader d_iden v_iden type_info binary_ops_allowed (Type.Var)
+get_type_var :: Type.TypeVarKey -> IRReader d_iden v_iden type_info binary_ops_allowed Type.Var
 get_type_var k = reader (\ (SIR.SIR _ _ _ type_vars _ _) -> Arena.get type_vars k)
 
 define_decl :: (DumpableIdentifier d_iden, DumpableIdentifier v_iden) => SIR.Decl d_iden v_iden type_info binary_ops_allowed -> IRReader d_iden v_iden type_info binary_ops_allowed PP.Token
 define_decl (SIR.Decl'Module _ _ bindings adts type_synonyms) =
     ask >>= \ sir ->
-    mapM (\ k -> get_adt k >>= \ adt -> pure (PP.OldPP $ Type.PP.define_adt adt)) adts >>= \ adts_defined ->
-    mapM (\ k -> get_type_syn k >>= \ ts -> pure (PP.OldPP $ Type.PP.define_type_synonym (\ ty -> runReader (PP.render <$> type_expr ty >>= pure . OldPP.write) sir) ts)) type_synonyms >>= \ type_synonyms_defined ->
+    mapM (\ k -> get_adt k >>= \ adt -> pure (Type.PP.define_adt adt)) adts >>= \ adts_defined ->
+    mapM (\ k -> get_type_syn k >>= \ ts -> pure (Type.PP.define_type_synonym (\ ty -> runReader (type_expr ty) sir) ts)) type_synonyms >>= \ type_synonyms_defined ->
     mapM define_binding bindings >>= \ bindings_defined ->
     pure (PP.flat_block $ adts_defined <> type_synonyms_defined <> bindings_defined)
 define_decl (SIR.Decl'Type _) = pure (PP.List [])
@@ -61,44 +56,44 @@ define_binding (SIR.Binding'ADTVariant bvk variant_index@(Type.ADTVariantIndex a
     Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
     let variant_name = Type.variant_name variant
     in refer_bv bvk >>= \ bvk ->
-    pure $ PP.List [bvk, " = <constructor for ", PP.OldPP adt_refer, " ", PP.String variant_name, ">;"]
+    pure $ PP.List [bvk, " = <constructor for ", adt_refer, " ", PP.String variant_name, ">;"]
 
 class DumpableIdentifier i where
     refer_iden :: i -> IRReader d_iden v_iden type_info binary_ops_allowed PP.Token
 
 refer_bv :: SIR.BoundValueKey -> IRReader d_iden v_iden type_info binary_ops_allowed PP.Token
 refer_bv k = get_bv k >>= \case
-    SIR.BoundValue id _ _ -> text (ID.stringify id)
-    SIR.BoundValue'ADTVariant id _ _ _ -> text (ID.stringify id)
+    SIR.BoundValue id _ _ -> pure $ PP.String (ID.stringify id)
+    SIR.BoundValue'ADTVariant id _ _ _ -> pure $ PP.String (ID.stringify id)
 
 refer_decl :: SIR.DeclKey -> IRReader d_iden v_iden type_info binary_ops_allowed PP.Token
 refer_decl k = get_decl k >>= \case
-    SIR.Decl'Module id _ _ _ _ -> text $ ID.stringify id
+    SIR.Decl'Module id _ _ _ _ -> pure $ PP.String $ ID.stringify id
     SIR.Decl'Type ty ->
         get_adt_arena >>= \ adt_arena ->
         get_type_synonym_arena >>= \ type_synonym_arena ->
         get_type_var_arena >>= \ type_var_arena ->
-        pure (PP.OldPP $ Type.PP.refer_type absurd adt_arena type_synonym_arena type_var_arena ty)
+        pure (Type.PP.refer_type absurd adt_arena type_synonym_arena type_var_arena ty)
 
 put_iden_list_of_text :: [Located Text] -> IRReader d_iden v_iden type_info binary_ops_allowed PP.Token
-put_iden_list_of_text = text . Text.intercalate "::" . map unlocate
+put_iden_list_of_text = pure . PP.String . Text.intercalate "::" . map unlocate
 
 instance DumpableIdentifier (SIR.NameContext, [Located Text]) where
     refer_iden (_, segments) = put_iden_list_of_text segments
 instance DumpableIdentifier (Located (Maybe SIR.BoundValueKey)) where -- TODO: remove this
     refer_iden k = case unlocate k of
         Just k -> refer_iden k
-        Nothing -> text "<name resolution error>"
+        Nothing -> pure $ PP.String "<name resolution error>"
 instance DumpableIdentifier SIR.BoundValueKey where
     refer_iden = refer_bv
 instance DumpableIdentifier (Maybe SIR.DeclKey) where -- TODO: remove this
     refer_iden (Just k) = refer_decl k
-    refer_iden Nothing = text "<name resolution error>"
+    refer_iden Nothing = pure $ PP.String "<name resolution error>"
 
 -- TODO: dump type info too
 
 type_var :: Type.TypeVarKey -> IRReader d_iden v_iden type_info binary_ops_allowed PP.Token
-type_var k = get_type_var k >>= \ (Type.Var name) -> text name
+type_var k = get_type_var k >>= \ (Type.Var name) -> pure $ PP.String name
 
 -- TODO: precedence
 type_expr :: DumpableIdentifier d_iden => SIR.TypeExpr d_iden type_info -> IRReader d_iden v_iden type_info binary_ops_allowed PP.Token
@@ -107,17 +102,17 @@ type_expr (SIR.TypeExpr'Tuple _ a b) = type_expr a >>= \ a -> type_expr b >>= \ 
 type_expr (SIR.TypeExpr'Hole _ _ hid) = put_iden_list_of_text (unlocate hid) >>= \ hid -> pure (PP.List ["?", hid])
 type_expr (SIR.TypeExpr'Forall _ vars ty) = mapM type_var vars >>= \ vars -> type_expr ty >>= \ ty -> pure (PP.List ["#", PP.parenthesized_comma_list $ toList vars, " ", ty])
 type_expr (SIR.TypeExpr'Apply _ _ ty arg) = type_expr ty >>= \ ty -> type_expr arg >>= \ arg -> pure (PP.List [ty, "#(", arg, ")"])
-type_expr (SIR.TypeExpr'Wild _ _) = text "_"
-type_expr (SIR.TypeExpr'Poison _ _) = text "poison"
+type_expr (SIR.TypeExpr'Wild _ _) = pure $ PP.String "_"
+type_expr (SIR.TypeExpr'Poison _ _) = pure $ PP.String "poison"
 
 -- TODO: deal with precedence
 expr :: (DumpableIdentifier d_iden, DumpableIdentifier v_iden) => SIR.Expr d_iden v_iden type_info binary_ops_allowed -> IRReader d_iden v_iden type_info binary_ops_allowed PP.Token
 expr (SIR.Expr'Identifier _ _ _ i) = PP.FirstOnLineIfMultiline <$> refer_iden i
-expr (SIR.Expr'Char _ _ _ c) = PP.FirstOnLineIfMultiline <$> (text $ show c)
-expr (SIR.Expr'String _ _ _ s) = PP.FirstOnLineIfMultiline <$> (text $ show s)
-expr (SIR.Expr'Int _ _ _ i) = PP.FirstOnLineIfMultiline <$> (text $ show i)
-expr (SIR.Expr'Float _ _ _ (n :% d)) = PP.FirstOnLineIfMultiline <$> (text $ "(" <> show n <> "/" <> show d <> ")")
-expr (SIR.Expr'Bool _ _ _ b) = PP.FirstOnLineIfMultiline <$> (text $ if b then "true" else "false")
+expr (SIR.Expr'Char _ _ _ c) = pure $ PP.FirstOnLineIfMultiline $ PP.String $ show c
+expr (SIR.Expr'String _ _ _ s) = pure $ PP.FirstOnLineIfMultiline $ PP.String $ show s
+expr (SIR.Expr'Int _ _ _ i) = pure $ PP.FirstOnLineIfMultiline $ PP.String $ show i
+expr (SIR.Expr'Float _ _ _ (n :% d)) = pure $ PP.FirstOnLineIfMultiline $ PP.String $ "(" <> show n <> "/" <> show d <> ")"
+expr (SIR.Expr'Bool _ _ _ b) = pure $ PP.FirstOnLineIfMultiline $ PP.String $ if b then "true" else "false"
 expr (SIR.Expr'Tuple _ _ _ a b) = expr a >>= \ a -> expr b >>= \ b -> pure (PP.parenthesized_comma_list [a, b])
 expr (SIR.Expr'Lambda _ _ _ param body) = PP.FirstOnLineIfMultiline <$> (pattern param >>= \ param -> expr body >>= \ body -> pure (PP.List ["\\ ", param, " -> ", body])) -- TODO: decide if this should be \ (x) -> or \ x ->
 expr (SIR.Expr'Let _ _ _ [binding] body) = define_binding binding >>= \ binding -> expr body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["let ", binding, "\n", body])
@@ -130,11 +125,11 @@ expr (SIR.Expr'TypeAnnotation _ _ _ ty e) = type_expr ty >>= \ ty -> expr e >>= 
 expr (SIR.Expr'Hole _ _ _ hid) = put_iden_list_of_text (unlocate hid) >>= \ hid -> pure (PP.List ["?", hid])
 expr (SIR.Expr'Forall _ _ _ tys e) = mapM type_var tys >>= \ tys -> expr e >>= \ e -> pure (PP.List ["#", PP.parenthesized_comma_list $ toList tys, " ", e])
 expr (SIR.Expr'TypeApply _ _ _ e arg) = expr e >>= \ e -> type_expr arg >>= \ arg -> pure (PP.List [e, "#(", arg, ")"])
-expr (SIR.Expr'Poison _ _ _) = text "poison"
+expr (SIR.Expr'Poison _ _ _) = pure $ PP.String "poison"
 
 pattern :: SIR.Pattern type_info -> IRReader d_iden v_iden type_info binary_ops_allowed PP.Token
 pattern (SIR.Pattern'Identifier _ _ bvk) = refer_iden bvk
-pattern (SIR.Pattern'Wildcard _ _) = text "_"
+pattern (SIR.Pattern'Wildcard _ _) = pure $ PP.String "_"
 pattern (SIR.Pattern'Tuple _ _ a b) = pattern a >>= \ a -> pattern b >>= \ b -> pure (PP.parenthesized_comma_list [a, b])
 pattern (SIR.Pattern'Named _ _ _ bvk subpat) = refer_iden (unlocate bvk) >>= \ bvk -> pattern subpat >>= \ subpat -> pure (PP.List ["@", bvk, " ", subpat])
-pattern (SIR.Pattern'Poison _ _) = text "poison"
+pattern (SIR.Pattern'Poison _ _) = pure $ PP.String "poison"

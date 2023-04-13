@@ -79,7 +79,7 @@ convert_binding bound_where (SIR.Binding'ADTVariant bvk variant_index@(Type.ADTV
             [] -> pure
             param:more -> \ lambda ->
                 new_made_up_expr_id >>= \ forall_id ->
-                pure (RIR.Expr'Forall forall_id (Type.Type'Forall (param :| more) <$> (RIR.expr_type lambda)) todo (param :| more) lambda)
+                pure (RIR.Expr'Forall forall_id (Type.Type'Forall (param :| more) <$> RIR.expr_type lambda) todo (param :| more) lambda)
     in make_lambdas type_params variant_index [] (Type.variant_field_types variant) >>= wrap_in_forall >>= \ lambdas ->
     pure [RIR.Binding bvk lambdas]
     where

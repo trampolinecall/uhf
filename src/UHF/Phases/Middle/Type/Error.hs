@@ -6,7 +6,7 @@ import qualified Arena
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.PP as Type.PP
 
-import qualified UHF.PPUtils as PPUtils
+import qualified UHF.PP as PP
 
 import qualified Data.Map as Map
 
@@ -97,7 +97,7 @@ instance Diagnostic.ToError Error where
                     print_type False context b_part >>= \ b_part_printed ->
                     print_type False context (unlocate a_whole) >>= \ a_whole_printed ->
                     print_type False context (unlocate b_whole) >>= \ b_whole_printed ->
-                    pure (PPUtils.exec_pp a_part_printed, PPUtils.exec_pp b_part_printed, PPUtils.exec_pp a_whole_printed, PPUtils.exec_pp b_whole_printed)
+                    pure (PP.render a_part_printed, PP.render b_part_printed, PP.render a_whole_printed, PP.render b_whole_printed)
         in Diagnostic.Error Diagnostic.Codes.type_mismatch
             (Just span)
             ("conflicting types in " <> what <> ": '" <> a_part_printed <> "' vs '" <> b_part_printed <> "'")
@@ -121,7 +121,7 @@ instance Diagnostic.ToError Error where
                     print_type False context got_part >>= \ got_part_printed ->
                     print_type False context expect_whole >>= \ expect_whole_printed ->
                     print_type False context (unlocate got_whole) >>= \ got_whole_printed ->
-                    pure (PPUtils.exec_pp expect_part_printed, PPUtils.exec_pp got_part_printed, PPUtils.exec_pp expect_whole_printed, PPUtils.exec_pp got_whole_printed)
+                    pure (PP.render expect_part_printed, PP.render got_part_printed, PP.render expect_whole_printed, PP.render got_whole_printed)
 
         in Diagnostic.Error Diagnostic.Codes.type_mismatch
             (Just sp)
@@ -136,7 +136,7 @@ instance Diagnostic.ToError Error where
                 run_unk_namer $
                     print_type True context ty >>= \ ty_printed ->
                     print_type True context var_as_type >>= \ var_printed ->
-                    pure (PPUtils.exec_pp ty_printed, PPUtils.exec_pp var_printed)
+                    pure (PP.render ty_printed, PP.render var_printed)
         in Diagnostic.Error Diagnostic.Codes.occurs_check
             (Just span)
             ("occurs check failure: infinite cyclic type arising from constraint '" <> var_printed <> " = " <> ty_printed <> "'")
@@ -158,7 +158,7 @@ instance Diagnostic.ToError Error where
         let (ty_printed, var_names) =
                 run_unk_namer $
                     print_type False context ty >>= \ ty_printed ->
-                    pure (PPUtils.exec_pp ty_printed)
+                    pure (PP.render ty_printed)
         in Diagnostic.Error Diagnostic.Codes.does_not_take_type_argument
             (Just sp)
             -- TODO: type '' of kind does not take a type argument
@@ -171,7 +171,7 @@ instance Diagnostic.ToError Error where
                 run_unk_namer $
                     print_type False context ty >>= \ ty_printed ->
                     print_type False context arg >>= \ arg_printed ->
-                    pure (PPUtils.exec_pp ty_printed, PPUtils.exec_pp arg_printed)
+                    pure (PP.render ty_printed, PP.render arg_printed)
         in Diagnostic.Error Diagnostic.Codes.wrong_type_argument
             (Just sp)
             -- TODO: type '' of kind '' expects type argument of kind '', but got argument of kind ''
@@ -179,13 +179,13 @@ instance Diagnostic.ToError Error where
             (make_unk_name_messages unks var_names)
             []
 
-print_type :: Bool -> ErrorTypeContext -> TypeWithUnk -> UnkNamer (PPUtils.PP ()) -- TODO: since this already a monad, put the arenas and things into a reader monad?
+print_type :: Bool -> ErrorTypeContext -> TypeWithUnk -> UnkNamer PP.Token -- TODO: since this already a monad, put the arenas and things into a reader monad?
 print_type unks_show_index context@(ErrorTypeContext adts type_synonyms vars unks) = Type.PP.refer_type_m show_unk adts type_synonyms vars
     where
         show_unk unk =
             case Arena.get unks unk of
                 TypeUnknown _ Fresh
-                    | unks_show_index -> PPUtils.write <$> name_unk unk
-                    | otherwise -> pure $ PPUtils.write "_"
+                    | unks_show_index -> PP.String <$> name_unk unk
+                    | otherwise -> pure "_"
                 TypeUnknown _ (Substituted other) -> print_type unks_show_index context other
 

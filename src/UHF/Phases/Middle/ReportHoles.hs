@@ -6,7 +6,7 @@ import qualified Arena
 
 import qualified UHF.Compiler as Compiler
 
-import qualified UHF.PPUtils as PPUtils
+import qualified UHF.PP as PP
 
 import UHF.IO.Located (Located (unlocate))
 import UHF.IO.Span (Span)
@@ -37,7 +37,7 @@ type TypeVarArena = Arena.Arena Type.Var Type.TypeVarKey
 data Error d_iden = Error (ADTArena d_iden) (TypeSynonymArena d_iden) TypeVarArena Span [Located Text] Type
 instance Diagnostic.ToError (Error d_iden) where
     to_error (Error adts type_synonyms vars sp name ty) =
-        let message = "hole: '?" <> Text.intercalate "::" (map unlocate name) <> "' of type '" <> PPUtils.exec_pp (Type.PP.refer_type absurd adts type_synonyms vars ty) <> "'"
+        let message = "hole: '?" <> Text.intercalate "::" (map unlocate name) <> "' of type '" <> PP.render (Type.PP.refer_type absurd adts type_synonyms vars ty) <> "'"
         in Diagnostic.Error Diagnostic.Codes.hole (Just sp) message [] []
 
 report_holes :: SIR d_iden v_iden binary_ops_allowed -> Compiler.WithDiagnostics (Error d_iden) Void ()
@@ -83,7 +83,7 @@ expr (SIR.Expr'Tuple _ _ _ a b) = expr a >> expr b
 
 expr (SIR.Expr'Lambda _ _ _ param body) = pattern param >> expr body
 
-expr (SIR.Expr'Let _ _ _ bindings body) = mapM binding bindings >> expr body
+expr (SIR.Expr'Let _ _ _ bindings body) = mapM_ binding bindings >> expr body
 
 expr (SIR.Expr'BinaryOps _ _ _ _ first ops) = expr first >> mapM_ (\ (_, rhs) -> expr rhs) ops
 

@@ -93,7 +93,7 @@ convert_expr bv_map m_bvid (RIR.Expr'Lambda id ty _ _ captures param_bv body) =
     ) >>= \ (body, body_included_bindings) ->
     new_binding (ANFIR.Expr'Lambda (choose_id m_bvid id) ty (Set.map (bv_map Map.!) captures) anfir_param body_included_bindings body)
 
-convert_expr bv_map m_bvid (RIR.Expr'Let _ _ _ bindings e) = mapM (lift . convert_binding bv_map) bindings >>= \ binding_involved_bindings -> tell (concat binding_involved_bindings) >> convert_expr bv_map Nothing e
+convert_expr bv_map _ (RIR.Expr'Let _ _ _ bindings e) = mapM (lift . convert_binding bv_map) bindings >>= \ binding_involved_bindings -> tell (concat binding_involved_bindings) >> convert_expr bv_map Nothing e
 
 convert_expr bv_map m_bvid (RIR.Expr'Call id ty _ callee arg) = ANFIR.Expr'Call (choose_id m_bvid id) ty <$> convert_expr bv_map Nothing callee <*> convert_expr bv_map Nothing arg >>= new_binding
 

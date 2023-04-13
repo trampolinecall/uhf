@@ -61,8 +61,8 @@ add adts type_synonyms bound_values decls =
         pure (adts, type_synonyms, bound_values, decls)
     ) (decls, bound_values, adts)
 
-bound_value :: UntypedBoundValue -> ContextReader decls bvs (TypedWithUnkADTArena) TypedWithUnkBoundValue
-bound_value (SIR.BoundValue id () def_span) = SIR.BoundValue id <$> (lift $ lift $ Type.Type'Unknown <$> new_type_unknown (BoundValue def_span)) <*> pure def_span
+bound_value :: UntypedBoundValue -> ContextReader decls bvs TypedWithUnkADTArena TypedWithUnkBoundValue
+bound_value (SIR.BoundValue id () def_span) = SIR.BoundValue id <$> lift (lift $ Type.Type'Unknown <$> new_type_unknown (BoundValue def_span)) <*> pure def_span
 bound_value (SIR.BoundValue'ADTVariant id variant_index@(Type.ADTVariantIndex adt_key _) () def_span) = do
     (_, _, adts) <- ask
     let (Type.ADT _ _ type_params _) = Arena.get adts adt_key
@@ -73,7 +73,7 @@ bound_value (SIR.BoundValue'ADTVariant id variant_index@(Type.ADTVariantIndex ad
                 let wrap_in_forall = case type_params of
                         [] -> identity
                         param:more -> Type.Type'Forall (param :| more)
-                 in wrap_in_forall $ foldr (\ field_ty result_ty -> Type.Type'Function (SIR.type_expr_type_info field_ty) result_ty) (Type.Type'ADT adt_key (map Type.Type'Variable type_params)) fields -- function type that takes all the field types and then results in the adt type
+                 in wrap_in_forall $ foldr (Type.Type'Function . SIR.type_expr_type_info) (Type.Type'ADT adt_key (map Type.Type'Variable type_params)) fields -- function type that takes all the field types and then results in the adt type
     pure (SIR.BoundValue'ADTVariant id variant_index ty def_span)
 
 decl :: UntypedDecl -> ContextReader UntypedDeclArena TypedWithUnkBoundValueArena adts TypedWithUnkDecl

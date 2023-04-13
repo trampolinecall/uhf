@@ -210,9 +210,9 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures p
 
                 ANFIR.Expr'Poison _ _ void -> absurd void
 
-        convert_matcher (ANFIR.Switch'BoolLiteral b) = "new BoolLiteralMatcher(" <> if b then "true" else "false" <> ")"
-        convert_matcher ANFIR.Switch'Tuple = "new TupleMatcher()"
-        convert_matcher ANFIR.Switch'Default = "new DefaultMatcher()"
+        convert_matcher (ANFIR.Switch'BoolLiteral b) = "bool_literal_matcher(" <> if b then "true" else "false" <> ")"
+        convert_matcher ANFIR.Switch'Tuple = "tuple_matcher()"
+        convert_matcher ANFIR.Switch'Default = "default_matcher()"
 
 stringify_ts_lambda :: TSLambda -> IRReader Text
 stringify_ts_lambda (TSLambda key captures arg result body_key) =

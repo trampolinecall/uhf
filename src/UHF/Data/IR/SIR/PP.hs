@@ -117,7 +117,7 @@ expr (SIR.Expr'Tuple _ _ _ a b) = expr a >>= \ a -> expr b >>= \ b -> pure (PP.p
 expr (SIR.Expr'Lambda _ _ _ param body) = PP.FirstOnLineIfMultiline <$> (pattern param >>= \ param -> expr body >>= \ body -> pure (PP.List ["\\ ", param, " -> ", body])) -- TODO: decide if this should be \ (x) -> or \ x ->
 expr (SIR.Expr'Let _ _ _ [binding] body) = define_binding binding >>= \ binding -> expr body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["let ", binding, "\n", body])
 expr (SIR.Expr'Let _ _ _ bindings body) = mapM define_binding bindings >>= \ bindings -> expr body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["let ", PP.braced_block bindings, "\n", body])
-expr (SIR.Expr'BinaryOps _ _ _ _ first ops) = expr first >>= \ first -> mapM (\ (op, rhs) -> refer_iden op >>= \ op -> expr rhs >>= \ rhs -> pure (PP.List [op, " ", rhs])) ops >>= \ ops -> pure (PP.List ["(", first, PP.indented_block ops, ")"])
+expr (SIR.Expr'BinaryOps _ _ _ _ first ops) = expr first >>= \ first -> mapM (\ (op, rhs) -> refer_iden op >>= \ op -> expr rhs >>= \ rhs -> pure (PP.List [op, " ", rhs])) ops >>= \ ops -> pure (PP.List ["(", first, PP.inconsistent_indented_block ops, ")"])
 expr (SIR.Expr'Call _ _ _ callee arg) = expr callee >>= \ callee -> expr arg >>= \ arg -> pure (PP.FirstOnLineIfMultiline $ PP.List [callee, "(", arg, ")"])
 expr (SIR.Expr'If _ _ _ _ cond t f) = expr cond >>= \ cond -> expr t >>= \ t -> expr f >>= \ f -> pure (PP.FirstOnLineIfMultiline $ PP.List ["if ", cond, " then ", t, " else ", f])
 expr (SIR.Expr'Case _ _ _ _ e arms) = expr e >>= \ e -> mapM (\ (p, e) -> pattern p >>= \ p -> expr e >>= \ e -> pure (PP.List [p, " -> ", e, ";"])) arms >>= \ arms -> pure (PP.List ["case ", e, " ", PP.braced_block arms])

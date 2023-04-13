@@ -10,7 +10,6 @@ import qualified UHF.PPUtilsNew as PP
 import qualified UHF.PPUtils as OldPP
 
 import qualified UHF.Data.IR.SIR as SIR
-import qualified UHF.Data.IR.Keys as Keys
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.PP as Type.PP
 import qualified UHF.Data.IR.ID as ID
@@ -35,15 +34,15 @@ get_type_synonym_arena = reader (\ (SIR.SIR _ _ syns _ _ _) -> syns)
 get_type_var_arena :: IRReader d_iden v_iden type_info binary_ops_allowed (Arena.Arena Type.Var Type.TypeVarKey)
 get_type_var_arena = reader (\ (SIR.SIR _ _ _ vars _ _) -> vars)
 
-get_bv :: Keys.BoundValueKey -> IRReader d_iden v_iden type_info binary_ops_allowed (SIR.BoundValue type_info)
+get_bv :: SIR.BoundValueKey -> IRReader d_iden v_iden type_info binary_ops_allowed (SIR.BoundValue type_info)
 get_bv k = reader (\ (SIR.SIR _ _ _ _ bvs _) -> Arena.get bvs k)
-get_decl :: Keys.DeclKey -> IRReader d_iden v_iden type_info binary_ops_allowed (SIR.Decl d_iden v_iden type_info binary_ops_allowed)
+get_decl :: SIR.DeclKey -> IRReader d_iden v_iden type_info binary_ops_allowed (SIR.Decl d_iden v_iden type_info binary_ops_allowed)
 get_decl k = reader (\ (SIR.SIR decls _ _ _ _ _) -> Arena.get decls k)
-get_adt :: Keys.ADTKey -> IRReader d_iden v_iden type_info binary_ops_allowed (Type.ADT (SIR.TypeExpr d_iden type_info))
+get_adt :: Type.ADTKey -> IRReader d_iden v_iden type_info binary_ops_allowed (Type.ADT (SIR.TypeExpr d_iden type_info))
 get_adt k = reader (\ (SIR.SIR _ adts _ _ _ _) -> Arena.get adts k)
-get_type_syn :: Keys.TypeSynonymKey -> IRReader d_iden v_iden type_info binary_ops_allowed (Type.TypeSynonym (SIR.TypeExpr d_iden type_info))
+get_type_syn :: Type.TypeSynonymKey -> IRReader d_iden v_iden type_info binary_ops_allowed (Type.TypeSynonym (SIR.TypeExpr d_iden type_info))
 get_type_syn k = reader (\ (SIR.SIR _ _ syns _ _ _) -> Arena.get syns k)
-get_type_var :: Keys.TypeVarKey -> IRReader d_iden v_iden type_info binary_ops_allowed (Type.Var)
+get_type_var :: Type.TypeVarKey -> IRReader d_iden v_iden type_info binary_ops_allowed (Type.Var)
 get_type_var k = reader (\ (SIR.SIR _ _ _ type_vars _ _) -> Arena.get type_vars k)
 
 define_decl :: (DumpableIdentifier d_iden, DumpableIdentifier v_iden) => SIR.Decl d_iden v_iden type_info binary_ops_allowed -> IRReader d_iden v_iden type_info binary_ops_allowed PP.Token
@@ -86,13 +85,13 @@ put_iden_list_of_text = text . Text.intercalate "::" . map unlocate
 
 instance DumpableIdentifier (SIR.NameContext, [Located Text]) where
     refer_iden (_, segments) = put_iden_list_of_text segments
-instance DumpableIdentifier (Located (Maybe Keys.BoundValueKey)) where -- TODO: remove this
+instance DumpableIdentifier (Located (Maybe SIR.BoundValueKey)) where -- TODO: remove this
     refer_iden k = case unlocate k of
         Just k -> refer_iden k
         Nothing -> text "<name resolution error>"
-instance DumpableIdentifier Keys.BoundValueKey where
+instance DumpableIdentifier SIR.BoundValueKey where
     refer_iden = refer_bv
-instance DumpableIdentifier (Maybe Keys.DeclKey) where -- TODO: remove this
+instance DumpableIdentifier (Maybe SIR.DeclKey) where -- TODO: remove this
     refer_iden (Just k) = refer_decl k
     refer_iden Nothing = text "<name resolution error>"
 

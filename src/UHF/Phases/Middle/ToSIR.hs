@@ -9,7 +9,6 @@ import qualified UHF.Data.IR.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.IDGen as IDGen
-import UHF.Data.IR.Keys
 
 import UHF.IO.Span (Span)
 import UHF.IO.Located (Located (..))
@@ -76,24 +75,24 @@ type Expr = SIR.Expr Identifier Identifier () ()
 type Pattern = SIR.Pattern ()
 type BoundValue = SIR.BoundValue ()
 
-type DeclChildrenList = [(Text, DeclAt, DeclKey)]
-type BoundValueList = [(Text, DeclAt, BoundValueKey)]
+type DeclChildrenList = [(Text, DeclAt, SIR.DeclKey)]
+type BoundValueList = [(Text, DeclAt, SIR.BoundValueKey)]
 
-type DeclArena = Arena.Arena Decl DeclKey
-type ADTArena = Arena.Arena ADT ADTKey
-type TypeSynonymArena = Arena.Arena TypeSynonym TypeSynonymKey
-type BoundValueArena = Arena.Arena BoundValue BoundValueKey
-type TypeVarArena = Arena.Arena Type.Var TypeVarKey
+type DeclArena = Arena.Arena Decl SIR.DeclKey
+type ADTArena = Arena.Arena ADT Type.ADTKey
+type TypeSynonymArena = Arena.Arena TypeSynonym Type.TypeSynonymKey
+type BoundValueArena = Arena.Arena BoundValue SIR.BoundValueKey
+type TypeVarArena = Arena.Arena Type.Var Type.TypeVarKey
 
 type MakeIRState = StateT (DeclArena, ADTArena, TypeSynonymArena, TypeVarArena, BoundValueArena) (IDGen.IDGenT ID.ExprID (Compiler.WithDiagnostics Error Void))
 
-new_decl :: Decl -> MakeIRState DeclKey
+new_decl :: Decl -> MakeIRState SIR.DeclKey
 new_decl d =
     state $ \ (decls, adts, type_synonyms, type_vars, bound_values) ->
         let (key, decls') = Arena.put d decls
         in (key, (decls', adts, type_synonyms, type_vars, bound_values))
 
-new_adt :: ADT -> MakeIRState ADTKey
+new_adt :: ADT -> MakeIRState Type.ADTKey
 new_adt adt =
     state $ \ (decls, adts, type_synonyms, type_vars, bound_values) ->
         let (key, adts') = Arena.put adt adts
@@ -105,13 +104,13 @@ new_type_synonym ts =
         let (key, type_synonyms') = Arena.put ts type_synonyms
         in (key, (decls, adts, type_synonyms', type_vars, bound_values))
 
-new_type_var :: Text -> MakeIRState TypeVarKey
+new_type_var :: Text -> MakeIRState Type.TypeVarKey
 new_type_var name =
     state $ \ (decls, adts, type_synonyms, type_vars, bound_values) ->
         let (key, type_vars') = Arena.put (Type.Var name) type_vars
         in (key, (decls, adts, type_synonyms, type_vars', bound_values))
 
-new_bound_value :: BoundValue -> MakeIRState BoundValueKey
+new_bound_value :: BoundValue -> MakeIRState SIR.BoundValueKey
 new_bound_value bv =
     state $ \ (decls, adts, type_synonyms, type_vars, bound_values) ->
         let (key, bound_values') = Arena.put bv bound_values
@@ -188,7 +187,7 @@ convert decls =
             (Arena.new, Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (mod, (decls, adts, type_synonyms, type_vars, bound_values)) ->
         pure (SIR.SIR decls adts type_synonyms type_vars bound_values mod)
 
-convert_decls :: ID.BoundValueParent -> ID.DeclParent -> Maybe SIR.NameContext -> DeclChildrenList -> BoundValueList -> [AST.Decl] -> MakeIRState (SIR.NameContext, [Binding], [ADTKey], [TypeSynonymKey])
+convert_decls :: ID.BoundValueParent -> ID.DeclParent -> Maybe SIR.NameContext -> DeclChildrenList -> BoundValueList -> [AST.Decl] -> MakeIRState (SIR.NameContext, [Binding], [Type.ADTKey], [Type.TypeSynonymKey])
 convert_decls bv_parent decl_parent parent_name_context prev_decl_entries prev_bv_entries decls =
     -- TODO: dont put the expressions in the final name context for non recursive lets
     mfix (\ ~(final_name_context, _, _, _) -> -- mfix needed because the name context to put the expressions into is this one
@@ -197,7 +196,7 @@ convert_decls bv_parent decl_parent parent_name_context prev_decl_entries prev_b
         pure (name_context, concat bindings, concat adts, concat type_synonyms)
     )
     where
-        convert_decl :: SIR.NameContext -> AST.Decl -> MakeIRState (DeclChildrenList, BoundValueList, [Binding], [ADTKey], [TypeSynonymKey])
+        convert_decl :: SIR.NameContext -> AST.Decl -> MakeIRState (DeclChildrenList, BoundValueList, [Binding], [Type.ADTKey], [Type.TypeSynonymKey])
         convert_decl final_name_context (AST.Decl'Value target eq_sp expr) =
             convert_expr final_name_context expr >>= \ expr' ->
             convert_pattern bv_parent target >>= \ (new_bound_values, target') ->

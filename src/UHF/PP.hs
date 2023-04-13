@@ -4,6 +4,7 @@ module UHF.PP
     , render
 
     , flat_block
+    , inconsistent_indented_block
     , indented_block
     , braced_block
     , braced_comma_list
@@ -88,6 +89,9 @@ flat_block = NoIndentBlock Consistent Nothing Nothing Nothing
 
 indented_block :: [Token] -> Token
 indented_block = Block Consistent Nothing Nothing Nothing
+
+inconsistent_indented_block :: [Token] -> Token
+inconsistent_indented_block = Block Inconsistent Nothing Nothing Nothing
 
 braced_block :: [Token] -> Token
 braced_block items = List ["{", Block Consistent Nothing (Just " ") (Just " ") items, "}"]

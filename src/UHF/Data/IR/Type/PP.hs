@@ -39,7 +39,7 @@ refer_type_m show_tyunk adts type_synonyms vars (Type.Type'ADT k params) =
     mapM (refer_type_m show_tyunk adts type_synonyms vars) params >>= \ params ->
     let params'
             | null params = ""
-            | otherwise = PP.List ["#", PP.parenthesized_comma_list params] -- TODO
+            | otherwise = PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent params]
     in pure $ PP.List [refer_adt (Arena.get adts k), params']
 refer_type_m _ _ type_synonyms _ (Type.Type'Synonym k) = pure $ refer_type_synonym $ Arena.get type_synonyms k
 refer_type_m _ _ _ _ Type.Type'Int = pure "int"
@@ -54,11 +54,11 @@ refer_type_m show_tyunk adts type_synonyms vars (Type.Type'Function a r) = do
 refer_type_m show_tyunk adts type_synonyms vars (Type.Type'Tuple a b) = do
     a_shown <- refer_type_m show_tyunk adts type_synonyms vars a
     b_shown <- refer_type_m show_tyunk adts type_synonyms vars b
-    pure (PP.parenthesized_comma_list [a_shown, b_shown])
+    pure (PP.parenthesized_comma_list PP.Inconsistent [a_shown, b_shown])
 refer_type_m show_tyunk _ _ _ (Type.Type'Unknown unk) = show_tyunk unk
 refer_type_m _ _ _ vars (Type.Type'Variable var) =
     let (Type.Var name) = Arena.get vars var
     in pure $ PP.String name -- TODO: write id
 refer_type_m show_tyunk adts type_synonyms vars (Type.Type'Forall new_vars ty) = do
     ty <- refer_type_m show_tyunk adts type_synonyms vars ty
-    pure $ PP.List ["#", PP.parenthesized_comma_list (map (\ vk -> let (Type.Var name) = Arena.get vars vk in PP.String name) (toList new_vars)), " ", ty]
+    pure $ PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent (map (\ vk -> let (Type.Var name) = Arena.get vars vk in PP.String name) (toList new_vars)), " ", ty]

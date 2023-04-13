@@ -80,14 +80,14 @@ indented_block = Block Consistent Nothing Nothing Nothing
 braced_block :: [Token] -> Token
 braced_block items = List ["{", Block Consistent Nothing (Just " ") (Just " ") items, "}"]
 
-braced_comma_list :: [Token] -> Token
-braced_comma_list items = List ["{", Block Consistent (Just ",") (Just " ") (Just " ") items, "}"]
+braced_comma_list :: Consistency -> [Token] -> Token
+braced_comma_list consistency items = List ["{", Block consistency (Just ",") (Just " ") (Just " ") items, "}"]
 
-bracketed_comma_list :: [Token] -> Token
-bracketed_comma_list items = List ["[", Block Consistent (Just ",") Nothing Nothing items, "]"]
+bracketed_comma_list :: Consistency -> [Token] -> Token
+bracketed_comma_list consistency items = List ["[", Block consistency (Just ",") Nothing Nothing items, "]"]
 
-parenthesized_comma_list :: [Token] -> Token
-parenthesized_comma_list items = List ["(", Block Inconsistent (Just ",") Nothing Nothing items, ")"]
+parenthesized_comma_list :: Consistency -> [Token] -> Token
+parenthesized_comma_list consistency items = List ["(", Block consistency (Just ",") Nothing Nothing items, ")"]
 
 comma_separated :: Consistency -> [Token] -> Token
 comma_separated consistency = Block consistency (Just ",") Nothing Nothing

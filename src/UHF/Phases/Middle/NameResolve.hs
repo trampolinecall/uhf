@@ -163,7 +163,7 @@ resolve_expr_iden _ (nc, Nothing, last_segment@(Located last_segment_sp _)) =
         Right v -> pure $ Located last_segment_sp (Just v)
         Left e -> Compiler.tell_error e >> pure (Located last_segment_sp Nothing)
     where
-        resolve (SIR.NameContext _ bn_children parent) name =
+        resolve (SIR.NameContext _ bn_children _ parent) name =
             case Map.lookup (Located.unlocate name) bn_children of
                 Just res -> Right res
                 Nothing ->
@@ -181,7 +181,7 @@ resolve_type_iden decls (nc, first:more) =
                 Left e -> Compiler.tell_error e >> pure Nothing
         Left e -> Compiler.tell_error e >> pure Nothing
     where
-        resolve_first (SIR.NameContext d_children _ parent) first =
+        resolve_first (SIR.NameContext d_children _ _ parent) first =
             case Map.lookup (Located.unlocate first) d_children of
                 Just decl -> Right decl
                 Nothing ->
@@ -192,7 +192,7 @@ resolve_type_iden decls (nc, first:more) =
 get_decl_child :: UnresolvedDeclArena -> SIR.DeclKey -> Located Text -> Either Error SIR.DeclKey
 get_decl_child decls thing name =
     let res = case Arena.get decls thing of
-            SIR.Decl'Module _ (SIR.NameContext d_children _ _) _ _ _ -> Map.lookup (Located.unlocate name) d_children
+            SIR.Decl'Module _ (SIR.NameContext d_children _ _ _) _ _ _ -> Map.lookup (Located.unlocate name) d_children
             SIR.Decl'Type _ -> Nothing
     in case res of
         Just res -> Right res
@@ -201,7 +201,7 @@ get_decl_child decls thing name =
 get_value_child :: UnresolvedDeclArena -> SIR.DeclKey -> Located Text -> Either Error SIR.BoundValueKey
 get_value_child decls thing name =
     let res = case Arena.get decls thing of
-            SIR.Decl'Module _ (SIR.NameContext _ v_children _) _ _ _ -> Map.lookup (Located.unlocate name) v_children
+            SIR.Decl'Module _ (SIR.NameContext _ v_children _ _) _ _ _ -> Map.lookup (Located.unlocate name) v_children
             SIR.Decl'Type _ -> Nothing
     in case res of
         Just res -> Right res

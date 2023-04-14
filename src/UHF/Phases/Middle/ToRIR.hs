@@ -42,7 +42,7 @@ convert :: SIR -> RIR.RIR
 convert (SIR.SIR decls adts type_synonyms type_vars bvs mod) =
     let adts_converted = Arena.transform convert_adt adts
         type_synonyms_converted = Arena.transform convert_type_synonym type_synonyms
-        ((decls'), bvs_with_new) = IDGen.run_id_gen ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.BoundValueID'RIRMadeUp $ runStateT ((runReaderT (Unique.run_unique_maker_t (Arena.transformM convert_decl decls)) adts_converted)) bvs
+        (decls', bvs_with_new) = IDGen.run_id_gen ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.BoundValueID'RIRMadeUp $ runStateT (runReaderT (Unique.run_unique_maker_t (Arena.transformM convert_decl decls)) adts_converted) bvs
         bvs_converted =
             Arena.transform
             (\case

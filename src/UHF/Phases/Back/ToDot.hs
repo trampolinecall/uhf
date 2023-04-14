@@ -55,19 +55,19 @@ to_dot (ANFIR.ANFIR _ _ _ _ bindings params _) =
                         ANFIR.Expr'String _ _ s -> ("string: \\\"" <> s <> "\\\"", [], [])
                         ANFIR.Expr'Tuple _ _ a b -> ("tuple", [("a", a), ("b", b)], [])
 
-                        ANFIR.Expr'Lambda _ _ _ param _ body -> ("lambda", [("body", body)], [("param", param)])
+                        ANFIR.Expr'Lambda _ _ param _ body -> ("lambda", [("body", body)], [("param", param)])
                         ANFIR.Expr'Param _ _ param -> ("param", [], [("p", param)])
 
                         ANFIR.Expr'Call _ _ callee arg -> ("call", [("callee", callee), ("arg", arg)], [])
 
-                        ANFIR.Expr'Switch _ _ e arms -> ("switch", ("e", e) : zipWith (\ arm_i (matcher, result) -> (show arm_i <> " - " <> stringify_matcher matcher, result)) [0 :: Int ..] arms, [])
+                        ANFIR.Expr'Switch _ _ e arms -> ("switch", ("e", e) : zipWith (\ arm_i (matcher, _, result) -> (show arm_i <> " - " <> stringify_matcher matcher, result)) [0 :: Int ..] arms, [])
 
                         ANFIR.Expr'Seq _ _ a b -> ("seq", [("a", a), ("b", b)], [])
 
                         ANFIR.Expr'TupleDestructure1 _ _ tup -> ("tuple destructure 1", [("tuple", tup)], [])
                         ANFIR.Expr'TupleDestructure2 _ _ tup -> ("tuple destructure 2", [("tuple", tup)], [])
 
-                        ANFIR.Expr'Forall _ _ _ e -> ("forall", [("e", e)], []) -- TODO: put vars
+                        ANFIR.Expr'Forall _ _ _ _ e -> ("forall", [("e", e)], []) -- TODO: put vars
                         ANFIR.Expr'TypeApply _ _ e ty -> ("type apply", [("e", e)], []) -- TODO: put type
 
                         ANFIR.Expr'MakeADT _ _ _ args -> ("type apply", zipWith (\ i a -> ("arg" <> show (i :: Int), a)) [0..] args, []) -- TODO: connect to variant

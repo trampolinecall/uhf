@@ -4,6 +4,7 @@ module UHF.Data.IR.ANFIR
     , DeclKey
     , BindingKey
     , ParamKey
+    , BindingGroup (..)
     , Binding (..)
     , Param (..)
     , ID (..)
@@ -21,6 +22,7 @@ module UHF.Data.IR.ANFIR
 import UHF.Util.Prelude
 
 import qualified Arena
+import qualified Unique
 
 import UHF.Data.IR.Keys
 import qualified UHF.Data.IR.Type as Type
@@ -30,7 +32,7 @@ import qualified UHF.Data.IR.ID as ID
 data ANFIR ty poison_allowed = ANFIR (Arena.Arena Decl DeclKey) (Arena.Arena (Type.ADT ty) ADTKey) (Arena.Arena (Type.TypeSynonym ty) TypeSynonymKey) (Arena.Arena Type.Var Type.TypeVarKey) (Arena.Arena (Binding ty poison_allowed) BindingKey) (Arena.Arena (Param ty) ParamKey) DeclKey
 
 data Decl
-    = Decl'Module [BindingKey] [ADTKey] [TypeSynonymKey]
+    = Decl'Module BindingGroup [ADTKey] [TypeSynonymKey]
     | Decl'Type (Type.Type Void)
     deriving Show
 
@@ -49,6 +51,9 @@ stringify_id :: ID -> Text
 stringify_id (ExprID id) = ID.stringify id
 stringify_id (BVID id) = ID.stringify id
 
+-- TODO: parameterize by type of captures
+data BindingGroup = BindingGroup { binding_group_unique :: Unique.Unique, binding_group_captures :: Set BindingKey, binding_group_bindings :: [BindingKey] } deriving Show
+
 data Expr ty poison_allowed
     = Expr'Identifier ID ty BindingKey
 
@@ -60,19 +65,19 @@ data Expr ty poison_allowed
     | Expr'Tuple ID ty BindingKey BindingKey -- TODO: replace with call constructor expr
     | Expr'MakeADT ID ty Type.ADTVariantIndex [BindingKey]
 
-    | Expr'Lambda ID ty (Set BindingKey) ParamKey [BindingKey] BindingKey -- first collection of binding keys is captures, second is the body
+    | Expr'Lambda ID ty ParamKey BindingGroup BindingKey
     | Expr'Param ID ty ParamKey
 
     | Expr'Call ID ty BindingKey BindingKey
 
-    | Expr'Switch ID ty BindingKey [(SwitchMatcher, BindingKey)]
+    | Expr'Switch ID ty BindingKey [(SwitchMatcher, BindingGroup, BindingKey)]
 
     | Expr'Seq ID ty BindingKey BindingKey
 
     | Expr'TupleDestructure1 ID ty BindingKey -- TODO: figure out better solution to this (probably general destructure expr for any type, or actually probably use case expressions to match on things)
     | Expr'TupleDestructure2 ID ty BindingKey
 
-    | Expr'Forall ID ty (NonEmpty TypeVarKey) BindingKey -- TODO: put child bindings
+    | Expr'Forall ID ty (NonEmpty TypeVarKey) BindingGroup BindingKey
     | Expr'TypeApply ID ty BindingKey ty
 
     | Expr'Poison ID ty poison_allowed
@@ -95,14 +100,14 @@ expr_type (Expr'Bool _ ty _) = ty
 expr_type (Expr'Char _ ty _) = ty
 expr_type (Expr'String _ ty _) = ty
 expr_type (Expr'Tuple _ ty _ _) = ty
-expr_type (Expr'Lambda _ ty _ _ _ _) = ty
+expr_type (Expr'Lambda _ ty _ _ _) = ty
 expr_type (Expr'Param _ ty _) = ty
 expr_type (Expr'Call _ ty _ _) = ty
 expr_type (Expr'Switch _ ty _ _) = ty
 expr_type (Expr'Seq _ ty _ _) = ty
 expr_type (Expr'TupleDestructure1 _ ty _) = ty
 expr_type (Expr'TupleDestructure2 _ ty _) = ty
-expr_type (Expr'Forall _ ty _ _) = ty
+expr_type (Expr'Forall _ ty _ _ _) = ty
 expr_type (Expr'TypeApply _ ty _ _) = ty
 expr_type (Expr'MakeADT _ ty _ _) = ty
 expr_type (Expr'Poison _ ty _) = ty
@@ -115,14 +120,14 @@ expr_id (Expr'Bool id _ _) = id
 expr_id (Expr'Char id _ _) = id
 expr_id (Expr'String id _ _) = id
 expr_id (Expr'Tuple id _ _ _) = id
-expr_id (Expr'Lambda id _ _ _ _ _) = id
+expr_id (Expr'Lambda id _ _ _ _) = id
 expr_id (Expr'Param id _ _) = id
 expr_id (Expr'Call id _ _ _) = id
 expr_id (Expr'Switch id _ _ _) = id
 expr_id (Expr'Seq id _ _ _) = id
 expr_id (Expr'TupleDestructure1 id _ _) = id
 expr_id (Expr'TupleDestructure2 id _ _) = id
-expr_id (Expr'Forall id _ _ _) = id
+expr_id (Expr'Forall id _ _ _ _) = id
 expr_id (Expr'TypeApply id _ _ _) = id
 expr_id (Expr'MakeADT id _ _ _) = id
 expr_id (Expr'Poison id _ _) = id

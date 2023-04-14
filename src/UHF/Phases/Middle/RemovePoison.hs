@@ -56,7 +56,7 @@ rp_expr (ANFIR.Expr'Char id ty c) = ty >>= \ ty -> pure (ANFIR.Expr'Char id ty c
 rp_expr (ANFIR.Expr'String id ty t) = ty >>= \ ty -> pure (ANFIR.Expr'String id ty t)
 rp_expr (ANFIR.Expr'Tuple id ty a b) = ty >>= \ ty -> pure (ANFIR.Expr'Tuple id ty a b)
 
-rp_expr (ANFIR.Expr'Lambda id ty c a i b) = ty >>= \ ty -> pure (ANFIR.Expr'Lambda id ty c a i b)
+rp_expr (ANFIR.Expr'Lambda id ty a g r) = ty >>= \ ty -> pure (ANFIR.Expr'Lambda id ty a g r)
 rp_expr (ANFIR.Expr'Param id ty p) = ty >>= \ ty -> pure (ANFIR.Expr'Param id ty p)
 
 rp_expr (ANFIR.Expr'Call id ty c a) = ty >>= \ ty -> pure (ANFIR.Expr'Call id ty c a)
@@ -68,7 +68,7 @@ rp_expr (ANFIR.Expr'Seq id ty a b) = ty >>= \ ty -> pure (ANFIR.Expr'Seq id ty a
 rp_expr (ANFIR.Expr'TupleDestructure1 id ty t) = ty >>= \ ty -> pure (ANFIR.Expr'TupleDestructure1 id ty t)
 rp_expr (ANFIR.Expr'TupleDestructure2 id ty t) = ty >>= \ ty -> pure (ANFIR.Expr'TupleDestructure2 id ty t)
 
-rp_expr (ANFIR.Expr'Forall id ty vars e) = ty >>= \ ty -> pure (ANFIR.Expr'Forall id ty vars e)
+rp_expr (ANFIR.Expr'Forall id ty vars group e) = ty >>= \ ty -> pure (ANFIR.Expr'Forall id ty vars group e)
 rp_expr (ANFIR.Expr'TypeApply id ty e arg) = ty >>= \ ty -> arg >>= \ arg -> pure (ANFIR.Expr'TypeApply id ty e arg)
 
 rp_expr (ANFIR.Expr'MakeADT id ty variant args) = ty >>= \ ty -> pure (ANFIR.Expr'MakeADT id ty variant args)

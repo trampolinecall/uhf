@@ -111,7 +111,7 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph (ANFIR.BindingGroup unique captu
     mapM stringify_capture (Set.toList captures) >>= \ stringified_captures ->
 
     unzip <$> mapM stringify_binding_decl included_bindings >>= \ (binding_decls, binding_set_evaluators) ->
-    mangle_group_unique unique >>= \ fn_name ->
+    ("make_thunk_group_for_"<>) <$> mangle_group_unique unique >>= \ fn_name ->
     ts_return_type >>= \ ts_return_type ->
     object_of_bindings >>= \ object_of_bindings ->
 

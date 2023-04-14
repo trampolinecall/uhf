@@ -43,6 +43,10 @@ data Decl captures
 
 data Param ty = Param ID.BoundValueID ty deriving Show
 
+-- TODO: parameterize by type of captures
+-- TODO: make BindingGroupNum = Globals | Local Unique.Unique
+data BindingGroup captures = BindingGroup { binding_group_unique :: Unique.Unique, binding_group_captures :: captures, binding_group_bindings :: [BindingKey] } deriving Show
+
 newtype BoundWhere = BoundWhere Unique.Unique
 data Binding captures ty poison_allowed = Binding { binding_bound_where :: BoundWhere, binding_initializer :: Expr captures ty poison_allowed }
 
@@ -56,10 +60,6 @@ mangle_id (BVID id) = ID.mangle id
 stringify_id :: ID -> Text
 stringify_id (ExprID id) = ID.stringify id
 stringify_id (BVID id) = ID.stringify id
-
--- TODO: parameterize by type of captures
--- TODO: make BindingGroupNum = Globals | Local Unique.Unique
-data BindingGroup captures = BindingGroup { binding_group_unique :: Unique.Unique, binding_group_captures :: captures, binding_group_bindings :: [BindingKey] } deriving Show
 
 data Expr captures ty poison_allowed
     = Expr'Identifier ID ty BindingKey

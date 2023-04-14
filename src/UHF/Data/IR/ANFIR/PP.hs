@@ -55,6 +55,10 @@ refer_binding key = ANFIR.binding_id <$> get_binding key >>= \ id -> pure (PP.St
 
 class DumpableCaptures captures where
     dump_captures :: captures -> IRReader captures ty poison_allowed [PP.Token]
+instance DumpableCaptures () where
+    dump_captures = const (pure [])
+instance DumpableCaptures (Set ANFIR.BindingKey) where
+    dump_captures = mapM refer_binding . toList
 
 define_binding_group_flat :: (DumpableCaptures captures, DumpableType ty) => (ANFIR.BindingGroup captures) -> IRReader captures ty poison_allowed [PP.Token]
 define_binding_group_flat (ANFIR.BindingGroup _ _ bindings) = mapM define_binding bindings

@@ -54,10 +54,10 @@ type FirstSIR = SIR.SIR (SIR.NameContext, [Located Text]) (SIR.NameContext, [Loc
 type NRSIR = SIR.SIR (Maybe IR.Keys.DeclKey) (Located (Maybe IR.Keys.BoundValueKey)) () ()
 type InfixGroupedSIR = SIR.SIR (Maybe IR.Keys.DeclKey) (Located (Maybe IR.Keys.BoundValueKey)) () Void
 type TypedSIR = SIR.SIR (Maybe IR.Keys.DeclKey) (Located (Maybe IR.Keys.BoundValueKey)) (Maybe (IR.Type.Type Void)) Void
-type FirstRIR = RIR.RIR ()
-type RIRWithCaptures = RIR.RIR (Set IR.Keys.BoundValueKey)
-type ANFIR = ANFIR.ANFIR (Maybe (IR.Type.Type Void)) ()
-type NoPoisonIR = ANFIR.ANFIR (IR.Type.Type Void) Void
+type RIR = RIR.RIR
+type ANFIR = ANFIR.ANFIR () (Maybe (IR.Type.Type Void)) ()
+type ANFIRWithCaptures = ANFIR.ANFIR (Set ANFIR.BindingKey) (Maybe (IR.Type.Type Void)) ()
+type NoPoisonIR = ANFIR.ANFIR (Set ANFIR.BindingKey) (IR.Type.Type Void) Void
 type Dot = Text
 type TS = Text
 
@@ -73,16 +73,16 @@ data PhaseResultsCache
         , _get_nrsir :: Maybe NRSIR
         , _get_infix_grouped :: Maybe InfixGroupedSIR
         , _get_typed_sir :: Maybe TypedSIR
-        , _get_first_rir :: Maybe FirstRIR
-        , _get_rir_with_captures :: Maybe RIRWithCaptures
+        , _get_rir :: Maybe RIR
         , _get_anfir :: Maybe ANFIR
+        , _get_anfir_with_captures :: Maybe ANFIRWithCaptures
         , _get_no_poison_ir :: Maybe (Maybe NoPoisonIR)
         , _get_dot :: Maybe (Maybe Dot)
         , _get_ts :: Maybe (Maybe TS)
         }
 type PhaseResultsState = StateT PhaseResultsCache WithDiagnosticsIO
 
-data OutputFormat = AST | ASTDump | SIR | NRSIR | InfixGroupedSIR | TypedSIR | RIR | RIRWithCaptures | ANFIR | Dot | TS
+data OutputFormat = AST | ASTDump | SIR | NRSIR | InfixGroupedSIR | TypedSIR | RIR | ANFIR | ANFIRWithCaptures | Dot | TS
 data CompileOptions
     = CompileOptions
         { input_file :: FilePath
@@ -106,9 +106,9 @@ print_outputs compile_options file = runStateT (mapM print_output_format (output
         print_output_format NRSIR = get_nrsir >>= \ ir -> lift (lift (write_output_file "uhf_nrsir" (SIR.PP.dump_main_module ir)))
         print_output_format InfixGroupedSIR = get_infix_grouped >>= \ ir -> lift (lift (write_output_file "uhf_infix_grouped" (SIR.PP.dump_main_module ir)))
         print_output_format TypedSIR = get_typed_sir >>= \ ir -> lift (lift (write_output_file "uhf_typed_sir" (SIR.PP.dump_main_module ir)))
-        print_output_format RIR = get_first_rir >>= \ ir -> lift (lift (write_output_file "uhf_rir" (RIR.PP.dump_main_module ir)))
-        print_output_format RIRWithCaptures = get_rir_with_captures >>= \ ir -> lift (lift (write_output_file "uhf_rir_captures" (RIR.PP.dump_main_module ir)))
+        print_output_format RIR = get_rir >>= \ ir -> lift (lift (write_output_file "uhf_rir" (RIR.PP.dump_main_module ir)))
         print_output_format ANFIR = get_anfir >>= \ ir -> lift (lift (write_output_file "uhf_anfir" (ANFIR.PP.dump_main_module ir)))
+        print_output_format ANFIRWithCaptures = get_anfir_with_captures >>= \ ir -> lift (lift (write_output_file "uhf_anfir_captures" (ANFIR.PP.dump_main_module ir)))
         print_output_format Dot = get_dot >>= lift . lift . maybe (pure ()) (write_output_file "dot")
         print_output_format TS = get_ts >>= lift . lift . maybe (pure ()) (write_output_file "ts")
 
@@ -163,25 +163,25 @@ get_typed_sir = get_or_calculate _get_typed_sir (\ cache typed_sir -> cache { _g
             convert_stage (ReportHoles.report_holes typed_ir) >>
             pure typed_ir
 
-get_first_rir :: PhaseResultsState FirstRIR
-get_first_rir = get_or_calculate _get_first_rir (\ cache rir -> cache { _get_first_rir = rir }) to_first_rir
+get_rir :: PhaseResultsState RIR
+get_rir = get_or_calculate _get_rir (\ cache rir -> cache { _get_rir = rir }) to_rir
     where
-        to_first_rir = ToRIR.convert <$> get_typed_sir
-
-get_rir_with_captures :: PhaseResultsState RIRWithCaptures
-get_rir_with_captures = get_or_calculate _get_rir_with_captures (\ cache rir -> cache { _get_rir_with_captures = rir }) to_rir_with_captures
-    where
-        to_rir_with_captures = AnnotateCaptures.annotate <$> get_first_rir
+        to_rir = ToRIR.convert <$> get_typed_sir
 
 get_anfir :: PhaseResultsState ANFIR
 get_anfir = get_or_calculate _get_anfir (\ cache anfir -> cache { _get_anfir = anfir }) to_anfir
     where
-        to_anfir = ToANFIR.convert <$> get_rir_with_captures
+        to_anfir = ToANFIR.convert <$> get_rir
+
+get_anfir_with_captures :: PhaseResultsState ANFIRWithCaptures
+get_anfir_with_captures = get_or_calculate _get_anfir_with_captures (\ cache anfir -> cache { _get_anfir_with_captures = anfir }) to_anfir_with_captures
+    where
+        to_anfir_with_captures = AnnotateCaptures.annotate <$> get_anfir
 
 get_no_poison_ir :: PhaseResultsState (Maybe NoPoisonIR)
 get_no_poison_ir = get_or_calculate _get_no_poison_ir (\ cache no_poison_ir -> cache { _get_no_poison_ir = no_poison_ir }) remove_poison
     where
-        remove_poison = RemovePoison.remove_poison <$> get_anfir
+        remove_poison = RemovePoison.remove_poison <$> get_anfir_with_captures
 
 get_dot :: PhaseResultsState (Maybe Dot)
 get_dot = get_or_calculate _get_dot (\ cache dot -> cache { _get_dot = dot }) to_dot

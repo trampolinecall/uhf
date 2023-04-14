@@ -8,65 +8,67 @@ import qualified Arena
 
 import qualified Data.Set as Set
 
-import qualified UHF.Data.IR.RIR as RIR
-import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.ANFIR as ANFIR
 
-type BoundValue = RIR.BoundValue (Maybe (Type.Type Void))
+type CaptureList = Set ANFIR.BindingKey -- TODO: dont use BindingKey Ord for order of captures in ts backend arguments
 
-type CaptureList = Set RIR.BoundValueKey -- TODO: dont use BoundValueKey Ord for order of captures in ts backend arguments
+annotate :: ANFIR.ANFIR () ty poison_allowed -> ANFIR.ANFIR CaptureList ty poison_allowed
+annotate (ANFIR.ANFIR decls adts type_synonyms type_vars bindings params mod) = ANFIR.ANFIR (Arena.transform (annotate_decl bindings) decls) adts type_synonyms type_vars (Arena.transform (annotate_binding bindings) bindings) params mod
 
-annotate :: RIR.RIR () -> RIR.RIR CaptureList
-annotate (RIR.RIR decls adts type_synonyms type_vars bvs mod) = RIR.RIR (Arena.transform (annotate_decl bvs) decls) adts type_synonyms type_vars bvs mod
+annotate_decl :: Arena.Arena (ANFIR.Binding () ty poison_allowed) ANFIR.BindingKey -> ANFIR.Decl () -> ANFIR.Decl CaptureList
+annotate_decl binding_arena (ANFIR.Decl'Module bindings adts type_synonyms) = ANFIR.Decl'Module ((annotate_binding_group binding_arena) bindings) adts type_synonyms
+annotate_decl _ (ANFIR.Decl'Type ty) = ANFIR.Decl'Type ty
 
-annotate_decl :: Arena.Arena BoundValue RIR.BoundValueKey -> RIR.Decl () -> RIR.Decl CaptureList
-annotate_decl bvs (RIR.Decl'Module bindings adts type_synonyms) = RIR.Decl'Module (map (annotate_binding bvs) bindings) adts type_synonyms
-annotate_decl _ (RIR.Decl'Type ty) = RIR.Decl'Type ty
-
-annotate_binding :: Arena.Arena BoundValue RIR.BoundValueKey -> RIR.Binding () -> RIR.Binding CaptureList
-annotate_binding bvs (RIR.Binding bv initializer) = RIR.Binding bv (annotate_expr bvs initializer)
-
-annotate_expr :: Arena.Arena BoundValue RIR.BoundValueKey -> RIR.Expr () -> RIR.Expr CaptureList
-annotate_expr _ (RIR.Expr'Identifier id ty sp i) = RIR.Expr'Identifier id ty sp i
-annotate_expr _ (RIR.Expr'Char id ty sp c) = RIR.Expr'Char id ty sp c
-annotate_expr _ (RIR.Expr'String id ty sp s) = RIR.Expr'String id ty sp s
-annotate_expr _ (RIR.Expr'Int id ty sp i) = RIR.Expr'Int id ty sp i
-annotate_expr _ (RIR.Expr'Float id ty sp r) = RIR.Expr'Float id ty sp r
-annotate_expr _ (RIR.Expr'Bool id ty sp b) = RIR.Expr'Bool id ty sp b
-annotate_expr bvs (RIR.Expr'Tuple id ty sp a b) = RIR.Expr'Tuple id ty sp (annotate_expr bvs a) (annotate_expr bvs b)
-annotate_expr bvs (RIR.Expr'Lambda id ty sp uniq () param body) =
-    let body' = annotate_expr bvs body
-    in RIR.Expr'Lambda id ty sp uniq (get_captures body') param body'
+annotate_binding_group :: Arena.Arena (ANFIR.Binding () ty poison_allowed) ANFIR.BindingKey -> ANFIR.BindingGroup () -> ANFIR.BindingGroup CaptureList
+annotate_binding_group binding_arena (ANFIR.BindingGroup unique () bindings) =
+    let captures = Set.unions $ map get_outward_references bindings
+    in ANFIR.BindingGroup unique captures bindings
     where
-        get_captures :: RIR.Expr CaptureList -> Set RIR.BoundValueKey
-        get_captures (RIR.Expr'Identifier _ _ _ (Just i))
-            | is_capture i = [i]
-            | otherwise = []
-        get_captures (RIR.Expr'Identifier _ _ _ Nothing) = []
-        get_captures (RIR.Expr'Char _ _ _ _) = []
-        get_captures (RIR.Expr'String _ _ _ _) = []
-        get_captures (RIR.Expr'Int _ _ _ _) = []
-        get_captures (RIR.Expr'Float _ _ _ _) = []
-        get_captures (RIR.Expr'Bool _ _ _ _) = []
-        get_captures (RIR.Expr'Tuple _ _ _ a b) = get_captures a <> get_captures b
-        get_captures (RIR.Expr'Lambda _ _ _ _ captures _ _) = Set.filter is_capture captures
-        get_captures (RIR.Expr'Let _ _ _ bindings result) = Set.unions (map (\ (RIR.Binding _ init) -> get_captures init) bindings) <> get_captures result
-        get_captures (RIR.Expr'Call _ _ _ callee arg) = get_captures callee <> get_captures arg
-        get_captures (RIR.Expr'Switch _ _ _ test arms) = get_captures test <> Set.unions (map (\ (_, e) -> get_captures e) arms)
-        get_captures (RIR.Expr'Seq _ _ _ a b) = get_captures a <> get_captures b
-        get_captures (RIR.Expr'Forall _ _ _ _ e) = get_captures e
-        get_captures (RIR.Expr'TypeApply _ _ _ e _) = get_captures e
-        get_captures (RIR.Expr'MakeADT _ _ _ _ args) = Set.unions $ map get_captures args
-        get_captures (RIR.Expr'Poison _ _ _) = []
+        get_outward_references = Set.filter is_outward . get_references . ANFIR.binding_initializer . Arena.get binding_arena
 
-        is_capture k = case Arena.get bvs k of
-            RIR.BoundValue _ _ RIR.InModule _ -> False
-            RIR.BoundValue _ _ (RIR.InLambdaBody def_l) _ -> def_l /= uniq -- is not defined in this current lambda
+        get_references :: ANFIR.Expr captures ty poison_allowed -> Set ANFIR.BindingKey
+        get_references (ANFIR.Expr'Identifier _ _ i) = [i]
+        get_references (ANFIR.Expr'Char _ _ _) = []
+        get_references (ANFIR.Expr'String _ _ _) = []
+        get_references (ANFIR.Expr'Int _ _ _) = []
+        get_references (ANFIR.Expr'Float _ _ _) = []
+        get_references (ANFIR.Expr'Bool _ _ _) = []
+        get_references (ANFIR.Expr'Tuple _ _ a b) = [a, b]
+        get_references (ANFIR.Expr'MakeADT _ _ _ args) = Set.fromList args
+        get_references (ANFIR.Expr'Lambda _ _ _ _ _) = todo
+        get_references (ANFIR.Expr'Param _ _ _) = []
+        get_references (ANFIR.Expr'Call _ _ callee arg) = [callee, arg]
+        get_references (ANFIR.Expr'Switch _ _ test arms) = todo
+        get_references (ANFIR.Expr'Seq _ _ a b) = [a, b]
+        get_references (ANFIR.Expr'TupleDestructure1 _ _ tup) = [tup]
+        get_references (ANFIR.Expr'TupleDestructure2 _ _ tup) = [tup]
+        get_references (ANFIR.Expr'Forall _ _ _ group e) = todo
+        get_references (ANFIR.Expr'TypeApply _ _ e _) = [e]
+        get_references (ANFIR.Expr'Poison _ _ _) = []
 
-annotate_expr bvs (RIR.Expr'Let id ty sp bindings result) = RIR.Expr'Let id ty sp (map (annotate_binding bvs) bindings) (annotate_expr bvs result)
-annotate_expr bvs (RIR.Expr'Call id ty sp callee arg) = RIR.Expr'Call id ty sp (annotate_expr bvs callee) (annotate_expr bvs arg)
-annotate_expr bvs (RIR.Expr'Switch id ty sp test arms) = RIR.Expr'Switch id ty sp (annotate_expr bvs test) (map (\ (p, e) -> (p, annotate_expr bvs e)) arms)
-annotate_expr bvs (RIR.Expr'Seq id ty sp a b) = RIR.Expr'Seq id ty sp (annotate_expr bvs a) (annotate_expr bvs b)
-annotate_expr bvs (RIR.Expr'Forall id ty sp vars e) = RIR.Expr'Forall id ty sp vars (annotate_expr bvs e)
-annotate_expr bvs (RIR.Expr'TypeApply id ty sp e arg) = RIR.Expr'TypeApply id ty sp (annotate_expr bvs e) arg
-annotate_expr bvs (RIR.Expr'MakeADT id ty sp variant args) = RIR.Expr'MakeADT id ty sp variant (map (annotate_expr bvs) args)
-annotate_expr _ (RIR.Expr'Poison id ty sp) = RIR.Expr'Poison id ty sp
+        is_outward k =
+            let ANFIR.Binding (ANFIR.BoundWhere def_bg) _ = Arena.get binding_arena k
+            in def_bg /= unique -- is not defined in this current binding group; usually identifiers cannot refer to bindings defined in an inner binding group so this should be fine
+
+annotate_binding :: Arena.Arena (ANFIR.Binding () ty poison_allowed) ANFIR.BindingKey -> ANFIR.Binding () ty poison_allowed -> ANFIR.Binding CaptureList ty poison_allowed
+annotate_binding binding_arena (ANFIR.Binding bv initializer) = ANFIR.Binding bv (annotate_expr binding_arena initializer)
+
+annotate_expr :: Arena.Arena (ANFIR.Binding () ty poison_allowed) ANFIR.BindingKey -> ANFIR.Expr () ty poison_allowed -> ANFIR.Expr CaptureList ty poison_allowed
+annotate_expr _ (ANFIR.Expr'Identifier id ty i) = ANFIR.Expr'Identifier id ty i
+annotate_expr _ (ANFIR.Expr'Char id ty c) = ANFIR.Expr'Char id ty c
+annotate_expr _ (ANFIR.Expr'String id ty s) = ANFIR.Expr'String id ty s
+annotate_expr _ (ANFIR.Expr'Int id ty i) = ANFIR.Expr'Int id ty i
+annotate_expr _ (ANFIR.Expr'Float id ty r) = ANFIR.Expr'Float id ty r
+annotate_expr _ (ANFIR.Expr'Bool id ty b) = ANFIR.Expr'Bool id ty b
+annotate_expr _ (ANFIR.Expr'Tuple id ty a b) = ANFIR.Expr'Tuple id ty a b
+annotate_expr binding_arena (ANFIR.Expr'Lambda id ty param group body) = ANFIR.Expr'Lambda id ty param (annotate_binding_group binding_arena group) body
+annotate_expr _ (ANFIR.Expr'Param id ty param) = ANFIR.Expr'Param id ty param
+annotate_expr _ (ANFIR.Expr'Call id ty callee arg) = ANFIR.Expr'Call id ty callee arg
+annotate_expr binding_arena (ANFIR.Expr'Switch id ty test arms) = ANFIR.Expr'Switch id ty test (map (\ (p, group, e) -> (p, annotate_binding_group binding_arena group, e)) arms)
+annotate_expr _ (ANFIR.Expr'Seq id ty a b) = ANFIR.Expr'Seq id ty a b
+annotate_expr _ (ANFIR.Expr'TupleDestructure1 id ty tup) = ANFIR.Expr'TupleDestructure1 id ty tup
+annotate_expr _ (ANFIR.Expr'TupleDestructure2 id ty tup) = ANFIR.Expr'TupleDestructure2 id ty tup
+annotate_expr binding_arena (ANFIR.Expr'Forall id ty vars group e) = ANFIR.Expr'Forall id ty vars (annotate_binding_group binding_arena group) e
+annotate_expr _ (ANFIR.Expr'TypeApply id ty e arg) = ANFIR.Expr'TypeApply id ty e arg
+annotate_expr _ (ANFIR.Expr'MakeADT id ty variant args) = ANFIR.Expr'MakeADT id ty variant args
+annotate_expr _ (ANFIR.Expr'Poison id ty allowed) = ANFIR.Expr'Poison id ty allowed

@@ -7,23 +7,23 @@ import qualified Arena
 import qualified UHF.Data.IR.ANFIR as ANFIR
 import qualified UHF.Data.IR.Type as Type
 
-type PoisonedANFIR = ANFIR.ANFIR PoisonedType ()
+type PoisonedANFIR captures = ANFIR.ANFIR captures PoisonedType ()
 type PoisonedType = Maybe (Type.Type Void)
 type PoisonedADT = Type.ADT PoisonedType
 type PoisonedTypeSynonym = Type.TypeSynonym PoisonedType
-type PoisonedExpr = ANFIR.Expr PoisonedType ()
-type PoisonedBinding = ANFIR.Binding PoisonedType ()
+type PoisonedExpr captures = ANFIR.Expr captures PoisonedType ()
+type PoisonedBinding captures = ANFIR.Binding captures PoisonedType ()
 type PoisonedParam = ANFIR.Param PoisonedType
 
-type NoPoisonANFIR = ANFIR.ANFIR NoPoisonType Void
+type NoPoisonANFIR captures = ANFIR.ANFIR captures NoPoisonType Void
 type NoPoisonType = Type.Type Void
 type NoPoisonADT = Type.ADT NoPoisonType
 type NoPoisonTypeSynonym = Type.TypeSynonym NoPoisonType
-type NoPoisonExpr = ANFIR.Expr NoPoisonType Void
-type NoPoisonBinding = ANFIR.Binding NoPoisonType Void
+type NoPoisonExpr captures = ANFIR.Expr captures NoPoisonType Void
+type NoPoisonBinding captures = ANFIR.Binding captures NoPoisonType Void
 type NoPoisonParam = ANFIR.Param NoPoisonType
 
-remove_poison :: PoisonedANFIR -> Maybe NoPoisonANFIR
+remove_poison :: PoisonedANFIR captures -> Maybe (NoPoisonANFIR captures)
 remove_poison (ANFIR.ANFIR decls adts type_synonyms type_vars bindings params mod) =
     ANFIR.ANFIR decls
         <$> Arena.transformM rp_adt adts
@@ -44,10 +44,10 @@ rp_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> ma
 rp_type_synonym :: PoisonedTypeSynonym -> Maybe NoPoisonTypeSynonym
 rp_type_synonym (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name <$> expansion
 
-rp_binding :: PoisonedBinding -> Maybe NoPoisonBinding
-rp_binding (ANFIR.Binding initializer) = ANFIR.Binding <$> rp_expr initializer
+rp_binding :: PoisonedBinding captures -> Maybe (NoPoisonBinding captures)
+rp_binding (ANFIR.Binding bound_where initializer) = ANFIR.Binding bound_where <$> rp_expr initializer
 
-rp_expr :: PoisonedExpr -> Maybe NoPoisonExpr
+rp_expr :: PoisonedExpr captures -> Maybe (NoPoisonExpr captures)
 rp_expr (ANFIR.Expr'Identifier id ty b) = ty >>= \ ty -> pure (ANFIR.Expr'Identifier id ty b)
 rp_expr (ANFIR.Expr'Int id ty i) = ty >>= \ ty -> pure (ANFIR.Expr'Int id ty i)
 rp_expr (ANFIR.Expr'Float id ty f) = ty >>= \ ty -> pure (ANFIR.Expr'Float id ty f)

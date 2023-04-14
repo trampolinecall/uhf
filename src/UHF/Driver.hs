@@ -41,8 +41,8 @@ import qualified UHF.Phases.Middle.InfixGroup as InfixGroup
 import qualified UHF.Phases.Middle.Type as Type
 import qualified UHF.Phases.Middle.ReportHoles as ReportHoles
 import qualified UHF.Phases.Middle.ToRIR as ToRIR
-import qualified UHF.Phases.Middle.AnnotateCaptures as AnnotateCaptures
 import qualified UHF.Phases.Middle.ToANFIR as ToANFIR
+import qualified UHF.Phases.Middle.AnnotateCaptures as AnnotateCaptures
 import qualified UHF.Phases.Middle.RemovePoison as RemovePoison
 import qualified UHF.Phases.Back.ToDot as ToDot
 import qualified UHF.Phases.Back.TSBackend as TSBackend

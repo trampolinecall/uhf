@@ -42,11 +42,11 @@ argparser =
                                 "infix-grouped" -> Right Driver.InfixGroupedSIR
                                 "typed-sir" -> Right Driver.TypedSIR
                                 "rir" -> Right Driver.RIR
-                                "rir-captures" -> Right Driver.RIRWithCaptures
                                 "anfir" -> Right Driver.ANFIR
+                                "anfir-captures" -> Right Driver.ANFIRWithCaptures
                                 "dot" -> Right Driver.Dot
                                 "ts" -> Right Driver.TS
-                                _ -> Left "invalid option: must be one of 'ast', 'ast-dump', 'sir', 'name-resolved', 'infix-grouped', 'typed-sir', 'rir', 'rir-captures', 'anfir', 'dot', 'ts'")
+                                _ -> Left "invalid option: must be one of 'ast', 'ast-dump', 'sir', 'name-resolved', 'infix-grouped', 'typed-sir', 'rir', 'anfir', 'anfir-captures', 'dot', 'ts'")
                             (long "output"
                                 <> metavar "FORMAT"
                                 <> help "The type of output to emit")

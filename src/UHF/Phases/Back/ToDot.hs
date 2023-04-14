@@ -10,10 +10,10 @@ import qualified UHF.Data.IR.ANFIR as ANFIR
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.ID as ID
 
-type ANFIR = ANFIR.ANFIR Type Void
+type ANFIR captures = ANFIR.ANFIR captures Type Void
 type Type = Type.Type Void
 
-to_dot :: ANFIR -> Text
+to_dot :: ANFIR captures -> Text
 to_dot (ANFIR.ANFIR _ _ _ _ bindings params _) =
     snd $ runWriter (
             tell "strict digraph {\n" >>
@@ -42,7 +42,7 @@ to_dot (ANFIR.ANFIR _ _ _ _ bindings params _) =
         stringify_matcher ANFIR.Switch'Tuple = "tuple"
         stringify_matcher ANFIR.Switch'Default = "_"
 
-        print_binding cur_key (ANFIR.Binding initializer) =
+        print_binding cur_key (ANFIR.Binding _ initializer) =
             let (name, graph_connections, param_connections) =
                     -- TODO: print types
                     case initializer of

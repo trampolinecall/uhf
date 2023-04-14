@@ -13,28 +13,28 @@ import qualified UHF.Data.IR.ID as ID
 
 -- TODO: dump types too
 
-type IRReader captures = Reader (RIR.RIR captures)
+type IRReader = Reader (RIR.RIR)
 
-get_adt_arena :: IRReader captures (Arena.Arena (Type.ADT (Maybe (Type.Type Void))) Type.ADTKey)
+get_adt_arena :: IRReader (Arena.Arena (Type.ADT (Maybe (Type.Type Void))) Type.ADTKey)
 get_adt_arena = reader (\ (RIR.RIR _ adts _ _ _ _) -> adts)
-get_type_synonym_arena :: IRReader captures (Arena.Arena (Type.TypeSynonym (Maybe (Type.Type Void))) Type.TypeSynonymKey)
+get_type_synonym_arena :: IRReader (Arena.Arena (Type.TypeSynonym (Maybe (Type.Type Void))) Type.TypeSynonymKey)
 get_type_synonym_arena = reader (\ (RIR.RIR _ _ syns _ _ _) -> syns)
-get_type_var_arena :: IRReader captures (Arena.Arena Type.Var Type.TypeVarKey)
+get_type_var_arena :: IRReader (Arena.Arena Type.Var Type.TypeVarKey)
 get_type_var_arena = reader (\ (RIR.RIR _ _ _ vars _ _) -> vars)
 
-get_adt :: Type.ADTKey -> IRReader captures (Type.ADT (Maybe (Type.Type Void)))
+get_adt :: Type.ADTKey -> IRReader (Type.ADT (Maybe (Type.Type Void)))
 get_adt k = reader (\ (RIR.RIR _ adts _ _ _ _) -> Arena.get adts k)
-get_type_synonym :: Type.TypeSynonymKey -> IRReader captures (Type.TypeSynonym (Maybe (Type.Type Void)))
+get_type_synonym :: Type.TypeSynonymKey -> IRReader (Type.TypeSynonym (Maybe (Type.Type Void)))
 get_type_synonym k = reader (\ (RIR.RIR _ _ type_synonyms _ _ _) -> Arena.get type_synonyms k)
-get_bv :: RIR.BoundValueKey -> IRReader captures (RIR.BoundValue (Maybe (Type.Type Void)))
+get_bv :: RIR.BoundValueKey -> IRReader (RIR.BoundValue (Maybe (Type.Type Void)))
 get_bv k = reader (\ (RIR.RIR _ _ _ _ bvs _) -> Arena.get bvs k)
-get_type_var :: Type.TypeVarKey -> IRReader captures Type.Var
+get_type_var :: Type.TypeVarKey -> IRReader Type.Var
 get_type_var k = reader (\ (RIR.RIR _ _ _ type_vars _ _) -> Arena.get type_vars k)
 
-dump_main_module :: RIR.RIR captures -> Text
+dump_main_module :: RIR.RIR -> Text
 dump_main_module ir@(RIR.RIR decls _ _ _ _ mod) = PP.render $ runReader (define_decl $ Arena.get decls mod) ir
 
-define_decl :: RIR.Decl captures -> IRReader captures PP.Token
+define_decl :: RIR.Decl -> IRReader PP.Token
 define_decl (RIR.Decl'Module bindings adts type_synonyms) =
     ask >>= \ rir ->
     mapM (fmap Type.PP.define_adt . get_adt) adts >>= \ adts ->
@@ -43,7 +43,7 @@ define_decl (RIR.Decl'Module bindings adts type_synonyms) =
     pure (PP.flat_block $ adts <> type_synonyms <> bindings)
 define_decl (RIR.Decl'Type _) = pure $ PP.List []
 
-refer_m_type :: Maybe (Type.Type Void) -> IRReader captures PP.Token -- TODO: remove
+refer_m_type :: Maybe (Type.Type Void) -> IRReader PP.Token -- TODO: remove
 refer_m_type (Just ty) =
     get_adt_arena >>= \ adt_arena ->
     get_type_synonym_arena >>= \ type_synonym_arena ->
@@ -51,19 +51,19 @@ refer_m_type (Just ty) =
     pure (Type.PP.refer_type absurd adt_arena type_synonym_arena type_var_arena ty)
 refer_m_type Nothing = pure "<type error>"
 
-define_binding :: RIR.Binding captures -> IRReader captures PP.Token
+define_binding :: RIR.Binding -> IRReader PP.Token
 define_binding (RIR.Binding bvk e) =
     refer_bv bvk >>= \ bvk ->
     expr e >>= \ e ->
     pure (PP.List [bvk, " = ", e, ";"])
 
-refer_bv :: RIR.BoundValueKey -> IRReader captures PP.Token
-refer_bv bvk = get_bv bvk >>= \ (RIR.BoundValue id _ _ _) -> pure (PP.String (ID.stringify id))
+refer_bv :: RIR.BoundValueKey -> IRReader PP.Token
+refer_bv bvk = get_bv bvk >>= \ (RIR.BoundValue id _ _) -> pure (PP.String (ID.stringify id))
 
-type_var :: Type.TypeVarKey -> IRReader captures PP.Token
+type_var :: Type.TypeVarKey -> IRReader PP.Token
 type_var k = get_type_var k >>= \ (Type.Var name) -> pure (PP.String name)
 
-expr :: RIR.Expr captures -> IRReader captures PP.Token
+expr :: RIR.Expr -> IRReader PP.Token
 expr (RIR.Expr'Identifier _ _ _ (Just bvk)) = refer_bv bvk
 expr (RIR.Expr'Identifier _ _ _ Nothing) = pure $ PP.List ["<name resolution error>"]
 expr (RIR.Expr'Char _ _ _ c) = pure $ PP.FirstOnLineIfMultiline $ PP.String $ show c
@@ -72,7 +72,7 @@ expr (RIR.Expr'Int _ _ _ i) = pure $ PP.FirstOnLineIfMultiline $ PP.String $ sho
 expr (RIR.Expr'Float _ _ _ (n :% d)) = pure $ PP.FirstOnLineIfMultiline $ PP.String $ "(" <> show n <> "/" <> show d <> ")"
 expr (RIR.Expr'Bool _ _ _ b) = pure $ PP.String $ if b then "true" else "false"
 expr (RIR.Expr'Tuple _ _ _ a b) = expr a >>= \ a -> expr b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b])
-expr (RIR.Expr'Lambda _ _ _ _ _ param body) = refer_bv param >>= \ param -> expr body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, " -> ", body]) -- TODO: show captures
+expr (RIR.Expr'Lambda _ _ _ _ param body) = refer_bv param >>= \ param -> expr body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, " -> ", body])
 expr (RIR.Expr'Let _ _ _ [binding] res) = define_binding binding >>= \ binding -> expr res >>= \ res -> pure (PP.FirstOnLineIfMultiline $ PP.List ["let ", binding, "\n", res])
 expr (RIR.Expr'Let _ _ _ bindings res) = expr res >>= \ res -> mapM define_binding bindings >>= \ bindings -> pure (PP.FirstOnLineIfMultiline $ PP.List ["let ", PP.braced_block bindings, "\n", res])
 expr (RIR.Expr'Call _ _ _ callee arg) = expr callee >>= \ callee -> expr arg >>= \ arg -> pure $ PP.List [callee, "(", arg, ")"]

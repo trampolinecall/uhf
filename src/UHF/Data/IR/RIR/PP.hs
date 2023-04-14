@@ -13,7 +13,7 @@ import qualified UHF.Data.IR.ID as ID
 
 -- TODO: dump types too
 
-type IRReader = Reader (RIR.RIR)
+type IRReader = Reader RIR.RIR
 
 get_adt_arena :: IRReader (Arena.Arena (Type.ADT (Maybe (Type.Type Void))) Type.ADTKey)
 get_adt_arena = reader (\ (RIR.RIR _ adts _ _ _ _) -> adts)

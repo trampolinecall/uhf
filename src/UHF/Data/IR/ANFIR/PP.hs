@@ -38,7 +38,7 @@ get_type_var k = reader (\ (ANFIR.ANFIR _ _ _ type_vars _ _ _) -> Arena.get type
 dump_main_module :: (DumpableCaptures captures, DumpableType ty) => ANFIR.ANFIR captures ty poison_allowed -> Text
 dump_main_module ir@(ANFIR.ANFIR decls _ _ _ _ _ mod) = PP.render $ runReader (define_decl $ Arena.get decls mod) ir
 
-define_decl :: (DumpableCaptures captures, DumpableType ty) => (ANFIR.Decl captures) -> IRReader captures ty poison_allowed PP.Token
+define_decl :: (DumpableCaptures captures, DumpableType ty) => ANFIR.Decl captures -> IRReader captures ty poison_allowed PP.Token
 define_decl (ANFIR.Decl'Module bindings adts type_synonyms) =
     ask >>= \ anfir ->
     mapM (fmap Type.PP.define_adt . get_adt) adts >>= \ adts ->
@@ -60,10 +60,10 @@ instance DumpableCaptures () where
 instance DumpableCaptures (Set ANFIR.BindingKey) where
     dump_captures = mapM refer_binding . toList
 
-define_binding_group_flat :: (DumpableCaptures captures, DumpableType ty) => (ANFIR.BindingGroup captures) -> IRReader captures ty poison_allowed [PP.Token]
+define_binding_group_flat :: (DumpableCaptures captures, DumpableType ty) => ANFIR.BindingGroup captures -> IRReader captures ty poison_allowed [PP.Token]
 define_binding_group_flat (ANFIR.BindingGroup _ _ bindings) = mapM define_binding bindings
-define_binding_group :: (DumpableCaptures captures, DumpableType ty) => (ANFIR.BindingGroup captures) -> IRReader captures ty poison_allowed PP.Token
-define_binding_group (ANFIR.BindingGroup _ captures bindings) = mapM define_binding bindings >>= \ bindings -> dump_captures captures >>= \ captures -> pure (PP.braced_block $ if null captures then bindings else (PP.List ["capture ", PP.comma_separated PP.Inconsistent captures, ";"] : bindings))
+define_binding_group :: (DumpableCaptures captures, DumpableType ty) => ANFIR.BindingGroup captures -> IRReader captures ty poison_allowed PP.Token
+define_binding_group (ANFIR.BindingGroup _ captures bindings) = mapM define_binding bindings >>= \ bindings -> dump_captures captures >>= \ captures -> pure (PP.braced_block $ if null captures then bindings else PP.List ["capture ", PP.comma_separated PP.Inconsistent captures, ";"] : bindings)
 
 define_binding :: (DumpableCaptures captures, DumpableType ty) => ANFIR.BindingKey -> IRReader captures ty poison_allowed PP.Token
 define_binding key =

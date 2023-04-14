@@ -52,7 +52,7 @@ data Binding d_iden v_iden type_info binary_ops_allowed
     | Binding'ADTVariant BoundValueKey Type.ADTVariantIndex
     deriving Show
 
-data NameContext = NameContext (Map.Map Text DeclKey) (Map.Map Text BoundValueKey) (Maybe NameContext) deriving Show
+data NameContext = NameContext (Map.Map Text DeclKey) (Map.Map Text BoundValueKey) (Map.Map Text Type.ADTVariantIndex) (Maybe NameContext) deriving Show
 
 type HoleIdentifier = Located [Located Text] -- TODO: disallow paths in holes?
 

@@ -6,7 +6,6 @@ import qualified Arena
 import qualified Unique
 
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 
 import qualified UHF.Data.IR.RIR as RIR
 import qualified UHF.Data.IR.ANFIR as ANFIR
@@ -29,12 +28,14 @@ type ANFIRBindingGroup = ANFIR.BindingGroup ()
 
 type BoundValueArena = Arena.Arena (RIR.BoundValue (Maybe (Type.Type Void))) RIR.BoundValueKey
 
+type ANFIRDeclArena = Arena.Arena ANFIRDecl ANFIR.DeclKey
+type ANFIRExprArena = Arena.Arena ANFIRExpr ANFIR.BindingKey
 type ANFIRBindingArena = Arena.Arena ANFIRBinding ANFIR.BindingKey
 type ANFIRParamArena = Arena.Arena ANFIRParam ANFIR.ParamKey
 
 type BoundValueMap = Map.Map RIR.BoundValueKey ANFIR.BindingKey
 
-type MakeGraphState = WriterT BoundValueMap (StateT (ANFIRBindingArena, ANFIRParamArena) (IDGen.IDGenT ID.ExprID (Unique.UniqueMakerT (Reader BoundValueArena))))
+type MakeGraphState = WriterT BoundValueMap (StateT (ANFIRExprArena, ANFIRParamArena) (IDGen.IDGenT ID.ExprID (Unique.UniqueMakerT (Reader BoundValueArena))))
 
 make_binding_group :: [ANFIR.BindingKey] -> MakeGraphState ANFIRBindingGroup
 make_binding_group bindings =
@@ -43,8 +44,46 @@ make_binding_group bindings =
 
 convert :: RIR.RIR -> ANFIR
 convert (RIR.RIR decls adts type_synonyms type_vars bound_values mod) =
-    let ((decls', bv_map), (bindings, params)) = runReader (Unique.run_unique_maker_t $ IDGen.run_id_gen_t ID.ExprID'ANFIRGen (runStateT (runWriterT (Arena.transformM (convert_decl bv_map) decls)) (Arena.new, Arena.new))) bound_values
+    let ((decls', bv_map), (exprs, params)) = runReader (Unique.run_unique_maker_t $ IDGen.run_id_gen_t ID.ExprID'ANFIRGen (runStateT (runWriterT (Arena.transformM (convert_decl bv_map) decls)) (Arena.new, Arena.new))) bound_values
+        bindings = assign_bound_wheres decls' exprs
     in ANFIR.ANFIR decls' adts type_synonyms type_vars bindings params mod
+
+assign_bound_wheres :: ANFIRDeclArena -> ANFIRExprArena -> ANFIRBindingArena
+assign_bound_wheres decls exprs =
+    let bw_map = execWriter $
+            Arena.transformM
+                (\case
+                    ANFIR.Decl'Module group _ _ -> process_group group
+                    ANFIR.Decl'Type _ -> pure ()
+                )
+                decls >>
+            Arena.transformM
+                (\case
+                    ANFIR.Expr'Identifier _ _ _ -> pure ()
+                    ANFIR.Expr'Int _ _ _ -> pure ()
+                    ANFIR.Expr'Float _ _ _ -> pure ()
+                    ANFIR.Expr'Bool _ _ _ -> pure ()
+                    ANFIR.Expr'Char _ _ _ -> pure ()
+                    ANFIR.Expr'String _ _ _ -> pure ()
+                    ANFIR.Expr'Tuple _ _ _ _  -> pure ()
+                    ANFIR.Expr'MakeADT _ _ _ _ -> pure ()
+                    ANFIR.Expr'Lambda _ _ _ group _ -> process_group group
+                    ANFIR.Expr'Param _ _ _ -> pure ()
+                    ANFIR.Expr'Call _ _ _ _ -> pure ()
+                    ANFIR.Expr'Switch _ _ _ arms -> mapM_ (\ (_, group, _) -> process_group group) arms
+                    ANFIR.Expr'Seq _ _ _ _ -> pure ()
+                    ANFIR.Expr'TupleDestructure1 _ _ _  -> pure ()
+                    ANFIR.Expr'TupleDestructure2 _ _ _ -> pure ()
+                    ANFIR.Expr'Forall _ _ _ group _ -> process_group group
+                    ANFIR.Expr'TypeApply _ _ _ _ -> pure ()
+                    ANFIR.Expr'Poison _ _ _ -> pure ()
+                )
+                exprs
+    in Arena.transform_with_key (\ bk expr -> ANFIR.Binding (bw_map Map.! bk) expr) exprs
+    where
+        tell_bw bk bw = tell $ Map.singleton bk bw
+
+        process_group (ANFIR.BindingGroup unique _ bindings) = mapM_ (\ bk -> tell_bw bk (ANFIR.BoundWhere unique)) bindings
 
 convert_decl :: BoundValueMap -> RIRDecl -> MakeGraphState ANFIRDecl
 convert_decl bv_map (RIR.Decl'Module bindings adts type_synonyms) = ANFIR.Decl'Module <$> (concat <$> mapM (convert_binding bv_map) bindings >>= make_binding_group) <*> pure adts <*> pure type_synonyms
@@ -64,9 +103,9 @@ convert_binding bv_map (RIR.Binding target expr) =
     pure expr_involved_bindings
 
 new_binding :: ANFIRExpr -> WriterT [ANFIR.BindingKey] MakeGraphState ANFIR.BindingKey
-new_binding expr = lift (lift $ state $ \ (g, p) -> let (i, g') = Arena.put (ANFIR.Binding _ expr) g in (i, (g', p))) >>= \ binding_key -> tell [binding_key] >> pure binding_key
+new_binding expr = lift (lift $ state $ \ (bindings, params) -> let (i, bindings') = Arena.put (expr) bindings in (i, (bindings', params))) >>= \ binding_key -> tell [binding_key] >> pure binding_key
 new_param :: ANFIRParam -> WriterT [ANFIR.BindingKey] MakeGraphState ANFIR.ParamKey
-new_param param = lift (lift $ state $ \ (g, p) -> let (i, p') = Arena.put param p in (i, (g, p')))
+new_param param = lift (lift $ state $ \ (bindings, params) -> let (i, params') = Arena.put param params in (i, (bindings, params')))
 
 new_expr_id :: MakeGraphState ID.ExprID
 new_expr_id = lift $ lift IDGen.gen_id

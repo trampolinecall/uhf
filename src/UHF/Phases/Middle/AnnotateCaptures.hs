@@ -20,7 +20,7 @@ annotate (ANFIR.ANFIR decls adts type_synonyms type_vars bindings params mod) =
 -- so thea nnotation of an expression cannot depend on itself because any binding groups that it has cannot contain itself
 
 annotate_decl :: Arena.Arena (ANFIR.Binding CaptureList ty poison_allowed) ANFIR.BindingKey -> ANFIR.Decl () -> ANFIR.Decl CaptureList
-annotate_decl binding_arena (ANFIR.Decl'Module bindings adts type_synonyms) = ANFIR.Decl'Module ((annotate_binding_group binding_arena) bindings) adts type_synonyms
+annotate_decl binding_arena (ANFIR.Decl'Module bindings adts type_synonyms) = ANFIR.Decl'Module (annotate_binding_group binding_arena bindings) adts type_synonyms
 annotate_decl _ (ANFIR.Decl'Type ty) = ANFIR.Decl'Type ty
 
 annotate_binding_group :: Arena.Arena (ANFIR.Binding CaptureList ty poison_allowed) ANFIR.BindingKey -> ANFIR.BindingGroup () -> ANFIR.BindingGroup CaptureList

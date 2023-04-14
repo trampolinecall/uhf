@@ -39,7 +39,7 @@ type MakeGraphState = WriterT BoundValueMap (StateT (ANFIRExprArena, ANFIRParamA
 
 make_binding_group :: [ANFIR.BindingKey] -> MakeGraphState ANFIRBindingGroup
 make_binding_group bindings =
-    lift (lift $ lift (Unique.make_unique)) >>= \ unique ->
+    lift (lift $ lift Unique.make_unique) >>= \ unique ->
     pure (ANFIR.BindingGroup unique () bindings)
 
 convert :: RIR.RIR -> ANFIR
@@ -103,7 +103,7 @@ convert_binding bv_map (RIR.Binding target expr) =
     pure expr_involved_bindings
 
 new_binding :: ANFIRExpr -> WriterT [ANFIR.BindingKey] MakeGraphState ANFIR.BindingKey
-new_binding expr = lift (lift $ state $ \ (bindings, params) -> let (i, bindings') = Arena.put (expr) bindings in (i, (bindings', params))) >>= \ binding_key -> tell [binding_key] >> pure binding_key
+new_binding expr = lift (lift $ state $ \ (bindings, params) -> let (i, bindings') = Arena.put expr bindings in (i, (bindings', params))) >>= \ binding_key -> tell [binding_key] >> pure binding_key
 new_param :: ANFIRParam -> WriterT [ANFIR.BindingKey] MakeGraphState ANFIR.ParamKey
 new_param param = lift (lift $ state $ \ (bindings, params) -> let (i, params') = Arena.put param params in (i, (bindings, params')))
 

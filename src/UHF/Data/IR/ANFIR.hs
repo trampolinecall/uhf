@@ -1,18 +1,23 @@
 module UHF.Data.IR.ANFIR
     ( ANFIR (..)
     , Decl (..)
+
     , DeclKey
     , BindingKey
     , ParamKey
+
+    , BoundWhere (..)
     , BindingGroup (..)
     , Binding (..)
+
     , Param (..)
+
     , ID (..)
     , mangle_id
     , stringify_id
+
     , Expr (..)
     , SwitchMatcher (..)
-    , get_initializer
     , expr_type
     , expr_id
     , binding_type
@@ -29,16 +34,17 @@ import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.ID as ID
 
 -- "a-normal form ir"
-data ANFIR ty poison_allowed = ANFIR (Arena.Arena Decl DeclKey) (Arena.Arena (Type.ADT ty) ADTKey) (Arena.Arena (Type.TypeSynonym ty) TypeSynonymKey) (Arena.Arena Type.Var Type.TypeVarKey) (Arena.Arena (Binding ty poison_allowed) BindingKey) (Arena.Arena (Param ty) ParamKey) DeclKey
+data ANFIR captures ty poison_allowed = ANFIR (Arena.Arena (Decl captures) DeclKey) (Arena.Arena (Type.ADT ty) ADTKey) (Arena.Arena (Type.TypeSynonym ty) TypeSynonymKey) (Arena.Arena Type.Var Type.TypeVarKey) (Arena.Arena (Binding captures ty poison_allowed) BindingKey) (Arena.Arena (Param ty) ParamKey) DeclKey
 
-data Decl
-    = Decl'Module BindingGroup [ADTKey] [TypeSynonymKey]
+data Decl captures
+    = Decl'Module (BindingGroup captures) [ADTKey] [TypeSynonymKey]
     | Decl'Type (Type.Type Void)
     deriving Show
 
 data Param ty = Param ID.BoundValueID ty deriving Show
 
-newtype Binding ty poison_allowed = Binding (Expr ty poison_allowed)
+newtype BoundWhere = BoundWhere Unique.Unique
+data Binding captures ty poison_allowed = Binding { binding_bound_where :: BoundWhere, binding_initializer :: Expr captures ty poison_allowed }
 
 data ID
     = ExprID ID.ExprID
@@ -52,9 +58,10 @@ stringify_id (ExprID id) = ID.stringify id
 stringify_id (BVID id) = ID.stringify id
 
 -- TODO: parameterize by type of captures
-data BindingGroup = BindingGroup { binding_group_unique :: Unique.Unique, binding_group_captures :: Set BindingKey, binding_group_bindings :: [BindingKey] } deriving Show
+-- TODO: make BindingGroupNum = Globals | Local Unique.Unique
+data BindingGroup captures = BindingGroup { binding_group_unique :: Unique.Unique, binding_group_captures :: captures, binding_group_bindings :: [BindingKey] } deriving Show
 
-data Expr ty poison_allowed
+data Expr captures ty poison_allowed
     = Expr'Identifier ID ty BindingKey
 
     | Expr'Int ID ty Integer
@@ -65,19 +72,19 @@ data Expr ty poison_allowed
     | Expr'Tuple ID ty BindingKey BindingKey -- TODO: replace with call constructor expr
     | Expr'MakeADT ID ty Type.ADTVariantIndex [BindingKey]
 
-    | Expr'Lambda ID ty ParamKey BindingGroup BindingKey
+    | Expr'Lambda ID ty ParamKey (BindingGroup captures) BindingKey
     | Expr'Param ID ty ParamKey
 
     | Expr'Call ID ty BindingKey BindingKey
 
-    | Expr'Switch ID ty BindingKey [(SwitchMatcher, BindingGroup, BindingKey)]
+    | Expr'Switch ID ty BindingKey [(SwitchMatcher, BindingGroup captures, BindingKey)]
 
     | Expr'Seq ID ty BindingKey BindingKey
 
     | Expr'TupleDestructure1 ID ty BindingKey -- TODO: figure out better solution to this (probably general destructure expr for any type, or actually probably use case expressions to match on things)
     | Expr'TupleDestructure2 ID ty BindingKey
 
-    | Expr'Forall ID ty (NonEmpty TypeVarKey) BindingGroup BindingKey
+    | Expr'Forall ID ty (NonEmpty TypeVarKey) (BindingGroup captures) BindingKey
     | Expr'TypeApply ID ty BindingKey ty
 
     | Expr'Poison ID ty poison_allowed
@@ -89,10 +96,7 @@ data SwitchMatcher
     | Switch'Default
     deriving Show
 
-get_initializer :: Binding ty poison_allowed -> Expr ty poison_allowed
-get_initializer (Binding e) = e
-
-expr_type :: Expr ty poison_allowed -> ty
+expr_type :: Expr captures ty poison_allowed -> ty
 expr_type (Expr'Identifier _ ty _) = ty
 expr_type (Expr'Int _ ty _) = ty
 expr_type (Expr'Float _ ty _) = ty
@@ -112,7 +116,7 @@ expr_type (Expr'TypeApply _ ty _ _) = ty
 expr_type (Expr'MakeADT _ ty _ _) = ty
 expr_type (Expr'Poison _ ty _) = ty
 
-expr_id :: Expr ty poison_allowed -> ID
+expr_id :: Expr captures ty poison_allowed -> ID
 expr_id (Expr'Identifier id _ _) = id
 expr_id (Expr'Int id _ _) = id
 expr_id (Expr'Float id _ _) = id
@@ -132,7 +136,7 @@ expr_id (Expr'TypeApply id _ _ _) = id
 expr_id (Expr'MakeADT id _ _ _) = id
 expr_id (Expr'Poison id _ _) = id
 
-binding_type :: Binding ty poison_allowed -> ty
-binding_type = expr_type . get_initializer
-binding_id :: Binding ty poison_allowed -> ID
-binding_id = expr_id . get_initializer
+binding_type :: Binding captures ty poison_allowed -> ty
+binding_type = expr_type . binding_initializer
+binding_id :: Binding captures ty poison_allowed -> ID
+binding_id = expr_id . binding_initializer

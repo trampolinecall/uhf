@@ -14,15 +14,18 @@ import qualified UHF.Data.IR.ANFIR as ANFIR
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.ID as ID
 
-type Decl = ANFIR.Decl
+type CaptureList = Set.Set ANFIR.BindingKey
+
+type Decl = ANFIR.Decl CaptureList
 
 type Type = Type.Type Void
 type ADT = Type.ADT Type
 type TypeSynonym = Type.TypeSynonym Type
-type Binding = ANFIR.Binding Type Void
+type Binding = ANFIR.Binding CaptureList Type Void
+type BindingGroup = ANFIR.BindingGroup CaptureList
 type Param = ANFIR.Param Type
 
-type ANFIR = ANFIR.ANFIR Type Void
+type ANFIR = ANFIR.ANFIR CaptureList Type Void
 
 type ADTArena = Arena.Arena ADT Type.ADTKey
 type TypeSynonymArena = Arena.Arena TypeSynonym Type.TypeSynonymKey
@@ -53,10 +56,10 @@ runtime_code = $(FileEmbed.embedStringFile "data/ts_runtime.ts")
 
 data TSDecl
 newtype TSADT = TSADT Type.ADTKey
-data TSLambda = TSLambda ANFIR.BindingKey ANFIR.BindingGroup Type Type ANFIR.BindingKey
+data TSLambda = TSLambda ANFIR.BindingKey BindingGroup Type Type ANFIR.BindingKey
 newtype TSGlobalThunk = TSGlobalThunk ANFIR.BindingKey
 -- TODO: dont use BoundValueKey Ord for order of captures in parameters of function
-data TSMakeThunkGraph = TSMakeThunkGraph ANFIR.BindingGroup (Maybe ANFIR.ParamKey) -- list of bindings is body, set of bindings is captures
+data TSMakeThunkGraph = TSMakeThunkGraph BindingGroup (Maybe ANFIR.ParamKey) -- list of bindings is body, set of bindings is captures
 data TS = TS [TSDecl] [TSADT] [TSMakeThunkGraph] [TSLambda] [TSGlobalThunk]
 
 instance Semigroup TS where
@@ -150,7 +153,7 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph (ANFIR.BindingGroup unique captu
                 let_thunk initializer = "let " <> binding_as_thunk <> ": " <> cur_binding_type <> " = " <> initializer <> ";"
                 default_let_thunk = let_thunk "new Thunk(undefined)"
 
-            in ANFIR.get_initializer <$> get_binding binding_key >>= \case
+            in ANFIR.binding_initializer <$> get_binding binding_key >>= \case
                 ANFIR.Expr'Identifier _ _ i ->
                     mangle_binding_as_thunk i >>= \ i_mangled ->
                     pure (default_let_thunk, Just (set_evaluator "PassthroughEvaluator" i_mangled))
@@ -312,7 +315,7 @@ define_decl _ (ANFIR.Decl'Module global_group adts _) =
 define_decl _ (ANFIR.Decl'Type _) = pure ()
 
 define_lambda_type :: ANFIR.BindingKey -> Binding -> TSWriter ()
-define_lambda_type key (ANFIR.Binding (ANFIR.Expr'Lambda _ _ param group body)) =
+define_lambda_type key (ANFIR.Binding _ (ANFIR.Expr'Lambda _ _ param group body)) =
     lift (get_param param) >>= \ (ANFIR.Param _ param_ty) ->
     lift (binding_type body) >>= \ body_type ->
     tell_make_thunk_graph (TSMakeThunkGraph group (Just param)) >>

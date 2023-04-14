@@ -77,6 +77,7 @@ type BoundValue = SIR.BoundValue ()
 
 type DeclChildrenList = [(Text, DeclAt, SIR.DeclKey)]
 type BoundValueList = [(Text, DeclAt, SIR.BoundValueKey)]
+type ADTVariantList = [(Text, DeclAt, Type.ADTVariantIndex)]
 
 type DeclArena = Arena.Arena Decl SIR.DeclKey
 type ADTArena = Arena.Arena ADT Type.ADTKey
@@ -122,12 +123,12 @@ tell_error = lift . lift . Compiler.tell_error
 new_expr_id :: MakeIRState ID.ExprID
 new_expr_id = lift IDGen.gen_id
 
-make_name_context :: DeclChildrenList -> BoundValueList -> Maybe SIR.NameContext -> MakeIRState SIR.NameContext
-make_name_context decls bound_values parent =
+make_name_context :: DeclChildrenList -> BoundValueList -> ADTVariantList -> Maybe SIR.NameContext -> MakeIRState SIR.NameContext
+make_name_context decls bound_values adt_variants parent =
     let decl_dups = find_dups decls
         bn_dups = find_dups bound_values
     in report_dups decl_dups >> report_dups bn_dups >>
-    pure (SIR.NameContext (make_map decls) (make_map bound_values) parent)
+    pure (SIR.NameContext (make_map decls) (make_map bound_values) (make_map adt_variants) parent)
     where
         -- separate finding duplicates from making maps so that if there is a duplicate the whole name contexet doesnt just disappear
         -- duplicates will just take the last bound name in the last, because of the how Map.fromList is implemented
@@ -191,24 +192,25 @@ convert_decls :: ID.BoundValueParent -> ID.DeclParent -> Maybe SIR.NameContext -
 convert_decls bv_parent decl_parent parent_name_context prev_decl_entries prev_bv_entries decls =
     -- TODO: dont put the expressions in the final name context for non recursive lets
     mfix (\ ~(final_name_context, _, _, _) -> -- mfix needed because the name context to put the expressions into is this one
-        List.unzip5 <$> mapM (convert_decl final_name_context) decls >>= \ (decl_entries, bound_value_entries, bindings, adts, type_synonyms) ->
-        make_name_context (prev_decl_entries ++ concat decl_entries) (prev_bv_entries ++ concat bound_value_entries) parent_name_context >>= \ name_context ->
+        List.unzip6 <$> mapM (convert_decl final_name_context) decls >>= \ (decl_entries, bound_value_entries, adt_variant_entries, bindings, adts, type_synonyms) ->
+        make_name_context (prev_decl_entries ++ concat decl_entries) (prev_bv_entries ++ concat bound_value_entries) (concat adt_variant_entries) parent_name_context >>= \ name_context ->
         pure (name_context, concat bindings, concat adts, concat type_synonyms)
     )
     where
-        convert_decl :: SIR.NameContext -> AST.Decl -> MakeIRState (DeclChildrenList, BoundValueList, [Binding], [Type.ADTKey], [Type.TypeSynonymKey])
+        -- TODO: clean this up
+        convert_decl :: SIR.NameContext -> AST.Decl -> MakeIRState (DeclChildrenList, BoundValueList, ADTVariantList, [Binding], [Type.ADTKey], [Type.TypeSynonymKey])
         convert_decl final_name_context (AST.Decl'Value target eq_sp expr) =
             convert_expr final_name_context expr >>= \ expr' ->
             convert_pattern bv_parent target >>= \ (new_bound_values, target') ->
             let binding = SIR.Binding target' eq_sp expr'
-            in pure ([], new_bound_values, [binding], [], [])
+            in pure ([], new_bound_values, [], [binding], [], [])
 
         convert_decl final_name_context (AST.Decl'Data name type_params variants) = -- TODO: type_params
             runMaybeT (
                 mapM iden1_for_type_name type_params >>= \ type_param_names ->
                 mapM (lift . new_type_var . unlocate) type_param_names >>= \ ty_param_vars ->
                 zipWithM (\ (Located sp name) var -> (name, DeclAt sp,) <$> lift (new_decl $ SIR.Decl'Type $ Type.Type'Variable var)) type_param_names ty_param_vars >>= \ new_decls ->
-                lift (make_name_context new_decls [] (Just final_name_context)) >>= \ new_nc ->
+                lift (make_name_context new_decls [] [] (Just final_name_context)) >>= \ new_nc ->
 
                 iden1_for_type_name name >>= \ (Located name1sp name1) ->
                 mapM (convert_variant new_nc) variants >>= \ variants_converted ->
@@ -232,10 +234,19 @@ convert_decls bv_parent decl_parent parent_name_context prev_decl_entries prev_b
                     )
                     (zip3 variants_converted [0..] variants)) >>= \ (variant_bvs, constructor_bindings) ->
 
-                pure (name1, DeclAt name1sp, decl_key, adt_key, variant_bvs, constructor_bindings)
+                mapM
+                    (\ (variant_ast, index, variant) ->
+                        let variant_name = Type.variant_name variant
+                            name_sp = case variant_ast of
+                                AST.DataVariant'Anon name _ -> just_span name
+                                AST.DataVariant'Named name _ -> just_span name
+                        in pure (variant_name, DeclAt name_sp, Type.ADTVariantIndex adt_key index))
+                    (zip3 variants [0..] variants_converted) >>= \ variant_entries ->
+
+                pure (name1, DeclAt name1sp, decl_key, adt_key, variant_entries, variant_bvs, constructor_bindings)
             ) >>= \case
-                Just (name1, decl_at, decl_key, adt_key, constructors, constructor_bindings) -> pure ([(name1, decl_at, decl_key)], constructors, constructor_bindings, [adt_key], []) -- constructors are added directly to the current namespace and are not namespaced under the type name
-                Nothing -> pure ([], [], [], [], [])
+                Just (name1, decl_at, decl_key, adt_key, constructor_entries, constructors, constructor_bindings) -> pure ([(name1, decl_at, decl_key)], constructors, constructor_entries, constructor_bindings, [adt_key], []) -- constructors are added directly to the current namespace and are not namespaced under the type name
+                Nothing -> pure ([], [], [], [], [], [])
 
         convert_decl final_name_context (AST.Decl'TypeSyn name expansion) =
             runMaybeT (
@@ -246,8 +257,8 @@ convert_decls bv_parent decl_parent parent_name_context prev_decl_entries prev_b
 
                 pure (name1, DeclAt name1sp, decl_key, syn_key)
             ) >>= \case
-                Just (name1, decl_at, decl_key, syn_key) -> pure ([(name1, decl_at, decl_key)], [], [], [], [syn_key])
-                Nothing -> pure ([], [], [], [], [])
+                Just (name1, decl_at, decl_key, syn_key) -> pure ([(name1, decl_at, decl_key)], [], [], [], [], [syn_key])
+                Nothing -> pure ([], [], [], [], [], [])
 
         iden1_for_variant_name = MaybeT . make_iden1_with_err PathInVariantName
         iden1_for_type_name = MaybeT . make_iden1_with_err PathInTypeName
@@ -280,7 +291,7 @@ convert_type nc (AST.Type'Forall _ tys ty) =
     mapM (new_type_var . unlocate) tys >>= \ ty_vars ->
     zipWithM (\ (Located sp name) var -> (name, DeclAt sp,) <$> new_decl (SIR.Decl'Type $ Type.Type'Variable var)) tys ty_vars >>= \ new_decls ->
 
-    make_name_context new_decls [] (Just nc) >>= \ new_nc ->
+    make_name_context new_decls [] [] (Just nc) >>= \ new_nc ->
 
     case ty_vars of
         [] -> convert_type new_nc ty -- can happen if there are errors in all the type names or if the user passed none
@@ -312,7 +323,7 @@ convert_expr name_context (AST.Expr'Lambda sp params body) = convert_lambda name
         convert_lambda name_context (param:more) body =
             new_expr_id >>= \ id ->
             convert_pattern (ID.BVParent'LambdaParam id) param >>= \ (bound_value_list, param) ->
-            make_name_context [] bound_value_list (Just name_context) >>= \ lambda_nc ->
+            make_name_context [] bound_value_list [] (Just name_context) >>= \ lambda_nc ->
             SIR.Expr'Lambda id () sp param <$> convert_lambda lambda_nc more body -- TODO: properly do spans of parts because this also just takes the whole span
 
         convert_lambda name_context [] body = convert_expr name_context body
@@ -343,7 +354,7 @@ convert_expr name_context (AST.Expr'Case sp case_sp e arms) =
     zipWithM
         (\ ind (pat, choice) ->
             convert_pattern (ID.BVParent'CaseArm id ind) pat >>= \ (new_bound_values, pat) ->
-            make_name_context [] new_bound_values (Just name_context) >>= \ arm_nc ->
+            make_name_context [] new_bound_values [] (Just name_context) >>= \ arm_nc ->
             convert_expr arm_nc choice >>= \ choice ->
             pure (pat, choice))
         [0..]
@@ -358,7 +369,7 @@ convert_expr nc (AST.Expr'Forall sp tys e) =
     mapM (new_type_var . unlocate) tys >>= \ ty_vars ->
     zipWithM (\ (Located sp name) var -> (name, DeclAt sp,) <$> new_decl (SIR.Decl'Type $ Type.Type'Variable var)) tys ty_vars >>= \ new_decls ->
 
-    make_name_context new_decls [] (Just nc) >>= \ new_nc ->
+    make_name_context new_decls [] [] (Just nc) >>= \ new_nc ->
 
     new_expr_id >>= \ id ->
     case ty_vars of

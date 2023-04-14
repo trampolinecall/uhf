@@ -3,6 +3,7 @@ module UHF.Phases.Middle.ToANFIR (convert) where
 import UHF.Util.Prelude
 
 import qualified Arena
+import qualified Unique
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -14,6 +15,7 @@ import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.IDGen as IDGen
 
 type Type = Maybe (Type.Type Void)
+-- TODO: remove capture list from rir and move annotate captures phase to anfir
 type CaptureList = Set RIR.BoundValueKey
 
 type RIRDecl = RIR.Decl CaptureList
@@ -33,22 +35,27 @@ type ANFIRParamArena = Arena.Arena ANFIRParam ANFIR.ParamKey
 
 type BoundValueMap = Map.Map RIR.BoundValueKey ANFIR.BindingKey
 
-type MakeGraphState = WriterT BoundValueMap (StateT (ANFIRBindingArena, ANFIRParamArena) (IDGen.IDGenT ID.ExprID (Reader BoundValueArena)))
+type MakeGraphState = WriterT BoundValueMap (StateT (ANFIRBindingArena, ANFIRParamArena) (IDGen.IDGenT ID.ExprID (Unique.UniqueMakerT (Reader BoundValueArena))))
+
+make_binding_group :: [ANFIR.BindingKey] -> MakeGraphState ANFIR.BindingGroup
+make_binding_group bindings =
+    lift (lift $ lift (Unique.make_unique)) >>= \ unique ->
+    pure (ANFIR.BindingGroup unique Set.empty bindings)
 
 convert :: RIR.RIR CaptureList -> ANFIR
 convert (RIR.RIR decls adts type_synonyms type_vars bound_values mod) =
-    let ((decls', bv_map), (bindings, params)) = runReader (IDGen.run_id_gen_t ID.ExprID'ANFIRGen (runStateT (runWriterT (Arena.transformM (convert_decl bv_map) decls)) (Arena.new, Arena.new))) bound_values
+    let ((decls', bv_map), (bindings, params)) = runReader (Unique.run_unique_maker_t $ IDGen.run_id_gen_t ID.ExprID'ANFIRGen (runStateT (runWriterT (Arena.transformM (convert_decl bv_map) decls)) (Arena.new, Arena.new))) bound_values
     in ANFIR.ANFIR decls' adts type_synonyms type_vars bindings params mod
 
 convert_decl :: BoundValueMap -> RIRDecl -> MakeGraphState ANFIRDecl
-convert_decl bv_map (RIR.Decl'Module bindings adts type_synonyms) = ANFIR.Decl'Module <$> (concat <$> mapM (convert_binding bv_map) bindings) <*> pure adts <*> pure type_synonyms
+convert_decl bv_map (RIR.Decl'Module bindings adts type_synonyms) = ANFIR.Decl'Module <$> (concat <$> mapM (convert_binding bv_map) bindings >>= make_binding_group) <*> pure adts <*> pure type_synonyms
 convert_decl _ (RIR.Decl'Type ty) = pure $ ANFIR.Decl'Type ty
 
 map_bound_value :: RIR.BoundValueKey -> ANFIR.BindingKey -> MakeGraphState ()
 map_bound_value k binding = tell $ Map.singleton k binding
 
 get_bv :: RIR.BoundValueKey -> MakeGraphState (RIR.BoundValue (Maybe (Type.Type Void)))
-get_bv k = lift $ lift $ lift $ reader (\ a -> Arena.get a k)
+get_bv k = lift $ lift $ lift $ lift $ reader (\ a -> Arena.get a k)
 
 convert_binding :: BoundValueMap -> RIRBinding -> MakeGraphState [ANFIR.BindingKey]
 convert_binding bv_map (RIR.Binding target expr) =
@@ -82,7 +89,7 @@ convert_expr _ m_bvid (RIR.Expr'Bool id ty _ b) = new_binding (ANFIR.Expr'Bool (
 
 convert_expr bv_map m_bvid (RIR.Expr'Tuple id ty _ a b) = ANFIR.Expr'Tuple (choose_id m_bvid id) ty <$> convert_expr bv_map Nothing a <*> convert_expr bv_map Nothing b >>= new_binding
 
-convert_expr bv_map m_bvid (RIR.Expr'Lambda id ty _ _ captures param_bv body) =
+convert_expr bv_map m_bvid (RIR.Expr'Lambda id ty _ _ _ param_bv body) =
     lift (get_bv param_bv) >>= \ (RIR.BoundValue param_id param_ty _ _) ->
     new_param (ANFIR.Param param_id param_ty) >>= \ anfir_param ->
     lift (runWriterT $ -- lambda bodies should not be included in the parent included bindings because they do not need to be evaluated to create the lambda object
@@ -91,7 +98,8 @@ convert_expr bv_map m_bvid (RIR.Expr'Lambda id ty _ _ captures param_bv body) =
         lift (map_bound_value param_bv param_binding) >>
         convert_expr bv_map Nothing body
     ) >>= \ (body, body_included_bindings) ->
-    new_binding (ANFIR.Expr'Lambda (choose_id m_bvid id) ty (Set.map (bv_map Map.!) captures) anfir_param body_included_bindings body)
+    lift (make_binding_group body_included_bindings) >>= \ body_group ->
+    new_binding (ANFIR.Expr'Lambda (choose_id m_bvid id) ty anfir_param body_group body)
 
 convert_expr bv_map _ (RIR.Expr'Let _ _ _ bindings e) = mapM (lift . convert_binding bv_map) bindings >>= \ binding_involved_bindings -> tell (concat binding_involved_bindings) >> convert_expr bv_map Nothing e
 
@@ -99,7 +107,15 @@ convert_expr bv_map m_bvid (RIR.Expr'Call id ty _ callee arg) = ANFIR.Expr'Call 
 
 convert_expr bv_map m_bvid (RIR.Expr'Switch id ty _ testing arms) =
     convert_expr bv_map Nothing testing >>= \ testing ->
-    ANFIR.Expr'Switch (choose_id m_bvid id) ty testing <$> mapM (\ (matcher, arm) -> (,) <$> convert_matcher matcher testing <*> convert_expr bv_map Nothing arm) arms >>= new_binding
+    ANFIR.Expr'Switch (choose_id m_bvid id) ty testing
+        <$>
+            mapM
+                (\ (matcher, arm) ->
+                    convert_matcher matcher testing >>= \ matcher ->
+                    lift (runWriterT $ convert_expr bv_map Nothing arm) >>= \ (arm, arm_involved_bindings) ->
+                    (matcher,,arm) <$> lift (make_binding_group arm_involved_bindings))
+                arms
+        >>= new_binding
     where
         convert_matcher (RIR.Switch'BoolLiteral b) _ = pure $ ANFIR.Switch'BoolLiteral b
         convert_matcher (RIR.Switch'Tuple a b) testing =
@@ -124,7 +140,9 @@ convert_expr bv_map m_bvid (RIR.Expr'Switch id ty _ testing arms) =
 
 convert_expr bv_map m_bvid (RIR.Expr'Seq id ty _ a b) = ANFIR.Expr'Seq (choose_id m_bvid id) ty <$> convert_expr bv_map Nothing a <*> convert_expr bv_map Nothing b >>= new_binding
 
-convert_expr bv_map m_bvid (RIR.Expr'Forall id ty _ vars e) = ANFIR.Expr'Forall (choose_id m_bvid id) ty vars <$> convert_expr bv_map Nothing e >>= new_binding
+convert_expr bv_map m_bvid (RIR.Expr'Forall id ty _ vars e) =
+    lift (runWriterT (convert_expr bv_map Nothing e)) >>= \ (e, e_involved_bindings) ->
+    ANFIR.Expr'Forall (choose_id m_bvid id) ty vars <$> lift (make_binding_group e_involved_bindings) <*> pure e >>= new_binding
 convert_expr bv_map m_bvid (RIR.Expr'TypeApply id ty _ e arg) = ANFIR.Expr'TypeApply (choose_id m_bvid id) ty <$> convert_expr bv_map Nothing e <*> pure arg >>= new_binding
 
 convert_expr bv_map m_bvid (RIR.Expr'MakeADT id ty _ variant args) = ANFIR.Expr'MakeADT (choose_id m_bvid id) (Just ty) variant <$> mapM (convert_expr bv_map Nothing) args >>= new_binding

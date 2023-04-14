@@ -3,6 +3,7 @@ module UHF.Phases.Back.TSBackend (lower) where
 import UHF.Util.Prelude
 
 import qualified Arena
+import qualified Unique
 
 import qualified Data.Text as Text
 import qualified Data.Maybe as Maybe
@@ -52,11 +53,10 @@ runtime_code = $(FileEmbed.embedStringFile "data/ts_runtime.ts")
 
 data TSDecl
 newtype TSADT = TSADT Type.ADTKey
-data TSLambda = TSLambda ANFIR.BindingKey (Set ANFIR.BindingKey) Type Type ANFIR.BindingKey
+data TSLambda = TSLambda ANFIR.BindingKey ANFIR.BindingGroup Type Type ANFIR.BindingKey
 newtype TSGlobalThunk = TSGlobalThunk ANFIR.BindingKey
 -- TODO: dont use BoundValueKey Ord for order of captures in parameters of function
-data TSMakeThunkGraph = TSMakeThunkGraph MakeThunkGraphFor [ANFIR.BindingKey] (Set ANFIR.BindingKey) (Maybe ANFIR.ParamKey) -- list of bindings is body, set of bindings is captures
-data MakeThunkGraphFor = LambdaBody ANFIR.BindingKey | Globals
+data TSMakeThunkGraph = TSMakeThunkGraph ANFIR.BindingGroup (Maybe ANFIR.ParamKey) -- list of bindings is body, set of bindings is captures
 data TS = TS [TSDecl] [TSADT] [TSMakeThunkGraph] [TSLambda] [TSGlobalThunk]
 
 instance Semigroup TS where
@@ -103,12 +103,12 @@ stringify_ts_adt (TSADT key) =
                     pure (Text.intercalate " | " variant_types)
 
 stringify_ts_make_thunk_graph :: TSMakeThunkGraph -> IRReader Text
-stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures param) =
+stringify_ts_make_thunk_graph (TSMakeThunkGraph (ANFIR.BindingGroup unique captures included_bindings) param) =
     mapM stringify_param param >>= \ stringified_param ->
     mapM stringify_capture (Set.toList captures) >>= \ stringified_captures ->
 
     unzip <$> mapM stringify_binding_decl included_bindings >>= \ (binding_decls, binding_set_evaluators) ->
-    mangle_make_thunk_graph_for for >>= \ fn_name ->
+    mangle_group_unique unique >>= \ fn_name ->
     ts_return_type >>= \ ts_return_type ->
     object_of_bindings >>= \ object_of_bindings ->
 
@@ -164,7 +164,7 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures p
                     mangle_binding_as_thunk b >>= \ b_mangled ->
                     pure (default_let_thunk, Just (set_evaluator "TupleEvaluator" (a_mangled <> ", " <> b_mangled)))
 
-                ANFIR.Expr'Lambda _ _ captures _ _ _ ->
+                ANFIR.Expr'Lambda _ _ _ _ _ ->
                     mangle_binding_as_lambda binding_key >>= \ lambda ->
                     mapM mangle_binding_as_thunk (toList captures) >>= \ captures_mangled ->
                     pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" ("new " <> lambda <> "(" <> Text.intercalate ", " captures_mangled <> ")")))
@@ -176,7 +176,7 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures p
                     pure (default_let_thunk, Just (set_evaluator "CallEvaluator" (callee_mangled <> ", " <> arg_mangled)))
 
                 ANFIR.Expr'Switch _ _ test arms ->
-                    mapM (\ (matcher, res) ->
+                    mapM (\ (matcher, group, res) -> -- TODO: lower binding group
                         mangle_binding_as_thunk res >>= \ res' ->
                         pure ("[" <> convert_matcher matcher <> ", " <> res' <> "]")) arms >>= \ arms' ->
                     mangle_binding_as_thunk test >>= \ test_mangled ->
@@ -195,7 +195,8 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures p
                     pure (default_let_thunk, Just (set_evaluator "TupleDestructure2Evaluator" tup_mangled))
 
                 -- foralls and type applications get erased, TODO: explain this better and also reconsider if this is actually correct
-                ANFIR.Expr'Forall _ _ _ e ->
+                ANFIR.Expr'Forall _ _ _ _ e ->
+                    -- TODO: lower group
                     mangle_binding_as_thunk e >>= \ e ->
                     pure (let_thunk e, Nothing)
                 ANFIR.Expr'TypeApply _ _ e _ ->
@@ -215,11 +216,11 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph for included_bindings captures p
         convert_matcher ANFIR.Switch'Default = "default_matcher()"
 
 stringify_ts_lambda :: TSLambda -> IRReader Text
-stringify_ts_lambda (TSLambda key captures arg result body_key) =
-    refer_type_raw arg >>= \ arg_type_raw ->
-    refer_type arg >>= \ arg_type ->
-    refer_type_raw result >>= \ result_type_raw ->
-    refer_type result >>= \ result_type ->
+stringify_ts_lambda (TSLambda key (ANFIR.BindingGroup unique captures _) arg_ty result_ty body_key) =
+    refer_type_raw arg_ty >>= \ arg_type_raw ->
+    refer_type arg_ty >>= \ arg_type ->
+    refer_type_raw result_ty >>= \ result_type_raw ->
+    refer_type result_ty >>= \ result_type ->
 
     Text.intercalate ", " <$>
         mapM
@@ -231,7 +232,7 @@ stringify_ts_lambda (TSLambda key captures arg result body_key) =
 
     mangle_binding_as_lambda key >>= \ lambda_mangled ->
     mangle_binding_as_thunk body_key >>= \ body_as_thunk ->
-    mangle_make_thunk_graph_for (LambdaBody key) >>= \ make_thunk_graph_for ->
+    mangle_group_unique unique >>= \ make_thunk_graph_for ->
     mapM (\ c -> mangle_binding_as_capture c >>= \ c -> pure ("this." <> c)) (toList captures) >>= \ capture_args ->
 
     pure ("class " <> lambda_mangled <> " implements Lambda<" <> arg_type_raw <> ", " <> result_type_raw <> "> {\n"
@@ -304,18 +305,18 @@ lower (ANFIR.ANFIR decls adts type_synonyms type_vars bindings params mod) =
         (adts, type_synonyms, bindings, params)
 
 define_decl :: ANFIR.DeclKey -> Decl -> TSWriter ()
-define_decl _ (ANFIR.Decl'Module global_bindings adts _) =
+define_decl _ (ANFIR.Decl'Module global_group adts _) =
     mapM_ (tell_adt . TSADT) adts >>
-    mapM (tell_global . TSGlobalThunk) global_bindings >>
-    tell_make_thunk_graph (TSMakeThunkGraph Globals global_bindings Set.empty Nothing) -- global thunk graph does not have any params >>
+    mapM (tell_global . TSGlobalThunk) (ANFIR.binding_group_bindings global_group) >>
+    tell_make_thunk_graph (TSMakeThunkGraph global_group Nothing) -- global thunk graph does not have any params
 define_decl _ (ANFIR.Decl'Type _) = pure ()
 
 define_lambda_type :: ANFIR.BindingKey -> Binding -> TSWriter ()
-define_lambda_type key (ANFIR.Binding (ANFIR.Expr'Lambda _ _ captures param body_included_bindings body)) =
+define_lambda_type key (ANFIR.Binding (ANFIR.Expr'Lambda _ _ param group body)) =
     lift (get_param param) >>= \ (ANFIR.Param _ param_ty) ->
     lift (binding_type body) >>= \ body_type ->
-    tell_make_thunk_graph (TSMakeThunkGraph (LambdaBody key) body_included_bindings captures (Just param)) >>
-    tell_lambda (TSLambda key captures param_ty body_type body)
+    tell_make_thunk_graph (TSMakeThunkGraph group (Just param)) >>
+    tell_lambda (TSLambda key group param_ty body_type body)
 
 define_lambda_type _ _ = pure ()
 
@@ -332,6 +333,5 @@ mangle_binding_as_capture key = ANFIR.binding_id <$> get_binding key >>= \ id ->
 mangle_binding_as_thunk :: ANFIR.BindingKey -> IRReader Text
 mangle_binding_as_thunk key = ANFIR.binding_id <$> get_binding key >>= \ id -> pure ("thunk" <> ANFIR.mangle_id id)
 
-mangle_make_thunk_graph_for :: MakeThunkGraphFor -> IRReader Text
-mangle_make_thunk_graph_for Globals = pure "make_global_thunk_graph"
-mangle_make_thunk_graph_for (LambdaBody lambda_key) = mangle_binding_as_lambda lambda_key >>= \ l -> pure ("make_thunk_graph_for_" <> l)
+mangle_group_unique :: Unique.Unique -> IRReader Text
+mangle_group_unique u = pure (show u) -- TODO: do this properly because that can have spaces

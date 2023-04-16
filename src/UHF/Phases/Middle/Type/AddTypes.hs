@@ -76,7 +76,7 @@ bound_value (SIR.BoundValue'ADTVariant id variant_index@(Type.ADTVariantIndex ad
                  in wrap_in_forall $ foldr (Type.Type'Function . SIR.type_expr_type_info) (Type.Type'ADT adt_key (map Type.Type'Variable type_params)) fields -- function type that takes all the field types and then results in the adt type
     pure (SIR.BoundValue'ADTVariant id variant_index ty def_span)
 
-decl :: UntypedDecl -> ContextReader UntypedDeclArena TypedWithUnkBoundValueArena adts TypedWithUnkDecl
+decl :: UntypedDecl -> ContextReader UntypedDeclArena TypedWithUnkBoundValueArena TypedWithUnkADTArena TypedWithUnkDecl
 decl (SIR.Decl'Type ty) = pure $ SIR.Decl'Type ty
 decl (SIR.Decl'Module id nc bindings adts type_synonyms) = SIR.Decl'Module id nc <$> mapM binding bindings <*> pure adts <*> pure type_synonyms
 
@@ -136,7 +136,7 @@ type_expr (SIR.TypeExpr'Apply () sp ty arg) =
 type_expr (SIR.TypeExpr'Wild () sp) = Type.Type'Unknown <$> lift (lift $ new_type_unknown (TypeExpr sp)) >>= \ ty -> pure (SIR.TypeExpr'Wild ty sp)
 type_expr (SIR.TypeExpr'Poison () sp) = Type.Type'Unknown <$> lift (lift $ new_type_unknown (TypeExpr sp)) >>= \ ty -> pure (SIR.TypeExpr'Poison ty sp)
 
-binding :: UntypedBinding -> ContextReader UntypedDeclArena TypedWithUnkBoundValueArena adts TypedWithUnkBinding
+binding :: UntypedBinding -> ContextReader UntypedDeclArena TypedWithUnkBoundValueArena TypedWithUnkADTArena TypedWithUnkBinding
 binding (SIR.Binding p eq_sp e) =
     pattern p >>= \ p ->
     expr e >>= \ e ->
@@ -144,12 +144,12 @@ binding (SIR.Binding p eq_sp e) =
     pure (SIR.Binding p eq_sp e)
 binding (SIR.Binding'ADTVariant bvk variant) = pure $ SIR.Binding'ADTVariant bvk variant
 
-loc_pat_type :: SIR.Pattern type_info -> Located type_info
+loc_pat_type :: SIR.Pattern p_iden type_info -> Located type_info
 loc_pat_type pattern = Located (SIR.pattern_span pattern) (SIR.pattern_type pattern)
-loc_expr_type :: SIR.Expr identifier type_expr type_info binary_ops_allowed -> Located type_info
+loc_expr_type :: SIR.Expr d_iden v_iden p_iden type_info binary_ops_allowed -> Located type_info
 loc_expr_type expr = Located (SIR.expr_span expr) (SIR.expr_type expr)
 
-pattern :: UntypedPattern -> ContextReader decls TypedWithUnkBoundValueArena adts TypedWithUnkPattern
+pattern :: UntypedPattern -> ContextReader decls TypedWithUnkBoundValueArena TypedWithUnkADTArena TypedWithUnkPattern
 pattern (SIR.Pattern'Identifier () sp bv) =
     get_bv_type bv >>= \ ty ->
     pure (SIR.Pattern'Identifier ty sp bv)
@@ -169,9 +169,48 @@ pattern (SIR.Pattern'Named () sp at_sp bvk subpat) =
     lift (tell [Eq InNamedPattern at_sp (Located (just_span bvk) bv_ty) (loc_pat_type subpat)]) >>
     pure (SIR.Pattern'Named bv_ty sp at_sp bvk subpat)
 
+pattern (SIR.Pattern'AnonADTVariant () sp Nothing fields) =
+    mapM pattern fields >>= \ fields ->
+    Type.Type'Unknown <$> lift (lift $ new_type_unknown (UnresolvedADTVariantPattern sp)) >>= \ ty ->
+    pure (SIR.Pattern'AnonADTVariant ty sp Nothing fields)
+pattern (SIR.Pattern'AnonADTVariant () sp (Just variant_index@(Type.ADTVariantIndex adt_key _)) fields) =
+    mapM pattern fields >>= \ pattern_fields ->
+
+    ask >>= \ (_, _, adts) ->
+    let Type.ADT _ _ type_params _ = Arena.get adts adt_key
+        variant = Type.get_adt_variant adts variant_index
+    in case variant of
+         Type.ADTVariant'Anon _ variant_field_tys ->
+            if length pattern_fields /= length variant_field_tys
+                then error "wrong number of fields in named variant pattern" -- TODO: report proper error
+                else
+                    zipWithM
+                        (\ pat_field variant_field_ty ->
+                            lift (tell [Expect InADTVariantPatternField (loc_pat_type pat_field) (SIR.type_expr_type_info variant_field_ty)]) -- TODO: substitute type parameters
+                            )
+                        pattern_fields
+                        variant_field_tys
+         Type.ADTVariant'Named _ _ -> error "named variant pattern used with anonymous variant" -- TODO: also report proper error
+        >>
+
+    Type.Type'ADT adt_key <$> mapM (\ var -> Type.Type'Unknown <$> lift (lift $ new_type_unknown $ ImplicitTyParam sp {- var TODO -})) type_params >>= \ whole_pat_type -> -- TODO: declared span
+
+    pure (SIR.Pattern'AnonADTVariant whole_pat_type sp (Just variant_index) pattern_fields)
+
+pattern (SIR.Pattern'NamedADTVariant () sp Nothing fields) =
+    mapM (\ (field_name, field_pat) -> (field_name,) <$> pattern field_pat) fields >>= \ fields ->
+    Type.Type'Unknown <$> lift (lift $ new_type_unknown (UnresolvedADTVariantPattern sp)) >>= \ ty ->
+    pure (SIR.Pattern'NamedADTVariant ty sp Nothing fields)
+pattern (SIR.Pattern'NamedADTVariant () _ (Just _) _) = todo
+-- 4 things:
+--     - check variant is named variant
+--     - check field names are correct
+--     - check all fields are covered
+--     - put type constraints on all fields
+
 pattern (SIR.Pattern'Poison () sp) = SIR.Pattern'Poison <$> (Type.Type'Unknown <$> lift (lift $ new_type_unknown $ PoisonPattern sp)) <*> pure sp
 
-expr :: UntypedExpr -> ContextReader UntypedDeclArena TypedWithUnkBoundValueArena adts TypedWithUnkExpr
+expr :: UntypedExpr -> ContextReader UntypedDeclArena TypedWithUnkBoundValueArena TypedWithUnkADTArena TypedWithUnkExpr
 expr (SIR.Expr'Identifier id () sp bv) =
     (case unlocate bv of
         Just bv -> get_bv_type bv

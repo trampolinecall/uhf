@@ -37,15 +37,16 @@ import Data.Functor.Identity (Identity (Identity, runIdentity))
 
 type UnresolvedDIden = (SIR.NameContext, [Located Text])
 type UnresolvedVIden = (SIR.NameContext, [Located Text])
+type UnresolvedPIden = (SIR.NameContext, [Located Text])
 
-type UnresolvedSIR = SIR.SIR UnresolvedDIden UnresolvedVIden () ()
-type UnresolvedDecl = SIR.Decl UnresolvedDIden UnresolvedVIden () ()
+type UnresolvedSIR = SIR.SIR UnresolvedDIden UnresolvedVIden UnresolvedPIden () ()
+type UnresolvedDecl = SIR.Decl UnresolvedDIden UnresolvedVIden UnresolvedPIden () ()
 type UnresolvedADT = Type.ADT UnresolvedTypeExpr
 type UnresolvedTypeSynonym = Type.TypeSynonym UnresolvedTypeExpr
 type UnresolvedTypeExpr = SIR.TypeExpr UnresolvedDIden ()
-type UnresolvedBinding = SIR.Binding UnresolvedDIden UnresolvedVIden () ()
-type UnresolvedExpr = SIR.Expr UnresolvedDIden UnresolvedVIden () ()
-type UnresolvedPattern = SIR.Pattern UnresolvedVIden
+type UnresolvedBinding = SIR.Binding UnresolvedDIden UnresolvedVIden UnresolvedPIden () ()
+type UnresolvedExpr = SIR.Expr UnresolvedDIden UnresolvedVIden UnresolvedPIden () ()
+type UnresolvedPattern = SIR.Pattern UnresolvedPIden ()
 
 type UnresolvedDeclArena = Arena.Arena UnresolvedDecl SIR.DeclKey
 type UnresolvedADTArena = Arena.Arena UnresolvedADT Type.ADTKey
@@ -53,15 +54,16 @@ type UnresolvedTypeSynonymArena = Arena.Arena UnresolvedTypeSynonym Type.TypeSyn
 
 type ResolvedDIden = Maybe SIR.DeclKey
 type ResolvedVIden = Located (Maybe SIR.BoundValueKey)
+type ResolvedPIden = Maybe Type.ADTVariantIndex
 
-type ResolvedSIR = SIR.SIR ResolvedDIden ResolvedVIden () ()
-type ResolvedDecl = SIR.Decl ResolvedDIden ResolvedVIden () ()
+type ResolvedSIR = SIR.SIR ResolvedDIden ResolvedVIden ResolvedPIden () ()
+type ResolvedDecl = SIR.Decl ResolvedDIden ResolvedVIden ResolvedPIden () ()
 type ResolvedADT = Type.ADT ResolvedTypeExpr
 type ResolvedTypeSynonym = Type.TypeSynonym ResolvedTypeExpr
-type ResolvedTypeExpr = SIR.TypeExpr (Maybe SIR.DeclKey) ()
-type ResolvedBinding = SIR.Binding ResolvedDIden ResolvedVIden () ()
-type ResolvedExpr = SIR.Expr ResolvedDIden ResolvedVIden () ()
-type ResolvedPattern = SIR.Pattern (Located (Maybe SIR.BoundValueKey))
+type ResolvedTypeExpr = SIR.TypeExpr ResolvedDIden ()
+type ResolvedBinding = SIR.Binding ResolvedDIden ResolvedVIden ResolvedPIden () ()
+type ResolvedExpr = SIR.Expr ResolvedDIden ResolvedVIden ResolvedPIden () ()
+type ResolvedPattern = SIR.Pattern ResolvedPIden ()
 
 type ResolvedDeclArena = Arena.Arena ResolvedDecl SIR.DeclKey
 type ResolvedADTArena = Arena.Arena ResolvedADT Type.ADTKey
@@ -79,8 +81,8 @@ instance Diagnostic.ToError Error where
                         Nothing -> ""
         in Diagnostic.Error Diagnostic.Codes.undef_name (Just sp) message [] []
 
-transform_identifiers :: Monad m => (d_iden -> m d_iden') -> (v_iden -> m v_iden') -> Arena.Arena (Type.ADT (SIR.TypeExpr d_iden type_info)) Type.ADTKey -> Arena.Arena (Type.TypeSynonym (SIR.TypeExpr d_iden type_info)) Type.TypeSynonymKey -> Arena.Arena (SIR.Decl d_iden v_iden type_info binary_ops_allowed) SIR.DeclKey -> m (Arena.Arena (Type.ADT (SIR.TypeExpr d_iden' type_info)) Type.ADTKey, Arena.Arena (Type.TypeSynonym (SIR.TypeExpr d_iden' type_info)) Type.TypeSynonymKey, Arena.Arena (SIR.Decl d_iden' v_iden' type_info binary_ops_allowed) SIR.DeclKey)
-transform_identifiers transform_d_iden transform_e_iden adts type_synonyms decls = (,,) <$> Arena.transformM transform_adt adts <*> Arena.transformM transform_type_synonym type_synonyms <*> Arena.transformM transform_decl decls
+transform_identifiers :: Monad m => (d_iden -> m d_iden') -> (v_iden -> m v_iden') -> (p_iden -> m p_iden') -> Arena.Arena (Type.ADT (SIR.TypeExpr d_iden type_info)) Type.ADTKey -> Arena.Arena (Type.TypeSynonym (SIR.TypeExpr d_iden type_info)) Type.TypeSynonymKey -> Arena.Arena (SIR.Decl d_iden v_iden p_iden type_info binary_ops_allowed) SIR.DeclKey -> m (Arena.Arena (Type.ADT (SIR.TypeExpr d_iden' type_info)) Type.ADTKey, Arena.Arena (Type.TypeSynonym (SIR.TypeExpr d_iden' type_info)) Type.TypeSynonymKey, Arena.Arena (SIR.Decl d_iden' v_iden' p_iden' type_info binary_ops_allowed) SIR.DeclKey)
+transform_identifiers transform_d_iden transform_v_iden transform_p_iden adts type_synonyms decls = (,,) <$> Arena.transformM transform_adt adts <*> Arena.transformM transform_type_synonym type_synonyms <*> Arena.transformM transform_decl decls
     where
         transform_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM transform_variant variants
             where
@@ -107,9 +109,11 @@ transform_identifiers transform_d_iden transform_e_iden adts type_synonyms decls
         transform_pat (SIR.Pattern'Wildcard type_info sp) = pure $ SIR.Pattern'Wildcard type_info sp
         transform_pat (SIR.Pattern'Tuple type_info sp a b) = SIR.Pattern'Tuple type_info sp <$> transform_pat a <*> transform_pat b
         transform_pat (SIR.Pattern'Named type_info sp at_sp bnk subpat) = SIR.Pattern'Named type_info sp at_sp bnk <$> transform_pat subpat
+        transform_pat (SIR.Pattern'AnonADTVariant type_info sp variant subpat) = SIR.Pattern'AnonADTVariant type_info sp <$> transform_p_iden variant <*> mapM transform_pat subpat
+        transform_pat (SIR.Pattern'NamedADTVariant type_info sp variant subpat) = SIR.Pattern'NamedADTVariant type_info sp <$> transform_p_iden variant <*> mapM (\ (field_name, field_pat) -> (field_name,) <$> transform_pat field_pat) subpat
         transform_pat (SIR.Pattern'Poison type_info sp) = pure $ SIR.Pattern'Poison type_info sp
 
-        transform_expr (SIR.Expr'Identifier id type_info sp i) = SIR.Expr'Identifier id type_info sp <$> transform_e_iden i
+        transform_expr (SIR.Expr'Identifier id type_info sp i) = SIR.Expr'Identifier id type_info sp <$> transform_v_iden i
         transform_expr (SIR.Expr'Char id type_info sp c) = pure $ SIR.Expr'Char id type_info sp c
         transform_expr (SIR.Expr'String id type_info sp s) = pure $ SIR.Expr'String id type_info sp s
         transform_expr (SIR.Expr'Int id type_info sp i) = pure $ SIR.Expr'Int id type_info sp i
@@ -122,7 +126,7 @@ transform_identifiers transform_d_iden transform_e_iden adts type_synonyms decls
 
         transform_expr (SIR.Expr'Let id type_info sp bindings body) = SIR.Expr'Let id type_info sp <$> mapM transform_binding bindings <*> transform_expr body
 
-        transform_expr (SIR.Expr'BinaryOps id allowed type_info sp first ops) = SIR.Expr'BinaryOps id allowed type_info sp <$> transform_expr first <*> mapM (\ (iden, rhs) -> (,) <$> transform_e_iden iden <*> transform_expr rhs) ops
+        transform_expr (SIR.Expr'BinaryOps id allowed type_info sp first ops) = SIR.Expr'BinaryOps id allowed type_info sp <$> transform_expr first <*> mapM (\ (iden, rhs) -> (,) <$> transform_v_iden iden <*> transform_expr rhs) ops
 
         transform_expr (SIR.Expr'Call id type_info sp callee arg) = SIR.Expr'Call id type_info sp <$> transform_expr callee <*> transform_expr arg
 
@@ -140,15 +144,16 @@ transform_identifiers transform_d_iden transform_e_iden adts type_synonyms decls
 
 resolve :: UnresolvedSIR -> Compiler.WithDiagnostics Error Void ResolvedSIR
 resolve (SIR.SIR decls adts type_synonyms type_vars bound_values mod) =
-    let (adts', type_synonyms', decls') = runIdentity (transform_identifiers Identity split_expr_iden adts type_synonyms decls)
-    in transform_identifiers (resolve_type_iden decls) (resolve_expr_iden decls) adts' type_synonyms' decls' >>= \ (adts', type_synonyms', decls') ->
+    let (adts', type_synonyms', decls') = runIdentity (transform_identifiers Identity split_iden split_iden adts type_synonyms decls)
+    in transform_identifiers (resolve_type_iden decls) (resolve_expr_iden decls) (resolve_pat_iden decls) adts' type_synonyms' decls' >>= \ (adts', type_synonyms', decls') ->
     pure (SIR.SIR decls' adts' type_synonyms' type_vars bound_values mod)
 
-split_expr_iden :: UnresolvedVIden -> Identity (SIR.NameContext, Maybe [Located Text], Located Text)
-split_expr_iden (_, []) = error "empty identifier"
-split_expr_iden (nc, [x]) = pure (nc, Nothing, x)
-split_expr_iden (nc, x) = pure (nc, Just $ init x, last x)
+split_iden :: UnresolvedVIden -> Identity (SIR.NameContext, Maybe [Located Text], Located Text)
+split_iden (_, []) = error "empty identifier"
+split_iden (nc, [x]) = pure (nc, Nothing, x)
+split_iden (nc, x) = pure (nc, Just $ init x, last x)
 
+-- TODO: factor out repeated code?
 resolve_expr_iden :: UnresolvedDeclArena -> (SIR.NameContext, Maybe [Located Text], Located Text) -> Compiler.WithDiagnostics Error Void (Located (Maybe SIR.BoundValueKey))
 resolve_expr_iden decls (nc, Just type_iden, last_segment) =
     let sp = Located.just_span (head type_iden) <> Located.just_span last_segment
@@ -189,6 +194,27 @@ resolve_type_iden decls (nc, first:more) =
                         Just parent -> resolve_first parent first
                         Nothing -> Left $ CouldNotFind Nothing first -- TODO: put previous in error
 
+resolve_pat_iden :: UnresolvedDeclArena -> (SIR.NameContext, Maybe [Located Text], Located Text) -> Compiler.WithDiagnostics Error Void (Maybe Type.ADTVariantIndex)
+resolve_pat_iden decls (nc, Just type_iden, last_segment) =
+    resolve_type_iden decls (nc, type_iden) >>= \ resolved_type ->
+    case get_variant_child decls <$> resolved_type <*> pure last_segment of
+        Just (Right v) -> pure $ Just v
+        Just (Left e) -> Compiler.tell_error e >> pure Nothing
+        Nothing -> pure Nothing
+
+resolve_pat_iden _ (nc, Nothing, last_segment) =
+    case resolve nc last_segment of
+        Right v -> pure $ Just v
+        Left e -> Compiler.tell_error e >> pure Nothing
+    where
+        resolve (SIR.NameContext _ _ adtv_children parent) name =
+            case Map.lookup (Located.unlocate name) adtv_children of
+                Just res -> Right res
+                Nothing ->
+                    case parent of
+                        Just parent -> resolve parent name
+                        Nothing -> Left $ CouldNotFind Nothing name
+
 get_decl_child :: UnresolvedDeclArena -> SIR.DeclKey -> Located Text -> Either Error SIR.DeclKey
 get_decl_child decls thing name =
     let res = case Arena.get decls thing of
@@ -202,6 +228,15 @@ get_value_child :: UnresolvedDeclArena -> SIR.DeclKey -> Located Text -> Either 
 get_value_child decls thing name =
     let res = case Arena.get decls thing of
             SIR.Decl'Module _ (SIR.NameContext _ v_children _ _) _ _ _ -> Map.lookup (Located.unlocate name) v_children
+            SIR.Decl'Type _ -> Nothing
+    in case res of
+        Just res -> Right res
+        Nothing -> Left $ CouldNotFind Nothing name -- TODO: put previous
+
+get_variant_child :: UnresolvedDeclArena -> SIR.DeclKey -> Located Text -> Either Error Type.ADTVariantIndex
+get_variant_child decls thing name =
+    let res = case Arena.get decls thing of
+            SIR.Decl'Module _ (SIR.NameContext _ _ adtv_children _) _ _ _ -> Map.lookup (Located.unlocate name) adtv_children
             SIR.Decl'Type _ -> Nothing
     in case res of
         Just res -> Right res

@@ -12,28 +12,28 @@ import qualified UHF.Data.IR.IDGen as IDGen
 import qualified UHF.Data.IR.ID as ID
 
 type VIden = Located (Maybe SIR.BoundValueKey)
-type UngroupedSIR d_iden = SIR.SIR d_iden VIden () ()
-type UngroupedDecl d_iden = SIR.Decl d_iden VIden () ()
-type UngroupedBinding d_iden = SIR.Binding d_iden VIden () ()
-type UngroupedExpr d_iden = SIR.Expr d_iden VIden () ()
+type UngroupedSIR d_iden p_iden = SIR.SIR d_iden VIden p_iden () ()
+type UngroupedDecl d_iden p_iden = SIR.Decl d_iden VIden p_iden () ()
+type UngroupedBinding d_iden p_iden = SIR.Binding d_iden VIden p_iden () ()
+type UngroupedExpr d_iden p_iden = SIR.Expr d_iden VIden p_iden () ()
 
-type GroupedSIR d_iden = SIR.SIR d_iden VIden () Void
-type GroupedDecl d_iden = SIR.Decl d_iden VIden () Void
-type GroupedBinding d_iden = SIR.Binding d_iden VIden () Void
-type GroupedExpr d_iden = SIR.Expr d_iden VIden () Void
+type GroupedSIR d_iden p_iden = SIR.SIR d_iden VIden p_iden () Void
+type GroupedDecl d_iden p_iden = SIR.Decl d_iden VIden p_iden () Void
+type GroupedBinding d_iden p_iden = SIR.Binding d_iden VIden p_iden () Void
+type GroupedExpr d_iden p_iden = SIR.Expr d_iden VIden p_iden () Void
 
-group :: UngroupedSIR d_iden -> GroupedSIR d_iden
+group :: UngroupedSIR d_iden p_iden -> GroupedSIR d_iden p_iden
 group (SIR.SIR decls adts type_synonyms type_vars bound_values mod) = SIR.SIR (IDGen.run_id_gen ID.ExprID'InfixGroupGen (Arena.transformM group_decl decls)) adts type_synonyms type_vars bound_values mod
 
-group_decl :: UngroupedDecl d_iden -> IDGen.IDGen ID.ExprID (GroupedDecl d_iden)
+group_decl :: UngroupedDecl d_iden p_iden -> IDGen.IDGen ID.ExprID (GroupedDecl d_iden p_iden)
 group_decl (SIR.Decl'Module id nc bindings adts syns) = SIR.Decl'Module id nc <$> mapM group_binding bindings <*> pure adts <*> pure syns
 group_decl (SIR.Decl'Type ty) = pure $ SIR.Decl'Type ty
 
-group_binding :: UngroupedBinding d_iden -> IDGen.IDGen ID.ExprID (GroupedBinding d_iden)
+group_binding :: UngroupedBinding d_iden p_iden -> IDGen.IDGen ID.ExprID (GroupedBinding d_iden p_iden)
 group_binding (SIR.Binding pat eq_sp e) = SIR.Binding pat eq_sp <$> group_expr e
 group_binding (SIR.Binding'ADTVariant bvk variant) = pure $ SIR.Binding'ADTVariant bvk variant
 
-group_expr :: UngroupedExpr d_iden -> IDGen.IDGen ID.ExprID (GroupedExpr d_iden)
+group_expr :: UngroupedExpr d_iden p_iden -> IDGen.IDGen ID.ExprID (GroupedExpr d_iden p_iden)
 group_expr (SIR.Expr'Identifier id () sp iden) = pure $ SIR.Expr'Identifier id () sp iden
 group_expr (SIR.Expr'Char id () sp c) = pure $ SIR.Expr'Char id () sp c
 group_expr (SIR.Expr'String id () sp t) = pure $ SIR.Expr'String id () sp t
@@ -53,7 +53,7 @@ group_expr (SIR.Expr'BinaryOps _ () () _ first ops) =
     if null a then pure r else error "internal error: still operations to group after grouping binary ops"
     where
         -- TODO: test this
-        g :: GroupedExpr tya -> [(Located (Maybe SIR.BoundValueKey), UngroupedExpr tya)] -> Int -> IDGen.IDGen ID.ExprID (GroupedExpr tya, [(Located (Maybe SIR.BoundValueKey), UngroupedExpr tya)])
+        g :: GroupedExpr d_iden p_iden -> [(Located (Maybe SIR.BoundValueKey), UngroupedExpr d_iden p_iden)] -> Int -> IDGen.IDGen ID.ExprID (GroupedExpr d_iden p_iden, [(Located (Maybe SIR.BoundValueKey), UngroupedExpr d_iden p_iden)])
         g left more@((first_op, first_rhs):after_first_op) cur_precedence =
             let op_prec = const 1 first_op -- TODO: precedence
             -- for example if the current precedence level is that for +, and first_op is *, this will consume the * and incorporate it into left

@@ -67,6 +67,8 @@ data Pattern
     | Pattern'Wildcard Span
     | Pattern'Tuple Span [Pattern]
     | Pattern'Named Span Identifier Span Pattern -- TODO: merge with Identifier?
+    | Pattern'AnonADTVariant Span Identifier [Pattern]
+    | Pattern'NamedADTVariant Span Identifier [(Identifier, Pattern)]
     deriving (Eq, Show)
 
 expr_span :: Expr -> Span
@@ -94,3 +96,5 @@ pattern_span (Pattern'Identifier i) = just_span i
 pattern_span (Pattern'Wildcard sp) = sp
 pattern_span (Pattern'Tuple sp _) = sp
 pattern_span (Pattern'Named sp _ _ _) = sp
+pattern_span (Pattern'AnonADTVariant sp _ _) = sp
+pattern_span (Pattern'NamedADTVariant sp _ _) = sp

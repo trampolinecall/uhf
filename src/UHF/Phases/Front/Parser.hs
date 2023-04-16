@@ -323,12 +323,34 @@ type_tuple =
     pure (AST.Type'Tuple (op_sp <> cp_sp) field_types)
 -- pattern {{{1
 pattern :: PEG.Parser AST.Pattern
-pattern = PEG.choice [pattern_tuple, pattern_named, pattern_wild, pattern_iden]
+pattern = PEG.choice [pattern_tuple, pattern_named, pattern_anon_variant, pattern_named_variant, pattern_iden, pattern_wild]
 
 pattern_iden :: PEG.Parser AST.Pattern
 pattern_iden =
     PEG.consume' "pattern" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
     pure (AST.Pattern'Identifier (Located iden_sp iden))
+
+pattern_anon_variant :: PEG.Parser AST.Pattern
+pattern_anon_variant =
+    PEG.consume' "pattern" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
+    PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>
+    PEG.delim_star pattern (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ fields ->
+    PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ (Located cp_sp _) ->
+    pure (AST.Pattern'AnonADTVariant (iden_sp <> cp_sp) (Located iden_sp iden) fields)
+
+pattern_named_variant :: PEG.Parser AST.Pattern
+pattern_named_variant =
+    PEG.consume' "pattern" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
+    PEG.consume' "'{'" (Token.SingleTypeToken Token.OBrace) >>
+    PEG.star (
+        PEG.consume' "field name" (Token.AlphaIdentifier ()) >>= \ (Located field_name_sp (Token.AlphaIdentifier field_name)) ->
+        PEG.consume' "'='" (Token.SingleTypeToken Token.Equal) >>
+        pattern >>= \ field_ty ->
+        PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>
+        pure (Located field_name_sp field_name, field_ty)
+    ) >>= \ fields ->
+    PEG.consume' "'}'" (Token.SingleTypeToken Token.CBrace) >>= \ (Located cp_sp _) ->
+    pure (AST.Pattern'NamedADTVariant (iden_sp <> cp_sp) (Located iden_sp iden) fields)
 
 pattern_wild :: PEG.Parser AST.Pattern
 pattern_wild =

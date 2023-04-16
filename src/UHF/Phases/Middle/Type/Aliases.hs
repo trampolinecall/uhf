@@ -13,18 +13,19 @@ import qualified UHF.Phases.Middle.Type.Unknown as Unknown
 type TypeWithUnk = Type.Type Unknown.TypeUnknownKey
 type Type = Type.Type Void
 
-type VIden = Located (Maybe SIR.BoundValueKey)
 type DIden = Maybe SIR.DeclKey
+type VIden = Located (Maybe SIR.BoundValueKey)
+type PIden = Maybe Type.ADTVariantIndex
 
 type TypeVarArena = Arena.Arena Type.Var Type.TypeVarKey
 
-type UntypedSIR = SIR.SIR DIden VIden () Void
-type UntypedDecl = SIR.Decl DIden VIden () Void
+type UntypedSIR = SIR.SIR DIden VIden PIden () Void
+type UntypedDecl = SIR.Decl DIden VIden PIden () Void
 type UntypedADT = Type.ADT UntypedTypeExpr
 type UntypedTypeSynonym = Type.TypeSynonym UntypedTypeExpr
-type UntypedBinding = SIR.Binding DIden VIden () Void
-type UntypedExpr = SIR.Expr DIden VIden () Void
-type UntypedPattern = SIR.Pattern ()
+type UntypedBinding = SIR.Binding DIden VIden PIden () Void
+type UntypedExpr = SIR.Expr DIden VIden PIden () Void
+type UntypedPattern = SIR.Pattern PIden ()
 type UntypedBoundValue = SIR.BoundValue ()
 type UntypedTypeExpr = SIR.TypeExpr (Maybe SIR.DeclKey) ()
 
@@ -33,13 +34,13 @@ type UntypedTypeSynonymArena = Arena.Arena UntypedTypeSynonym Type.TypeSynonymKe
 type UntypedBoundValueArena = Arena.Arena UntypedBoundValue SIR.BoundValueKey
 type UntypedDeclArena = Arena.Arena UntypedDecl SIR.DeclKey
 
-type TypedWithUnkSIR = SIR.SIR DIden VIden TypeWithUnk Void
-type TypedWithUnkDecl = SIR.Decl DIden VIden TypeWithUnk Void
+type TypedWithUnkSIR = SIR.SIR DIden VIden PIden TypeWithUnk Void
+type TypedWithUnkDecl = SIR.Decl DIden VIden PIden TypeWithUnk Void
 type TypedWithUnkADT = Type.ADT TypedWithUnkTypeExpr
 type TypedWithUnkTypeSynonym = Type.TypeSynonym TypedWithUnkTypeExpr
-type TypedWithUnkBinding = SIR.Binding DIden VIden TypeWithUnk Void
-type TypedWithUnkExpr = SIR.Expr DIden VIden TypeWithUnk Void
-type TypedWithUnkPattern = SIR.Pattern TypeWithUnk
+type TypedWithUnkBinding = SIR.Binding DIden VIden PIden TypeWithUnk Void
+type TypedWithUnkExpr = SIR.Expr DIden VIden PIden TypeWithUnk Void
+type TypedWithUnkPattern = SIR.Pattern PIden TypeWithUnk
 type TypedWithUnkBoundValue = SIR.BoundValue TypeWithUnk
 type TypedWithUnkTypeExpr = SIR.TypeExpr (Maybe SIR.DeclKey) (Type.Type Unknown.TypeUnknownKey)
 
@@ -48,13 +49,13 @@ type TypedWithUnkTypeSynonymArena = Arena.Arena TypedWithUnkTypeSynonym Type.Typ
 type TypedWithUnkBoundValueArena = Arena.Arena TypedWithUnkBoundValue SIR.BoundValueKey
 type TypedWithUnkDeclArena = Arena.Arena TypedWithUnkDecl SIR.DeclKey
 
-type TypedSIR = SIR.SIR DIden VIden (Maybe Type) Void
-type TypedDecl = SIR.Decl DIden VIden (Maybe Type) Void
+type TypedSIR = SIR.SIR DIden VIden PIden (Maybe Type) Void
+type TypedDecl = SIR.Decl DIden VIden PIden (Maybe Type) Void
 type TypedADT = Type.ADT TypedTypeExpr
 type TypedTypeSynonym = Type.TypeSynonym TypedTypeExpr
-type TypedBinding = SIR.Binding DIden VIden (Maybe Type) Void
-type TypedExpr = SIR.Expr DIden VIden (Maybe Type) Void
-type TypedPattern = SIR.Pattern (Maybe Type)
+type TypedBinding = SIR.Binding DIden VIden PIden (Maybe Type) Void
+type TypedExpr = SIR.Expr DIden VIden PIden (Maybe Type) Void
+type TypedPattern = SIR.Pattern PIden (Maybe Type)
 type TypedBoundValue = SIR.BoundValue (Maybe Type)
 type TypedTypeExpr = SIR.TypeExpr (Maybe SIR.DeclKey) (Maybe Type)
 

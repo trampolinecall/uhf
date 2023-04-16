@@ -18,12 +18,13 @@ type Type = Maybe (Type.Type Void)
 
 type DIden = Maybe SIR.DeclKey
 type VIden = Located (Maybe SIR.BoundValueKey)
-type SIR = SIR.SIR DIden VIden Type Void
-type SIRDecl = SIR.Decl DIden VIden Type Void
-type SIRExpr = SIR.Expr DIden VIden Type Void
+type PIden = Maybe Type.ADTVariantIndex
+type SIR = SIR.SIR DIden VIden PIden Type Void
+type SIRDecl = SIR.Decl DIden VIden PIden Type Void
+type SIRExpr = SIR.Expr DIden VIden PIden Type Void
 type SIRTypeExpr = SIR.TypeExpr DIden Type
-type SIRPattern = SIR.Pattern Type
-type SIRBinding = SIR.Binding DIden VIden Type Void
+type SIRPattern = SIR.Pattern PIden Type
+type SIRBinding = SIR.Binding DIden VIden PIden Type Void
 
 type RIRDecl = RIR.Decl
 type RIRExpr = RIR.Expr
@@ -179,5 +180,8 @@ assign_pattern (SIR.Pattern'Named ty sp _ bv other) expr =
     new_made_up_expr_id >>= \ refer ->
     assign_pattern other (RIR.Expr'Identifier refer ty sp (Just $ unlocate bv)) >>= \ other_assignments ->
     pure (RIR.Binding (unlocate bv) expr : other_assignments)
+
+assign_pattern (SIR.Pattern'AnonADTVariant ty sp variant fields) expr = todo
+assign_pattern (SIR.Pattern'NamedADTVariant ty sp variant fields) expr = todo
 
 assign_pattern (SIR.Pattern'Poison _ _) _ = pure []

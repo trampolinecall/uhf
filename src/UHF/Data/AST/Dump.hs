@@ -59,6 +59,8 @@ dump_pattern (AST.Pattern'Identifier i) = dump_struct "Pattern'Identifier" [("i"
 dump_pattern (AST.Pattern'Wildcard _) = dump_struct "Pattern'Wildcard" []
 dump_pattern (AST.Pattern'Tuple _ items) = dump_struct "Pattern'Tuple" [("items", dump_list dump_pattern items)]
 dump_pattern (AST.Pattern'Named _ name _ subpat) = dump_struct "Pattern'Named" [("name", dump_identifier name), ("subpat", dump_pattern subpat)]
+dump_pattern (AST.Pattern'AnonADTVariant _ name fields) = dump_struct "Pattern'AnonADTVariant" [("variant", dump_identifier name), ("fields", dump_list dump_pattern fields)]
+dump_pattern (AST.Pattern'NamedADTVariant _ name fields) = dump_struct "Pattern'NamedADTVariant" [("variant", dump_identifier name), ("fields", dump_list (\ (field_name, field_pat) -> PP.List [dump_identifier field_name, " = ", dump_pattern field_pat]) fields)]
 
 dump_identifier :: Located [Located Text] -> PP.Token
 dump_identifier (Located _ items) = PP.String $ Text.intercalate "::" (map unlocate items)

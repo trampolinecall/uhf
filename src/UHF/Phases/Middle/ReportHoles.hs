@@ -22,12 +22,12 @@ import qualified Data.Text as Text
 
 type Type = Type.Type Void
 
-type SIR d_iden v_iden binary_ops_allowed = SIR.SIR d_iden v_iden (Maybe Type) binary_ops_allowed
+type SIR d_iden v_iden p_iden binary_ops_allowed = SIR.SIR d_iden v_iden p_iden (Maybe Type) binary_ops_allowed
 type ADT d_iden = Type.ADT (TypeExpr d_iden)
 type TypeSynonym d_iden = Type.TypeSynonym (TypeExpr d_iden)
-type Binding d_iden v_iden binary_ops_allowed = SIR.Binding d_iden v_iden (Maybe Type) binary_ops_allowed
-type Expr d_iden v_iden binary_ops_allowed = SIR.Expr d_iden v_iden (Maybe Type) binary_ops_allowed
-type Pattern = SIR.Pattern (Maybe Type)
+type Binding d_iden v_iden p_iden binary_ops_allowed = SIR.Binding d_iden v_iden p_iden (Maybe Type) binary_ops_allowed
+type Expr d_iden v_iden p_iden binary_ops_allowed = SIR.Expr d_iden v_iden p_iden (Maybe Type) binary_ops_allowed
+type Pattern p_iden = SIR.Pattern p_iden (Maybe Type)
 type TypeExpr d_iden = SIR.TypeExpr d_iden (Maybe Type)
 
 type ADTArena d_iden = Arena.Arena (ADT d_iden) Type.ADTKey
@@ -40,7 +40,7 @@ instance Diagnostic.ToError (Error d_iden) where
         let message = "hole: '?" <> Text.intercalate "::" (map unlocate name) <> "' of type '" <> PP.render (Type.PP.refer_type absurd adts type_synonyms vars ty) <> "'"
         in Diagnostic.Error Diagnostic.Codes.hole (Just sp) message [] []
 
-report_holes :: SIR d_iden v_iden binary_ops_allowed -> Compiler.WithDiagnostics (Error d_iden) Void ()
+report_holes :: SIR d_iden v_iden p_iden binary_ops_allowed -> Compiler.WithDiagnostics (Error d_iden) Void ()
 report_holes sir@(SIR.SIR _ _ _ _ _ mod) =
     runReaderT (decl mod) sir
     -- let (SIR.Decl'Module) = Arena.get decls mod
@@ -49,29 +49,29 @@ report_holes sir@(SIR.SIR _ _ _ _ _ mod) =
     -- mapM_ adt adts >>
     -- mapM_ type_synonym type_synonyms
 
-decl :: SIR.DeclKey -> ReaderT (SIR d_iden v_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()
+decl :: SIR.DeclKey -> ReaderT (SIR d_iden v_iden p_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()
 decl key = ask >>= \ (SIR.SIR decls _ _ _ _ _) ->
     case Arena.get decls key of
         SIR.Decl'Module _ _ bindings adts type_synonyms -> mapM_ binding bindings >> mapM_ adt adts >> mapM_ type_synonym type_synonyms
         SIR.Decl'Type _ -> pure ()
 
-adt :: Type.ADTKey -> ReaderT (SIR d_iden v_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()
+adt :: Type.ADTKey -> ReaderT (SIR d_iden v_iden p_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()
 adt key = ask >>= \ (SIR.SIR _ adts _ _ _ _) -> let (Type.ADT _ _ _ variants) = Arena.get adts key in mapM_ variant variants
     where
         variant (Type.ADTVariant'Named _ fields) = mapM_ (\ (_, ty) -> type_expr ty) fields
         variant (Type.ADTVariant'Anon _ fields) = mapM_ type_expr fields
 
-type_synonym :: Type.TypeSynonymKey -> ReaderT (SIR d_iden v_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()
+type_synonym :: Type.TypeSynonymKey -> ReaderT (SIR d_iden v_iden p_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()
 type_synonym key = ask >>= \ (SIR.SIR _ _ type_synonyms _ _ _) -> let (Type.TypeSynonym _ _ expansion) = Arena.get type_synonyms key in type_expr expansion
 
-binding :: Binding d_iden v_iden binary_ops_allowed -> ReaderT (SIR d_iden v_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()
+binding :: Binding d_iden v_iden p_iden binary_ops_allowed -> ReaderT (SIR d_iden v_iden p_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()
 binding (SIR.Binding p _ e) = pattern p >> expr e
 binding (SIR.Binding'ADTVariant _ _) = pure ()
 
-pattern :: Pattern -> ReaderT (SIR d_iden v_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()
+pattern :: Pattern p_iden -> ReaderT (SIR d_iden v_iden p_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()
 pattern _ = pure () -- TODO: remove or keep for symmetry?
 
-expr :: Expr d_iden v_iden binary_ops_allowed -> ReaderT (SIR d_iden v_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()
+expr :: Expr d_iden v_iden p_iden binary_ops_allowed -> ReaderT (SIR d_iden v_iden p_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()
 expr (SIR.Expr'Identifier _ _ _ _) = pure ()
 expr (SIR.Expr'Char _ _ _ _) = pure ()
 expr (SIR.Expr'String _ _ _ _) = pure ()
@@ -106,7 +106,7 @@ expr (SIR.Expr'Hole _ type_info sp hid) =
 
 expr (SIR.Expr'Poison _ _ _) = pure ()
 
-type_expr :: TypeExpr d_iden -> ReaderT (SIR d_iden v_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()
+type_expr :: TypeExpr d_iden -> ReaderT (SIR d_iden v_iden p_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()
 type_expr (SIR.TypeExpr'Identifier _ _ _) = pure ()
 type_expr (SIR.TypeExpr'Tuple _ a b) = type_expr a >> type_expr b
 type_expr (SIR.TypeExpr'Hole type_info sp hid) =

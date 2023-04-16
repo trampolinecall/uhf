@@ -112,6 +112,7 @@ instance Diagnostic.ToError Error where
                 InIfCondition -> "'if' condition"
                 InCallExpr -> "call expression"
                 InTypeApplication -> "type application"
+                InADTVariantPatternField -> "ADT variant pattern field"
 
             sp = just_span got_whole
 

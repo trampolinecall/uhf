@@ -34,6 +34,8 @@ data TypeUnknownForWhat
     | WildcardPattern Span
     | TypeApplyExpr Span
     | TypeHole Span
+    | UnresolvedADTVariantPattern Span
+    | ImplicitTyParam Span
 data TypeUnknownState = Fresh | Substituted (Type.Type TypeUnknownKey)
 
 type_unk_for_what_sp :: TypeUnknownForWhat -> Span
@@ -48,6 +50,8 @@ type_unk_for_what_sp (HoleExpr sp) = sp
 type_unk_for_what_sp (WildcardPattern sp) = sp
 type_unk_for_what_sp (TypeApplyExpr sp) = sp
 type_unk_for_what_sp (TypeHole sp) = sp
+type_unk_for_what_sp (UnresolvedADTVariantPattern sp) = sp
+type_unk_for_what_sp (ImplicitTyParam sp) = sp
 
 type_unk_for_what_name :: TypeUnknownForWhat -> Text
 type_unk_for_what_name (BoundValue _) = "binding"
@@ -61,3 +65,5 @@ type_unk_for_what_name (HoleExpr _) = "hole expression"
 type_unk_for_what_name (WildcardPattern _) = "wildcard pattern"
 type_unk_for_what_name (TypeApplyExpr _) = "type application expression"
 type_unk_for_what_name (TypeHole _) = "type hole"
+type_unk_for_what_name (UnresolvedADTVariantPattern _) = "ADT variant pattern"
+type_unk_for_what_name (ImplicitTyParam _) = "implicit type parameter" -- TODO: better message

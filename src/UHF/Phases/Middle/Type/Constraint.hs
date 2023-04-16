@@ -7,7 +7,7 @@ import UHF.Phases.Middle.Type.Aliases
 import UHF.Phases.Middle.Type.Unknown
 
 data EqInWhat = InAssignment | InNamedPattern | InIfBranches | InCasePatterns | InCaseArms
-data ExpectInWhat = InTypeAnnotation | InCallExpr | InIfCondition | InTypeApplication
+data ExpectInWhat = InTypeAnnotation | InCallExpr | InIfCondition | InTypeApplication | InADTVariantPatternField
 data Constraint
     = Eq EqInWhat Span (Located TypeWithUnk) (Located TypeWithUnk)
     | Expect ExpectInWhat (Located TypeWithUnk) TypeWithUnk

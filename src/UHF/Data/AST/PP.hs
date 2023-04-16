@@ -68,6 +68,8 @@ pp_pattern (AST.Pattern'Identifier i) = PP.List [pp_iden i]
 pp_pattern (AST.Pattern'Wildcard _) = PP.List ["_"]
 pp_pattern (AST.Pattern'Tuple _ items) = PP.parenthesized_comma_list PP.Inconsistent $ map pp_pattern items
 pp_pattern (AST.Pattern'Named _ name _ subpat) = PP.List [pp_iden name, "@", pp_pattern subpat]
+pp_pattern (AST.Pattern'AnonADTVariant _ variant fields) = PP.List [pp_iden variant, PP.parenthesized_comma_list PP.Inconsistent (map pp_pattern fields)]
+pp_pattern (AST.Pattern'NamedADTVariant _ variant fields) = PP.List [pp_iden variant, PP.braced_block $ map (\ (field_name, field_pat) -> PP.List [pp_iden field_name, " = ", pp_pattern field_pat, ";"]) fields]
 
 pp_iden :: Located [Located Text] -> PP.Token
 pp_iden (Located _ items) = PP.List [PP.String $ Text.intercalate "::" (map unlocate items)]

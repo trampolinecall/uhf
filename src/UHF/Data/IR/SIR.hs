@@ -35,10 +35,10 @@ import UHF.IO.Span (Span)
 import UHF.IO.Located (Located)
 
 -- "syntax based ir"
-data SIR d_iden v_iden type_info binary_ops_allowed = SIR (Arena.Arena (Decl d_iden v_iden type_info binary_ops_allowed) DeclKey) (Arena.Arena (Type.ADT (TypeExpr d_iden type_info)) ADTKey) (Arena.Arena (Type.TypeSynonym (TypeExpr d_iden type_info)) TypeSynonymKey) (Arena.Arena Type.Var TypeVarKey) (Arena.Arena (BoundValue type_info) BoundValueKey) DeclKey
+data SIR d_iden v_iden p_iden type_info binary_ops_allowed = SIR (Arena.Arena (Decl d_iden v_iden p_iden type_info binary_ops_allowed) DeclKey) (Arena.Arena (Type.ADT (TypeExpr d_iden type_info)) ADTKey) (Arena.Arena (Type.TypeSynonym (TypeExpr d_iden type_info)) TypeSynonymKey) (Arena.Arena Type.Var TypeVarKey) (Arena.Arena (BoundValue type_info) BoundValueKey) DeclKey
 
-data Decl d_iden v_iden type_info binary_ops_allowed
-    = Decl'Module ID.ModuleID NameContext [Binding d_iden v_iden type_info binary_ops_allowed] [ADTKey] [TypeSynonymKey]
+data Decl d_iden v_iden p_iden type_info binary_ops_allowed
+    = Decl'Module ID.ModuleID NameContext [Binding d_iden v_iden p_iden type_info binary_ops_allowed] [ADTKey] [TypeSynonymKey]
     | Decl'Type (Type.Type Void)
     deriving Show
 
@@ -47,8 +47,8 @@ data BoundValue type_info
     | BoundValue'ADTVariant ID.BoundValueID Type.ADTVariantIndex type_info Span
     deriving Show
 
-data Binding d_iden v_iden type_info binary_ops_allowed
-    = Binding (Pattern type_info) Span (Expr d_iden v_iden type_info binary_ops_allowed)
+data Binding d_iden v_iden p_iden type_info binary_ops_allowed
+    = Binding (Pattern p_iden type_info) Span (Expr d_iden v_iden p_iden type_info binary_ops_allowed)
     | Binding'ADTVariant BoundValueKey Type.ADTVariantIndex
     deriving Show
 
@@ -66,7 +66,7 @@ data TypeExpr d_iden type_info
     | TypeExpr'Poison type_info Span
     deriving Show
 
-data Expr d_iden v_iden type_info binary_ops_allowed
+data Expr d_iden v_iden p_iden type_info binary_ops_allowed
     = Expr'Identifier ID.ExprID type_info Span v_iden
     | Expr'Char ID.ExprID type_info Span Char
     | Expr'String ID.ExprID type_info Span Text
@@ -74,34 +74,36 @@ data Expr d_iden v_iden type_info binary_ops_allowed
     | Expr'Float ID.ExprID type_info Span Rational
     | Expr'Bool ID.ExprID type_info Span Bool -- TODO: replace with identifier exprs
 
-    | Expr'Tuple ID.ExprID type_info Span (Expr d_iden v_iden type_info binary_ops_allowed) (Expr d_iden v_iden type_info binary_ops_allowed)
+    | Expr'Tuple ID.ExprID type_info Span (Expr d_iden v_iden p_iden type_info binary_ops_allowed) (Expr d_iden v_iden p_iden type_info binary_ops_allowed)
 
-    | Expr'Lambda ID.ExprID type_info Span (Pattern type_info) (Expr d_iden v_iden type_info binary_ops_allowed)
+    | Expr'Lambda ID.ExprID type_info Span (Pattern p_iden type_info) (Expr d_iden v_iden p_iden type_info binary_ops_allowed)
 
-    | Expr'Let ID.ExprID type_info Span [Binding d_iden v_iden type_info binary_ops_allowed] (Expr d_iden v_iden type_info binary_ops_allowed)
+    | Expr'Let ID.ExprID type_info Span [Binding d_iden v_iden p_iden type_info binary_ops_allowed] (Expr d_iden v_iden p_iden type_info binary_ops_allowed)
 
-    | Expr'BinaryOps ID.ExprID binary_ops_allowed type_info Span (Expr d_iden v_iden type_info binary_ops_allowed) [(v_iden, Expr d_iden v_iden type_info binary_ops_allowed)]
+    | Expr'BinaryOps ID.ExprID binary_ops_allowed type_info Span (Expr d_iden v_iden p_iden type_info binary_ops_allowed) [(v_iden, Expr d_iden v_iden p_iden type_info binary_ops_allowed)]
 
-    | Expr'Call ID.ExprID type_info Span (Expr d_iden v_iden type_info binary_ops_allowed) (Expr d_iden v_iden type_info binary_ops_allowed)
+    | Expr'Call ID.ExprID type_info Span (Expr d_iden v_iden p_iden type_info binary_ops_allowed) (Expr d_iden v_iden p_iden type_info binary_ops_allowed)
 
-    | Expr'If ID.ExprID type_info Span Span (Expr d_iden v_iden type_info binary_ops_allowed) (Expr d_iden v_iden type_info binary_ops_allowed) (Expr d_iden v_iden type_info binary_ops_allowed)
-    | Expr'Case ID.ExprID type_info Span Span (Expr d_iden v_iden type_info binary_ops_allowed) [(Pattern type_info, Expr d_iden v_iden type_info binary_ops_allowed)]
+    | Expr'If ID.ExprID type_info Span Span (Expr d_iden v_iden p_iden type_info binary_ops_allowed) (Expr d_iden v_iden p_iden type_info binary_ops_allowed) (Expr d_iden v_iden p_iden type_info binary_ops_allowed)
+    | Expr'Case ID.ExprID type_info Span Span (Expr d_iden v_iden p_iden type_info binary_ops_allowed) [(Pattern p_iden type_info, Expr d_iden v_iden p_iden type_info binary_ops_allowed)]
 
-    | Expr'Forall ID.ExprID type_info Span (NonEmpty TypeVarKey) (Expr d_iden v_iden type_info binary_ops_allowed)
-    | Expr'TypeApply ID.ExprID type_info Span (Expr d_iden v_iden type_info binary_ops_allowed) (TypeExpr d_iden type_info)
+    | Expr'Forall ID.ExprID type_info Span (NonEmpty TypeVarKey) (Expr d_iden v_iden p_iden type_info binary_ops_allowed)
+    | Expr'TypeApply ID.ExprID type_info Span (Expr d_iden v_iden p_iden type_info binary_ops_allowed) (TypeExpr d_iden type_info)
 
-    | Expr'TypeAnnotation ID.ExprID type_info Span (TypeExpr d_iden type_info) (Expr d_iden v_iden type_info binary_ops_allowed)
+    | Expr'TypeAnnotation ID.ExprID type_info Span (TypeExpr d_iden type_info) (Expr d_iden v_iden p_iden type_info binary_ops_allowed)
 
     | Expr'Hole ID.ExprID type_info Span HoleIdentifier
 
     | Expr'Poison ID.ExprID type_info Span
     deriving Show
 
-data Pattern type_info
+data Pattern p_iden type_info
     = Pattern'Identifier type_info Span BoundValueKey
     | Pattern'Wildcard type_info Span
-    | Pattern'Tuple type_info Span (Pattern type_info) (Pattern type_info)
-    | Pattern'Named type_info Span Span (Located BoundValueKey) (Pattern type_info)
+    | Pattern'Tuple type_info Span (Pattern p_iden type_info) (Pattern p_iden type_info)
+    | Pattern'Named type_info Span Span (Located BoundValueKey) (Pattern p_iden type_info)
+    | Pattern'AnonADTVariant type_info Span p_iden [Pattern p_iden type_info]
+    | Pattern'NamedADTVariant type_info Span p_iden [(Located Text, Pattern p_iden type_info)]
 
     | Pattern'Poison type_info Span
     deriving Show
@@ -115,7 +117,7 @@ type_expr_type_info (TypeExpr'Apply type_info _ _ _) = type_info
 type_expr_type_info (TypeExpr'Wild type_info _) = type_info
 type_expr_type_info (TypeExpr'Poison type_info _) = type_info
 
-expr_type :: Expr d_iden v_iden type_info binary_ops_allowed -> type_info
+expr_type :: Expr d_iden v_iden p_iden type_info binary_ops_allowed -> type_info
 expr_type (Expr'Identifier _ type_info _ _) = type_info
 expr_type (Expr'Char _ type_info _ _) = type_info
 expr_type (Expr'String _ type_info _ _) = type_info
@@ -135,7 +137,7 @@ expr_type (Expr'Forall _ type_info _ _ _) = type_info
 expr_type (Expr'TypeApply _ type_info _ _ _) = type_info
 expr_type (Expr'TypeAnnotation _ type_info _ _ _) = type_info
 
-expr_span :: Expr d_iden v_iden type_info binary_ops_allowed -> Span
+expr_span :: Expr d_iden v_iden p_iden type_info binary_ops_allowed -> Span
 expr_span (Expr'Identifier _ _ sp _) = sp
 expr_span (Expr'Char _ _ sp _) = sp
 expr_span (Expr'String _ _ sp _) = sp
@@ -155,16 +157,20 @@ expr_span (Expr'Forall _ _ sp _ _) = sp
 expr_span (Expr'TypeApply _ _ sp _ _) = sp
 expr_span (Expr'TypeAnnotation _ _ sp _ _) = sp
 
-pattern_type :: Pattern type_info -> type_info
+pattern_type :: Pattern p_iden type_info -> type_info
 pattern_type (Pattern'Identifier type_info _ _) = type_info
 pattern_type (Pattern'Wildcard type_info _) = type_info
 pattern_type (Pattern'Tuple type_info _ _ _) = type_info
 pattern_type (Pattern'Named type_info _ _ _ _) = type_info
 pattern_type (Pattern'Poison type_info _) = type_info
+pattern_type (Pattern'AnonADTVariant type_info _ _ _) = type_info
+pattern_type (Pattern'NamedADTVariant type_info _ _ _) = type_info
 
-pattern_span :: Pattern type_info -> Span
+pattern_span :: Pattern p_iden type_info -> Span
 pattern_span (Pattern'Identifier _ sp _) = sp
 pattern_span (Pattern'Wildcard _ sp) = sp
 pattern_span (Pattern'Tuple _ sp _ _) = sp
 pattern_span (Pattern'Named _ sp _ _ _) = sp
 pattern_span (Pattern'Poison _ sp) = sp
+pattern_span (Pattern'AnonADTVariant _ sp _ _) = sp
+pattern_span (Pattern'NamedADTVariant _ sp _ _) = sp

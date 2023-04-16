@@ -63,16 +63,16 @@ instance Diagnostic.ToError Error where
 
     to_error (Tuple0 sp) = Diagnostic.Error Codes.tuple0 (Just sp) "tuple of 0 elements" [] []
 
-type SIR = SIR.SIR Identifier Identifier () ()
+type SIR = SIR.SIR Identifier Identifier Identifier () ()
 
 type Identifier = (SIR.NameContext, [Located Text])
-type Decl = SIR.Decl Identifier Identifier () ()
-type Binding = SIR.Binding Identifier Identifier () ()
+type Decl = SIR.Decl Identifier Identifier Identifier () ()
+type Binding = SIR.Binding Identifier Identifier Identifier () ()
 type ADT = Type.ADT TypeExpr
 type TypeSynonym = Type.TypeSynonym TypeExpr
 type TypeExpr = SIR.TypeExpr Identifier ()
-type Expr = SIR.Expr Identifier Identifier () ()
-type Pattern = SIR.Pattern ()
+type Expr = SIR.Expr Identifier Identifier Identifier () ()
+type Pattern = SIR.Pattern Identifier ()
 type BoundValue = SIR.BoundValue ()
 
 type DeclChildrenList = [(Text, DeclAt, SIR.DeclKey)]
@@ -201,7 +201,7 @@ convert_decls bv_parent decl_parent parent_name_context prev_decl_entries prev_b
         convert_decl :: SIR.NameContext -> AST.Decl -> MakeIRState (DeclChildrenList, BoundValueList, ADTVariantList, [Binding], [Type.ADTKey], [Type.TypeSynonymKey])
         convert_decl final_name_context (AST.Decl'Value target eq_sp expr) =
             convert_expr final_name_context expr >>= \ expr' ->
-            convert_pattern bv_parent target >>= \ (new_bound_values, target') ->
+            convert_pattern bv_parent final_name_context target >>= \ (new_bound_values, target') ->
             let binding = SIR.Binding target' eq_sp expr'
             in pure ([], new_bound_values, [], [binding], [], [])
 
@@ -322,7 +322,7 @@ convert_expr name_context (AST.Expr'Lambda sp params body) = convert_lambda name
     where
         convert_lambda name_context (param:more) body =
             new_expr_id >>= \ id ->
-            convert_pattern (ID.BVParent'LambdaParam id) param >>= \ (bound_value_list, param) ->
+            convert_pattern (ID.BVParent'LambdaParam id) name_context param >>= \ (bound_value_list, param) ->
             make_name_context [] bound_value_list [] (Just name_context) >>= \ lambda_nc ->
             SIR.Expr'Lambda id () sp param <$> convert_lambda lambda_nc more body -- TODO: properly do spans of parts because this also just takes the whole span
 
@@ -353,7 +353,7 @@ convert_expr name_context (AST.Expr'Case sp case_sp e arms) =
     convert_expr name_context e >>= \ e ->
     zipWithM
         (\ ind (pat, choice) ->
-            convert_pattern (ID.BVParent'CaseArm id ind) pat >>= \ (new_bound_values, pat) ->
+            convert_pattern (ID.BVParent'CaseArm id ind) name_context pat >>= \ (new_bound_values, pat) ->
             make_name_context [] new_bound_values [] (Just name_context) >>= \ arm_nc ->
             convert_expr arm_nc choice >>= \ choice ->
             pure (pat, choice))
@@ -381,17 +381,17 @@ convert_expr nc (AST.Expr'TypeApply sp e args) =
     foldlM (\ e arg -> new_expr_id >>= \ id -> SIR.Expr'TypeApply id () sp e <$> convert_type nc arg) e args -- TODO: fix span for this
 convert_expr _ (AST.Expr'Hole sp hid) = new_expr_id >>= \ eid -> pure (SIR.Expr'Hole eid () sp hid)
 
-convert_pattern :: ID.BoundValueParent -> AST.Pattern -> MakeIRState (BoundValueList, Pattern)
-convert_pattern parent (AST.Pattern'Identifier iden) =
+convert_pattern :: ID.BoundValueParent -> SIR.NameContext -> AST.Pattern -> MakeIRState (BoundValueList, Pattern)
+convert_pattern parent _ (AST.Pattern'Identifier iden) =
     make_iden1_with_err PathInPattern iden >>= \case
         Just (Located name_sp name) ->
             new_bound_value (SIR.BoundValue (ID.BoundValueID parent name) () name_sp) >>= \ bn ->
             pure ([(name, DeclAt name_sp, bn)], SIR.Pattern'Identifier () name_sp bn)
 
         Nothing -> pure ([], SIR.Pattern'Poison () (just_span iden))
-convert_pattern _ (AST.Pattern'Wildcard sp) = pure ([], SIR.Pattern'Wildcard () sp)
-convert_pattern parent (AST.Pattern'Tuple sp subpats) =
-    List.unzip <$> mapM (convert_pattern parent) subpats >>= \ (bound_values, subpats') ->
+convert_pattern _ _ (AST.Pattern'Wildcard sp) = pure ([], SIR.Pattern'Wildcard () sp)
+convert_pattern parent nc (AST.Pattern'Tuple sp subpats) =
+    List.unzip <$> mapM (convert_pattern parent nc) subpats >>= \ (bound_values, subpats') ->
     go subpats' >>= \ subpats_grouped ->
     pure (concat bound_values, subpats_grouped)
     where
@@ -399,8 +399,8 @@ convert_pattern parent (AST.Pattern'Tuple sp subpats) =
         go (a:b:more) = SIR.Pattern'Tuple () sp a <$> go (b:more)
         go [_] = tell_error (Tuple1 sp) >> pure (SIR.Pattern'Poison () sp)
         go [] = tell_error (Tuple0 sp) >> pure (SIR.Pattern'Poison () sp)
-convert_pattern parent (AST.Pattern'Named sp iden at_sp subpat) =
-    convert_pattern parent subpat >>= \ (sub_bn, subpat') ->
+convert_pattern parent nc (AST.Pattern'Named sp iden at_sp subpat) =
+    convert_pattern parent nc subpat >>= \ (sub_bn, subpat') ->
     make_iden1_with_err PathInPattern iden >>= \case
         Just (Located name_sp name) ->
             new_bound_value (SIR.BoundValue (ID.BoundValueID parent name) () name_sp) >>= \ bn ->
@@ -408,3 +408,19 @@ convert_pattern parent (AST.Pattern'Named sp iden at_sp subpat) =
 
         Nothing ->
             pure ([], SIR.Pattern'Poison () sp)
+convert_pattern parent nc (AST.Pattern'AnonADTVariant sp iden fields) =
+    unzip <$> mapM (convert_pattern parent nc) fields >>= \ (bvs, fields) ->
+    pure (concat bvs, SIR.Pattern'AnonADTVariant () sp (nc, unlocate iden) fields)
+convert_pattern parent nc (AST.Pattern'NamedADTVariant sp iden fields) =
+    mapM (\ (field_name, field_pat) ->
+        make_iden1_with_err PathInFieldName field_name >>= \case
+            Just field_name ->
+                convert_pattern parent nc field_pat >>= \ (bvs, field_pat) ->
+                pure (Just (bvs, (field_name, field_pat)))
+            Nothing -> pure Nothing
+        ) fields >>= \ fields ->
+    case sequence fields of
+        Just fields_and_bvs ->
+            let (bvs, fields) = unzip fields_and_bvs
+            in pure (concat bvs, SIR.Pattern'NamedADTVariant () sp (nc, unlocate iden) fields)
+        Nothing -> pure ([], SIR.Pattern'Poison () sp)

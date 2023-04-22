@@ -74,6 +74,7 @@ library
       UHF.Phases.Middle.Type.SolveConstraints
       UHF.Phases.Middle.Type.StateWithUnk
       UHF.Phases.Middle.Type.Unknown
+      UHF.Phases.Middle.Type.Utils
       UHF.PP
       UHF.PP.IndentationMonad
       UHF.Util.Prelude

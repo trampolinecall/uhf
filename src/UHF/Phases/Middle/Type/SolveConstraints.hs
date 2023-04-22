@@ -16,6 +16,7 @@ import UHF.Phases.Middle.Type.Aliases
 import UHF.Phases.Middle.Type.Error
 import UHF.Phases.Middle.Type.Constraint
 import UHF.Phases.Middle.Type.StateWithUnk
+import UHF.Phases.Middle.Type.Utils
 
 type TypeContextReader = ReaderT (TypedWithUnkADTArena, TypedWithUnkTypeSynonymArena, TypeVarArena)
 
@@ -117,26 +118,12 @@ apply_ty sp ty@(Type.Type'Variable _) _ = Just <$> (Left <$> (DoesNotTakeTypeArg
 apply_ty _ (Type.Type'Forall (first_var :| more_vars) ty) arg =
     -- TODO: check kind of first_var when higher kinded variables are implemented
     case more_vars of
-        [] -> Just <$> (Right <$> subst first_var arg ty)
-        more_1:more_more -> Just <$> (Right <$> (Type.Type'Forall (more_1 :| more_more) <$> subst first_var arg ty))
-    where
-        subst looking_for replacement ty@(Type.Type'Unknown unk) =
-            Arena.get <$> lift get <*> pure unk >>= \case
-                TypeUnknown _ (Substituted sub) -> subst looking_for replacement sub
-                TypeUnknown _ Fresh -> pure ty -- TODO: reconsider if this is correct
-        subst looking_for replacement ty@(Type.Type'Variable v)
-            | looking_for == v = pure replacement
-            | otherwise = pure ty
-        subst looking_for replacement (Type.Type'ADT adt_key params) = Type.Type'ADT adt_key <$> mapM (subst looking_for replacement) params
-        subst _ _ ty@(Type.Type'Synonym _) = pure ty -- TODO: replace in arguments
-        subst _ _ Type.Type'Int = pure Type.Type'Int
-        subst _ _ Type.Type'Float = pure Type.Type'Float
-        subst _ _ Type.Type'Char = pure Type.Type'Char
-        subst _ _ Type.Type'String = pure Type.Type'String
-        subst _ _ Type.Type'Bool = pure Type.Type'Bool
-        subst looking_for replacement (Type.Type'Function a r) = Type.Type'Function <$> subst looking_for replacement a <*> subst looking_for replacement r
-        subst looking_for replacement (Type.Type'Tuple a b) = Type.Type'Tuple <$> subst looking_for replacement a <*> subst looking_for replacement b
-        subst looking_for replacement (Type.Type'Forall vars ty) = Type.Type'Forall vars <$> subst looking_for replacement ty
+        [] ->
+            lift get >>= \ unks ->
+            pure (Just $ Right $ substitute unks first_var arg ty)
+        more_1:more_more ->
+            lift get >>= \ unks ->
+            pure (Just $ Right $ Type.Type'Forall (more_1 :| more_more) (substitute unks first_var arg ty))
 
 unify :: TypeWithUnk -> TypeWithUnk -> ExceptT UnifyError (TypeContextReader StateWithUnk) ()
 unify (Type.Type'Unknown a) b = unify_unk a b False

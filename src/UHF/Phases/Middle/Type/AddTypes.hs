@@ -13,6 +13,7 @@ import UHF.Phases.Middle.Type.Unknown
 import UHF.Phases.Middle.Type.Aliases
 import UHF.Phases.Middle.Type.Constraint
 import UHF.Phases.Middle.Type.StateWithUnk
+import UHF.Phases.Middle.Type.Utils
 import UHF.Phases.Middle.Type.Error
 
 import qualified UHF.Compiler as Compiler
@@ -179,21 +180,28 @@ pattern (SIR.Pattern'AnonADTVariant () sp (Just variant_index@(Type.ADTVariantIn
     ask >>= \ (_, _, adts) ->
     let Type.ADT _ _ type_params _ = Arena.get adts adt_key
         variant = Type.get_adt_variant adts variant_index
+    in
+
+    mapM (\ var -> Type.Type'Unknown <$> lift (lift $ new_type_unknown $ ImplicitTyParam sp {- var TODO -})) type_params >>= \ type_param_unks -> -- TODO: declared span
+
+    lift (lift get) >>= \ unk_arena ->
+    let substitute_adt_params = foldr (.) identity (zipWith (substitute unk_arena) type_params type_param_unks)
+        whole_pat_type = Type.Type'ADT adt_key type_param_unks
+
     in case variant of
          Type.ADTVariant'Anon _ variant_field_tys ->
-            if length pattern_fields /= length variant_field_tys
+            let variant_field_tys_substituted = map (substitute_adt_params . SIR.type_expr_type_info) variant_field_tys
+            in if length pattern_fields /= length variant_field_tys_substituted
                 then error "wrong number of fields in named variant pattern" -- TODO: report proper error
                 else
                     zipWithM
                         (\ pat_field variant_field_ty ->
-                            lift (tell [Expect InADTVariantPatternField (loc_pat_type pat_field) (SIR.type_expr_type_info variant_field_ty)]) -- TODO: substitute type parameters
+                            lift (tell [Expect InADTVariantPatternField (loc_pat_type pat_field) variant_field_ty])
                             )
                         pattern_fields
-                        variant_field_tys
+                        variant_field_tys_substituted
          Type.ADTVariant'Named _ _ -> error "named variant pattern used with anonymous variant" -- TODO: also report proper error
         >>
-
-    Type.Type'ADT adt_key <$> mapM (\ var -> Type.Type'Unknown <$> lift (lift $ new_type_unknown $ ImplicitTyParam sp {- var TODO -})) type_params >>= \ whole_pat_type -> -- TODO: declared span
 
     pure (SIR.Pattern'AnonADTVariant whole_pat_type sp (Just variant_index) pattern_fields)
 

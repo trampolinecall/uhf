@@ -52,7 +52,7 @@ solve adts type_synonyms vars constraints =
                 then pure () -- deferred all constraints, removing unknowns will report all the ambiguous types
                 else solve' next_constraints
 
--- TODO: figure out how to gracefully handle errors because the type variables become ambiguous if they cant be unified
+-- TODO: figure out how to gracefully handle errors because the unknowns become ambiguous if they cant be unified
 solve1 :: Constraint -> TypeContextReader StateWithUnk Solve1Result
 solve1 (Eq in_what sp a b) =
     runExceptT (unify (unlocate a) (unlocate b)) >>= \case
@@ -62,9 +62,9 @@ solve1 (Eq in_what sp a b) =
             get_error_type_context >>= \ context ->
             pure (Error $ EqError { eq_error_context = context, eq_error_in_what = in_what, eq_error_span = sp, eq_error_a_whole = a, eq_error_b_whole = b, eq_error_a_part = a_part, eq_error_b_part = b_part })
 
-        Left (OccursCheck var ty) ->
+        Left (OccursCheck unk ty) ->
             get_error_type_context >>= \ context ->
-            pure (Error $ OccursCheckError context sp var ty)
+            pure (Error $ OccursCheckError context sp unk ty)
 
 solve1 (Expect in_what got expect) =
     runExceptT (unify (unlocate got) expect) >>= \case
@@ -74,9 +74,9 @@ solve1 (Expect in_what got expect) =
             get_error_type_context >>= \ context ->
             pure (Error $ ExpectError { expect_error_context = context, expect_error_in_what = in_what, expect_error_got_whole = got, expect_error_expect_whole = expect, expect_error_got_part = got_part, expect_error_expect_part = expect_part })
 
-        Left (OccursCheck var ty) ->
+        Left (OccursCheck unk ty) ->
             get_error_type_context >>= \ context ->
-            pure (Error $ OccursCheckError context (just_span got) var ty)
+            pure (Error $ OccursCheckError context (just_span got) unk ty)
 
 solve1 (UnkIsApplyResult sp unk ty arg) =
     apply_ty sp ty arg >>= \case
@@ -88,9 +88,9 @@ solve1 (UnkIsApplyResult sp unk ty arg) =
                     get_error_type_context >>= \ context ->
                     pure (Error $ ExpectError { expect_error_context = context, expect_error_in_what = InTypeApplication, expect_error_got_whole = Located sp applied, expect_error_expect_whole = Type.Type'Unknown unk, expect_error_got_part = applied_part, expect_error_expect_part = unk_part })
 
-                Left (OccursCheck var ty) ->
+                Left (OccursCheck unk ty) ->
                     get_error_type_context >>= \ context ->
-                    pure (Error $ OccursCheckError context sp var ty)
+                    pure (Error $ OccursCheckError context sp unk ty)
 
         Just (Left e) -> pure (Error e)
         Nothing -> pure Defer
@@ -157,34 +157,34 @@ unify (Type.Type'Variable v1) (Type.Type'Variable v2) -- TODO: temporary substit
 -- TODO: unifying forall
 unify a b = ExceptT (pure $ Left $ Mismatch a b)
 
-set_type_var_state :: TypeUnknownKey -> TypeUnknownState -> TypeContextReader StateWithUnk ()
-set_type_var_state var new_state = lift $ modify $ \ ty_arena -> Arena.modify ty_arena var (\ (TypeUnknown for _) -> TypeUnknown for new_state)
+set_type_unk_state :: TypeUnknownKey -> TypeUnknownState -> TypeContextReader StateWithUnk ()
+set_type_unk_state unk new_state = lift $ modify $ \ ty_arena -> Arena.modify ty_arena unk (\ (TypeUnknown for _) -> TypeUnknown for new_state)
 
 unify_unk :: TypeUnknownKey -> TypeWithUnk -> Bool -> ExceptT UnifyError (TypeContextReader StateWithUnk) ()
-unify_unk var other var_on_right = Arena.get <$> lift (lift get) <*> pure var >>= \ case
-    -- if this variable can be expanded, unify its expansion
-    TypeUnknown _ (Substituted var_sub) ->
-        if var_on_right
-            then unify other var_sub
-            else unify var_sub other
+unify_unk unk other unk_on_right = Arena.get <$> lift (lift get) <*> pure unk >>= \ case
+    -- if this unknown can be expanded, unify its expansion
+    TypeUnknown _ (Substituted unk_sub) ->
+        if unk_on_right
+            then unify other unk_sub
+            else unify unk_sub other
 
-    -- if this variable has no substitution, what happens depends on the other type
+    -- if this unknown has no substitution, what happens depends on the other type
     TypeUnknown _ Fresh ->
         case other of
-            Type.Type'Unknown other_var ->
-                Arena.get <$> lift (lift get) <*> pure other_var >>= \case
-                    -- if the other type is a substituted type variable, unify this variable with the other's expansion
-                    TypeUnknown _ (Substituted other_var_sub) -> unify_unk var other_var_sub var_on_right
+            Type.Type'Unknown other_unk ->
+                Arena.get <$> lift (lift get) <*> pure other_unk >>= \case
+                    -- if the other type is a substituted unknown, unify this unknown with the other's expansion
+                    TypeUnknown _ (Substituted other_unk_sub) -> unify_unk unk other_unk_sub unk_on_right
 
-                    -- if the other type is a fresh type variable, both of them are fresh type variables and the only thing that can be done is to unify them
+                    -- if the other type is a fresh unknown, both of them are fresh unknowns and the only thing that can be done is to unify them
                     TypeUnknown _ Fresh ->
-                        when (var /= other_var) $
-                            lift (set_type_var_state var (Substituted other))
+                        when (unk /= other_unk) $
+                            lift (set_type_unk_state unk (Substituted other))
 
-            -- if the other type is a type and not a variable
-            _ -> lift (occurs_check var other) >>= \case
-                True -> ExceptT (pure $ Left $ OccursCheck var other)
-                False -> lift (set_type_var_state var (Substituted other))
+            -- if the other type is a type and not an unknown
+            _ -> lift (occurs_check unk other) >>= \case
+                True -> ExceptT (pure $ Left $ OccursCheck unk other)
+                False -> lift (set_type_unk_state unk (Substituted other))
 
 occurs_check :: TypeUnknownKey -> TypeWithUnk -> TypeContextReader StateWithUnk Bool
 -- does the unknown u occur anywhere in the type ty?

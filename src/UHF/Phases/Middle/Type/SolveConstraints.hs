@@ -36,8 +36,7 @@ data Solve1Result
     | Defer
 
 solve :: TypedWithUnkADTArena -> TypedWithUnkTypeSynonymArena -> TypeVarArena -> [Constraint] -> StateWithUnk ()
-solve adts type_synonyms vars constraints =
-    runReaderT (solve' constraints) (adts, type_synonyms, vars)
+solve adts type_synonyms vars constraints = runReaderT (solve' constraints) (adts, type_synonyms, vars)
     where
         solve' constraints =
             mapM (\ cons -> (cons,) <$> solve1 cons) constraints >>= \ results ->
@@ -49,7 +48,7 @@ solve adts type_synonyms vars constraints =
                 )
                 results >>= \ next_constraints ->
             if length constraints == length next_constraints
-                then pure () -- deferred all constraints, removing unknowns will report all the ambiguous types
+                then pure () -- deferred all constraints, removing unknowns phase will report all the ambiguous types
                 else solve' next_constraints
 
 -- TODO: figure out how to gracefully handle errors because the unknowns become ambiguous if they cant be unified

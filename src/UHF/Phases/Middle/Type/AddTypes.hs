@@ -196,8 +196,7 @@ pattern (SIR.Pattern'AnonADTVariant () sp (Just variant_index@(Type.ADTVariantIn
                 else
                     zipWithM
                         (\ pat_field variant_field_ty ->
-                            lift (tell [Expect InADTVariantPatternField (loc_pat_type pat_field) variant_field_ty])
-                            )
+                            lift (tell [Expect InADTVariantPatternField (loc_pat_type pat_field) variant_field_ty]))
                         pattern_fields
                         variant_field_tys_substituted
          Type.ADTVariant'Named _ _ -> error "named variant pattern used with anonymous variant" -- TODO: also report proper error

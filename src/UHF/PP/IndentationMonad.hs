@@ -38,19 +38,20 @@ write t =
     in mapM_ put_chunk $ intersperse Nothing (map Just chunks)
     where
         put_chunk Nothing =
-            PP (lift $ tell "\n") >>
-            PP (modify (\ (IndentState cur_indent _) -> IndentState cur_indent True))
+            PP $
+                lift (tell "\n") >>
+                modify (\ (IndentState cur_indent _) -> IndentState cur_indent True)
 
         put_chunk (Just c)
             | Text.null c = pure ()
-            | otherwise =
-                PP get >>= (\case
+            | otherwise = PP $
+                get >>= (\case
                     IndentState _ True -> put_indent
                     _ -> pure ()) >>
-                PP (modify $ \ (IndentState cur_indent _) -> IndentState cur_indent False) >>
-                PP (lift $ tell c)
+                modify (\ (IndentState cur_indent _) -> IndentState cur_indent False) >>
+                lift (tell c)
 
-        put_indent = PP $ get >>= \ (IndentState indent _) -> lift (tell $ Text.replicate indent (Text.singleton ' '))
+        put_indent = get >>= \ (IndentState indent _) -> lift (tell $ Text.replicate indent (Text.singleton ' '))
 
 indent :: PP ()
 indent = PP $ modify $ \ (IndentState indent at_start) -> IndentState (indent + 4) at_start

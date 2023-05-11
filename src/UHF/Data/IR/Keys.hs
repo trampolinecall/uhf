@@ -29,7 +29,7 @@ instance Arena.Key TypeSynonymKey where
     make_key = TypeSynonymKey
     unmake_key (TypeSynonymKey i) = i
 
-newtype TypeVarKey = TypeVarKey Int deriving (Show, Eq)
+newtype TypeVarKey = TypeVarKey Int deriving (Show, Eq, Ord)
 instance Arena.Key TypeVarKey where
     make_key = TypeVarKey
     unmake_key (TypeVarKey i) = i

@@ -18,6 +18,8 @@ import UHF.Phases.Middle.Type.Constraint
 import UHF.Phases.Middle.Type.StateWithUnk
 import UHF.Phases.Middle.Type.Utils
 
+import qualified Data.Map as Map
+
 type TypeContextReader = ReaderT (TypedWithUnkADTArena, TypedWithUnkTypeSynonymArena, TypeVarArena)
 
 get_error_type_context :: TypeContextReader StateWithUnk ErrorTypeContext
@@ -34,6 +36,14 @@ data Solve1Result
     = Ok
     | Error Error
     | Defer
+
+type VarSubGenerator = StateT VarSub
+type VarSubMap = Map.Map Type.TypeVarKey VarSub
+newtype VarSub = VarSub Int deriving Eq
+generate_var_sub :: Applicative m => VarSubGenerator m VarSub
+generate_var_sub = StateT $ \ cur_var@(VarSub cur_num) -> pure (cur_var, VarSub $ cur_num + 1)
+run_var_sub_generator :: Monad m => VarSubGenerator m r -> m r
+run_var_sub_generator s = evalStateT s (VarSub 0)
 
 solve :: TypedWithUnkADTArena -> TypedWithUnkTypeSynonymArena -> TypeVarArena -> [Constraint] -> StateWithUnk ()
 solve adts type_synonyms vars constraints = runReaderT (solve' constraints) (adts, type_synonyms, vars)
@@ -54,7 +64,7 @@ solve adts type_synonyms vars constraints = runReaderT (solve' constraints) (adt
 -- TODO: figure out how to gracefully handle errors because the unknowns become ambiguous if they cant be unified
 solve1 :: Constraint -> TypeContextReader StateWithUnk Solve1Result
 solve1 (Eq in_what sp a b) =
-    runExceptT (unify (unlocate a) (unlocate b)) >>= \case
+    run_var_sub_generator (runExceptT (unify (unlocate a, Map.empty) (unlocate b, Map.empty))) >>= \case
         Right () -> pure Ok
 
         Left (Mismatch a_part b_part) ->
@@ -66,7 +76,7 @@ solve1 (Eq in_what sp a b) =
             pure (Error $ OccursCheckError context sp unk ty)
 
 solve1 (Expect in_what got expect) =
-    runExceptT (unify (unlocate got) expect) >>= \case
+    run_var_sub_generator (runExceptT (unify (unlocate got, Map.empty) (expect, Map.empty))) >>= \case
         Right () -> pure Ok
 
         Left (Mismatch got_part expect_part) ->
@@ -80,7 +90,7 @@ solve1 (Expect in_what got expect) =
 solve1 (UnkIsApplyResult sp unk ty arg) =
     apply_ty sp ty arg >>= \case
         Just (Right applied) ->
-            runExceptT (unify_unk unk applied False) >>= \case
+            run_var_sub_generator (runExceptT (unify_unk (unk, Map.empty) (applied, Map.empty) False)) >>= \case
                 Right () -> pure Ok
 
                 Left (Mismatch unk_part applied_part) ->
@@ -124,66 +134,91 @@ apply_ty _ (Type.Type'Forall (first_var :| more_vars) ty) arg =
             lift get >>= \ unks ->
             pure (Just $ Right $ Type.Type'Forall (more_1 :| more_more) (substitute unks first_var arg ty))
 
-unify :: TypeWithUnk -> TypeWithUnk -> ExceptT UnifyError (TypeContextReader StateWithUnk) ()
-unify (Type.Type'Unknown a) b = unify_unk a b False
-unify a (Type.Type'Unknown b) = unify_unk b a True
+unify :: (TypeWithUnk, VarSubMap) -> (TypeWithUnk, VarSubMap) -> ExceptT UnifyError (VarSubGenerator (TypeContextReader StateWithUnk)) ()
+unify (Type.Type'Unknown a, a_var_map) b = unify_unk (a, a_var_map) b False
+unify a (Type.Type'Unknown b, b_var_map) = unify_unk (b, b_var_map) a True
 
-unify (Type.Type'ADT a_adt_key a_params) (Type.Type'ADT b_adt_key b_params)
+unify (Type.Type'ADT a_adt_key a_params, a_var_map) (Type.Type'ADT b_adt_key b_params, b_var_map)
     | a_adt_key == b_adt_key
         && length a_params == length b_params =
-        zipWithM unify a_params b_params >> pure ()
+        mapM_
+            (\ (a_param, b_param) -> unify (a_param, a_var_map) (b_param, b_var_map))
+            (zip a_params b_params )
 
-unify (Type.Type'Synonym a_syn_key) b =
-    lift ask >>= \ (_, type_synonyms, _) ->
+unify (Type.Type'Synonym a_syn_key, a_var_map) b =
+    lift (lift ask) >>= \ (_, type_synonyms, _) ->
     case Arena.get type_synonyms a_syn_key of
-        Type.TypeSynonym _ _ a_expansion -> unify (SIR.type_expr_type_info a_expansion) b
+        Type.TypeSynonym _ _ a_expansion -> unify (SIR.type_expr_type_info a_expansion, a_var_map) b
 
-unify a (Type.Type'Synonym b_syn_key) =
-    lift ask >>= \ (_, type_synonyms, _) ->
+unify a (Type.Type'Synonym b_syn_key, b_var_map) =
+    lift (lift ask) >>= \ (_, type_synonyms, _) ->
     case Arena.get type_synonyms b_syn_key of
-        Type.TypeSynonym _ _ b_expansion -> unify a (SIR.type_expr_type_info b_expansion)
+        Type.TypeSynonym _ _ b_expansion -> unify a (SIR.type_expr_type_info b_expansion, b_var_map)
 
-unify Type.Type'Int Type.Type'Int = pure ()
-unify Type.Type'Float Type.Type'Float = pure ()
-unify Type.Type'Char Type.Type'Char = pure ()
-unify Type.Type'String Type.Type'String = pure ()
-unify Type.Type'Bool Type.Type'Bool = pure ()
-unify (Type.Type'Function a1 r1) (Type.Type'Function a2 r2) = unify a1 a2 >> unify r1 r2
-unify (Type.Type'Tuple a1 b1) (Type.Type'Tuple a2 b2) = unify a1 a2 >> unify b1 b2
+unify (Type.Type'Int, _) (Type.Type'Int, _) = pure ()
+unify (Type.Type'Float, _) (Type.Type'Float, _) = pure ()
+unify (Type.Type'Char, _) (Type.Type'Char, _) = pure ()
+unify (Type.Type'String, _) (Type.Type'String, _) = pure ()
+unify (Type.Type'Bool, _) (Type.Type'Bool, _) = pure ()
+unify (Type.Type'Function a1 r1, var_map_1) (Type.Type'Function a2 r2, var_map_2) = unify (a1, var_map_1) (a2, var_map_2) >> unify (r1, var_map_1) (r2, var_map_2)
+unify (Type.Type'Tuple a1 b1, var_map_1) (Type.Type'Tuple a2 b2, var_map_2) = unify (a1, var_map_1) (a2, var_map_2) >> unify (b1, var_map_1) (b2, var_map_2)
 -- variables do not automatically unify beacuse one type variable can be used in multiple places
-unify (Type.Type'Variable v1) (Type.Type'Variable v2) -- TODO: temporary substitutions
-    | False = pure () -- TODO: only check temporary substitutions
--- TODO: unifying forall
-unify a b = ExceptT (pure $ Left $ Mismatch a b)
+unify (a@(Type.Type'Variable v1), var_map_1) (b@(Type.Type'Variable v2), var_map_2) =
+    let expect_just (Just x) = x
+        expect_just Nothing = error "use variable outside of forall where it is defined"
+
+        var_1 = expect_just $ Map.lookup v1 var_map_1
+        var_2 = expect_just $ Map.lookup v2 var_map_2
+    in if var_1 == var_2
+       then pure ()
+       else ExceptT (pure $ Left $ Mismatch a b)
+unify (Type.Type'Forall vars1 t1, var_map_1) ((Type.Type'Forall vars2 t2), var_map_2) = go (toList vars1) t1 var_map_1 (toList vars2) t2 var_map_2
+    where
+        go (var1:vars1) t1 map1 (var2:vars2) t2 map2 =
+            lift generate_var_sub >>= \ new_var_sub ->
+            -- this will error if the smae type variable appears twice in nested foralls
+            -- i.e. something like #(T) T -> #(T) T -> T
+            -- where both Ts have the same TypeVarKey
+            -- this should not happen but it technically could because variables can be reused in multiple foralls
+            -- but because the variables being reused only happens in specific compiler-generated circumstances hopefully this should never error in real code
+            let map1' = Map.insertWith (\ _ _ -> error "variable substitution already in map") var1 new_var_sub map1
+                map2' = Map.insertWith (\ _ _ -> error "variable substitution already in map") var2 new_var_sub map2
+            in go vars1 t1 map1' vars2 t2 map2'
+
+        go vars1 t1 map1 vars2 t2 map2 = unify (remake_forall_ty vars1 t1, map1) (remake_forall_ty vars2 t2, map2)
+
+        remake_forall_ty [] t1 = t1
+        remake_forall_ty (v1:vmore) t1 = Type.Type'Forall (v1 :| vmore) t1
+unify (a, _) (b, _) = ExceptT (pure $ Left $ Mismatch a b)
 
 set_type_unk_state :: TypeUnknownKey -> TypeUnknownState -> TypeContextReader StateWithUnk ()
 set_type_unk_state unk new_state = lift $ modify $ \ ty_arena -> Arena.modify ty_arena unk (\ (TypeUnknown for _) -> TypeUnknown for new_state)
 
-unify_unk :: TypeUnknownKey -> TypeWithUnk -> Bool -> ExceptT UnifyError (TypeContextReader StateWithUnk) ()
-unify_unk unk other unk_on_right = Arena.get <$> lift (lift get) <*> pure unk >>= \ case
+unify_unk :: (TypeUnknownKey, VarSubMap) -> (TypeWithUnk, VarSubMap) -> Bool -> ExceptT UnifyError (VarSubGenerator (TypeContextReader StateWithUnk)) ()
+unify_unk (unk, unk_var_map) (other, other_var_map) unk_on_right = Arena.get <$> lift (lift $ lift get) <*> pure unk >>= \ case
     -- if this unknown can be expanded, unify its expansion
     TypeUnknown _ (Substituted unk_sub) ->
         if unk_on_right
-            then unify other unk_sub
-            else unify unk_sub other
+            then unify (other, other_var_map) (unk_sub, unk_var_map)
+            else unify (unk_sub, unk_var_map) (other, other_var_map)
 
     -- if this unknown has no substitution, what happens depends on the other type
     TypeUnknown _ Fresh ->
         case other of
             Type.Type'Unknown other_unk ->
-                Arena.get <$> lift (lift get) <*> pure other_unk >>= \case
+                Arena.get <$> lift (lift $ lift get) <*> pure other_unk >>= \case
                     -- if the other type is a substituted unknown, unify this unknown with the other's expansion
-                    TypeUnknown _ (Substituted other_unk_sub) -> unify_unk unk other_unk_sub unk_on_right
+                    TypeUnknown _ (Substituted other_unk_sub) -> unify_unk (unk, unk_var_map) (other_unk_sub, other_var_map) unk_on_right
 
                     -- if the other type is a fresh unknown, both of them are fresh unknowns and the only thing that can be done is to unify them
                     TypeUnknown _ Fresh ->
                         when (unk /= other_unk) $
-                            lift (set_type_unk_state unk (Substituted other))
+                            lift (lift $ set_type_unk_state unk (Substituted other))
 
             -- if the other type is a type and not an unknown
-            _ -> lift (occurs_check unk other) >>= \case
+            _ -> lift (lift $ occurs_check unk other) >>= \case
                 True -> ExceptT (pure $ Left $ OccursCheck unk other)
-                False -> lift (set_type_unk_state unk (Substituted other))
+                False -> lift (lift $ set_type_unk_state unk (Substituted other))
 
 occurs_check :: TypeUnknownKey -> TypeWithUnk -> TypeContextReader StateWithUnk Bool
 -- does the unknown u occur anywhere in the type ty?

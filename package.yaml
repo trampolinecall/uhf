@@ -38,6 +38,7 @@ library:
     - file-embed
     - json
     - filepath
+    - pipes
 
     - tasty
     - tasty-hunit

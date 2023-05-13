@@ -123,6 +123,7 @@ library
     , inflist
     , json
     , mtl >2.3
+    , pipes
     , safe
     , tasty
     , tasty-hunit

@@ -118,6 +118,7 @@ library
     , file-embed
     , filepath
     , inflist
+    , pipes
     , safe
     , tasty
     , tasty-hunit

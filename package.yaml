@@ -36,6 +36,7 @@ library:
     - inflist
     - file-embed
     - filepath
+    - pipes
 
     - tasty
     - tasty-hunit

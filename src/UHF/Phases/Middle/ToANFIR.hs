@@ -59,6 +59,10 @@ assign_bound_wheres decls exprs =
                 decls >>
             Arena.transformM
                 (\case
+                    ANFIR.Expr'Lambda _ _ _ group _ -> process_group group
+                    ANFIR.Expr'Switch _ _ _ arms -> mapM_ (\ (_, group, _) -> process_group group) arms
+                    ANFIR.Expr'Forall _ _ _ group _ -> process_group group
+
                     ANFIR.Expr'Refer _ _ _ -> pure ()
                     ANFIR.Expr'Int _ _ _ -> pure ()
                     ANFIR.Expr'Float _ _ _ -> pure ()
@@ -67,14 +71,11 @@ assign_bound_wheres decls exprs =
                     ANFIR.Expr'String _ _ _ -> pure ()
                     ANFIR.Expr'Tuple _ _ _ _  -> pure ()
                     ANFIR.Expr'MakeADT _ _ _ _ -> pure ()
-                    ANFIR.Expr'Lambda _ _ _ group _ -> process_group group
                     ANFIR.Expr'Param _ _ _ -> pure ()
                     ANFIR.Expr'Call _ _ _ _ -> pure ()
-                    ANFIR.Expr'Switch _ _ _ arms -> mapM_ (\ (_, group, _) -> process_group group) arms
                     ANFIR.Expr'Seq _ _ _ _ -> pure ()
                     ANFIR.Expr'TupleDestructure1 _ _ _  -> pure ()
                     ANFIR.Expr'TupleDestructure2 _ _ _ -> pure ()
-                    ANFIR.Expr'Forall _ _ _ group _ -> process_group group
                     ANFIR.Expr'TypeApply _ _ _ _ -> pure ()
                     ANFIR.Expr'Poison _ _ _ -> pure ()
                 )
@@ -149,8 +150,10 @@ convert_expr bv_map m_bvid (RIR.Expr'Switch id ty _ testing arms) =
         <$>
             mapM
                 (\ (matcher, arm) ->
-                    convert_matcher matcher testing >>= \ matcher ->
-                    lift (runWriterT $ convert_expr bv_map Nothing arm) >>= \ (arm, arm_involved_bindings) ->
+                    lift (runWriterT $
+                        convert_matcher matcher testing >>= \ matcher ->
+                        convert_expr bv_map Nothing arm >>= \ arm ->
+                        pure (matcher, arm)) >>= \ ((matcher, arm), arm_involved_bindings) ->
                     (matcher,,arm) <$> lift (make_binding_group arm_involved_bindings))
                 arms
         >>= new_binding

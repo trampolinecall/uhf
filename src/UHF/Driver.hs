@@ -42,6 +42,7 @@ import qualified UHF.Phases.Middle.Type as Type
 import qualified UHF.Phases.Middle.ReportHoles as ReportHoles
 import qualified UHF.Phases.Middle.ToRIR as ToRIR
 import qualified UHF.Phases.Middle.ToANFIR as ToANFIR
+import qualified UHF.Phases.Middle.OptimizeANFIR as OptimizeANFIR
 import qualified UHF.Phases.Middle.AnnotateCaptures as AnnotateCaptures
 import qualified UHF.Phases.Middle.RemovePoison as RemovePoison
 import qualified UHF.Phases.Back.ToDot as ToDot
@@ -75,6 +76,7 @@ data PhaseResultsCache
         , _get_typed_sir :: Maybe TypedSIR
         , _get_rir :: Maybe RIR
         , _get_anfir :: Maybe ANFIR
+        , _get_optimized_anfir :: Maybe ANFIR
         , _get_anfir_with_captures :: Maybe ANFIRWithCaptures
         , _get_no_poison_ir :: Maybe (Maybe NoPoisonIR)
         , _get_dot :: Maybe (Maybe Dot)
@@ -82,7 +84,7 @@ data PhaseResultsCache
         }
 type PhaseResultsState = StateT PhaseResultsCache WithDiagnosticsIO
 
-data OutputFormat = AST | ASTDump | SIR | NRSIR | InfixGroupedSIR | TypedSIR | RIR | ANFIR | ANFIRWithCaptures | Dot | TS
+data OutputFormat = AST | ASTDump | SIR | NRSIR | InfixGroupedSIR | TypedSIR | RIR | ANFIR | OptimizedANFIR | ANFIRWithCaptures | Dot | TS
 data CompileOptions
     = CompileOptions
         { input_file :: FilePath
@@ -98,7 +100,7 @@ compile c_needed diagnostic_settings compile_options =
     pure (if Compiler.had_errors diagnostics then Left () else Right ())
 
 print_outputs :: CompileOptions -> File -> WithDiagnosticsIO ()
-print_outputs compile_options file = runStateT (mapM print_output_format (output_formats compile_options)) (PhaseResultsCache file Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing) >> pure ()
+print_outputs compile_options file = runStateT (mapM print_output_format (output_formats compile_options)) (PhaseResultsCache file Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing) >> pure ()
     where
         print_output_format AST = get_ast >>= \ ast -> lift (lift (putTextLn $ AST.PP.pp_decls ast))
         print_output_format ASTDump = get_ast >>= \ ast -> lift (lift (putTextLn $ AST.Dump.dump ast))
@@ -108,6 +110,7 @@ print_outputs compile_options file = runStateT (mapM print_output_format (output
         print_output_format TypedSIR = get_typed_sir >>= \ ir -> lift (lift (write_output_file "uhf_typed_sir" (SIR.PP.dump_main_module ir)))
         print_output_format RIR = get_rir >>= \ ir -> lift (lift (write_output_file "uhf_rir" (RIR.PP.dump_main_module ir)))
         print_output_format ANFIR = get_anfir >>= \ ir -> lift (lift (write_output_file "uhf_anfir" (ANFIR.PP.dump_main_module ir)))
+        print_output_format OptimizedANFIR = get_optimized_anfir >>= \ ir -> lift (lift (write_output_file "uhf_anfir_optimized" (ANFIR.PP.dump_main_module ir)))
         print_output_format ANFIRWithCaptures = get_anfir_with_captures >>= \ ir -> lift (lift (write_output_file "uhf_anfir_captures" (ANFIR.PP.dump_main_module ir)))
         print_output_format Dot = get_dot >>= lift . lift . maybe (pure ()) (write_output_file "dot")
         print_output_format TS = get_ts >>= lift . lift . maybe (pure ()) (write_output_file "ts")
@@ -173,10 +176,16 @@ get_anfir = get_or_calculate _get_anfir (\ cache anfir -> cache { _get_anfir = a
     where
         to_anfir = ToANFIR.convert <$> get_rir
 
+get_optimized_anfir :: PhaseResultsState ANFIR
+get_optimized_anfir = get_or_calculate _get_optimized_anfir (\ cache anfir -> cache { _get_optimized_anfir = anfir }) optimize_anfir
+    where
+        -- TODO: move after remove poison?
+        optimize_anfir = OptimizeANFIR.optimize <$> get_anfir -- TODO: optimization levels
+
 get_anfir_with_captures :: PhaseResultsState ANFIRWithCaptures
 get_anfir_with_captures = get_or_calculate _get_anfir_with_captures (\ cache anfir -> cache { _get_anfir_with_captures = anfir }) to_anfir_with_captures
     where
-        to_anfir_with_captures = AnnotateCaptures.annotate <$> get_anfir
+        to_anfir_with_captures = AnnotateCaptures.annotate <$> get_optimized_anfir
 
 get_no_poison_ir :: PhaseResultsState (Maybe NoPoisonIR)
 get_no_poison_ir = get_or_calculate _get_no_poison_ir (\ cache no_poison_ir -> cache { _get_no_poison_ir = no_poison_ir }) remove_poison

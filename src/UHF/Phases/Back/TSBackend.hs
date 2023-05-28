@@ -111,7 +111,7 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph (ANFIR.BindingGroup unique captu
     mapM stringify_capture (Set.toList captures) >>= \ stringified_captures ->
 
     unzip <$> mapM stringify_binding_decl included_bindings >>= \ (binding_decls, binding_set_evaluators) ->
-    ("make_thunk_group_for_"<>) <$> mangle_group_unique unique >>= \ fn_name ->
+    mangle_make_thunk_group unique >>= \ fn_name ->
     ts_return_type >>= \ ts_return_type ->
     object_of_bindings >>= \ object_of_bindings ->
 
@@ -167,10 +167,11 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph (ANFIR.BindingGroup unique captu
                     mangle_binding_as_thunk b >>= \ b_mangled ->
                     pure (default_let_thunk, Just (set_evaluator "TupleEvaluator" (a_mangled <> ", " <> b_mangled)))
 
-                ANFIR.Expr'Lambda _ _ _ _ _ ->
-                    mangle_binding_as_lambda binding_key >>= \ lambda ->
-                    mapM mangle_binding_as_thunk (toList captures) >>= \ captures_mangled ->
-                    pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" ("new " <> lambda <> "(" <> Text.intercalate ", " captures_mangled <> ")")))
+                ANFIR.Expr'Lambda _ _ _ group _ ->
+                    let lambda_captures = ANFIR.binding_group_captures group
+                    in mangle_binding_as_lambda binding_key >>= \ lambda ->
+                    mapM mangle_binding_as_thunk (toList lambda_captures) >>= \ lambda_captures_mangled ->
+                    pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" ("new " <> lambda <> "(" <> Text.intercalate ", " lambda_captures_mangled <> ")")))
                 ANFIR.Expr'Param _ _ _ -> pure (let_thunk "param", Nothing)
 
                 ANFIR.Expr'Call _ _ callee arg ->
@@ -180,8 +181,9 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph (ANFIR.BindingGroup unique captu
 
                 ANFIR.Expr'Switch _ _ test arms ->
                     mapM (\ (matcher, group, res) -> -- TODO: lower binding group
+                        mangle_make_thunk_group (ANFIR.binding_group_unique group) >>= \ make_group ->
                         mangle_binding_as_thunk res >>= \ res' ->
-                        pure ("[" <> convert_matcher matcher <> ", " <> res' <> "]")) arms >>= \ arms' ->
+                        pure ("[" <> convert_matcher matcher <> ", " <> make_group <> "()." <> res' <> "]")) arms >>= \ arms' -> -- TODO: pass captures
                     mangle_binding_as_thunk test >>= \ test_mangled ->
                     pure (default_let_thunk, Just (set_evaluator "SwitchEvaluator" (test_mangled <> ", " <> ("[" <> Text.intercalate ", " arms' <> "]"))))
 
@@ -198,10 +200,11 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph (ANFIR.BindingGroup unique captu
                     pure (default_let_thunk, Just (set_evaluator "TupleDestructure2Evaluator" tup_mangled))
 
                 -- foralls and type applications get erased, TODO: explain this better and also reconsider if this is actually correct
-                ANFIR.Expr'Forall _ _ _ _ e ->
-                    -- TODO: lower group
+                -- TODO: lower binding group
+                ANFIR.Expr'Forall _ _ _ bg e ->
+                    mangle_make_thunk_group (ANFIR.binding_group_unique bg) >>= \ make_bg ->
                     mangle_binding_as_thunk e >>= \ e ->
-                    pure (let_thunk e, Nothing)
+                    pure (let_thunk $ make_bg <> "()." <> e, Nothing) -- TODO: pass captures
                 ANFIR.Expr'TypeApply _ _ e _ ->
                     mangle_binding_as_thunk e >>= \ e ->
                     pure (let_thunk e, Nothing)
@@ -235,7 +238,7 @@ stringify_ts_lambda (TSLambda key (ANFIR.BindingGroup unique captures _) arg_ty 
 
     mangle_binding_as_lambda key >>= \ lambda_mangled ->
     mangle_binding_as_thunk body_key >>= \ body_as_thunk ->
-    mangle_group_unique unique >>= \ make_thunk_graph_for ->
+    mangle_make_thunk_group unique >>= \ make_thunk_graph_for ->
     mapM (\ c -> mangle_binding_as_capture c >>= \ c -> pure ("this." <> c)) (toList captures) >>= \ capture_args ->
 
     pure ("class " <> lambda_mangled <> " implements Lambda<" <> arg_type_raw <> ", " <> result_type_raw <> "> {\n"
@@ -284,7 +287,6 @@ refer_type_raw (Type.Type'Forall _ t) = refer_type_raw t
 
 refer_type :: Type.Type Void -> IRReader Text
 refer_type ty = refer_type_raw ty >>= \ ty -> pure ("Thunk<" <> ty <> ">")
-
 -- lowering {{{1
 lower :: ANFIR -> Text
 lower (ANFIR.ANFIR decls adts type_synonyms type_vars bindings params mod) =
@@ -293,6 +295,7 @@ lower (ANFIR.ANFIR decls adts type_synonyms type_vars bindings params mod) =
             runWriterT (
                 define_decl mod (Arena.get decls mod) >>
                 Arena.transform_with_keyM define_lambda_type bindings >> -- TODO: do this by tracing bindings from module
+                Arena.transform_with_keyM define_binding_group bindings >> -- TODO: also do this by tracing bindings from module
                 pure ()
             ) >>= \ ((), TS ts_decls ts_adts ts_make_thunk_graphs ts_lambdas ts_global_thunks) ->
 
@@ -318,10 +321,14 @@ define_lambda_type :: ANFIR.BindingKey -> Binding -> TSWriter ()
 define_lambda_type key (ANFIR.Binding _ (ANFIR.Expr'Lambda _ _ param group body)) =
     lift (get_param param) >>= \ (ANFIR.Param _ param_ty) ->
     lift (binding_type body) >>= \ body_type ->
-    tell_make_thunk_graph (TSMakeThunkGraph group (Just param)) >>
     tell_lambda (TSLambda key group param_ty body_type body)
-
 define_lambda_type _ _ = pure ()
+
+define_binding_group :: ANFIR.BindingKey -> Binding -> TSWriter ()
+define_binding_group _ (ANFIR.Binding _ (ANFIR.Expr'Lambda _ _ param group _)) = tell_make_thunk_graph (TSMakeThunkGraph group (Just param))
+define_binding_group _ (ANFIR.Binding _ (ANFIR.Expr'Switch _ _ _ matchers)) = mapM_ (\ (_, group, _) -> tell_make_thunk_graph (TSMakeThunkGraph group Nothing)) matchers
+define_binding_group _ (ANFIR.Binding _ (ANFIR.Expr'Forall _ _ _ group _)) = tell_make_thunk_graph (TSMakeThunkGraph group Nothing)
+define_binding_group _ _ = pure ()
 
 -- mangling {{{2
 mangle_adt :: Type.ADTKey -> IRReader Text
@@ -336,5 +343,5 @@ mangle_binding_as_capture key = ANFIR.binding_id <$> get_binding key >>= \ id ->
 mangle_binding_as_thunk :: ANFIR.BindingKey -> IRReader Text
 mangle_binding_as_thunk key = ANFIR.binding_id <$> get_binding key >>= \ id -> pure ("thunk" <> ANFIR.mangle_id id)
 
-mangle_group_unique :: Unique.Unique -> IRReader Text
-mangle_group_unique u = pure (show u) -- TODO: do this properly because that can have spaces
+mangle_make_thunk_group :: Unique.Unique -> IRReader Text
+mangle_make_thunk_group u = pure $ "make_thunk_group_for_unique_" <> show (Unique.ununique u)

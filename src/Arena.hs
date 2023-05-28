@@ -7,6 +7,7 @@ module Arena
     , Arena.put
     , Arena.get
     , Arena.modify
+    , modifyM
 
     , transform
     , transform_with_key
@@ -42,6 +43,12 @@ modify :: Key k => Arena a k -> k -> (a -> a) -> Arena a k
 modify (Arena items) key change =
     case Sequence.splitAt (unmake_key key) items of
         (before, old Sequence.:<| after) -> Arena $ before <> (change old Sequence.<| after)
+        (_, Sequence.Empty) -> unreachable -- because the key should always be valid
+
+modifyM :: (Monad m, Key k) => Arena a k -> k -> (a -> m a) -> m (Arena a k)
+modifyM (Arena items) key change =
+    case Sequence.splitAt (unmake_key key) items of
+        (before, old Sequence.:<| after) -> change old >>= \ changed -> pure (Arena $ before <> (changed Sequence.<| after))
         (_, Sequence.Empty) -> unreachable -- because the key should always be valid
 
 transform :: Key k => (a -> b) -> Arena a k -> Arena b k

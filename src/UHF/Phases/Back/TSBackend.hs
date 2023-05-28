@@ -154,7 +154,7 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph (ANFIR.BindingGroup unique captu
                 default_let_thunk = let_thunk "new Thunk(undefined)"
 
             in ANFIR.binding_initializer <$> get_binding binding_key >>= \case
-                ANFIR.Expr'Identifier _ _ i ->
+                ANFIR.Expr'Refer _ _ i ->
                     mangle_binding_as_thunk i >>= \ i_mangled ->
                     pure (default_let_thunk, Just (set_evaluator "PassthroughEvaluator" i_mangled))
                 ANFIR.Expr'Int _ _ i -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" ("new Int(" <> show i <> ")")))

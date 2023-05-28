@@ -48,7 +48,7 @@ rp_binding :: PoisonedBinding captures -> Maybe (NoPoisonBinding captures)
 rp_binding (ANFIR.Binding bound_where initializer) = ANFIR.Binding bound_where <$> rp_expr initializer
 
 rp_expr :: PoisonedExpr captures -> Maybe (NoPoisonExpr captures)
-rp_expr (ANFIR.Expr'Identifier id ty b) = ty >>= \ ty -> pure (ANFIR.Expr'Identifier id ty b)
+rp_expr (ANFIR.Expr'Refer id ty b) = ty >>= \ ty -> pure (ANFIR.Expr'Refer id ty b)
 rp_expr (ANFIR.Expr'Int id ty i) = ty >>= \ ty -> pure (ANFIR.Expr'Int id ty i)
 rp_expr (ANFIR.Expr'Float id ty f) = ty >>= \ ty -> pure (ANFIR.Expr'Float id ty f)
 rp_expr (ANFIR.Expr'Bool id ty b) = ty >>= \ ty -> pure (ANFIR.Expr'Bool id ty b)

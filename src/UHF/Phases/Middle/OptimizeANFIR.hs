@@ -1,13 +1,9 @@
-module UHF.Phases.Middle.OptimizeANFIR where
+module UHF.Phases.Middle.OptimizeANFIR (optimize) where
 
-import UHF.Util.Prelude
+-- import UHF.Util.Prelude
 
-import qualified Arena
-
-import qualified UHF.Data.IR.Type as Type
-import qualified UHF.Data.IR.ANFIR as ANFIR
-
-type ANFIR = ANFIR.ANFIR () (Maybe (Type.Type Void)) ()
+import UHF.Phases.Middle.OptimizeANFIR.Utils
+import qualified UHF.Phases.Middle.OptimizeANFIR.RemoveRefers as RemoveRefers
 
 optimize :: ANFIR -> ANFIR
-optimize = identity
+optimize = RemoveRefers.optimize

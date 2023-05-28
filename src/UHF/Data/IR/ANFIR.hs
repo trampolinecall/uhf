@@ -62,7 +62,7 @@ stringify_id (ExprID id) = ID.stringify id
 stringify_id (BVID id) = ID.stringify id
 
 data Expr captures ty poison_allowed
-    = Expr'Identifier ID ty BindingKey
+    = Expr'Refer ID ty BindingKey
 
     | Expr'Int ID ty Integer
     | Expr'Float ID ty Rational
@@ -97,7 +97,7 @@ data SwitchMatcher
     deriving Show
 
 expr_type :: Expr captures ty poison_allowed -> ty
-expr_type (Expr'Identifier _ ty _) = ty
+expr_type (Expr'Refer _ ty _) = ty
 expr_type (Expr'Int _ ty _) = ty
 expr_type (Expr'Float _ ty _) = ty
 expr_type (Expr'Bool _ ty _) = ty
@@ -117,7 +117,7 @@ expr_type (Expr'MakeADT _ ty _ _) = ty
 expr_type (Expr'Poison _ ty _) = ty
 
 expr_id :: Expr captures ty poison_allowed -> ID
-expr_id (Expr'Identifier id _ _) = id
+expr_id (Expr'Refer id _ _) = id
 expr_id (Expr'Int id _ _) = id
 expr_id (Expr'Float id _ _) = id
 expr_id (Expr'Bool id _ _) = id

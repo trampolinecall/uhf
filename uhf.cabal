@@ -60,6 +60,7 @@ library
       UHF.Phases.Middle.AnnotateCaptures
       UHF.Phases.Middle.InfixGroup
       UHF.Phases.Middle.NameResolve
+      UHF.Phases.Middle.OptimizeANFIR
       UHF.Phases.Middle.RemovePoison
       UHF.Phases.Middle.ReportHoles
       UHF.Phases.Middle.ToANFIR

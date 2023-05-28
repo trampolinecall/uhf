@@ -61,6 +61,8 @@ library
       UHF.Phases.Middle.InfixGroup
       UHF.Phases.Middle.NameResolve
       UHF.Phases.Middle.OptimizeANFIR
+      UHF.Phases.Middle.OptimizeANFIR.RemoveRefers
+      UHF.Phases.Middle.OptimizeANFIR.Utils
       UHF.Phases.Middle.RemovePoison
       UHF.Phases.Middle.ReportHoles
       UHF.Phases.Middle.ToANFIR

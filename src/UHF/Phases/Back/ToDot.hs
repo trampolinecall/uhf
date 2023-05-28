@@ -46,7 +46,7 @@ to_dot (ANFIR.ANFIR _ _ _ _ bindings params _) =
             let (name, graph_connections, param_connections) =
                     -- TODO: print types
                     case initializer of
-                        ANFIR.Expr'Identifier _ _ b -> ("identifier", [("identifier", b)], [])
+                        ANFIR.Expr'Refer _ _ b -> ("identifier", [("identifier", b)], [])
 
                         ANFIR.Expr'Int _ _ i -> ("int: " <> show i, [], [])
                         ANFIR.Expr'Float _ _ f -> ("float: " <> show f, [], [])

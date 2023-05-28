@@ -36,7 +36,7 @@ annotate_binding_group binding_arena (ANFIR.BindingGroup unique () bindings) =
             in if def_bg == unique then [] else [binding]
 
         get_references :: ANFIR.Expr CaptureList ty poison_allowed -> Set ANFIR.BindingKey
-        get_references (ANFIR.Expr'Identifier _ _ i) = [i]
+        get_references (ANFIR.Expr'Refer _ _ i) = [i]
         get_references (ANFIR.Expr'Char _ _ _) = []
         get_references (ANFIR.Expr'String _ _ _) = []
         get_references (ANFIR.Expr'Int _ _ _) = []
@@ -63,7 +63,7 @@ annotate_binding :: Arena.Arena (ANFIR.Binding CaptureList ty poison_allowed) AN
 annotate_binding binding_arena (ANFIR.Binding bv initializer) = ANFIR.Binding bv (annotate_expr binding_arena initializer)
 
 annotate_expr :: Arena.Arena (ANFIR.Binding CaptureList ty poison_allowed) ANFIR.BindingKey -> ANFIR.Expr () ty poison_allowed -> ANFIR.Expr CaptureList ty poison_allowed
-annotate_expr _ (ANFIR.Expr'Identifier id ty i) = ANFIR.Expr'Identifier id ty i
+annotate_expr _ (ANFIR.Expr'Refer id ty i) = ANFIR.Expr'Refer id ty i
 annotate_expr _ (ANFIR.Expr'Char id ty c) = ANFIR.Expr'Char id ty c
 annotate_expr _ (ANFIR.Expr'String id ty s) = ANFIR.Expr'String id ty s
 annotate_expr _ (ANFIR.Expr'Int id ty i) = ANFIR.Expr'Int id ty i

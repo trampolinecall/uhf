@@ -21,7 +21,14 @@ iterate_over_bindings change (ANFIR.ANFIR decls adts type_synonyms vars bindings
         do_group (ANFIR.BindingGroup _ _ bindings) = mapM_ do_binding bindings
 
         -- ideally would use modifyM but that is not in the transformers package of this stackage snapshot
-        do_binding bk = StateT $ \ bindings -> ((),) <$> Arena.modifyM bindings bk change
+        do_binding bk =
+            StateT (\ bindings -> ((),) <$> Arena.modifyM bindings bk change) >>
+            ANFIR.binding_initializer <$> (Arena.get <$> get <*> pure bk) >>= \case
+                    ANFIR.Expr'Lambda _ _ _ group _ -> do_group group
+                    ANFIR.Expr'Switch _ _ _ arms -> mapM_ (\ (_, group, _) -> do_group group) arms
+                    ANFIR.Expr'Forall _ _ _ group _ -> do_group group
+
+                    _ -> pure ()
 
 iterate_over_all_subexpressions :: Monad m => (ANFIR.BindingKey -> m ANFIR.BindingKey) -> ANFIR -> m ANFIR
 iterate_over_all_subexpressions modify = iterate_over_bindings do_binding

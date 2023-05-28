@@ -1,3 +1,5 @@
+{-# LANGUAGE EmptyCase #-}
+
 module UHF.Phases.Back.TSBackend (lower) where
 
 import UHF.Util.Prelude
@@ -9,6 +11,9 @@ import qualified Data.Text as Text
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import qualified Data.FileEmbed as FileEmbed
+
+import qualified UHF.Phases.Back.TSBackend.TS as TS
+import qualified UHF.Phases.Back.TSBackend.TS.PP as TS.PP
 
 import qualified UHF.Data.IR.ANFIR as ANFIR
 import qualified UHF.Data.IR.Type as Type
@@ -78,10 +83,10 @@ tell_lambda lt = tell $ TS [] [] [] [lt] []
 tell_global :: TSGlobalThunk -> TSWriter ()
 tell_global gt = tell $ TS [] [] [] [] [gt]
 
-stringify_ts_decl :: TSDecl -> IRReader Text
-stringify_ts_decl = error "unreachable"
+stringify_ts_decl :: TSDecl -> IRReader TS.Stmt
+stringify_ts_decl d = case d of {}
 
-stringify_ts_adt :: TSADT -> IRReader Text
+stringify_ts_adt :: TSADT -> IRReader TS.Stmt
 stringify_ts_adt (TSADT key) =
     mangle_adt key >>= \ mangled ->
     data_type >>= \ data_type ->
@@ -105,7 +110,7 @@ stringify_ts_adt (TSADT key) =
                         variants >>= \ variant_types ->
                     pure (Text.intercalate " | " variant_types)
 
-stringify_ts_make_thunk_graph :: TSMakeThunkGraph -> IRReader Text
+stringify_ts_make_thunk_graph :: TSMakeThunkGraph -> IRReader TS.Stmt
 stringify_ts_make_thunk_graph (TSMakeThunkGraph (ANFIR.BindingGroup unique captures included_bindings) param) =
     mapM stringify_param param >>= \ stringified_param ->
     mapM stringify_capture (Set.toList captures) >>= \ stringified_captures ->
@@ -221,7 +226,7 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph (ANFIR.BindingGroup unique captu
         convert_matcher ANFIR.Switch'Tuple = "tuple_matcher()"
         convert_matcher ANFIR.Switch'Default = "default_matcher()"
 
-stringify_ts_lambda :: TSLambda -> IRReader Text
+stringify_ts_lambda :: TSLambda -> IRReader TS.Stmt
 stringify_ts_lambda (TSLambda key (ANFIR.BindingGroup unique captures _) arg_ty result_ty body_key) =
     refer_type_raw arg_ty >>= \ arg_type_raw ->
     refer_type arg_ty >>= \ arg_type ->
@@ -248,13 +253,13 @@ stringify_ts_lambda (TSLambda key (ANFIR.BindingGroup unique captures _) arg_ty 
         <> "    }\n"
         <> "}\n")
 
-stringify_ts_global_thunk :: TSGlobalThunk -> IRReader Text
+stringify_ts_global_thunk :: TSGlobalThunk -> IRReader TS.Stmt
 stringify_ts_global_thunk (TSGlobalThunk key) =
     binding_type key >>= refer_type >>= \ ty ->
     mangle_binding_as_thunk key >>= \ mangled ->
     pure ("let " <> mangled <> ": " <> ty <> ";\n")
 
-initialize_global_thunks :: [TSGlobalThunk] -> IRReader Text
+initialize_global_thunks :: [TSGlobalThunk] -> IRReader [TS.Stmt]
 initialize_global_thunks thunks =
     Text.concat <$>
         mapM (\ (TSGlobalThunk k) -> mangle_binding_as_thunk k >>= \ binding_as_thunk -> pure ("    " <> binding_as_thunk <> " = " <> "globals." <> binding_as_thunk <> ";\n")) thunks >>= \ assigns ->
@@ -265,7 +270,7 @@ initialize_global_thunks thunks =
         <> "initialize_global_thunks();\n")
 
 -- referring to types {{{2
-refer_type_raw :: Type.Type Void -> IRReader Text
+refer_type_raw :: Type.Type Void -> IRReader TS.Type
 refer_type_raw (Type.Type'ADT ak params) =
     mangle_adt ak >>= \ ak_mangled ->
     mapM refer_type_raw params >>= \ params_referred ->
@@ -285,7 +290,7 @@ refer_type_raw (Type.Type'Unknown void) = absurd void
 refer_type_raw (Type.Type'Variable _) = pure "any" -- best approximation
 refer_type_raw (Type.Type'Forall _ t) = refer_type_raw t
 
-refer_type :: Type.Type Void -> IRReader Text
+refer_type :: Type.Type Void -> IRReader TS.Type
 refer_type ty = refer_type_raw ty >>= \ ty -> pure ("Thunk<" <> ty <> ">")
 -- lowering {{{1
 lower :: ANFIR -> Text
@@ -306,7 +311,8 @@ lower (ANFIR.ANFIR decls adts type_synonyms type_vars bindings params mod) =
             initialize_global_thunks ts_global_thunks >>= \ initialize_global_thunks ->
             mapM stringify_ts_global_thunk ts_global_thunks >>= \ ts_global_thunks ->
 
-            pure (runtime_code <> Text.concat ts_decls <> Text.concat ts_adts <> Text.concat ts_global_thunks <> Text.concat ts_make_thunk_graphs <> Text.concat ts_lambdas <> initialize_global_thunks)
+            pure (runtime_code
+                <> TS.PP.stmts (ts_decls <> ts_adts <> ts_global_thunks <> ts_make_thunk_graphs <> ts_lambdas <> initialize_global_thunks))
         )
         (adts, type_synonyms, bindings, params)
 

@@ -111,7 +111,7 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph (ANFIR.BindingGroup unique captu
     mapM stringify_capture (Set.toList captures) >>= \ stringified_captures ->
 
     unzip <$> mapM stringify_binding_decl included_bindings >>= \ (binding_decls, binding_set_evaluators) ->
-    ("make_thunk_group_for_"<>) <$> mangle_group_unique unique >>= \ fn_name ->
+    mangle_make_thunk_group unique >>= \ fn_name ->
     ts_return_type >>= \ ts_return_type ->
     object_of_bindings >>= \ object_of_bindings ->
 
@@ -198,6 +198,7 @@ stringify_ts_make_thunk_graph (TSMakeThunkGraph (ANFIR.BindingGroup unique captu
                     pure (default_let_thunk, Just (set_evaluator "TupleDestructure2Evaluator" tup_mangled))
 
                 -- foralls and type applications get erased, TODO: explain this better and also reconsider if this is actually correct
+                -- TODO: lower binding group
                 ANFIR.Expr'Forall _ _ _ _ e ->
                     -- TODO: lower group
                     mangle_binding_as_thunk e >>= \ e ->
@@ -235,7 +236,7 @@ stringify_ts_lambda (TSLambda key (ANFIR.BindingGroup unique captures _) arg_ty 
 
     mangle_binding_as_lambda key >>= \ lambda_mangled ->
     mangle_binding_as_thunk body_key >>= \ body_as_thunk ->
-    mangle_group_unique unique >>= \ make_thunk_graph_for ->
+    mangle_make_thunk_group unique >>= \ make_thunk_graph_for ->
     mapM (\ c -> mangle_binding_as_capture c >>= \ c -> pure ("this." <> c)) (toList captures) >>= \ capture_args ->
 
     pure ("class " <> lambda_mangled <> " implements Lambda<" <> arg_type_raw <> ", " <> result_type_raw <> "> {\n"
@@ -336,5 +337,5 @@ mangle_binding_as_capture key = ANFIR.binding_id <$> get_binding key >>= \ id ->
 mangle_binding_as_thunk :: ANFIR.BindingKey -> IRReader Text
 mangle_binding_as_thunk key = ANFIR.binding_id <$> get_binding key >>= \ id -> pure ("thunk" <> ANFIR.mangle_id id)
 
-mangle_group_unique :: Unique.Unique -> IRReader Text
-mangle_group_unique u = pure (show u) -- TODO: do this properly because that can have spaces
+mangle_make_thunk_group :: Unique.Unique -> IRReader Text
+mangle_make_thunk_group u = pure $ "make_thunk_group_for_unique_" <> show (Unique.ununique u)

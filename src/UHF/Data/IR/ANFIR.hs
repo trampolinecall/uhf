@@ -43,7 +43,6 @@ data Decl captures
 
 data Param ty = Param ID.BoundValueID ty deriving Show
 
--- TODO: parameterize by type of captures
 -- TODO: make BindingGroupNum = Globals | Local Unique.Unique
 data BindingGroup captures = BindingGroup { binding_group_unique :: Unique.Unique, binding_group_captures :: captures, binding_group_bindings :: [BindingKey] } deriving Show
 

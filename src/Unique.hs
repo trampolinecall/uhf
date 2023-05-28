@@ -5,6 +5,7 @@ module Unique
     , UniqueMaker
     , UniqueMakerT
     , make_unique
+    , ununique -- not ideal but is the easiest solution
     , run_unique_maker_t
     , run_unique_maker
     )
@@ -15,7 +16,7 @@ import UHF.Util.Prelude
 import qualified Data.Functor.Identity as Identity
 import qualified Control.Monad.Trans.Class as Trans
 
-newtype Unique = Unique Int deriving (Show, Eq, Ord)
+newtype Unique = Unique { ununique :: Int } deriving (Show, Eq, Ord)
 newtype UniqueMakerT m r = UniqueMakerT (StateT Int m r) deriving (Functor, Applicative, Monad, Trans.MonadTrans)
 type UniqueMaker = UniqueMakerT Identity.Identity
 

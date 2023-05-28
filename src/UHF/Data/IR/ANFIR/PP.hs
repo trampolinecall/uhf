@@ -90,7 +90,7 @@ type_var :: Type.TypeVarKey -> IRReader captures ty poison_allowed PP.Token
 type_var k = get_type_var k >>= \ (Type.Var name) -> pure (PP.String name)
 
 expr :: (DumpableCaptures captures, DumpableType ty) => ANFIR.Expr captures ty poison_allowed -> IRReader captures ty poison_allowed PP.Token
-expr (ANFIR.Expr'Identifier _ _ bk) = refer_binding bk
+expr (ANFIR.Expr'Refer _ _ bk) = refer_binding bk
 expr (ANFIR.Expr'Int _ _ i) = pure $ PP.String $ show i
 expr (ANFIR.Expr'Float _ _ (n :% d)) = pure $ PP.String $ "(" <> show n <> "/" <> show d <> ")"
 expr (ANFIR.Expr'Bool _ _ b) = pure $ PP.String $ if b then "true" else "false"

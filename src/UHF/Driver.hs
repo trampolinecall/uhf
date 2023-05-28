@@ -42,6 +42,7 @@ import qualified UHF.Phases.Middle.Type as Type
 import qualified UHF.Phases.Middle.ReportHoles as ReportHoles
 import qualified UHF.Phases.Middle.ToRIR as ToRIR
 import qualified UHF.Phases.Middle.ToANFIR as ToANFIR
+import qualified UHF.Phases.Middle.OptimizeANFIR as OptimizeANFIR
 import qualified UHF.Phases.Middle.AnnotateCaptures as AnnotateCaptures
 import qualified UHF.Phases.Middle.RemovePoison as RemovePoison
 import qualified UHF.Phases.Back.ToDot as ToDot
@@ -173,10 +174,16 @@ get_anfir = get_or_calculate _get_anfir (\ cache anfir -> cache { _get_anfir = a
     where
         to_anfir = ToANFIR.convert <$> get_rir
 
+get_optimized_anfir :: PhaseResultsState ANFIR
+get_optimized_anfir = get_or_calculate _get_anfir (\ cache anfir -> cache { _get_anfir = anfir }) to_anfir
+    where
+        -- TODO: move after remove poison?
+        to_anfir = OptimizeANFIR.optimize <$> get_anfir -- TODO: optimization levels
+
 get_anfir_with_captures :: PhaseResultsState ANFIRWithCaptures
 get_anfir_with_captures = get_or_calculate _get_anfir_with_captures (\ cache anfir -> cache { _get_anfir_with_captures = anfir }) to_anfir_with_captures
     where
-        to_anfir_with_captures = AnnotateCaptures.annotate <$> get_anfir
+        to_anfir_with_captures = AnnotateCaptures.annotate <$> get_optimized_anfir
 
 get_no_poison_ir :: PhaseResultsState (Maybe NoPoisonIR)
 get_no_poison_ir = get_or_calculate _get_no_poison_ir (\ cache no_poison_ir -> cache { _get_no_poison_ir = no_poison_ir }) remove_poison

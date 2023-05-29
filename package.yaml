@@ -39,6 +39,7 @@ library:
     - json
     - filepath
     - pipes
+    - pipes-parse
 
     - tasty
     - tasty-hunit

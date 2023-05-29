@@ -43,45 +43,65 @@ render = IndentationMonad.exec_pp . render'
         render' (FirstOnLineIfMultiline tok) =
             let tok' = render' tok
             in IndentationMonad.first_on_line >>= \ first_on_line ->
-            if IndentationMonad.is_multiline tok' && not first_on_line
+            if is_multiline tok && not first_on_line
                   then IndentationMonad.write "\n" >> IndentationMonad.indent >> tok' >> IndentationMonad.dedent
                   else tok'
         render' (List items) = mapM_ render' items
         render' (String s) = IndentationMonad.write s
 
         render_block needs_indent consistency delim_if_broken delim_if_single_line left_if_single_line right_if_single_line items =
-            let items' = map render' items
-                any_multiline = any IndentationMonad.is_multiline items'
+            let items_rendered = map render' items
+                any_multiline = any is_multiline items
             in case consistency of
                 Consistent
                     | any_multiline || length items > 1 -> -- all need to be broken
                         when needs_indent
                             (IndentationMonad.write "\n" >> IndentationMonad.indent) >>
-                        mapM (>> IndentationMonad.write (delim_if_broken <> "\n")) items' >>
+                        mapM (>> IndentationMonad.write (delim_if_broken <> "\n")) items_rendered >>
                         when needs_indent IndentationMonad.dedent
 
                 Inconsistent
                     | any_multiline -> -- some need to be broken
                         when needs_indent
                             (IndentationMonad.write "\n" >> IndentationMonad.indent) >>
-                        zipWithM
-                            (\ i item ->
-                                item >>
-                                if IndentationMonad.is_multiline item || i == length items' - 1 -- the last one always breaks
+                        mapM
+                            (\ (i, item, item_rendered) ->
+                                item_rendered >>
+                                if is_multiline item || i == length items - 1 -- the last one always breaks
                                     then IndentationMonad.write $ delim_if_broken <> "\n"
-                                    else IndentationMonad.write delim_if_single_line) [0..] items' >>
+                                    else IndentationMonad.write delim_if_single_line)
+                            (zip3 [0..] items items_rendered) >>
                         when needs_indent IndentationMonad.dedent
 
                 _
-                    | null items' -> pure ()
+                    | null items -> pure ()
                     | otherwise ->
                         IndentationMonad.write (fromMaybe "" left_if_single_line) >>
-                        intercalate_delim True items' >> -- true if first
+                        intercalate_delim True items_rendered >> -- true if first
                         IndentationMonad.write (fromMaybe "" right_if_single_line)
             where
                 intercalate_delim _ [] = pure ()
                 intercalate_delim True (x:more) = x >> intercalate_delim False more
                 intercalate_delim False (x:more) = IndentationMonad.write delim_if_single_line >> x >> intercalate_delim False more
+
+        is_multiline (Block consistency _ left_if_single_line right_if_single_line items) = block_is_multiline consistency left_if_single_line right_if_single_line items
+        is_multiline (NoIndentBlock consistency _ left_if_single_line right_if_single_line items) = block_is_multiline consistency left_if_single_line right_if_single_line items
+        is_multiline (FirstOnLineIfMultiline child) = is_multiline child -- always assume that this is the first on line
+        is_multiline (List items) = any is_multiline items
+        is_multiline (String t) = has_nl t
+
+        block_is_multiline consistency left_if_single_line right_if_single_line items =
+            let any_multiline = any is_multiline items
+            in case consistency of
+                Consistent
+                    | any_multiline || length items > 1 -> True -- '\n' appears after delim
+                Inconsistent
+                    | any_multiline -> True -- '\n' appears after delim, and there is guaranteed to be one that needs breaking (esp because if items is empty, any_multiline will be False)
+                _
+                    | null items -> False
+                    | otherwise -> maybe False has_nl left_if_single_line || maybe False has_nl right_if_single_line
+
+        has_nl = Text.any (=='\n')
 
 flat_block :: [Token] -> Token
 flat_block = NoIndentBlock Consistent Nothing Nothing Nothing

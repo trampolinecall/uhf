@@ -119,6 +119,7 @@ library
     , filepath
     , inflist
     , pipes
+    , pipes-parse
     , safe
     , tasty
     , tasty-hunit

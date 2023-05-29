@@ -37,6 +37,7 @@ library:
     - file-embed
     - filepath
     - pipes
+    - pipes-parse
 
     - tasty
     - tasty-hunit

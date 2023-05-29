@@ -50,14 +50,14 @@ render = IndentationMonad.exec_pp . render'
         render' (String s) = IndentationMonad.write s
 
         render_block needs_indent consistency delim_if_broken delim_if_single_line left_if_single_line right_if_single_line items =
-            let items_rendered = map render' items
-                any_multiline = any is_multiline items
+            let multilines = map is_multiline items
+                any_multiline = or multilines
             in case consistency of
                 Consistent
                     | any_multiline || length items > 1 -> -- all need to be broken
                         when needs_indent
                             (IndentationMonad.write "\n" >> IndentationMonad.indent) >>
-                        mapM (>> IndentationMonad.write (delim_if_broken <> "\n")) items_rendered >>
+                        mapM (\ x -> render' x >> IndentationMonad.write (delim_if_broken <> "\n")) items >>
                         when needs_indent IndentationMonad.dedent
 
                 Inconsistent
@@ -65,19 +65,19 @@ render = IndentationMonad.exec_pp . render'
                         when needs_indent
                             (IndentationMonad.write "\n" >> IndentationMonad.indent) >>
                         mapM
-                            (\ (i, item, item_rendered) ->
-                                item_rendered >>
-                                if is_multiline item || i == length items - 1 -- the last one always breaks
+                            (\ (i, item, item_multiline) ->
+                                render' item >>
+                                if item_multiline || i == length items - 1 -- the last one always breaks
                                     then IndentationMonad.write $ delim_if_broken <> "\n"
                                     else IndentationMonad.write delim_if_single_line)
-                            (zip3 [0..] items items_rendered) >>
+                            (zip3 [0..] items multilines) >>
                         when needs_indent IndentationMonad.dedent
 
                 _
                     | null items -> pure ()
                     | otherwise ->
                         IndentationMonad.write (fromMaybe "" left_if_single_line) >>
-                        intercalate_delim True items_rendered >> -- true if first
+                        intercalate_delim True (map render' items) >> -- true if first
                         IndentationMonad.write (fromMaybe "" right_if_single_line)
             where
                 intercalate_delim _ [] = pure ()

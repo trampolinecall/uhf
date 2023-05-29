@@ -5,7 +5,6 @@ module UHF.PP.IndentationMonad
     , exec_pp
 
     , first_on_line
-    , is_multiline
     , write
     , indent
     , dedent
@@ -22,9 +21,6 @@ import Control.Monad.Trans.Writer.CPS
 
 data IndentState = IndentState Int Bool
 newtype PP a = PP (StateT IndentState (Writer Text) a) deriving (Functor, Applicative, Monad)
-
-is_multiline :: PP a -> Bool
-is_multiline = Text.any (=='\n') . exec_pp
 
 first_on_line :: PP Bool
 first_on_line = PP $ get >>= \ (IndentState _ is_first) -> pure is_first
@@ -51,9 +47,9 @@ write t =
                 modify (\ (IndentState cur_indent _) -> IndentState cur_indent False) >>
                 lift (tell c)
 
-        put_indent = get >>= \ (IndentState indent _) -> lift (tell $ Text.replicate indent (Text.singleton ' '))
+        put_indent = get >>= \ (IndentState indent _) -> lift (tell $ Text.replicate (indent * 4) (Text.singleton ' '))
 
 indent :: PP ()
-indent = PP $ modify $ \ (IndentState indent at_start) -> IndentState (indent + 4) at_start
+indent = PP $ modify $ \ (IndentState indent at_start) -> IndentState (indent + 1) at_start
 dedent :: PP ()
-dedent = PP $ modify $ \ (IndentState indent at_start) -> IndentState (indent - 4) at_start
+dedent = PP $ modify $ \ (IndentState indent at_start) -> IndentState (indent - 1) at_start

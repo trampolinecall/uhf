@@ -19,9 +19,9 @@ stmt (TS.Stmt'Function name p retty body) = PP.List ["function ", PP.String name
     where
         body' = case body of
             Nothing -> ";"
-            Just stmts -> PP.braced_block $ map stmt stmts
+            Just stmts -> PP.List [" ", PP.braced_block $ map stmt stmts]
 
-stmt (TS.Stmt'Class name implements members) = PP.List ["class ", PP.String name, implements', PP.braced_block $ map class_member members]
+stmt (TS.Stmt'Class name implements members) = PP.List ["class ", PP.String name, implements', " ", PP.braced_block $ map class_member members]
     where
         implements' = case implements of
             [] -> PP.List []
@@ -163,7 +163,7 @@ class_member (TS.ClassMember'Constructor p body) = PP.List ["constructor", param
     where
         body' = case body of
             Nothing -> ";"
-            Just stmts -> PP.braced_block $ map stmt stmts
+            Just stmts -> PP.List [" ", PP.braced_block $ map stmt stmts]
 class_member (TS.ClassMember'PropDecl name ty init) = PP.List [PP.String name, type_annotation ty, init', ";"]
     where
         init' = case init of
@@ -173,4 +173,4 @@ class_member (TS.ClassMember'MethodDecl name p retty body) = PP.List [PP.String 
     where
         body' = case body of
             Nothing -> ";"
-            Just stmts -> PP.braced_block $ map stmt stmts
+            Just stmts -> PP.List [" ", PP.braced_block $ map stmt stmts]

@@ -126,7 +126,9 @@ convert_ts_make_thunk_graph (TSMakeThunkGraph (ANFIR.BindingGroup unique capture
             (Just ts_return_type)
             (Just $
                 binding_decls
+                    <> [TS.Stmt'Spacer]
                     <> Maybe.catMaybes binding_set_evaluators
+                    <> [TS.Stmt'Spacer]
                     <> [TS.Stmt'Return object_of_bindings]))
     where
         ts_return_type =

@@ -34,6 +34,7 @@ stmt (TS.Stmt'Let name ty init) = PP.List ["let ", PP.String name, type_annotati
 
 stmt (TS.Stmt'Return e) = PP.List ["return ", expr e, ";"]
 stmt (TS.Stmt'Expr e) = PP.List [expr e, ";"]
+stmt TS.Stmt'Spacer = PP.List []
 
 expr :: TS.Expr -> PP.Token
 expr = level1

@@ -90,7 +90,7 @@ convert_ts_adt (TSADT key) =
     mangle_adt key >>= \ mangled ->
     data_type >>= \ data_type ->
     pure $
-        TS.Stmt'Class mangled Nothing [TS.ClassMember'PropDecl "type" (Just $ TS.Type'StrLit mangled) Nothing, TS.ClassMember'Constructor [TS.Parameter Nothing "data" (Just data_type)] (Just [])]
+        TS.Stmt'Class mangled [] [TS.ClassMember'PropDecl "type" (Just $ TS.Type'StrLit mangled) Nothing, TS.ClassMember'Constructor [TS.Parameter Nothing "data" (Just data_type)] (Just [])]
 
     where
         data_type =
@@ -249,7 +249,7 @@ convert_ts_lambda (TSLambda key (ANFIR.BindingGroup unique captures _) arg_ty re
     pure
         (TS.Stmt'Class
             lambda_mangled
-            (Just $ TS.ClassImplements [TS.TypeReference "Lambda" (Just [arg_type_raw, result_type_raw])])
+            [TS.TypeReference "Lambda" [arg_type_raw, result_type_raw]]
             [ TS.ClassMember'Constructor capture_constructor_params (Just [])
             , TS.ClassMember'MethodDecl "call" [TS.Parameter Nothing "arg" (Just arg_type)] (Just result_type)
                 (Just [TS.Stmt'Return $ TS.Expr'Get (TS.Expr'Call (TS.Expr'Identifier make_thunk_graph_for) (capture_args ++ [TS.Expr'Identifier "arg"])) body_as_thunk])
@@ -278,24 +278,24 @@ initialize_global_thunks thunks =
 refer_type_raw :: Type.Type Void -> IRReader TS.Type
 refer_type_raw (Type.Type'ADT ak _) = -- type parameters erased
     mangle_adt ak >>= \ ak_mangled ->
-    pure (TS.Type'Reference (TS.TypeReference ak_mangled Nothing))
+    pure (TS.Type'Reference (TS.TypeReference ak_mangled []))
 
 refer_type_raw (Type.Type'Synonym sk) =
     get_type_synonym sk >>= \ (Type.TypeSynonym _ _ expansion) -> refer_type expansion
 
-refer_type_raw Type.Type'Int = pure $ TS.Type'Reference $ TS.TypeReference "Int" Nothing
-refer_type_raw Type.Type'Float = pure $ TS.Type'Reference $ TS.TypeReference "Float" Nothing
-refer_type_raw Type.Type'Char = pure $ TS.Type'Reference $ TS.TypeReference "Char" Nothing
-refer_type_raw Type.Type'String = pure $ TS.Type'Reference $ TS.TypeReference "UHFString" Nothing
-refer_type_raw Type.Type'Bool = pure $ TS.Type'Reference $ TS.TypeReference "Bool" Nothing
-refer_type_raw (Type.Type'Function a r) = refer_type_raw a >>= \ a -> refer_type_raw r >>= \ r -> pure (TS.Type'Reference $ TS.TypeReference "Lambda" (Just [a, r]))
-refer_type_raw (Type.Type'Tuple a b) = refer_type_raw a >>= \ a -> refer_type_raw b >>= \ b -> pure (TS.Type'Reference $ TS.TypeReference "Tuple" (Just [a, b]))
+refer_type_raw Type.Type'Int = pure $ TS.Type'Reference $ TS.TypeReference "Int" []
+refer_type_raw Type.Type'Float = pure $ TS.Type'Reference $ TS.TypeReference "Float" []
+refer_type_raw Type.Type'Char = pure $ TS.Type'Reference $ TS.TypeReference "Char" []
+refer_type_raw Type.Type'String = pure $ TS.Type'Reference $ TS.TypeReference "UHFString" []
+refer_type_raw Type.Type'Bool = pure $ TS.Type'Reference $ TS.TypeReference "Bool" []
+refer_type_raw (Type.Type'Function a r) = refer_type_raw a >>= \ a -> refer_type_raw r >>= \ r -> pure (TS.Type'Reference $ TS.TypeReference "Lambda" [a, r])
+refer_type_raw (Type.Type'Tuple a b) = refer_type_raw a >>= \ a -> refer_type_raw b >>= \ b -> pure (TS.Type'Reference $ TS.TypeReference "Tuple" [a, b])
 refer_type_raw (Type.Type'Unknown void) = absurd void
-refer_type_raw (Type.Type'Variable _) = pure $ TS.Type'Reference $ TS.TypeReference "any" Nothing -- best approximation
+refer_type_raw (Type.Type'Variable _) = pure $ TS.Type'Reference $ TS.TypeReference "any" [] -- best approximation
 refer_type_raw (Type.Type'Forall _ t) = refer_type_raw t
 
 refer_type :: Type.Type Void -> IRReader TS.Type
-refer_type ty = refer_type_raw ty >>= \ ty -> pure (TS.Type'Reference $ TS.TypeReference "Thunk" (Just [ty]))
+refer_type ty = refer_type_raw ty >>= \ ty -> pure (TS.Type'Reference $ TS.TypeReference "Thunk" [ty])
 -- lowering {{{1
 lower :: ANFIR -> Text
 lower (ANFIR.ANFIR decls adts type_synonyms type_vars bindings params mod) =

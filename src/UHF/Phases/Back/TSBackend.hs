@@ -90,7 +90,7 @@ convert_ts_adt (TSADT key) =
     mangle_adt key >>= \ mangled ->
     data_type >>= \ data_type ->
     pure $
-        TS.Stmt'Class mangled [] [TS.ClassMember'PropDecl "type" (Just $ TS.Type'StrLit mangled) Nothing, TS.ClassMember'Constructor [TS.Parameter Nothing "data" (Just data_type)] (Just [])]
+        TS.Stmt'Class mangled [] [TS.ClassMember'PropDecl "type" (Just $ TS.Type'StrLit mangled) Nothing, TS.ClassMember'Constructor [TS.Parameter (Just TS.Public) "data" (Just data_type)] (Just [])]
 
     where
         data_type =

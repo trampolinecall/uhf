@@ -1,4 +1,4 @@
-module UHF.Phases.Back.TSBackend.TS (Stmt (..), Expr (..), Type (..), TypeReference (..), ClassMember (..), Parameter (..), Accessibility (..), ClassImplements (..)) where
+module UHF.Phases.Back.TSBackend.TS (Stmt (..), Expr (..), Type (..), TypeReference (..), ClassMember (..), Parameter (..), Accessibility (..)) where
 
 import UHF.Util.Prelude
 
@@ -7,7 +7,7 @@ import UHF.Util.Prelude
 
 data Stmt
     = Stmt'Function Text [Parameter] (Maybe Type) (Maybe [Stmt])
-    | Stmt'Class Text (Maybe ClassImplements) [ClassMember]
+    | Stmt'Class Text [TypeReference] [ClassMember]
     | Stmt'Let Text (Maybe Type) (Maybe Expr)
     | Stmt'Return Expr
     | Stmt'Expr Expr
@@ -35,7 +35,7 @@ data Type
     | Type'Never
     | Type'Union Type Type
     | Type'StrLit Text
-data TypeReference = TypeReference Text (Maybe [Type])
+data TypeReference = TypeReference Text [Type]
 
 data ClassMember
     = ClassMember'Constructor [Parameter] (Maybe [Stmt])
@@ -44,5 +44,3 @@ data ClassMember
 
 data Parameter = Parameter (Maybe Accessibility) Text (Maybe Type)
 data Accessibility = Public
-
-data ClassImplements = ClassImplements [TypeReference]

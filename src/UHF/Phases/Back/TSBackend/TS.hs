@@ -1,9 +1,48 @@
-module UHF.Phases.Back.TSBackend.TS (Stmt (..), Expr (..), Type (..)) where
+module UHF.Phases.Back.TSBackend.TS (Stmt (..), Expr (..), Type (..), TypeReference (..), ClassMember (..), Parameter (..), Accessibility (..), ClassImplements (..)) where
 
 import UHF.Util.Prelude
 
--- a subset of the typescript ast that is actually used by the backend
+-- the subset of typescript syntax that is actually used by the backend
+-- TODO: reorganize and reorder module
 
 data Stmt
+    = Stmt'Function Text [Parameter] (Maybe Type) (Maybe [Stmt])
+    | Stmt'Class Text (Maybe ClassImplements) [ClassMember]
+    | Stmt'Let Text (Maybe Type) (Maybe Expr)
+    | Stmt'Return Expr
+    | Stmt'Expr Expr
+
 data Expr
+    = Expr'Identifier Text
+    | Expr'Int Integer
+    | Expr'Bool Bool
+    | Expr'Char Char
+    | Expr'String Text
+    | Expr'Undefined
+    | Expr'StrLit Text
+    | Expr'List [Expr]
+    | Expr'Object [(Text, Maybe Expr)]
+    | Expr'ArrowFunction [Parameter] (Maybe Type) (Either Expr [Stmt])
+    | Expr'New Expr [Expr]
+    | Expr'Call Expr [Expr]
+    | Expr'Get Expr Text
+    | Expr'Div Expr Expr
+    | Expr'Assign Expr Expr
+
 data Type
+    = Type'Reference TypeReference
+    | Type'Object [(Text, Maybe Type)]
+    | Type'Never
+    | Type'Union Type Type
+    | Type'StrLit Text
+data TypeReference = TypeReference Text (Maybe [Type])
+
+data ClassMember
+    = ClassMember'Constructor [Parameter] (Maybe [Stmt])
+    | ClassMember'PropDecl Text (Maybe Type) (Maybe Expr)
+    | ClassMember'MethodDecl Text [Parameter] (Maybe Type) (Maybe [Stmt])
+
+data Parameter = Parameter (Maybe Accessibility) Text (Maybe Type)
+data Accessibility = Public
+
+data ClassImplements = ClassImplements [TypeReference]

@@ -68,15 +68,21 @@ expr e = PP.List ["(", expr' e, ")"] -- TODO: also do precedence correctly
         expr' (TS.Expr'Assign lhs rhs) = PP.List [expr lhs, " = ", expr rhs]
 
 type_ :: TS.Type -> PP.Token
-type_ t = PP.List ["(", type_' t, ")"] -- TODO: do precedence correctly
+type_ t = level1 t
     where
-        type_' (TS.Type'Reference ref) = ty_ref ref
-        type_' (TS.Type'Object fields) = PP.braced_comma_list PP.Inconsistent (map field fields)
-            where
-                field (name, ty) = PP.List [PP.String name, type_annotation ty]
-        type_' (TS.Type'Never) = "never"
-        type_' (TS.Type'Union a b) = PP.List [type_ a, " | ", type_ b]
-        type_' (TS.Type'StrLit s) = PP.List ["\"", PP.String s, "\""]
+        -- precedence taken from https://github.com/antlr/grammars-v4/blob/master/javascript/typescript/TypeScriptParser.g4#L80
+        -- "one simple trick" for printing precedence taken from https://www.haskellforall.com/2020/11/pretty-print-syntax-trees-with-this-one.html
+
+        level1 (TS.Type'StrLit s) = PP.List ["\"", PP.String s, "\""]
+        level1 t = level2 t
+
+        level2 (TS.Type'Union a b) = PP.List [type_ a, " | ", type_ b]
+        level2 t = level3 t
+
+        level3 (TS.Type'Reference ref) = ty_ref ref
+        level3 (TS.Type'Object fields) = PP.braced_comma_list PP.Inconsistent (map field fields) where field (name, ty) = PP.List [PP.String name, type_annotation ty]
+        level3 (TS.Type'Never) = "never"
+        level3 t = PP.List ["(", level1 t, ")"]
 
 type_annotation :: Maybe TS.Type -> PP.Token
 type_annotation (Just ty) = PP.List [": ", type_ ty]

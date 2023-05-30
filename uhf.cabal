@@ -49,6 +49,8 @@ library
       UHF.IO.Span
       UHF.Phases.Back.ToDot
       UHF.Phases.Back.TSBackend
+      UHF.Phases.Back.TSBackend.TS
+      UHF.Phases.Back.TSBackend.TS.PP
       UHF.Phases.Front.Lexer
       UHF.Phases.Front.Lexer.IdentifierGrouper
       UHF.Phases.Front.Lexer.LexError

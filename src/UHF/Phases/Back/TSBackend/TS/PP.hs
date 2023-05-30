@@ -138,7 +138,7 @@ type_ = level1
         level2 t = level3 t
 
         level3 (TS.Type'Reference ref) = ty_ref ref
-        level3 (TS.Type'Object fields) = PP.braced_semi_list PP.Inconsistent (map field fields)
+        level3 (TS.Type'Object fields) = PP.braced_comma_list PP.Inconsistent (map field fields)
             where field (name, ty) = PP.List [PP.String name, type_annotation ty]
         level3 (TS.Type'Never) = "never"
         level3 t = PP.List ["(", level1 t, ")"]

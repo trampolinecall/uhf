@@ -6,8 +6,6 @@ import qualified UHF.PP as PP
 
 import qualified UHF.Phases.Back.TSBackend.TS as TS
 
--- TODO: format more nicely
-
 stmts :: [TS.Stmt] -> Text
 stmts = PP.render . stmts'
 

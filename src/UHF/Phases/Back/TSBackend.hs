@@ -318,7 +318,18 @@ lower (ANFIR.ANFIR decls adts type_synonyms type_vars bindings params mod) =
             mapM convert_ts_global_thunk ts_global_thunks >>= \ ts_global_thunks ->
 
             pure (runtime_code
-                <> TS.PP.stmts (ts_decls <> ts_adts <> ts_global_thunks <> ts_make_thunk_graphs <> ts_lambdas <> initialize_global_thunks))
+                <> TS.PP.stmts
+                    (ts_decls
+                    <> [TS.Stmt'Spacer]
+                    <> ts_adts
+                    <> [TS.Stmt'Spacer]
+                    <> ts_global_thunks
+                    <> [TS.Stmt'Spacer]
+                    <> ts_make_thunk_graphs
+                    <> [TS.Stmt'Spacer]
+                    <> ts_lambdas
+                    <> [TS.Stmt'Spacer]
+                    <> initialize_global_thunks))
         )
         (adts, type_synonyms, bindings, params)
 

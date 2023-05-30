@@ -7,6 +7,7 @@ module UHF.PP
     , indented_block
     , braced_block
     , braced_comma_list
+    , braced_semi_list
     , bracketed_comma_list
     , parenthesized_comma_list
     , comma_separated
@@ -94,6 +95,9 @@ braced_block items = List ["{", Block Consistent Nothing (Just " ") (Just " ") i
 
 braced_comma_list :: Consistency -> [Token] -> Token
 braced_comma_list consistency items = List ["{", Block consistency (Just ",") (Just " ") (Just " ") items, "}"]
+
+braced_semi_list :: Consistency -> [Token] -> Token
+braced_semi_list consistency items = List ["{", Block consistency (Just ";") (Just " ") (Just " ") items, "}"]
 
 bracketed_comma_list :: Consistency -> [Token] -> Token
 bracketed_comma_list consistency items = List ["[", Block consistency (Just ",") Nothing Nothing items, "]"]

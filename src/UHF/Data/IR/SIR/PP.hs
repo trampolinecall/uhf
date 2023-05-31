@@ -105,16 +105,18 @@ type_var k = get_type_var k >>= \ (Type.Var name) -> pure $ PP.String name
 type_expr :: DumpableIdentifier d_iden => SIR.TypeExpr d_iden type_info -> IRReader d_iden v_iden p_iden type_info binary_ops_allowed PP.Token
 type_expr = level1
     where
-        level1 (SIR.TypeExpr'Apply _ _ ty arg) = level1 ty >>= \ ty -> type_expr arg >>= \ arg -> pure (PP.List [ty, "#(", arg, ")"])
+        level1 (SIR.TypeExpr'Forall _ vars ty) = mapM type_var vars >>= \ vars -> level1 ty >>= \ ty -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList vars, " ", ty])
         level1 t = level2 t
 
-        level2 (SIR.TypeExpr'Identifier _ _ iden) = refer_iden iden
-        level2 (SIR.TypeExpr'Tuple _ a b) = type_expr a >>= \ a -> type_expr b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b])
-        level2 (SIR.TypeExpr'Hole _ _ hid) = put_iden_list_of_text (unlocate hid) >>= \ hid -> pure (PP.List ["?", hid])
-        level2 (SIR.TypeExpr'Forall _ vars ty) = mapM type_var vars >>= \ vars -> type_expr ty >>= \ ty -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList vars, " ", ty])
-        level2 (SIR.TypeExpr'Wild _ _) = pure $ PP.String "_"
-        level2 (SIR.TypeExpr'Poison _ _) = pure $ PP.String "poison"
-        level2 t = type_expr t >>= \ t -> pure (PP.List ["(", t, ")"])
+        level2 (SIR.TypeExpr'Apply _ _ ty arg) = level2 ty >>= \ ty -> type_expr arg >>= \ arg -> pure (PP.List [ty, "#(", arg, ")"])
+        level2 t = level3 t
+
+        level3 (SIR.TypeExpr'Identifier _ _ iden) = refer_iden iden
+        level3 (SIR.TypeExpr'Tuple _ a b) = type_expr a >>= \ a -> type_expr b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b])
+        level3 (SIR.TypeExpr'Hole _ _ hid) = put_iden_list_of_text (unlocate hid) >>= \ hid -> pure (PP.List ["?", hid])
+        level3 (SIR.TypeExpr'Wild _ _) = pure $ PP.String "_"
+        level3 (SIR.TypeExpr'Poison _ _) = pure $ PP.String "poison"
+        level3 t = type_expr t >>= \ t -> pure (PP.List ["(", t, ")"])
 
 -- TODO: deal with precedence
 expr :: (DumpableIdentifier d_iden, DumpableIdentifier v_iden, DumpableIdentifier p_iden) => SIR.Expr d_iden v_iden p_iden type_info binary_ops_allowed -> IRReader d_iden v_iden p_iden type_info binary_ops_allowed PP.Token

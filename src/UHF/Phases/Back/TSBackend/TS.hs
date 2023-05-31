@@ -5,6 +5,9 @@ import UHF.Util.Prelude
 -- the subset of typescript syntax that is actually used by the backend
 -- TODO: reorganize and reorder module
 
+data Parameter = Parameter (Maybe Accessibility) Text (Maybe Type)
+data Accessibility = Public
+
 data Stmt
     = Stmt'Function Text [Parameter] (Maybe Type) (Maybe [Stmt])
     | Stmt'Class Text [TypeReference] [ClassMember]
@@ -43,5 +46,3 @@ data ClassMember
     | ClassMember'PropDecl Text (Maybe Type) (Maybe Expr)
     | ClassMember'MethodDecl Text [Parameter] (Maybe Type) (Maybe [Stmt])
 
-data Parameter = Parameter (Maybe Accessibility) Text (Maybe Type)
-data Accessibility = Public

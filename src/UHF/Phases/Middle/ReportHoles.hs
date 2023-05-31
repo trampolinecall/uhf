@@ -43,11 +43,6 @@ instance Diagnostic.ToError (Error d_iden) where
 report_holes :: SIR d_iden v_iden p_iden binary_ops_allowed -> Compiler.WithDiagnostics (Error d_iden) Void ()
 report_holes sir@(SIR.SIR _ _ _ _ _ mod) =
     runReaderT (decl mod) sir
-    -- let (SIR.Decl'Module) = Arena.get decls mod
-    -- in
-    -- mapM_ decl decls >>
-    -- mapM_ adt adts >>
-    -- mapM_ type_synonym type_synonyms
 
 decl :: SIR.DeclKey -> ReaderT (SIR d_iden v_iden p_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()
 decl key = ask >>= \ (SIR.SIR decls _ _ _ _ _) ->

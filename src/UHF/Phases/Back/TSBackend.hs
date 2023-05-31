@@ -208,7 +208,6 @@ convert_ts_make_thunk_graph (TSMakeThunkGraph (ANFIR.BindingGroup unique capture
                     pure (default_let_thunk, Just (set_evaluator "TupleDestructure2Evaluator" [TS.Expr'Identifier tup_mangled]))
 
                 -- foralls and type applications get erased, TODO: explain this better and also reconsider if this is actually correct
-                -- TODO: lower binding group
                 ANFIR.Expr'Forall _ _ _ bg e ->
                     mangle_make_thunk_group (ANFIR.binding_group_unique bg) >>= \ make_bg ->
                     mangle_binding_as_thunk e >>= \ e ->

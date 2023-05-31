@@ -29,14 +29,20 @@ pp_data_variant :: AST.DataVariant -> PP.Token
 pp_data_variant (AST.DataVariant'Anon name fields) = PP.List [pp_iden name, PP.parenthesized_comma_list PP.Inconsistent $ map pp_type fields, ";"]
 pp_data_variant (AST.DataVariant'Named name fields) = PP.List [pp_iden name, " ", PP.braced_block $ map (\ (name, ty) -> PP.List [pp_iden name, ": ", pp_type ty, ";"]) fields, ";"]
 
--- TODO: precedence
 pp_type :: AST.Type -> PP.Token
-pp_type (AST.Type'Identifier iden) = pp_iden iden
-pp_type (AST.Type'Tuple _ items) = PP.parenthesized_comma_list PP.Inconsistent $ map pp_type items
-pp_type (AST.Type'Hole _ name) = PP.List ["?", pp_iden name]
-pp_type (AST.Type'Forall _ names subty) = PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ map pp_iden names, " ", pp_type subty]
-pp_type (AST.Type'Apply _ callee args) = PP.List [pp_type callee, "#", PP.parenthesized_comma_list PP.Inconsistent $ map pp_type args]
-pp_type (AST.Type'Wild _) = PP.List ["_"]
+pp_type = level1
+    where
+        level1 (AST.Type'Forall _ names subty) = PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ map pp_iden names, " ", level1 subty]
+        level1 t = level2 t
+
+        level2 (AST.Type'Apply _ callee args) = PP.List [level2 callee, "#", PP.parenthesized_comma_list PP.Inconsistent $ map pp_type args]
+        level2 t = level3 t
+
+        level3 (AST.Type'Identifier iden) = pp_iden iden
+        level3 (AST.Type'Tuple _ items) = PP.parenthesized_comma_list PP.Inconsistent $ map pp_type items
+        level3 (AST.Type'Hole _ name) = PP.List ["?", pp_iden name]
+        level3 (AST.Type'Wild _) = PP.List ["_"]
+        level3 t = PP.List ["(", pp_type t, ")"]
 
 -- TODO: precedence
 pp_expr :: AST.Expr -> PP.Token

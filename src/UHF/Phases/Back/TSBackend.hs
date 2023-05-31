@@ -141,7 +141,7 @@ convert_ts_make_thunk_graph (TSMakeThunkGraph (ANFIR.BindingGroup unique capture
                     pure (mangled, Just ty)
 
         object_of_bindings =
-            mapM (\ b -> (, Nothing) <$> mangle_binding_as_thunk b) included_bindings >>= \ contents ->
+            mapM (fmap (, Nothing) . mangle_binding_as_thunk) included_bindings >>= \ contents ->
             pure (TS.Expr'Object contents)
 
         convert_param param_key =

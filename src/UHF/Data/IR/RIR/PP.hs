@@ -63,6 +63,7 @@ refer_bv bvk = get_bv bvk >>= \ (RIR.BoundValue id _ _) -> pure (PP.String (ID.s
 type_var :: Type.TypeVarKey -> IRReader PP.Token
 type_var k = get_type_var k >>= \ (Type.Var name) -> pure (PP.String name)
 
+-- TODO: precedence
 expr :: RIR.Expr -> IRReader PP.Token
 expr (RIR.Expr'Identifier _ _ _ (Just bvk)) = refer_bv bvk
 expr (RIR.Expr'Identifier _ _ _ Nothing) = pure $ PP.List ["<name resolution error>"]

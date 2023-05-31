@@ -108,7 +108,7 @@ expr = level1
         level18 (TS.Expr'Bool b) = if b then "true" else "false"
         level18 (TS.Expr'Char c) = PP.String $ show c
         level18 (TS.Expr'String s) = PP.String $ show s
-        level18 (TS.Expr'Undefined) = "undefined"
+        level18 TS.Expr'Undefined = "undefined"
         level18 (TS.Expr'StrLit s) = PP.List ["\"", PP.String s, "\""]
         level18 (TS.Expr'List es) = PP.bracketed_comma_list PP.Inconsistent (map expr es)
         level18 (TS.Expr'Object items) =
@@ -138,7 +138,7 @@ type_ = level1
         level3 (TS.Type'Reference ref) = ty_ref ref
         level3 (TS.Type'Object fields) = PP.braced_comma_list PP.Inconsistent (map field fields)
             where field (name, ty) = PP.List [PP.String name, type_annotation ty]
-        level3 (TS.Type'Never) = "never"
+        level3 TS.Type'Never = "never"
         level3 t = PP.List ["(", level1 t, ")"]
 
 type_annotation :: Maybe TS.Type -> PP.Token

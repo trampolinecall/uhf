@@ -172,7 +172,7 @@ unify (a@(Type.Type'Variable v1), var_map_1) (b@(Type.Type'Variable v2), var_map
     in if var_1 == var_2
        then pure ()
        else ExceptT (pure $ Left $ Mismatch a b)
-unify (Type.Type'Forall vars1 t1, var_map_1) ((Type.Type'Forall vars2 t2), var_map_2) = go (toList vars1) t1 var_map_1 (toList vars2) t2 var_map_2
+unify (Type.Type'Forall vars1 t1, var_map_1) (Type.Type'Forall vars2 t2, var_map_2) = go (toList vars1) t1 var_map_1 (toList vars2) t2 var_map_2
     where
         go (var1:vars1) t1 map1 (var2:vars2) t2 map2 =
             lift generate_var_sub >>= \ new_var_sub ->

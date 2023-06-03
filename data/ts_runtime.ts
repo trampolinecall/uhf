@@ -56,8 +56,8 @@ interface Evaluator<T> {
 }
 
 class Thunk<T> {
-    value: T | null;
-    evaluator: Evaluator<T>;
+    value: T;
+    evaluator: Evaluator<T> | null;
 
     constructor(evaluator: Evaluator<T>) {
         this.value = null;
@@ -65,8 +65,9 @@ class Thunk<T> {
     }
 
     get_value(): T {
-        if (this.value === null) {
+        if (this.evaluator !== null) {
             this.value = this.evaluator.evaluate();
+            this.evaluator = null;
         }
 
         return this.value;

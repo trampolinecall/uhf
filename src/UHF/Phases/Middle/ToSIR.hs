@@ -285,6 +285,7 @@ convert_type nc (AST.Type'Tuple sp items) = mapM (convert_type nc) items >>= gro
         group_items [_] = tell_error (Tuple1 sp) >> pure (SIR.TypeExpr'Poison () sp)
         group_items [] = tell_error (Tuple0 sp) >> pure (SIR.TypeExpr'Poison () sp)
 convert_type _ (AST.Type'Hole sp id) = pure $ SIR.TypeExpr'Hole () sp id
+convert_type nc (AST.Type'Function sp arg res) = SIR.TypeExpr'Function () sp <$> convert_type nc arg <*> convert_type nc res
 convert_type nc (AST.Type'Forall _ tys ty) =
     catMaybes <$> mapM (make_iden1_with_err PathInTypeName) tys >>= \ tys ->
 

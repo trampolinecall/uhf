@@ -126,6 +126,10 @@ type_expr (SIR.TypeExpr'Tuple () a b) =
     pure (SIR.TypeExpr'Tuple (Type.Type'Tuple (SIR.type_expr_type_info a_conv) (SIR.type_expr_type_info b_conv)) a_conv b_conv)
 
 type_expr (SIR.TypeExpr'Hole () sp hid) = SIR.TypeExpr'Hole <$> (Type.Type'Unknown <$> lift (lift $ new_type_unknown (TypeHole sp))) <*> pure sp <*> pure hid
+type_expr (SIR.TypeExpr'Function () sp arg res) =
+    type_expr arg >>= \ arg ->
+    type_expr res >>= \ res ->
+    pure (SIR.TypeExpr'Function (Type.Type'Function (SIR.type_expr_type_info arg) (SIR.type_expr_type_info res)) sp arg res)
 type_expr (SIR.TypeExpr'Forall () names ty) =
     type_expr ty >>= \ ty ->
     pure (SIR.TypeExpr'Forall (Type.Type'Forall names (SIR.type_expr_type_info ty)) names ty)

@@ -297,7 +297,32 @@ expr_type_annotation =
     pure (AST.Expr'TypeAnnotation (colon_sp <> AST.expr_span e) ty e)
 -- type {{{1
 type_ :: PEG.Parser AST.Type
-type_ = PEG.choice [type_iden, type_wild, type_hole, type_tuple]
+type_ = type_forall
+
+type_forall :: PEG.Parser AST.Type
+type_forall = PEG.choice [forall, type_apply]
+    where
+        forall =
+            PEG.consume' "'#'" (Token.SingleTypeToken Token.Hash) >>= \ (Located hash_sp _) ->
+            PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>
+            PEG.delim_star (PEG.consume' "type variable" (Token.AlphaIdentifier ()) >>= \ (Located sp (Token.AlphaIdentifier a)) -> pure (Located sp a)) (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ vars ->
+            PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>
+            type_forall >>= \ subty ->
+            pure (AST.Type'Forall (hash_sp <> AST.type_span subty) vars subty)
+
+type_apply :: PEG.Parser AST.Type
+type_apply = type_primary >>= m_applys
+    where
+        m_applys base = PEG.choice [applys base, pure base]
+        applys base =
+            PEG.consume' "'#'" (Token.SingleTypeToken Token.Hash) >>
+            PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>
+            PEG.delim_star type_ (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ tys ->
+            PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ (Located cp_sp _) ->
+            m_applys (AST.Type'Apply (AST.type_span base <> cp_sp) base tys)
+
+type_primary :: PEG.Parser AST.Type
+type_primary = PEG.choice [type_iden, type_wild, type_hole, type_parenthesized, type_tuple]
 
 type_iden :: PEG.Parser AST.Type
 type_iden =
@@ -314,6 +339,13 @@ type_hole =
     PEG.consume' "'?'" (Token.SingleTypeToken Token.Question) >>= \ (Located question_sp _) ->
     PEG.consume' "identifier" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
     pure (AST.Type'Hole (question_sp <> iden_sp) (Located iden_sp iden))
+
+type_parenthesized :: PEG.Parser AST.Type
+type_parenthesized =
+    PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>
+    type_ >>= \ ty ->
+    PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>
+    pure (ty)
 
 type_tuple :: PEG.Parser AST.Type
 type_tuple =

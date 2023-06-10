@@ -71,6 +71,14 @@ data Pattern
     | Pattern'NamedADTVariant Span Identifier [(Identifier, Pattern)]
     deriving (Eq, Show)
 
+type_span :: Type -> Span
+type_span (Type'Identifier iden) = just_span iden
+type_span (Type'Tuple sp _) = sp
+type_span (Type'Forall sp _ _) = sp
+type_span (Type'Apply sp _ _) = sp
+type_span (Type'Hole sp _) = sp
+type_span (Type'Wild sp) = sp
+
 expr_span :: Expr -> Span
 expr_span (Expr'Identifier iden) = just_span iden
 expr_span (Expr'Char sp _) = sp

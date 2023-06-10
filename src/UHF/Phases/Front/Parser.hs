@@ -300,7 +300,7 @@ type_ :: PEG.Parser AST.Type
 type_ = type_forall
 
 type_forall :: PEG.Parser AST.Type
-type_forall = PEG.choice [forall, type_apply]
+type_forall = PEG.choice [forall, type_function]
     where
         forall =
             PEG.consume' "'#'" (Token.SingleTypeToken Token.Hash) >>= \ (Located hash_sp _) ->
@@ -309,6 +309,15 @@ type_forall = PEG.choice [forall, type_apply]
             PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>
             type_forall >>= \ subty ->
             pure (AST.Type'Forall (hash_sp <> AST.type_span subty) vars subty)
+
+type_function :: PEG.Parser AST.Type
+type_function = type_apply >>= m_function
+    where
+        m_function first = PEG.choice [function first, pure first]
+        function arg =
+            PEG.consume' "'->'" (Token.SingleTypeToken Token.Arrow) >>
+            type_function >>= \ res ->
+            pure (AST.Type'Function (AST.type_span arg <> AST.type_span res) arg res)
 
 type_apply :: PEG.Parser AST.Type
 type_apply = type_primary >>= m_applys

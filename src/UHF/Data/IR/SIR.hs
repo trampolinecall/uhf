@@ -60,6 +60,7 @@ data TypeExpr d_iden type_info
     = TypeExpr'Identifier type_info Span d_iden
     | TypeExpr'Tuple type_info (TypeExpr d_iden type_info) (TypeExpr d_iden type_info)
     | TypeExpr'Hole type_info Span HoleIdentifier
+    | TypeExpr'Function type_info Span (TypeExpr d_iden type_info) (TypeExpr d_iden type_info)
     | TypeExpr'Forall type_info (NonEmpty TypeVarKey) (TypeExpr d_iden type_info)
     | TypeExpr'Apply type_info Span (TypeExpr d_iden type_info) (TypeExpr d_iden type_info)
     | TypeExpr'Wild type_info Span
@@ -112,6 +113,7 @@ type_expr_type_info :: TypeExpr d_iden type_info -> type_info
 type_expr_type_info (TypeExpr'Identifier type_info _ _) = type_info
 type_expr_type_info (TypeExpr'Tuple type_info _ _) = type_info
 type_expr_type_info (TypeExpr'Hole type_info _ _) = type_info
+type_expr_type_info (TypeExpr'Function type_info _ _ _) = type_info
 type_expr_type_info (TypeExpr'Forall type_info _ _) = type_info
 type_expr_type_info (TypeExpr'Apply type_info _ _ _) = type_info
 type_expr_type_info (TypeExpr'Wild type_info _) = type_info

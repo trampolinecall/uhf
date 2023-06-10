@@ -163,15 +163,19 @@ unify (Type.Type'Bool, _) (Type.Type'Bool, _) = pure ()
 unify (Type.Type'Function a1 r1, var_map_1) (Type.Type'Function a2 r2, var_map_2) = unify (a1, var_map_1) (a2, var_map_2) >> unify (r1, var_map_1) (r2, var_map_2)
 unify (Type.Type'Tuple a1 b1, var_map_1) (Type.Type'Tuple a2 b2, var_map_2) = unify (a1, var_map_1) (a2, var_map_2) >> unify (b1, var_map_1) (b2, var_map_2)
 -- variables do not automatically unify beacuse one type variable can be used in multiple places
+-- TODO: fix this
+-- for example
+-- thing = #(A, B, C) :List#(A) thing#(A, B, C);
+-- does not work
 unify (a@(Type.Type'Variable v1), var_map_1) (b@(Type.Type'Variable v2), var_map_2) =
-    let expect_just (Just x) = x
-        expect_just Nothing = error "use variable outside of forall where it is defined"
+    let var_1 = Map.lookup v1 var_map_1
+        var_2 = Map.lookup v2 var_map_2
+    in case (var_1, var_2) of
+        (Just var_1, Just var_2)
+            | var_1 == var_2 -> pure ()
 
-        var_1 = expect_just $ Map.lookup v1 var_map_1
-        var_2 = expect_just $ Map.lookup v2 var_map_2
-    in if var_1 == var_2
-       then pure ()
-       else ExceptT (pure $ Left $ Mismatch a b)
+        _ -> ExceptT (pure $ Left $ Mismatch a b)
+
 unify (Type.Type'Forall vars1 t1, var_map_1) (Type.Type'Forall vars2 t2, var_map_2) = go (toList vars1) t1 var_map_1 (toList vars2) t2 var_map_2
     where
         go (var1:vars1) t1 map1 (var2:vars2) t2 map2 =

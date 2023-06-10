@@ -30,6 +30,7 @@ dump_type :: AST.Type -> PP.Token
 dump_type (AST.Type'Identifier iden) = dump_struct "Type'Identifier" [("iden", dump_identifier iden)]
 dump_type (AST.Type'Tuple _ items) = dump_struct "Type'Tuple" [("items", dump_list dump_type items)]
 dump_type (AST.Type'Hole _ name) = dump_struct "Type'Hole" [("name", dump_identifier name)]
+dump_type (AST.Type'Function _ arg res) = dump_struct "Type'Function" [("arg", dump_type arg), ("res", dump_type res)]
 dump_type (AST.Type'Forall _ tys ty) = dump_struct "Type'Forall" [("new", dump_list dump_identifier tys), ("ty", dump_type ty)]
 dump_type (AST.Type'Apply _ ty tys) = dump_struct "Type'Apply" [("ty", dump_type ty), ("args", dump_list dump_type tys)]
 dump_type (AST.Type'Wild _) = dump_struct "Type'Wild" []

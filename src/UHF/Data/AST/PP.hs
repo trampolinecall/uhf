@@ -32,17 +32,21 @@ pp_data_variant (AST.DataVariant'Named name fields) = PP.List [pp_iden name, " "
 pp_type :: AST.Type -> PP.Token
 pp_type = level1
     where
+        -- TODO: fix infinite recursion when adding new thing and forgetting to add to here
         level1 (AST.Type'Forall _ names subty) = PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ map pp_iden names, " ", level1 subty]
         level1 t = level2 t
 
-        level2 (AST.Type'Apply _ callee args) = PP.List [level2 callee, "#", PP.parenthesized_comma_list PP.Inconsistent $ map pp_type args]
+        level2 (AST.Type'Function _ arg res) = PP.List [level3 arg, " -> ", level2 res]
         level2 t = level3 t
 
-        level3 (AST.Type'Identifier iden) = pp_iden iden
-        level3 (AST.Type'Tuple _ items) = PP.parenthesized_comma_list PP.Inconsistent $ map pp_type items
-        level3 (AST.Type'Hole _ name) = PP.List ["?", pp_iden name]
-        level3 (AST.Type'Wild _) = PP.List ["_"]
-        level3 t = PP.List ["(", pp_type t, ")"]
+        level3 (AST.Type'Apply _ callee args) = PP.List [level3 callee, "#", PP.parenthesized_comma_list PP.Inconsistent $ map pp_type args]
+        level3 t = level4 t
+
+        level4 (AST.Type'Identifier iden) = pp_iden iden
+        level4 (AST.Type'Tuple _ items) = PP.parenthesized_comma_list PP.Inconsistent $ map pp_type items
+        level4 (AST.Type'Hole _ name) = PP.List ["?", pp_iden name]
+        level4 (AST.Type'Wild _) = PP.List ["_"]
+        level4 t = PP.List ["(", pp_type t, ")"]
 
 -- TODO: precedence
 pp_expr :: AST.Expr -> PP.Token

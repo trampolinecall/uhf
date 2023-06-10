@@ -37,6 +37,7 @@ stmt TS.Stmt'Spacer = PP.List []
 expr :: TS.Expr -> PP.Token
 expr = level1
     where
+        -- TODO: fix infinite recursion when adding new thing and forgetting to add to here
         -- "one simple trick" for printing precedence taken from https://www.haskellforall.com/2020/11/pretty-print-syntax-trees-with-this-one.html
         -- precedence info is taken from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Operator_Precedence#table, also is not complete
 

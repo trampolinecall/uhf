@@ -27,6 +27,7 @@ data Type
     = Type'Identifier Identifier
     | Type'Tuple Span [Type] -- TODO: anonymous named products? (ie field names, but no datatype name)
     | Type'Hole Span Identifier
+    | Type'Function Span Type Type
     | Type'Forall Span [Identifier] Type
     | Type'Apply Span Type [Type]
     | Type'Wild Span -- TODO: come up with better name for this
@@ -74,9 +75,10 @@ data Pattern
 type_span :: Type -> Span
 type_span (Type'Identifier iden) = just_span iden
 type_span (Type'Tuple sp _) = sp
+type_span (Type'Hole sp _) = sp
+type_span (Type'Function sp _ _) = sp
 type_span (Type'Forall sp _ _) = sp
 type_span (Type'Apply sp _ _) = sp
-type_span (Type'Hole sp _) = sp
 type_span (Type'Wild sp) = sp
 
 expr_span :: Expr -> Span

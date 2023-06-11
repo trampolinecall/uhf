@@ -119,6 +119,7 @@ decl_typesyn =
     PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>
     pure (AST.Decl'TypeSyn (Located name_sp name) ty)
 -- expr {{{1
+-- TODO: fix precedence
 expr :: PEG.Parser AST.Expr
 expr = expr_binary_ops
 

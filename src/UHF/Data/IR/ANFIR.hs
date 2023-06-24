@@ -34,7 +34,7 @@ import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.ID as ID
 
 -- "a-normal form ir"
-data ANFIR captures ty poison_allowed = ANFIR (Arena.Arena (Decl captures) DeclKey) (Arena.Arena (Type.ADT ty) ADTKey) (Arena.Arena (Type.TypeSynonym ty) TypeSynonymKey) (Arena.Arena Type.Var Type.TypeVarKey) (Arena.Arena (Binding captures ty poison_allowed) BindingKey) (Arena.Arena (Param ty) ParamKey) DeclKey
+data ANFIR captures dependencies ty poison_allowed = ANFIR (Arena.Arena (Decl captures) DeclKey) (Arena.Arena (Type.ADT ty) ADTKey) (Arena.Arena (Type.TypeSynonym ty) TypeSynonymKey) (Arena.Arena Type.Var Type.TypeVarKey) (Arena.Arena (Binding captures dependencies ty poison_allowed) BindingKey) (Arena.Arena (Param ty) ParamKey) DeclKey
 
 data Decl captures
     = Decl'Module (BindingGroup captures) [ADTKey] [TypeSynonymKey]
@@ -47,13 +47,17 @@ data Param ty = Param ID.BoundValueID ty deriving Show
 data BindingGroup captures
     = BindingGroup
         { binding_group_unique :: Unique.Unique
-        , binding_group_immediate_captures :: captures
-        , binding_group_late_captures :: captures
+        , binding_group_captures :: captures
         , binding_group_bindings :: [BindingKey]
         } deriving Show
 
 newtype BoundWhere = BoundWhere Unique.Unique
-data Binding captures ty poison_allowed = Binding { binding_bound_where :: BoundWhere, binding_initializer :: Expr captures ty poison_allowed }
+data Binding captures dependencies ty poison_allowed
+    = Binding
+        { binding_bound_where :: BoundWhere
+        , binding_dependencies :: dependencies
+        , binding_initializer :: Expr captures ty poison_allowed
+        }
 
 data ID
     = ExprID ID.ExprID
@@ -141,7 +145,7 @@ expr_id (Expr'TypeApply id _ _ _) = id
 expr_id (Expr'MakeADT id _ _ _) = id
 expr_id (Expr'Poison id _ _) = id
 
-binding_type :: Binding captures ty poison_allowed -> ty
+binding_type :: Binding captures dependencies ty poison_allowed -> ty
 binding_type = expr_type . binding_initializer
-binding_id :: Binding captures ty poison_allowed -> ID
+binding_id :: Binding captures dependencies ty poison_allowed -> ID
 binding_id = expr_id . binding_initializer

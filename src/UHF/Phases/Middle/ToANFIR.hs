@@ -19,11 +19,11 @@ type RIRDecl = RIR.Decl
 type RIRExpr = RIR.Expr
 type RIRBinding = RIR.Binding
 
-type ANFIR = ANFIR.ANFIR () Type ()
+type ANFIR = ANFIR.ANFIR () () Type ()
 type ANFIRDecl = ANFIR.Decl ()
 type ANFIRExpr = ANFIR.Expr () Type ()
 type ANFIRParam = ANFIR.Param Type
-type ANFIRBinding = ANFIR.Binding () Type ()
+type ANFIRBinding = ANFIR.Binding () () Type ()
 type ANFIRBindingGroup = ANFIR.BindingGroup ()
 
 type BoundValueArena = Arena.Arena (RIR.BoundValue (Maybe (Type.Type Void))) RIR.BoundValueKey
@@ -40,7 +40,7 @@ type MakeGraphState = WriterT BoundValueMap (StateT (ANFIRExprArena, ANFIRParamA
 make_binding_group :: [ANFIR.BindingKey] -> MakeGraphState ANFIRBindingGroup
 make_binding_group bindings =
     lift (lift $ lift Unique.make_unique) >>= \ unique ->
-    pure (ANFIR.BindingGroup unique () () bindings)
+    pure (ANFIR.BindingGroup unique () bindings)
 
 convert :: RIR.RIR -> ANFIR
 convert (RIR.RIR decls adts type_synonyms type_vars bound_values mod) =
@@ -80,11 +80,19 @@ assign_bound_wheres decls exprs =
                     ANFIR.Expr'Poison _ _ _ -> pure ()
                 )
                 exprs
-    in Arena.transform_with_key (\ bk expr -> ANFIR.Binding (bw_map Map.! bk) expr) exprs
+    in Arena.transform_with_key
+        (\ bk expr ->
+            ANFIR.Binding
+                { ANFIR.binding_bound_where = (bw_map Map.! bk)
+                , ANFIR.binding_dependencies = ()
+                , ANFIR.binding_initializer = expr
+                }
+        )
+        exprs
     where
         tell_bw bk bw = tell $ Map.singleton bk bw
 
-        process_group (ANFIR.BindingGroup unique () () bindings) = mapM_ (\ bk -> tell_bw bk (ANFIR.BoundWhere unique)) bindings
+        process_group (ANFIR.BindingGroup unique () bindings) = mapM_ (\ bk -> tell_bw bk (ANFIR.BoundWhere unique)) bindings
 
 convert_decl :: BoundValueMap -> RIRDecl -> MakeGraphState ANFIRDecl
 convert_decl bv_map (RIR.Decl'Module bindings adts type_synonyms) = ANFIR.Decl'Module <$> (concat <$> mapM (convert_binding bv_map) bindings >>= make_binding_group) <*> pure adts <*> pure type_synonyms

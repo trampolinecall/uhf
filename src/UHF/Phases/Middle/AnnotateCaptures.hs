@@ -17,14 +17,14 @@ annotate (ANFIR.ANFIR decls adts type_synonyms type_vars bindings params mod) =
     let bindings' = Arena.transform (annotate_binding bindings') bindings
     in ANFIR.ANFIR (Arena.transform (annotate_decl bindings') decls) adts type_synonyms type_vars bindings' params mod
 -- loops are not possible because an expression cannot have its parent binding group as a child binding group
--- so thea nnotation of an expression cannot depend on itself because any binding groups that it has cannot contain itself
+-- so the annotation of an expression cannot depend on itself because any binding groups that it has cannot contain itself
 
 annotate_decl :: Arena.Arena (ANFIR.Binding CaptureList ty poison_allowed) ANFIR.BindingKey -> ANFIR.Decl () -> ANFIR.Decl CaptureList
 annotate_decl binding_arena (ANFIR.Decl'Module bindings adts type_synonyms) = ANFIR.Decl'Module (annotate_binding_group binding_arena bindings) adts type_synonyms
 annotate_decl _ (ANFIR.Decl'Type ty) = ANFIR.Decl'Type ty
 
 annotate_binding_group :: Arena.Arena (ANFIR.Binding CaptureList ty poison_allowed) ANFIR.BindingKey -> ANFIR.BindingGroup () -> ANFIR.BindingGroup CaptureList
-annotate_binding_group binding_arena (ANFIR.BindingGroup unique () bindings) =
+annotate_binding_group binding_arena (ANFIR.BindingGroup unique () () bindings) =
     let captures = Set.unions $ map get_outward_references bindings
     in ANFIR.BindingGroup unique captures bindings
     where
@@ -35,25 +35,25 @@ annotate_binding_group binding_arena (ANFIR.BindingGroup unique () bindings) =
             let (ANFIR.Binding (ANFIR.BoundWhere def_bg) _) = Arena.get binding_arena binding
             in if def_bg == unique then [] else [binding]
 
-        get_references :: ANFIR.Expr CaptureList ty poison_allowed -> Set ANFIR.BindingKey
-        get_references (ANFIR.Expr'Refer _ _ i) = [i]
-        get_references (ANFIR.Expr'Char _ _ _) = []
-        get_references (ANFIR.Expr'String _ _ _) = []
-        get_references (ANFIR.Expr'Int _ _ _) = []
-        get_references (ANFIR.Expr'Float _ _ _) = []
-        get_references (ANFIR.Expr'Bool _ _ _) = []
+        get_references :: ANFIR.Expr CaptureList ty poison_allowed -> (Set ANFIR.BindingKey, Set ANFIR.BindingKey)
+        get_references (ANFIR.Expr'Refer _ _ i) = ([i], [])
+        get_references (ANFIR.Expr'Char _ _ _) = ([], [])
+        get_references (ANFIR.Expr'String _ _ _) = ([], [])
+        get_references (ANFIR.Expr'Int _ _ _) = ([], [])
+        get_references (ANFIR.Expr'Float _ _ _) = ([], [])
+        get_references (ANFIR.Expr'Bool _ _ _) = ([], [])
         get_references (ANFIR.Expr'Tuple _ _ a b) = [a, b]
         get_references (ANFIR.Expr'MakeADT _ _ _ args) = Set.fromList args
-        get_references (ANFIR.Expr'Lambda _ _ _ group result) = ANFIR.binding_group_captures group <> exclude_if_part_of_group group result
-        get_references (ANFIR.Expr'Param _ _ _) = []
+        get_references (ANFIR.Expr'Lambda _ _ _ group result) = ([], ANFIR.binding_group_immediate_captures group <> ANFIR.binding_group_late_captures group <> exclude_if_part_of_group group result) -- all captures get turned into late captures
+        get_references (ANFIR.Expr'Param _ _ _) = ([], [])
         get_references (ANFIR.Expr'Call _ _ callee arg) = [callee, arg]
-        get_references (ANFIR.Expr'Switch _ _ test arms) = [test] <> Set.unions (map (\ (_, group, result) -> ANFIR.binding_group_captures group <> exclude_if_part_of_group group result) arms)
+        get_references (ANFIR.Expr'Switch _ _ test arms) = ([test] <> Set.unions (map (\ (_, group, result) -> ANFIR.binding_group_immediate_captures group <> exclude_if_part_of_group group result) arms), Set.unions (map (\ (_, group, result) -> ANFIR.binding_group_late_captures group) arms))
         get_references (ANFIR.Expr'Seq _ _ a b) = [a, b]
         get_references (ANFIR.Expr'TupleDestructure1 _ _ tup) = [tup]
         get_references (ANFIR.Expr'TupleDestructure2 _ _ tup) = [tup]
-        get_references (ANFIR.Expr'Forall _ _ _ group e) = ANFIR.binding_group_captures group <> exclude_if_part_of_group group e
+        get_references (ANFIR.Expr'Forall _ _ _ group e) = (ANFIR.binding_group_immediate_captures group <> exclude_if_part_of_group group e, ANFIR.binding_group_late_captures group)
         get_references (ANFIR.Expr'TypeApply _ _ e _) = [e]
-        get_references (ANFIR.Expr'Poison _ _ _) = []
+        get_references (ANFIR.Expr'Poison _ _ _) = ([], [])
 
         is_outward k =
             let ANFIR.Binding (ANFIR.BoundWhere def_bg) _ = Arena.get binding_arena k

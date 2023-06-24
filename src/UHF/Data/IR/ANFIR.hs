@@ -44,7 +44,13 @@ data Decl captures
 data Param ty = Param ID.BoundValueID ty deriving Show
 
 -- TODO: make BindingGroupNum = Globals | Local Unique.Unique
-data BindingGroup captures = BindingGroup { binding_group_unique :: Unique.Unique, binding_group_captures :: captures, binding_group_bindings :: [BindingKey] } deriving Show
+data BindingGroup captures
+    = BindingGroup
+        { binding_group_unique :: Unique.Unique
+        , binding_group_immediate_captures :: captures
+        , binding_group_late_captures :: captures
+        , binding_group_bindings :: [BindingKey]
+        } deriving Show
 
 newtype BoundWhere = BoundWhere Unique.Unique
 data Binding captures ty poison_allowed = Binding { binding_bound_where :: BoundWhere, binding_initializer :: Expr captures ty poison_allowed }

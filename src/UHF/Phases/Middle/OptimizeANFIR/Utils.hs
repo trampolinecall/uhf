@@ -18,7 +18,7 @@ iterate_over_bindings change (ANFIR.ANFIR decls adts type_synonyms vars bindings
         do_module (ANFIR.Decl'Module group _ _) = do_group group
         do_module (ANFIR.Decl'Type _) = pure () -- should not happen
 
-        do_group (ANFIR.BindingGroup _ _ bindings) = mapM_ do_binding bindings
+        do_group (ANFIR.BindingGroup _ _ _ bindings) = mapM_ do_binding bindings
 
         -- ideally would use modifyM but that is not in the transformers package of this stackage snapshot
         do_binding bk =

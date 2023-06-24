@@ -40,7 +40,7 @@ type MakeGraphState = WriterT BoundValueMap (StateT (ANFIRExprArena, ANFIRParamA
 make_binding_group :: [ANFIR.BindingKey] -> MakeGraphState ANFIRBindingGroup
 make_binding_group bindings =
     lift (lift $ lift Unique.make_unique) >>= \ unique ->
-    pure (ANFIR.BindingGroup unique () bindings)
+    pure (ANFIR.BindingGroup unique () () bindings)
 
 convert :: RIR.RIR -> ANFIR
 convert (RIR.RIR decls adts type_synonyms type_vars bound_values mod) =
@@ -84,7 +84,7 @@ assign_bound_wheres decls exprs =
     where
         tell_bw bk bw = tell $ Map.singleton bk bw
 
-        process_group (ANFIR.BindingGroup unique _ bindings) = mapM_ (\ bk -> tell_bw bk (ANFIR.BoundWhere unique)) bindings
+        process_group (ANFIR.BindingGroup unique () () bindings) = mapM_ (\ bk -> tell_bw bk (ANFIR.BoundWhere unique)) bindings
 
 convert_decl :: BoundValueMap -> RIRDecl -> MakeGraphState ANFIRDecl
 convert_decl bv_map (RIR.Decl'Module bindings adts type_synonyms) = ANFIR.Decl'Module <$> (concat <$> mapM (convert_binding bv_map) bindings >>= make_binding_group) <*> pure adts <*> pure type_synonyms

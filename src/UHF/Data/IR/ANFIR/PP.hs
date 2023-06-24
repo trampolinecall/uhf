@@ -61,9 +61,16 @@ instance DumpableCaptures (Set ANFIR.BindingKey) where
     dump_captures = mapM refer_binding . toList
 
 define_binding_group_flat :: (DumpableCaptures captures, DumpableType ty) => ANFIR.BindingGroup captures -> IRReader captures ty poison_allowed [PP.Token]
-define_binding_group_flat (ANFIR.BindingGroup _ _ bindings) = mapM define_binding bindings
+define_binding_group_flat (ANFIR.BindingGroup _ _ _ bindings) = mapM define_binding bindings
 define_binding_group :: (DumpableCaptures captures, DumpableType ty) => ANFIR.BindingGroup captures -> IRReader captures ty poison_allowed PP.Token
-define_binding_group (ANFIR.BindingGroup _ captures bindings) = mapM define_binding bindings >>= \ bindings -> dump_captures captures >>= \ captures -> pure (PP.braced_block $ if null captures then bindings else PP.List ["capture ", PP.comma_separated PP.Inconsistent captures, ";"] : bindings)
+define_binding_group (ANFIR.BindingGroup _ immediate_captures late_captures bindings) =
+    mapM define_binding bindings >>= \ bindings ->
+    dump_captures immediate_captures >>= \ immediate_captures ->
+    dump_captures late_captures >>= \ late_captures ->
+    pure (PP.braced_block $
+        (if null immediate_captures then [] else PP.List ["capture immediate ", PP.comma_separated PP.Inconsistent immediate_captures, ";"] : bindings)
+        ++ (if null late_captures then [] else PP.List ["capture late ", PP.comma_separated PP.Inconsistent late_captures, ";"] : bindings)
+        ++ bindings)
 
 define_binding :: (DumpableCaptures captures, DumpableType ty) => ANFIR.BindingKey -> IRReader captures ty poison_allowed PP.Token
 define_binding key =

@@ -19,17 +19,18 @@ import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.ID as ID
 
 type CaptureList = Set.Set ANFIR.BindingKey
+type DependencyList = Set.Set ANFIR.BindingKey
 
 type Decl = ANFIR.Decl CaptureList
 
 type Type = Type.Type Void
 type ADT = Type.ADT Type
 type TypeSynonym = Type.TypeSynonym Type
-type Binding = ANFIR.Binding CaptureList Type Void
+type Binding = ANFIR.Binding CaptureList DependencyList Type Void
 type BindingGroup = ANFIR.BindingGroup CaptureList
 type Param = ANFIR.Param Type
 
-type ANFIR = ANFIR.ANFIR CaptureList Type Void
+type ANFIR = ANFIR.ANFIR CaptureList DependencyList Type Void
 
 type ADTArena = Arena.Arena ADT Type.ADTKey
 type TypeSynonymArena = Arena.Arena TypeSynonym Type.TypeSynonymKey
@@ -340,16 +341,16 @@ define_decl _ (ANFIR.Decl'Module global_group adts _) =
 define_decl _ (ANFIR.Decl'Type _) = pure ()
 
 define_lambda_type :: ANFIR.BindingKey -> Binding -> TSWriter ()
-define_lambda_type key (ANFIR.Binding _ (ANFIR.Expr'Lambda _ _ param group body)) =
+define_lambda_type key (ANFIR.Binding _ _ (ANFIR.Expr'Lambda _ _ param group body)) =
     lift (get_param param) >>= \ (ANFIR.Param _ param_ty) ->
     lift (binding_type body) >>= \ body_type ->
     tell_lambda (TSLambda key group param_ty body_type body)
 define_lambda_type _ _ = pure ()
 
 define_binding_group :: ANFIR.BindingKey -> Binding -> TSWriter ()
-define_binding_group _ (ANFIR.Binding _ (ANFIR.Expr'Lambda _ _ param group _)) = tell_make_thunk_graph (TSMakeThunkGraph group (Just param))
-define_binding_group _ (ANFIR.Binding _ (ANFIR.Expr'Switch _ _ _ matchers)) = mapM_ (\ (_, group, _) -> tell_make_thunk_graph (TSMakeThunkGraph group Nothing)) matchers
-define_binding_group _ (ANFIR.Binding _ (ANFIR.Expr'Forall _ _ _ group _)) = tell_make_thunk_graph (TSMakeThunkGraph group Nothing)
+define_binding_group _ (ANFIR.Binding _ _ (ANFIR.Expr'Lambda _ _ param group _)) = tell_make_thunk_graph (TSMakeThunkGraph group (Just param))
+define_binding_group _ (ANFIR.Binding _ _ (ANFIR.Expr'Switch _ _ _ matchers)) = mapM_ (\ (_, group, _) -> tell_make_thunk_graph (TSMakeThunkGraph group Nothing)) matchers
+define_binding_group _ (ANFIR.Binding _ _ (ANFIR.Expr'Forall _ _ _ group _)) = tell_make_thunk_graph (TSMakeThunkGraph group Nothing)
 define_binding_group _ _ = pure ()
 
 -- mangling {{{2

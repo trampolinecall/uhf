@@ -56,9 +56,9 @@ type NRSIR = SIR.SIR (Maybe IR.Keys.DeclKey) (Located (Maybe IR.Keys.BoundValueK
 type InfixGroupedSIR = SIR.SIR (Maybe IR.Keys.DeclKey) (Located (Maybe IR.Keys.BoundValueKey)) (Maybe IR.Type.ADTVariantIndex) () Void
 type TypedSIR = SIR.SIR (Maybe IR.Keys.DeclKey) (Located (Maybe IR.Keys.BoundValueKey)) (Maybe IR.Type.ADTVariantIndex) (Maybe (IR.Type.Type Void)) Void
 type RIR = RIR.RIR
-type ANFIR = ANFIR.ANFIR () (Maybe (IR.Type.Type Void)) ()
-type ANFIRWithCaptures = ANFIR.ANFIR (Set ANFIR.BindingKey) (Maybe (IR.Type.Type Void)) ()
-type NoPoisonIR = ANFIR.ANFIR (Set ANFIR.BindingKey) (IR.Type.Type Void) Void
+type ANFIR = ANFIR.ANFIR () () (Maybe (IR.Type.Type Void)) ()
+type ANFIRWithCaptures = ANFIR.ANFIR (Set ANFIR.BindingKey) (Set ANFIR.BindingKey) (Maybe (IR.Type.Type Void)) ()
+type NoPoisonIR = ANFIR.ANFIR (Set ANFIR.BindingKey) (Set ANFIR.BindingKey) (IR.Type.Type Void) Void
 type Dot = Text
 type TS = Text
 

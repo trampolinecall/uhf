@@ -7,23 +7,23 @@ import qualified Arena
 import qualified UHF.Data.IR.ANFIR as ANFIR
 import qualified UHF.Data.IR.Type as Type
 
-type PoisonedANFIR captures = ANFIR.ANFIR captures PoisonedType ()
+type PoisonedANFIR captures dependencies = ANFIR.ANFIR captures dependencies PoisonedType ()
 type PoisonedType = Maybe (Type.Type Void)
 type PoisonedADT = Type.ADT PoisonedType
 type PoisonedTypeSynonym = Type.TypeSynonym PoisonedType
 type PoisonedExpr captures = ANFIR.Expr captures PoisonedType ()
-type PoisonedBinding captures = ANFIR.Binding captures PoisonedType ()
+type PoisonedBinding captures dependencies = ANFIR.Binding captures dependencies PoisonedType ()
 type PoisonedParam = ANFIR.Param PoisonedType
 
-type NoPoisonANFIR captures = ANFIR.ANFIR captures NoPoisonType Void
+type NoPoisonANFIR captures dependencies = ANFIR.ANFIR captures dependencies NoPoisonType Void
 type NoPoisonType = Type.Type Void
 type NoPoisonADT = Type.ADT NoPoisonType
 type NoPoisonTypeSynonym = Type.TypeSynonym NoPoisonType
 type NoPoisonExpr captures = ANFIR.Expr captures NoPoisonType Void
-type NoPoisonBinding captures = ANFIR.Binding captures NoPoisonType Void
+type NoPoisonBinding captures dependencies = ANFIR.Binding captures dependencies NoPoisonType Void
 type NoPoisonParam = ANFIR.Param NoPoisonType
 
-remove_poison :: PoisonedANFIR captures -> Maybe (NoPoisonANFIR captures)
+remove_poison :: PoisonedANFIR captures dependencies -> Maybe (NoPoisonANFIR captures dependencies)
 remove_poison (ANFIR.ANFIR decls adts type_synonyms type_vars bindings params mod) =
     ANFIR.ANFIR decls
         <$> Arena.transformM rp_adt adts
@@ -44,8 +44,8 @@ rp_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> ma
 rp_type_synonym :: PoisonedTypeSynonym -> Maybe NoPoisonTypeSynonym
 rp_type_synonym (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name <$> expansion
 
-rp_binding :: PoisonedBinding captures -> Maybe (NoPoisonBinding captures)
-rp_binding (ANFIR.Binding bound_where initializer) = ANFIR.Binding bound_where <$> rp_expr initializer
+rp_binding :: PoisonedBinding captures dependencies -> Maybe (NoPoisonBinding captures dependencies)
+rp_binding (ANFIR.Binding bound_where dependencies initializer) = ANFIR.Binding bound_where dependencies <$> rp_expr initializer
 
 rp_expr :: PoisonedExpr captures -> Maybe (NoPoisonExpr captures)
 rp_expr (ANFIR.Expr'Refer id ty b) = ty >>= \ ty -> pure (ANFIR.Expr'Refer id ty b)

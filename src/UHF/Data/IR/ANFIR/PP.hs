@@ -15,30 +15,30 @@ import qualified UHF.Data.IR.ID as ID
 
 -- TODO: dump types too
 
-type IRReader captures ty poison_allowed = Reader (ANFIR.ANFIR captures ty poison_allowed)
+type IRReader captures dependencies ty poison_allowed = Reader (ANFIR.ANFIR captures dependencies ty poison_allowed)
 
-get_adt_arena :: IRReader captures ty poison_allowed (Arena.Arena (Type.ADT ty) Type.ADTKey)
+get_adt_arena :: IRReader captures dependencies ty poison_allowed (Arena.Arena (Type.ADT ty) Type.ADTKey)
 get_adt_arena = reader (\ (ANFIR.ANFIR _ adts _ _ _ _ _) -> adts)
-get_type_synonym_arena :: IRReader captures ty poison_allowed (Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey)
+get_type_synonym_arena :: IRReader captures dependencies ty poison_allowed (Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey)
 get_type_synonym_arena = reader (\ (ANFIR.ANFIR _ _ syns _ _ _ _) -> syns)
-get_type_var_arena :: IRReader captures ty poison_allowed (Arena.Arena Type.Var Type.TypeVarKey)
+get_type_var_arena :: IRReader captures dependencies ty poison_allowed (Arena.Arena Type.Var Type.TypeVarKey)
 get_type_var_arena = reader (\ (ANFIR.ANFIR _ _ _ vars _ _ _) -> vars)
 
-get_binding :: ANFIR.BindingKey -> IRReader captures ty poison_allowed (ANFIR.Binding captures ty poison_allowed)
+get_binding :: ANFIR.BindingKey -> IRReader captures dependencies ty poison_allowed (ANFIR.Binding captures dependencies ty poison_allowed)
 get_binding k = reader (\ (ANFIR.ANFIR _ _ _ _ bindings _ _) -> Arena.get bindings k)
-get_param :: ANFIR.ParamKey -> IRReader captures ty poison_allowed (ANFIR.Param ty)
+get_param :: ANFIR.ParamKey -> IRReader captures dependencies ty poison_allowed (ANFIR.Param ty)
 get_param k = reader (\ (ANFIR.ANFIR _ _ _ _ _ params _) -> Arena.get params k)
-get_adt :: Type.ADTKey -> IRReader captures ty poison_allowed (Type.ADT ty)
+get_adt :: Type.ADTKey -> IRReader captures dependencies ty poison_allowed (Type.ADT ty)
 get_adt k = reader (\ (ANFIR.ANFIR _ adts _ _ _ _ _) -> Arena.get adts k)
-get_type_synonym :: Type.TypeSynonymKey -> IRReader captures ty poison_allowed (Type.TypeSynonym ty)
+get_type_synonym :: Type.TypeSynonymKey -> IRReader captures dependencies ty poison_allowed (Type.TypeSynonym ty)
 get_type_synonym k = reader (\ (ANFIR.ANFIR _ _ type_synonyms _ _ _ _) -> Arena.get type_synonyms k)
-get_type_var :: Type.TypeVarKey -> IRReader captures ty poison_allowed Type.Var
+get_type_var :: Type.TypeVarKey -> IRReader captures dependencies ty poison_allowed Type.Var
 get_type_var k = reader (\ (ANFIR.ANFIR _ _ _ type_vars _ _ _) -> Arena.get type_vars k)
 
-dump_main_module :: (DumpableCaptures captures, DumpableType ty) => ANFIR.ANFIR captures ty poison_allowed -> Text
+dump_main_module :: (DumpableCaptures captures, DumpableType ty) => ANFIR.ANFIR captures dependencies ty poison_allowed -> Text
 dump_main_module ir@(ANFIR.ANFIR decls _ _ _ _ _ mod) = PP.render $ runReader (define_decl $ Arena.get decls mod) ir
 
-define_decl :: (DumpableCaptures captures, DumpableType ty) => ANFIR.Decl captures -> IRReader captures ty poison_allowed PP.Token
+define_decl :: (DumpableCaptures captures, DumpableType ty) => ANFIR.Decl captures -> IRReader captures dependencies ty poison_allowed PP.Token
 define_decl (ANFIR.Decl'Module bindings adts type_synonyms) =
     ask >>= \ anfir ->
     mapM (fmap Type.PP.define_adt . get_adt) adts >>= \ adts ->
@@ -47,40 +47,33 @@ define_decl (ANFIR.Decl'Module bindings adts type_synonyms) =
     pure (PP.flat_block $ adts <> type_synonyms <> bindings)
 define_decl (ANFIR.Decl'Type _) = pure $ PP.List []
 
-refer_param :: ANFIR.ParamKey -> IRReader captures ty poison_allowed PP.Token
+refer_param :: ANFIR.ParamKey -> IRReader captures dependencies ty poison_allowed PP.Token
 refer_param key = get_param key >>= \ (ANFIR.Param id _) -> pure (PP.String (ID.stringify id))
 
-refer_binding :: ANFIR.BindingKey -> IRReader captures ty poison_allowed PP.Token
+refer_binding :: ANFIR.BindingKey -> IRReader captures dependencies ty poison_allowed PP.Token
 refer_binding key = ANFIR.binding_id <$> get_binding key >>= \ id -> pure (PP.String (ANFIR.stringify_id id))
 
 class DumpableCaptures captures where
-    dump_captures :: captures -> IRReader captures ty poison_allowed [PP.Token]
+    dump_captures :: captures -> IRReader captures dependencies ty poison_allowed [PP.Token]
 instance DumpableCaptures () where
     dump_captures = const (pure [])
 instance DumpableCaptures (Set ANFIR.BindingKey) where
     dump_captures = mapM refer_binding . toList
 
-define_binding_group_flat :: (DumpableCaptures captures, DumpableType ty) => ANFIR.BindingGroup captures -> IRReader captures ty poison_allowed [PP.Token]
-define_binding_group_flat (ANFIR.BindingGroup _ _ _ bindings) = mapM define_binding bindings
-define_binding_group :: (DumpableCaptures captures, DumpableType ty) => ANFIR.BindingGroup captures -> IRReader captures ty poison_allowed PP.Token
-define_binding_group (ANFIR.BindingGroup _ immediate_captures late_captures bindings) =
-    mapM define_binding bindings >>= \ bindings ->
-    dump_captures immediate_captures >>= \ immediate_captures ->
-    dump_captures late_captures >>= \ late_captures ->
-    pure (PP.braced_block $
-        (if null immediate_captures then [] else PP.List ["capture immediate ", PP.comma_separated PP.Inconsistent immediate_captures, ";"] : bindings)
-        ++ (if null late_captures then [] else PP.List ["capture late ", PP.comma_separated PP.Inconsistent late_captures, ";"] : bindings)
-        ++ bindings)
+define_binding_group_flat :: (DumpableCaptures captures, DumpableType ty) => ANFIR.BindingGroup captures -> IRReader captures dependencies ty poison_allowed [PP.Token]
+define_binding_group_flat (ANFIR.BindingGroup _ _ bindings) = mapM define_binding bindings
+define_binding_group :: (DumpableCaptures captures, DumpableType ty) => ANFIR.BindingGroup captures -> IRReader captures dependencies ty poison_allowed PP.Token
+define_binding_group (ANFIR.BindingGroup _ captures bindings) = mapM define_binding bindings >>= \ bindings -> dump_captures captures >>= \ captures -> pure (PP.braced_block $ if null captures then bindings else PP.List ["capture ", PP.comma_separated PP.Inconsistent captures, ";"] : bindings)
 
-define_binding :: (DumpableCaptures captures, DumpableType ty) => ANFIR.BindingKey -> IRReader captures ty poison_allowed PP.Token
+define_binding :: (DumpableCaptures captures, DumpableType ty) => ANFIR.BindingKey -> IRReader captures dependencies ty poison_allowed PP.Token
 define_binding key =
-    get_binding key >>= \ (ANFIR.Binding _ e) ->
+    get_binding key >>= \ (ANFIR.Binding _ _ e) ->
     refer_binding key >>= \ key ->
     expr e >>= \ e ->
     pure (PP.List [key, " = ", e, ";"])
 
 class DumpableType t where
-    refer_type :: t -> IRReader captures ty poison_allowed PP.Token
+    refer_type :: t -> IRReader captures dependencies ty poison_allowed PP.Token
 
 instance DumpableType (Maybe (Type.Type Void)) where -- TODO: remove this
     refer_type (Just ty) = refer_type ty
@@ -93,10 +86,10 @@ instance DumpableType (Type.Type Void) where
         get_type_var_arena >>= \ type_var_arena ->
         pure (Type.PP.refer_type absurd adt_arena type_synonym_arena type_var_arena ty)
 
-type_var :: Type.TypeVarKey -> IRReader captures ty poison_allowed PP.Token
+type_var :: Type.TypeVarKey -> IRReader captures dependencies ty poison_allowed PP.Token
 type_var k = get_type_var k >>= \ (Type.Var name) -> pure (PP.String name)
 
-expr :: (DumpableCaptures captures, DumpableType ty) => ANFIR.Expr captures ty poison_allowed -> IRReader captures ty poison_allowed PP.Token
+expr :: (DumpableCaptures captures, DumpableType ty) => ANFIR.Expr captures ty poison_allowed -> IRReader captures dependencies ty poison_allowed PP.Token
 expr (ANFIR.Expr'Refer _ _ bk) = refer_binding bk
 expr (ANFIR.Expr'Int _ _ i) = pure $ PP.String $ show i
 expr (ANFIR.Expr'Float _ _ (n :% d)) = pure $ PP.String $ "(" <> show n <> "/" <> show d <> ")"

@@ -10,12 +10,12 @@ import qualified UHF.Data.IR.Type as Type
 
 type Type = Maybe (Type.Type Void)
 
-type ANFIR = ANFIR.ANFIR () () Type ()
-type ANFIRDecl = ANFIR.Decl ()
-type ANFIRExpr = ANFIR.Expr () Type ()
-type ANFIRParam = ANFIR.Param Type
-type ANFIRBinding = ANFIR.Binding () () Type ()
-type ANFIRBindingGroup = ANFIR.BindingGroup ()
+type ANFIR = ANFIR.ANFIR
+type ANFIRDecl = ANFIR.Decl
+type ANFIRExpr = ANFIR.Expr
+type ANFIRParam = ANFIR.Param
+type ANFIRBinding = ANFIR.Binding
+type ANFIRBindingGroup = ANFIR.BindingGroup
 
 type ANFIRDeclArena = Arena.Arena ANFIRDecl ANFIR.DeclKey
 type ANFIRBindingArena = Arena.Arena ANFIRBinding ANFIR.BindingKey
@@ -44,10 +44,10 @@ assemble_cu decls mod = go_decl (Arena.get decls mod)
         go_decl (ANFIR.Decl'Type _) = unreachable
 
 convert_binding :: ANFIRBinding -> BackendIRBinding
-convert_binding (ANFIR.Binding bound_where dependencies initializer) = BackendIR.Binding (convert_bound_where bound_where) dependencies (convert_expr initializer)
+convert_binding (ANFIR.Binding bound_where initializer) = BackendIR.Binding (convert_bound_where bound_where) () (convert_expr initializer)
 
 convert_binding_group :: ANFIRBindingGroup -> BackendIRBindingGroup
-convert_binding_group (ANFIR.BindingGroup uniq captures bindings) = BackendIR.BindingGroup uniq captures bindings
+convert_binding_group (ANFIR.BindingGroup uniq bindings) = BackendIR.BindingGroup uniq () bindings
 
 convert_bound_where :: ANFIR.BoundWhere -> BackendIR.BoundWhere
 convert_bound_where (ANFIR.BoundWhere u) = BackendIR.BoundWhere u
@@ -82,4 +82,4 @@ convert_expr (ANFIR.Expr'TupleDestructure1 id ty tup) = BackendIR.Expr'TupleDest
 convert_expr (ANFIR.Expr'TupleDestructure2 id ty tup) = BackendIR.Expr'TupleDestructure2 (convert_id id) ty tup
 convert_expr (ANFIR.Expr'Forall id ty tvars group result) = BackendIR.Expr'Forall (convert_id id) ty tvars (convert_binding_group group) result
 convert_expr (ANFIR.Expr'TypeApply id ty e tyarg) = BackendIR.Expr'TypeApply (convert_id id) ty e tyarg
-convert_expr (ANFIR.Expr'Poison id ty poison_allowed) = BackendIR.Expr'Poison (convert_id id) ty poison_allowed
+convert_expr (ANFIR.Expr'Poison id ty) = BackendIR.Expr'Poison (convert_id id) ty ()

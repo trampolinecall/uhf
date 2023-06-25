@@ -14,36 +14,35 @@ import qualified Data.FileEmbed as FileEmbed
 import qualified UHF.Phases.Back.TSBackend.TS as TS
 import qualified UHF.Phases.Back.TSBackend.TS.PP as TS.PP
 
-import qualified UHF.Data.IR.ANFIR as ANFIR
+import qualified UHF.Data.IR.BackendIR as BackendIR
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.ID as ID
 
-type CaptureList = Set.Set ANFIR.BindingKey
-type DependencyList = Set.Set ANFIR.BindingKey
+type CaptureList = Set.Set BackendIR.BindingKey
+type DependencyList = Set.Set BackendIR.BindingKey
 
-type Decl = ANFIR.Decl CaptureList
-
+type CU = BackendIR.CU CaptureList
 type Type = Type.Type Void
 type ADT = Type.ADT Type
 type TypeSynonym = Type.TypeSynonym Type
-type Binding = ANFIR.Binding CaptureList DependencyList Type Void
-type BindingGroup = ANFIR.BindingGroup CaptureList
-type Param = ANFIR.Param Type
+type Binding = BackendIR.Binding CaptureList DependencyList Type Void
+type BindingGroup = BackendIR.BindingGroup CaptureList
+type Param = BackendIR.Param Type
 
-type ANFIR = ANFIR.ANFIR CaptureList DependencyList Type Void
+type BackendIR = BackendIR.BackendIR CaptureList DependencyList Type Void
 
 type ADTArena = Arena.Arena ADT Type.ADTKey
 type TypeSynonymArena = Arena.Arena TypeSynonym Type.TypeSynonymKey
-type BindingArena = Arena.Arena Binding ANFIR.BindingKey
-type ParamArena = Arena.Arena Param ANFIR.ParamKey
+type BindingArena = Arena.Arena Binding BackendIR.BindingKey
+type ParamArena = Arena.Arena Param BackendIR.ParamKey
 
 -- TODO: refactor, rename, reorder, reorganize everything
 
 type IRReader = Reader (ADTArena, TypeSynonymArena, BindingArena, ParamArena)
 
-get_binding :: ANFIR.BindingKey -> IRReader Binding
+get_binding :: BackendIR.BindingKey -> IRReader Binding
 get_binding k = reader $ \ (_, _, a, _) -> Arena.get a k
-get_param :: ANFIR.ParamKey -> IRReader Param
+get_param :: BackendIR.ParamKey -> IRReader Param
 get_param k = reader $ \ (_, _, _, a) -> Arena.get a k
 get_adt :: Type.ADTKey -> IRReader ADT
 get_adt k = reader $ \ (a, _, _, _) -> Arena.get a k
@@ -52,8 +51,8 @@ get_adt_arena = reader $ \ (a, _, _, _) -> a
 get_type_synonym :: Type.TypeSynonymKey -> IRReader TypeSynonym
 get_type_synonym k = reader $ \ (_, a, _, _) -> Arena.get a k
 
-binding_type :: ANFIR.BindingKey -> IRReader Type
-binding_type k = ANFIR.binding_type <$> get_binding k
+binding_type :: BackendIR.BindingKey -> IRReader Type
+binding_type k = BackendIR.binding_type <$> get_binding k
 
 -- TS things {{{1
 runtime_code :: Text
@@ -61,10 +60,10 @@ runtime_code = $(FileEmbed.embedStringFile "data/ts_runtime.ts")
 
 data TSDecl
 newtype TSADT = TSADT Type.ADTKey
-data TSLambda = TSLambda ANFIR.BindingKey BindingGroup Type Type ANFIR.BindingKey
-newtype TSGlobalThunk = TSGlobalThunk ANFIR.BindingKey
+data TSLambda = TSLambda BackendIR.BindingKey BindingGroup Type Type BackendIR.BindingKey
+newtype TSGlobalThunk = TSGlobalThunk BackendIR.BindingKey
 -- TODO: dont use BoundValueKey Ord for order of captures in parameters of function
-data TSMakeThunkGraph = TSMakeThunkGraph BindingGroup (Maybe ANFIR.ParamKey) -- list of bindings is body, set of bindings is captures
+data TSMakeThunkGraph = TSMakeThunkGraph BindingGroup (Maybe BackendIR.ParamKey) -- list of bindings is body, set of bindings is captures
 data TS = TS [TSDecl] [TSADT] [TSMakeThunkGraph] [TSLambda] [TSGlobalThunk]
 
 instance Semigroup TS where
@@ -111,7 +110,7 @@ convert_ts_adt (TSADT key) =
             pure (TS.Type'Object $ name_field : fields)
 
 convert_ts_make_thunk_graph :: TSMakeThunkGraph -> IRReader TS.Stmt
-convert_ts_make_thunk_graph (TSMakeThunkGraph (ANFIR.BindingGroup unique captures included_bindings) param) =
+convert_ts_make_thunk_graph (TSMakeThunkGraph (BackendIR.BindingGroup unique captures included_bindings) param) =
     mapM convert_param param >>= \ converted_param ->
     mapM convert_capture (Set.toList captures) >>= \ converted_captures ->
 
@@ -146,12 +145,12 @@ convert_ts_make_thunk_graph (TSMakeThunkGraph (ANFIR.BindingGroup unique capture
             pure (TS.Expr'Object contents)
 
         convert_param param_key =
-            get_param param_key >>= \ (ANFIR.Param _ param_ty) ->
+            get_param param_key >>= \ (BackendIR.Param _ param_ty) ->
             refer_type param_ty >>= \ ty_refer ->
             pure (TS.Parameter Nothing "param" (Just ty_refer))
 
         convert_capture bk =
-            ANFIR.binding_type <$> get_binding bk >>= refer_type >>= \ ty_refer ->
+            BackendIR.binding_type <$> get_binding bk >>= refer_type >>= \ ty_refer ->
             mangle_binding_as_thunk bk >>= \ mangled ->
             pure (TS.Parameter Nothing mangled (Just ty_refer))
 
@@ -162,75 +161,75 @@ convert_ts_make_thunk_graph (TSMakeThunkGraph (ANFIR.BindingGroup unique capture
                 let_thunk initializer = TS.Stmt'Let binding_as_thunk (Just cur_binding_type) (Just initializer)
                 default_let_thunk = let_thunk (TS.Expr'New (TS.Expr'Identifier "Thunk") [TS.Expr'Undefined])
 
-            in ANFIR.binding_initializer <$> get_binding binding_key >>= \case
-                ANFIR.Expr'Refer _ _ i ->
+            in BackendIR.binding_initializer <$> get_binding binding_key >>= \case
+                BackendIR.Expr'Refer _ _ i ->
                     mangle_binding_as_thunk i >>= \ i_mangled ->
                     pure (default_let_thunk, Just (set_evaluator "PassthroughEvaluator" [TS.Expr'Identifier i_mangled]))
-                ANFIR.Expr'Int _ _ i -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" [TS.Expr'New (TS.Expr'Identifier "Int") [TS.Expr'Int i]]))
-                ANFIR.Expr'Float _ _ (num :% denom) -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" [TS.Expr'New (TS.Expr'Identifier "Float") [TS.Expr'Div (TS.Expr'Int num) (TS.Expr'Int denom)]]))
-                ANFIR.Expr'Bool _ _ b -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" [TS.Expr'New (TS.Expr'Identifier "Bool") [TS.Expr'Bool b]]))
-                ANFIR.Expr'Char _ _ c -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" [TS.Expr'New (TS.Expr'Identifier "Char") [TS.Expr'Char c]]))
-                ANFIR.Expr'String _ _ s -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" [TS.Expr'New (TS.Expr'Identifier "UHFString") [TS.Expr'String s]]))
-                ANFIR.Expr'Tuple _ _ a b ->
+                BackendIR.Expr'Int _ _ i -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" [TS.Expr'New (TS.Expr'Identifier "Int") [TS.Expr'Int i]]))
+                BackendIR.Expr'Float _ _ (num :% denom) -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" [TS.Expr'New (TS.Expr'Identifier "Float") [TS.Expr'Div (TS.Expr'Int num) (TS.Expr'Int denom)]]))
+                BackendIR.Expr'Bool _ _ b -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" [TS.Expr'New (TS.Expr'Identifier "Bool") [TS.Expr'Bool b]]))
+                BackendIR.Expr'Char _ _ c -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" [TS.Expr'New (TS.Expr'Identifier "Char") [TS.Expr'Char c]]))
+                BackendIR.Expr'String _ _ s -> pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" [TS.Expr'New (TS.Expr'Identifier "UHFString") [TS.Expr'String s]]))
+                BackendIR.Expr'Tuple _ _ a b ->
                     mangle_binding_as_thunk a >>= \ a_mangled ->
                     mangle_binding_as_thunk b >>= \ b_mangled ->
                     pure (default_let_thunk, Just (set_evaluator "TupleEvaluator" [TS.Expr'Identifier a_mangled, TS.Expr'Identifier b_mangled]))
 
-                ANFIR.Expr'Lambda _ _ _ group _ ->
-                    let lambda_captures = ANFIR.binding_group_captures group
+                BackendIR.Expr'Lambda _ _ _ group _ ->
+                    let lambda_captures = BackendIR.binding_group_captures group
                     in mangle_binding_as_lambda binding_key >>= \ lambda ->
                     mapM (fmap TS.Expr'Identifier . mangle_binding_as_thunk) (toList lambda_captures) >>= \ lambda_captures_mangled ->
                     pure (default_let_thunk, Just (set_evaluator "ConstEvaluator" [TS.Expr'New (TS.Expr'Identifier lambda) lambda_captures_mangled]))
-                ANFIR.Expr'Param _ _ _ -> pure (let_thunk (TS.Expr'Identifier "param"), Nothing)
+                BackendIR.Expr'Param _ _ _ -> pure (let_thunk (TS.Expr'Identifier "param"), Nothing)
 
-                ANFIR.Expr'Call _ _ callee arg ->
+                BackendIR.Expr'Call _ _ callee arg ->
                     mangle_binding_as_thunk callee >>= \ callee_mangled ->
                     mangle_binding_as_thunk arg >>= \ arg_mangled ->
                     pure (default_let_thunk, Just (set_evaluator "CallEvaluator" [TS.Expr'Identifier callee_mangled, TS.Expr'Identifier arg_mangled]))
 
-                ANFIR.Expr'Switch _ _ test arms ->
+                BackendIR.Expr'Switch _ _ test arms ->
                     mapM (\ (matcher, group, res) -> -- TODO: lower binding group
-                        mangle_make_thunk_group (ANFIR.binding_group_unique group) >>= \ make_group ->
+                        mangle_make_thunk_group (BackendIR.binding_group_unique group) >>= \ make_group ->
                         mangle_binding_as_thunk res >>= \ res' ->
                         pure (TS.Expr'List [convert_matcher matcher, TS.Expr'Get (TS.Expr'Call (TS.Expr'Identifier make_group) []) res'])) arms >>= \ arms' -> -- TODO: pass captures
                     mangle_binding_as_thunk test >>= \ test_mangled ->
                     pure (default_let_thunk, Just (set_evaluator "SwitchEvaluator" [TS.Expr'Identifier test_mangled, TS.Expr'List arms']))
 
-                ANFIR.Expr'Seq _ _ a b ->
+                BackendIR.Expr'Seq _ _ a b ->
                     mangle_binding_as_thunk a >>= \ a_mangled ->
                     mangle_binding_as_thunk b >>= \ b_mangled ->
                     pure (default_let_thunk, Just (set_evaluator "SeqEvaluator" [TS.Expr'Identifier a_mangled, TS.Expr'Identifier b_mangled]))
 
-                ANFIR.Expr'TupleDestructure1 _ _ tup ->
+                BackendIR.Expr'TupleDestructure1 _ _ tup ->
                     mangle_binding_as_thunk tup >>= \ tup_mangled ->
                     pure (default_let_thunk, Just (set_evaluator "TupleDestructure1Evaluator" [TS.Expr'Identifier tup_mangled]))
-                ANFIR.Expr'TupleDestructure2 _ _ tup ->
+                BackendIR.Expr'TupleDestructure2 _ _ tup ->
                     mangle_binding_as_thunk tup >>= \ tup_mangled ->
                     pure (default_let_thunk, Just (set_evaluator "TupleDestructure2Evaluator" [TS.Expr'Identifier tup_mangled]))
 
                 -- foralls and type applications get erased, TODO: explain this better and also reconsider if this is actually correct
-                ANFIR.Expr'Forall _ _ _ bg e ->
-                    mangle_make_thunk_group (ANFIR.binding_group_unique bg) >>= \ make_bg ->
+                BackendIR.Expr'Forall _ _ _ bg e ->
+                    mangle_make_thunk_group (BackendIR.binding_group_unique bg) >>= \ make_bg ->
                     mangle_binding_as_thunk e >>= \ e ->
                     pure (let_thunk $ TS.Expr'Get (TS.Expr'Call (TS.Expr'Identifier make_bg) []) e, Nothing) -- TODO: pass captures
-                ANFIR.Expr'TypeApply _ _ e _ ->
+                BackendIR.Expr'TypeApply _ _ e _ ->
                     mangle_binding_as_thunk e >>= \ e ->
                     pure (let_thunk (TS.Expr'Identifier e), Nothing)
 
-                ANFIR.Expr'MakeADT _ _ variant_index@(Type.ADTVariantIndex adt_key _) args ->
+                BackendIR.Expr'MakeADT _ _ variant_index@(Type.ADTVariantIndex adt_key _) args ->
                     mangle_adt adt_key >>= \ adt_mangled ->
                     Type.variant_name <$> (Type.get_adt_variant <$> get_adt_arena <*> pure variant_index) >>= \ variant_name ->
                     zipWithM (\ i arg -> mangle_binding_as_thunk arg >>= \ arg -> pure ("_" <> show (i :: Int), Just $ TS.Expr'Identifier arg)) [0..] args >>= \ object_fields ->
                     pure (default_let_thunk, Just $ set_evaluator "FunctionEvaluator" [TS.Expr'ArrowFunction [] Nothing (Left $ TS.Expr'New (TS.Expr'Identifier adt_mangled) [TS.Expr'Object $ ("discriminant", Just $ TS.Expr'StrLit variant_name) : object_fields])]) -- TODO
 
-                ANFIR.Expr'Poison _ _ void -> absurd void
+                BackendIR.Expr'Poison _ _ void -> absurd void
 
-        convert_matcher (ANFIR.Switch'BoolLiteral b) = TS.Expr'Call (TS.Expr'Identifier "bool_literal_matcher") [TS.Expr'Bool b]
-        convert_matcher ANFIR.Switch'Tuple = TS.Expr'Call (TS.Expr'Identifier "tuple_matcher") []
-        convert_matcher ANFIR.Switch'Default = TS.Expr'Call (TS.Expr'Identifier "default_matcher") []
+        convert_matcher (BackendIR.Switch'BoolLiteral b) = TS.Expr'Call (TS.Expr'Identifier "bool_literal_matcher") [TS.Expr'Bool b]
+        convert_matcher BackendIR.Switch'Tuple = TS.Expr'Call (TS.Expr'Identifier "tuple_matcher") []
+        convert_matcher BackendIR.Switch'Default = TS.Expr'Call (TS.Expr'Identifier "default_matcher") []
 
 convert_ts_lambda :: TSLambda -> IRReader TS.Stmt
-convert_ts_lambda (TSLambda key (ANFIR.BindingGroup unique captures _) arg_ty result_ty body_key) =
+convert_ts_lambda (TSLambda key (BackendIR.BindingGroup unique captures _) arg_ty result_ty body_key) =
     refer_type_raw arg_ty >>= \ arg_type_raw ->
     refer_type arg_ty >>= \ arg_type ->
     refer_type_raw result_ty >>= \ result_type_raw ->
@@ -238,7 +237,7 @@ convert_ts_lambda (TSLambda key (ANFIR.BindingGroup unique captures _) arg_ty re
 
     mapM
         (\ c ->
-            ANFIR.binding_type <$> get_binding c >>= refer_type >>= \ c_ty ->
+            BackendIR.binding_type <$> get_binding c >>= refer_type >>= \ c_ty ->
             mangle_binding_as_capture c >>= \ c_as_capture ->
             pure (TS.Parameter (Just TS.Public) c_as_capture (Just c_ty)))
         (toList captures) >>= \ capture_constructor_params ->
@@ -299,12 +298,12 @@ refer_type_raw (Type.Type'Forall _ t) = refer_type_raw t
 refer_type :: Type.Type Void -> IRReader TS.Type
 refer_type ty = refer_type_raw ty >>= \ ty -> pure (TS.Type'Reference $ TS.TypeReference "Thunk" [ty])
 -- lowering {{{1
-lower :: ANFIR -> Text
-lower (ANFIR.ANFIR decls adts type_synonyms type_vars bindings params mod) =
+lower :: BackendIR -> Text
+lower (BackendIR.BackendIR adts type_synonyms type_vars bindings params cu) =
     runReader
         (
             runWriterT (
-                define_decl mod (Arena.get decls mod) >>
+                define_cu cu >>
                 Arena.transform_with_keyM define_lambda_type bindings >> -- TODO: do this by tracing bindings from module
                 Arena.transform_with_keyM define_binding_group bindings >> -- TODO: also do this by tracing bindings from module
                 pure ()
@@ -333,38 +332,37 @@ lower (ANFIR.ANFIR decls adts type_synonyms type_vars bindings params mod) =
         )
         (adts, type_synonyms, bindings, params)
 
-define_decl :: ANFIR.DeclKey -> Decl -> TSWriter ()
-define_decl _ (ANFIR.Decl'Module global_group adts _) =
+define_cu :: CU -> TSWriter ()
+define_cu (BackendIR.CU global_group adts _) =
     mapM_ (tell_adt . TSADT) adts >>
-    mapM (tell_global . TSGlobalThunk) (ANFIR.binding_group_bindings global_group) >>
+    mapM (tell_global . TSGlobalThunk) (BackendIR.binding_group_bindings global_group) >>
     tell_make_thunk_graph (TSMakeThunkGraph global_group Nothing) -- global thunk graph does not have any params
-define_decl _ (ANFIR.Decl'Type _) = pure ()
 
-define_lambda_type :: ANFIR.BindingKey -> Binding -> TSWriter ()
-define_lambda_type key (ANFIR.Binding _ _ (ANFIR.Expr'Lambda _ _ param group body)) =
-    lift (get_param param) >>= \ (ANFIR.Param _ param_ty) ->
+define_lambda_type :: BackendIR.BindingKey -> Binding -> TSWriter ()
+define_lambda_type key (BackendIR.Binding _ _ (BackendIR.Expr'Lambda _ _ param group body)) =
+    lift (get_param param) >>= \ (BackendIR.Param _ param_ty) ->
     lift (binding_type body) >>= \ body_type ->
     tell_lambda (TSLambda key group param_ty body_type body)
 define_lambda_type _ _ = pure ()
 
-define_binding_group :: ANFIR.BindingKey -> Binding -> TSWriter ()
-define_binding_group _ (ANFIR.Binding _ _ (ANFIR.Expr'Lambda _ _ param group _)) = tell_make_thunk_graph (TSMakeThunkGraph group (Just param))
-define_binding_group _ (ANFIR.Binding _ _ (ANFIR.Expr'Switch _ _ _ matchers)) = mapM_ (\ (_, group, _) -> tell_make_thunk_graph (TSMakeThunkGraph group Nothing)) matchers
-define_binding_group _ (ANFIR.Binding _ _ (ANFIR.Expr'Forall _ _ _ group _)) = tell_make_thunk_graph (TSMakeThunkGraph group Nothing)
+define_binding_group :: BackendIR.BindingKey -> Binding -> TSWriter ()
+define_binding_group _ (BackendIR.Binding _ _ (BackendIR.Expr'Lambda _ _ param group _)) = tell_make_thunk_graph (TSMakeThunkGraph group (Just param))
+define_binding_group _ (BackendIR.Binding _ _ (BackendIR.Expr'Switch _ _ _ matchers)) = mapM_ (\ (_, group, _) -> tell_make_thunk_graph (TSMakeThunkGraph group Nothing)) matchers
+define_binding_group _ (BackendIR.Binding _ _ (BackendIR.Expr'Forall _ _ _ group _)) = tell_make_thunk_graph (TSMakeThunkGraph group Nothing)
 define_binding_group _ _ = pure ()
 
 -- mangling {{{2
 mangle_adt :: Type.ADTKey -> IRReader Text
 mangle_adt key = get_adt key >>= \ (Type.ADT id _ _ _) -> pure (ID.mangle id)
 
-mangle_binding_as_lambda :: ANFIR.BindingKey -> IRReader Text
-mangle_binding_as_lambda key = ANFIR.binding_id <$> get_binding key >>= \ id -> pure ("Lambda" <> ANFIR.mangle_id id)
+mangle_binding_as_lambda :: BackendIR.BindingKey -> IRReader Text
+mangle_binding_as_lambda key = BackendIR.binding_id <$> get_binding key >>= \ id -> pure ("Lambda" <> BackendIR.mangle_id id)
 
-mangle_binding_as_capture :: ANFIR.BindingKey -> IRReader Text
-mangle_binding_as_capture key = ANFIR.binding_id <$> get_binding key >>= \ id -> pure ("capture" <> ANFIR.mangle_id id)
+mangle_binding_as_capture :: BackendIR.BindingKey -> IRReader Text
+mangle_binding_as_capture key = BackendIR.binding_id <$> get_binding key >>= \ id -> pure ("capture" <> BackendIR.mangle_id id)
 
-mangle_binding_as_thunk :: ANFIR.BindingKey -> IRReader Text
-mangle_binding_as_thunk key = ANFIR.binding_id <$> get_binding key >>= \ id -> pure ("thunk" <> ANFIR.mangle_id id)
+mangle_binding_as_thunk :: BackendIR.BindingKey -> IRReader Text
+mangle_binding_as_thunk key = BackendIR.binding_id <$> get_binding key >>= \ id -> pure ("thunk" <> BackendIR.mangle_id id)
 
 mangle_make_thunk_group :: Unique.Unique -> IRReader Text
 mangle_make_thunk_group u = pure $ "make_thunk_group_for_unique_" <> show (Unique.ununique u)

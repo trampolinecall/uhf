@@ -34,12 +34,12 @@ import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.ID as ID
 
 -- this is so similar to anfir that i made it by copying and pasting the anfir and modifying it
-data BackendIR captures dependencies ty poison_allowed
+data BackendIR bound_where captures dependencies ty poison_allowed
     = BackendIR
         (Arena.Arena (Type.ADT ty) ADTKey)
         (Arena.Arena (Type.TypeSynonym ty) TypeSynonymKey)
         (Arena.Arena Type.Var Type.TypeVarKey)
-        (Arena.Arena (Binding captures dependencies ty poison_allowed) BindingKey)
+        (Arena.Arena (Binding bound_where captures dependencies ty poison_allowed) BindingKey)
         (Arena.Arena (Param ty) ParamKey)
         (CU captures)
 
@@ -57,9 +57,9 @@ data BindingGroup captures
         } deriving Show
 
 newtype BoundWhere = BoundWhere Unique.Unique
-data Binding captures dependencies ty poison_allowed
+data Binding bound_where captures dependencies ty poison_allowed
     = Binding
-        { binding_bound_where :: BoundWhere
+        { binding_bound_where :: bound_where
         , binding_dependencies :: dependencies
         , binding_initializer :: Expr captures ty poison_allowed
         }
@@ -150,7 +150,7 @@ expr_id (Expr'TypeApply id _ _ _) = id
 expr_id (Expr'MakeADT id _ _ _) = id
 expr_id (Expr'Poison id _ _) = id
 
-binding_type :: Binding captures dependencies ty poison_allowed -> ty
+binding_type :: Binding bound_where captures dependencies ty poison_allowed -> ty
 binding_type = expr_type . binding_initializer
-binding_id :: Binding captures dependencies ty poison_allowed -> ID
+binding_id :: Binding bound_where captures dependencies ty poison_allowed -> ID
 binding_id = expr_id . binding_initializer

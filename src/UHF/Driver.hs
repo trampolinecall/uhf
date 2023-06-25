@@ -25,6 +25,7 @@ import qualified UHF.Data.AST as AST
 import qualified UHF.Data.IR.SIR as SIR
 import qualified UHF.Data.IR.RIR as RIR
 import qualified UHF.Data.IR.ANFIR as ANFIR
+import qualified UHF.Data.IR.BackendIR as BackendIR
 import qualified UHF.Data.IR.Keys as IR.Keys
 import qualified UHF.Data.IR.Type as IR.Type
 import qualified UHF.Data.AST.PP as AST.PP
@@ -45,6 +46,7 @@ import qualified UHF.Phases.Middle.ToANFIR as ToANFIR
 import qualified UHF.Phases.Middle.OptimizeANFIR as OptimizeANFIR
 import qualified UHF.Phases.Middle.AnnotateCaptures as AnnotateCaptures
 import qualified UHF.Phases.Middle.RemovePoison as RemovePoison
+import qualified UHF.Phases.Back.ToBackendIR as ToBackendIR
 import qualified UHF.Phases.Back.ToDot as ToDot
 import qualified UHF.Phases.Back.TSBackend as TSBackend
 

@@ -44,9 +44,9 @@ import qualified UHF.Phases.Middle.ReportHoles as ReportHoles
 import qualified UHF.Phases.Middle.ToRIR as ToRIR
 import qualified UHF.Phases.Middle.ToANFIR as ToANFIR
 import qualified UHF.Phases.Middle.OptimizeANFIR as OptimizeANFIR
-import qualified UHF.Phases.Middle.RemovePoison as RemovePoison
 import qualified UHF.Phases.Back.ToBackendIR as ToBackendIR
 import qualified UHF.Phases.Back.AnnotateCaptures as AnnotateCaptures
+import qualified UHF.Phases.Back.RemovePoison as RemovePoison
 import qualified UHF.Phases.Back.ToDot as ToDot
 import qualified UHF.Phases.Back.TSBackend as TSBackend
 
@@ -61,7 +61,7 @@ type RIR = RIR.RIR
 type ANFIR = ANFIR.ANFIR () () (Maybe (IR.Type.Type Void)) ()
 type BackendIR = BackendIR.BackendIR () () (Maybe (IR.Type.Type Void)) ()
 type BackendIRWithCaptures = BackendIR.BackendIR (Set BackendIR.BindingKey) (Set BackendIR.BindingKey) (Maybe (IR.Type.Type Void)) ()
-type NoPoisonIR = ANFIR.ANFIR (Set ANFIR.BindingKey) (Set ANFIR.BindingKey) (IR.Type.Type Void) Void
+type NoPoisonIR = BackendIR.BackendIR (Set BackendIR.BindingKey) (Set BackendIR.BindingKey) (IR.Type.Type Void) Void
 type Dot = Text
 type TS = Text
 
@@ -199,14 +199,14 @@ get_backend_ir_with_captures = get_or_calculate _get_backend_ir_with_captures (\
 get_no_poison_ir :: PhaseResultsState (Maybe NoPoisonIR)
 get_no_poison_ir = get_or_calculate _get_no_poison_ir (\ cache no_poison_ir -> cache { _get_no_poison_ir = no_poison_ir }) remove_poison
     where
-        remove_poison = todo -- TODO RemovePoison.remove_poison <$> get_anfir_with_captures
+        remove_poison = RemovePoison.remove_poison <$> get_backend_ir_with_captures
 
 get_dot :: PhaseResultsState (Maybe Dot)
 get_dot = get_or_calculate _get_dot (\ cache dot -> cache { _get_dot = dot }) to_dot
     where
-        to_dot = get_no_poison_ir >>= maybe (pure Nothing) (\ anfir -> pure (Just $ ToDot.to_dot anfir))
+        to_dot = todo -- TODO: get_no_poison_ir >>= maybe (pure Nothing) (\ anfir -> pure (Just $ ToDot.to_dot anfir))
 
 get_ts :: PhaseResultsState (Maybe TS)
 get_ts = get_or_calculate _get_ts (\ cache ts -> cache { _get_ts = ts }) to_ts
     where
-        to_ts = get_no_poison_ir >>= maybe (pure Nothing) (\ anfir -> pure (Just $ TSBackend.lower anfir))
+        to_ts = todo -- TODO: get_no_poison_ir >>= maybe (pure Nothing) (\ anfir -> pure (Just $ TSBackend.lower anfir))

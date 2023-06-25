@@ -15,30 +15,30 @@ import qualified UHF.Data.IR.ID as ID
 
 -- TODO: dump types too
 
-type IRReader captures dependencies ty poison_allowed = Reader (BackendIR.BackendIR captures dependencies ty poison_allowed)
+type IRReader bound_where captures dependencies ty poison_allowed = Reader (BackendIR.BackendIR bound_where captures dependencies ty poison_allowed)
 
-get_adt_arena :: IRReader captures dependencies ty poison_allowed (Arena.Arena (Type.ADT ty) Type.ADTKey)
+get_adt_arena :: IRReader bound_where captures dependencies ty poison_allowed (Arena.Arena (Type.ADT ty) Type.ADTKey)
 get_adt_arena = reader (\ (BackendIR.BackendIR adts _ _ _ _ _) -> adts)
-get_type_synonym_arena :: IRReader captures dependencies ty poison_allowed (Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey)
+get_type_synonym_arena :: IRReader bound_where captures dependencies ty poison_allowed (Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey)
 get_type_synonym_arena = reader (\ (BackendIR.BackendIR _ syns _ _ _ _) -> syns)
-get_type_var_arena :: IRReader captures dependencies ty poison_allowed (Arena.Arena Type.Var Type.TypeVarKey)
+get_type_var_arena :: IRReader bound_where captures dependencies ty poison_allowed (Arena.Arena Type.Var Type.TypeVarKey)
 get_type_var_arena = reader (\ (BackendIR.BackendIR _ _ vars _ _ _) -> vars)
 
-get_binding :: BackendIR.BindingKey -> IRReader captures dependencies ty poison_allowed (BackendIR.Binding captures dependencies ty poison_allowed)
+get_binding :: BackendIR.BindingKey -> IRReader bound_where captures dependencies ty poison_allowed (BackendIR.Binding bound_where captures dependencies ty poison_allowed)
 get_binding k = reader (\ (BackendIR.BackendIR _ _ _ bindings _ _) -> Arena.get bindings k)
-get_param :: BackendIR.ParamKey -> IRReader captures dependencies ty poison_allowed (BackendIR.Param ty)
+get_param :: BackendIR.ParamKey -> IRReader bound_where captures dependencies ty poison_allowed (BackendIR.Param ty)
 get_param k = reader (\ (BackendIR.BackendIR _ _ _ _ params _) -> Arena.get params k)
-get_adt :: Type.ADTKey -> IRReader captures dependencies ty poison_allowed (Type.ADT ty)
+get_adt :: Type.ADTKey -> IRReader bound_where captures dependencies ty poison_allowed (Type.ADT ty)
 get_adt k = reader (\ (BackendIR.BackendIR adts _ _ _ _ _) -> Arena.get adts k)
-get_type_synonym :: Type.TypeSynonymKey -> IRReader captures dependencies ty poison_allowed (Type.TypeSynonym ty)
+get_type_synonym :: Type.TypeSynonymKey -> IRReader bound_where captures dependencies ty poison_allowed (Type.TypeSynonym ty)
 get_type_synonym k = reader (\ (BackendIR.BackendIR _ type_synonyms _ _ _ _) -> Arena.get type_synonyms k)
-get_type_var :: Type.TypeVarKey -> IRReader captures dependencies ty poison_allowed Type.Var
+get_type_var :: Type.TypeVarKey -> IRReader bound_where captures dependencies ty poison_allowed Type.Var
 get_type_var k = reader (\ (BackendIR.BackendIR _ _ type_vars _ _ _) -> Arena.get type_vars k)
 
-dump_main_module :: (DumpableCaptures captures, DumpableType ty) => BackendIR.BackendIR captures dependencies ty poison_allowed -> Text
+dump_main_module :: (DumpableCaptures captures, DumpableType ty) => BackendIR.BackendIR bound_where captures dependencies ty poison_allowed -> Text
 dump_main_module ir@(BackendIR.BackendIR _ _ _ _ _ cu) = PP.render $ runReader (define_cu cu) ir
 
-define_cu :: (DumpableCaptures captures, DumpableType ty) => BackendIR.CU captures -> IRReader captures dependencies ty poison_allowed PP.Token
+define_cu :: (DumpableCaptures captures, DumpableType ty) => BackendIR.CU captures -> IRReader bound_where captures dependencies ty poison_allowed PP.Token
 define_cu (BackendIR.CU bindings adts type_synonyms) =
     ask >>= \ anfir ->
     mapM (fmap Type.PP.define_adt . get_adt) adts >>= \ adts ->
@@ -46,25 +46,25 @@ define_cu (BackendIR.CU bindings adts type_synonyms) =
     define_binding_group_flat bindings >>= \ bindings ->
     pure (PP.flat_block $ adts <> type_synonyms <> bindings)
 
-refer_param :: BackendIR.ParamKey -> IRReader captures dependencies ty poison_allowed PP.Token
+refer_param :: BackendIR.ParamKey -> IRReader bound_where captures dependencies ty poison_allowed PP.Token
 refer_param key = get_param key >>= \ (BackendIR.Param id _) -> pure (PP.String (ID.stringify id))
 
-refer_binding :: BackendIR.BindingKey -> IRReader captures dependencies ty poison_allowed PP.Token
+refer_binding :: BackendIR.BindingKey -> IRReader bound_where captures dependencies ty poison_allowed PP.Token
 refer_binding key = BackendIR.binding_id <$> get_binding key >>= \ id -> pure (PP.String (BackendIR.stringify_id id))
 
 class DumpableCaptures captures where
-    dump_captures :: captures -> IRReader captures dependencies ty poison_allowed [PP.Token]
+    dump_captures :: captures -> IRReader bound_where captures dependencies ty poison_allowed [PP.Token]
 instance DumpableCaptures () where
     dump_captures = const (pure [])
 instance DumpableCaptures (Set BackendIR.BindingKey) where
     dump_captures = mapM refer_binding . toList
 
-define_binding_group_flat :: (DumpableCaptures captures, DumpableType ty) => BackendIR.BindingGroup captures -> IRReader captures dependencies ty poison_allowed [PP.Token]
+define_binding_group_flat :: (DumpableCaptures captures, DumpableType ty) => BackendIR.BindingGroup captures -> IRReader bound_where captures dependencies ty poison_allowed [PP.Token]
 define_binding_group_flat (BackendIR.BindingGroup _ _ bindings) = mapM define_binding bindings
-define_binding_group :: (DumpableCaptures captures, DumpableType ty) => BackendIR.BindingGroup captures -> IRReader captures dependencies ty poison_allowed PP.Token
+define_binding_group :: (DumpableCaptures captures, DumpableType ty) => BackendIR.BindingGroup captures -> IRReader bound_where captures dependencies ty poison_allowed PP.Token
 define_binding_group (BackendIR.BindingGroup _ captures bindings) = mapM define_binding bindings >>= \ bindings -> dump_captures captures >>= \ captures -> pure (PP.braced_block $ if null captures then bindings else PP.List ["capture ", PP.comma_separated PP.Inconsistent captures, ";"] : bindings)
 
-define_binding :: (DumpableCaptures captures, DumpableType ty) => BackendIR.BindingKey -> IRReader captures dependencies ty poison_allowed PP.Token
+define_binding :: (DumpableCaptures captures, DumpableType ty) => BackendIR.BindingKey -> IRReader bound_where captures dependencies ty poison_allowed PP.Token
 define_binding key =
     get_binding key >>= \ (BackendIR.Binding _ _ e) ->
     refer_binding key >>= \ key ->
@@ -72,7 +72,7 @@ define_binding key =
     pure (PP.List [key, " = ", e, ";"])
 
 class DumpableType t where
-    refer_type :: t -> IRReader captures dependencies ty poison_allowed PP.Token
+    refer_type :: t -> IRReader bound_where captures dependencies ty poison_allowed PP.Token
 
 instance DumpableType (Maybe (Type.Type Void)) where -- TODO: remove this
     refer_type (Just ty) = refer_type ty
@@ -85,10 +85,10 @@ instance DumpableType (Type.Type Void) where
         get_type_var_arena >>= \ type_var_arena ->
         pure (Type.PP.refer_type absurd adt_arena type_synonym_arena type_var_arena ty)
 
-type_var :: Type.TypeVarKey -> IRReader captures dependencies ty poison_allowed PP.Token
+type_var :: Type.TypeVarKey -> IRReader bound_where captures dependencies ty poison_allowed PP.Token
 type_var k = get_type_var k >>= \ (Type.Var name) -> pure (PP.String name)
 
-expr :: (DumpableCaptures captures, DumpableType ty) => BackendIR.Expr captures ty poison_allowed -> IRReader captures dependencies ty poison_allowed PP.Token
+expr :: (DumpableCaptures captures, DumpableType ty) => BackendIR.Expr captures ty poison_allowed -> IRReader bound_where captures dependencies ty poison_allowed PP.Token
 expr (BackendIR.Expr'Refer _ _ bk) = refer_binding bk
 expr (BackendIR.Expr'Int _ _ i) = pure $ PP.String $ show i
 expr (BackendIR.Expr'Float _ _ (n :% d)) = pure $ PP.String $ "(" <> show n <> "/" <> show d <> ")"

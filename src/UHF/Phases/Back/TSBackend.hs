@@ -25,11 +25,11 @@ type CU = BackendIR.CU CaptureList
 type Type = Type.Type Void
 type ADT = Type.ADT Type
 type TypeSynonym = Type.TypeSynonym Type
-type Binding = BackendIR.Binding CaptureList DependencyList Type Void
+type Binding = BackendIR.Binding BackendIR.BoundWhere CaptureList DependencyList Type Void
 type BindingGroup = BackendIR.BindingGroup CaptureList
 type Param = BackendIR.Param Type
 
-type BackendIR = BackendIR.BackendIR CaptureList DependencyList Type Void
+type BackendIR = BackendIR.BackendIR BackendIR.BoundWhere CaptureList DependencyList Type Void
 
 type ADTArena = Arena.Arena ADT Type.ADTKey
 type TypeSynonymArena = Arena.Arena TypeSynonym Type.TypeSynonymKey

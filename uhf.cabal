@@ -49,6 +49,7 @@ library
       UHF.IO.Location.SpanHelper
       UHF.IO.Span
       UHF.Phases.Back.AnnotateCaptures
+      UHF.Phases.Back.RemovePoison
       UHF.Phases.Back.ToBackendIR
       UHF.Phases.Back.ToDot
       UHF.Phases.Back.TSBackend
@@ -67,7 +68,6 @@ library
       UHF.Phases.Middle.OptimizeANFIR
       UHF.Phases.Middle.OptimizeANFIR.RemoveRefers
       UHF.Phases.Middle.OptimizeANFIR.Utils
-      UHF.Phases.Middle.RemovePoison
       UHF.Phases.Middle.ReportHoles
       UHF.Phases.Middle.ToANFIR
       UHF.Phases.Middle.ToRIR

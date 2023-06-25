@@ -48,6 +48,7 @@ library
       UHF.IO.Location
       UHF.IO.Location.SpanHelper
       UHF.IO.Span
+      UHF.Phases.Back.AnnotateCaptures
       UHF.Phases.Back.ToBackendIR
       UHF.Phases.Back.ToDot
       UHF.Phases.Back.TSBackend
@@ -61,7 +62,6 @@ library
       UHF.Phases.Front.Parser.Error
       UHF.Phases.Front.Parser.PEG
       UHF.Phases.Front.Parser.Test
-      UHF.Phases.Middle.AnnotateCaptures
       UHF.Phases.Middle.InfixGroup
       UHF.Phases.Middle.NameResolve
       UHF.Phases.Middle.OptimizeANFIR

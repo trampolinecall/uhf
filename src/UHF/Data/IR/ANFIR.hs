@@ -34,29 +34,27 @@ import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.ID as ID
 
 -- "a-normal form ir"
-data ANFIR captures dependencies ty poison_allowed = ANFIR (Arena.Arena (Decl captures) DeclKey) (Arena.Arena (Type.ADT ty) ADTKey) (Arena.Arena (Type.TypeSynonym ty) TypeSynonymKey) (Arena.Arena Type.Var Type.TypeVarKey) (Arena.Arena (Binding captures dependencies ty poison_allowed) BindingKey) (Arena.Arena (Param ty) ParamKey) DeclKey
+data ANFIR = ANFIR (Arena.Arena Decl DeclKey) (Arena.Arena (Type.ADT (Maybe (Type.Type Void))) ADTKey) (Arena.Arena (Type.TypeSynonym (Maybe (Type.Type Void))) TypeSynonymKey) (Arena.Arena Type.Var Type.TypeVarKey) (Arena.Arena Binding BindingKey) (Arena.Arena Param ParamKey) DeclKey
 
-data Decl captures
-    = Decl'Module (BindingGroup captures) [ADTKey] [TypeSynonymKey]
+data Decl
+    = Decl'Module BindingGroup [ADTKey] [TypeSynonymKey]
     | Decl'Type (Type.Type Void)
     deriving Show
 
-data Param ty = Param ID.BoundValueID ty deriving Show
+data Param = Param ID.BoundValueID (Maybe (Type.Type Void)) deriving Show
 
 -- TODO: make BindingGroupNum = Globals | Local Unique.Unique
-data BindingGroup captures
+data BindingGroup
     = BindingGroup
         { binding_group_unique :: Unique.Unique
-        , binding_group_captures :: captures
         , binding_group_bindings :: [BindingKey]
         } deriving Show
 
 newtype BoundWhere = BoundWhere Unique.Unique
-data Binding captures dependencies ty poison_allowed
+data Binding
     = Binding
         { binding_bound_where :: BoundWhere
-        , binding_dependencies :: dependencies
-        , binding_initializer :: Expr captures ty poison_allowed
+        , binding_initializer :: Expr
         }
 
 data ID
@@ -70,33 +68,33 @@ stringify_id :: ID -> Text
 stringify_id (ExprID id) = ID.stringify id
 stringify_id (BVID id) = ID.stringify id
 
-data Expr captures ty poison_allowed
-    = Expr'Refer ID ty BindingKey
+data Expr
+    = Expr'Refer ID (Maybe (Type.Type Void)) BindingKey
 
-    | Expr'Int ID ty Integer
-    | Expr'Float ID ty Rational
-    | Expr'Bool ID ty Bool
-    | Expr'Char ID ty Char
-    | Expr'String ID ty Text
-    | Expr'Tuple ID ty BindingKey BindingKey -- TODO: replace with call constructor expr
-    | Expr'MakeADT ID ty Type.ADTVariantIndex [BindingKey]
+    | Expr'Int ID (Maybe (Type.Type Void)) Integer
+    | Expr'Float ID (Maybe (Type.Type Void)) Rational
+    | Expr'Bool ID (Maybe (Type.Type Void)) Bool
+    | Expr'Char ID (Maybe (Type.Type Void)) Char
+    | Expr'String ID (Maybe (Type.Type Void)) Text
+    | Expr'Tuple ID (Maybe (Type.Type Void)) BindingKey BindingKey -- TODO: replace with call constructor expr
+    | Expr'MakeADT ID (Maybe (Type.Type Void)) Type.ADTVariantIndex [BindingKey]
 
-    | Expr'Lambda ID ty ParamKey (BindingGroup captures) BindingKey
-    | Expr'Param ID ty ParamKey
+    | Expr'Lambda ID (Maybe (Type.Type Void)) ParamKey BindingGroup BindingKey
+    | Expr'Param ID (Maybe (Type.Type Void)) ParamKey
 
-    | Expr'Call ID ty BindingKey BindingKey
+    | Expr'Call ID (Maybe (Type.Type Void)) BindingKey BindingKey
 
-    | Expr'Switch ID ty BindingKey [(SwitchMatcher, BindingGroup captures, BindingKey)]
+    | Expr'Switch ID (Maybe (Type.Type Void)) BindingKey [(SwitchMatcher, BindingGroup, BindingKey)]
 
-    | Expr'Seq ID ty BindingKey BindingKey
+    | Expr'Seq ID (Maybe (Type.Type Void)) BindingKey BindingKey
 
-    | Expr'TupleDestructure1 ID ty BindingKey -- TODO: figure out better solution to this (probably general destructure expr for any type, or actually probably use case expressions to match on things)
-    | Expr'TupleDestructure2 ID ty BindingKey
+    | Expr'TupleDestructure1 ID (Maybe (Type.Type Void)) BindingKey -- TODO: figure out better solution to this (probably general destructure expr for any type, or actually probably use case expressions to match on things)
+    | Expr'TupleDestructure2 ID (Maybe (Type.Type Void)) BindingKey
 
-    | Expr'Forall ID ty (NonEmpty TypeVarKey) (BindingGroup captures) BindingKey
-    | Expr'TypeApply ID ty BindingKey ty
+    | Expr'Forall ID (Maybe (Type.Type Void)) (NonEmpty TypeVarKey) BindingGroup BindingKey
+    | Expr'TypeApply ID (Maybe (Type.Type Void)) BindingKey (Maybe (Type.Type Void))
 
-    | Expr'Poison ID ty poison_allowed
+    | Expr'Poison ID (Maybe (Type.Type Void))
     deriving Show
 
 data SwitchMatcher
@@ -105,7 +103,7 @@ data SwitchMatcher
     | Switch'Default
     deriving Show
 
-expr_type :: Expr captures ty poison_allowed -> ty
+expr_type :: Expr -> (Maybe (Type.Type Void))
 expr_type (Expr'Refer _ ty _) = ty
 expr_type (Expr'Int _ ty _) = ty
 expr_type (Expr'Float _ ty _) = ty
@@ -123,9 +121,9 @@ expr_type (Expr'TupleDestructure2 _ ty _) = ty
 expr_type (Expr'Forall _ ty _ _ _) = ty
 expr_type (Expr'TypeApply _ ty _ _) = ty
 expr_type (Expr'MakeADT _ ty _ _) = ty
-expr_type (Expr'Poison _ ty _) = ty
+expr_type (Expr'Poison _ ty) = ty
 
-expr_id :: Expr captures ty poison_allowed -> ID
+expr_id :: Expr -> ID
 expr_id (Expr'Refer id _ _) = id
 expr_id (Expr'Int id _ _) = id
 expr_id (Expr'Float id _ _) = id
@@ -143,9 +141,9 @@ expr_id (Expr'TupleDestructure2 id _ _) = id
 expr_id (Expr'Forall id _ _ _ _) = id
 expr_id (Expr'TypeApply id _ _ _) = id
 expr_id (Expr'MakeADT id _ _ _) = id
-expr_id (Expr'Poison id _ _) = id
+expr_id (Expr'Poison id _) = id
 
-binding_type :: Binding captures dependencies ty poison_allowed -> ty
+binding_type :: Binding -> Maybe (Type.Type Void)
 binding_type = expr_type . binding_initializer
-binding_id :: Binding captures dependencies ty poison_allowed -> ID
+binding_id :: Binding -> ID
 binding_id = expr_id . binding_initializer

@@ -19,14 +19,14 @@ type RIRDecl = RIR.Decl
 type RIRExpr = RIR.Expr
 type RIRBinding = RIR.Binding
 
-type ANFIR = ANFIR.ANFIR () () Type ()
-type ANFIRDecl = ANFIR.Decl ()
-type ANFIRExpr = ANFIR.Expr () Type ()
-type ANFIRParam = ANFIR.Param Type
-type ANFIRBinding = ANFIR.Binding () () Type ()
-type ANFIRBindingGroup = ANFIR.BindingGroup ()
+type ANFIR = ANFIR.ANFIR
+type ANFIRDecl = ANFIR.Decl
+type ANFIRExpr = ANFIR.Expr
+type ANFIRParam = ANFIR.Param
+type ANFIRBinding = ANFIR.Binding
+type ANFIRBindingGroup = ANFIR.BindingGroup
 
-type BoundValueArena = Arena.Arena (RIR.BoundValue (Maybe (Type.Type Void))) RIR.BoundValueKey
+type BoundValueArena = Arena.Arena (RIR.BoundValue Type) RIR.BoundValueKey
 
 type ANFIRDeclArena = Arena.Arena ANFIRDecl ANFIR.DeclKey
 type ANFIRExprArena = Arena.Arena ANFIRExpr ANFIR.BindingKey
@@ -40,7 +40,7 @@ type MakeGraphState = WriterT BoundValueMap (StateT (ANFIRExprArena, ANFIRParamA
 make_binding_group :: [ANFIR.BindingKey] -> MakeGraphState ANFIRBindingGroup
 make_binding_group bindings =
     lift (lift $ lift Unique.make_unique) >>= \ unique ->
-    pure (ANFIR.BindingGroup unique () bindings)
+    pure (ANFIR.BindingGroup unique bindings)
 
 convert :: RIR.RIR -> ANFIR
 convert (RIR.RIR decls adts type_synonyms type_vars bound_values mod) =
@@ -77,14 +77,13 @@ assign_bound_wheres decls exprs =
                     ANFIR.Expr'TupleDestructure1 _ _ _  -> pure ()
                     ANFIR.Expr'TupleDestructure2 _ _ _ -> pure ()
                     ANFIR.Expr'TypeApply _ _ _ _ -> pure ()
-                    ANFIR.Expr'Poison _ _ _ -> pure ()
+                    ANFIR.Expr'Poison _ _ -> pure ()
                 )
                 exprs
     in Arena.transform_with_key
         (\ bk expr ->
             ANFIR.Binding
                 { ANFIR.binding_bound_where = (bw_map Map.! bk)
-                , ANFIR.binding_dependencies = ()
                 , ANFIR.binding_initializer = expr
                 }
         )
@@ -92,7 +91,7 @@ assign_bound_wheres decls exprs =
     where
         tell_bw bk bw = tell $ Map.singleton bk bw
 
-        process_group (ANFIR.BindingGroup unique () bindings) = mapM_ (\ bk -> tell_bw bk (ANFIR.BoundWhere unique)) bindings
+        process_group (ANFIR.BindingGroup unique bindings) = mapM_ (\ bk -> tell_bw bk (ANFIR.BoundWhere unique)) bindings
 
 convert_decl :: BoundValueMap -> RIRDecl -> MakeGraphState ANFIRDecl
 convert_decl bv_map (RIR.Decl'Module bindings adts type_synonyms) = ANFIR.Decl'Module <$> (concat <$> mapM (convert_binding bv_map) bindings >>= make_binding_group) <*> pure adts <*> pure type_synonyms
@@ -127,7 +126,7 @@ convert_expr :: BoundValueMap -> Maybe ID.BoundValueID -> RIRExpr -> WriterT [AN
 convert_expr bv_map m_bvid (RIR.Expr'Identifier id ty _ bvkey) =
     case bvkey of
         Just bvkey -> new_binding (ANFIR.Expr'Refer (choose_id m_bvid id) ty (bv_map Map.! bvkey))
-        Nothing -> new_binding (ANFIR.Expr'Poison (choose_id m_bvid id) ty ())
+        Nothing -> new_binding (ANFIR.Expr'Poison (choose_id m_bvid id) ty)
 convert_expr _ m_bvid (RIR.Expr'Char id ty _ c) = new_binding (ANFIR.Expr'Char (choose_id m_bvid id) ty c)
 convert_expr _ m_bvid (RIR.Expr'String id ty _ s) = new_binding (ANFIR.Expr'String (choose_id m_bvid id) ty s)
 convert_expr _ m_bvid (RIR.Expr'Int id ty _ i) = new_binding (ANFIR.Expr'Int (choose_id m_bvid id) ty i)
@@ -196,4 +195,4 @@ convert_expr bv_map m_bvid (RIR.Expr'TypeApply id ty _ e arg) = ANFIR.Expr'TypeA
 
 convert_expr bv_map m_bvid (RIR.Expr'MakeADT id ty _ variant args) = ANFIR.Expr'MakeADT (choose_id m_bvid id) (Just ty) variant <$> mapM (convert_expr bv_map Nothing) args >>= new_binding
 
-convert_expr _ m_bvid (RIR.Expr'Poison id ty _) = new_binding (ANFIR.Expr'Poison (choose_id m_bvid id) ty ())
+convert_expr _ m_bvid (RIR.Expr'Poison id ty _) = new_binding (ANFIR.Expr'Poison (choose_id m_bvid id) ty)

@@ -1,16 +1,12 @@
-module UHF.Phases.Middle.OptimizeANFIR.Utils (ANFIR, iterate_over_all_subexpressions) where
+module UHF.Phases.Middle.OptimizeANFIR.Utils (iterate_over_all_subexpressions) where
 
 import UHF.Util.Prelude
 
 import qualified Arena
 
-import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.ANFIR as ANFIR
 
-type ANFIR = ANFIR.ANFIR () () (Maybe (Type.Type Void)) ()
-type Binding = ANFIR.Binding () () (Maybe (Type.Type Void)) ()
-
-iterate_over_bindings :: Monad m => (Binding -> m Binding) -> ANFIR -> m ANFIR
+iterate_over_bindings :: Monad m => (ANFIR.Binding -> m ANFIR.Binding) -> ANFIR.ANFIR -> m ANFIR.ANFIR
 iterate_over_bindings change (ANFIR.ANFIR decls adts type_synonyms vars bindings params mod) =
     runStateT (do_module (Arena.get decls mod)) bindings >>= \ ((), bindings) ->
     pure (ANFIR.ANFIR decls adts type_synonyms vars bindings params mod)
@@ -18,7 +14,7 @@ iterate_over_bindings change (ANFIR.ANFIR decls adts type_synonyms vars bindings
         do_module (ANFIR.Decl'Module group _ _) = do_group group
         do_module (ANFIR.Decl'Type _) = pure () -- should not happen
 
-        do_group (ANFIR.BindingGroup _ _ bindings) = mapM_ do_binding bindings
+        do_group (ANFIR.BindingGroup _ bindings) = mapM_ do_binding bindings
 
         -- ideally would use modifyM but that is not in the transformers package of this stackage snapshot
         do_binding bk =
@@ -30,10 +26,10 @@ iterate_over_bindings change (ANFIR.ANFIR decls adts type_synonyms vars bindings
 
                     _ -> pure ()
 
-iterate_over_all_subexpressions :: Monad m => (ANFIR.BindingKey -> m ANFIR.BindingKey) -> ANFIR -> m ANFIR
+iterate_over_all_subexpressions :: Monad m => (ANFIR.BindingKey -> m ANFIR.BindingKey) -> ANFIR.ANFIR -> m ANFIR.ANFIR
 iterate_over_all_subexpressions modify = iterate_over_bindings do_binding
     where
-        do_binding (ANFIR.Binding bw dependencies init) = ANFIR.Binding bw dependencies <$> do_expr init
+        do_binding (ANFIR.Binding bw init) = ANFIR.Binding bw <$> do_expr init
 
         do_expr (ANFIR.Expr'Refer id ty bk) = modify bk >>= \ bk -> pure (ANFIR.Expr'Refer id ty bk)
 
@@ -60,4 +56,4 @@ iterate_over_all_subexpressions modify = iterate_over_bindings do_binding
         do_expr (ANFIR.Expr'Forall id ty tys group res) = modify res >>= \ res -> pure (ANFIR.Expr'Forall id ty tys group res)
         do_expr (ANFIR.Expr'TypeApply id ty other argty) = modify other >>= \ other -> pure (ANFIR.Expr'TypeApply id ty other argty)
 
-        do_expr (ANFIR.Expr'Poison id ty poison_allowed) = pure (ANFIR.Expr'Poison id ty poison_allowed)
+        do_expr (ANFIR.Expr'Poison id ty) = pure (ANFIR.Expr'Poison id ty)

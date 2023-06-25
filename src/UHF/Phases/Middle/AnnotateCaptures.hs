@@ -33,7 +33,7 @@ annotate_binding_group binding_arena (ANFIR.BindingGroup unique () bindings) =
 
         is_outward k =
             let ANFIR.Binding (ANFIR.BoundWhere def_bg) _ _ = Arena.get binding_arena k
-            in def_bg /= unique -- is not defined in this current binding group; usually identifiers cannot refer to bindings defined in an inner binding group so this should be fine
+            in def_bg /= unique -- is not defined in this current binding group; inward dependencies are not included in binding dependencies so this should be fine
 
 exclude_if_in_group :: Arena.Arena (ANFIR.Binding captures dependencies ty poison_allowed) ANFIR.BindingKey -> ANFIR.BindingGroup captures -> ANFIR.BindingKey -> Set ANFIR.BindingKey
 exclude_if_in_group binding_arena (ANFIR.BindingGroup unique _ _) binding =

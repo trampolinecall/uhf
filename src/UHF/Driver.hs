@@ -33,6 +33,7 @@ import qualified UHF.Data.AST.Dump as AST.Dump
 import qualified UHF.Data.IR.SIR.PP as SIR.PP
 import qualified UHF.Data.IR.RIR.PP as RIR.PP
 import qualified UHF.Data.IR.ANFIR.PP as ANFIR.PP
+import qualified UHF.Data.IR.BackendIR.PP as BackendIR.PP
 
 import qualified UHF.Phases.Front.Lexer as Lexer
 import qualified UHF.Phases.Front.Parser as Parser
@@ -88,7 +89,7 @@ data PhaseResultsCache
         }
 type PhaseResultsState = StateT PhaseResultsCache WithDiagnosticsIO
 
-data OutputFormat = AST | ASTDump | SIR | NRSIR | InfixGroupedSIR | TypedSIR | RIR | ANFIR | OptimizedANFIR | ANFIRWithCaptures | Dot | TS
+data OutputFormat = AST | ASTDump | SIR | NRSIR | InfixGroupedSIR | TypedSIR | RIR | ANFIR | OptimizedANFIR | BackendIR | BackendIRWithCaptures | Dot | TS
 data CompileOptions
     = CompileOptions
         { input_file :: FilePath
@@ -115,7 +116,8 @@ print_outputs compile_options file = runStateT (mapM print_output_format (output
         print_output_format RIR = get_rir >>= \ ir -> lift (lift (write_output_file "uhf_rir" (RIR.PP.dump_main_module ir)))
         print_output_format ANFIR = get_anfir >>= \ ir -> lift (lift (write_output_file "uhf_anfir" (ANFIR.PP.dump_main_module ir)))
         print_output_format OptimizedANFIR = get_optimized_anfir >>= \ ir -> lift (lift (write_output_file "uhf_anfir_optimized" (ANFIR.PP.dump_main_module ir)))
-        print_output_format ANFIRWithCaptures = todo -- TODO: get_anfir_with_captures >>= \ ir -> lift (lift (write_output_file "uhf_anfir_captures" (ANFIR.PP.dump_main_module ir)))
+        print_output_format BackendIR = get_backend_ir >>= \ ir -> lift (lift (write_output_file "uhf_backend_ir" (BackendIR.PP.dump_main_module ir)))
+        print_output_format BackendIRWithCaptures = get_backend_ir_with_captures >>= \ ir -> lift (lift (write_output_file "uhf_backend_ir_captures" (BackendIR.PP.dump_main_module ir)))
         print_output_format Dot = get_dot >>= lift . lift . maybe (pure ()) (write_output_file "dot")
         print_output_format TS = get_ts >>= lift . lift . maybe (pure ()) (write_output_file "ts")
 

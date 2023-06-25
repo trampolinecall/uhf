@@ -20,6 +20,7 @@ library
       UHF.Data.IR.ANFIR
       UHF.Data.IR.ANFIR.PP
       UHF.Data.IR.BackendIR
+      UHF.Data.IR.BackendIR.PP
       UHF.Data.IR.ID
       UHF.Data.IR.IDGen
       UHF.Data.IR.Keys

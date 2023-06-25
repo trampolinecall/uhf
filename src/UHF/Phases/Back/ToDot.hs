@@ -6,74 +6,74 @@ import qualified Arena
 
 import qualified Data.Text as Text
 
-import qualified UHF.Data.IR.ANFIR as ANFIR
+import qualified UHF.Data.IR.BackendIR as BackendIR
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.ID as ID
 
-type ANFIR captures dependencies = ANFIR.ANFIR captures dependencies Type Void
+type BackendIR captures dependencies = BackendIR.BackendIR captures dependencies Type Void
 type Type = Type.Type Void
 
-to_dot :: ANFIR captures dependencies -> Text
-to_dot (ANFIR.ANFIR _ _ _ _ bindings params _) =
+to_dot :: BackendIR captures dependencies -> Text
+to_dot (BackendIR.BackendIR _ _ _ bindings params _) =
     snd $ runWriter (
             tell "strict digraph {\n" >>
             tell "    node [shape=record];\n" >>
             tell "    subgraph cluster_params {\n" >>
-            Arena.transform_with_keyM print_param params >> -- TODO: do this by tracing from module
+            Arena.transform_with_keyM print_param params >> -- TODO: do this by tracing from cu
             tell "    }\n" >>
             Arena.transform_with_keyM print_binding bindings >> -- TODO: same todo as above
             tell "}\n"
         )
     where
-        binding_key_to_dot_id :: ANFIR.BindingKey -> Text
-        binding_key_to_dot_id key = "binding" <> ANFIR.mangle_id (ANFIR.binding_id $ Arena.get bindings key)
+        binding_key_to_dot_id :: BackendIR.BindingKey -> Text
+        binding_key_to_dot_id key = "binding" <> BackendIR.mangle_id (BackendIR.binding_id $ Arena.get bindings key)
 
-        param_key_to_dot_id :: ANFIR.ParamKey -> Text
+        param_key_to_dot_id :: BackendIR.ParamKey -> Text
         param_key_to_dot_id key =
-            let (ANFIR.Param id _) = Arena.get params key
+            let (BackendIR.Param id _) = Arena.get params key
             in "param" <> ID.mangle id
 
         print_param key _ =
             tell ("    " <> param_key_to_dot_id key <> " [label = \"<name> param\"]\n")
 
-        stringify_matcher (ANFIR.Switch'BoolLiteral b)
+        stringify_matcher (BackendIR.Switch'BoolLiteral b)
             | b = "true"
             | otherwise = "false"
-        stringify_matcher ANFIR.Switch'Tuple = "tuple"
-        stringify_matcher ANFIR.Switch'Default = "_"
+        stringify_matcher BackendIR.Switch'Tuple = "tuple"
+        stringify_matcher BackendIR.Switch'Default = "_"
 
-        print_binding cur_key (ANFIR.Binding _ _ initializer) =
+        print_binding cur_key (BackendIR.Binding _ _ initializer) =
             -- TODO: decide what to do with dependencies
             let (name, graph_connections, param_connections) =
                     -- TODO: print types
                     case initializer of
-                        ANFIR.Expr'Refer _ _ b -> ("identifier", [("identifier", b)], [])
+                        BackendIR.Expr'Refer _ _ b -> ("identifier", [("identifier", b)], [])
 
-                        ANFIR.Expr'Int _ _ i -> ("int: " <> show i, [], [])
-                        ANFIR.Expr'Float _ _ f -> ("float: " <> show f, [], [])
-                        ANFIR.Expr'Bool _ _ b -> ("bool: " <> show b, [], [])
-                        ANFIR.Expr'Char _ _ c -> ("char: " <> show c, [], [])
-                        ANFIR.Expr'String _ _ s -> ("string: \\\"" <> s <> "\\\"", [], [])
-                        ANFIR.Expr'Tuple _ _ a b -> ("tuple", [("a", a), ("b", b)], [])
+                        BackendIR.Expr'Int _ _ i -> ("int: " <> show i, [], [])
+                        BackendIR.Expr'Float _ _ f -> ("float: " <> show f, [], [])
+                        BackendIR.Expr'Bool _ _ b -> ("bool: " <> show b, [], [])
+                        BackendIR.Expr'Char _ _ c -> ("char: " <> show c, [], [])
+                        BackendIR.Expr'String _ _ s -> ("string: \\\"" <> s <> "\\\"", [], [])
+                        BackendIR.Expr'Tuple _ _ a b -> ("tuple", [("a", a), ("b", b)], [])
 
-                        ANFIR.Expr'Lambda _ _ param _ body -> ("lambda", [("body", body)], [("param", param)])
-                        ANFIR.Expr'Param _ _ param -> ("param", [], [("p", param)])
+                        BackendIR.Expr'Lambda _ _ param _ body -> ("lambda", [("body", body)], [("param", param)])
+                        BackendIR.Expr'Param _ _ param -> ("param", [], [("p", param)])
 
-                        ANFIR.Expr'Call _ _ callee arg -> ("call", [("callee", callee), ("arg", arg)], [])
+                        BackendIR.Expr'Call _ _ callee arg -> ("call", [("callee", callee), ("arg", arg)], [])
 
-                        ANFIR.Expr'Switch _ _ e arms -> ("switch", ("e", e) : zipWith (\ arm_i (matcher, _, result) -> (show arm_i <> " - " <> stringify_matcher matcher, result)) [0 :: Int ..] arms, [])
+                        BackendIR.Expr'Switch _ _ e arms -> ("switch", ("e", e) : zipWith (\ arm_i (matcher, _, result) -> (show arm_i <> " - " <> stringify_matcher matcher, result)) [0 :: Int ..] arms, [])
 
-                        ANFIR.Expr'Seq _ _ a b -> ("seq", [("a", a), ("b", b)], [])
+                        BackendIR.Expr'Seq _ _ a b -> ("seq", [("a", a), ("b", b)], [])
 
-                        ANFIR.Expr'TupleDestructure1 _ _ tup -> ("tuple destructure 1", [("tuple", tup)], [])
-                        ANFIR.Expr'TupleDestructure2 _ _ tup -> ("tuple destructure 2", [("tuple", tup)], [])
+                        BackendIR.Expr'TupleDestructure1 _ _ tup -> ("tuple destructure 1", [("tuple", tup)], [])
+                        BackendIR.Expr'TupleDestructure2 _ _ tup -> ("tuple destructure 2", [("tuple", tup)], [])
 
-                        ANFIR.Expr'Forall _ _ _ _ e -> ("forall", [("e", e)], []) -- TODO: put vars
-                        ANFIR.Expr'TypeApply _ _ e ty -> ("type apply", [("e", e)], []) -- TODO: put type
+                        BackendIR.Expr'Forall _ _ _ _ e -> ("forall", [("e", e)], []) -- TODO: put vars
+                        BackendIR.Expr'TypeApply _ _ e ty -> ("type apply", [("e", e)], []) -- TODO: put type
 
-                        ANFIR.Expr'MakeADT _ _ _ args -> ("type apply", zipWith (\ i a -> ("arg" <> show (i :: Int), a)) [0..] args, []) -- TODO: connect to variant
+                        BackendIR.Expr'MakeADT _ _ _ args -> ("type apply", zipWith (\ i a -> ("arg" <> show (i :: Int), a)) [0..] args, []) -- TODO: connect to variant
 
-                        ANFIR.Expr'Poison _ _ void -> absurd void
+                        BackendIR.Expr'Poison _ _ void -> absurd void
 
                 make_port (name, _) = "<" <> name <> ">" <> name
                 ports = if null graph_connections && null param_connections

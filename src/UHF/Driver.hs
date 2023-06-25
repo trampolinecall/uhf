@@ -204,9 +204,9 @@ get_no_poison_ir = get_or_calculate _get_no_poison_ir (\ cache no_poison_ir -> c
 get_dot :: PhaseResultsState (Maybe Dot)
 get_dot = get_or_calculate _get_dot (\ cache dot -> cache { _get_dot = dot }) to_dot
     where
-        to_dot = todo -- TODO: get_no_poison_ir >>= maybe (pure Nothing) (\ anfir -> pure (Just $ ToDot.to_dot anfir))
+        to_dot = get_no_poison_ir >>= maybe (pure Nothing) (\ anfir -> pure (Just $ ToDot.to_dot anfir))
 
 get_ts :: PhaseResultsState (Maybe TS)
 get_ts = get_or_calculate _get_ts (\ cache ts -> cache { _get_ts = ts }) to_ts
     where
-        to_ts = todo -- TODO: get_no_poison_ir >>= maybe (pure Nothing) (\ anfir -> pure (Just $ TSBackend.lower anfir))
+        to_ts = get_no_poison_ir >>= maybe (pure Nothing) (\ anfir -> pure (Just $ TSBackend.lower anfir))

@@ -6,7 +6,6 @@ module UHF.Data.IR.ANFIR
     , BindingKey
     , ParamKey
 
-    , BoundWhere (..)
     , BindingGroup (..)
     , Binding (..)
 
@@ -43,19 +42,8 @@ data Decl
 
 data Param = Param ID.BoundValueID (Maybe (Type.Type Void)) deriving Show
 
--- TODO: make BindingGroupNum = Globals | Local Unique.Unique
-data BindingGroup
-    = BindingGroup
-        { binding_group_unique :: Unique.Unique
-        , binding_group_bindings :: [BindingKey]
-        } deriving Show
-
-newtype BoundWhere = BoundWhere Unique.Unique
-data Binding
-    = Binding
-        { binding_bound_where :: BoundWhere
-        , binding_initializer :: Expr
-        }
+data BindingGroup = BindingGroup [BindingKey] deriving Show
+data Binding = Binding { binding_initializer :: Expr }
 
 data ID
     = ExprID ID.ExprID

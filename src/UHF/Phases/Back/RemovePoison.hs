@@ -7,23 +7,23 @@ import qualified Arena
 import qualified UHF.Data.IR.BackendIR as BackendIR
 import qualified UHF.Data.IR.Type as Type
 
-type PoisonedBackendIR captures dependencies = BackendIR.BackendIR captures dependencies PoisonedType ()
+type PoisonedBackendIR bound_where captures dependencies = BackendIR.BackendIR bound_where captures dependencies PoisonedType ()
 type PoisonedType = Maybe (Type.Type Void)
 type PoisonedADT = Type.ADT PoisonedType
 type PoisonedTypeSynonym = Type.TypeSynonym PoisonedType
 type PoisonedExpr captures = BackendIR.Expr captures PoisonedType ()
-type PoisonedBinding captures dependencies = BackendIR.Binding captures dependencies PoisonedType ()
+type PoisonedBinding bound_where captures dependencies = BackendIR.Binding bound_where captures dependencies PoisonedType ()
 type PoisonedParam = BackendIR.Param PoisonedType
 
-type NoPoisonBackendIR captures dependencies = BackendIR.BackendIR captures dependencies NoPoisonType Void
+type NoPoisonBackendIR bound_where captures dependencies = BackendIR.BackendIR bound_where captures dependencies NoPoisonType Void
 type NoPoisonType = Type.Type Void
 type NoPoisonADT = Type.ADT NoPoisonType
 type NoPoisonTypeSynonym = Type.TypeSynonym NoPoisonType
 type NoPoisonExpr captures = BackendIR.Expr captures NoPoisonType Void
-type NoPoisonBinding captures dependencies = BackendIR.Binding captures dependencies NoPoisonType Void
+type NoPoisonBinding bound_where captures dependencies = BackendIR.Binding bound_where captures dependencies NoPoisonType Void
 type NoPoisonParam = BackendIR.Param NoPoisonType
 
-remove_poison :: PoisonedBackendIR captures dependencies -> Maybe (NoPoisonBackendIR captures dependencies)
+remove_poison :: PoisonedBackendIR bound_where captures dependencies -> Maybe (NoPoisonBackendIR bound_where captures dependencies)
 remove_poison (BackendIR.BackendIR adts type_synonyms type_vars bindings params cu) =
     BackendIR.BackendIR
         <$> Arena.transformM rp_adt adts
@@ -44,7 +44,7 @@ rp_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> ma
 rp_type_synonym :: PoisonedTypeSynonym -> Maybe NoPoisonTypeSynonym
 rp_type_synonym (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name <$> expansion
 
-rp_binding :: PoisonedBinding captures dependencies -> Maybe (NoPoisonBinding captures dependencies)
+rp_binding :: PoisonedBinding bound_where captures dependencies -> Maybe (NoPoisonBinding bound_where captures dependencies)
 rp_binding (BackendIR.Binding bound_where dependencies initializer) = BackendIR.Binding bound_where dependencies <$> rp_expr initializer
 
 rp_expr :: PoisonedExpr captures -> Maybe (NoPoisonExpr captures)

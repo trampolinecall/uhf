@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.6.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -19,6 +19,7 @@ library
       UHF.Data.AST.PP
       UHF.Data.IR.ANFIR
       UHF.Data.IR.ANFIR.PP
+      UHF.Data.IR.BackendIR
       UHF.Data.IR.ID
       UHF.Data.IR.IDGen
       UHF.Data.IR.Keys
@@ -47,6 +48,7 @@ library
       UHF.IO.Location
       UHF.IO.Location.SpanHelper
       UHF.IO.Span
+      UHF.Phases.Back.ToBackendIR
       UHF.Phases.Back.ToDot
       UHF.Phases.Back.TSBackend
       UHF.Phases.Back.TSBackend.TS

@@ -44,10 +44,11 @@ argparser =
                                 "rir" -> Right Driver.RIR
                                 "anfir" -> Right Driver.ANFIR
                                 "anfir-optimized" -> Right Driver.OptimizedANFIR
-                                "anfir-captures" -> Right Driver.ANFIRWithCaptures
+                                "backend-ir" -> Right Driver.BackendIR
+                                "backend-ir-captures" -> Right Driver.BackendIRWithCaptures
                                 "dot" -> Right Driver.Dot
                                 "ts" -> Right Driver.TS
-                                _ -> Left "invalid option: must be one of 'ast', 'ast-dump', 'sir', 'name-resolved', 'infix-grouped', 'typed-sir', 'rir', 'anfir', 'anfir-optimized', 'anfir-captures', 'dot', 'ts'")
+                                _ -> Left "invalid option: must be one of 'ast', 'ast-dump', 'sir', 'name-resolved', 'infix-grouped', 'typed-sir', 'rir', 'anfir', 'anfir-optimized', 'backend-ir', 'backend-ir-captures', 'dot', 'ts'")
                             (long "output"
                                 <> metavar "FORMAT"
                                 <> help "The type of output to emit")

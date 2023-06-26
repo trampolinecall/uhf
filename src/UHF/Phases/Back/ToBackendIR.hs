@@ -51,7 +51,7 @@ convert_binding :: ANFIRBinding -> Unique.UniqueMaker BackendIRBinding
 convert_binding (ANFIR.Binding initializer) = BackendIR.Binding () () <$> (convert_expr initializer)
 
 convert_binding_group :: ANFIRBindingGroup -> Unique.UniqueMaker BackendIRBindingGroup
-convert_binding_group (ANFIR.BindingGroup chunks) = Unique.make_unique >>= \ uniq -> mapM convert_binding_chunk chunks >>= \ chunks -> pure (BackendIR.BindingGroup uniq () chunks)
+convert_binding_group (ANFIR.BindingGroup _ chunks) = Unique.make_unique >>= \ uniq -> mapM convert_binding_chunk chunks >>= \ chunks -> pure (BackendIR.BindingGroup uniq () chunks) -- TODO: put capture list
 
 convert_binding_chunk :: ANFIRBindingChunk -> Unique.UniqueMaker BackendIRBindingChunk
 convert_binding_chunk (ANFIR.SingleBinding bk) = pure $ BackendIR.SingleBinding bk

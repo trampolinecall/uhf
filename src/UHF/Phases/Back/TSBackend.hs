@@ -195,11 +195,6 @@ convert_ts_make_thunk_graph (TSMakeThunkGraph (BackendIR.BindingGroup unique cap
                     mangle_binding_as_thunk test >>= \ test_mangled ->
                     pure (default_let_thunk, Just (set_evaluator "SwitchEvaluator" [TS.Expr'Identifier test_mangled, TS.Expr'List arms']))
 
-                BackendIR.Expr'Seq _ _ a b ->
-                    mangle_binding_as_thunk a >>= \ a_mangled ->
-                    mangle_binding_as_thunk b >>= \ b_mangled ->
-                    pure (default_let_thunk, Just (set_evaluator "SeqEvaluator" [TS.Expr'Identifier a_mangled, TS.Expr'Identifier b_mangled]))
-
                 BackendIR.Expr'TupleDestructure1 _ _ tup ->
                     mangle_binding_as_thunk tup >>= \ tup_mangled ->
                     pure (default_let_thunk, Just (set_evaluator "TupleDestructure1Evaluator" [TS.Expr'Identifier tup_mangled]))

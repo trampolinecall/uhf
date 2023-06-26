@@ -93,8 +93,6 @@ data Expr captures ty poison_allowed
 
     | Expr'Switch ID ty BindingKey [(SwitchMatcher, BindingGroup captures, BindingKey)]
 
-    | Expr'Seq ID ty BindingKey BindingKey
-
     | Expr'TupleDestructure1 ID ty BindingKey -- TODO: figure out better solution to this (probably general destructure expr for any type, or actually probably use case expressions to match on things)
     | Expr'TupleDestructure2 ID ty BindingKey
 
@@ -122,7 +120,6 @@ expr_type (Expr'Lambda _ ty _ _ _) = ty
 expr_type (Expr'Param _ ty _) = ty
 expr_type (Expr'Call _ ty _ _) = ty
 expr_type (Expr'Switch _ ty _ _) = ty
-expr_type (Expr'Seq _ ty _ _) = ty
 expr_type (Expr'TupleDestructure1 _ ty _) = ty
 expr_type (Expr'TupleDestructure2 _ ty _) = ty
 expr_type (Expr'Forall _ ty _ _ _) = ty
@@ -142,7 +139,6 @@ expr_id (Expr'Lambda id _ _ _ _) = id
 expr_id (Expr'Param id _ _) = id
 expr_id (Expr'Call id _ _ _) = id
 expr_id (Expr'Switch id _ _ _) = id
-expr_id (Expr'Seq id _ _ _) = id
 expr_id (Expr'TupleDestructure1 id _ _) = id
 expr_id (Expr'TupleDestructure2 id _ _) = id
 expr_id (Expr'Forall id _ _ _ _) = id

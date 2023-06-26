@@ -63,8 +63,6 @@ to_dot (BackendIR.BackendIR _ _ _ bindings params _) =
 
                         BackendIR.Expr'Switch _ _ e arms -> ("switch", ("e", e) : zipWith (\ arm_i (matcher, _, result) -> (show arm_i <> " - " <> stringify_matcher matcher, result)) [0 :: Int ..] arms, [])
 
-                        BackendIR.Expr'Seq _ _ a b -> ("seq", [("a", a), ("b", b)], [])
-
                         BackendIR.Expr'TupleDestructure1 _ _ tup -> ("tuple destructure 1", [("tuple", tup)], [])
                         BackendIR.Expr'TupleDestructure2 _ _ tup -> ("tuple destructure 2", [("tuple", tup)], [])
 

@@ -82,7 +82,6 @@ expr (RIR.Expr'Switch _ _ _ e arms) = mapM pp_arm arms >>= \ arms -> expr e >>= 
         pp_arm (RIR.Switch'BoolLiteral b, e) = expr e >>= \ e -> pure (PP.List [if b then "true" else "false", " -> ", e, ";"])
         pp_arm (RIR.Switch'Tuple a b, e) = maybe (pure "_") refer_bv a >>= \ a -> maybe (pure "_") refer_bv b >>= \ b -> expr e >>= \ e -> pure (PP.List ["(", a, ", ", b, ") -> ", e, ";"])
         pp_arm (RIR.Switch'Default, e) = expr e >>= \ e -> pure (PP.List ["_ -> ", e, ";"])
-expr (RIR.Expr'Seq _ _ _ a b) = expr a >>= \ a -> expr b >>= \ b -> pure $ PP.FirstOnLineIfMultiline $ PP.List ["seq ", a, ", ", b]
 expr (RIR.Expr'Forall _ _ _ tys e) = mapM type_var tys >>= \ tys -> expr e >>= \ e -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList tys, " ", e])
 expr (RIR.Expr'TypeApply _ _ _ e arg) = expr e >>= \ e -> refer_m_type arg >>= \ arg -> pure (PP.List [e, "#(", arg, ")"])
 expr (RIR.Expr'MakeADT _ _ _ variant_index@(Type.ADTVariantIndex adt_key _) args) =

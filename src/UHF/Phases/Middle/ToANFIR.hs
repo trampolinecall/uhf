@@ -135,8 +135,6 @@ convert_expr bv_map m_bvid (RIR.Expr'Switch id ty _ testing arms) =
             pure ANFIR.Switch'Tuple
         convert_matcher RIR.Switch'Default _ = pure ANFIR.Switch'Default
 
-convert_expr bv_map m_bvid (RIR.Expr'Seq id ty _ a b) = ANFIR.Expr'Seq (choose_id m_bvid id) ty <$> convert_expr bv_map Nothing a <*> convert_expr bv_map Nothing b >>= new_binding
-
 convert_expr bv_map m_bvid (RIR.Expr'Forall id ty _ vars e) =
     lift (runWriterT (convert_expr bv_map Nothing e)) >>= \ (e, e_involved_bindings) ->
     ANFIR.Expr'Forall (choose_id m_bvid id) ty vars <$> lift (make_binding_group e_involved_bindings) <*> pure e >>= new_binding

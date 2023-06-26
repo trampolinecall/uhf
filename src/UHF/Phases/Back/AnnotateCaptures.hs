@@ -43,7 +43,6 @@ assign_bound_wheres cu bindings =
                     BackendIR.Expr'MakeADT _ _ _ _ -> pure ()
                     BackendIR.Expr'Param _ _ _ -> pure ()
                     BackendIR.Expr'Call _ _ _ _ -> pure ()
-                    BackendIR.Expr'Seq _ _ _ _ -> pure ()
                     BackendIR.Expr'TupleDestructure1 _ _ _  -> pure ()
                     BackendIR.Expr'TupleDestructure2 _ _ _ -> pure ()
                     BackendIR.Expr'TypeApply _ _ _ _ -> pure ()
@@ -103,7 +102,6 @@ annotate_expr binding_arena (BackendIR.Expr'Switch id ty test arms) =
         ( [test] <> Set.unions (map (\ (_, g, res) -> BackendIR.binding_group_captures g <> exclude_if_in_group binding_arena g res) arms')
         , BackendIR.Expr'Switch id ty test arms'
         )
-annotate_expr _ (BackendIR.Expr'Seq id ty a b) = ([a, b], BackendIR.Expr'Seq id ty a b)
 annotate_expr _ (BackendIR.Expr'TupleDestructure1 id ty tup) = ([tup], BackendIR.Expr'TupleDestructure1 id ty tup)
 annotate_expr _ (BackendIR.Expr'TupleDestructure2 id ty tup) = ([tup], BackendIR.Expr'TupleDestructure2 id ty tup)
 annotate_expr binding_arena (BackendIR.Expr'Forall id ty vars group e) =

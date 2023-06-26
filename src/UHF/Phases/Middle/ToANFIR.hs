@@ -5,6 +5,7 @@ import UHF.Util.Prelude
 import qualified Arena
 
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import qualified Data.List as List
 
 import qualified UHF.Data.IR.RIR as RIR
@@ -37,8 +38,11 @@ type MakeGraphState = WriterT BoundValueMap (StateT (ANFIRBindingArena, ANFIRPar
 
 make_binding_group :: [ANFIR.BindingKey] -> MakeGraphState ANFIRBindingGroup
 make_binding_group bindings =
-    pure (ANFIR.BindingGroup bindings_sorted)
+    pure (ANFIR.BindingGroup captures bindings_sorted)
     where
+        binding_dependencies = todo
+        captures = Set.fromList $ filter (not . (`List.elem` bindings)) (Map.elems binding_dependencies)
+
         bindings_sorted = todo
 
     {- TODO

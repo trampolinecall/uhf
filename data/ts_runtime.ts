@@ -154,15 +154,6 @@ class SwitchEvaluator<E, R> implements Evaluator<R> {
     }
 }
 
-class SeqEvaluator<A, B> implements Evaluator<B> {
-    constructor(public a: Thunk<A>, public b: Thunk<B>) {}
-
-    evaluate(): B {
-        this.a.get_value();
-        return this.b.get_value();
-    }
-}
-
 class FunctionEvaluator<T> implements Evaluator<T> {
     constructor(public f: () => T) {}
 

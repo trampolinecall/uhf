@@ -48,8 +48,6 @@ iterate_over_all_subexpressions modify = iterate_over_bindings do_binding
 
         do_expr (ANFIR.Expr'Switch id ty scrutinee arms) = modify scrutinee >>= \ scrutinee -> mapM (\ (matcher, group, res) -> (matcher, group,) <$> modify res) arms >>= \ arms -> pure (ANFIR.Expr'Switch id ty scrutinee arms)
 
-        do_expr (ANFIR.Expr'Seq id ty a b) = modify a >>= \ a -> modify b >>= \ b -> pure (ANFIR.Expr'Seq id ty a b)
-
         do_expr (ANFIR.Expr'TupleDestructure1 id ty tup) = modify tup >>= \ tup -> pure (ANFIR.Expr'TupleDestructure1 id ty tup)
         do_expr (ANFIR.Expr'TupleDestructure2 id ty tup) = modify tup >>= \ tup -> pure (ANFIR.Expr'TupleDestructure2 id ty tup)
 

@@ -76,7 +76,6 @@ convert_expr (ANFIR.Expr'Switch id ty scrutinee arms) = BackendIR.Expr'Switch (c
         convert_matcher (ANFIR.Switch'BoolLiteral b) = BackendIR.Switch'BoolLiteral b
         convert_matcher (ANFIR.Switch'Tuple) = BackendIR.Switch'Tuple
         convert_matcher (ANFIR.Switch'Default) = BackendIR.Switch'Default
-convert_expr (ANFIR.Expr'Seq id ty a b) = pure $ BackendIR.Expr'Seq (convert_id id) ty a b
 convert_expr (ANFIR.Expr'TupleDestructure1 id ty tup) = pure $ BackendIR.Expr'TupleDestructure1 (convert_id id) ty tup
 convert_expr (ANFIR.Expr'TupleDestructure2 id ty tup) = pure $ BackendIR.Expr'TupleDestructure2 (convert_id id) ty tup
 convert_expr (ANFIR.Expr'Forall id ty tvars group result) = BackendIR.Expr'Forall (convert_id id) ty tvars <$> convert_binding_group group <*> pure result

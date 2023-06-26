@@ -6,6 +6,7 @@ module UHF.Data.IR.ANFIR
     , BindingKey
     , ParamKey
 
+    , BindingChunk(..)
     , BindingGroup (..)
     , Binding (..)
 
@@ -26,13 +27,12 @@ module UHF.Data.IR.ANFIR
 import UHF.Util.Prelude
 
 import qualified Arena
-import qualified Unique
 
 import UHF.Data.IR.Keys
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.ID as ID
 
--- "a-normal form ir"
+-- "a-normal form ir" even though this isnt actually a-normal form but it is pretty close
 data ANFIR = ANFIR (Arena.Arena Decl DeclKey) (Arena.Arena (Type.ADT (Maybe (Type.Type Void))) ADTKey) (Arena.Arena (Type.TypeSynonym (Maybe (Type.Type Void))) TypeSynonymKey) (Arena.Arena Type.Var Type.TypeVarKey) (Arena.Arena Binding BindingKey) (Arena.Arena Param ParamKey) DeclKey
 
 data Decl
@@ -42,7 +42,10 @@ data Decl
 
 data Param = Param ID.BoundValueID (Maybe (Type.Type Void)) deriving Show
 
-data BindingGroup = BindingGroup [BindingKey] deriving Show
+data BindingChunk
+    = SingleBinding BindingKey
+    | MutuallyRecursiveBindings [BindingKey] deriving Show
+data BindingGroup = BindingGroup [BindingChunk] deriving Show
 data Binding = Binding { binding_initializer :: Expr }
 
 data ID

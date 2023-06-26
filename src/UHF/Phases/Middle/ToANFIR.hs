@@ -5,6 +5,7 @@ import UHF.Util.Prelude
 import qualified Arena
 
 import qualified Data.Map as Map
+import qualified Data.List as List
 
 import qualified UHF.Data.IR.RIR as RIR
 import qualified UHF.Data.IR.ANFIR as ANFIR
@@ -35,7 +36,55 @@ type BoundValueMap = Map.Map RIR.BoundValueKey ANFIR.BindingKey
 type MakeGraphState = WriterT BoundValueMap (StateT (ANFIRBindingArena, ANFIRParamArena) (IDGen.IDGenT ID.ExprID (Reader BoundValueArena)))
 
 make_binding_group :: [ANFIR.BindingKey] -> MakeGraphState ANFIRBindingGroup
-make_binding_group bindings = pure (ANFIR.BindingGroup bindings)
+make_binding_group bindings =
+    pure (ANFIR.BindingGroup bindings_sorted)
+    where
+        bindings_sorted = todo
+
+    {- TODO
+        bindings_sorted = List.reverse $ sort [] bindings
+        binding_dependencies = Map.fromList $ map (\ b -> (b, get_dependencies b)) bindings
+            where
+                get_dependencies b = Arena.get <$> get <*> pure b >>= \case
+                    BackendIR.
+annotate_expr _ (BackendIR.Expr'Refer id ty i) = [i]
+annotate_expr _ (BackendIR.Expr'Char id ty c) = []
+annotate_expr _ (BackendIR.Expr'String id ty s) = []
+annotate_expr _ (BackendIR.Expr'Int id ty i) = []
+annotate_expr _ (BackendIR.Expr'Float id ty r) = []
+annotate_expr _ (BackendIR.Expr'Bool id ty b) = []
+annotate_expr _ (BackendIR.Expr'Tuple id ty a b) = [a
+annotate_expr binding_arena (BackendIR.Expr'Lambda id ty param group result) =
+    let group' = annotate_binding_group binding_arena group
+    in (BackendIR.binding_group_captures group' <> exclude_if_in_group binding_arena group' result, BackendIR.Expr'Lambda id ty param group' result)
+annotate_expr _ (BackendIR.Expr'Param id ty param) = []
+annotate_expr _ (BackendIR.Expr'Call id ty callee arg) = [callee
+annotate_expr binding_arena (BackendIR.Expr'Switch id ty test arms) =
+    let arms' = map (\ (p, group, e) -> (p, annotate_binding_group binding_arena group, e)) arms
+    in
+        ( [test] <> Set.unions (map (\ (_, g, res) -> BackendIR.binding_group_captures g <> exclude_if_in_group binding_arena g res) arms')
+        , BackendIR.Expr'Switch id ty test arms'
+        )
+annotate_expr _ (BackendIR.Expr'TupleDestructure1 id ty tup) = [tup]
+annotate_expr _ (BackendIR.Expr'TupleDestructure2 id ty tup) = [tup]
+annotate_expr binding_arena (BackendIR.Expr'Forall id ty vars group e) =
+    let group' = annotate_binding_group binding_arena group
+    in (BackendIR.binding_group_captures group' <> exclude_if_in_group binding_arena group' e)
+annotate_expr _ (BackendIR.Expr'TypeApply id ty e arg) = [e]
+annotate_expr _ (BackendIR.Expr'MakeADT id ty variant args) = Set.fromList args
+annotate_expr _ (BackendIR.Expr'Poison id ty allowed) = []
+
+        -- returns result in reverse order; ie bindings with no dependencies appear at the end
+        sort done left =
+            let (ready, waiting) = List.partition dependencies_satisfied left
+            in if null ready
+                then
+                    let (loops, not_loop) = find_loops waiting
+                        loops' = map deal_with_loops loops
+                    in sort (loops':done) not_loop
+                else
+                    sort (ready:done) waiting
+    -}
 
 convert :: RIR.RIR -> ANFIR
 convert (RIR.RIR decls adts type_synonyms type_vars bound_values mod) =

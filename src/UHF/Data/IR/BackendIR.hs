@@ -6,6 +6,7 @@ module UHF.Data.IR.BackendIR
     , ParamKey
 
     , BoundWhere (..)
+    , BindingChunk (..)
     , BindingGroup (..)
     , Binding (..)
 
@@ -21,6 +22,7 @@ module UHF.Data.IR.BackendIR
     , expr_id
     , binding_type
     , binding_id
+    , chunk_bindings
     ) where
 -- TODO: move this out of IR module?
 
@@ -49,11 +51,14 @@ data CU captures = CU (BindingGroup captures) [ADTKey] [TypeSynonymKey]
 data Param ty = Param ID.BoundValueID ty deriving Show
 
 -- TODO: make BindingGroupNum = Globals | Local Unique.Unique
+data BindingChunk
+    = SingleBinding BindingKey
+    | MutuallyRecursiveBindings [BindingKey] deriving Show
 data BindingGroup captures
     = BindingGroup
         { binding_group_unique :: Unique.Unique
         , binding_group_captures :: captures
-        , binding_group_bindings :: [BindingKey]
+        , binding_group_chunks :: [BindingChunk]
         } deriving Show
 
 newtype BoundWhere = BoundWhere Unique.Unique
@@ -150,3 +155,7 @@ binding_type :: Binding bound_where captures dependencies ty poison_allowed -> t
 binding_type = expr_type . binding_initializer
 binding_id :: Binding bound_where captures dependencies ty poison_allowed -> ID
 binding_id = expr_id . binding_initializer
+
+chunk_bindings :: BindingChunk -> [BindingKey]
+chunk_bindings (SingleBinding b) = [b]
+chunk_bindings (MutuallyRecursiveBindings bs) = bs

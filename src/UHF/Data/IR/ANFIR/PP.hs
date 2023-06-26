@@ -54,9 +54,13 @@ refer_binding :: ANFIR.BindingKey -> IRReader PP.Token
 refer_binding key = ANFIR.binding_id <$> get_binding key >>= \ id -> pure (PP.String (ANFIR.stringify_id id))
 
 define_binding_group_flat :: ANFIR.BindingGroup -> IRReader [PP.Token]
-define_binding_group_flat (ANFIR.BindingGroup bindings) = mapM define_binding bindings
+define_binding_group_flat (ANFIR.BindingGroup chunks) = mapM define_chunk chunks
 define_binding_group :: ANFIR.BindingGroup -> IRReader PP.Token
-define_binding_group (ANFIR.BindingGroup bindings) = mapM define_binding bindings >>= \ bindings -> pure (PP.braced_block bindings)
+define_binding_group (ANFIR.BindingGroup chunks) = mapM define_chunk chunks >>= \ chunks -> pure (PP.braced_block chunks)
+
+define_chunk :: ANFIR.BindingChunk -> IRReader PP.Token
+define_chunk (ANFIR.SingleBinding bk) = define_binding bk
+define_chunk (ANFIR.MutuallyRecursiveBindings bindings) = mapM define_binding bindings >>= \ bindings -> pure (PP.List ["mutually recursive ", PP.braced_block bindings])
 
 define_binding :: ANFIR.BindingKey -> IRReader PP.Token
 define_binding key =

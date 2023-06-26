@@ -57,15 +57,15 @@ assign_bound_wheres cu bindings =
     where
         tell_bw bk bw = tell $ Map.singleton bk bw
 
-        process_group (BackendIR.BindingGroup unique _ bindings) = mapM_ (\ bk -> tell_bw bk (BackendIR.BoundWhere unique)) bindings
+        process_group (BackendIR.BindingGroup unique _ chunks) = mapM_ (\ bk -> tell_bw bk (BackendIR.BoundWhere unique)) (concatMap BackendIR.chunk_bindings chunks)
 
 annotate_cu :: Arena.Arena (BackendIR.Binding BackendIR.BoundWhere CaptureList DependencyList ty poison_allowed) BackendIR.BindingKey -> BackendIR.CU () -> BackendIR.CU CaptureList
 annotate_cu binding_arena (BackendIR.CU bindings adts type_synonyms) = BackendIR.CU (annotate_binding_group binding_arena bindings) adts type_synonyms
 
 annotate_binding_group :: Arena.Arena (BackendIR.Binding BackendIR.BoundWhere CaptureList DependencyList ty poison_allowed) BackendIR.BindingKey -> BackendIR.BindingGroup () -> BackendIR.BindingGroup CaptureList
-annotate_binding_group binding_arena (BackendIR.BindingGroup unique () bindings) =
-    let captures = Set.unions $ map get_outward_references bindings
-    in BackendIR.BindingGroup unique captures bindings
+annotate_binding_group binding_arena (BackendIR.BindingGroup unique () chunks) =
+    let captures = Set.unions $ map get_outward_references (concatMap BackendIR.chunk_bindings chunks)
+    in BackendIR.BindingGroup unique captures chunks
     where
         get_outward_references = Set.filter is_outward . BackendIR.binding_dependencies . Arena.get binding_arena
 

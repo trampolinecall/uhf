@@ -60,9 +60,13 @@ instance DumpableCaptures (Set BackendIR.BindingKey) where
     dump_captures = mapM refer_binding . toList
 
 define_binding_group_flat :: (DumpableCaptures captures, DumpableType ty) => BackendIR.BindingGroup captures -> IRReader bound_where captures dependencies ty poison_allowed [PP.Token]
-define_binding_group_flat (BackendIR.BindingGroup _ _ bindings) = mapM define_binding bindings
+define_binding_group_flat (BackendIR.BindingGroup _ _ chunks) = mapM define_chunk chunks
 define_binding_group :: (DumpableCaptures captures, DumpableType ty) => BackendIR.BindingGroup captures -> IRReader bound_where captures dependencies ty poison_allowed PP.Token
-define_binding_group (BackendIR.BindingGroup _ captures bindings) = mapM define_binding bindings >>= \ bindings -> dump_captures captures >>= \ captures -> pure (PP.braced_block $ if null captures then bindings else PP.List ["capture ", PP.comma_separated PP.Inconsistent captures, ";"] : bindings)
+define_binding_group (BackendIR.BindingGroup _ captures chunks) = mapM define_chunk chunks >>= \ chunks -> dump_captures captures >>= \ captures -> pure (PP.braced_block $ if null captures then chunks else PP.List ["capture ", PP.comma_separated PP.Inconsistent captures, ";"] : chunks)
+
+define_chunk :: (DumpableCaptures captures, DumpableType ty) => BackendIR.BindingChunk -> IRReader bound_where captures dependencies ty poison_allowed PP.Token
+define_chunk (BackendIR.SingleBinding bk) = define_binding bk
+define_chunk (BackendIR.MutuallyRecursiveBindings bindings) = mapM define_binding bindings >>= \ bindings -> pure (PP.List ["mutually recursive ", PP.braced_block bindings])
 
 define_binding :: (DumpableCaptures captures, DumpableType ty) => BackendIR.BindingKey -> IRReader bound_where captures dependencies ty poison_allowed PP.Token
 define_binding key =

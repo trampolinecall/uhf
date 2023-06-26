@@ -110,11 +110,11 @@ convert_ts_adt (TSADT key) =
             pure (TS.Type'Object $ name_field : fields)
 
 convert_ts_make_thunk_graph :: TSMakeThunkGraph -> IRReader TS.Stmt
-convert_ts_make_thunk_graph (TSMakeThunkGraph (BackendIR.BindingGroup unique captures included_bindings) param) =
+convert_ts_make_thunk_graph (TSMakeThunkGraph (BackendIR.BindingGroup unique captures chunks) param) =
     mapM convert_param param >>= \ converted_param ->
     mapM convert_capture (Set.toList captures) >>= \ converted_captures ->
 
-    unzip <$> mapM convert_binding_decl included_bindings >>= \ (binding_decls, binding_set_evaluators) ->
+    unzip <$> (concat <$> mapM convert_binding_chunk chunks) >>= \ (binding_decls, binding_set_evaluators) ->
     mangle_make_thunk_group unique >>= \ fn_name ->
     ts_return_type >>= \ ts_return_type ->
     object_of_bindings >>= \ object_of_bindings ->
@@ -132,7 +132,8 @@ convert_ts_make_thunk_graph (TSMakeThunkGraph (BackendIR.BindingGroup unique cap
                     <> [TS.Stmt'Return object_of_bindings]))
     where
         ts_return_type =
-            mapM r included_bindings >>= \ fields ->
+            let included_bindings = concatMap BackendIR.chunk_bindings chunks
+            in mapM r included_bindings >>= \ fields ->
             pure (TS.Type'Object fields)
             where
                 r binding =
@@ -141,7 +142,8 @@ convert_ts_make_thunk_graph (TSMakeThunkGraph (BackendIR.BindingGroup unique cap
                     pure (mangled, Just ty)
 
         object_of_bindings =
-            mapM (fmap (, Nothing) . mangle_binding_as_thunk) included_bindings >>= \ contents ->
+            let included_bindings = concatMap BackendIR.chunk_bindings chunks
+            in mapM (fmap (, Nothing) . mangle_binding_as_thunk) included_bindings >>= \ contents ->
             pure (TS.Expr'Object contents)
 
         convert_param param_key =
@@ -153,6 +155,8 @@ convert_ts_make_thunk_graph (TSMakeThunkGraph (BackendIR.BindingGroup unique cap
             BackendIR.binding_type <$> get_binding bk >>= refer_type >>= \ ty_refer ->
             mangle_binding_as_thunk bk >>= \ mangled ->
             pure (TS.Parameter Nothing mangled (Just ty_refer))
+
+        convert_binding_chunk = mapM convert_binding_decl . BackendIR.chunk_bindings -- TODO
 
         convert_binding_decl binding_key =
             binding_type binding_key >>= refer_type >>= \ cur_binding_type ->
@@ -330,7 +334,7 @@ lower (BackendIR.BackendIR adts type_synonyms type_vars bindings params cu) =
 define_cu :: CU -> TSWriter ()
 define_cu (BackendIR.CU global_group adts _) =
     mapM_ (tell_adt . TSADT) adts >>
-    mapM (tell_global . TSGlobalThunk) (BackendIR.binding_group_bindings global_group) >>
+    mapM (tell_global . TSGlobalThunk) (concatMap BackendIR.chunk_bindings (BackendIR.binding_group_chunks global_group)) >>
     tell_make_thunk_graph (TSMakeThunkGraph global_group Nothing) -- global thunk graph does not have any params
 
 define_lambda_type :: BackendIR.BindingKey -> Binding -> TSWriter ()

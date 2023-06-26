@@ -54,9 +54,9 @@ refer_binding :: ANFIR.BindingKey -> IRReader PP.Token
 refer_binding key = ANFIR.binding_id <$> get_binding key >>= \ id -> pure (PP.String (ANFIR.stringify_id id))
 
 define_binding_group_flat :: ANFIR.BindingGroup -> IRReader [PP.Token]
-define_binding_group_flat (ANFIR.BindingGroup chunks) = mapM define_chunk chunks
+define_binding_group_flat (ANFIR.BindingGroup _ chunks) = mapM define_chunk chunks
 define_binding_group :: ANFIR.BindingGroup -> IRReader PP.Token
-define_binding_group (ANFIR.BindingGroup chunks) = mapM define_chunk chunks >>= \ chunks -> pure (PP.braced_block chunks)
+define_binding_group (ANFIR.BindingGroup captures chunks) = mapM refer_binding (toList captures) >>= \ captures -> mapM define_chunk chunks >>= \ chunks -> pure (PP.braced_block $ if null captures then chunks else PP.List ["capture ", PP.comma_separated PP.Inconsistent captures, ";"] : chunks)
 
 define_chunk :: ANFIR.BindingChunk -> IRReader PP.Token
 define_chunk (ANFIR.SingleBinding bk) = define_binding bk

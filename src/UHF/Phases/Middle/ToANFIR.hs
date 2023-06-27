@@ -1,3 +1,6 @@
+{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE TypeFamilies #-}
+
 module UHF.Phases.Middle.ToANFIR (convert) where
 
 import UHF.Util.Prelude
@@ -38,57 +41,84 @@ type MakeGraphState = WriterT BoundValueMap (StateT (ANFIRBindingArena, ANFIRPar
 
 make_binding_group :: [ANFIR.BindingKey] -> MakeGraphState ANFIRBindingGroup
 make_binding_group bindings =
+    Map.fromList <$> mapM (\ b -> (b,) <$> get_dependencies b) bindings >>= \ binding_dependencies ->
+
+    let captures = Set.filter (not . (`List.elem` bindings)) (Set.unions $ Map.elems binding_dependencies)
+        binding_dependencies_no_outwards = Map.map (Set.filter is_not_outward_dependency) binding_dependencies
+    in topological_sort binding_dependencies_no_outwards [] bindings >>= \ bindings_sorted ->
+
     pure (ANFIR.BindingGroup captures bindings_sorted)
     where
-        binding_dependencies = todo
-        captures = Set.fromList $ filter (not . (`List.elem` bindings)) (Map.elems binding_dependencies)
-
-        bindings_sorted = todo
-
-    {- TODO
-        bindings_sorted = List.reverse $ sort [] bindings
-        binding_dependencies = Map.fromList $ map (\ b -> (b, get_dependencies b)) bindings
+        get_dependencies bk =
+            Arena.get <$> (fst <$> lift get) <*> pure bk >>= \ binding ->
+            pure (
+                case ANFIR.binding_initializer binding of
+                    ANFIR.Expr'Refer _ _ i -> [i]
+                    ANFIR.Expr'Char _ _ _ -> []
+                    ANFIR.Expr'String _ _ _ -> []
+                    ANFIR.Expr'Int _ _ _ -> []
+                    ANFIR.Expr'Float _ _ _ -> []
+                    ANFIR.Expr'Bool _ _ _ -> []
+                    ANFIR.Expr'Tuple _ _ a b -> [a, b]
+                    ANFIR.Expr'Lambda _ _ _ group result -> ANFIR.binding_group_captures group <> exclude_if_in_group group result
+                    ANFIR.Expr'Param _ _ _ -> []
+                    ANFIR.Expr'Call _ _ callee arg -> [callee, arg]
+                    ANFIR.Expr'Switch _ _ test arms -> [test] <> Set.unions (map (\ (_, g, res) -> ANFIR.binding_group_captures g <> exclude_if_in_group g res) arms)
+                    ANFIR.Expr'TupleDestructure1 _ _ tup -> [tup]
+                    ANFIR.Expr'TupleDestructure2 _ _ tup -> [tup]
+                    ANFIR.Expr'Forall _ _ _ group e -> ANFIR.binding_group_captures group <> exclude_if_in_group group e
+                    ANFIR.Expr'TypeApply _ _ e _ -> [e]
+                    ANFIR.Expr'MakeADT _ _ _ args -> Set.fromList args
+                    ANFIR.Expr'Poison _ _ -> []
+            )
             where
-                get_dependencies b = Arena.get <$> get <*> pure b >>= \case
-                    BackendIR.
-annotate_expr _ (BackendIR.Expr'Refer id ty i) = [i]
-annotate_expr _ (BackendIR.Expr'Char id ty c) = []
-annotate_expr _ (BackendIR.Expr'String id ty s) = []
-annotate_expr _ (BackendIR.Expr'Int id ty i) = []
-annotate_expr _ (BackendIR.Expr'Float id ty r) = []
-annotate_expr _ (BackendIR.Expr'Bool id ty b) = []
-annotate_expr _ (BackendIR.Expr'Tuple id ty a b) = [a
-annotate_expr binding_arena (BackendIR.Expr'Lambda id ty param group result) =
-    let group' = annotate_binding_group binding_arena group
-    in (BackendIR.binding_group_captures group' <> exclude_if_in_group binding_arena group' result, BackendIR.Expr'Lambda id ty param group' result)
-annotate_expr _ (BackendIR.Expr'Param id ty param) = []
-annotate_expr _ (BackendIR.Expr'Call id ty callee arg) = [callee
-annotate_expr binding_arena (BackendIR.Expr'Switch id ty test arms) =
-    let arms' = map (\ (p, group, e) -> (p, annotate_binding_group binding_arena group, e)) arms
-    in
-        ( [test] <> Set.unions (map (\ (_, g, res) -> BackendIR.binding_group_captures g <> exclude_if_in_group binding_arena g res) arms')
-        , BackendIR.Expr'Switch id ty test arms'
-        )
-annotate_expr _ (BackendIR.Expr'TupleDestructure1 id ty tup) = [tup]
-annotate_expr _ (BackendIR.Expr'TupleDestructure2 id ty tup) = [tup]
-annotate_expr binding_arena (BackendIR.Expr'Forall id ty vars group e) =
-    let group' = annotate_binding_group binding_arena group
-    in (BackendIR.binding_group_captures group' <> exclude_if_in_group binding_arena group' e)
-annotate_expr _ (BackendIR.Expr'TypeApply id ty e arg) = [e]
-annotate_expr _ (BackendIR.Expr'MakeADT id ty variant args) = Set.fromList args
-annotate_expr _ (BackendIR.Expr'Poison id ty allowed) = []
+                exclude_if_in_group (ANFIR.BindingGroup _ chunks) binding
+                    | binding `List.elem` (concatMap ANFIR.chunk_bindings chunks) = []
+                    | otherwise = [binding]
 
-        -- returns result in reverse order; ie bindings with no dependencies appear at the end
-        sort done left =
-            let (ready, waiting) = List.partition dependencies_satisfied left
-            in if null ready
-                then
+        topological_sort _ done [] = pure done
+        topological_sort binding_dependencies done left =
+            case List.partition dependencies_satisfied left of
+                ([], waiting) ->
                     let (loops, not_loop) = find_loops waiting
-                        loops' = map deal_with_loops loops
-                    in sort (loops':done) not_loop
-                else
-                    sort (ready:done) waiting
-    -}
+                    in mapM deal_with_loop loops >>= \ loops' ->
+                    topological_sort binding_dependencies (done ++ loops') not_loop
+
+                (ready, waiting) -> topological_sort binding_dependencies (done ++ map ANFIR.SingleBinding ready) waiting
+            where
+                dependencies_satisfied bk = and $ Set.map (`List.elem` concatMap ANFIR.chunk_bindings done) (binding_dependencies Map.! bk)
+
+                find_loops = find [] []
+                    where
+                        find loops not_in_loop [] = (loops, not_in_loop)
+                        find loops not_in_loop searching_for_loops_in@(first:more) =
+                            case trace_single_loop [] first more of
+                                Just (loop, bks_not_in_loop, remaining') -> find (loop:loops) (not_in_loop ++ bks_not_in_loop) remaining'
+                                Nothing -> find loops (first:not_in_loop) more
+                            where
+                                trace_single_loop visited_stack current unvisited =
+                                    case List.elemIndex current visited_stack of
+                                        Just current_idx ->
+                                            let (loop, not_in_loop) = splitAt (current_idx + 1) visited_stack -- top of stack is at beginning
+                                            in Just (loop, not_in_loop, unvisited) -- all items of visited stack and current should not be in unvisited
+                                        Nothing ->
+                                            let current_dependencies = binding_dependencies Map.! current
+                                            in headMay $
+                                                mapMaybe
+                                                    (\ neighbor -> trace_single_loop (current:visited_stack) neighbor (filter (/=neighbor) unvisited))
+                                                    (toList $ Set.filter (`elem` searching_for_loops_in) current_dependencies)
+
+                deal_with_loop loop =
+                    fst <$> lift get >>= \ bindings ->
+                    if and (map (allowed_in_loop . ANFIR.binding_initializer . Arena.get bindings) loop)
+                        then pure $ ANFIR.MutuallyRecursiveBindings loop
+                        else error "illegal loop" -- TODO: proper error message for this
+                    where
+                        allowed_in_loop (ANFIR.Expr'Lambda _ _ _ _ _) = True
+                        allowed_in_loop (ANFIR.Expr'Forall _ _ _ _ _) = True
+                        allowed_in_loop _ = False
+
+        is_not_outward_dependency bk = bk `elem` bindings
 
 convert :: RIR.RIR -> ANFIR
 convert (RIR.RIR decls adts type_synonyms type_vars bound_values mod) =

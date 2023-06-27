@@ -7,6 +7,7 @@ module UHF.Data.IR.ANFIR
     , ParamKey
 
     , BindingChunk(..)
+    , chunk_bindings
     , BindingGroup (..)
     , Binding (..)
 
@@ -52,7 +53,7 @@ data BindingGroup
         { binding_group_captures :: Set.Set BindingKey -- TODO: dont use Ord BindingKey for order of captures in backends
         , binding_group_chunks :: [BindingChunk]
         } deriving Show
-data Binding = Binding { binding_initializer :: Expr }
+data Binding = Binding { binding_initializer :: Expr } deriving Show
 
 data ID
     = ExprID ID.ExprID
@@ -140,3 +141,7 @@ binding_type :: Binding -> Maybe (Type.Type Void)
 binding_type = expr_type . binding_initializer
 binding_id :: Binding -> ID
 binding_id = expr_id . binding_initializer
+
+chunk_bindings :: BindingChunk -> [BindingKey]
+chunk_bindings (SingleBinding b) = [b]
+chunk_bindings (MutuallyRecursiveBindings bs) = bs

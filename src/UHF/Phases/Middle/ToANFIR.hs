@@ -43,9 +43,12 @@ make_binding_group :: [ANFIR.BindingKey] -> MakeGraphState ANFIRBindingGroup
 make_binding_group bindings =
     Map.fromList <$> mapM (\ b -> (b,) <$> get_dependencies b) bindings >>= \ binding_dependencies ->
 
+    -- get state outside of topological sort because if it was inside then the number of gets would be forced so that the monad would know how many operations it has and because topological sort branches based on binding_depenencies that will force it when it shouldnt
+    fst <$> lift get >>= \ binding_arena ->
     let captures = Set.filter (not . (`List.elem` bindings)) (Set.unions $ Map.elems binding_dependencies)
         binding_dependencies_no_outwards = Map.map (Set.filter is_not_outward_dependency) binding_dependencies
-    in topological_sort binding_dependencies_no_outwards [] bindings >>= \ bindings_sorted ->
+        bindings_sorted = topological_sort binding_arena binding_dependencies_no_outwards [] bindings
+    in
 
     pure (ANFIR.BindingGroup captures bindings_sorted)
     where
@@ -76,15 +79,15 @@ make_binding_group bindings =
                     | binding `List.elem` (concatMap ANFIR.chunk_bindings chunks) = []
                     | otherwise = [binding]
 
-        topological_sort _ done [] = pure done
-        topological_sort binding_dependencies done left =
+        topological_sort _ _ done [] = done
+        topological_sort binding_arena binding_dependencies done left =
             case List.partition dependencies_satisfied left of
                 ([], waiting) ->
                     let (loops, not_loop) = find_loops waiting
-                    in mapM deal_with_loop loops >>= \ loops' ->
-                    topological_sort binding_dependencies (done ++ loops') not_loop
+                        loops' = map (deal_with_loop binding_arena) loops
+                    in topological_sort binding_arena binding_dependencies (done ++ loops') not_loop
 
-                (ready, waiting) -> topological_sort binding_dependencies (done ++ map ANFIR.SingleBinding ready) waiting
+                (ready, waiting) -> topological_sort binding_arena binding_dependencies (done ++ map ANFIR.SingleBinding ready) waiting
             where
                 dependencies_satisfied bk = and $ Set.map (`List.elem` concatMap ANFIR.chunk_bindings done) (binding_dependencies Map.! bk)
 
@@ -108,10 +111,9 @@ make_binding_group bindings =
                                                     (\ neighbor -> trace_single_loop (current:visited_stack) neighbor (filter (/=neighbor) unvisited))
                                                     (toList $ Set.filter (`elem` searching_for_loops_in) current_dependencies)
 
-                deal_with_loop loop =
-                    fst <$> lift get >>= \ bindings ->
-                    if and (map (allowed_in_loop . ANFIR.binding_initializer . Arena.get bindings) loop)
-                        then pure $ ANFIR.MutuallyRecursiveBindings loop
+                deal_with_loop binding_arena loop =
+                    if and (map (allowed_in_loop . ANFIR.binding_initializer . Arena.get binding_arena) loop)
+                        then ANFIR.MutuallyRecursiveBindings loop
                         else error "illegal loop" -- TODO: proper error message for this
                     where
                         allowed_in_loop (ANFIR.Expr'Lambda _ _ _ _ _) = True
@@ -126,7 +128,7 @@ convert (RIR.RIR decls adts type_synonyms type_vars bound_values mod) =
     in ANFIR.ANFIR decls' adts type_synonyms type_vars bindings params mod
 
 convert_decl :: BoundValueMap -> RIRDecl -> MakeGraphState ANFIRDecl
-convert_decl bv_map (RIR.Decl'Module bindings adts type_synonyms) = mapM (convert_binding bv_map) bindings >>= \ bindings_converted -> make_binding_group (concat bindings_converted) >>= \ group -> pure (ANFIR.Decl'Module group adts type_synonyms) -- cannot do with <$> and <*> because that messes up the laziness (not exactly sure how but it just doesnt work)
+convert_decl bv_map (RIR.Decl'Module bindings adts type_synonyms) = concat <$> mapM (convert_binding bv_map) bindings >>= make_binding_group >>= \ group -> pure (ANFIR.Decl'Module group adts type_synonyms)
 convert_decl _ (RIR.Decl'Type ty) = pure $ ANFIR.Decl'Type ty
 
 map_bound_value :: RIR.BoundValueKey -> ANFIR.BindingKey -> MakeGraphState ()

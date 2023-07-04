@@ -126,7 +126,7 @@ convert (RIR.RIR decls adts type_synonyms type_vars bound_values mod) =
     in ANFIR.ANFIR decls' adts type_synonyms type_vars bindings params mod
 
 convert_decl :: BoundValueMap -> RIRDecl -> MakeGraphState ANFIRDecl
-convert_decl bv_map (RIR.Decl'Module bindings adts type_synonyms) = ANFIR.Decl'Module <$> (concat <$> mapM (convert_binding bv_map) bindings >>= make_binding_group) <*> pure adts <*> pure type_synonyms
+convert_decl bv_map (RIR.Decl'Module bindings adts type_synonyms) = mapM (convert_binding bv_map) bindings >>= \ bindings_converted -> make_binding_group (concat bindings_converted) >>= \ group -> pure (ANFIR.Decl'Module group adts type_synonyms) -- cannot do with <$> and <*> because that messes up the laziness (not exactly sure how but it just doesnt work)
 convert_decl _ (RIR.Decl'Type ty) = pure $ ANFIR.Decl'Type ty
 
 map_bound_value :: RIR.BoundValueKey -> ANFIR.BindingKey -> MakeGraphState ()

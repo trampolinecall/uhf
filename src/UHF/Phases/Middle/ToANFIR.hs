@@ -159,8 +159,8 @@ choose_id Nothing eid = ANFIR.ExprID eid
 convert_expr :: BoundValueMap -> Maybe ID.BoundValueID -> RIRExpr -> WriterT [ANFIR.BindingKey] MakeGraphState ANFIR.BindingKey
 convert_expr bv_map m_bvid (RIR.Expr'Identifier id ty _ bvkey) =
     case bvkey of
-        Just bvkey -> new_binding (ANFIR.Expr'Refer (choose_id m_bvid id) ty (bv_map Map.! bvkey))
-        Nothing -> new_binding (ANFIR.Expr'Poison (choose_id m_bvid id) ty)
+        Just bvkey -> new_binding $ ANFIR.Expr'Refer (choose_id m_bvid id) ty (bv_map Map.! bvkey)
+        Nothing -> new_binding $ ANFIR.Expr'Poison (choose_id m_bvid id) ty
 convert_expr _ m_bvid (RIR.Expr'Char id ty _ c) = new_binding (ANFIR.Expr'Char (choose_id m_bvid id) ty c)
 convert_expr _ m_bvid (RIR.Expr'String id ty _ s) = new_binding (ANFIR.Expr'String (choose_id m_bvid id) ty s)
 convert_expr _ m_bvid (RIR.Expr'Int id ty _ i) = new_binding (ANFIR.Expr'Int (choose_id m_bvid id) ty i)

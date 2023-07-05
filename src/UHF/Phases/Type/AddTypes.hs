@@ -47,8 +47,8 @@ get_bv_type bv = do
 -- but it really should produce an error at `thing(0)` saying that thing takes a string and not an int
 -- (this happens because bindings are processed in order and the constraint from 'thing(0)' is processed before the constraint from 'thing = ...')
 --
-add :: UntypedADTArena -> UntypedTypeSynonymArena -> UntypedBoundValueArena -> UntypedDeclArena -> WriterT [Constraint] StateWithUnk (TypedWithUnkADTArena, TypedWithUnkTypeSynonymArena, TypedWithUnkBoundValueArena, TypedWithUnkDeclArena)
-add adts type_synonyms bound_values decls =
+add :: UntypedModuleArena -> UntypedADTArena -> UntypedTypeSynonymArena -> UntypedBoundValueArena -> UntypedDeclArena -> WriterT [Constraint] StateWithUnk (TypedWithUnkModuleArena, TypedWithUnkADTArena, TypedWithUnkTypeSynonymArena, TypedWithUnkBoundValueArena, TypedWithUnkDeclArena)
+add mods adts type_synonyms bound_values decls =
     runReaderT (
         Arena.transformM adt adts >>= \ adts ->
         Arena.transformM type_synonym  type_synonyms >>= \ type_synonyms ->
@@ -58,8 +58,8 @@ add adts type_synonyms bound_values decls =
         Arena.transformM bound_value bound_values
     ) ((), (), adts) >>= \ bound_values ->
     runReaderT (
-        Arena.transformM decl decls >>= \ decls ->
-        pure (adts, type_synonyms, bound_values, decls)
+        Arena.transformM module_ mods >>= \ mods ->
+        pure (mods, adts, type_synonyms, bound_values, decls)
     ) (decls, bound_values, adts)
 
 bound_value :: UntypedBoundValue -> ContextReader decls bvs TypedWithUnkADTArena TypedWithUnkBoundValue
@@ -77,9 +77,8 @@ bound_value (SIR.BoundValue'ADTVariant id variant_index@(Type.ADTVariantIndex ad
                  in wrap_in_forall $ foldr (Type.Type'Function . SIR.type_expr_type_info) (Type.Type'ADT adt_key (map Type.Type'Variable type_params)) fields -- function type that takes all the field types and then results in the adt type
     pure (SIR.BoundValue'ADTVariant id variant_index ty def_span)
 
-decl :: UntypedDecl -> ContextReader UntypedDeclArena TypedWithUnkBoundValueArena TypedWithUnkADTArena TypedWithUnkDecl
-decl (SIR.Decl'Type ty) = pure $ SIR.Decl'Type ty
-decl (SIR.Decl'Module id nc bindings adts type_synonyms) = SIR.Decl'Module id nc <$> mapM binding bindings <*> pure adts <*> pure type_synonyms
+module_ :: UntypedModule -> ContextReader UntypedDeclArena TypedWithUnkBoundValueArena TypedWithUnkADTArena TypedWithUnkModule
+module_ (SIR.Module id nc bindings adts type_synonyms) = SIR.Module id nc <$> mapM binding bindings <*> pure adts <*> pure type_synonyms
 
 adt :: UntypedADT -> ContextReader UntypedDeclArena bvs adts TypedWithUnkADT
 adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM convert_variant variants
@@ -101,7 +100,7 @@ type_expr (SIR.TypeExpr'Identifier () sp iden) = do
     (decls, _, _) <- ask
     ty <- case iden of -- TODO: make poison type variable
         Just i -> case Arena.get decls i of
-            SIR.Decl'Module _ _ _ _ _ -> lift (lift (lift (Compiler.tell_error $ NotAType sp "a module"))) >> Type.Type'Unknown <$> lift (lift $ new_type_unknown (TypeExpr sp))
+            SIR.Decl'Module _ -> lift (lift (lift (Compiler.tell_error $ NotAType sp "a module"))) >> Type.Type'Unknown <$> lift (lift $ new_type_unknown (TypeExpr sp))
             SIR.Decl'Type ty -> pure $ void_var_to_key ty
         Nothing -> Type.Type'Unknown <$> lift (lift $ new_type_unknown (TypeExpr sp))
     pure (SIR.TypeExpr'Identifier ty sp iden)

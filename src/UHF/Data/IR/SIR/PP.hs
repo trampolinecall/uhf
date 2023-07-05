@@ -20,34 +20,35 @@ import qualified Data.Text as Text
 type IRReader d_iden v_iden p_iden type_info binary_ops_allowed = Reader (SIR.SIR d_iden v_iden p_iden type_info binary_ops_allowed)
 
 dump_main_module :: (DumpableIdentifier d_iden, DumpableIdentifier v_iden, DumpableIdentifier p_iden) => SIR.SIR d_iden v_iden p_iden type_info binary_ops_allowed -> Text
-dump_main_module ir@(SIR.SIR decls _ _ _ _ mod) = PP.render $ runReader (define_decl $ Arena.get decls mod) ir
+dump_main_module ir@(SIR.SIR _ modules _ _ _ _ mod) = PP.render $ runReader (define_module $ Arena.get modules mod) ir
 
 get_adt_arena :: IRReader d_iden v_iden p_iden type_info binary_ops_allowed (Arena.Arena (Type.ADT (SIR.TypeExpr d_iden type_info)) Type.ADTKey)
-get_adt_arena = reader (\ (SIR.SIR _ adts _ _ _ _) -> adts)
+get_adt_arena = reader (\ (SIR.SIR _ _ adts _ _ _ _) -> adts)
 get_type_synonym_arena :: IRReader d_iden v_iden p_iden type_info binary_ops_allowed (Arena.Arena (Type.TypeSynonym (SIR.TypeExpr d_iden type_info)) Type.TypeSynonymKey)
-get_type_synonym_arena = reader (\ (SIR.SIR _ _ syns _ _ _) -> syns)
+get_type_synonym_arena = reader (\ (SIR.SIR _ _ _ syns _ _ _) -> syns)
 get_type_var_arena :: IRReader d_iden v_iden p_iden type_info binary_ops_allowed (Arena.Arena Type.Var Type.TypeVarKey)
-get_type_var_arena = reader (\ (SIR.SIR _ _ _ vars _ _) -> vars)
+get_type_var_arena = reader (\ (SIR.SIR _ _ _ _ vars _ _) -> vars)
 
 get_bv :: SIR.BoundValueKey -> IRReader d_iden v_iden p_iden type_info binary_ops_allowed (SIR.BoundValue type_info)
-get_bv k = reader (\ (SIR.SIR _ _ _ _ bvs _) -> Arena.get bvs k)
-get_decl :: SIR.DeclKey -> IRReader d_iden v_iden p_iden type_info binary_ops_allowed (SIR.Decl d_iden v_iden p_iden type_info binary_ops_allowed)
-get_decl k = reader (\ (SIR.SIR decls _ _ _ _ _) -> Arena.get decls k)
+get_bv k = reader (\ (SIR.SIR _ _ _ _ _ bvs _) -> Arena.get bvs k)
+get_decl :: SIR.DeclKey -> IRReader d_iden v_iden p_iden type_info binary_ops_allowed (SIR.Decl)
+get_decl k = reader (\ (SIR.SIR decls _ _ _ _ _ _) -> Arena.get decls k)
+get_module :: SIR.ModuleKey -> IRReader d_iden v_iden p_iden type_info binary_ops_allowed (SIR.Module d_iden v_iden p_iden type_info binary_ops_allowed)
+get_module k = reader (\ (SIR.SIR _ modules _ _ _ _ _) -> Arena.get modules k)
 get_adt :: Type.ADTKey -> IRReader d_iden v_iden p_iden type_info binary_ops_allowed (Type.ADT (SIR.TypeExpr d_iden type_info))
-get_adt k = reader (\ (SIR.SIR _ adts _ _ _ _) -> Arena.get adts k)
+get_adt k = reader (\ (SIR.SIR _ _ adts _ _ _ _) -> Arena.get adts k)
 get_type_syn :: Type.TypeSynonymKey -> IRReader d_iden v_iden p_iden type_info binary_ops_allowed (Type.TypeSynonym (SIR.TypeExpr d_iden type_info))
-get_type_syn k = reader (\ (SIR.SIR _ _ syns _ _ _) -> Arena.get syns k)
+get_type_syn k = reader (\ (SIR.SIR _ _ _ syns _ _ _) -> Arena.get syns k)
 get_type_var :: Type.TypeVarKey -> IRReader d_iden v_iden p_iden type_info binary_ops_allowed Type.Var
-get_type_var k = reader (\ (SIR.SIR _ _ _ type_vars _ _) -> Arena.get type_vars k)
+get_type_var k = reader (\ (SIR.SIR _ _ _ _ type_vars _ _) -> Arena.get type_vars k)
 
-define_decl :: (DumpableIdentifier d_iden, DumpableIdentifier v_iden, DumpableIdentifier p_iden) => SIR.Decl d_iden v_iden p_iden type_info binary_ops_allowed -> IRReader d_iden v_iden p_iden type_info binary_ops_allowed PP.Token
-define_decl (SIR.Decl'Module _ _ bindings adts type_synonyms) =
+define_module :: (DumpableIdentifier d_iden, DumpableIdentifier v_iden, DumpableIdentifier p_iden) => SIR.Module d_iden v_iden p_iden type_info binary_ops_allowed -> IRReader d_iden v_iden p_iden type_info binary_ops_allowed PP.Token
+define_module (SIR.Module _ _ bindings adts type_synonyms) =
     ask >>= \ sir ->
     mapM (\ k -> get_adt k >>= \ adt -> pure (Type.PP.define_adt adt)) adts >>= \ adts_defined ->
     mapM (\ k -> get_type_syn k >>= \ ts -> pure (Type.PP.define_type_synonym (\ ty -> runReader (type_expr ty) sir) ts)) type_synonyms >>= \ type_synonyms_defined ->
     mapM define_binding bindings >>= \ bindings_defined ->
     pure (PP.flat_block $ adts_defined <> type_synonyms_defined <> bindings_defined)
-define_decl (SIR.Decl'Type _) = pure (PP.List [])
 
 define_binding :: (DumpableIdentifier d_iden, DumpableIdentifier v_iden, DumpableIdentifier p_iden) => SIR.Binding d_iden v_iden p_iden type_info binary_ops_allowed -> IRReader d_iden v_iden p_iden type_info binary_ops_allowed PP.Token
 define_binding (SIR.Binding pat _ init) = pattern pat >>= \ pat -> expr init >>= \ init -> pure $ PP.List [pat, " = ", init, ";"]
@@ -68,7 +69,9 @@ refer_bv k = get_bv k >>= \case
 
 refer_decl :: SIR.DeclKey -> IRReader d_iden v_iden p_iden type_info binary_ops_allowed PP.Token
 refer_decl k = get_decl k >>= \case
-    SIR.Decl'Module id _ _ _ _ -> pure $ PP.String $ ID.stringify id
+    SIR.Decl'Module m ->
+        get_module m >>= \ (SIR.Module id _ _ _ _) ->
+        pure (PP.String $ ID.stringify id)
     SIR.Decl'Type ty ->
         get_adt_arena >>= \ adt_arena ->
         get_type_synonym_arena >>= \ type_synonym_arena ->

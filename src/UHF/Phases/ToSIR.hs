@@ -66,7 +66,8 @@ instance Diagnostic.ToError Error where
 type SIR = SIR.SIR Identifier Identifier Identifier () ()
 
 type Identifier = (SIR.NameContext, [Located Text])
-type Decl = SIR.Decl Identifier Identifier Identifier () ()
+type Decl = SIR.Decl
+type Module = SIR.Module Identifier Identifier Identifier () ()
 type Binding = SIR.Binding Identifier Identifier Identifier () ()
 type ADT = Type.ADT TypeExpr
 type TypeSynonym = Type.TypeSynonym TypeExpr
@@ -80,42 +81,49 @@ type BoundValueList = [(Text, DeclAt, SIR.BoundValueKey)]
 type ADTVariantList = [(Text, DeclAt, Type.ADTVariantIndex)]
 
 type DeclArena = Arena.Arena Decl SIR.DeclKey
+type ModuleArena = Arena.Arena Module SIR.ModuleKey
 type ADTArena = Arena.Arena ADT Type.ADTKey
 type TypeSynonymArena = Arena.Arena TypeSynonym Type.TypeSynonymKey
 type BoundValueArena = Arena.Arena BoundValue SIR.BoundValueKey
 type TypeVarArena = Arena.Arena Type.Var Type.TypeVarKey
 
-type MakeIRState = StateT (DeclArena, ADTArena, TypeSynonymArena, TypeVarArena, BoundValueArena) (IDGen.IDGenT ID.ExprID (Compiler.WithDiagnostics Error Void))
+type MakeIRState = StateT (DeclArena, ModuleArena, ADTArena, TypeSynonymArena, TypeVarArena, BoundValueArena) (IDGen.IDGenT ID.ExprID (Compiler.WithDiagnostics Error Void))
 
 new_decl :: Decl -> MakeIRState SIR.DeclKey
 new_decl d =
-    state $ \ (decls, adts, type_synonyms, type_vars, bound_values) ->
+    state $ \ (decls, mods, adts, type_synonyms, type_vars, bound_values) ->
         let (key, decls') = Arena.put d decls
-        in (key, (decls', adts, type_synonyms, type_vars, bound_values))
+        in (key, (decls', mods, adts, type_synonyms, type_vars, bound_values))
+
+new_module :: Module -> MakeIRState SIR.ModuleKey
+new_module m =
+    state $ \ (decls, mods, adts, type_synonyms, type_vars, bound_values) ->
+        let (key, mods') = Arena.put m mods
+        in (key, (decls, mods', adts, type_synonyms, type_vars, bound_values))
 
 new_adt :: ADT -> MakeIRState Type.ADTKey
 new_adt adt =
-    state $ \ (decls, adts, type_synonyms, type_vars, bound_values) ->
+    state $ \ (decls, mods, adts, type_synonyms, type_vars, bound_values) ->
         let (key, adts') = Arena.put adt adts
-        in (key, (decls, adts', type_synonyms, type_vars, bound_values))
+        in (key, (decls, mods, adts', type_synonyms, type_vars, bound_values))
 
 new_type_synonym :: TypeSynonym -> MakeIRState Type.TypeSynonymKey
 new_type_synonym ts =
-    state $ \ (decls, adts, type_synonyms, type_vars, bound_values) ->
+    state $ \ (decls, mods, adts, type_synonyms, type_vars, bound_values) ->
         let (key, type_synonyms') = Arena.put ts type_synonyms
-        in (key, (decls, adts, type_synonyms', type_vars, bound_values))
+        in (key, (decls, mods, adts, type_synonyms', type_vars, bound_values))
 
 new_type_var :: Text -> MakeIRState Type.TypeVarKey
 new_type_var name =
-    state $ \ (decls, adts, type_synonyms, type_vars, bound_values) ->
+    state $ \ (decls, mods, adts, type_synonyms, type_vars, bound_values) ->
         let (key, type_vars') = Arena.put (Type.Var name) type_vars
-        in (key, (decls, adts, type_synonyms, type_vars', bound_values))
+        in (key, (decls, mods, adts, type_synonyms, type_vars', bound_values))
 
 new_bound_value :: BoundValue -> MakeIRState SIR.BoundValueKey
 new_bound_value bv =
-    state $ \ (decls, adts, type_synonyms, type_vars, bound_values) ->
+    state $ \ (decls, mods, adts, type_synonyms, type_vars, bound_values) ->
         let (key, bound_values') = Arena.put bv bound_values
-        in (key, (decls, adts, type_synonyms, type_vars, bound_values'))
+        in (key, (decls, mods, adts, type_synonyms, type_vars, bound_values'))
 
 tell_error :: Error -> MakeIRState ()
 tell_error = lift . lift . Compiler.tell_error
@@ -183,10 +191,10 @@ convert decls =
                 in primitive_decls >>= \ primitive_decls ->
                 primitive_values >>= \ primitive_values ->
                 convert_decls (ID.BVParent'Module module_id) (ID.DeclParent'Module module_id) Nothing primitive_decls primitive_values decls >>= \ (name_context, bindings, adts, type_synonyms) ->
-                new_decl (SIR.Decl'Module module_id name_context bindings adts type_synonyms)
+                new_module (SIR.Module module_id name_context bindings adts type_synonyms)
             )
-            (Arena.new, Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (mod, (decls, adts, type_synonyms, type_vars, bound_values)) ->
-        pure (SIR.SIR decls adts type_synonyms type_vars bound_values mod)
+            (Arena.new, Arena.new, Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (mod, (decls, mods, adts, type_synonyms, type_vars, bound_values)) ->
+        pure (SIR.SIR decls mods adts type_synonyms type_vars bound_values mod)
 
 convert_decls :: ID.BoundValueParent -> ID.DeclParent -> Maybe SIR.NameContext -> DeclChildrenList -> BoundValueList -> [AST.Decl] -> MakeIRState (SIR.NameContext, [Binding], [Type.ADTKey], [Type.TypeSynonymKey])
 convert_decls bv_parent decl_parent parent_name_context prev_decl_entries prev_bv_entries decls =

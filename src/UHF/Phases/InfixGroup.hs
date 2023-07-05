@@ -13,21 +13,20 @@ import qualified UHF.Data.IR.ID as ID
 
 type VIden = Located (Maybe SIR.BoundValueKey)
 type UngroupedSIR d_iden p_iden = SIR.SIR d_iden VIden p_iden () ()
-type UngroupedDecl d_iden p_iden = SIR.Decl d_iden VIden p_iden () ()
+type UngroupedModule d_iden p_iden = SIR.Module d_iden VIden p_iden () ()
 type UngroupedBinding d_iden p_iden = SIR.Binding d_iden VIden p_iden () ()
 type UngroupedExpr d_iden p_iden = SIR.Expr d_iden VIden p_iden () ()
 
 type GroupedSIR d_iden p_iden = SIR.SIR d_iden VIden p_iden () Void
-type GroupedDecl d_iden p_iden = SIR.Decl d_iden VIden p_iden () Void
+type GroupedModule d_iden p_iden = SIR.Module d_iden VIden p_iden () Void
 type GroupedBinding d_iden p_iden = SIR.Binding d_iden VIden p_iden () Void
 type GroupedExpr d_iden p_iden = SIR.Expr d_iden VIden p_iden () Void
 
 group :: UngroupedSIR d_iden p_iden -> GroupedSIR d_iden p_iden
-group (SIR.SIR decls adts type_synonyms type_vars bound_values mod) = SIR.SIR (IDGen.run_id_gen ID.ExprID'InfixGroupGen (Arena.transformM group_decl decls)) adts type_synonyms type_vars bound_values mod
+group (SIR.SIR decls modules adts type_synonyms type_vars bound_values mod) = SIR.SIR decls (IDGen.run_id_gen ID.ExprID'InfixGroupGen (Arena.transformM group_module modules)) adts type_synonyms type_vars bound_values mod
 
-group_decl :: UngroupedDecl d_iden p_iden -> IDGen.IDGen ID.ExprID (GroupedDecl d_iden p_iden)
-group_decl (SIR.Decl'Module id nc bindings adts syns) = SIR.Decl'Module id nc <$> mapM group_binding bindings <*> pure adts <*> pure syns
-group_decl (SIR.Decl'Type ty) = pure $ SIR.Decl'Type ty
+group_module :: UngroupedModule d_iden p_iden -> IDGen.IDGen ID.ExprID (GroupedModule d_iden p_iden)
+group_module (SIR.Module id nc bindings adts syns) = SIR.Module id nc <$> mapM group_binding bindings <*> pure adts <*> pure syns
 
 group_binding :: UngroupedBinding d_iden p_iden -> IDGen.IDGen ID.ExprID (GroupedBinding d_iden p_iden)
 group_binding (SIR.Binding pat eq_sp e) = SIR.Binding pat eq_sp <$> group_expr e

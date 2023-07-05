@@ -310,8 +310,7 @@ convert_pattern parent (AST.Pattern'Named sp iden at_sp subpat) =
             new_bound_value (SIR.BoundValue (ID.BoundValueID parent name) () located_name) >>= \ bn ->
             pure (SIR.Pattern'Named () sp at_sp (Located name_sp bn) subpat')
 
-        Nothing ->
-            pure (SIR.Pattern'Poison () sp)
+        Nothing -> pure (SIR.Pattern'Poison () sp)
 convert_pattern parent (AST.Pattern'AnonADTVariant sp iden fields) =
     mapM (convert_pattern parent) fields >>= \ (fields) ->
     pure (SIR.Pattern'AnonADTVariant () sp (unlocate iden) fields)

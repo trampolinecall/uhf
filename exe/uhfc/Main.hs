@@ -1,10 +1,13 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedLists #-}
 
 module Main where
 
 import UHF.Util.Prelude
 
 import Options.Applicative
+
+import qualified Data.Map as Map
 
 import qualified UHF.Driver as Driver
 
@@ -34,31 +37,31 @@ argparser =
                             )
                         )
                     <*> (fromMaybe [Driver.TS] <$> optional (some (option
-                            (eitherReader $ \case
-                                "ast" -> Right Driver.AST
-                                "ast-dump" -> Right Driver.ASTDump
-                                "sir" -> Right Driver.SIR
-                                "name-resolved" -> Right Driver.NRSIR
-                                "infix-grouped" -> Right Driver.InfixGroupedSIR
-                                "typed-sir" -> Right Driver.TypedSIR
-                                "rir" -> Right Driver.RIR
-                                "anfir" -> Right Driver.ANFIR
-                                "anfir-optimized" -> Right Driver.OptimizedANFIR
-                                "backend-ir" -> Right Driver.BackendIR
-                                "dot" -> Right Driver.Dot
-                                "ts" -> Right Driver.TS
-                                _ -> Left "invalid option: must be one of 'ast', 'ast-dump', 'sir', 'name-resolved', 'infix-grouped', 'typed-sir', 'rir', 'anfir', 'anfir-optimized', 'backend-ir', 'dot', 'ts'")
+                            (reader_from_map
+                                [ ("ast", Driver.AST)
+                                , ("ast-dump", Driver.ASTDump)
+                                , ("sir", Driver.SIR)
+                                , ("name-resolved", Driver.NRSIR)
+                                , ("infix-grouped", Driver.InfixGroupedSIR)
+                                , ("typed-sir", Driver.TypedSIR)
+                                , ("rir", Driver.RIR)
+                                , ("anfir", Driver.ANFIR)
+                                , ("anfir-optimized", Driver.OptimizedANFIR)
+                                , ("backend-ir", Driver.BackendIR)
+                                , ("dot", Driver.Dot)
+                                , ("ts", Driver.TS)
+                                ])
                             (long "output"
                                 <> metavar "FORMAT"
                                 <> help "The type of output to emit")
                         )))
                 )
             <*> option
-                    (eitherReader $ \case
-                        "always" -> Right FormattedString.Colors
-                        "never" -> Right FormattedString.NoColors
-                        "auto" -> Right FormattedString.AutoDetect
-                        _ -> Left "invalid option: must be one of 'always', 'never', or 'auto'" -- TODO: figure out how to do this better
+                    (reader_from_map
+                        [ ("always", FormattedString.Colors)
+                        , ("never", FormattedString.NoColors)
+                        , ("auto", FormattedString.AutoDetect)
+                        ]
                     )
                     (long "colors"
                         <> metavar "COLORS"
@@ -66,11 +69,10 @@ argparser =
                         <> help "When to print colors in diagnostics"
                     )
             <*> (DiagnosticSettings.Settings <$> option
-                    (eitherReader $ \case
-                        "original-ascii" -> Right DiagnosticSettings.ASCII
-                        "original-unicode" -> Right DiagnosticSettings.Unicode
-                        _ -> Left "invalid option: must be one of 'original-ascii' or 'original-unicode'"
-                    )
+                    (reader_from_map
+                        [ ("original-ascii", DiagnosticSettings.ASCII)
+                        , ("original-unicode", DiagnosticSettings.Unicode)
+                        ])
                     (long "diagnostic-format"
                         <> metavar "FORMAT"
                         <> value DiagnosticSettings.Unicode
@@ -84,3 +86,9 @@ main =
     Driver.compile c_needed diagnostic_settings compile_opts >>= \case
         Right () -> pure ()
         Left () -> exitFailure
+
+reader_from_map :: Map.Map [Char] a -> ReadM a
+reader_from_map options = eitherReader $ \ choice ->
+    case Map.lookup choice options of
+        Just result -> Right result
+        Nothing -> Left $ "invalid option: must be one of " <> intercalate ", " (map (\ o -> "'" <> o <> "'") (Map.keys options))

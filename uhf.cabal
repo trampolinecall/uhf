@@ -128,6 +128,7 @@ executable uhfc
   ghc-options: -Wall -Wextra -Wno-name-shadowing -Werror=incomplete-patterns -Werror=incomplete-uni-patterns -Werror=missing-fields -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.13 && <5
+    , containers
     , optparse-applicative
     , text
     , uhf

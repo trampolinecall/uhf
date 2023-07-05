@@ -134,7 +134,8 @@ convert_decls bv_parent decl_parent decls =
 
         convert_decl (AST.Decl'Data name type_params variants) =
             runMaybeT (
-                mapM (lift . new_type_var . iden1_for_type_name) type_params >>= \ ty_param_vars ->
+                mapM (iden1_for_type_name) type_params >>= \ ty_param_names ->
+                mapM (lift . new_type_var) ty_param_names >>= \ ty_param_vars ->
 
                 iden1_for_type_name name >>= \ name1withsp@(Located _ name1) ->
                 mapM convert_variant variants >>= \ variants_converted ->

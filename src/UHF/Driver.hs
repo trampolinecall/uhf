@@ -35,20 +35,20 @@ import qualified UHF.Data.IR.RIR.PP as RIR.PP
 import qualified UHF.Data.IR.ANFIR.PP as ANFIR.PP
 import qualified UHF.Data.IR.BackendIR.PP as BackendIR.PP
 
-import qualified UHF.Phases.Front.Lexer as Lexer
-import qualified UHF.Phases.Front.Parser as Parser
-import qualified UHF.Phases.Middle.ToSIR as ToSIR
-import qualified UHF.Phases.Middle.NameResolve as NameResolve
-import qualified UHF.Phases.Middle.InfixGroup as InfixGroup
-import qualified UHF.Phases.Middle.Type as Type
-import qualified UHF.Phases.Middle.ReportHoles as ReportHoles
-import qualified UHF.Phases.Middle.ToRIR as ToRIR
-import qualified UHF.Phases.Middle.ToANFIR as ToANFIR
-import qualified UHF.Phases.Middle.OptimizeANFIR as OptimizeANFIR
-import qualified UHF.Phases.Back.ToBackendIR as ToBackendIR
-import qualified UHF.Phases.Back.RemovePoison as RemovePoison
-import qualified UHF.Phases.Back.ToDot as ToDot
-import qualified UHF.Phases.Back.TSBackend as TSBackend
+import qualified UHF.Phases.Lexer as Lexer
+import qualified UHF.Phases.Parser as Parser
+import qualified UHF.Phases.ToSIR as ToSIR
+import qualified UHF.Phases.NameResolve as NameResolve
+import qualified UHF.Phases.InfixGroup as InfixGroup
+import qualified UHF.Phases.Type as Type
+import qualified UHF.Phases.ReportHoles as ReportHoles
+import qualified UHF.Phases.ToRIR as ToRIR
+import qualified UHF.Phases.ToANFIR as ToANFIR
+import qualified UHF.Phases.OptimizeANFIR as OptimizeANFIR
+import qualified UHF.Phases.ToBackendIR as ToBackendIR
+import qualified UHF.Phases.RemovePoison as RemovePoison
+import qualified UHF.Phases.ToDot as ToDot
+import qualified UHF.Phases.TSBackend as TSBackend
 
 -- TODO: only print unerrored versions of each (double each thing in the PhaseResultsState, each one has ErrorsPossible and NoErrors variant, only print the NoErrors variant, but future phases use the ErrorsPossible variant to keep compilation going as long as possible)
 type Tokens = ([Token.LToken], Token.LToken)

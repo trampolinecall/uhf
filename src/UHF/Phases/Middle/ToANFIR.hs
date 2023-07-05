@@ -17,8 +17,6 @@ import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.IDGen as IDGen
 
-type Type = Maybe (Type.Type Void)
-
 type RIRExpr = RIR.Expr
 type RIRBinding = RIR.Binding
 
@@ -28,7 +26,7 @@ type ANFIRParam = ANFIR.Param
 type ANFIRBinding = ANFIR.Binding
 type ANFIRBindingGroup = ANFIR.BindingGroup
 
-type BoundValueArena = Arena.Arena (RIR.BoundValue Type) RIR.BoundValueKey
+type BoundValueArena = Arena.Arena RIR.BoundValue RIR.BoundValueKey
 
 type ANFIRBindingArena = Arena.Arena ANFIRBinding ANFIR.BindingKey
 type ANFIRParamArena = Arena.Arena ANFIRParam ANFIR.ParamKey
@@ -131,7 +129,7 @@ convert_cu bv_map (RIR.CU bindings adts type_synonyms) = ANFIR.CU <$> (concat <$
 map_bound_value :: RIR.BoundValueKey -> ANFIR.BindingKey -> MakeGraphState ()
 map_bound_value k binding = tell $ Map.singleton k binding
 
-get_bv :: RIR.BoundValueKey -> MakeGraphState (RIR.BoundValue (Maybe (Type.Type Void)))
+get_bv :: RIR.BoundValueKey -> MakeGraphState RIR.BoundValue
 get_bv k = lift $ lift $ lift $ reader (\ a -> Arena.get a k)
 
 convert_binding :: BoundValueMap -> RIRBinding -> MakeGraphState [ANFIR.BindingKey]

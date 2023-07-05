@@ -78,7 +78,7 @@ bound_value (SIR.BoundValue'ADTVariant id variant_index@(Type.ADTVariantIndex ad
     pure (SIR.BoundValue'ADTVariant id variant_index ty def_span)
 
 module_ :: UntypedModule -> ContextReader UntypedDeclArena TypedWithUnkBoundValueArena TypedWithUnkADTArena TypedWithUnkModule
-module_ (SIR.Module id nc bindings adts type_synonyms) = SIR.Module id nc <$> mapM binding bindings <*> pure adts <*> pure type_synonyms
+module_ (SIR.Module id bindings adts type_synonyms) = SIR.Module id <$> mapM binding bindings <*> pure adts <*> pure type_synonyms
 
 adt :: UntypedADT -> ContextReader UntypedDeclArena bvs adts TypedWithUnkADT
 adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM convert_variant variants

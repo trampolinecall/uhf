@@ -53,9 +53,9 @@ convert (SIR.SIR _ modules adts type_synonyms type_vars bvs mod) =
     in RIR.RIR adts_converted type_synonyms_converted type_vars bvs_converted cu
 
 assemble_cu :: Arena.Arena SIRModule SIR.ModuleKey -> SIR.ModuleKey -> ConvertState RIR.CU
-assemble_cu modules mod = go_decl (Arena.get modules mod)
-    where
-        go_decl (SIR.Module _ _ bindings adts syns) = RIR.CU <$> (concat <$> mapM convert_binding bindings) <*> pure adts <*> pure syns
+assemble_cu modules mod =
+    let SIR.Module _ bindings adts syns = Arena.get modules mod
+    in RIR.CU <$> (concat <$> mapM convert_binding bindings) <*> pure adts <*> pure syns
 
 convert_adt :: Type.ADT SIRTypeExpr -> Type.ADT Type
 convert_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars (map convert_variant variants)

@@ -26,7 +26,7 @@ group :: UngroupedSIR d_iden p_iden -> GroupedSIR d_iden p_iden
 group (SIR.SIR decls modules adts type_synonyms type_vars bound_values mod) = SIR.SIR decls (IDGen.run_id_gen ID.ExprID'InfixGroupGen (Arena.transformM group_module modules)) adts type_synonyms type_vars bound_values mod
 
 group_module :: UngroupedModule d_iden p_iden -> IDGen.IDGen ID.ExprID (GroupedModule d_iden p_iden)
-group_module (SIR.Module id nc bindings adts syns) = SIR.Module id nc <$> mapM group_binding bindings <*> pure adts <*> pure syns
+group_module (SIR.Module id bindings adts syns) = SIR.Module id <$> mapM group_binding bindings <*> pure adts <*> pure syns
 
 group_binding :: UngroupedBinding d_iden p_iden -> IDGen.IDGen ID.ExprID (GroupedBinding d_iden p_iden)
 group_binding (SIR.Binding pat eq_sp e) = SIR.Binding pat eq_sp <$> group_expr e

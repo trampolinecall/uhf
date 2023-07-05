@@ -32,6 +32,14 @@ stmt (TS.Stmt'Let name ty init) = PP.List ["let ", PP.String name, type_annotati
 
 stmt (TS.Stmt'Return e) = PP.List ["return ", expr e, ";"]
 stmt (TS.Stmt'Expr e) = PP.List [expr e, ";"]
+stmt (TS.Stmt'Block stmts) = PP.braced_block $ map stmt stmts
+stmt (TS.Stmt'If test true false) =
+    case false of
+        Just false -> PP.List [true', " else ", stmt false]
+        Nothing -> true'
+    where
+        true' = PP.List ["if (", expr test, ") ", stmt true]
+
 stmt TS.Stmt'Spacer = PP.List []
 
 expr :: TS.Expr -> PP.Token

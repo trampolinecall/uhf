@@ -1,13 +1,11 @@
-module UHF.Data.IR.ANFIR
-    ( ANFIR (..)
-    , Decl (..)
+module UHF.Data.IR.BackendIR
+    ( BackendIR (..)
+    , CU (..)
 
-    , DeclKey
     , BindingKey
     , ParamKey
 
-    , BindingChunk(..)
-    , chunk_bindings
+    , BindingChunk (..)
     , BindingGroup (..)
     , Binding (..)
 
@@ -23,7 +21,9 @@ module UHF.Data.IR.ANFIR
     , expr_id
     , binding_type
     , binding_id
+    , chunk_bindings
     ) where
+-- TODO: move this out of IR module?
 
 import UHF.Util.Prelude
 
@@ -35,25 +35,35 @@ import UHF.Data.IR.Keys
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.ID as ID
 
--- "a-normal form ir" even though this isnt actually a-normal form but it is pretty close
-data ANFIR = ANFIR (Arena.Arena Decl DeclKey) (Arena.Arena (Type.ADT (Maybe (Type.Type Void))) ADTKey) (Arena.Arena (Type.TypeSynonym (Maybe (Type.Type Void))) TypeSynonymKey) (Arena.Arena Type.Var Type.TypeVarKey) (Arena.Arena Binding BindingKey) (Arena.Arena Param ParamKey) DeclKey
+-- this is so similar to anfir that i made it by copying and pasting the anfir and modifying it
+data BackendIR ty poison_allowed
+    = BackendIR
+        (Arena.Arena (Type.ADT ty) ADTKey)
+        (Arena.Arena (Type.TypeSynonym ty) TypeSynonymKey)
+        (Arena.Arena Type.Var Type.TypeVarKey)
+        (Arena.Arena (Binding ty poison_allowed) BindingKey)
+        (Arena.Arena (Param ty) ParamKey)
+        (CU)
 
-data Decl
-    = Decl'Module BindingGroup [ADTKey] [TypeSynonymKey]
-    | Decl'Type (Type.Type Void)
-    deriving Show
+-- "compilation unit"
+data CU = CU (BindingGroup) [ADTKey] [TypeSynonymKey]
 
-data Param = Param ID.BoundValueID (Maybe (Type.Type Void)) deriving Show
+data Param ty = Param ID.BoundValueID ty deriving Show
 
+-- TODO: make BindingGroupNum = Globals | Local Unique.Unique
 data BindingChunk
     = SingleBinding BindingKey
     | MutuallyRecursiveBindings [BindingKey] deriving Show
 data BindingGroup
     = BindingGroup
-        { binding_group_captures :: Set.Set BindingKey -- TODO: dont use Ord BindingKey for order of captures in backends
+        { binding_group_captures :: Set.Set BindingKey
         , binding_group_chunks :: [BindingChunk]
         } deriving Show
-data Binding = Binding { binding_initializer :: Expr } deriving Show
+
+data Binding ty poison_allowed
+    = Binding
+        { binding_initializer :: Expr ty poison_allowed
+        }
 
 data ID
     = ExprID ID.ExprID
@@ -66,31 +76,31 @@ stringify_id :: ID -> Text
 stringify_id (ExprID id) = ID.stringify id
 stringify_id (BVID id) = ID.stringify id
 
-data Expr
-    = Expr'Refer ID (Maybe (Type.Type Void)) BindingKey
+data Expr ty poison_allowed
+    = Expr'Refer ID ty BindingKey
 
-    | Expr'Int ID (Maybe (Type.Type Void)) Integer
-    | Expr'Float ID (Maybe (Type.Type Void)) Rational
-    | Expr'Bool ID (Maybe (Type.Type Void)) Bool
-    | Expr'Char ID (Maybe (Type.Type Void)) Char
-    | Expr'String ID (Maybe (Type.Type Void)) Text
-    | Expr'Tuple ID (Maybe (Type.Type Void)) BindingKey BindingKey -- TODO: replace with call constructor expr
-    | Expr'MakeADT ID (Maybe (Type.Type Void)) Type.ADTVariantIndex [BindingKey]
+    | Expr'Int ID ty Integer
+    | Expr'Float ID ty Rational
+    | Expr'Bool ID ty Bool
+    | Expr'Char ID ty Char
+    | Expr'String ID ty Text
+    | Expr'Tuple ID ty BindingKey BindingKey -- TODO: replace with call constructor expr
+    | Expr'MakeADT ID ty Type.ADTVariantIndex [BindingKey]
 
-    | Expr'Lambda ID (Maybe (Type.Type Void)) ParamKey BindingGroup BindingKey
-    | Expr'Param ID (Maybe (Type.Type Void)) ParamKey
+    | Expr'Lambda ID ty ParamKey (BindingGroup) BindingKey
+    | Expr'Param ID ty ParamKey
 
-    | Expr'Call ID (Maybe (Type.Type Void)) BindingKey BindingKey
+    | Expr'Call ID ty BindingKey BindingKey
 
-    | Expr'Switch ID (Maybe (Type.Type Void)) BindingKey [(SwitchMatcher, BindingGroup, BindingKey)]
+    | Expr'Switch ID ty BindingKey [(SwitchMatcher, BindingGroup , BindingKey)]
 
-    | Expr'TupleDestructure1 ID (Maybe (Type.Type Void)) BindingKey -- TODO: figure out better solution to this (probably general destructure expr for any type, or actually probably use case expressions to match on things)
-    | Expr'TupleDestructure2 ID (Maybe (Type.Type Void)) BindingKey
+    | Expr'TupleDestructure1 ID ty BindingKey -- TODO: figure out better solution to this (probably general destructure expr for any type, or actually probably use case expressions to match on things)
+    | Expr'TupleDestructure2 ID ty BindingKey
 
-    | Expr'Forall ID (Maybe (Type.Type Void)) (NonEmpty TypeVarKey) BindingGroup BindingKey
-    | Expr'TypeApply ID (Maybe (Type.Type Void)) BindingKey (Maybe (Type.Type Void))
+    | Expr'Forall ID ty (NonEmpty TypeVarKey) (BindingGroup) BindingKey
+    | Expr'TypeApply ID ty BindingKey ty
 
-    | Expr'Poison ID (Maybe (Type.Type Void))
+    | Expr'Poison ID ty poison_allowed
     deriving Show
 
 data SwitchMatcher
@@ -99,7 +109,7 @@ data SwitchMatcher
     | Switch'Default
     deriving Show
 
-expr_type :: Expr -> (Maybe (Type.Type Void))
+expr_type :: Expr ty poison_allowed -> ty
 expr_type (Expr'Refer _ ty _) = ty
 expr_type (Expr'Int _ ty _) = ty
 expr_type (Expr'Float _ ty _) = ty
@@ -116,9 +126,9 @@ expr_type (Expr'TupleDestructure2 _ ty _) = ty
 expr_type (Expr'Forall _ ty _ _ _) = ty
 expr_type (Expr'TypeApply _ ty _ _) = ty
 expr_type (Expr'MakeADT _ ty _ _) = ty
-expr_type (Expr'Poison _ ty) = ty
+expr_type (Expr'Poison _ ty _) = ty
 
-expr_id :: Expr -> ID
+expr_id :: Expr ty poison_allowed -> ID
 expr_id (Expr'Refer id _ _) = id
 expr_id (Expr'Int id _ _) = id
 expr_id (Expr'Float id _ _) = id
@@ -135,11 +145,11 @@ expr_id (Expr'TupleDestructure2 id _ _) = id
 expr_id (Expr'Forall id _ _ _ _) = id
 expr_id (Expr'TypeApply id _ _ _) = id
 expr_id (Expr'MakeADT id _ _ _) = id
-expr_id (Expr'Poison id _) = id
+expr_id (Expr'Poison id _ _) = id
 
-binding_type :: Binding -> Maybe (Type.Type Void)
+binding_type :: Binding ty poison_allowed -> ty
 binding_type = expr_type . binding_initializer
-binding_id :: Binding -> ID
+binding_id :: Binding ty poison_allowed -> ID
 binding_id = expr_id . binding_initializer
 
 chunk_bindings :: BindingChunk -> [BindingKey]

@@ -1,11 +1,15 @@
+{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE TypeFamilies #-}
+
 module UHF.Phases.Middle.ToANFIR (convert) where
 
 import UHF.Util.Prelude
 
 import qualified Arena
-import qualified Unique
 
 import qualified Data.Map as Map
+import qualified Data.Set as Set
+import qualified Data.List as List
 
 import qualified UHF.Data.IR.RIR as RIR
 import qualified UHF.Data.IR.ANFIR as ANFIR
@@ -19,82 +23,119 @@ type RIRDecl = RIR.Decl
 type RIRExpr = RIR.Expr
 type RIRBinding = RIR.Binding
 
-type ANFIR = ANFIR.ANFIR () Type ()
-type ANFIRDecl = ANFIR.Decl ()
-type ANFIRExpr = ANFIR.Expr () Type ()
-type ANFIRParam = ANFIR.Param Type
-type ANFIRBinding = ANFIR.Binding () Type ()
-type ANFIRBindingGroup = ANFIR.BindingGroup ()
+type ANFIR = ANFIR.ANFIR
+type ANFIRDecl = ANFIR.Decl
+type ANFIRExpr = ANFIR.Expr
+type ANFIRParam = ANFIR.Param
+type ANFIRBinding = ANFIR.Binding
+type ANFIRBindingGroup = ANFIR.BindingGroup
 
-type BoundValueArena = Arena.Arena (RIR.BoundValue (Maybe (Type.Type Void))) RIR.BoundValueKey
+type BoundValueArena = Arena.Arena (RIR.BoundValue Type) RIR.BoundValueKey
 
-type ANFIRDeclArena = Arena.Arena ANFIRDecl ANFIR.DeclKey
-type ANFIRExprArena = Arena.Arena ANFIRExpr ANFIR.BindingKey
 type ANFIRBindingArena = Arena.Arena ANFIRBinding ANFIR.BindingKey
 type ANFIRParamArena = Arena.Arena ANFIRParam ANFIR.ParamKey
 
 type BoundValueMap = Map.Map RIR.BoundValueKey ANFIR.BindingKey
 
-type MakeGraphState = WriterT BoundValueMap (StateT (ANFIRExprArena, ANFIRParamArena) (IDGen.IDGenT ID.ExprID (Unique.UniqueMakerT (Reader BoundValueArena))))
+type MakeGraphState = WriterT BoundValueMap (StateT (ANFIRBindingArena, ANFIRParamArena) (IDGen.IDGenT ID.ExprID (Reader BoundValueArena)))
 
 make_binding_group :: [ANFIR.BindingKey] -> MakeGraphState ANFIRBindingGroup
 make_binding_group bindings =
-    lift (lift $ lift Unique.make_unique) >>= \ unique ->
-    pure (ANFIR.BindingGroup unique () bindings)
+    Map.fromList <$> mapM (\ b -> (b,) <$> get_dependencies b) bindings >>= \ binding_dependencies ->
+
+    -- get state outside of topological sort because if it was inside then the number of gets would be forced so that the monad would know how many operations it has and because topological sort branches based on binding_depenencies that will force it when it shouldnt
+    fst <$> lift get >>= \ binding_arena ->
+    let captures = Set.filter (not . (`List.elem` bindings)) (Set.unions $ Map.elems binding_dependencies)
+        binding_dependencies_no_outwards = Map.map (Set.filter is_not_outward_dependency) binding_dependencies
+        bindings_sorted = topological_sort binding_arena binding_dependencies_no_outwards [] bindings
+    in
+
+    pure (ANFIR.BindingGroup captures bindings_sorted)
+    where
+        get_dependencies bk =
+            Arena.get <$> (fst <$> lift get) <*> pure bk >>= \ binding ->
+            pure (
+                case ANFIR.binding_initializer binding of
+                    ANFIR.Expr'Refer _ _ i -> [i]
+                    ANFIR.Expr'Char _ _ _ -> []
+                    ANFIR.Expr'String _ _ _ -> []
+                    ANFIR.Expr'Int _ _ _ -> []
+                    ANFIR.Expr'Float _ _ _ -> []
+                    ANFIR.Expr'Bool _ _ _ -> []
+                    ANFIR.Expr'Tuple _ _ a b -> [a, b]
+                    ANFIR.Expr'Lambda _ _ _ group result -> ANFIR.binding_group_captures group <> exclude_if_in_group group result
+                    ANFIR.Expr'Param _ _ _ -> []
+                    ANFIR.Expr'Call _ _ callee arg -> [callee, arg]
+                    ANFIR.Expr'Switch _ _ test arms -> [test] <> Set.unions (map (\ (_, g, res) -> ANFIR.binding_group_captures g <> exclude_if_in_group g res) arms)
+                    ANFIR.Expr'TupleDestructure1 _ _ tup -> [tup]
+                    ANFIR.Expr'TupleDestructure2 _ _ tup -> [tup]
+                    ANFIR.Expr'Forall _ _ _ group e -> ANFIR.binding_group_captures group <> exclude_if_in_group group e
+                    ANFIR.Expr'TypeApply _ _ e _ -> [e]
+                    ANFIR.Expr'MakeADT _ _ _ args -> Set.fromList args
+                    ANFIR.Expr'Poison _ _ -> []
+            )
+            where
+                exclude_if_in_group (ANFIR.BindingGroup _ chunks) binding
+                    | binding `List.elem` (concatMap ANFIR.chunk_bindings chunks) = []
+                    | otherwise = [binding]
+
+        topological_sort _ _ done [] = done
+        topological_sort binding_arena binding_dependencies done left =
+            case List.partition dependencies_satisfied left of
+                ([], waiting) ->
+                    let (loops, not_loop) = find_loops waiting
+                        loops' = map (deal_with_loop binding_arena) loops
+                    in topological_sort binding_arena binding_dependencies (done ++ loops') not_loop
+
+                (ready, waiting) -> topological_sort binding_arena binding_dependencies (done ++ map ANFIR.SingleBinding ready) waiting
+            where
+                dependencies_satisfied bk = and $ Set.map (`List.elem` concatMap ANFIR.chunk_bindings done) (binding_dependencies Map.! bk)
+
+                find_loops = find [] []
+                    where
+                        find loops not_in_loop [] = (loops, not_in_loop)
+                        find loops not_in_loop searching_for_loops_in@(first:more) =
+                            case trace_single_loop [] first more of
+                                Just (loop, bks_not_in_loop, remaining') -> find (loop:loops) (not_in_loop ++ bks_not_in_loop) remaining'
+                                Nothing -> find loops (first:not_in_loop) more
+                            where
+                                trace_single_loop visited_stack current unvisited =
+                                    case List.elemIndex current visited_stack of
+                                        Just current_idx ->
+                                            let (loop, not_in_loop) = splitAt (current_idx + 1) visited_stack -- top of stack is at beginning
+                                            in Just (loop, not_in_loop, unvisited) -- all items of visited stack and current should not be in unvisited
+                                        Nothing ->
+                                            let current_dependencies = binding_dependencies Map.! current
+                                            in headMay $
+                                                mapMaybe
+                                                    (\ neighbor -> trace_single_loop (current:visited_stack) neighbor (filter (/=neighbor) unvisited))
+                                                    (toList $ Set.filter (`elem` searching_for_loops_in) current_dependencies)
+
+                deal_with_loop binding_arena loop =
+                    if and (map (allowed_in_loop . ANFIR.binding_initializer . Arena.get binding_arena) loop)
+                        then ANFIR.MutuallyRecursiveBindings loop
+                        else error "illegal loop" -- TODO: proper error message for this
+                    where
+                        allowed_in_loop (ANFIR.Expr'Lambda _ _ _ _ _) = True
+                        allowed_in_loop (ANFIR.Expr'Forall _ _ _ _ _) = True
+                        allowed_in_loop _ = False
+
+        is_not_outward_dependency bk = bk `elem` bindings
 
 convert :: RIR.RIR -> ANFIR
 convert (RIR.RIR decls adts type_synonyms type_vars bound_values mod) =
-    let ((decls', bv_map), (exprs, params)) = runReader (Unique.run_unique_maker_t $ IDGen.run_id_gen_t ID.ExprID'ANFIRGen (runStateT (runWriterT (Arena.transformM (convert_decl bv_map) decls)) (Arena.new, Arena.new))) bound_values
-        bindings = assign_bound_wheres decls' exprs
+    let ((decls', bv_map), (bindings, params)) = runReader (IDGen.run_id_gen_t ID.ExprID'ANFIRGen (runStateT (runWriterT (Arena.transformM (convert_decl bv_map) decls)) (Arena.new, Arena.new))) bound_values
     in ANFIR.ANFIR decls' adts type_synonyms type_vars bindings params mod
 
-assign_bound_wheres :: ANFIRDeclArena -> ANFIRExprArena -> ANFIRBindingArena
-assign_bound_wheres decls exprs =
-    let bw_map = execWriter $
-            Arena.transformM
-                (\case
-                    ANFIR.Decl'Module group _ _ -> process_group group
-                    ANFIR.Decl'Type _ -> pure ()
-                )
-                decls >>
-            Arena.transformM
-                (\case
-                    ANFIR.Expr'Lambda _ _ _ group _ -> process_group group
-                    ANFIR.Expr'Switch _ _ _ arms -> mapM_ (\ (_, group, _) -> process_group group) arms
-                    ANFIR.Expr'Forall _ _ _ group _ -> process_group group
-
-                    ANFIR.Expr'Refer _ _ _ -> pure ()
-                    ANFIR.Expr'Int _ _ _ -> pure ()
-                    ANFIR.Expr'Float _ _ _ -> pure ()
-                    ANFIR.Expr'Bool _ _ _ -> pure ()
-                    ANFIR.Expr'Char _ _ _ -> pure ()
-                    ANFIR.Expr'String _ _ _ -> pure ()
-                    ANFIR.Expr'Tuple _ _ _ _  -> pure ()
-                    ANFIR.Expr'MakeADT _ _ _ _ -> pure ()
-                    ANFIR.Expr'Param _ _ _ -> pure ()
-                    ANFIR.Expr'Call _ _ _ _ -> pure ()
-                    ANFIR.Expr'Seq _ _ _ _ -> pure ()
-                    ANFIR.Expr'TupleDestructure1 _ _ _  -> pure ()
-                    ANFIR.Expr'TupleDestructure2 _ _ _ -> pure ()
-                    ANFIR.Expr'TypeApply _ _ _ _ -> pure ()
-                    ANFIR.Expr'Poison _ _ _ -> pure ()
-                )
-                exprs
-    in Arena.transform_with_key (\ bk expr -> ANFIR.Binding (bw_map Map.! bk) expr) exprs
-    where
-        tell_bw bk bw = tell $ Map.singleton bk bw
-
-        process_group (ANFIR.BindingGroup unique _ bindings) = mapM_ (\ bk -> tell_bw bk (ANFIR.BoundWhere unique)) bindings
-
 convert_decl :: BoundValueMap -> RIRDecl -> MakeGraphState ANFIRDecl
-convert_decl bv_map (RIR.Decl'Module bindings adts type_synonyms) = ANFIR.Decl'Module <$> (concat <$> mapM (convert_binding bv_map) bindings >>= make_binding_group) <*> pure adts <*> pure type_synonyms
+convert_decl bv_map (RIR.Decl'Module bindings adts type_synonyms) = concat <$> mapM (convert_binding bv_map) bindings >>= make_binding_group >>= \ group -> pure (ANFIR.Decl'Module group adts type_synonyms)
 convert_decl _ (RIR.Decl'Type ty) = pure $ ANFIR.Decl'Type ty
 
 map_bound_value :: RIR.BoundValueKey -> ANFIR.BindingKey -> MakeGraphState ()
 map_bound_value k binding = tell $ Map.singleton k binding
 
 get_bv :: RIR.BoundValueKey -> MakeGraphState (RIR.BoundValue (Maybe (Type.Type Void)))
-get_bv k = lift $ lift $ lift $ lift $ reader (\ a -> Arena.get a k)
+get_bv k = lift $ lift $ lift $ reader (\ a -> Arena.get a k)
 
 convert_binding :: BoundValueMap -> RIRBinding -> MakeGraphState [ANFIR.BindingKey]
 convert_binding bv_map (RIR.Binding target expr) =
@@ -104,7 +145,7 @@ convert_binding bv_map (RIR.Binding target expr) =
     pure expr_involved_bindings
 
 new_binding :: ANFIRExpr -> WriterT [ANFIR.BindingKey] MakeGraphState ANFIR.BindingKey
-new_binding expr = lift (lift $ state $ \ (bindings, params) -> let (i, bindings') = Arena.put expr bindings in (i, (bindings', params))) >>= \ binding_key -> tell [binding_key] >> pure binding_key
+new_binding expr = lift (lift $ state $ \ (bindings, params) -> let (i, bindings') = Arena.put (ANFIR.Binding expr) bindings in (i, (bindings', params))) >>= \ binding_key -> tell [binding_key] >> pure binding_key
 new_param :: ANFIRParam -> WriterT [ANFIR.BindingKey] MakeGraphState ANFIR.ParamKey
 new_param param = lift (lift $ state $ \ (bindings, params) -> let (i, params') = Arena.put param params in (i, (bindings, params')))
 
@@ -118,8 +159,8 @@ choose_id Nothing eid = ANFIR.ExprID eid
 convert_expr :: BoundValueMap -> Maybe ID.BoundValueID -> RIRExpr -> WriterT [ANFIR.BindingKey] MakeGraphState ANFIR.BindingKey
 convert_expr bv_map m_bvid (RIR.Expr'Identifier id ty _ bvkey) =
     case bvkey of
-        Just bvkey -> new_binding (ANFIR.Expr'Refer (choose_id m_bvid id) ty (bv_map Map.! bvkey))
-        Nothing -> new_binding (ANFIR.Expr'Poison (choose_id m_bvid id) ty ())
+        Just bvkey -> new_binding $ ANFIR.Expr'Refer (choose_id m_bvid id) ty (bv_map Map.! bvkey)
+        Nothing -> new_binding $ ANFIR.Expr'Poison (choose_id m_bvid id) ty
 convert_expr _ m_bvid (RIR.Expr'Char id ty _ c) = new_binding (ANFIR.Expr'Char (choose_id m_bvid id) ty c)
 convert_expr _ m_bvid (RIR.Expr'String id ty _ s) = new_binding (ANFIR.Expr'String (choose_id m_bvid id) ty s)
 convert_expr _ m_bvid (RIR.Expr'Int id ty _ i) = new_binding (ANFIR.Expr'Int (choose_id m_bvid id) ty i)
@@ -179,8 +220,6 @@ convert_expr bv_map m_bvid (RIR.Expr'Switch id ty _ testing arms) =
             pure ANFIR.Switch'Tuple
         convert_matcher RIR.Switch'Default _ = pure ANFIR.Switch'Default
 
-convert_expr bv_map m_bvid (RIR.Expr'Seq id ty _ a b) = ANFIR.Expr'Seq (choose_id m_bvid id) ty <$> convert_expr bv_map Nothing a <*> convert_expr bv_map Nothing b >>= new_binding
-
 convert_expr bv_map m_bvid (RIR.Expr'Forall id ty _ vars e) =
     lift (runWriterT (convert_expr bv_map Nothing e)) >>= \ (e, e_involved_bindings) ->
     ANFIR.Expr'Forall (choose_id m_bvid id) ty vars <$> lift (make_binding_group e_involved_bindings) <*> pure e >>= new_binding
@@ -188,4 +227,4 @@ convert_expr bv_map m_bvid (RIR.Expr'TypeApply id ty _ e arg) = ANFIR.Expr'TypeA
 
 convert_expr bv_map m_bvid (RIR.Expr'MakeADT id ty _ variant args) = ANFIR.Expr'MakeADT (choose_id m_bvid id) (Just ty) variant <$> mapM (convert_expr bv_map Nothing) args >>= new_binding
 
-convert_expr _ m_bvid (RIR.Expr'Poison id ty _) = new_binding (ANFIR.Expr'Poison (choose_id m_bvid id) ty ())
+convert_expr _ m_bvid (RIR.Expr'Poison id ty _) = new_binding (ANFIR.Expr'Poison (choose_id m_bvid id) ty)

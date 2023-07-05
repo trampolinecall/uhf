@@ -23,8 +23,7 @@ import qualified UHF.Compiler as Compiler
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 
 data Error
-    = MultipleDecls Text [DeclAt]
-    | PathInPattern (Located [Located Text]) -- TODO: make this less repetitive
+    = PathInPattern (Located [Located Text]) -- TODO: make this less repetitive
     | PathInTypeName (Located [Located Text])
     | PathInVariantName (Located [Located Text])
     | PathInFieldName (Located [Located Text])
@@ -35,20 +34,6 @@ data Error
 data DeclAt = DeclAt Span | ImplicitPrim deriving Show
 
 instance Diagnostic.ToError Error where
-    to_error (MultipleDecls name decl_ats) =
-        let last_decl = last decl_ats
-        in Diagnostic.Error
-            Codes.multiple_decls
-            (decl_at_span last_decl)
-            (show (length decl_ats) <> " declarations of '" <> convert_str name <> "'")
-            (map (\ at -> (decl_at_span at, Diagnostic.MsgError, decl_at_message name at)) decl_ats)
-            []
-        where
-            decl_at_span (DeclAt sp) = Just sp
-            decl_at_span ImplicitPrim = Nothing
-            decl_at_message _ (DeclAt _) = Nothing
-            decl_at_message n ImplicitPrim = Just $ "'" <> convert_str n <> "' is implicitly declared as a primitive" -- TODO: reword this message (ideally when it is declared through the prelude import the message would be something like 'implicitly declared by implicit import of prelude')
-
     to_error (PathInPattern (Located sp _)) = Diagnostic.Error Codes.binding_lhs_path (Just sp) "path in pattern" [] []
 
     to_error (PathInTypeName (Located sp _)) = Diagnostic.Error Codes.path_in_type_name (Just sp) "path in type name" [] []
@@ -128,32 +113,6 @@ tell_error = lift . lift . Compiler.tell_error
 
 new_expr_id :: MakeIRState ID.ExprID
 new_expr_id = lift IDGen.gen_id
-
-{- TODO: move to name resolution
-make_name_context :: DeclChildrenList -> BoundValueList -> ADTVariantList -> Maybe SIR.NameContext -> MakeIRState SIR.NameContext
-make_name_context decls bound_values adt_variants parent =
-    let decl_dups = find_dups decls
-        bn_dups = find_dups bound_values
-    in report_dups decl_dups >> report_dups bn_dups >>
-    pure (SIR.NameContext (make_map decls) (make_map bound_values) (make_map adt_variants) parent)
-    where
-        -- separate finding duplicates from making maps so that if there is a duplicate the whole name contexet doesnt just disappear
-        -- duplicates will just take the last bound name in the last, because of the how Map.fromList is implemented
-        find_dups x =
-            let grouped = List.groupBy ((==) `on` get_name) $ List.sortBy (compare `on` get_name) x -- compare names of bound names only
-            in filter ((1/=) . length) grouped
-            where
-                get_name (n, _, _) = n
-
-        make_map x = Map.fromList (map (\ (n, _, v) -> (n, v)) x)
-
-        report_dups = mapM_
-            (\ decls ->
-                let (first_name, _, _) = head decls
-                in tell_error $ MultipleDecls first_name (map get_decl_at decls))
-            where
-                get_decl_at (_, d, _) = d
--}
 
 make_iden1 :: Located [Located Text] -> Maybe (Located Text)
 make_iden1 (Located _ [iden1]) = Just iden1

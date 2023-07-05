@@ -14,6 +14,8 @@ data Stmt
     | Stmt'Let Text (Maybe Type) (Maybe Expr)
     | Stmt'Return Expr
     | Stmt'Expr Expr
+    | Stmt'Block [Stmt]
+    | Stmt'If Expr Stmt (Maybe Stmt)
     | Stmt'Spacer
 
 data Expr

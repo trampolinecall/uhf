@@ -122,7 +122,7 @@ convert decls =
 
 convert_decls :: ID.BoundValueParent -> ID.DeclParent -> [AST.Decl] -> MakeIRState ([Binding], [Type.ADTKey], [Type.TypeSynonymKey])
 convert_decls bv_parent decl_parent decls =
-    unzip3 <$> mapM (convert_decl) decls >>= \ (bindings, adts, type_synonyms) ->
+    unzip3 <$> mapM convert_decl decls >>= \ (bindings, adts, type_synonyms) ->
     pure (concat bindings, concat adts, concat type_synonyms)
     where
         -- TODO: clean this up
@@ -130,16 +130,14 @@ convert_decls bv_parent decl_parent decls =
         convert_decl (AST.Decl'Value target eq_sp expr) =
             convert_expr expr >>= \ expr' ->
             convert_pattern bv_parent target >>= \ (target') ->
-            let binding = SIR.Binding target' eq_sp expr'
-            in pure ([binding], [], [])
+            pure ([SIR.Binding target' eq_sp expr'], [], [])
 
         convert_decl (AST.Decl'Data name type_params variants) =
             runMaybeT (
-                mapM iden1_for_type_name type_params >>= \ type_param_names ->
-                mapM (lift . new_type_var) type_param_names >>= \ ty_param_vars ->
+                mapM (lift . new_type_var . iden1_for_type_name) type_params >>= \ ty_param_vars ->
 
                 iden1_for_type_name name >>= \ name1withsp@(Located _ name1) ->
-                mapM (convert_variant) variants >>= \ variants_converted ->
+                mapM convert_variant variants >>= \ variants_converted ->
                 let datatype = Type.ADT (ID.DeclID decl_parent name1) name1withsp ty_param_vars variants_converted
                 in
 
@@ -157,7 +155,7 @@ convert_decls bv_parent decl_parent decls =
                             pure (Just (SIR.Binding'ADTVariant name_sp bv_key variant_index))
                         (Type.ADTVariant'Named _ _, _, _) -> pure Nothing
                     )
-                    (zip3 variants_converted [0..] variants)) >>= \ (constructor_bindings) ->
+                    (zip3 variants_converted [0..] variants)) >>= \ constructor_bindings ->
 
                 pure (adt_key, constructor_bindings)
             ) >>= \case
@@ -181,7 +179,6 @@ convert_decls bv_parent decl_parent decls =
 
         convert_variant (AST.DataVariant'Anon name fields) = Type.ADTVariant'Anon <$> (unlocate <$> iden1_for_variant_name name) <*> lift (mapM convert_type fields)
         convert_variant (AST.DataVariant'Named name fields) =
-            -- TOOD: making getter functions
             Type.ADTVariant'Named
                 <$> (unlocate <$> iden1_for_variant_name name)
                 <*> mapM
@@ -245,7 +242,6 @@ convert_expr (AST.Expr'Let sp decls subexpr) = go decls
         go [] = convert_expr subexpr
         go (first:more) =
             new_expr_id >>= \ id ->
-            -- TODO: not recursive bindings (eg `let x = x` is allowed because convert_decls puts the names into the same name context)
             convert_decls (ID.BVParent'Let id) (ID.DeclParent'Expr id) [first] >>= \ (bindings, _, _) -> -- TODO: put adts and type synonyms
             SIR.Expr'Let id () sp bindings <$> go more
 convert_expr (AST.Expr'LetRec sp decls subexpr) =

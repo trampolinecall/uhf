@@ -26,7 +26,6 @@ type SIRTypeExpr = SIR.TypeExpr DIden Type
 type SIRPattern = SIR.Pattern PIden Type
 type SIRBinding = SIR.Binding DIden VIden PIden Type Void
 
-type RIRDecl = RIR.Decl
 type RIRExpr = RIR.Expr
 type RIRBinding = RIR.Binding
 
@@ -43,7 +42,7 @@ convert :: SIR -> RIR.RIR
 convert (SIR.SIR decls adts type_synonyms type_vars bvs mod) =
     let adts_converted = Arena.transform convert_adt adts
         type_synonyms_converted = Arena.transform convert_type_synonym type_synonyms
-        (decls', bvs_with_new) = IDGen.run_id_gen ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.BoundValueID'RIRMadeUp $ runStateT (runReaderT (Unique.run_unique_maker_t (Arena.transformM convert_decl decls)) adts_converted) bvs
+        (cu, bvs_with_new) = IDGen.run_id_gen ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.BoundValueID'RIRMadeUp $ runStateT (runReaderT (Unique.run_unique_maker_t (assemble_cu decls mod)) adts_converted) bvs
         bvs_converted =
             Arena.transform
             (\case
@@ -51,7 +50,13 @@ convert (SIR.SIR decls adts type_synonyms type_vars bvs mod) =
                 SIR.BoundValue'ADTVariant id _ ty sp -> RIR.BoundValue id ty sp
             )
             bvs_with_new
-    in RIR.RIR decls' adts_converted type_synonyms_converted type_vars bvs_converted mod
+    in RIR.RIR adts_converted type_synonyms_converted type_vars bvs_converted cu
+
+assemble_cu :: Arena.Arena SIRDecl SIR.DeclKey -> SIR.DeclKey -> ConvertState RIR.CU
+assemble_cu decls mod = go_decl (Arena.get decls mod)
+    where
+        go_decl (SIR.Decl'Module _ _ bindings adts syns) = RIR.CU <$> (concat <$> mapM convert_binding bindings) <*> pure adts <*> pure syns
+        go_decl (SIR.Decl'Type ty) = pure $ RIR.CU [] [] [] -- should not happen
 
 convert_adt :: Type.ADT SIRTypeExpr -> Type.ADT Type
 convert_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars (map convert_variant variants)
@@ -61,10 +66,6 @@ convert_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars (
 
 convert_type_synonym :: Type.TypeSynonym SIRTypeExpr -> Type.TypeSynonym Type
 convert_type_synonym (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name (SIR.type_expr_type_info expansion)
-
-convert_decl :: SIRDecl -> ConvertState RIRDecl
-convert_decl (SIR.Decl'Module _ _ bindings adts syns) = RIR.Decl'Module <$> (concat <$> mapM convert_binding bindings) <*> pure adts <*> pure syns
-convert_decl (SIR.Decl'Type ty) = pure $ RIR.Decl'Type ty
 
 convert_binding :: SIRBinding -> ConvertState [RIRBinding]
 convert_binding (SIR.Binding pat _ expr) = convert_expr expr >>= assign_pattern pat

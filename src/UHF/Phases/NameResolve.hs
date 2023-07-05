@@ -36,15 +36,8 @@ import qualified UHF.Data.IR.Type as Type
 
 import qualified Data.Map as Map
 import qualified Data.List as List
-import Data.Functor.Identity (Identity (Identity, runIdentity))
 
-data ChildMaps
-    = ChildMaps
-        (Map.Map Text SIR.DeclKey)
-        (Map.Map Text SIR.BoundValueKey)
-        (Map.Map Text Type.ADTVariantIndex)
-        deriving Show
-
+data ChildMaps = ChildMaps (Map.Map Text SIR.DeclKey) (Map.Map Text SIR.BoundValueKey) (Map.Map Text Type.ADTVariantIndex) deriving Show
 data ChildMapStack = ChildMapStack ChildMaps (Maybe ChildMapStack)
 
 type TypeVarArena = Arena.Arena Type.Var Type.TypeVarKey
@@ -66,7 +59,6 @@ type UnresolvedExpr = SIR.Expr UnresolvedDIden UnresolvedVIden UnresolvedPIden (
 type UnresolvedPattern = SIR.Pattern UnresolvedPIden ()
 
 type UnresolvedModuleArena = Arena.Arena UnresolvedModule SIR.ModuleKey
-type UnresolvedBoundValueArena = Arena.Arena (SIR.BoundValue ()) SIR.BoundValueKey
 type UnresolvedADTArena = Arena.Arena UnresolvedADT Type.ADTKey
 type UnresolvedTypeSynonymArena = Arena.Arena UnresolvedTypeSynonym Type.TypeSynonymKey
 
@@ -114,8 +106,8 @@ instance Diagnostic.ToError Error where
             decl_at_message _ (DeclAt _) = Nothing
             decl_at_message n ImplicitPrim = Just $ "'" <> convert_str n <> "' is implicitly declared as a primitive" -- TODO: reword this message (ideally when it is declared through the prelude import the message would be something like 'implicitly declared by implicit import of prelude')
 
--- TODO: this are duplicated from the ones in ToSIR
 data DeclAt = DeclAt Span | ImplicitPrim deriving Show
+
 type DeclChildrenList = [(Text, DeclAt, SIR.DeclKey)]
 type BoundValueList = [(Text, DeclAt, SIR.BoundValueKey)]
 type ADTVariantList = [(Text, DeclAt, Type.ADTVariantIndex)]
@@ -162,9 +154,24 @@ resolve (SIR.SIR decls mods adts type_synonyms type_vars bound_values mod) =
 
 -- TODO: clean up this module
 
-collect_child_maps :: UnresolvedModuleArena -> UnresolvedADTArena -> UnresolvedTypeSynonymArena -> UnresolvedBoundValueArena -> StateT DeclArena (Compiler.WithDiagnostics Error Void) (Arena.Arena ChildMaps SIR.ModuleKey) -- TODO: rename UnresolvedDecl to just Decl
+collect_child_maps :: UnresolvedModuleArena -> UnresolvedADTArena -> UnresolvedTypeSynonymArena -> BoundValueArena -> StateT DeclArena (Compiler.WithDiagnostics Error Void) (Arena.Arena ChildMaps SIR.ModuleKey) -- TODO: rename UnresolvedDecl to just Decl
 collect_child_maps mod_arena adt_arena type_synonym_arena bv_arena = Arena.transformM go mod_arena
     where
+        primitive_decls =
+            new_decl (SIR.Decl'Type Type.Type'Int) >>= \ int ->
+            new_decl (SIR.Decl'Type Type.Type'Float) >>= \ float ->
+            new_decl (SIR.Decl'Type Type.Type'Char) >>= \ char ->
+            new_decl (SIR.Decl'Type Type.Type'String) >>= \ string ->
+            new_decl (SIR.Decl'Type Type.Type'Bool) >>= \ bool ->
+            pure
+                [ ("int", ImplicitPrim, int)
+                , ("float", ImplicitPrim, float)
+                , ("char", ImplicitPrim, char)
+                , ("string", ImplicitPrim, string)
+                , ("bool", ImplicitPrim, bool)
+                ]
+        primitive_bvs = pure []
+
         go (SIR.Module _ bindings adts type_synonyms) =
             let (binding_decl_entries, binding_bv_entries, binding_variant_entries) = unzip3 $ map (binding_children adt_arena bv_arena) bindings
             in unzip3 <$>
@@ -183,10 +190,12 @@ collect_child_maps mod_arena adt_arena type_synonym_arena bv_arena = Arena.trans
                         pure ([(name, DeclAt name_sp, synonym_decl_key)], [], [])
                     )
                     type_synonyms >>= \ (type_synonym_decl_entries, type_synonym_bv_entries, type_synonym_variant_entries) ->
+            primitive_decls >>= \ primitive_decls ->
+            primitive_bvs >>= \ primitive_bvs ->
             lift
                 (make_child_maps
-                    (concat $ binding_decl_entries ++ adt_decl_entries ++ type_synonym_decl_entries)
-                    (concat $ binding_bv_entries ++ adt_bv_entries ++ type_synonym_bv_entries)
+                    (concat $ primitive_decls : binding_decl_entries ++ adt_decl_entries ++ type_synonym_decl_entries)
+                    (concat $ primitive_bvs : binding_bv_entries ++ adt_bv_entries ++ type_synonym_bv_entries)
                     (concat $ binding_variant_entries ++ adt_variant_entries ++ type_synonym_variant_entries))
 
 binding_children adt_arena bv_arena (SIR.Binding pat _ _) = ([], pattern_bvs adt_arena bv_arena pat, [])
@@ -219,25 +228,6 @@ resolve_in_adts type_var_arena bv_arena module_child_maps adt_parent_child_maps 
 resolve_in_type_synonyms :: TypeVarArena -> BoundValueArena -> ModuleChildMaps -> Map.Map Type.TypeSynonymKey ChildMaps -> UnresolvedTypeSynonymArena -> StateT DeclArena (Compiler.WithDiagnostics Error Void) ResolvedTypeSynonymArena
 resolve_in_type_synonyms type_var_arena bv_arena module_child_maps synonym_parent_child_maps type_synonym_arena = Arena.transform_with_keyM (resolve_in_type_synonym type_var_arena bv_arena module_child_maps synonym_parent_child_maps) type_synonym_arena
 
--- TODO: primitives / prelude
-{-
-primitive_decls :: MakeIRState DeclChildrenList
-primitive_decls =
-    new_decl (SIR.Decl'Type Type.Type'Int) >>= \ int ->
-    new_decl (SIR.Decl'Type Type.Type'Float) >>= \ float ->
-    new_decl (SIR.Decl'Type Type.Type'Char) >>= \ char ->
-    new_decl (SIR.Decl'Type Type.Type'String) >>= \ string ->
-    new_decl (SIR.Decl'Type Type.Type'Bool) >>= \ bool ->
-    pure
-        [ ("int", ImplicitPrim, int)
-        , ("float", ImplicitPrim, float)
-        , ("char", ImplicitPrim, char)
-        , ("string", ImplicitPrim, string)
-        , ("bool", ImplicitPrim, bool)
-        ]
-primitive_values :: MakeIRState BoundValueList
-primitive_values = pure []
--}
 resolve_in_module adt_arena type_var_arena bv_arena module_child_maps mod_key (SIR.Module id bindings adts type_synonyms) =
     let cur_map = Arena.get module_child_maps mod_key
     in mapM (\ adt -> tell $ Map.singleton adt cur_map) adts >>

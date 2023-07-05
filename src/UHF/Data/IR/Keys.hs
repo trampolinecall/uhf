@@ -20,12 +20,12 @@ instance Arena.Key DeclKey where
     make_key = DeclKey
     unmake_key (DeclKey i) = i
 
-newtype ADTKey = ADTKey Int deriving (Show, Eq)
+newtype ADTKey = ADTKey Int deriving (Show, Eq, Ord)
 instance Arena.Key ADTKey where
     make_key = ADTKey
     unmake_key (ADTKey i) = i
 
-newtype TypeSynonymKey = TypeSynonymKey Int deriving (Show, Eq)
+newtype TypeSynonymKey = TypeSynonymKey Int deriving (Show, Eq, Ord)
 instance Arena.Key TypeSynonymKey where
     make_key = TypeSynonymKey
     unmake_key (TypeSynonymKey i) = i

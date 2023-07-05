@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module UHF.Phases.NameResolve
     ( UnresolvedBinding
     , ResolvedBinding
@@ -187,7 +189,47 @@ resolve (SIR.SIR decls mods adts type_synonyms type_vars bound_values mod) =
     in pure (SIR.SIR decls'' mods' adts' type_synonyms' type_vars bound_values mod)
 
 annotate_name_contexts :: UnresolvedADTArena -> UnresolvedTypeSynonymArena -> UnresolvedDeclArena -> UnresolvedModuleArena -> Compiler.WithDiagnostics Error Void (ADTArenaWithNC, TypeSynonymArenaWithNC, DeclArenaWithNC, ModuleArenaWithNC)
-annotate_name_contexts adts type_synonyms mods = todo
+annotate_name_contexts adt_arena type_synonym_arena decl_arena mod_arena =
+    Arena.transformM do_module mod_arena >>= \ mod_arena ->
+    runWriterT (runWriterT $ Arena.transformM do_decl decl_arena) >>= \ ((decl_arena, adt_ncs), type_synonym_ncs) ->
+    Arena.transform_with_keyM (do_adt adt_ncs) adt_arena >>= \ adt_arena ->
+    Arena.transform_with_keyM (do_type_synonym type_synonym_ncs) type_synonym_arena >>= \ type_synonym_arena ->
+    pure (adt_arena, type_synonym_arena, decl_arena, mod_arena)
+    where
+        do_module (SIR.Module id bindings adts type_synonyms) = todo
+
+        do_decl decl = case decl of
+            SIR.Decl'Module m -> pure (_, SIR.Decl'Module m)
+            SIR.Decl'Type ty -> pure (_, SIR.Decl'Type ty)
+            where
+                tell_adt adt nc = tell $ Map.singleton adt nc
+                tell_type_synonym syn nc = lift $ tell $ Map.singleton syn nc
+
+                do_binding (SIR.Binding pat eq expr) = SIR.Binding <$> do_pat pat <*> pure eq <*> do_expr expr
+                do_binding (SIR.Binding'ADTVariant bvk variant) = pure $ SIR.Binding'ADTVariant bvk variant
+
+                do_pat = todo
+                do_expr = todo
+
+        -- TODO: remove monad from this?
+        do_adt adt_ncs key (Type.ADT id name vars variants) = Type.ADT id name vars <$> mapM do_variant variants
+            where
+                adt_nc = adt_ncs Map.! key
+                do_variant (Type.ADTVariant'Named name fields) = Type.ADTVariant'Named name <$> mapM (\ (n, ty) -> (n,) <$> do_type_expr adt_nc ty) fields
+                do_variant (Type.ADTVariant'Anon name fields) = Type.ADTVariant'Anon name <$> mapM (do_type_expr adt_nc) fields
+
+        do_type_synonym syn_ncs key (Type.TypeSynonym id name other) =
+            let syn_nc = syn_ncs Map.! key
+            in Type.TypeSynonym id name <$> do_type_expr syn_nc other
+
+        do_type_expr nc (SIR.TypeExpr'Identifier type_info sp iden) = pure $ SIR.TypeExpr'Identifier type_info sp (nc, iden)
+        do_type_expr nc (SIR.TypeExpr'Tuple type_info a b) = SIR.TypeExpr'Tuple type_info <$> do_type_expr nc a <*> do_type_expr nc b
+        do_type_expr nc (SIR.TypeExpr'Hole type_info sp hid) = pure $ SIR.TypeExpr'Hole type_info sp hid
+        do_type_expr nc (SIR.TypeExpr'Function type_info sp arg res) = SIR.TypeExpr'Function type_info sp <$> do_type_expr nc arg <*> do_type_expr nc res
+        do_type_expr nc (SIR.TypeExpr'Forall type_info vars result) = SIR.TypeExpr'Forall type_info vars <$> do_type_expr nc result
+        do_type_expr nc (SIR.TypeExpr'Apply type_info sp ty arg) = SIR.TypeExpr'Apply type_info sp <$> do_type_expr nc ty <*> do_type_expr nc arg
+        do_type_expr nc (SIR.TypeExpr'Wild type_info sp) = pure $ SIR.TypeExpr'Wild type_info sp
+        do_type_expr nc (SIR.TypeExpr'Poison type_info sp) = pure $ SIR.TypeExpr'Poison type_info sp
 
 split_iden :: VIdenWithNC -> Identity (SIR.NameContext, Maybe [Located Text], Located Text)
 split_iden (_, []) = error "empty identifier"

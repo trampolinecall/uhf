@@ -13,6 +13,8 @@ import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.PP as Type.PP
 import qualified UHF.Data.IR.ID as ID
 
+import UHF.IO.Located (Located (Located, unlocate))
+
 -- TODO: dump types too
 
 type IRReader = Reader ANFIR.ANFIR
@@ -78,7 +80,7 @@ refer_type (Just ty) =
 refer_type Nothing = pure $ PP.String "<type error>"
 
 type_var :: Type.TypeVarKey -> IRReader PP.Token
-type_var k = get_type_var k >>= \ (Type.Var name) -> pure (PP.String name)
+type_var k = get_type_var k >>= \ (Type.Var (Located _ name)) -> pure (PP.String name)
 
 expr :: ANFIR.Expr -> IRReader PP.Token
 expr (ANFIR.Expr'Refer _ _ bk) = refer_binding bk

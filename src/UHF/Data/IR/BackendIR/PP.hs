@@ -13,6 +13,8 @@ import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.PP as Type.PP
 import qualified UHF.Data.IR.ID as ID
 
+import UHF.IO.Located (Located (Located))
+
 import qualified Data.Set as Set
 
 -- TODO: dump types too
@@ -88,7 +90,7 @@ instance DumpableType (Type.Type Void) where
         pure (Type.PP.refer_type absurd adt_arena type_synonym_arena type_var_arena ty)
 
 type_var :: Type.TypeVarKey -> IRReader ty poison_allowed PP.Token
-type_var k = get_type_var k >>= \ (Type.Var name) -> pure (PP.String name)
+type_var k = get_type_var k >>= \ (Type.Var (Located _ name)) -> pure (PP.String name)
 
 expr :: (DumpableType ty) => BackendIR.Expr ty poison_allowed -> IRReader ty poison_allowed PP.Token
 expr (BackendIR.Expr'Refer _ _ bk) = refer_binding bk

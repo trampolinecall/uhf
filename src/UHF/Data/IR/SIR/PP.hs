@@ -13,7 +13,7 @@ import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.PP as Type.PP
 import qualified UHF.Data.IR.ID as ID
 
-import UHF.IO.Located (Located (unlocate))
+import UHF.IO.Located (Located (Located, unlocate))
 
 import qualified Data.Text as Text
 
@@ -103,7 +103,7 @@ instance DumpableIdentifier (Maybe Type.ADTVariantIndex) where -- TODO: remove t
 -- TODO: dump type info too
 
 type_var :: Type.TypeVarKey -> IRReader d_iden v_iden p_iden type_info binary_ops_allowed PP.Token
-type_var k = get_type_var k >>= \ (Type.Var name) -> pure $ PP.String name
+type_var k = get_type_var k >>= \ (Type.Var (Located _ name)) -> pure $ PP.String name
 
 type_expr :: DumpableIdentifier d_iden => SIR.TypeExpr d_iden type_info -> IRReader d_iden v_iden p_iden type_info binary_ops_allowed PP.Token
 type_expr = level1

@@ -64,4 +64,4 @@ get_adt_variant adts (ADTVariantIndex key i) =
 
 data TypeSynonym ty = TypeSynonym ID.DeclID (Located Text) ty deriving Show
 
-newtype Var = Var Text deriving Show -- TODO: put id
+newtype Var = Var (Located Text) deriving Show -- TODO: put id

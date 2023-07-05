@@ -26,7 +26,7 @@ import qualified UHF.Data.IR.ID as ID
 import UHF.IO.Span (Span)
 
 -- "reduced ir"
--- is not used a lot; serves mostly as a intermediary step to make converting from sir to anfir easier
+-- not used a lot; serves mostly as a intermediary step where a lot of things get desugared to make the transition to anfir easier
 data RIR
     = RIR
         (Arena.Arena (Type.ADT (Maybe (Type.Type Void))) ADTKey)

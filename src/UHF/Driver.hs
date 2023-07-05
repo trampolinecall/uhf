@@ -46,7 +46,6 @@ import qualified UHF.Phases.Middle.ToRIR as ToRIR
 import qualified UHF.Phases.Middle.ToANFIR as ToANFIR
 import qualified UHF.Phases.Middle.OptimizeANFIR as OptimizeANFIR
 import qualified UHF.Phases.Back.ToBackendIR as ToBackendIR
-import qualified UHF.Phases.Back.AnnotateCaptures as AnnotateCaptures
 import qualified UHF.Phases.Back.RemovePoison as RemovePoison
 import qualified UHF.Phases.Back.ToDot as ToDot
 import qualified UHF.Phases.Back.TSBackend as TSBackend
@@ -60,9 +59,8 @@ type InfixGroupedSIR = SIR.SIR (Maybe IR.Keys.DeclKey) (Located (Maybe IR.Keys.B
 type TypedSIR = SIR.SIR (Maybe IR.Keys.DeclKey) (Located (Maybe IR.Keys.BoundValueKey)) (Maybe IR.Type.ADTVariantIndex) (Maybe (IR.Type.Type Void)) Void
 type RIR = RIR.RIR
 type ANFIR = ANFIR.ANFIR
-type BackendIR = BackendIR.BackendIR () () () (Maybe (IR.Type.Type Void)) ()
-type BackendIRWithCaptures = BackendIR.BackendIR (BackendIR.BoundWhere) (Set BackendIR.BindingKey) (Set BackendIR.BindingKey) (Maybe (IR.Type.Type Void)) ()
-type NoPoisonIR = BackendIR.BackendIR (BackendIR.BoundWhere) (Set BackendIR.BindingKey) (Set BackendIR.BindingKey) (IR.Type.Type Void) Void
+type BackendIR = BackendIR.BackendIR (Maybe (IR.Type.Type Void)) ()
+type NoPoisonIR = BackendIR.BackendIR (IR.Type.Type Void) Void
 type Dot = Text
 type TS = Text
 
@@ -82,14 +80,13 @@ data PhaseResultsCache
         , _get_anfir :: Maybe ANFIR
         , _get_optimized_anfir :: Maybe ANFIR
         , _get_backend_ir :: Maybe BackendIR
-        , _get_backend_ir_with_captures :: Maybe BackendIRWithCaptures
         , _get_no_poison_ir :: Maybe (Maybe NoPoisonIR)
         , _get_dot :: Maybe (Maybe Dot)
         , _get_ts :: Maybe (Maybe TS)
         }
 type PhaseResultsState = StateT PhaseResultsCache WithDiagnosticsIO
 
-data OutputFormat = AST | ASTDump | SIR | NRSIR | InfixGroupedSIR | TypedSIR | RIR | ANFIR | OptimizedANFIR | BackendIR | BackendIRWithCaptures | Dot | TS
+data OutputFormat = AST | ASTDump | SIR | NRSIR | InfixGroupedSIR | TypedSIR | RIR | ANFIR | OptimizedANFIR | BackendIR | Dot | TS
 data CompileOptions
     = CompileOptions
         { input_file :: FilePath
@@ -105,7 +102,7 @@ compile c_needed diagnostic_settings compile_options =
     pure (if Compiler.had_errors diagnostics then Left () else Right ())
 
 print_outputs :: CompileOptions -> File -> WithDiagnosticsIO ()
-print_outputs compile_options file = runStateT (mapM print_output_format (output_formats compile_options)) (PhaseResultsCache file Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing) >> pure ()
+print_outputs compile_options file = runStateT (mapM print_output_format (output_formats compile_options)) (PhaseResultsCache file Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing) >> pure ()
     where
         print_output_format AST = get_ast >>= \ ast -> lift (lift (putTextLn $ AST.PP.pp_decls ast))
         print_output_format ASTDump = get_ast >>= \ ast -> lift (lift (putTextLn $ AST.Dump.dump ast))
@@ -117,7 +114,6 @@ print_outputs compile_options file = runStateT (mapM print_output_format (output
         print_output_format ANFIR = get_anfir >>= \ ir -> lift (lift (write_output_file "uhf_anfir" (ANFIR.PP.dump_main_module ir)))
         print_output_format OptimizedANFIR = get_optimized_anfir >>= \ ir -> lift (lift (write_output_file "uhf_anfir_optimized" (ANFIR.PP.dump_main_module ir)))
         print_output_format BackendIR = get_backend_ir >>= \ ir -> lift (lift (write_output_file "uhf_backend_ir" (BackendIR.PP.dump_main_module ir)))
-        print_output_format BackendIRWithCaptures = get_backend_ir_with_captures >>= \ ir -> lift (lift (write_output_file "uhf_backend_ir_captures" (BackendIR.PP.dump_main_module ir)))
         print_output_format Dot = get_dot >>= lift . lift . maybe (pure ()) (write_output_file "dot")
         print_output_format TS = get_ts >>= lift . lift . maybe (pure ()) (write_output_file "ts")
 
@@ -193,15 +189,10 @@ get_backend_ir = get_or_calculate _get_backend_ir (\ cache backend_ir -> cache {
     where
         to_backend_ir = ToBackendIR.convert <$> get_optimized_anfir
 
-get_backend_ir_with_captures :: PhaseResultsState BackendIRWithCaptures
-get_backend_ir_with_captures = get_or_calculate _get_backend_ir_with_captures (\ cache backend_ir -> cache { _get_backend_ir_with_captures = backend_ir }) to_backend_ir_with_captures
-    where
-        to_backend_ir_with_captures = AnnotateCaptures.annotate <$> get_backend_ir
-
 get_no_poison_ir :: PhaseResultsState (Maybe NoPoisonIR)
 get_no_poison_ir = get_or_calculate _get_no_poison_ir (\ cache no_poison_ir -> cache { _get_no_poison_ir = no_poison_ir }) remove_poison
     where
-        remove_poison = RemovePoison.remove_poison <$> get_backend_ir_with_captures
+        remove_poison = RemovePoison.remove_poison <$> get_backend_ir
 
 get_dot :: PhaseResultsState (Maybe Dot)
 get_dot = get_or_calculate _get_dot (\ cache dot -> cache { _get_dot = dot }) to_dot

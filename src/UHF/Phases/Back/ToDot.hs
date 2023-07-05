@@ -10,10 +10,10 @@ import qualified UHF.Data.IR.BackendIR as BackendIR
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.ID as ID
 
-type BackendIR bound_where captures dependencies = BackendIR.BackendIR bound_where captures dependencies Type Void
+type BackendIR = BackendIR.BackendIR Type Void
 type Type = Type.Type Void
 
-to_dot :: BackendIR bound_where captures dependencies -> Text
+to_dot :: BackendIR -> Text
 to_dot (BackendIR.BackendIR _ _ _ bindings params _) =
     snd $ runWriter (
             tell "strict digraph {\n" >>
@@ -42,7 +42,7 @@ to_dot (BackendIR.BackendIR _ _ _ bindings params _) =
         stringify_matcher BackendIR.Switch'Tuple = "tuple"
         stringify_matcher BackendIR.Switch'Default = "_"
 
-        print_binding cur_key (BackendIR.Binding _ _ initializer) =
+        print_binding cur_key (BackendIR.Binding initializer) =
             -- TODO: decide what to do with dependencies
             let (name, graph_connections, param_connections) =
                     -- TODO: print types

@@ -48,6 +48,7 @@ executables:
 
       - text
       - optparse-applicative
+      - containers
 
     ghc-options:
       - -threaded

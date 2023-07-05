@@ -27,6 +27,7 @@ import qualified Arena
 import qualified UHF.Compiler as Compiler
 
 import qualified UHF.IO.Located as Located
+import UHF.IO.Span (Span)
 import UHF.IO.Located (Located (Located))
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Codes as Diagnostic.Codes
@@ -35,6 +36,7 @@ import qualified UHF.Data.IR.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
 
 import qualified Data.Map as Map
+import qualified Data.List as List
 import Data.Functor.Identity (Identity (Identity, runIdentity))
 
 data ChildMaps
@@ -89,6 +91,7 @@ type ResolvedTypeSynonymArena = Arena.Arena ResolvedTypeSynonym Type.TypeSynonym
 
 data Error
     = CouldNotFind (Maybe (Located Text)) (Located Text)
+    | MultipleDecls Text [DeclAt]
 
 instance Diagnostic.ToError Error where
     to_error (CouldNotFind prev (Located sp name)) =
@@ -98,6 +101,51 @@ instance Diagnostic.ToError Error where
                         Just (Located _ prev_name) -> "in '" <> prev_name <> "'"
                         Nothing -> ""
         in Diagnostic.Error Diagnostic.Codes.undef_name (Just sp) message [] []
+
+    to_error (MultipleDecls name decl_ats) =
+        let last_decl = last decl_ats
+        in Diagnostic.Error
+            Diagnostic.Codes.multiple_decls
+            (decl_at_span last_decl)
+            (show (length decl_ats) <> " declarations of '" <> convert_str name <> "'")
+            (map (\ at -> (decl_at_span at, Diagnostic.MsgError, decl_at_message name at)) decl_ats)
+            []
+        where
+            decl_at_span (DeclAt sp) = Just sp
+            decl_at_span ImplicitPrim = Nothing
+            decl_at_message _ (DeclAt _) = Nothing
+            decl_at_message n ImplicitPrim = Just $ "'" <> convert_str n <> "' is implicitly declared as a primitive" -- TODO: reword this message (ideally when it is declared through the prelude import the message would be something like 'implicitly declared by implicit import of prelude')
+
+-- TODO: this are duplicated from the ones in ToSIR
+data DeclAt = DeclAt Span | ImplicitPrim deriving Show
+type DeclChildrenList = [(Text, DeclAt, SIR.DeclKey)]
+type BoundValueList = [(Text, DeclAt, SIR.BoundValueKey)]
+type ADTVariantList = [(Text, DeclAt, Type.ADTVariantIndex)]
+
+make_child_maps :: DeclChildrenList -> BoundValueList -> ADTVariantList -> Compiler.WithDiagnostics Error Void ChildMaps
+make_child_maps decls bound_values adt_variants =
+    let decl_dups = find_dups decls
+        bn_dups = find_dups bound_values
+        variant_dups = find_dups adt_variants
+    in report_dups decl_dups >> report_dups bn_dups >> report_dups variant_dups >>
+    pure (ChildMaps (make_map decls) (make_map bound_values) (make_map adt_variants))
+    where
+        -- separate finding duplicates from making maps so that if there is a duplicate the whole name contexet doesnt just disappear
+        -- duplicates will just take the last bound name in the last, because of the how Map.fromList is implemented
+        find_dups x =
+            let grouped = List.groupBy ((==) `on` get_name) $ List.sortBy (compare `on` get_name) x -- compare names of bound names only
+            in filter ((1/=) . length) grouped
+            where
+                get_name (n, _, _) = n
+
+        make_map x = Map.fromList (map (\ (n, _, v) -> (n, v)) x)
+
+        report_dups = mapM_
+            (\ decls ->
+                let (first_name, _, _) = head decls
+                in Compiler.tell_error $ MultipleDecls first_name (map get_decl_at decls))
+            where
+                get_decl_at (_, d, _) = d
 
 transform_identifiers ::
     Monad m =>
@@ -187,12 +235,10 @@ resolve (SIR.SIR decls mods adts type_synonyms type_vars bound_values mod) =
 annotate_name_contexts :: UnresolvedADTArena -> UnresolvedTypeSynonymArena -> UnresolvedDeclArena -> UnresolvedModuleArena -> Compiler.WithDiagnostics Error Void DeclArenaWithChildMaps
 annotate_name_contexts adt_arena type_synonym_arena decl_arena mod_arena =
     -- TODO: clean up
-    -- Arena.transformM do_module mod_arena >>= \ mod_arena ->
     Arena.transformM do_decl decl_arena >>= \ decl_arena ->
-    -- Arena.transform_with_keyM (do_adt adt_ncs) adt_arena >>= \ adt_arena ->
-    -- Arena.transform_with_keyM (do_type_synonym type_synonym_ncs) type_synonym_arena >>= \ type_synonym_arena ->
     pure decl_arena
     where
+
         do_module (SIR.Module id bindings adts type_synonyms) = todo
 
         do_decl decl = case decl of

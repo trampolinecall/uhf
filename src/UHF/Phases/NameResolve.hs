@@ -171,15 +171,15 @@ collect_child_maps mod_arena adt_arena type_synonym_arena bv_arena = Arena.trans
                 mapM
                     (\ adt ->
                         let (Type.ADT _ (Located name_sp name) _ _) = Arena.get adt_arena adt
-                        in new_decl (SIR.Decl'Type $ Type.Type'ADT adt []) >>= \ adt_decl_key -> -- TODO: remove this step from the ToSIR because that doesnt need to happen anymore
-                        pure ([(name, DeclAt name_sp, adt_decl_key)], [], []) -- constructor bvs and variants handled by adt variant bindings
+                        in new_decl (SIR.Decl'Type $ Type.Type'ADT adt []) >>= \ adt_decl_key ->
+                        pure ([(name, DeclAt name_sp, adt_decl_key)], [], []) -- constructor bvs and variants handled by adt variant bindings, TODO: make it not the case so that this can deal with named variants too
                     )
                     adts >>= \ (adt_decl_entries, adt_bv_entries, adt_variant_entries) ->
             unzip3 <$>
                 mapM
                     (\ synonym ->
                         let (Type.TypeSynonym _ (Located name_sp name) _) = Arena.get type_synonym_arena synonym
-                        in new_decl (SIR.Decl'Type $ Type.Type'Synonym synonym) >>= \ synonym_decl_key -> -- TODO: remove this step from the ToSIR because that doesnt need to happen anymore
+                        in new_decl (SIR.Decl'Type $ Type.Type'Synonym synonym) >>= \ synonym_decl_key ->
                         pure ([(name, DeclAt name_sp, synonym_decl_key)], [], [])
                     )
                     type_synonyms >>= \ (type_synonym_decl_entries, type_synonym_bv_entries, type_synonym_variant_entries) ->
@@ -220,6 +220,24 @@ resolve_in_type_synonyms :: TypeVarArena -> BoundValueArena -> ModuleChildMaps -
 resolve_in_type_synonyms type_var_arena bv_arena module_child_maps synonym_parent_child_maps type_synonym_arena = Arena.transform_with_keyM (resolve_in_type_synonym type_var_arena bv_arena module_child_maps synonym_parent_child_maps) type_synonym_arena
 
 -- TODO: primitives / prelude
+{-
+primitive_decls :: MakeIRState DeclChildrenList
+primitive_decls =
+    new_decl (SIR.Decl'Type Type.Type'Int) >>= \ int ->
+    new_decl (SIR.Decl'Type Type.Type'Float) >>= \ float ->
+    new_decl (SIR.Decl'Type Type.Type'Char) >>= \ char ->
+    new_decl (SIR.Decl'Type Type.Type'String) >>= \ string ->
+    new_decl (SIR.Decl'Type Type.Type'Bool) >>= \ bool ->
+    pure
+        [ ("int", ImplicitPrim, int)
+        , ("float", ImplicitPrim, float)
+        , ("char", ImplicitPrim, char)
+        , ("string", ImplicitPrim, string)
+        , ("bool", ImplicitPrim, bool)
+        ]
+primitive_values :: MakeIRState BoundValueList
+primitive_values = pure []
+-}
 resolve_in_module adt_arena type_var_arena bv_arena module_child_maps mod_key (SIR.Module id bindings adts type_synonyms) =
     let cur_map = Arena.get module_child_maps mod_key
     in mapM (\ adt -> tell $ Map.singleton adt cur_map) adts >>

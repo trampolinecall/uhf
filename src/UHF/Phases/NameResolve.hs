@@ -69,6 +69,7 @@ type UnresolvedADTArena = Arena.Arena UnresolvedADT Type.ADTKey
 type UnresolvedTypeSynonymArena = Arena.Arena UnresolvedTypeSynonym Type.TypeSynonymKey
 
 type DeclChildMapArena = Arena.Arena ChildMaps SIR.DeclKey
+type ModuleChildMaps = Arena.Arena ChildMaps SIR.ModuleKey
 
 type ResolvedDIden = Maybe SIR.DeclKey
 type ResolvedVIden = Located (Maybe SIR.BoundValueKey)
@@ -225,7 +226,7 @@ transform_identifiers transform_d_iden transform_v_iden transform_p_iden adts ty
 
 resolve :: UnresolvedSIR -> Compiler.WithDiagnostics Error Void ResolvedSIR
 resolve (SIR.SIR decls mods adts type_synonyms type_vars bound_values mod) =
-    get_decl_child_maps decls mods adts type_synonyms bound_values >>= \ decl_maps ->
+    collect_child_maps decls mods adts type_synonyms bound_values >>= \ mod_child_maps ->
         {-
     let (adts', type_synonyms', mods') = runIdentity (transform_identifiers Identity split_iden split_iden adts type_synonyms mods)
     in transform_identifiers (resolve_type_iden decls) (resolve_expr_iden decls) (resolve_pat_iden decls) adts' type_synonyms' mods' >>= \ (adts', type_synonyms', mods') ->
@@ -234,18 +235,17 @@ resolve (SIR.SIR decls mods adts type_synonyms type_vars bound_values mod) =
     -}
     pure (SIR.SIR decls todo todo todo type_vars bound_values mod)
 
-get_decl_child_maps :: UnresolvedDeclArena -> UnresolvedModuleArena -> UnresolvedADTArena -> UnresolvedTypeSynonymArena -> UnresolvedBoundValueArena -> Compiler.WithDiagnostics Error Void (Arena.Arena ChildMaps SIR.DeclKey)
-get_decl_child_maps decl_arena mod_arena adt_arena type_synonym_arena bv_arena = Arena.transformM go decl_arena
+collect_child_maps :: UnresolvedDeclArena -> UnresolvedModuleArena -> UnresolvedADTArena -> UnresolvedTypeSynonymArena -> UnresolvedBoundValueArena -> Compiler.WithDiagnostics Error Void (Arena.Arena ChildMaps SIR.ModuleKey)
+collect_child_maps decl_arena mod_arena adt_arena type_synonym_arena bv_arena = Arena.transformM go mod_arena
     where
-        go (SIR.Decl'Module m) =
-            let SIR.Module _ bindings adts type_synonyms = Arena.get mod_arena m
-                (binding_decl_entries, binding_bv_entries, binding_variant_entries) =
+        go (SIR.Module _ bindings adts type_synonyms) =
+            let (binding_decl_entries, binding_bv_entries, binding_variant_entries) =
                     unzip3 $
                         map
                             (\ binding ->
                                 case binding of
                                     SIR.Binding pat _ _ -> ([], pattern_bvs pat, [])
-                                    SIR.Binding'ADTVariant sp bvk variant_index -> ([], [(bv_name bvk, DeclAt sp, bvk)], [(bv_name bvk, DeclAt sp, variant_index)])
+                                    SIR.Binding'ADTVariant sp bvk variant_index -> ([], [(bv_name bvk, DeclAt sp, bvk)], [(bv_name bvk, DeclAt sp, variant_index)]) -- TODO: move variants to inside their types
                             )
                             bindings
                 (adt_decl_entries, adt_bv_entries, adt_variant_entries) =
@@ -285,24 +285,22 @@ get_decl_child_maps decl_arena mod_arena adt_arena type_synonym_arena bv_arena =
                             let variant = Type.get_adt_variant adt_arena variant_index
                             in Type.variant_name variant
 
-        go (SIR.Decl'Type ty) = make_child_maps [] [] [] -- TODO: move variants to here and implement better way of getting children
-
 split_iden :: UnresolvedVIden -> Identity (Maybe [Located Text], Located Text)
 split_iden [] = error "empty identifier"
 split_iden [x] = pure (Nothing, x)
 split_iden x = pure (Just $ init x, last x)
 
 -- TODO: factor out repeated code?
-resolve_expr_iden :: DeclChildMapArena -> ChildMapStack -> (Maybe [Located Text], Located Text) -> Compiler.WithDiagnostics Error Void (Located (Maybe SIR.BoundValueKey))
-resolve_expr_iden decls child_map_stack (Just type_iden, last_segment) =
+resolve_expr_iden :: UnresolvedDeclArena -> ModuleChildMaps -> ChildMapStack -> (Maybe [Located Text], Located Text) -> Compiler.WithDiagnostics Error Void (Located (Maybe SIR.BoundValueKey))
+resolve_expr_iden decls mods child_map_stack (Just type_iden, last_segment) =
     let sp = Located.just_span (head type_iden) <> Located.just_span last_segment
-    in resolve_type_iden decls child_map_stack type_iden >>= \ resolved_type ->
-    case get_value_child decls <$> resolved_type <*> pure last_segment of
+    in resolve_type_iden decls mods child_map_stack type_iden >>= \ resolved_type ->
+    case get_value_child decls mods <$> resolved_type <*> pure last_segment of
         Just (Right v) -> pure $ Located sp (Just v)
         Just (Left e) -> Compiler.tell_error e >> pure (Located sp Nothing)
         Nothing -> pure $ Located sp Nothing
 
-resolve_expr_iden _ child_map_stack (Nothing, last_segment@(Located last_segment_sp _)) =
+resolve_expr_iden _ _ child_map_stack (Nothing, last_segment@(Located last_segment_sp _)) =
     case resolve child_map_stack last_segment of
         Right v -> pure $ Located last_segment_sp (Just v)
         Left e -> Compiler.tell_error e >> pure (Located last_segment_sp Nothing)
@@ -315,12 +313,12 @@ resolve_expr_iden _ child_map_stack (Nothing, last_segment@(Located last_segment
                         Just parent -> resolve parent name
                         Nothing -> Left $ CouldNotFind Nothing name
 
-resolve_type_iden :: DeclChildMapArena -> ChildMapStack -> UnresolvedDIden -> Compiler.WithDiagnostics Error Void (Maybe SIR.DeclKey)
-resolve_type_iden _ child_map_stack ([]) = error "empty identifier"
-resolve_type_iden decls child_map_stack (first:more) =
+resolve_type_iden :: UnresolvedDeclArena -> ModuleChildMaps -> ChildMapStack -> UnresolvedDIden -> Compiler.WithDiagnostics Error Void (Maybe SIR.DeclKey)
+resolve_type_iden _ _ child_map_stack ([]) = error "empty identifier"
+resolve_type_iden decls mods child_map_stack (first:more) =
     case resolve_first child_map_stack first of
         Right first_resolved ->
-            case foldlM (get_decl_child decls) first_resolved more of
+            case foldlM (get_decl_child decls mods) first_resolved more of
                 Right r -> pure $ Just r
                 Left e -> Compiler.tell_error e >> pure Nothing
         Left e -> Compiler.tell_error e >> pure Nothing
@@ -333,15 +331,15 @@ resolve_type_iden decls child_map_stack (first:more) =
                         Just parent -> resolve_first parent first
                         Nothing -> Left $ CouldNotFind Nothing first -- TODO: put previous in error
 
-resolve_pat_iden :: DeclChildMapArena -> ChildMapStack -> (Maybe [Located Text], Located Text) -> Compiler.WithDiagnostics Error Void (Maybe Type.ADTVariantIndex)
-resolve_pat_iden decls child_map_stack (Just type_iden, last_segment) =
-    resolve_type_iden decls child_map_stack type_iden >>= \ resolved_type ->
-    case get_variant_child decls <$> resolved_type <*> pure last_segment of
+resolve_pat_iden :: UnresolvedDeclArena -> ModuleChildMaps -> ChildMapStack -> (Maybe [Located Text], Located Text) -> Compiler.WithDiagnostics Error Void (Maybe Type.ADTVariantIndex)
+resolve_pat_iden decls mods child_map_stack (Just type_iden, last_segment) =
+    resolve_type_iden decls mods child_map_stack type_iden >>= \ resolved_type ->
+    case get_variant_child decls mods <$> resolved_type <*> pure last_segment of
         Just (Right v) -> pure $ Just v
         Just (Left e) -> Compiler.tell_error e >> pure Nothing
         Nothing -> pure Nothing
 
-resolve_pat_iden _ child_map_stack (Nothing, last_segment) =
+resolve_pat_iden _ _ child_map_stack (Nothing, last_segment) =
     case resolve child_map_stack last_segment of
         Right v -> pure $ Just v
         Left e -> Compiler.tell_error e >> pure Nothing
@@ -354,26 +352,38 @@ resolve_pat_iden _ child_map_stack (Nothing, last_segment) =
                         Just parent -> resolve parent name
                         Nothing -> Left $ CouldNotFind Nothing name
 
-get_decl_child :: DeclChildMapArena -> SIR.DeclKey -> Located Text -> Either Error SIR.DeclKey
-get_decl_child decls thing name =
-    let ChildMaps d_children _ _ = Arena.get decls thing
-        res = Map.lookup (Located.unlocate name) d_children
+get_decl_child :: UnresolvedDeclArena -> ModuleChildMaps -> SIR.DeclKey -> Located Text -> Either Error SIR.DeclKey
+get_decl_child decls mods thing name =
+    let res = case Arena.get decls thing of
+            SIR.Decl'Module m ->
+                let ChildMaps d_children _ _ = Arena.get mods m
+                in Map.lookup (Located.unlocate name) d_children
+
+            SIR.Decl'Type _ -> Nothing
     in case res of
         Just res -> Right res
         Nothing -> Left $ CouldNotFind Nothing name -- TODO: put previous
 
-get_value_child :: DeclChildMapArena -> SIR.DeclKey -> Located Text -> Either Error SIR.BoundValueKey
-get_value_child decls thing name =
-    let ChildMaps _ v_children _ = Arena.get decls thing
-        res = Map.lookup (Located.unlocate name) v_children
+get_value_child :: UnresolvedDeclArena -> ModuleChildMaps -> SIR.DeclKey -> Located Text -> Either Error SIR.BoundValueKey
+get_value_child decls mods thing name =
+    let res = case Arena.get decls thing of
+            SIR.Decl'Module m ->
+                let ChildMaps _ v_children _ = Arena.get mods m
+                in Map.lookup (Located.unlocate name) v_children
+
+            SIR.Decl'Type _ -> Nothing
     in case res of
         Just res -> Right res
         Nothing -> Left $ CouldNotFind Nothing name -- TODO: put previous
 
-get_variant_child :: DeclChildMapArena -> SIR.DeclKey -> Located Text -> Either Error Type.ADTVariantIndex
-get_variant_child decls thing name =
-    let ChildMaps _ _ adtv_children = Arena.get decls thing
-        res = Map.lookup (Located.unlocate name) adtv_children
+get_variant_child :: UnresolvedDeclArena -> ModuleChildMaps -> SIR.DeclKey -> Located Text -> Either Error Type.ADTVariantIndex
+get_variant_child decls mods thing name =
+    let res = case Arena.get decls thing of
+            SIR.Decl'Module m ->
+                let ChildMaps _ _ adtv_children = Arena.get mods m
+                in Map.lookup (Located.unlocate name) adtv_children
+
+            SIR.Decl'Type _ -> Nothing
     in case res of
         Just res -> Right res
         Nothing -> Left $ CouldNotFind Nothing name -- TODO: put previous

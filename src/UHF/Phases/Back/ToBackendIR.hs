@@ -11,14 +11,12 @@ import qualified UHF.Data.IR.Type as Type
 type Type = Maybe (Type.Type Void)
 
 type ANFIR = ANFIR.ANFIR
-type ANFIRDecl = ANFIR.Decl
 type ANFIRExpr = ANFIR.Expr
 type ANFIRParam = ANFIR.Param
 type ANFIRBinding = ANFIR.Binding
 type ANFIRBindingGroup = ANFIR.BindingGroup
 type ANFIRBindingChunk = ANFIR.BindingChunk
 
-type ANFIRDeclArena = Arena.Arena ANFIRDecl ANFIR.DeclKey
 type ANFIRBindingArena = Arena.Arena ANFIRBinding ANFIR.BindingKey
 type ANFIRParamArena = Arena.Arena ANFIRParam ANFIR.ParamKey
 
@@ -33,17 +31,14 @@ type BackendIRBindingArena = Arena.Arena BackendIRBinding BackendIR.BindingKey
 type BackendIRParamArena = Arena.Arena BackendIRParam BackendIR.ParamKey
 
 convert :: ANFIR -> BackendIR
-convert (ANFIR.ANFIR decls adts type_synonyms type_vars bindings params mod) =
+convert (ANFIR.ANFIR adts type_synonyms type_vars bindings params cu) =
     let bindings' = Arena.transform convert_binding bindings
         params' = Arena.transform convert_param params
-        cu = assemble_cu decls mod
-    in BackendIR.BackendIR adts type_synonyms type_vars bindings' params' cu
+        cu' = convert_cu cu
+    in BackendIR.BackendIR adts type_synonyms type_vars bindings' params' cu'
 
-assemble_cu :: ANFIRDeclArena -> ANFIR.DeclKey -> BackendIR.CU
-assemble_cu decls mod = go_decl (Arena.get decls mod)
-    where
-        go_decl (ANFIR.Decl'Module group adts synonyms) = BackendIR.CU (convert_binding_group group) adts synonyms
-        go_decl (ANFIR.Decl'Type _) = unreachable
+convert_cu :: ANFIR.CU -> BackendIR.CU
+convert_cu (ANFIR.CU group adts type_synonyms) = BackendIR.CU (convert_binding_group group) adts type_synonyms
 
 convert_binding :: ANFIRBinding -> BackendIRBinding
 convert_binding (ANFIR.Binding initializer) = BackendIR.Binding $ convert_expr initializer

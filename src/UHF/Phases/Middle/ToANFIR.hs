@@ -24,7 +24,6 @@ type RIRExpr = RIR.Expr
 type RIRBinding = RIR.Binding
 
 type ANFIR = ANFIR.ANFIR
-type ANFIRDecl = ANFIR.Decl
 type ANFIRExpr = ANFIR.Expr
 type ANFIRParam = ANFIR.Param
 type ANFIRBinding = ANFIR.Binding
@@ -124,12 +123,14 @@ make_binding_group bindings =
 
 convert :: RIR.RIR -> ANFIR
 convert (RIR.RIR decls adts type_synonyms type_vars bound_values mod) =
-    let ((decls', bv_map), (bindings, params)) = runReader (IDGen.run_id_gen_t ID.ExprID'ANFIRGen (runStateT (runWriterT (Arena.transformM (convert_decl bv_map) decls)) (Arena.new, Arena.new))) bound_values
-    in ANFIR.ANFIR decls' adts type_synonyms type_vars bindings params mod
+    let ((cu, bv_map), (bindings, params)) = runReader (IDGen.run_id_gen_t ID.ExprID'ANFIRGen (runStateT (runWriterT (assemble_cu decls mod bv_map)) (Arena.new, Arena.new))) bound_values
+    in ANFIR.ANFIR adts type_synonyms type_vars bindings params cu
 
-convert_decl :: BoundValueMap -> RIRDecl -> MakeGraphState ANFIRDecl
-convert_decl bv_map (RIR.Decl'Module bindings adts type_synonyms) = concat <$> mapM (convert_binding bv_map) bindings >>= make_binding_group >>= \ group -> pure (ANFIR.Decl'Module group adts type_synonyms)
-convert_decl _ (RIR.Decl'Type ty) = pure $ ANFIR.Decl'Type ty
+assemble_cu :: Arena.Arena RIRDecl RIR.DeclKey -> RIR.DeclKey -> BoundValueMap -> MakeGraphState ANFIR.CU
+assemble_cu decls mod bv_map = go_decl (Arena.get decls mod)
+    where
+        go_decl (RIR.Decl'Module bindings adts type_synonyms) = concat <$> mapM (convert_binding bv_map) bindings >>= make_binding_group >>= \ group -> pure (ANFIR.CU group adts type_synonyms)
+        go_decl (RIR.Decl'Type _) = pure $ ANFIR.CU (ANFIR.BindingGroup [] []) [] [] -- should not happen
 
 map_bound_value :: RIR.BoundValueKey -> ANFIR.BindingKey -> MakeGraphState ()
 map_bound_value k binding = tell $ Map.singleton k binding

@@ -1,8 +1,7 @@
 module UHF.Data.IR.ANFIR
     ( ANFIR (..)
-    , Decl (..)
+    , CU(..)
 
-    , DeclKey
     , BindingKey
     , ParamKey
 
@@ -35,13 +34,18 @@ import UHF.Data.IR.Keys
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.ID as ID
 
--- "a-normal form ir" even though this isnt actually a-normal form but it is pretty close
-data ANFIR = ANFIR (Arena.Arena Decl DeclKey) (Arena.Arena (Type.ADT (Maybe (Type.Type Void))) ADTKey) (Arena.Arena (Type.TypeSynonym (Maybe (Type.Type Void))) TypeSynonymKey) (Arena.Arena Type.Var Type.TypeVarKey) (Arena.Arena Binding BindingKey) (Arena.Arena Param ParamKey) DeclKey
+-- "a-normal form ir" even though this isnt actually a-normal form but it is the same idea
+data ANFIR
+    = ANFIR
+        (Arena.Arena (Type.ADT (Maybe (Type.Type Void))) ADTKey)
+        (Arena.Arena (Type.TypeSynonym (Maybe (Type.Type Void))) TypeSynonymKey)
+        (Arena.Arena Type.Var Type.TypeVarKey)
+        (Arena.Arena Binding BindingKey)
+        (Arena.Arena Param ParamKey)
+        CU
 
-data Decl
-    = Decl'Module BindingGroup [ADTKey] [TypeSynonymKey]
-    | Decl'Type (Type.Type Void)
-    deriving Show
+-- "compilation unit"
+data CU = CU (BindingGroup) [ADTKey] [TypeSynonymKey]
 
 data Param = Param ID.BoundValueID (Maybe (Type.Type Void)) deriving Show
 

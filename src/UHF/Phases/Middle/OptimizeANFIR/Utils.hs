@@ -7,12 +7,11 @@ import qualified Arena
 import qualified UHF.Data.IR.ANFIR as ANFIR
 
 iterate_over_bindings :: Monad m => (ANFIR.Binding -> m ANFIR.Binding) -> ANFIR.ANFIR -> m ANFIR.ANFIR
-iterate_over_bindings change (ANFIR.ANFIR decls adts type_synonyms vars bindings params mod) =
-    runStateT (do_module (Arena.get decls mod)) bindings >>= \ ((), bindings) ->
-    pure (ANFIR.ANFIR decls adts type_synonyms vars bindings params mod)
+iterate_over_bindings change (ANFIR.ANFIR adts type_synonyms vars bindings params cu) =
+    runStateT (do_cu cu) bindings >>= \ ((), bindings) ->
+    pure (ANFIR.ANFIR adts type_synonyms vars bindings params cu)
     where
-        do_module (ANFIR.Decl'Module group _ _) = do_group group
-        do_module (ANFIR.Decl'Type _) = pure () -- should not happen
+        do_cu (ANFIR.CU group _ _) = do_group group
 
         do_group (ANFIR.BindingGroup _ chunks) = mapM_ do_chunk chunks
 

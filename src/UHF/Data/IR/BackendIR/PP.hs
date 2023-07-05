@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 
-module UHF.Data.IR.BackendIR.PP (dump_main_module) where
+module UHF.Data.IR.BackendIR.PP (dump_cu) where
 
 import UHF.Util.Prelude
 
@@ -37,8 +37,8 @@ get_type_synonym k = reader (\ (BackendIR.BackendIR _ type_synonyms _ _ _ _) -> 
 get_type_var :: Type.TypeVarKey -> IRReader ty poison_allowed Type.Var
 get_type_var k = reader (\ (BackendIR.BackendIR _ _ type_vars _ _ _) -> Arena.get type_vars k)
 
-dump_main_module :: (DumpableType ty) => BackendIR.BackendIR ty poison_allowed -> Text
-dump_main_module ir@(BackendIR.BackendIR _ _ _ _ _ cu) = PP.render $ runReader (define_cu cu) ir
+dump_cu :: (DumpableType ty) => BackendIR.BackendIR ty poison_allowed -> Text
+dump_cu ir@(BackendIR.BackendIR _ _ _ _ _ cu) = PP.render $ runReader (define_cu cu) ir
 
 define_cu :: (DumpableType ty) => BackendIR.CU -> IRReader ty poison_allowed PP.Token
 define_cu (BackendIR.CU bindings adts type_synonyms) =

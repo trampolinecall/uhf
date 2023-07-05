@@ -54,7 +54,7 @@ data Decl
     deriving Show
 
 data Module d_iden v_iden p_iden type_info binary_ops_allowed
-    = Module ID.ModuleID NameContext [Binding d_iden v_iden p_iden type_info binary_ops_allowed] [ADTKey] [TypeSynonymKey]
+    = Module ID.ModuleID [Binding d_iden v_iden p_iden type_info binary_ops_allowed] [ADTKey] [TypeSynonymKey]
     deriving Show
 
 data BoundValue type_info
@@ -67,6 +67,7 @@ data Binding d_iden v_iden p_iden type_info binary_ops_allowed
     | Binding'ADTVariant BoundValueKey Type.ADTVariantIndex
     deriving Show
 
+-- TODO: move to NameResolve
 data NameContext = NameContext (Map.Map Text DeclKey) (Map.Map Text BoundValueKey) (Map.Map Text Type.ADTVariantIndex) (Maybe NameContext) deriving Show
 
 type HoleIdentifier = Located [Located Text] -- TODO: disallow paths in holes?

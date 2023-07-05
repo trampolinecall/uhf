@@ -43,7 +43,7 @@ data BackendIR ty poison_allowed
         (Arena.Arena Type.Var Type.TypeVarKey)
         (Arena.Arena (Binding ty poison_allowed) BindingKey)
         (Arena.Arena (Param ty) ParamKey)
-        (CU)
+        CU
 
 -- "compilation unit"
 data CU = CU (BindingGroup) [ADTKey] [TypeSynonymKey]

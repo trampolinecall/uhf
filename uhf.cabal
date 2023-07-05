@@ -49,39 +49,39 @@ library
       UHF.IO.Location
       UHF.IO.Location.SpanHelper
       UHF.IO.Span
-      UHF.Phases.Back.RemovePoison
-      UHF.Phases.Back.ToBackendIR
-      UHF.Phases.Back.ToDot
-      UHF.Phases.Back.TSBackend
-      UHF.Phases.Back.TSBackend.TS
-      UHF.Phases.Back.TSBackend.TS.PP
-      UHF.Phases.Front.Lexer
-      UHF.Phases.Front.Lexer.IdentifierGrouper
-      UHF.Phases.Front.Lexer.LexError
-      UHF.Phases.Front.Lexer.MainLexer
-      UHF.Phases.Front.Parser
-      UHF.Phases.Front.Parser.Error
-      UHF.Phases.Front.Parser.PEG
-      UHF.Phases.Front.Parser.Test
-      UHF.Phases.Middle.InfixGroup
-      UHF.Phases.Middle.NameResolve
-      UHF.Phases.Middle.OptimizeANFIR
-      UHF.Phases.Middle.OptimizeANFIR.RemoveRefers
-      UHF.Phases.Middle.OptimizeANFIR.Utils
-      UHF.Phases.Middle.ReportHoles
-      UHF.Phases.Middle.ToANFIR
-      UHF.Phases.Middle.ToRIR
-      UHF.Phases.Middle.ToSIR
-      UHF.Phases.Middle.Type
-      UHF.Phases.Middle.Type.AddTypes
-      UHF.Phases.Middle.Type.Aliases
-      UHF.Phases.Middle.Type.Constraint
-      UHF.Phases.Middle.Type.Error
-      UHF.Phases.Middle.Type.RemoveUnknowns
-      UHF.Phases.Middle.Type.SolveConstraints
-      UHF.Phases.Middle.Type.StateWithUnk
-      UHF.Phases.Middle.Type.Unknown
-      UHF.Phases.Middle.Type.Utils
+      UHF.Phases.InfixGroup
+      UHF.Phases.Lexer
+      UHF.Phases.Lexer.IdentifierGrouper
+      UHF.Phases.Lexer.LexError
+      UHF.Phases.Lexer.MainLexer
+      UHF.Phases.NameResolve
+      UHF.Phases.OptimizeANFIR
+      UHF.Phases.OptimizeANFIR.RemoveRefers
+      UHF.Phases.OptimizeANFIR.Utils
+      UHF.Phases.Parser
+      UHF.Phases.Parser.Error
+      UHF.Phases.Parser.PEG
+      UHF.Phases.Parser.Test
+      UHF.Phases.RemovePoison
+      UHF.Phases.ReportHoles
+      UHF.Phases.ToANFIR
+      UHF.Phases.ToBackendIR
+      UHF.Phases.ToDot
+      UHF.Phases.ToRIR
+      UHF.Phases.ToSIR
+      UHF.Phases.TSBackend
+      UHF.Phases.TSBackend.TS
+      UHF.Phases.TSBackend.TS.PP
+      UHF.Phases.Type
+      UHF.Phases.Type.AddTypes
+      UHF.Phases.Type.Aliases
+      UHF.Phases.Type.Constraint
+      UHF.Phases.Type.Error
+      UHF.Phases.Type.RemoveUnknowns
+      UHF.Phases.Type.SolveConstraints
+      UHF.Phases.Type.StateWithUnk
+      UHF.Phases.Type.Unknown
+      UHF.Phases.Type.Utils
       UHF.PP
       UHF.PP.IndentationMonad
       UHF.Util.Prelude

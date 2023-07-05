@@ -92,7 +92,7 @@ new_type_synonym ts =
         let (key, type_synonyms') = Arena.put ts type_synonyms
         in (key, (decls, mods, adts, type_synonyms', type_vars, bound_values))
 
-new_type_var :: Text -> MakeIRState Type.TypeVarKey
+new_type_var :: Located Text -> MakeIRState Type.TypeVarKey
 new_type_var name =
     state $ \ (decls, mods, adts, type_synonyms, type_vars, bound_values) ->
         let (key, type_vars') = Arena.put (Type.Var name) type_vars
@@ -168,7 +168,7 @@ convert_decls bv_parent decl_parent prev_decl_entries prev_bv_entries decls =
         convert_decl (AST.Decl'Data name type_params variants) =
             runMaybeT (
                 mapM iden1_for_type_name type_params >>= \ type_param_names ->
-                mapM (lift . new_type_var . unlocate) type_param_names >>= \ ty_param_vars ->
+                mapM (lift . new_type_var) type_param_names >>= \ ty_param_vars ->
                 zipWithM (\ (Located sp name) var -> (name, DeclAt sp,) <$> lift (new_decl $ SIR.Decl'Type $ Type.Type'Variable var)) type_param_names ty_param_vars >>= \ new_decls ->
 
                 iden1_for_type_name name >>= \ name1withsp@(Located name1sp name1) ->
@@ -248,7 +248,7 @@ convert_type (AST.Type'Function sp arg res) = SIR.TypeExpr'Function () sp <$> co
 convert_type (AST.Type'Forall _ tys ty) =
     catMaybes <$> mapM (make_iden1_with_err PathInTypeName) tys >>= \ tys ->
 
-    mapM (new_type_var . unlocate) tys >>= \ ty_vars ->
+    mapM (new_type_var) tys >>= \ ty_vars ->
     zipWithM (\ (Located sp name) var -> (name, DeclAt sp,) <$> new_decl (SIR.Decl'Type $ Type.Type'Variable var)) tys ty_vars >>= \ new_decls ->
 
     case ty_vars of
@@ -322,7 +322,7 @@ convert_expr (AST.Expr'TypeAnnotation sp ty e) = new_expr_id >>= \ id -> SIR.Exp
 convert_expr (AST.Expr'Forall sp tys e) =
     catMaybes <$> mapM (make_iden1_with_err PathInTypeName) tys >>= \ tys ->
 
-    mapM (new_type_var . unlocate) tys >>= \ ty_vars ->
+    mapM new_type_var tys >>= \ ty_vars ->
     zipWithM (\ (Located sp name) var -> (name, DeclAt sp,) <$> new_decl (SIR.Decl'Type $ Type.Type'Variable var)) tys ty_vars >>= \ new_decls ->
 
     new_expr_id >>= \ id ->

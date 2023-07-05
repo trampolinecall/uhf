@@ -14,8 +14,7 @@ module UHF.Phases.NameResolve
     , UnresolvedTypeSynonymArena
     , ResolvedTypeSynonymArena
 
-    , UnresolvedDeclArena
-    , ResolvedDeclArena
+    , DeclArena
 
     , resolve
     ) where
@@ -48,12 +47,16 @@ data ChildMaps
 
 data ChildMapStack = ChildMapStack ChildMaps (Maybe ChildMapStack)
 
+type TypeVarArena = Arena.Arena Type.Var Type.TypeVarKey
+type BoundValueArena = Arena.Arena (SIR.BoundValue ()) SIR.BoundValueKey
+type ModuleChildMaps = Arena.Arena ChildMaps SIR.ModuleKey
+type DeclArena = Arena.Arena SIR.Decl SIR.DeclKey
+
 type UnresolvedDIden = [Located Text]
 type UnresolvedVIden = [Located Text]
 type UnresolvedPIden = [Located Text]
 
 type UnresolvedSIR = SIR.SIR UnresolvedDIden UnresolvedVIden UnresolvedPIden () ()
-type UnresolvedDecl = SIR.Decl
 type UnresolvedModule = SIR.Module UnresolvedDIden UnresolvedVIden UnresolvedPIden () ()
 type UnresolvedADT = Type.ADT UnresolvedTypeExpr
 type UnresolvedTypeSynonym = Type.TypeSynonym UnresolvedTypeExpr
@@ -62,21 +65,16 @@ type UnresolvedBinding = SIR.Binding UnresolvedDIden UnresolvedVIden UnresolvedP
 type UnresolvedExpr = SIR.Expr UnresolvedDIden UnresolvedVIden UnresolvedPIden () ()
 type UnresolvedPattern = SIR.Pattern UnresolvedPIden ()
 
-type UnresolvedDeclArena = Arena.Arena UnresolvedDecl SIR.DeclKey
 type UnresolvedModuleArena = Arena.Arena UnresolvedModule SIR.ModuleKey
 type UnresolvedBoundValueArena = Arena.Arena (SIR.BoundValue ()) SIR.BoundValueKey
 type UnresolvedADTArena = Arena.Arena UnresolvedADT Type.ADTKey
 type UnresolvedTypeSynonymArena = Arena.Arena UnresolvedTypeSynonym Type.TypeSynonymKey
-
-type DeclChildMapArena = Arena.Arena ChildMaps SIR.DeclKey
-type ModuleChildMaps = Arena.Arena ChildMaps SIR.ModuleKey
 
 type ResolvedDIden = Maybe SIR.DeclKey
 type ResolvedVIden = Located (Maybe SIR.BoundValueKey)
 type ResolvedPIden = Maybe Type.ADTVariantIndex
 
 type ResolvedSIR = SIR.SIR ResolvedDIden ResolvedVIden ResolvedPIden () ()
-type ResolvedDecl = SIR.Decl
 type ResolvedModule = SIR.Module ResolvedDIden ResolvedVIden ResolvedPIden () ()
 type ResolvedADT = Type.ADT ResolvedTypeExpr
 type ResolvedTypeSynonym = Type.TypeSynonym ResolvedTypeExpr
@@ -85,7 +83,6 @@ type ResolvedBinding = SIR.Binding ResolvedDIden ResolvedVIden ResolvedPIden () 
 type ResolvedExpr = SIR.Expr ResolvedDIden ResolvedVIden ResolvedPIden () ()
 type ResolvedPattern = SIR.Pattern ResolvedPIden ()
 
-type ResolvedDeclArena = Arena.Arena ResolvedDecl SIR.DeclKey
 type ResolvedModuleArena = Arena.Arena ResolvedModule SIR.ModuleKey
 type ResolvedADTArena = Arena.Arena ResolvedADT Type.ADTKey
 type ResolvedTypeSynonymArena = Arena.Arena ResolvedTypeSynonym Type.TypeSynonymKey
@@ -148,108 +145,29 @@ make_child_maps decls bound_values adt_variants =
             where
                 get_decl_at (_, d, _) = d
 
-{- TODO: remove?
-transform_identifiers ::
-    Monad m =>
-    (d_iden -> m d_iden') ->
-    (v_iden -> m v_iden') ->
-    (p_iden -> m p_iden') ->
-    Arena.Arena (Type.ADT (SIR.TypeExpr d_iden type_info)) Type.ADTKey ->
-    Arena.Arena (Type.TypeSynonym (SIR.TypeExpr d_iden type_info)) Type.TypeSynonymKey ->
-    Arena.Arena (SIR.Module d_iden v_iden p_iden type_info binary_ops_allowed) SIR.ModuleKey ->
-    m
-        ( Arena.Arena (Type.ADT (SIR.TypeExpr d_iden' type_info)) Type.ADTKey
-        , Arena.Arena (Type.TypeSynonym (SIR.TypeExpr d_iden' type_info)) Type.TypeSynonymKey
-        , Arena.Arena (SIR.Module d_iden' v_iden' p_iden' type_info binary_ops_allowed) SIR.ModuleKey
-        )
-transform_identifiers transform_d_iden transform_v_iden transform_p_iden adts type_synonyms modules = (,,) <$> Arena.transformM transform_adt adts <*> Arena.transformM transform_type_synonym type_synonyms <*> Arena.transformM transform_module modules
-    where
-        transform_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM transform_variant variants
-            where
-                transform_variant (Type.ADTVariant'Named name fields) = Type.ADTVariant'Named name <$> mapM (\ (name, ty) -> (,) name <$> transform_type_expr ty) fields
-                transform_variant (Type.ADTVariant'Anon name fields) = Type.ADTVariant'Anon name <$> mapM transform_type_expr fields
-
-        transform_type_synonym (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name <$> transform_type_expr expansion
-
-        transform_type_expr (SIR.TypeExpr'Identifier type_info sp id) = SIR.TypeExpr'Identifier type_info sp <$> transform_d_iden id
-        transform_type_expr (SIR.TypeExpr'Tuple type_info a b) = SIR.TypeExpr'Tuple type_info <$> transform_type_expr a <*> transform_type_expr b
-        transform_type_expr (SIR.TypeExpr'Hole type_info sp hid) = pure $ SIR.TypeExpr'Hole type_info sp hid
-        transform_type_expr (SIR.TypeExpr'Function type_info sp arg res) = SIR.TypeExpr'Function type_info sp <$> transform_type_expr arg <*> transform_type_expr res
-        transform_type_expr (SIR.TypeExpr'Forall type_info names ty) = SIR.TypeExpr'Forall type_info names <$> transform_type_expr ty
-        transform_type_expr (SIR.TypeExpr'Apply type_info sp ty args) = SIR.TypeExpr'Apply type_info sp <$> transform_type_expr ty <*> transform_type_expr args
-        transform_type_expr (SIR.TypeExpr'Wild type_info sp) = pure $ SIR.TypeExpr'Wild type_info sp
-        transform_type_expr (SIR.TypeExpr'Poison type_info sp) = pure $ SIR.TypeExpr'Poison type_info sp
-
-        transform_module (SIR.Module id bindings adts syns) = SIR.Module id <$> mapM transform_binding bindings <*> pure adts <*> pure syns
-
-        transform_binding (SIR.Binding target eq_sp expr) = SIR.Binding <$> transform_pat target <*> pure eq_sp <*> transform_expr expr
-        transform_binding (SIR.Binding'ADTVariant bvk variant) = pure $ SIR.Binding'ADTVariant bvk variant
-
-        transform_pat (SIR.Pattern'Identifier type_info sp bnk) = pure $ SIR.Pattern'Identifier type_info sp bnk
-        transform_pat (SIR.Pattern'Wildcard type_info sp) = pure $ SIR.Pattern'Wildcard type_info sp
-        transform_pat (SIR.Pattern'Tuple type_info sp a b) = SIR.Pattern'Tuple type_info sp <$> transform_pat a <*> transform_pat b
-        transform_pat (SIR.Pattern'Named type_info sp at_sp bnk subpat) = SIR.Pattern'Named type_info sp at_sp bnk <$> transform_pat subpat
-        transform_pat (SIR.Pattern'AnonADTVariant type_info sp variant subpat) = SIR.Pattern'AnonADTVariant type_info sp <$> transform_p_iden variant <*> mapM transform_pat subpat
-        transform_pat (SIR.Pattern'NamedADTVariant type_info sp variant subpat) = SIR.Pattern'NamedADTVariant type_info sp <$> transform_p_iden variant <*> mapM (\ (field_name, field_pat) -> (field_name,) <$> transform_pat field_pat) subpat
-        transform_pat (SIR.Pattern'Poison type_info sp) = pure $ SIR.Pattern'Poison type_info sp
-
-        transform_expr (SIR.Expr'Identifier id type_info sp i) = SIR.Expr'Identifier id type_info sp <$> transform_v_iden i
-        transform_expr (SIR.Expr'Char id type_info sp c) = pure $ SIR.Expr'Char id type_info sp c
-        transform_expr (SIR.Expr'String id type_info sp s) = pure $ SIR.Expr'String id type_info sp s
-        transform_expr (SIR.Expr'Int id type_info sp i) = pure $ SIR.Expr'Int id type_info sp i
-        transform_expr (SIR.Expr'Float id type_info sp f) = pure $ SIR.Expr'Float id type_info sp f
-        transform_expr (SIR.Expr'Bool id type_info sp b) = pure $ SIR.Expr'Bool id type_info sp b
-
-        transform_expr (SIR.Expr'Tuple id type_info sp a b) = SIR.Expr'Tuple id type_info sp <$> transform_expr a <*> transform_expr b
-
-        transform_expr (SIR.Expr'Lambda id type_info sp param body) = SIR.Expr'Lambda id type_info sp <$> transform_pat param <*> transform_expr body
-
-        transform_expr (SIR.Expr'Let id type_info sp bindings body) = SIR.Expr'Let id type_info sp <$> mapM transform_binding bindings <*> transform_expr body
-        transform_expr (SIR.Expr'LetRec id type_info sp bindings body) = SIR.Expr'LetRec id type_info sp <$> mapM transform_binding bindings <*> transform_expr body
-
-        transform_expr (SIR.Expr'BinaryOps id allowed type_info sp first ops) = SIR.Expr'BinaryOps id allowed type_info sp <$> transform_expr first <*> mapM (\ (iden, rhs) -> (,) <$> transform_v_iden iden <*> transform_expr rhs) ops
-
-        transform_expr (SIR.Expr'Call id type_info sp callee arg) = SIR.Expr'Call id type_info sp <$> transform_expr callee <*> transform_expr arg
-
-        transform_expr (SIR.Expr'If id type_info sp if_sp cond t f) = SIR.Expr'If id type_info sp if_sp <$> transform_expr cond <*> transform_expr t <*> transform_expr f
-        transform_expr (SIR.Expr'Case id type_info sp case_sp e arms) = SIR.Expr'Case id type_info sp case_sp <$> transform_expr e <*> mapM (\ (pat, expr) -> (,) <$> transform_pat pat <*> transform_expr expr) arms
-
-        transform_expr (SIR.Expr'TypeAnnotation id type_info sp ty e) = SIR.Expr'TypeAnnotation id type_info sp <$> transform_type_expr ty <*> transform_expr e
-
-        transform_expr (SIR.Expr'Forall id type_info sp names e) = SIR.Expr'Forall id type_info sp names <$> transform_expr e
-        transform_expr (SIR.Expr'TypeApply id type_info sp e args) = SIR.Expr'TypeApply id type_info sp <$> transform_expr e <*> transform_type_expr args
-
-        transform_expr (SIR.Expr'Hole id type_info sp hid) = pure $ SIR.Expr'Hole id type_info sp hid
-
-        transform_expr (SIR.Expr'Poison id type_info sp) = pure $ SIR.Expr'Poison id type_info sp
--}
+new_decl d = StateT (\ arena -> pure $ Arena.put d arena)
 
 resolve :: UnresolvedSIR -> Compiler.WithDiagnostics Error Void ResolvedSIR
 resolve (SIR.SIR decls mods adts type_synonyms type_vars bound_values mod) =
-    collect_child_maps decls mods adts type_synonyms bound_values >>= \ (mod_child_maps, decls) ->
-        {-
-    let (adts', type_synonyms', mods') = runIdentity (transform_identifiers Identity split_iden split_iden adts type_synonyms mods)
-    in transform_identifiers (resolve_type_iden decls) (resolve_expr_iden decls) (resolve_pat_iden decls) adts' type_synonyms' mods' >>= \ (adts', type_synonyms', mods') ->
-    let decls'' = Arena.transform snd decls
-    in pure (SIR.SIR decls'' mods' adts' type_synonyms' type_vars bound_values mod)
-    -}
-    pure (SIR.SIR decls todo todo todo type_vars bound_values mod)
+    runStateT
+        (
+            collect_child_maps mods adts type_synonyms bound_values >>= \ (mod_child_maps) ->
+            resolve_in_mods adts bound_values type_vars mod_child_maps mods >>= \ (mods, adt_parents, type_synonym_parents) ->
+            resolve_in_adts type_vars bound_values mod_child_maps adt_parents adts >>= \ adts ->
+            resolve_in_type_synonyms type_vars bound_values mod_child_maps type_synonym_parents type_synonyms >>= \ synonyms ->
+            pure (mods, adts, synonyms)
+        )
+        decls >>= \ ((mods, adts, synonyms), decls) ->
+    pure (SIR.SIR decls mods adts synonyms type_vars bound_values mod)
 
-collect_child_maps :: UnresolvedDeclArena -> UnresolvedModuleArena -> UnresolvedADTArena -> UnresolvedTypeSynonymArena -> UnresolvedBoundValueArena -> Compiler.WithDiagnostics Error Void (Arena.Arena ChildMaps SIR.ModuleKey, UnresolvedDeclArena) -- TODO: rename UnresolvedDecl to just Decl
-collect_child_maps decl_arena mod_arena adt_arena type_synonym_arena bv_arena =
-    runStateT (Arena.transformM go mod_arena) decl_arena
+-- TODO: clean up this module
+
+collect_child_maps :: UnresolvedModuleArena -> UnresolvedADTArena -> UnresolvedTypeSynonymArena -> UnresolvedBoundValueArena -> StateT DeclArena (Compiler.WithDiagnostics Error Void) (Arena.Arena ChildMaps SIR.ModuleKey) -- TODO: rename UnresolvedDecl to just Decl
+collect_child_maps mod_arena adt_arena type_synonym_arena bv_arena = Arena.transformM go mod_arena
     where
-        new_decl d = state (\ arena -> Arena.put d arena)
         go (SIR.Module _ bindings adts type_synonyms) =
-            unzip3 <$>
-                mapM
-                    (\ binding ->
-                        case binding of
-                            SIR.Binding pat _ _ -> pure ([], pattern_bvs pat, [])
-                            SIR.Binding'ADTVariant sp bvk variant_index -> pure ([], [(bv_name bvk, DeclAt sp, bvk)], [(bv_name bvk, DeclAt sp, variant_index)]) -- TODO: move variants to inside their types
-                    )
-                    bindings >>= \ (binding_decl_entries, binding_bv_entries, binding_variant_entries) ->
-            unzip3 <$>
+            let (binding_decl_entries, binding_bv_entries, binding_variant_entries) = unzip3 $ map (binding_children adt_arena bv_arena) bindings
+            in unzip3 <$>
                 mapM
                     (\ adt ->
                         let (Type.ADT _ (Located name_sp name) _ _) = Arena.get adt_arena adt
@@ -271,29 +189,148 @@ collect_child_maps decl_arena mod_arena adt_arena type_synonym_arena bv_arena =
                     (concat $ binding_bv_entries ++ adt_bv_entries ++ type_synonym_bv_entries)
                     (concat $ binding_variant_entries ++ adt_variant_entries ++ type_synonym_variant_entries))
 
-            where
-                pattern_bvs (SIR.Pattern'Identifier _ sp bvk) = [(bv_name bvk, DeclAt sp, bvk)]
-                pattern_bvs (SIR.Pattern'Wildcard _ sp) = []
-                pattern_bvs (SIR.Pattern'Tuple _ sp a b) = pattern_bvs a ++ pattern_bvs b
-                pattern_bvs (SIR.Pattern'Named _ _ _ (Located bv_span bvk) subpat) = (bv_name bvk, DeclAt bv_span, bvk) : pattern_bvs subpat
-                pattern_bvs (SIR.Pattern'AnonADTVariant _ sp p_iden fields) = concatMap pattern_bvs fields
-                pattern_bvs (SIR.Pattern'NamedADTVariant _ sp p_iden fields) = concatMap (pattern_bvs . snd) fields
-                pattern_bvs (SIR.Pattern'Poison _ _) = []
+binding_children adt_arena bv_arena (SIR.Binding pat _ _) = ([], pattern_bvs adt_arena bv_arena pat, [])
+binding_children adt_arena bv_arena (SIR.Binding'ADTVariant sp bvk variant_index) = ([], [(bv_name adt_arena bv_arena bvk, DeclAt sp, bvk)], [(bv_name adt_arena bv_arena bvk, DeclAt sp, variant_index)]) -- TODO: move variants to inside their types, also dont handle adt variants here
 
-                bv_name bvk =
-                    case Arena.get bv_arena bvk of
-                        SIR.BoundValue _ _ (Located _ name) -> name
-                        SIR.BoundValue'ADTVariant _ variant_index _ _ ->
-                            let variant = Type.get_adt_variant adt_arena variant_index
-                            in Type.variant_name variant
+pattern_bvs adt_arena bv_arena (SIR.Pattern'Identifier _ sp bvk) = [(bv_name adt_arena bv_arena bvk, DeclAt sp, bvk)]
+pattern_bvs adt_arena bv_arena (SIR.Pattern'Wildcard _ sp) = []
+pattern_bvs adt_arena bv_arena (SIR.Pattern'Tuple _ sp a b) = pattern_bvs adt_arena bv_arena a ++ pattern_bvs adt_arena bv_arena b
+pattern_bvs adt_arena bv_arena (SIR.Pattern'Named _ _ _ (Located bv_span bvk) subpat) = (bv_name adt_arena bv_arena bvk, DeclAt bv_span, bvk) : pattern_bvs adt_arena bv_arena subpat
+pattern_bvs adt_arena bv_arena (SIR.Pattern'AnonADTVariant _ sp p_iden fields) = concatMap (pattern_bvs adt_arena bv_arena) fields
+pattern_bvs adt_arena bv_arena (SIR.Pattern'NamedADTVariant _ sp p_iden fields) = concatMap (pattern_bvs adt_arena bv_arena . snd) fields
+pattern_bvs adt_arena bv_arena (SIR.Pattern'Poison _ _) = []
 
-split_iden :: UnresolvedVIden -> Identity (Maybe [Located Text], Located Text)
+bv_name adt_arena bv_arena bvk =
+    case Arena.get bv_arena bvk of
+        SIR.BoundValue _ _ (Located _ name) -> name
+        SIR.BoundValue'ADTVariant _ variant_index _ _ ->
+            let variant = Type.get_adt_variant adt_arena variant_index
+            in Type.variant_name variant
+
+-- TODO: put all things in reader monad?
+resolve_in_mods :: UnresolvedADTArena -> BoundValueArena -> TypeVarArena -> ModuleChildMaps -> UnresolvedModuleArena -> StateT DeclArena (Compiler.WithDiagnostics Error Void) (ResolvedModuleArena, Map.Map Type.ADTKey ChildMaps, Map.Map Type.TypeSynonymKey ChildMaps)
+resolve_in_mods adt_arena bv_arena type_var_arena module_child_maps module_arena =
+    runWriterT (runWriterT $ Arena.transform_with_keyM (resolve_in_module adt_arena type_var_arena bv_arena module_child_maps) module_arena) >>= \ ((module_arena, adt_parents), type_synonym_parents) ->
+    pure (module_arena, adt_parents, type_synonym_parents)
+
+resolve_in_adts :: TypeVarArena -> BoundValueArena -> ModuleChildMaps -> Map.Map Type.ADTKey ChildMaps -> UnresolvedADTArena -> StateT DeclArena (Compiler.WithDiagnostics Error Void) ResolvedADTArena
+resolve_in_adts type_var_arena bv_arena module_child_maps adt_parent_child_maps adt_arena = Arena.transform_with_keyM (resolve_in_adt type_var_arena bv_arena module_child_maps adt_parent_child_maps) adt_arena
+
+resolve_in_type_synonyms :: TypeVarArena -> BoundValueArena -> ModuleChildMaps -> Map.Map Type.TypeSynonymKey ChildMaps -> UnresolvedTypeSynonymArena -> StateT DeclArena (Compiler.WithDiagnostics Error Void) ResolvedTypeSynonymArena
+resolve_in_type_synonyms type_var_arena bv_arena module_child_maps synonym_parent_child_maps type_synonym_arena = Arena.transform_with_keyM (resolve_in_type_synonym type_var_arena bv_arena module_child_maps synonym_parent_child_maps) type_synonym_arena
+
+resolve_in_module adt_arena type_var_arena bv_arena module_child_maps mod_key (SIR.Module id bindings adts type_synonyms) =
+    let cur_map = Arena.get module_child_maps mod_key
+    in mapM (\ adt -> tell $ Map.singleton adt cur_map) adts >>
+    mapM (\ synonym -> lift $ tell $ Map.singleton synonym cur_map) type_synonyms >>
+    SIR.Module id <$> (mapM (lift . lift . resolve_in_binding adt_arena type_var_arena bv_arena module_child_maps (ChildMapStack cur_map Nothing)) bindings) <*> pure adts <*> pure type_synonyms
+
+-- TODO: remember to make type parameters in scope
+resolve_in_adt type_var_arena bv_arena module_child_maps adt_parent_child_maps adt_key (Type.ADT id name type_vars variants) =
+    let parent = adt_parent_child_maps Map.! adt_key
+    in Type.ADT id name type_vars <$> mapM (resolve_in_variant type_var_arena bv_arena module_child_maps (ChildMapStack parent Nothing)) variants
+    where
+        resolve_in_variant type_var_arena bv_arena module_child_maps nc_stack (Type.ADTVariant'Named name fields) = Type.ADTVariant'Named name <$> mapM (\ (name, ty) -> (,) name <$> resolve_in_type_expr type_var_arena bv_arena module_child_maps nc_stack ty) fields
+        resolve_in_variant type_var_arena bv_arena module_child_maps nc_stack (Type.ADTVariant'Anon name fields) = Type.ADTVariant'Anon name <$> mapM (resolve_in_type_expr type_var_arena bv_arena module_child_maps nc_stack) fields
+
+resolve_in_type_synonym type_var_arena bv_arena module_child_maps parent_maps synonym_key (Type.TypeSynonym id name expansion) =
+    let parent = parent_maps Map.! synonym_key
+    in Type.TypeSynonym id name <$> resolve_in_type_expr type_var_arena bv_arena module_child_maps (ChildMapStack parent Nothing) expansion
+
+resolve_in_binding adt_arena type_var_arena bv_arena module_child_maps nc_stack (SIR.Binding target eq_sp expr) = SIR.Binding <$> resolve_in_pat module_child_maps nc_stack target <*> pure eq_sp <*> resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps nc_stack expr
+resolve_in_binding adt_arena type_var_arena bv_arena module_child_maps nc_stack (SIR.Binding'ADTVariant bvk variant sp) = pure $ SIR.Binding'ADTVariant bvk variant sp
+
+resolve_in_type_expr type_var_arena bv_arena module_child_maps nc_stack (SIR.TypeExpr'Identifier type_info sp id) = SIR.TypeExpr'Identifier type_info sp <$> lift (resolve_type_iden todo {- get -} module_child_maps nc_stack id)
+resolve_in_type_expr type_var_arena bv_arena module_child_maps nc_stack (SIR.TypeExpr'Tuple type_info a b) = SIR.TypeExpr'Tuple type_info <$> resolve_in_type_expr type_var_arena bv_arena module_child_maps nc_stack a <*> resolve_in_type_expr type_var_arena bv_arena module_child_maps nc_stack b
+resolve_in_type_expr type_var_arena bv_arena module_child_maps nc_stack (SIR.TypeExpr'Hole type_info sp hid) = pure $ SIR.TypeExpr'Hole type_info sp hid
+resolve_in_type_expr type_var_arena bv_arena module_child_maps nc_stack (SIR.TypeExpr'Function type_info sp arg res) = SIR.TypeExpr'Function type_info sp <$> resolve_in_type_expr type_var_arena bv_arena module_child_maps nc_stack arg <*> resolve_in_type_expr type_var_arena bv_arena module_child_maps nc_stack res
+resolve_in_type_expr type_var_arena bv_arena module_child_maps nc_stack (SIR.TypeExpr'Forall type_info vars ty) =
+    mapM
+        (\ var ->
+            let (Type.Var (Located name_sp name)) = Arena.get type_var_arena var
+            in new_decl (SIR.Decl'Type $ Type.Type'Variable var) >>= \ var_decl ->
+            pure (name, DeclAt name_sp, var_decl))
+        (toList vars) >>= \ vars' ->
+    lift (make_child_maps vars' [] []) >>= \ new_nc ->
+    SIR.TypeExpr'Forall type_info vars <$> resolve_in_type_expr type_var_arena bv_arena module_child_maps (ChildMapStack new_nc (Just nc_stack)) ty
+resolve_in_type_expr type_var_arena bv_arena module_child_maps nc_stack (SIR.TypeExpr'Apply type_info sp ty args) = SIR.TypeExpr'Apply type_info sp <$> resolve_in_type_expr type_var_arena bv_arena module_child_maps nc_stack ty <*> resolve_in_type_expr type_var_arena bv_arena module_child_maps nc_stack args
+resolve_in_type_expr type_var_arena bv_arena module_child_maps nc_stack (SIR.TypeExpr'Wild type_info sp) = pure $ SIR.TypeExpr'Wild type_info sp
+resolve_in_type_expr type_var_arena bv_arena module_child_maps nc_stack (SIR.TypeExpr'Poison type_info sp) = pure $ SIR.TypeExpr'Poison type_info sp
+
+resolve_in_pat module_child_maps nc_stack (SIR.Pattern'Identifier type_info sp bnk) = pure $ SIR.Pattern'Identifier type_info sp bnk
+resolve_in_pat module_child_maps nc_stack (SIR.Pattern'Wildcard type_info sp) = pure $ SIR.Pattern'Wildcard type_info sp
+resolve_in_pat module_child_maps nc_stack (SIR.Pattern'Tuple type_info sp a b) = SIR.Pattern'Tuple type_info sp <$> resolve_in_pat module_child_maps nc_stack a <*> resolve_in_pat module_child_maps nc_stack b
+resolve_in_pat module_child_maps nc_stack (SIR.Pattern'Named type_info sp at_sp bnk subpat) = SIR.Pattern'Named type_info sp at_sp bnk <$> resolve_in_pat module_child_maps nc_stack subpat
+resolve_in_pat module_child_maps nc_stack (SIR.Pattern'AnonADTVariant type_info sp variant subpat) = SIR.Pattern'AnonADTVariant type_info sp <$> lift (resolve_pat_iden todo {- get -} module_child_maps nc_stack (split_iden variant)) <*> mapM (resolve_in_pat module_child_maps nc_stack) subpat
+resolve_in_pat module_child_maps nc_stack (SIR.Pattern'NamedADTVariant type_info sp variant subpat) = SIR.Pattern'NamedADTVariant type_info sp <$> lift (resolve_pat_iden todo {- get -} module_child_maps nc_stack (split_iden variant)) <*> mapM (\ (field_name, field_pat) -> (field_name,) <$> resolve_in_pat module_child_maps nc_stack field_pat) subpat
+resolve_in_pat module_child_maps nc_stack (SIR.Pattern'Poison type_info sp) = pure $ SIR.Pattern'Poison type_info sp
+
+resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps nc_stack (SIR.Expr'Identifier id type_info sp i) = SIR.Expr'Identifier id type_info sp <$> lift (resolve_expr_iden todo {- get -} module_child_maps nc_stack (split_iden i))
+resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps nc_stack (SIR.Expr'Char id type_info sp c) = pure $ SIR.Expr'Char id type_info sp c
+resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps nc_stack (SIR.Expr'String id type_info sp s) = pure $ SIR.Expr'String id type_info sp s
+resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps nc_stack (SIR.Expr'Int id type_info sp i) = pure $ SIR.Expr'Int id type_info sp i
+resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps nc_stack (SIR.Expr'Float id type_info sp f) = pure $ SIR.Expr'Float id type_info sp f
+resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps nc_stack (SIR.Expr'Bool id type_info sp b) = pure $ SIR.Expr'Bool id type_info sp b
+
+resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps nc_stack (SIR.Expr'Tuple id type_info sp a b) = SIR.Expr'Tuple id type_info sp <$> resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps nc_stack a <*> resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps nc_stack b
+
+resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps nc_stack (SIR.Expr'Lambda id type_info sp param body) =
+    lift (make_child_maps [] (pattern_bvs adt_arena bv_arena param) []) >>= \ new_nc ->
+    SIR.Expr'Lambda id type_info sp <$> resolve_in_pat module_child_maps nc_stack param <*> resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps (ChildMapStack new_nc (Just nc_stack)) body
+
+-- TODO: make Let only have 1 binding
+resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps nc_stack (SIR.Expr'Let id type_info sp bindings body) =
+    let (decl_children, bv_children, variant_children) = unzip3 $ map (binding_children adt_arena bv_arena) bindings
+    in lift (make_child_maps (concat decl_children) (concat bv_children) (concat variant_children)) >>= \ new_nc ->
+    SIR.Expr'Let id type_info sp <$> mapM (resolve_in_binding adt_arena type_var_arena bv_arena module_child_maps nc_stack) bindings <*> resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps (ChildMapStack new_nc (Just nc_stack)) body
+
+resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps nc_stack (SIR.Expr'LetRec id type_info sp bindings body) =
+    let (decl_children, bv_children, variant_children) = unzip3 $ map (binding_children adt_arena bv_arena) bindings
+    in lift (make_child_maps (concat decl_children) (concat bv_children) (concat variant_children)) >>= \ new_nc ->
+    let new_nc_stack = ChildMapStack new_nc (Just nc_stack)
+    in SIR.Expr'LetRec id type_info sp <$> mapM (resolve_in_binding adt_arena type_var_arena bv_arena module_child_maps new_nc_stack) bindings <*> resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps new_nc_stack body
+
+resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps nc_stack (SIR.Expr'BinaryOps id allowed type_info sp first ops) = SIR.Expr'BinaryOps id allowed type_info sp <$> resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps nc_stack first <*> mapM (\ (iden, rhs) -> (,) <$> lift (resolve_expr_iden todo {- get -} module_child_maps nc_stack (split_iden iden)) <*> resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps nc_stack rhs) ops
+
+resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps nc_stack (SIR.Expr'Call id type_info sp callee arg) = SIR.Expr'Call id type_info sp <$> resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps nc_stack callee <*> resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps nc_stack arg
+
+resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps nc_stack (SIR.Expr'If id type_info sp if_sp cond t f) = SIR.Expr'If id type_info sp if_sp <$> resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps nc_stack cond <*> resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps nc_stack t <*> resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps nc_stack f
+resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps nc_stack (SIR.Expr'Case id type_info sp case_sp e arms) =
+    SIR.Expr'Case id type_info sp case_sp
+        <$> resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps nc_stack e
+        <*> mapM
+                (\ (pat, expr) ->
+                    resolve_in_pat module_child_maps nc_stack pat >>= \ pat' ->
+                    let bv_children = pattern_bvs adt_arena bv_arena pat
+                    in lift (make_child_maps [] bv_children []) >>= \ arm_nc ->
+                    (pat',) <$> resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps (ChildMapStack arm_nc (Just nc_stack)) expr
+                )
+                arms
+
+resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps nc_stack (SIR.Expr'TypeAnnotation id type_info sp ty e) = SIR.Expr'TypeAnnotation id type_info sp <$> resolve_in_type_expr type_var_arena bv_arena module_child_maps nc_stack ty <*> resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps nc_stack e
+
+resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps nc_stack (SIR.Expr'Forall id type_info sp vars e) =
+    mapM
+        (\ var ->
+            let (Type.Var (Located name_sp name)) = Arena.get type_var_arena var
+            in new_decl (SIR.Decl'Type $ Type.Type'Variable var) >>= \ var_decl ->
+            pure (name, DeclAt name_sp, var_decl))
+        (toList vars) >>= \ vars' ->
+    lift (make_child_maps vars' [] []) >>= \ new_nc ->
+    SIR.Expr'Forall id type_info sp vars <$> resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps (ChildMapStack new_nc (Just nc_stack)) e
+resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps nc_stack (SIR.Expr'TypeApply id type_info sp e args) = SIR.Expr'TypeApply id type_info sp <$> resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps nc_stack e <*> resolve_in_type_expr type_var_arena bv_arena module_child_maps nc_stack args
+
+resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps nc_stack (SIR.Expr'Hole id type_info sp hid) = pure $ SIR.Expr'Hole id type_info sp hid
+
+resolve_in_expr adt_arena type_var_arena bv_arena module_child_maps nc_stack (SIR.Expr'Poison id type_info sp) = pure $ SIR.Expr'Poison id type_info sp
+
+split_iden :: [Located Text] -> (Maybe [Located Text], Located Text)
 split_iden [] = error "empty identifier"
-split_iden [x] = pure (Nothing, x)
-split_iden x = pure (Just $ init x, last x)
+split_iden [x] = (Nothing, x)
+split_iden x = (Just $ init x, last x)
 
 -- TODO: factor out repeated code?
-resolve_expr_iden :: UnresolvedDeclArena -> ModuleChildMaps -> ChildMapStack -> (Maybe [Located Text], Located Text) -> Compiler.WithDiagnostics Error Void (Located (Maybe SIR.BoundValueKey))
+resolve_expr_iden :: DeclArena -> ModuleChildMaps -> ChildMapStack -> (Maybe [Located Text], Located Text) -> Compiler.WithDiagnostics Error Void (Located (Maybe SIR.BoundValueKey))
 resolve_expr_iden decls mods child_map_stack (Just type_iden, last_segment) =
     let sp = Located.just_span (head type_iden) <> Located.just_span last_segment
     in resolve_type_iden decls mods child_map_stack type_iden >>= \ resolved_type ->
@@ -315,7 +352,7 @@ resolve_expr_iden _ _ child_map_stack (Nothing, last_segment@(Located last_segme
                         Just parent -> resolve parent name
                         Nothing -> Left $ CouldNotFind Nothing name
 
-resolve_type_iden :: UnresolvedDeclArena -> ModuleChildMaps -> ChildMapStack -> UnresolvedDIden -> Compiler.WithDiagnostics Error Void (Maybe SIR.DeclKey)
+resolve_type_iden :: DeclArena -> ModuleChildMaps -> ChildMapStack -> UnresolvedDIden -> Compiler.WithDiagnostics Error Void (Maybe SIR.DeclKey)
 resolve_type_iden _ _ child_map_stack ([]) = error "empty identifier"
 resolve_type_iden decls mods child_map_stack (first:more) =
     case resolve_first child_map_stack first of
@@ -325,7 +362,7 @@ resolve_type_iden decls mods child_map_stack (first:more) =
                 Left e -> Compiler.tell_error e >> pure Nothing
         Left e -> Compiler.tell_error e >> pure Nothing
     where
-        resolve_first (ChildMapStack (ChildMaps d_children _ _) parent) name =
+        resolve_first (ChildMapStack (ChildMaps d_children _ _) parent) first =
             case Map.lookup (Located.unlocate first) d_children of
                 Just decl -> Right decl
                 Nothing ->
@@ -333,7 +370,7 @@ resolve_type_iden decls mods child_map_stack (first:more) =
                         Just parent -> resolve_first parent first
                         Nothing -> Left $ CouldNotFind Nothing first -- TODO: put previous in error
 
-resolve_pat_iden :: UnresolvedDeclArena -> ModuleChildMaps -> ChildMapStack -> (Maybe [Located Text], Located Text) -> Compiler.WithDiagnostics Error Void (Maybe Type.ADTVariantIndex)
+resolve_pat_iden :: DeclArena -> ModuleChildMaps -> ChildMapStack -> (Maybe [Located Text], Located Text) -> Compiler.WithDiagnostics Error Void (Maybe Type.ADTVariantIndex)
 resolve_pat_iden decls mods child_map_stack (Just type_iden, last_segment) =
     resolve_type_iden decls mods child_map_stack type_iden >>= \ resolved_type ->
     case get_variant_child decls mods <$> resolved_type <*> pure last_segment of
@@ -354,7 +391,7 @@ resolve_pat_iden _ _ child_map_stack (Nothing, last_segment) =
                         Just parent -> resolve parent name
                         Nothing -> Left $ CouldNotFind Nothing name
 
-get_decl_child :: UnresolvedDeclArena -> ModuleChildMaps -> SIR.DeclKey -> Located Text -> Either Error SIR.DeclKey
+get_decl_child :: DeclArena -> ModuleChildMaps -> SIR.DeclKey -> Located Text -> Either Error SIR.DeclKey
 get_decl_child decls mods thing name =
     let res = case Arena.get decls thing of
             SIR.Decl'Module m ->
@@ -366,7 +403,7 @@ get_decl_child decls mods thing name =
         Just res -> Right res
         Nothing -> Left $ CouldNotFind Nothing name -- TODO: put previous
 
-get_value_child :: UnresolvedDeclArena -> ModuleChildMaps -> SIR.DeclKey -> Located Text -> Either Error SIR.BoundValueKey
+get_value_child :: DeclArena -> ModuleChildMaps -> SIR.DeclKey -> Located Text -> Either Error SIR.BoundValueKey
 get_value_child decls mods thing name =
     let res = case Arena.get decls thing of
             SIR.Decl'Module m ->
@@ -378,7 +415,7 @@ get_value_child decls mods thing name =
         Just res -> Right res
         Nothing -> Left $ CouldNotFind Nothing name -- TODO: put previous
 
-get_variant_child :: UnresolvedDeclArena -> ModuleChildMaps -> SIR.DeclKey -> Located Text -> Either Error Type.ADTVariantIndex
+get_variant_child :: DeclArena -> ModuleChildMaps -> SIR.DeclKey -> Located Text -> Either Error Type.ADTVariantIndex
 get_variant_child decls mods thing name =
     let res = case Arena.get decls thing of
             SIR.Decl'Module m ->

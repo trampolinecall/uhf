@@ -64,11 +64,11 @@ type UnresolvedPattern = SIR.Pattern UnresolvedPIden ()
 
 type UnresolvedDeclArena = Arena.Arena UnresolvedDecl SIR.DeclKey
 type UnresolvedModuleArena = Arena.Arena UnresolvedModule SIR.ModuleKey
+type UnresolvedBoundValueArena = Arena.Arena (SIR.BoundValue ()) SIR.BoundValueKey
 type UnresolvedADTArena = Arena.Arena UnresolvedADT Type.ADTKey
 type UnresolvedTypeSynonymArena = Arena.Arena UnresolvedTypeSynonym Type.TypeSynonymKey
 
-type DeclWithChildMaps = (ChildMaps, SIR.Decl)
-type DeclArenaWithChildMaps = Arena.Arena DeclWithChildMaps SIR.DeclKey
+type DeclChildMapArena = Arena.Arena ChildMaps SIR.DeclKey
 
 type ResolvedDIden = Maybe SIR.DeclKey
 type ResolvedVIden = Located (Maybe SIR.BoundValueKey)
@@ -147,6 +147,7 @@ make_child_maps decls bound_values adt_variants =
             where
                 get_decl_at (_, d, _) = d
 
+{- TODO: remove?
 transform_identifiers ::
     Monad m =>
     (d_iden -> m d_iden') ->
@@ -220,59 +221,71 @@ transform_identifiers transform_d_iden transform_v_iden transform_p_iden adts ty
         transform_expr (SIR.Expr'Hole id type_info sp hid) = pure $ SIR.Expr'Hole id type_info sp hid
 
         transform_expr (SIR.Expr'Poison id type_info sp) = pure $ SIR.Expr'Poison id type_info sp
+-}
 
 resolve :: UnresolvedSIR -> Compiler.WithDiagnostics Error Void ResolvedSIR
 resolve (SIR.SIR decls mods adts type_synonyms type_vars bound_values mod) =
-    annotate_name_contexts adts type_synonyms decls mods >>= \ decls_with_maps ->
+    get_decl_child_maps decls mods adts type_synonyms bound_values >>= \ decl_maps ->
         {-
     let (adts', type_synonyms', mods') = runIdentity (transform_identifiers Identity split_iden split_iden adts type_synonyms mods)
     in transform_identifiers (resolve_type_iden decls) (resolve_expr_iden decls) (resolve_pat_iden decls) adts' type_synonyms' mods' >>= \ (adts', type_synonyms', mods') ->
     let decls'' = Arena.transform snd decls
     in pure (SIR.SIR decls'' mods' adts' type_synonyms' type_vars bound_values mod)
     -}
-    pure (SIR.SIR decls _ _ _ _ _ mod)
+    pure (SIR.SIR decls todo todo todo type_vars bound_values mod)
 
-annotate_name_contexts :: UnresolvedADTArena -> UnresolvedTypeSynonymArena -> UnresolvedDeclArena -> UnresolvedModuleArena -> Compiler.WithDiagnostics Error Void DeclArenaWithChildMaps
-annotate_name_contexts adt_arena type_synonym_arena decl_arena mod_arena =
-    -- TODO: clean up
-    Arena.transformM do_decl decl_arena >>= \ decl_arena ->
-    pure decl_arena
+get_decl_child_maps :: UnresolvedDeclArena -> UnresolvedModuleArena -> UnresolvedADTArena -> UnresolvedTypeSynonymArena -> UnresolvedBoundValueArena -> Compiler.WithDiagnostics Error Void (Arena.Arena ChildMaps SIR.DeclKey)
+get_decl_child_maps decl_arena mod_arena adt_arena type_synonym_arena bv_arena = Arena.transformM go decl_arena
     where
+        go (SIR.Decl'Module m) =
+            let SIR.Module _ bindings adts type_synonyms = Arena.get mod_arena m
+                (binding_decl_entries, binding_bv_entries, binding_variant_entries) =
+                    unzip3 $
+                        map
+                            (\ binding ->
+                                case binding of
+                                    SIR.Binding pat _ _ -> ([], pattern_bvs pat, [])
+                                    SIR.Binding'ADTVariant sp bvk variant_index -> ([], [(bv_name bvk, DeclAt sp, bvk)], [(bv_name bvk, DeclAt sp, variant_index)])
+                            )
+                            bindings
+                (adt_decl_entries, adt_bv_entries, adt_variant_entries) =
+                    unzip3 $
+                        map
+                            (\ adt ->
+                                let (Type.ADT _ (Located name_sp name) _ _) = Arena.get adt_arena adt
+                                in ([(name, DeclAt name_sp, todo {- adt -})], [], []) -- constructor bvs and variants handled by adt variant bindings
+                            )
+                            adts
+                (type_synonym_decl_entries, type_synonym_bv_entries, type_synonym_variant_entries) =
+                    unzip3 $
+                        map
+                            (\ synonym ->
+                                let (Type.TypeSynonym _ (Located name_sp name) _) = Arena.get type_synonym_arena synonym
+                                in ([(name, DeclAt name_sp, todo {- synonym -})], [], [])
+                            )
+                            type_synonyms
+            in make_child_maps
+                (concat $ binding_decl_entries ++ adt_decl_entries ++ type_synonym_decl_entries)
+                (concat $ binding_bv_entries ++ adt_bv_entries ++ type_synonym_bv_entries)
+                (concat $ binding_variant_entries ++ adt_variant_entries ++ type_synonym_variant_entries)
 
-        do_module (SIR.Module id bindings adts type_synonyms) = todo
-
-        do_decl decl = case decl of
-            SIR.Decl'Module m -> pure (_, SIR.Decl'Module m)
-            SIR.Decl'Type ty -> pure (_, SIR.Decl'Type ty)
             where
-                tell_adt adt nc = tell $ Map.singleton adt nc
-                tell_type_synonym syn nc = lift $ tell $ Map.singleton syn nc
+                pattern_bvs (SIR.Pattern'Identifier _ sp bvk) = [(bv_name bvk, DeclAt sp, bvk)]
+                pattern_bvs (SIR.Pattern'Wildcard _ sp) = []
+                pattern_bvs (SIR.Pattern'Tuple _ sp a b) = pattern_bvs a ++ pattern_bvs b
+                pattern_bvs (SIR.Pattern'Named _ _ _ (Located bv_span bvk) subpat) = (bv_name bvk, DeclAt bv_span, bvk) : pattern_bvs subpat
+                pattern_bvs (SIR.Pattern'AnonADTVariant _ sp p_iden fields) = concatMap pattern_bvs fields
+                pattern_bvs (SIR.Pattern'NamedADTVariant _ sp p_iden fields) = concatMap (pattern_bvs . snd) fields
+                pattern_bvs (SIR.Pattern'Poison _ _) = []
 
-                do_binding (SIR.Binding pat eq expr) = SIR.Binding <$> do_pat pat <*> pure eq <*> do_expr expr
-                do_binding (SIR.Binding'ADTVariant bvk variant) = pure $ SIR.Binding'ADTVariant bvk variant
+                bv_name bvk =
+                    case Arena.get bv_arena bvk of
+                        SIR.BoundValue _ _ (Located _ name) -> name
+                        SIR.BoundValue'ADTVariant _ variant_index _ _ ->
+                            let variant = Type.get_adt_variant adt_arena variant_index
+                            in Type.variant_name variant
 
-                do_pat = todo
-                do_expr = todo
-
-        -- TODO: remove monad from this?
-        do_adt adt_ncs key (Type.ADT id name vars variants) = Type.ADT id name vars <$> mapM do_variant variants
-            where
-                adt_nc = adt_ncs Map.! key
-                do_variant (Type.ADTVariant'Named name fields) = Type.ADTVariant'Named name <$> mapM (\ (n, ty) -> (n,) <$> do_type_expr adt_nc ty) fields
-                do_variant (Type.ADTVariant'Anon name fields) = Type.ADTVariant'Anon name <$> mapM (do_type_expr adt_nc) fields
-
-        do_type_synonym syn_ncs key (Type.TypeSynonym id name other) =
-            let syn_nc = syn_ncs Map.! key
-            in Type.TypeSynonym id name <$> do_type_expr syn_nc other
-
-        do_type_expr nc (SIR.TypeExpr'Identifier type_info sp iden) = pure $ SIR.TypeExpr'Identifier type_info sp (nc, iden)
-        do_type_expr nc (SIR.TypeExpr'Tuple type_info a b) = SIR.TypeExpr'Tuple type_info <$> do_type_expr nc a <*> do_type_expr nc b
-        do_type_expr nc (SIR.TypeExpr'Hole type_info sp hid) = pure $ SIR.TypeExpr'Hole type_info sp hid
-        do_type_expr nc (SIR.TypeExpr'Function type_info sp arg res) = SIR.TypeExpr'Function type_info sp <$> do_type_expr nc arg <*> do_type_expr nc res
-        do_type_expr nc (SIR.TypeExpr'Forall type_info vars result) = SIR.TypeExpr'Forall type_info vars <$> do_type_expr nc result
-        do_type_expr nc (SIR.TypeExpr'Apply type_info sp ty arg) = SIR.TypeExpr'Apply type_info sp <$> do_type_expr nc ty <*> do_type_expr nc arg
-        do_type_expr nc (SIR.TypeExpr'Wild type_info sp) = pure $ SIR.TypeExpr'Wild type_info sp
-        do_type_expr nc (SIR.TypeExpr'Poison type_info sp) = pure $ SIR.TypeExpr'Poison type_info sp
+        go (SIR.Decl'Type ty) = make_child_maps [] [] [] -- TODO: move variants to here and implement better way of getting children
 
 split_iden :: UnresolvedVIden -> Identity (Maybe [Located Text], Located Text)
 split_iden [] = error "empty identifier"
@@ -280,7 +293,7 @@ split_iden [x] = pure (Nothing, x)
 split_iden x = pure (Just $ init x, last x)
 
 -- TODO: factor out repeated code?
-resolve_expr_iden :: DeclArenaWithChildMaps -> ChildMapStack -> (Maybe [Located Text], Located Text) -> Compiler.WithDiagnostics Error Void (Located (Maybe SIR.BoundValueKey))
+resolve_expr_iden :: DeclChildMapArena -> ChildMapStack -> (Maybe [Located Text], Located Text) -> Compiler.WithDiagnostics Error Void (Located (Maybe SIR.BoundValueKey))
 resolve_expr_iden decls child_map_stack (Just type_iden, last_segment) =
     let sp = Located.just_span (head type_iden) <> Located.just_span last_segment
     in resolve_type_iden decls child_map_stack type_iden >>= \ resolved_type ->
@@ -302,7 +315,7 @@ resolve_expr_iden _ child_map_stack (Nothing, last_segment@(Located last_segment
                         Just parent -> resolve parent name
                         Nothing -> Left $ CouldNotFind Nothing name
 
-resolve_type_iden :: DeclArenaWithChildMaps -> ChildMapStack -> UnresolvedDIden -> Compiler.WithDiagnostics Error Void (Maybe SIR.DeclKey)
+resolve_type_iden :: DeclChildMapArena -> ChildMapStack -> UnresolvedDIden -> Compiler.WithDiagnostics Error Void (Maybe SIR.DeclKey)
 resolve_type_iden _ child_map_stack ([]) = error "empty identifier"
 resolve_type_iden decls child_map_stack (first:more) =
     case resolve_first child_map_stack first of
@@ -320,7 +333,7 @@ resolve_type_iden decls child_map_stack (first:more) =
                         Just parent -> resolve_first parent first
                         Nothing -> Left $ CouldNotFind Nothing first -- TODO: put previous in error
 
-resolve_pat_iden :: DeclArenaWithChildMaps -> ChildMapStack -> (Maybe [Located Text], Located Text) -> Compiler.WithDiagnostics Error Void (Maybe Type.ADTVariantIndex)
+resolve_pat_iden :: DeclChildMapArena -> ChildMapStack -> (Maybe [Located Text], Located Text) -> Compiler.WithDiagnostics Error Void (Maybe Type.ADTVariantIndex)
 resolve_pat_iden decls child_map_stack (Just type_iden, last_segment) =
     resolve_type_iden decls child_map_stack type_iden >>= \ resolved_type ->
     case get_variant_child decls <$> resolved_type <*> pure last_segment of
@@ -341,25 +354,25 @@ resolve_pat_iden _ child_map_stack (Nothing, last_segment) =
                         Just parent -> resolve parent name
                         Nothing -> Left $ CouldNotFind Nothing name
 
-get_decl_child :: DeclArenaWithChildMaps -> SIR.DeclKey -> Located Text -> Either Error SIR.DeclKey
+get_decl_child :: DeclChildMapArena -> SIR.DeclKey -> Located Text -> Either Error SIR.DeclKey
 get_decl_child decls thing name =
-    let (ChildMaps d_children _ _, _) = Arena.get decls thing
+    let ChildMaps d_children _ _ = Arena.get decls thing
         res = Map.lookup (Located.unlocate name) d_children
     in case res of
         Just res -> Right res
         Nothing -> Left $ CouldNotFind Nothing name -- TODO: put previous
 
-get_value_child :: DeclArenaWithChildMaps -> SIR.DeclKey -> Located Text -> Either Error SIR.BoundValueKey
+get_value_child :: DeclChildMapArena -> SIR.DeclKey -> Located Text -> Either Error SIR.BoundValueKey
 get_value_child decls thing name =
-    let (ChildMaps _ v_children _, _) = Arena.get decls thing
+    let ChildMaps _ v_children _ = Arena.get decls thing
         res = Map.lookup (Located.unlocate name) v_children
     in case res of
         Just res -> Right res
         Nothing -> Left $ CouldNotFind Nothing name -- TODO: put previous
 
-get_variant_child :: DeclArenaWithChildMaps -> SIR.DeclKey -> Located Text -> Either Error Type.ADTVariantIndex
+get_variant_child :: DeclChildMapArena -> SIR.DeclKey -> Located Text -> Either Error Type.ADTVariantIndex
 get_variant_child decls thing name =
-    let (ChildMaps _ _ adtv_children, _) = Arena.get decls thing
+    let ChildMaps _ _ adtv_children = Arena.get decls thing
         res = Map.lookup (Located.unlocate name) adtv_children
     in case res of
         Just res -> Right res

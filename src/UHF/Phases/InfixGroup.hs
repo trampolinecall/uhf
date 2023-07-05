@@ -30,7 +30,7 @@ group_module (SIR.Module id bindings adts syns) = SIR.Module id <$> mapM group_b
 
 group_binding :: UngroupedBinding d_iden p_iden -> IDGen.IDGen ID.ExprID (GroupedBinding d_iden p_iden)
 group_binding (SIR.Binding pat eq_sp e) = SIR.Binding pat eq_sp <$> group_expr e
-group_binding (SIR.Binding'ADTVariant bvk variant) = pure $ SIR.Binding'ADTVariant bvk variant
+group_binding (SIR.Binding'ADTVariant sp bvk variant) = pure $ SIR.Binding'ADTVariant sp bvk variant
 
 group_expr :: UngroupedExpr d_iden p_iden -> IDGen.IDGen ID.ExprID (GroupedExpr d_iden p_iden)
 group_expr (SIR.Expr'Identifier id () sp iden) = pure $ SIR.Expr'Identifier id () sp iden

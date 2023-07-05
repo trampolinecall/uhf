@@ -49,7 +49,7 @@ module_ :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkModule -> Type
 module_ unks (SIR.Module id bindings adts type_synonyms) = SIR.Module id (map (binding unks) bindings) adts type_synonyms
 
 bound_value :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkBoundValue -> TypedBoundValue
-bound_value unks (SIR.BoundValue id ty sp) = SIR.BoundValue id (type_ unks ty) sp
+bound_value unks (SIR.BoundValue id ty name) = SIR.BoundValue id (type_ unks ty) name
 bound_value unks (SIR.BoundValue'ADTVariant id index ty sp) = SIR.BoundValue'ADTVariant id index (type_ unks ty) sp
 
 adt :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkADT -> TypedADT
@@ -63,7 +63,7 @@ type_synonym unks (Type.TypeSynonym id name expansion) = Type.TypeSynonym id nam
 
 binding :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkBinding -> TypedBinding
 binding unks (SIR.Binding p eq_sp e) = SIR.Binding (pattern unks p) eq_sp (expr unks e)
-binding _ (SIR.Binding'ADTVariant bvk variant) = SIR.Binding'ADTVariant bvk variant
+binding _ (SIR.Binding'ADTVariant sp bvk variant) = SIR.Binding'ADTVariant sp bvk variant
 
 pattern :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkPattern -> TypedPattern
 pattern unks (SIR.Pattern'Identifier ty sp bn) = SIR.Pattern'Identifier (type_ unks ty) sp bn

@@ -52,7 +52,7 @@ define_module (SIR.Module _ bindings adts type_synonyms) =
 
 define_binding :: (DumpableIdentifier d_iden, DumpableIdentifier v_iden, DumpableIdentifier p_iden) => SIR.Binding d_iden v_iden p_iden type_info binary_ops_allowed -> IRReader d_iden v_iden p_iden type_info binary_ops_allowed PP.Token
 define_binding (SIR.Binding pat _ init) = pattern pat >>= \ pat -> expr init >>= \ init -> pure $ PP.List [pat, " = ", init, ";"]
-define_binding (SIR.Binding'ADTVariant bvk variant_index@(Type.ADTVariantIndex adt_key _)) =
+define_binding (SIR.Binding'ADTVariant _ bvk variant_index@(Type.ADTVariantIndex adt_key _)) =
     Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
     Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
     let variant_name = Type.variant_name variant

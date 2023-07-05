@@ -291,11 +291,11 @@ convert_expr (AST.Expr'Let sp decls subexpr) = go decls
         go (first:more) =
             new_expr_id >>= \ id ->
             -- TODO: not recursive bindings (eg `let x = x` is allowed because convert_decls puts the names into the same name context)
-            convert_decls (ID.BVParent'Let id) (ID.DeclParent'Expr id) [] [] [first] >>= \ (bindings, _, _) -> -- TODO: put adts and type synonyms into module
+            convert_decls (ID.BVParent'Let id) (ID.DeclParent'Expr id) [] [] [first] >>= \ (bindings, _, _) -> -- TODO: put adts and type synonyms
             SIR.Expr'Let id () sp bindings <$> go more
 convert_expr (AST.Expr'LetRec sp decls subexpr) =
     new_expr_id >>= \ id ->
-    convert_decls (ID.BVParent'Let id) (ID.DeclParent'Expr id) [] [] decls >>= \ (bindings, _, _) -> -- TODO: put adts and type synonyms into module
+    convert_decls (ID.BVParent'Let id) (ID.DeclParent'Expr id) [] [] decls >>= \ (bindings, _, _) -> -- TODO: put adts and type synonyms
     SIR.Expr'LetRec id () sp bindings <$> convert_expr subexpr
 
 convert_expr (AST.Expr'BinaryOps sp first ops) = new_expr_id >>= \ id -> SIR.Expr'BinaryOps id () () sp <$> convert_expr first <*> mapM (\ (op, right) -> convert_expr right >>= \ right' -> pure ((unlocate op), right')) ops

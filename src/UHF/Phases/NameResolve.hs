@@ -219,6 +219,7 @@ resolve_in_adts type_var_arena bv_arena module_child_maps adt_parent_child_maps 
 resolve_in_type_synonyms :: TypeVarArena -> BoundValueArena -> ModuleChildMaps -> Map.Map Type.TypeSynonymKey ChildMaps -> UnresolvedTypeSynonymArena -> StateT DeclArena (Compiler.WithDiagnostics Error Void) ResolvedTypeSynonymArena
 resolve_in_type_synonyms type_var_arena bv_arena module_child_maps synonym_parent_child_maps type_synonym_arena = Arena.transform_with_keyM (resolve_in_type_synonym type_var_arena bv_arena module_child_maps synonym_parent_child_maps) type_synonym_arena
 
+-- TODO: primitives / prelude
 resolve_in_module adt_arena type_var_arena bv_arena module_child_maps mod_key (SIR.Module id bindings adts type_synonyms) =
     let cur_map = Arena.get module_child_maps mod_key
     in mapM (\ adt -> tell $ Map.singleton adt cur_map) adts >>

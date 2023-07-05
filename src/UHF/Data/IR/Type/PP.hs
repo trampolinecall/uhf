@@ -16,13 +16,15 @@ import qualified UHF.PP as PP
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.ID as ID
 
+import UHF.IO.Located (Located (Located))
+
 import Data.Functor.Identity (runIdentity)
 
 define_adt :: Type.ADT ty -> PP.Token
-define_adt (Type.ADT _ name _ _) = PP.List ["data ", PP.String name, ";"] -- TODO: variants and type vars
+define_adt (Type.ADT _ (Located _ name) _ _) = PP.List ["data ", PP.String name, ";"] -- TODO: variants and type vars
 
 define_type_synonym :: (ty -> PP.Token) -> Type.TypeSynonym ty -> PP.Token
-define_type_synonym show_ty (Type.TypeSynonym _ name expansion) = PP.List ["typesyn ", PP.String name, " = ", show_ty expansion, ";"]
+define_type_synonym show_ty (Type.TypeSynonym _ (Located _ name) expansion) = PP.List ["typesyn ", PP.String name, " = ", show_ty expansion, ";"]
 
 refer_adt :: Type.ADT ty -> PP.Token
 refer_adt (Type.ADT id _ _ _) = PP.String $ ID.stringify id

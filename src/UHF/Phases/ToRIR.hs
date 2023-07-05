@@ -6,7 +6,7 @@ import qualified Arena
 import qualified Unique
 
 import UHF.IO.Span (Span)
-import UHF.IO.Located (Located (unlocate))
+import UHF.IO.Located (Located (Located, unlocate))
 
 import qualified UHF.Data.IR.SIR as SIR
 import qualified UHF.Data.IR.RIR as RIR
@@ -46,7 +46,7 @@ convert (SIR.SIR _ modules adts type_synonyms type_vars bvs mod) =
         bvs_converted =
             Arena.transform
             (\case
-                SIR.BoundValue id ty sp -> RIR.BoundValue id ty sp
+                SIR.BoundValue id ty (Located sp _) -> RIR.BoundValue id ty sp
                 SIR.BoundValue'ADTVariant id _ ty sp -> RIR.BoundValue id ty sp
             )
             bvs_with_new
@@ -68,7 +68,7 @@ convert_type_synonym (Type.TypeSynonym id name expansion) = Type.TypeSynonym id 
 
 convert_binding :: SIRBinding -> ConvertState [RIRBinding]
 convert_binding (SIR.Binding pat _ expr) = convert_expr expr >>= assign_pattern pat
-convert_binding (SIR.Binding'ADTVariant bvk variant_index@(Type.ADTVariantIndex adt_key _)) =
+convert_binding (SIR.Binding'ADTVariant _ bvk variant_index@(Type.ADTVariantIndex adt_key _)) =
     lift ask >>= \ adts ->
     let (Type.ADT _ _ type_params _) = Arena.get adts adt_key
         variant = Type.get_adt_variant adts variant_index
@@ -98,7 +98,7 @@ convert_binding (SIR.Binding'ADTVariant bvk variant_index@(Type.ADTVariantIndex 
             in pure (RIR.Expr'Lambda lambda_id lambda_ty todo lambda_uniq param_bvk lambda_result)
 
 new_bound_value :: ID.BoundValueID -> Type -> Span -> ConvertState SIR.BoundValueKey
-new_bound_value id ty sp = lift (lift $ state $ Arena.put (SIR.BoundValue id ty sp))
+new_bound_value id ty sp = lift (lift $ state $ Arena.put (SIR.BoundValue id ty (Located sp ""))) -- name will be removed pretty much right away at the end of the transition to rir
 
 convert_expr :: SIRExpr -> ConvertState RIRExpr
 convert_expr (SIR.Expr'Identifier id ty sp bv) = pure $ RIR.Expr'Identifier id ty sp (unlocate bv)

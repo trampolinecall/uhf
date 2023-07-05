@@ -226,7 +226,7 @@ transform_identifiers transform_d_iden transform_v_iden transform_p_iden adts ty
 
 resolve :: UnresolvedSIR -> Compiler.WithDiagnostics Error Void ResolvedSIR
 resolve (SIR.SIR decls mods adts type_synonyms type_vars bound_values mod) =
-    collect_child_maps decls mods adts type_synonyms bound_values >>= \ mod_child_maps ->
+    collect_child_maps decls mods adts type_synonyms bound_values >>= \ (mod_child_maps, decls) ->
         {-
     let (adts', type_synonyms', mods') = runIdentity (transform_identifiers Identity split_iden split_iden adts type_synonyms mods)
     in transform_identifiers (resolve_type_iden decls) (resolve_expr_iden decls) (resolve_pat_iden decls) adts' type_synonyms' mods' >>= \ (adts', type_synonyms', mods') ->
@@ -235,39 +235,41 @@ resolve (SIR.SIR decls mods adts type_synonyms type_vars bound_values mod) =
     -}
     pure (SIR.SIR decls todo todo todo type_vars bound_values mod)
 
-collect_child_maps :: UnresolvedDeclArena -> UnresolvedModuleArena -> UnresolvedADTArena -> UnresolvedTypeSynonymArena -> UnresolvedBoundValueArena -> Compiler.WithDiagnostics Error Void (Arena.Arena ChildMaps SIR.ModuleKey)
-collect_child_maps decl_arena mod_arena adt_arena type_synonym_arena bv_arena = Arena.transformM go mod_arena
+collect_child_maps :: UnresolvedDeclArena -> UnresolvedModuleArena -> UnresolvedADTArena -> UnresolvedTypeSynonymArena -> UnresolvedBoundValueArena -> Compiler.WithDiagnostics Error Void (Arena.Arena ChildMaps SIR.ModuleKey, UnresolvedDeclArena) -- TODO: rename UnresolvedDecl to just Decl
+collect_child_maps decl_arena mod_arena adt_arena type_synonym_arena bv_arena =
+    runStateT (Arena.transformM go mod_arena) decl_arena
     where
+        new_decl d = state (\ arena -> Arena.put d arena)
         go (SIR.Module _ bindings adts type_synonyms) =
-            let (binding_decl_entries, binding_bv_entries, binding_variant_entries) =
-                    unzip3 $
-                        map
-                            (\ binding ->
-                                case binding of
-                                    SIR.Binding pat _ _ -> ([], pattern_bvs pat, [])
-                                    SIR.Binding'ADTVariant sp bvk variant_index -> ([], [(bv_name bvk, DeclAt sp, bvk)], [(bv_name bvk, DeclAt sp, variant_index)]) -- TODO: move variants to inside their types
-                            )
-                            bindings
-                (adt_decl_entries, adt_bv_entries, adt_variant_entries) =
-                    unzip3 $
-                        map
-                            (\ adt ->
-                                let (Type.ADT _ (Located name_sp name) _ _) = Arena.get adt_arena adt
-                                in ([(name, DeclAt name_sp, todo {- adt -})], [], []) -- constructor bvs and variants handled by adt variant bindings
-                            )
-                            adts
-                (type_synonym_decl_entries, type_synonym_bv_entries, type_synonym_variant_entries) =
-                    unzip3 $
-                        map
-                            (\ synonym ->
-                                let (Type.TypeSynonym _ (Located name_sp name) _) = Arena.get type_synonym_arena synonym
-                                in ([(name, DeclAt name_sp, todo {- synonym -})], [], [])
-                            )
-                            type_synonyms
-            in make_child_maps
-                (concat $ binding_decl_entries ++ adt_decl_entries ++ type_synonym_decl_entries)
-                (concat $ binding_bv_entries ++ adt_bv_entries ++ type_synonym_bv_entries)
-                (concat $ binding_variant_entries ++ adt_variant_entries ++ type_synonym_variant_entries)
+            unzip3 <$>
+                mapM
+                    (\ binding ->
+                        case binding of
+                            SIR.Binding pat _ _ -> pure ([], pattern_bvs pat, [])
+                            SIR.Binding'ADTVariant sp bvk variant_index -> pure ([], [(bv_name bvk, DeclAt sp, bvk)], [(bv_name bvk, DeclAt sp, variant_index)]) -- TODO: move variants to inside their types
+                    )
+                    bindings >>= \ (binding_decl_entries, binding_bv_entries, binding_variant_entries) ->
+            unzip3 <$>
+                mapM
+                    (\ adt ->
+                        let (Type.ADT _ (Located name_sp name) _ _) = Arena.get adt_arena adt
+                        in new_decl (SIR.Decl'Type $ Type.Type'ADT adt []) >>= \ adt_decl_key -> -- TODO: remove this step from the ToSIR because that doesnt need to happen anymore
+                        pure ([(name, DeclAt name_sp, adt_decl_key)], [], []) -- constructor bvs and variants handled by adt variant bindings
+                    )
+                    adts >>= \ (adt_decl_entries, adt_bv_entries, adt_variant_entries) ->
+            unzip3 <$>
+                mapM
+                    (\ synonym ->
+                        let (Type.TypeSynonym _ (Located name_sp name) _) = Arena.get type_synonym_arena synonym
+                        in new_decl (SIR.Decl'Type $ Type.Type'Synonym synonym) >>= \ synonym_decl_key -> -- TODO: remove this step from the ToSIR because that doesnt need to happen anymore
+                        pure ([(name, DeclAt name_sp, synonym_decl_key)], [], [])
+                    )
+                    type_synonyms >>= \ (type_synonym_decl_entries, type_synonym_bv_entries, type_synonym_variant_entries) ->
+            lift
+                (make_child_maps
+                    (concat $ binding_decl_entries ++ adt_decl_entries ++ type_synonym_decl_entries)
+                    (concat $ binding_bv_entries ++ adt_bv_entries ++ type_synonym_bv_entries)
+                    (concat $ binding_variant_entries ++ adt_variant_entries ++ type_synonym_variant_entries))
 
             where
                 pattern_bvs (SIR.Pattern'Identifier _ sp bvk) = [(bv_name bvk, DeclAt sp, bvk)]

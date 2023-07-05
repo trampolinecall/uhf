@@ -81,8 +81,8 @@ refer_decl k = get_decl k >>= \case
 put_iden_list_of_text :: [Located Text] -> IRReader d_iden v_iden p_iden type_info binary_ops_allowed PP.Token
 put_iden_list_of_text = pure . PP.String . Text.intercalate "::" . map unlocate
 
-instance DumpableIdentifier (SIR.NameContext, [Located Text]) where
-    refer_iden (_, segments) = put_iden_list_of_text segments
+instance DumpableIdentifier [Located Text] where
+    refer_iden segments = put_iden_list_of_text segments
 instance DumpableIdentifier (Located (Maybe SIR.BoundValueKey)) where -- TODO: remove this
     refer_iden k = case unlocate k of
         Just k -> refer_iden k

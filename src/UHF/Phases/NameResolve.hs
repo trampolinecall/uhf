@@ -35,9 +35,9 @@ import qualified UHF.Data.IR.Type as Type
 import qualified Data.Map as Map
 import Data.Functor.Identity (Identity (Identity, runIdentity))
 
-type UnresolvedDIden = (SIR.NameContext, [Located Text])
-type UnresolvedVIden = (SIR.NameContext, [Located Text])
-type UnresolvedPIden = (SIR.NameContext, [Located Text])
+type UnresolvedDIden = [Located Text]
+type UnresolvedVIden = [Located Text]
+type UnresolvedPIden = [Located Text]
 
 type UnresolvedSIR = SIR.SIR UnresolvedDIden UnresolvedVIden UnresolvedPIden () ()
 type UnresolvedDecl = SIR.Decl
@@ -53,6 +53,25 @@ type UnresolvedDeclArena = Arena.Arena UnresolvedDecl SIR.DeclKey
 type UnresolvedModuleArena = Arena.Arena UnresolvedModule SIR.ModuleKey
 type UnresolvedADTArena = Arena.Arena UnresolvedADT Type.ADTKey
 type UnresolvedTypeSynonymArena = Arena.Arena UnresolvedTypeSynonym Type.TypeSynonymKey
+
+type DIdenWithNC = (SIR.NameContext, [Located Text])
+type VIdenWithNC = (SIR.NameContext, [Located Text])
+type PIdenWithNC = (SIR.NameContext, [Located Text])
+
+type SIRWithNC = SIR.SIR DIdenWithNC VIdenWithNC PIdenWithNC () ()
+type DeclWithNC = SIR.Decl
+type ModuleWithNC = SIR.Module DIdenWithNC VIdenWithNC PIdenWithNC () ()
+type ADTWithNC = Type.ADT TypeExprWithNC
+type TypeSynonymWithNC = Type.TypeSynonym TypeExprWithNC
+type TypeExprWithNC = SIR.TypeExpr DIdenWithNC ()
+type BindingWithNC = SIR.Binding DIdenWithNC VIdenWithNC PIdenWithNC () ()
+type ExprWithNC = SIR.Expr DIdenWithNC VIdenWithNC PIdenWithNC () ()
+type PatternWithNC = SIR.Pattern PIdenWithNC ()
+
+type DeclArenaWithNC = Arena.Arena DeclWithNC SIR.DeclKey
+type ModuleArenaWithNC = Arena.Arena ModuleWithNC SIR.ModuleKey
+type ADTArenaWithNC = Arena.Arena ADTWithNC Type.ADTKey
+type TypeSynonymArenaWithNC = Arena.Arena TypeSynonymWithNC Type.TypeSynonymKey
 
 type ResolvedDIden = Maybe SIR.DeclKey
 type ResolvedVIden = Located (Maybe SIR.BoundValueKey)
@@ -161,17 +180,21 @@ transform_identifiers transform_d_iden transform_v_iden transform_p_iden adts ty
 
 resolve :: UnresolvedSIR -> Compiler.WithDiagnostics Error Void ResolvedSIR
 resolve (SIR.SIR decls mods adts type_synonyms type_vars bound_values mod) =
+    annotate_name_contexts adts type_synonyms mods >>= \ (adts, type_synonyms, mods) ->
     let (adts', type_synonyms', mods') = runIdentity (transform_identifiers Identity split_iden split_iden adts type_synonyms mods)
     in transform_identifiers (resolve_type_iden decls mods) (resolve_expr_iden decls mods) (resolve_pat_iden decls mods) adts' type_synonyms' mods' >>= \ (adts', type_synonyms', mods') ->
     pure (SIR.SIR decls mods' adts' type_synonyms' type_vars bound_values mod)
 
-split_iden :: UnresolvedVIden -> Identity (SIR.NameContext, Maybe [Located Text], Located Text)
+annotate_name_contexts :: UnresolvedADTArena -> UnresolvedTypeSynonymArena -> UnresolvedModuleArena -> Compiler.WithDiagnostics Error Void (ADTArenaWithNC, TypeSynonymArenaWithNC, ModuleArenaWithNC)
+annotate_name_contexts adts type_synonyms mods = todo
+
+split_iden :: VIdenWithNC -> Identity (SIR.NameContext, Maybe [Located Text], Located Text)
 split_iden (_, []) = error "empty identifier"
 split_iden (nc, [x]) = pure (nc, Nothing, x)
 split_iden (nc, x) = pure (nc, Just $ init x, last x)
 
 -- TODO: factor out repeated code?
-resolve_expr_iden :: UnresolvedDeclArena -> UnresolvedModuleArena -> (SIR.NameContext, Maybe [Located Text], Located Text) -> Compiler.WithDiagnostics Error Void (Located (Maybe SIR.BoundValueKey))
+resolve_expr_iden :: DeclArenaWithNC -> ModuleArenaWithNC -> (SIR.NameContext, Maybe [Located Text], Located Text) -> Compiler.WithDiagnostics Error Void (Located (Maybe SIR.BoundValueKey))
 resolve_expr_iden decls mods (nc, Just type_iden, last_segment) =
     let sp = Located.just_span (head type_iden) <> Located.just_span last_segment
     in resolve_type_iden decls mods (nc, type_iden) >>= \ resolved_type ->
@@ -193,7 +216,7 @@ resolve_expr_iden _ _ (nc, Nothing, last_segment@(Located last_segment_sp _)) =
                         Just parent -> resolve parent name
                         Nothing -> Left $ CouldNotFind Nothing name
 
-resolve_type_iden :: UnresolvedDeclArena -> UnresolvedModuleArena -> UnresolvedDIden -> Compiler.WithDiagnostics Error Void (Maybe SIR.DeclKey)
+resolve_type_iden :: DeclArenaWithNC -> ModuleArenaWithNC -> DIdenWithNC -> Compiler.WithDiagnostics Error Void (Maybe SIR.DeclKey)
 resolve_type_iden _ mods (_, []) = error "empty identifier"
 resolve_type_iden decls mods (nc, first:more) =
     case resolve_first nc first of
@@ -211,7 +234,7 @@ resolve_type_iden decls mods (nc, first:more) =
                         Just parent -> resolve_first parent first
                         Nothing -> Left $ CouldNotFind Nothing first -- TODO: put previous in error
 
-resolve_pat_iden :: UnresolvedDeclArena -> UnresolvedModuleArena -> (SIR.NameContext, Maybe [Located Text], Located Text) -> Compiler.WithDiagnostics Error Void (Maybe Type.ADTVariantIndex)
+resolve_pat_iden :: DeclArenaWithNC -> ModuleArenaWithNC -> (SIR.NameContext, Maybe [Located Text], Located Text) -> Compiler.WithDiagnostics Error Void (Maybe Type.ADTVariantIndex)
 resolve_pat_iden decls mods (nc, Just type_iden, last_segment) =
     resolve_type_iden decls mods (nc, type_iden) >>= \ resolved_type ->
     case get_variant_child decls mods <$> resolved_type <*> pure last_segment of
@@ -232,7 +255,7 @@ resolve_pat_iden _ mods (nc, Nothing, last_segment) =
                         Just parent -> resolve parent name
                         Nothing -> Left $ CouldNotFind Nothing name
 
-get_decl_child :: UnresolvedDeclArena -> UnresolvedModuleArena -> SIR.DeclKey -> Located Text -> Either Error SIR.DeclKey
+get_decl_child :: DeclArenaWithNC -> ModuleArenaWithNC -> SIR.DeclKey -> Located Text -> Either Error SIR.DeclKey
 get_decl_child decls mods thing name =
     let res = case Arena.get decls thing of
             SIR.Decl'Module m ->
@@ -243,7 +266,7 @@ get_decl_child decls mods thing name =
         Just res -> Right res
         Nothing -> Left $ CouldNotFind Nothing name -- TODO: put previous
 
-get_value_child :: UnresolvedDeclArena -> UnresolvedModuleArena -> SIR.DeclKey -> Located Text -> Either Error SIR.BoundValueKey
+get_value_child :: DeclArenaWithNC -> ModuleArenaWithNC -> SIR.DeclKey -> Located Text -> Either Error SIR.BoundValueKey
 get_value_child decls mods thing name =
     let res = case Arena.get decls thing of
             SIR.Decl'Module m ->
@@ -254,7 +277,7 @@ get_value_child decls mods thing name =
         Just res -> Right res
         Nothing -> Left $ CouldNotFind Nothing name -- TODO: put previous
 
-get_variant_child :: UnresolvedDeclArena -> UnresolvedModuleArena -> SIR.DeclKey -> Located Text -> Either Error Type.ADTVariantIndex
+get_variant_child :: DeclArenaWithNC -> ModuleArenaWithNC -> SIR.DeclKey -> Located Text -> Either Error Type.ADTVariantIndex
 get_variant_child decls mods thing name =
     let res = case Arena.get decls thing of
             SIR.Decl'Module m ->

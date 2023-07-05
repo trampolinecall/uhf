@@ -340,7 +340,7 @@ convert_expr name_context (AST.Expr'Let sp decls subexpr) = go name_context decl
 convert_expr name_context (AST.Expr'LetRec sp decls subexpr) =
     new_expr_id >>= \ id ->
     convert_decls (ID.BVParent'Let id) (ID.DeclParent'Expr id) (Just name_context) [] [] decls >>= \ (let_context, bindings, _, _) -> -- TODO: put adts and type synonyms into module
-    SIR.Expr'Let id () sp bindings <$> convert_expr let_context subexpr
+    SIR.Expr'LetRec id () sp bindings <$> convert_expr let_context subexpr
 
 convert_expr name_context (AST.Expr'BinaryOps sp first ops) = new_expr_id >>= \ id -> SIR.Expr'BinaryOps id () () sp <$> convert_expr name_context first <*> mapM (\ (op, right) -> convert_expr name_context right >>= \ right' -> pure ((name_context, unlocate op), right')) ops
 

@@ -5,7 +5,6 @@ module UHF.Data.IR.BackendIR
     , BindingKey
     , ParamKey
 
-    , BoundWhere (..)
     , BindingChunk (..)
     , BindingGroup (..)
     , Binding (..)
@@ -29,24 +28,25 @@ module UHF.Data.IR.BackendIR
 import UHF.Util.Prelude
 
 import qualified Arena
-import qualified Unique
+
+import qualified Data.Set as Set
 
 import UHF.Data.IR.Keys
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.ID as ID
 
 -- this is so similar to anfir that i made it by copying and pasting the anfir and modifying it
-data BackendIR bound_where captures dependencies ty poison_allowed
+data BackendIR ty poison_allowed
     = BackendIR
         (Arena.Arena (Type.ADT ty) ADTKey)
         (Arena.Arena (Type.TypeSynonym ty) TypeSynonymKey)
         (Arena.Arena Type.Var Type.TypeVarKey)
-        (Arena.Arena (Binding bound_where captures dependencies ty poison_allowed) BindingKey)
+        (Arena.Arena (Binding ty poison_allowed) BindingKey)
         (Arena.Arena (Param ty) ParamKey)
-        (CU captures)
+        (CU)
 
 -- "compilation unit"
-data CU captures = CU (BindingGroup captures) [ADTKey] [TypeSynonymKey]
+data CU = CU (BindingGroup) [ADTKey] [TypeSynonymKey]
 
 data Param ty = Param ID.BoundValueID ty deriving Show
 
@@ -54,19 +54,15 @@ data Param ty = Param ID.BoundValueID ty deriving Show
 data BindingChunk
     = SingleBinding BindingKey
     | MutuallyRecursiveBindings [BindingKey] deriving Show
-data BindingGroup captures
+data BindingGroup
     = BindingGroup
-        { binding_group_unique :: Unique.Unique
-        , binding_group_captures :: captures
+        { binding_group_captures :: Set.Set BindingKey
         , binding_group_chunks :: [BindingChunk]
         } deriving Show
 
-newtype BoundWhere = BoundWhere Unique.Unique
-data Binding bound_where captures dependencies ty poison_allowed
+data Binding ty poison_allowed
     = Binding
-        { binding_bound_where :: bound_where
-        , binding_dependencies :: dependencies
-        , binding_initializer :: Expr captures ty poison_allowed
+        { binding_initializer :: Expr ty poison_allowed
         }
 
 data ID
@@ -80,7 +76,7 @@ stringify_id :: ID -> Text
 stringify_id (ExprID id) = ID.stringify id
 stringify_id (BVID id) = ID.stringify id
 
-data Expr captures ty poison_allowed
+data Expr ty poison_allowed
     = Expr'Refer ID ty BindingKey
 
     | Expr'Int ID ty Integer
@@ -91,17 +87,17 @@ data Expr captures ty poison_allowed
     | Expr'Tuple ID ty BindingKey BindingKey -- TODO: replace with call constructor expr
     | Expr'MakeADT ID ty Type.ADTVariantIndex [BindingKey]
 
-    | Expr'Lambda ID ty ParamKey (BindingGroup captures) BindingKey
+    | Expr'Lambda ID ty ParamKey (BindingGroup) BindingKey
     | Expr'Param ID ty ParamKey
 
     | Expr'Call ID ty BindingKey BindingKey
 
-    | Expr'Switch ID ty BindingKey [(SwitchMatcher, BindingGroup captures, BindingKey)]
+    | Expr'Switch ID ty BindingKey [(SwitchMatcher, BindingGroup , BindingKey)]
 
     | Expr'TupleDestructure1 ID ty BindingKey -- TODO: figure out better solution to this (probably general destructure expr for any type, or actually probably use case expressions to match on things)
     | Expr'TupleDestructure2 ID ty BindingKey
 
-    | Expr'Forall ID ty (NonEmpty TypeVarKey) (BindingGroup captures) BindingKey
+    | Expr'Forall ID ty (NonEmpty TypeVarKey) (BindingGroup) BindingKey
     | Expr'TypeApply ID ty BindingKey ty
 
     | Expr'Poison ID ty poison_allowed
@@ -113,7 +109,7 @@ data SwitchMatcher
     | Switch'Default
     deriving Show
 
-expr_type :: Expr captures ty poison_allowed -> ty
+expr_type :: Expr ty poison_allowed -> ty
 expr_type (Expr'Refer _ ty _) = ty
 expr_type (Expr'Int _ ty _) = ty
 expr_type (Expr'Float _ ty _) = ty
@@ -132,7 +128,7 @@ expr_type (Expr'TypeApply _ ty _ _) = ty
 expr_type (Expr'MakeADT _ ty _ _) = ty
 expr_type (Expr'Poison _ ty _) = ty
 
-expr_id :: Expr captures ty poison_allowed -> ID
+expr_id :: Expr ty poison_allowed -> ID
 expr_id (Expr'Refer id _ _) = id
 expr_id (Expr'Int id _ _) = id
 expr_id (Expr'Float id _ _) = id
@@ -151,9 +147,9 @@ expr_id (Expr'TypeApply id _ _ _) = id
 expr_id (Expr'MakeADT id _ _ _) = id
 expr_id (Expr'Poison id _ _) = id
 
-binding_type :: Binding bound_where captures dependencies ty poison_allowed -> ty
+binding_type :: Binding ty poison_allowed -> ty
 binding_type = expr_type . binding_initializer
-binding_id :: Binding bound_where captures dependencies ty poison_allowed -> ID
+binding_id :: Binding ty poison_allowed -> ID
 binding_id = expr_id . binding_initializer
 
 chunk_bindings :: BindingChunk -> [BindingKey]

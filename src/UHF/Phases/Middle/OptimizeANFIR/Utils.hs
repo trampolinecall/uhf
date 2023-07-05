@@ -1,16 +1,12 @@
-module UHF.Phases.Middle.OptimizeANFIR.Utils (ANFIR, iterate_over_all_subexpressions) where
+module UHF.Phases.Middle.OptimizeANFIR.Utils (iterate_over_all_subexpressions) where
 
 import UHF.Util.Prelude
 
 import qualified Arena
 
-import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.ANFIR as ANFIR
 
-type ANFIR = ANFIR.ANFIR () (Maybe (Type.Type Void)) ()
-type Binding = ANFIR.Binding () (Maybe (Type.Type Void)) ()
-
-iterate_over_bindings :: Monad m => (Binding -> m Binding) -> ANFIR -> m ANFIR
+iterate_over_bindings :: Monad m => (ANFIR.Binding -> m ANFIR.Binding) -> ANFIR.ANFIR -> m ANFIR.ANFIR
 iterate_over_bindings change (ANFIR.ANFIR decls adts type_synonyms vars bindings params mod) =
     runStateT (do_module (Arena.get decls mod)) bindings >>= \ ((), bindings) ->
     pure (ANFIR.ANFIR decls adts type_synonyms vars bindings params mod)
@@ -18,7 +14,10 @@ iterate_over_bindings change (ANFIR.ANFIR decls adts type_synonyms vars bindings
         do_module (ANFIR.Decl'Module group _ _) = do_group group
         do_module (ANFIR.Decl'Type _) = pure () -- should not happen
 
-        do_group (ANFIR.BindingGroup _ _ bindings) = mapM_ do_binding bindings
+        do_group (ANFIR.BindingGroup _ chunks) = mapM_ do_chunk chunks
+
+        do_chunk (ANFIR.SingleBinding b) = do_binding b
+        do_chunk (ANFIR.MutuallyRecursiveBindings b) = mapM_ do_binding b
 
         -- ideally would use modifyM but that is not in the transformers package of this stackage snapshot
         do_binding bk =
@@ -30,10 +29,10 @@ iterate_over_bindings change (ANFIR.ANFIR decls adts type_synonyms vars bindings
 
                     _ -> pure ()
 
-iterate_over_all_subexpressions :: Monad m => (ANFIR.BindingKey -> m ANFIR.BindingKey) -> ANFIR -> m ANFIR
+iterate_over_all_subexpressions :: Monad m => (ANFIR.BindingKey -> m ANFIR.BindingKey) -> ANFIR.ANFIR -> m ANFIR.ANFIR
 iterate_over_all_subexpressions modify = iterate_over_bindings do_binding
     where
-        do_binding (ANFIR.Binding bw init) = ANFIR.Binding bw <$> do_expr init
+        do_binding (ANFIR.Binding init) = ANFIR.Binding <$> do_expr init
 
         do_expr (ANFIR.Expr'Refer id ty bk) = modify bk >>= \ bk -> pure (ANFIR.Expr'Refer id ty bk)
 
@@ -52,12 +51,10 @@ iterate_over_all_subexpressions modify = iterate_over_bindings do_binding
 
         do_expr (ANFIR.Expr'Switch id ty scrutinee arms) = modify scrutinee >>= \ scrutinee -> mapM (\ (matcher, group, res) -> (matcher, group,) <$> modify res) arms >>= \ arms -> pure (ANFIR.Expr'Switch id ty scrutinee arms)
 
-        do_expr (ANFIR.Expr'Seq id ty a b) = modify a >>= \ a -> modify b >>= \ b -> pure (ANFIR.Expr'Seq id ty a b)
-
         do_expr (ANFIR.Expr'TupleDestructure1 id ty tup) = modify tup >>= \ tup -> pure (ANFIR.Expr'TupleDestructure1 id ty tup)
         do_expr (ANFIR.Expr'TupleDestructure2 id ty tup) = modify tup >>= \ tup -> pure (ANFIR.Expr'TupleDestructure2 id ty tup)
 
         do_expr (ANFIR.Expr'Forall id ty tys group res) = modify res >>= \ res -> pure (ANFIR.Expr'Forall id ty tys group res)
         do_expr (ANFIR.Expr'TypeApply id ty other argty) = modify other >>= \ other -> pure (ANFIR.Expr'TypeApply id ty other argty)
 
-        do_expr (ANFIR.Expr'Poison id ty poison_allowed) = pure (ANFIR.Expr'Poison id ty poison_allowed)
+        do_expr (ANFIR.Expr'Poison id ty) = pure (ANFIR.Expr'Poison id ty)

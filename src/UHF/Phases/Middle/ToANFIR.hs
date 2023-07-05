@@ -13,7 +13,6 @@ import qualified Data.List as List
 
 import qualified UHF.Data.IR.RIR as RIR
 import qualified UHF.Data.IR.ANFIR as ANFIR
-import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.IDGen as IDGen
 

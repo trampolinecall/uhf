@@ -41,22 +41,22 @@ instance Diagnostic.ToError (Error d_iden) where
         in Diagnostic.Error Diagnostic.Codes.hole (Just sp) message [] []
 
 report_holes :: SIR d_iden v_iden p_iden binary_ops_allowed -> Compiler.WithDiagnostics (Error d_iden) Void ()
-report_holes sir@(SIR.SIR _ _ _ _ _ mod) = runReaderT (decl mod) sir
+report_holes sir@(SIR.SIR _ _ _ _ _ _ mod) = runReaderT (module_ mod) sir
 
-decl :: SIR.DeclKey -> ReaderT (SIR d_iden v_iden p_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()
-decl key = ask >>= \ (SIR.SIR decls _ _ _ _ _) ->
-    case Arena.get decls key of
-        SIR.Decl'Module _ _ bindings adts type_synonyms -> mapM_ binding bindings >> mapM_ adt adts >> mapM_ type_synonym type_synonyms
-        SIR.Decl'Type _ -> pure ()
+module_ :: SIR.ModuleKey -> ReaderT (SIR d_iden v_iden p_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()
+module_ key =
+    ask >>= \ (SIR.SIR _ modules _ _ _ _ _) ->
+    let SIR.Module _ _ bindings adts type_synonyms = Arena.get modules key
+    in mapM_ binding bindings >> mapM_ adt adts >> mapM_ type_synonym type_synonyms
 
 adt :: Type.ADTKey -> ReaderT (SIR d_iden v_iden p_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()
-adt key = ask >>= \ (SIR.SIR _ adts _ _ _ _) -> let (Type.ADT _ _ _ variants) = Arena.get adts key in mapM_ variant variants
+adt key = ask >>= \ (SIR.SIR _ _ adts _ _ _ _) -> let (Type.ADT _ _ _ variants) = Arena.get adts key in mapM_ variant variants
     where
         variant (Type.ADTVariant'Named _ fields) = mapM_ (\ (_, ty) -> type_expr ty) fields
         variant (Type.ADTVariant'Anon _ fields) = mapM_ type_expr fields
 
 type_synonym :: Type.TypeSynonymKey -> ReaderT (SIR d_iden v_iden p_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()
-type_synonym key = ask >>= \ (SIR.SIR _ _ type_synonyms _ _ _) -> let (Type.TypeSynonym _ _ expansion) = Arena.get type_synonyms key in type_expr expansion
+type_synonym key = ask >>= \ (SIR.SIR _ _ _ type_synonyms _ _ _) -> let (Type.TypeSynonym _ _ expansion) = Arena.get type_synonyms key in type_expr expansion
 
 binding :: Binding d_iden v_iden p_iden binary_ops_allowed -> ReaderT (SIR d_iden v_iden p_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()
 binding (SIR.Binding p _ e) = pattern p >> expr e
@@ -95,7 +95,7 @@ expr (SIR.Expr'TypeApply _ _ _ e args) = expr e >> type_expr args
 expr (SIR.Expr'Hole _ type_info sp hid) =
     case type_info of
         Just type_info ->
-            ask >>= \ (SIR.SIR _ adts type_synonyms vars _ _) ->
+            ask >>= \ (SIR.SIR _ _ adts type_synonyms vars _ _) ->
             lift (Compiler.tell_error (Error adts type_synonyms vars sp (unlocate hid) type_info))
         Nothing -> pure () -- typing phase will have already reported ambiguous type
 
@@ -107,7 +107,7 @@ type_expr (SIR.TypeExpr'Tuple _ a b) = type_expr a >> type_expr b
 type_expr (SIR.TypeExpr'Hole type_info sp hid) =
     case type_info of
         Just type_info ->
-            ask >>= \ (SIR.SIR _ adts type_synonyms vars _ _) ->
+            ask >>= \ (SIR.SIR _ _ adts type_synonyms vars _ _) ->
             lift (Compiler.tell_error (Error adts type_synonyms vars sp (unlocate hid) type_info))
         Nothing -> pure () -- typing phase will have already reported ambiguous type
 type_expr (SIR.TypeExpr'Function _ _ arg res) = type_expr arg >> type_expr res

@@ -78,6 +78,7 @@ expr (SIR.Expr'Tuple _ _ _ a b) = expr a >> expr b
 expr (SIR.Expr'Lambda _ _ _ param body) = pattern param >> expr body
 
 expr (SIR.Expr'Let _ _ _ bindings body) = mapM_ binding bindings >> expr body
+expr (SIR.Expr'LetRec _ _ _ bindings body) = mapM_ binding bindings >> expr body
 
 expr (SIR.Expr'BinaryOps _ _ _ _ first ops) = expr first >> mapM_ (\ (_, rhs) -> expr rhs) ops
 

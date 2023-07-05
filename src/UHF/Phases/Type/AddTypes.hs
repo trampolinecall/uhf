@@ -247,6 +247,11 @@ expr (SIR.Expr'Let id () sp bindings result) =
     expr result >>= \ result ->
     pure (SIR.Expr'Let id (SIR.expr_type result) sp bindings result)
 
+expr (SIR.Expr'LetRec id () sp bindings result) =
+    mapM binding bindings >>= \ bindings ->
+    expr result >>= \ result ->
+    pure (SIR.Expr'LetRec id (SIR.expr_type result) sp bindings result)
+
 expr (SIR.Expr'BinaryOps _ void _ _ _ _) = absurd void
 
 expr (SIR.Expr'Call id () sp callee arg) =

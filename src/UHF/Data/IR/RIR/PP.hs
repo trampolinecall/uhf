@@ -1,4 +1,4 @@
-module UHF.Data.IR.RIR.PP (dump_main_module) where
+module UHF.Data.IR.RIR.PP (dump_cu) where
 
 import UHF.Util.Prelude
 
@@ -16,32 +16,31 @@ import qualified UHF.Data.IR.ID as ID
 type IRReader = Reader RIR.RIR
 
 get_adt_arena :: IRReader (Arena.Arena (Type.ADT (Maybe (Type.Type Void))) Type.ADTKey)
-get_adt_arena = reader (\ (RIR.RIR _ adts _ _ _ _) -> adts)
+get_adt_arena = reader (\ (RIR.RIR adts _ _ _ _) -> adts)
 get_type_synonym_arena :: IRReader (Arena.Arena (Type.TypeSynonym (Maybe (Type.Type Void))) Type.TypeSynonymKey)
-get_type_synonym_arena = reader (\ (RIR.RIR _ _ syns _ _ _) -> syns)
+get_type_synonym_arena = reader (\ (RIR.RIR _ syns _ _ _) -> syns)
 get_type_var_arena :: IRReader (Arena.Arena Type.Var Type.TypeVarKey)
-get_type_var_arena = reader (\ (RIR.RIR _ _ _ vars _ _) -> vars)
+get_type_var_arena = reader (\ (RIR.RIR _ _ vars _ _) -> vars)
 
 get_adt :: Type.ADTKey -> IRReader (Type.ADT (Maybe (Type.Type Void)))
-get_adt k = reader (\ (RIR.RIR _ adts _ _ _ _) -> Arena.get adts k)
+get_adt k = reader (\ (RIR.RIR adts _ _ _ _) -> Arena.get adts k)
 get_type_synonym :: Type.TypeSynonymKey -> IRReader (Type.TypeSynonym (Maybe (Type.Type Void)))
-get_type_synonym k = reader (\ (RIR.RIR _ _ type_synonyms _ _ _) -> Arena.get type_synonyms k)
+get_type_synonym k = reader (\ (RIR.RIR _ type_synonyms _ _ _) -> Arena.get type_synonyms k)
 get_bv :: RIR.BoundValueKey -> IRReader (RIR.BoundValue (Maybe (Type.Type Void)))
-get_bv k = reader (\ (RIR.RIR _ _ _ _ bvs _) -> Arena.get bvs k)
+get_bv k = reader (\ (RIR.RIR _ _ _ bvs _) -> Arena.get bvs k)
 get_type_var :: Type.TypeVarKey -> IRReader Type.Var
-get_type_var k = reader (\ (RIR.RIR _ _ _ type_vars _ _) -> Arena.get type_vars k)
+get_type_var k = reader (\ (RIR.RIR _ _ type_vars _ _) -> Arena.get type_vars k)
 
-dump_main_module :: RIR.RIR -> Text
-dump_main_module ir@(RIR.RIR decls _ _ _ _ mod) = PP.render $ runReader (define_decl $ Arena.get decls mod) ir
+dump_cu :: RIR.RIR -> Text
+dump_cu ir@(RIR.RIR _ _ _ _ cu) = PP.render $ runReader (define_cu cu) ir
 
-define_decl :: RIR.Decl -> IRReader PP.Token
-define_decl (RIR.Decl'Module bindings adts type_synonyms) =
+define_cu :: RIR.CU -> IRReader PP.Token
+define_cu (RIR.CU bindings adts type_synonyms) =
     ask >>= \ rir ->
     mapM (fmap Type.PP.define_adt . get_adt) adts >>= \ adts ->
     mapM (fmap (Type.PP.define_type_synonym (\ ty -> runReader (refer_m_type ty) rir)) . get_type_synonym) type_synonyms >>= \ type_synonyms ->
     mapM define_binding bindings >>= \ bindings ->
     pure (PP.flat_block $ adts <> type_synonyms <> bindings)
-define_decl (RIR.Decl'Type _) = pure $ PP.List []
 
 refer_m_type :: Maybe (Type.Type Void) -> IRReader PP.Token -- TODO: remove
 refer_m_type (Just ty) =

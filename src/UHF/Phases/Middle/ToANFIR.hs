@@ -19,7 +19,6 @@ import qualified UHF.Data.IR.IDGen as IDGen
 
 type Type = Maybe (Type.Type Void)
 
-type RIRDecl = RIR.Decl
 type RIRExpr = RIR.Expr
 type RIRBinding = RIR.Binding
 
@@ -122,15 +121,12 @@ make_binding_group bindings =
         is_not_outward_dependency bk = bk `elem` bindings
 
 convert :: RIR.RIR -> ANFIR
-convert (RIR.RIR decls adts type_synonyms type_vars bound_values mod) =
-    let ((cu, bv_map), (bindings, params)) = runReader (IDGen.run_id_gen_t ID.ExprID'ANFIRGen (runStateT (runWriterT (assemble_cu decls mod bv_map)) (Arena.new, Arena.new))) bound_values
-    in ANFIR.ANFIR adts type_synonyms type_vars bindings params cu
+convert (RIR.RIR adts type_synonyms type_vars bound_values cu) =
+    let ((cu', bv_map), (bindings, params)) = runReader (IDGen.run_id_gen_t ID.ExprID'ANFIRGen (runStateT (runWriterT (convert_cu bv_map cu)) (Arena.new, Arena.new))) bound_values
+    in ANFIR.ANFIR adts type_synonyms type_vars bindings params cu'
 
-assemble_cu :: Arena.Arena RIRDecl RIR.DeclKey -> RIR.DeclKey -> BoundValueMap -> MakeGraphState ANFIR.CU
-assemble_cu decls mod bv_map = go_decl (Arena.get decls mod)
-    where
-        go_decl (RIR.Decl'Module bindings adts type_synonyms) = concat <$> mapM (convert_binding bv_map) bindings >>= make_binding_group >>= \ group -> pure (ANFIR.CU group adts type_synonyms)
-        go_decl (RIR.Decl'Type _) = pure $ ANFIR.CU (ANFIR.BindingGroup [] []) [] [] -- should not happen
+convert_cu :: BoundValueMap -> RIR.CU -> MakeGraphState ANFIR.CU
+convert_cu bv_map (RIR.CU bindings adts type_synonyms) = ANFIR.CU <$> (concat <$> mapM (convert_binding bv_map) bindings >>= make_binding_group) <*> pure adts <*> pure type_synonyms
 
 map_bound_value :: RIR.BoundValueKey -> ANFIR.BindingKey -> MakeGraphState ()
 map_bound_value k binding = tell $ Map.singleton k binding

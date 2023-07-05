@@ -20,7 +20,7 @@ type DIden = Maybe SIR.DeclKey
 type VIden = Located (Maybe SIR.BoundValueKey)
 type PIden = Maybe Type.ADTVariantIndex
 type SIR = SIR.SIR DIden VIden PIden Type Void
-type SIRDecl = SIR.Decl DIden VIden PIden Type Void
+type SIRModule = SIR.Module DIden VIden PIden Type Void
 type SIRExpr = SIR.Expr DIden VIden PIden Type Void
 type SIRTypeExpr = SIR.TypeExpr DIden Type
 type SIRPattern = SIR.Pattern PIden Type
@@ -39,10 +39,10 @@ new_made_up_expr_id :: ConvertState ID.ExprID
 new_made_up_expr_id = lift $ lift $ lift $ lift IDGen.gen_id
 
 convert :: SIR -> RIR.RIR
-convert (SIR.SIR decls adts type_synonyms type_vars bvs mod) =
+convert (SIR.SIR _ modules adts type_synonyms type_vars bvs mod) =
     let adts_converted = Arena.transform convert_adt adts
         type_synonyms_converted = Arena.transform convert_type_synonym type_synonyms
-        (cu, bvs_with_new) = IDGen.run_id_gen ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.BoundValueID'RIRMadeUp $ runStateT (runReaderT (Unique.run_unique_maker_t (assemble_cu decls mod)) adts_converted) bvs
+        (cu, bvs_with_new) = IDGen.run_id_gen ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.BoundValueID'RIRMadeUp $ runStateT (runReaderT (Unique.run_unique_maker_t (assemble_cu modules mod)) adts_converted) bvs
         bvs_converted =
             Arena.transform
             (\case
@@ -52,11 +52,10 @@ convert (SIR.SIR decls adts type_synonyms type_vars bvs mod) =
             bvs_with_new
     in RIR.RIR adts_converted type_synonyms_converted type_vars bvs_converted cu
 
-assemble_cu :: Arena.Arena SIRDecl SIR.DeclKey -> SIR.DeclKey -> ConvertState RIR.CU
-assemble_cu decls mod = go_decl (Arena.get decls mod)
+assemble_cu :: Arena.Arena SIRModule SIR.ModuleKey -> SIR.ModuleKey -> ConvertState RIR.CU
+assemble_cu modules mod = go_decl (Arena.get modules mod)
     where
-        go_decl (SIR.Decl'Module _ _ bindings adts syns) = RIR.CU <$> (concat <$> mapM convert_binding bindings) <*> pure adts <*> pure syns
-        go_decl (SIR.Decl'Type ty) = pure $ RIR.CU [] [] [] -- should not happen
+        go_decl (SIR.Module _ _ bindings adts syns) = RIR.CU <$> (concat <$> mapM convert_binding bindings) <*> pure adts <*> pure syns
 
 convert_adt :: Type.ADT SIRTypeExpr -> Type.ADT Type
 convert_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars (map convert_variant variants)

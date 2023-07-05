@@ -17,10 +17,10 @@ import qualified Data.List.NonEmpty as NonEmpty
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Control.Monad.Fix (mfix)
 
-remove :: TypeUnknownArena -> TypedWithUnkDeclArena -> TypedWithUnkADTArena -> TypedWithUnkTypeSynonymArena -> TypedWithUnkBoundValueArena -> Compiler.WithDiagnostics Error Void (TypedDeclArena, TypedADTArena, TypedTypeSynonymArena, TypedBoundValueArena)
-remove unks decls adts type_synonyms bvs =
+remove :: TypeUnknownArena -> TypedWithUnkDeclArena -> TypedWithUnkModuleArena -> TypedWithUnkADTArena -> TypedWithUnkTypeSynonymArena -> TypedWithUnkBoundValueArena -> Compiler.WithDiagnostics Error Void (TypedDeclArena, TypedModuleArena, TypedADTArena, TypedTypeSynonymArena, TypedBoundValueArena)
+remove unks decls mods adts type_synonyms bvs =
     convert_vars unks >>= \ unks ->
-    pure (Arena.transform (decl unks) decls, Arena.transform (adt unks) adts, Arena.transform (type_synonym unks) type_synonyms, Arena.transform (bound_value unks) bvs)
+    pure (decls, Arena.transform (module_ unks) mods, Arena.transform (adt unks) adts, Arena.transform (type_synonym unks) type_synonyms, Arena.transform (bound_value unks) bvs) -- TODO: remove decls from return
 
 convert_vars :: TypeUnknownArena -> Compiler.WithDiagnostics Error Void (Arena.Arena (Maybe Type) TypeUnknownKey)
 convert_vars unks =
@@ -45,9 +45,8 @@ convert_vars unks =
         convert_var unks_converted (TypeUnknown _ (Substituted s)) = r unks_converted s
         convert_var _ (TypeUnknown for_what Fresh) = lift (tell [AmbiguousType for_what]) >> MaybeT (pure Nothing)
 
-decl :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkDecl -> TypedDecl
-decl unks (SIR.Decl'Module id nc bindings adts type_synonyms) = SIR.Decl'Module id nc (map (binding unks) bindings) adts type_synonyms
-decl _ (SIR.Decl'Type ty) = SIR.Decl'Type ty
+module_ :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkModule -> TypedModule
+module_ unks (SIR.Module id nc bindings adts type_synonyms) = SIR.Module id nc (map (binding unks) bindings) adts type_synonyms
 
 bound_value :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkBoundValue -> TypedBoundValue
 bound_value unks (SIR.BoundValue id ty sp) = SIR.BoundValue id (type_ unks ty) sp

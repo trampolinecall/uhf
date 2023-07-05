@@ -46,7 +46,7 @@ convert_vars unks =
         convert_var _ (TypeUnknown for_what Fresh) = lift (tell [AmbiguousType for_what]) >> MaybeT (pure Nothing)
 
 module_ :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkModule -> TypedModule
-module_ unks (SIR.Module id nc bindings adts type_synonyms) = SIR.Module id nc (map (binding unks) bindings) adts type_synonyms
+module_ unks (SIR.Module id bindings adts type_synonyms) = SIR.Module id (map (binding unks) bindings) adts type_synonyms
 
 bound_value :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkBoundValue -> TypedBoundValue
 bound_value unks (SIR.BoundValue id ty sp) = SIR.BoundValue id (type_ unks ty) sp

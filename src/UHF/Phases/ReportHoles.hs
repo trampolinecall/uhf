@@ -46,7 +46,7 @@ report_holes sir@(SIR.SIR _ _ _ _ _ _ mod) = runReaderT (module_ mod) sir
 module_ :: SIR.ModuleKey -> ReaderT (SIR d_iden v_iden p_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()
 module_ key =
     ask >>= \ (SIR.SIR _ modules _ _ _ _ _) ->
-    let SIR.Module _ _ bindings adts type_synonyms = Arena.get modules key
+    let SIR.Module _ bindings adts type_synonyms = Arena.get modules key
     in mapM_ binding bindings >> mapM_ adt adts >> mapM_ type_synonym type_synonyms
 
 adt :: Type.ADTKey -> ReaderT (SIR d_iden v_iden p_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()

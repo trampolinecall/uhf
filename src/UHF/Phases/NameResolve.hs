@@ -116,7 +116,7 @@ transform_identifiers transform_d_iden transform_v_iden transform_p_iden adts ty
         transform_type_expr (SIR.TypeExpr'Wild type_info sp) = pure $ SIR.TypeExpr'Wild type_info sp
         transform_type_expr (SIR.TypeExpr'Poison type_info sp) = pure $ SIR.TypeExpr'Poison type_info sp
 
-        transform_module (SIR.Module id nc bindings adts syns) = SIR.Module id nc <$> mapM transform_binding bindings <*> pure adts <*> pure syns
+        transform_module (SIR.Module id bindings adts syns) = SIR.Module id <$> mapM transform_binding bindings <*> pure adts <*> pure syns
 
         transform_binding (SIR.Binding target eq_sp expr) = SIR.Binding <$> transform_pat target <*> pure eq_sp <*> transform_expr expr
         transform_binding (SIR.Binding'ADTVariant bvk variant) = pure $ SIR.Binding'ADTVariant bvk variant
@@ -236,8 +236,8 @@ get_decl_child :: UnresolvedDeclArena -> UnresolvedModuleArena -> SIR.DeclKey ->
 get_decl_child decls mods thing name =
     let res = case Arena.get decls thing of
             SIR.Decl'Module m ->
-                let SIR.Module _ (SIR.NameContext d_children _ _ _) _ _ _ = Arena.get mods m
-                in Map.lookup (Located.unlocate name) d_children
+                let SIR.Module _ {- TODO: (SIR.NameContext d_children _ _ _) -} _ _ _ = Arena.get mods m
+                in todo -- Map.lookup (Located.unlocate name) d_children
             SIR.Decl'Type _ -> Nothing
     in case res of
         Just res -> Right res
@@ -247,8 +247,8 @@ get_value_child :: UnresolvedDeclArena -> UnresolvedModuleArena -> SIR.DeclKey -
 get_value_child decls mods thing name =
     let res = case Arena.get decls thing of
             SIR.Decl'Module m ->
-                let SIR.Module _ (SIR.NameContext _ v_children _ _) _ _ _ = Arena.get mods m
-                in Map.lookup (Located.unlocate name) v_children
+                let SIR.Module _ {- TODO: (SIR.NameContext _ v_children _ _) -} _ _ _ = Arena.get mods m
+                in todo -- Map.lookup (Located.unlocate name) v_children
             SIR.Decl'Type _ -> Nothing
     in case res of
         Just res -> Right res
@@ -258,9 +258,8 @@ get_variant_child :: UnresolvedDeclArena -> UnresolvedModuleArena -> SIR.DeclKey
 get_variant_child decls mods thing name =
     let res = case Arena.get decls thing of
             SIR.Decl'Module m ->
-                let SIR.Module _ (SIR.NameContext _ _ adtv_children _) _ _ _ = Arena.get mods m
-                in Map.lookup (Located.unlocate name) adtv_children
-
+                let SIR.Module _ {- TODO: (SIR.NameContext _ _ adtv_children _) -} _ _ _ = Arena.get mods m
+                in todo -- Map.lookup (Located.unlocate name) adtv_children
             SIR.Decl'Type _ -> Nothing
     in case res of
         Just res -> Right res

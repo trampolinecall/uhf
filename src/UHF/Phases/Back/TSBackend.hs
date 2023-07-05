@@ -19,15 +19,15 @@ import qualified UHF.Data.IR.ID as ID
 type CaptureList = Set.Set BackendIR.BindingKey
 type DependencyList = Set.Set BackendIR.BindingKey
 
-type CU = BackendIR.CU CaptureList
+type CU = BackendIR.CU
 type Type = Type.Type Void
 type ADT = Type.ADT Type
 type TypeSynonym = Type.TypeSynonym Type
-type Binding = BackendIR.Binding BackendIR.BoundWhere CaptureList DependencyList Type Void
-type BindingGroup = BackendIR.BindingGroup CaptureList
+type Binding = BackendIR.Binding Type Void
+type BindingGroup = BackendIR.BindingGroup
 type Param = BackendIR.Param Type
 
-type BackendIR = BackendIR.BackendIR BackendIR.BoundWhere CaptureList DependencyList Type Void
+type BackendIR = BackendIR.BackendIR Type Void
 
 type ADTArena = Arena.Arena ADT Type.ADTKey
 type TypeSynonymArena = Arena.Arena TypeSynonym Type.TypeSynonymKey
@@ -104,7 +104,7 @@ convert_ts_adt (TSADT key) =
             pure (TS.Type'Object $ name_field : fields)
 
 convert_ts_lambda :: TSLambda -> IRReader TS.Stmt
-convert_ts_lambda (TSLambda key group@(BackendIR.BindingGroup _ captures _) arg_ty result_ty body_key) =
+convert_ts_lambda (TSLambda key group@(BackendIR.BindingGroup captures _) arg_ty result_ty body_key) =
     refer_type_raw arg_ty >>= \ arg_type_raw ->
     refer_type arg_ty >>= \ arg_type ->
     refer_type_raw result_ty >>= \ result_type_raw ->
@@ -197,14 +197,14 @@ define_cu (BackendIR.CU global_group adts _) =
     pure ()
 
 define_lambda_type :: BackendIR.BindingKey -> Binding -> TSWriter ()
-define_lambda_type key (BackendIR.Binding _ _ (BackendIR.Expr'Lambda _ _ param group body)) =
+define_lambda_type key (BackendIR.Binding (BackendIR.Expr'Lambda _ _ param group body)) =
     lift (get_param param) >>= \ (BackendIR.Param _ param_ty) ->
     lift (binding_type body) >>= \ body_type ->
     tell_lambda (TSLambda key group param_ty body_type body)
 define_lambda_type _ _ = pure ()
 
 lower_binding_group :: BindingGroup -> IRReader [TS.Stmt]
-lower_binding_group (BackendIR.BindingGroup _ _ chunks) = concat <$> mapM chunk chunks
+lower_binding_group (BackendIR.BindingGroup _ chunks) = concat <$> mapM chunk chunks
     where
         chunk (BackendIR.SingleBinding bk) =
             lower_binding_key bk >>= \ (early, late) ->
@@ -216,7 +216,7 @@ lower_binding_group (BackendIR.BindingGroup _ _ chunks) = concat <$> mapM chunk 
         lower_binding_key bk = get_binding bk >>= lower_binding
 
 lower_binding :: Binding -> IRReader ([TS.Stmt], [TS.Stmt])
-lower_binding (BackendIR.Binding _ _ init) = l init
+lower_binding (BackendIR.Binding init) = l init
     where
         l (BackendIR.Expr'Refer id _ other) = mangle_binding_as_var other >>= \ other -> let_current id (TS.Expr'Identifier other) >>= \ let_stmt -> pure ([let_stmt], [])
         l (BackendIR.Expr'Int id _ i) = let_current id (TS.Expr'New (TS.Expr'Identifier "Int") [TS.Expr'Int i]) >>= \ let_stmt -> pure ([let_stmt], [])

@@ -1,8 +1,6 @@
 module UHF.Data.IR.RIR
     ( RIR (..)
-
-    , DeclKey
-    , Decl (..)
+    , CU (..)
 
     , Binding (..)
 
@@ -28,14 +26,19 @@ import qualified UHF.Data.IR.ID as ID
 import UHF.IO.Span (Span)
 
 -- "reduced ir"
-data RIR = RIR (Arena.Arena Decl DeclKey) (Arena.Arena (Type.ADT (Maybe (Type.Type Void))) ADTKey) (Arena.Arena (Type.TypeSynonym (Maybe (Type.Type Void))) TypeSynonymKey) (Arena.Arena Type.Var Type.TypeVarKey) (Arena.Arena (BoundValue (Maybe (Type.Type Void))) BoundValueKey) DeclKey
+-- is not used a lot; serves mostly as a intermediary step to make converting from sir to anfir easier
+data RIR
+    = RIR
+        (Arena.Arena (Type.ADT (Maybe (Type.Type Void))) ADTKey)
+        (Arena.Arena (Type.TypeSynonym (Maybe (Type.Type Void))) TypeSynonymKey)
+        (Arena.Arena Type.Var Type.TypeVarKey)
+        (Arena.Arena (BoundValue (Maybe (Type.Type Void))) BoundValueKey)
+        CU
 
 data BoundValue type_info = BoundValue ID.BoundValueID type_info Span deriving Show
 
-data Decl
-    = Decl'Module [Binding] [ADTKey] [TypeSynonymKey]
-    | Decl'Type Type
-    deriving Show
+-- "compilation unit"
+data CU = CU [Binding] [ADTKey] [TypeSynonymKey]
 
 data Binding = Binding BoundValueKey Expr deriving Show
 

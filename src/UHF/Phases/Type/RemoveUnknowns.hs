@@ -85,6 +85,7 @@ expr unks (SIR.Expr'Bool id ty sp b) = SIR.Expr'Bool id (type_ unks ty) sp b
 expr unks (SIR.Expr'Tuple id ty sp l r) = SIR.Expr'Tuple id (type_ unks ty) sp (expr unks l) (expr unks r)
 expr unks (SIR.Expr'Lambda id ty sp param body) = SIR.Expr'Lambda id (type_ unks ty) sp (pattern unks param) (expr unks body)
 expr unks (SIR.Expr'Let id ty sp bindings result) = SIR.Expr'Let id (type_ unks ty) sp (map (binding unks) bindings) (expr unks result)
+expr unks (SIR.Expr'LetRec id ty sp bindings result) = SIR.Expr'LetRec id (type_ unks ty) sp (map (binding unks) bindings) (expr unks result)
 expr _ (SIR.Expr'BinaryOps _ void _ _ _ _) = absurd void
 expr unks (SIR.Expr'Call id ty sp callee arg) = SIR.Expr'Call id (type_ unks ty) sp (expr unks callee) (expr unks arg)
 expr unks (SIR.Expr'If id ty sp if_sp cond true false) = SIR.Expr'If id (type_ unks ty) sp if_sp (expr unks cond) (expr unks true) (expr unks false)

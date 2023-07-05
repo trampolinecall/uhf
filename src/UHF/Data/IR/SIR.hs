@@ -80,6 +80,7 @@ data Expr d_iden v_iden p_iden type_info binary_ops_allowed
     | Expr'Lambda ID.ExprID type_info Span (Pattern p_iden type_info) (Expr d_iden v_iden p_iden type_info binary_ops_allowed)
 
     | Expr'Let ID.ExprID type_info Span [Binding d_iden v_iden p_iden type_info binary_ops_allowed] (Expr d_iden v_iden p_iden type_info binary_ops_allowed)
+    | Expr'LetRec ID.ExprID type_info Span [Binding d_iden v_iden p_iden type_info binary_ops_allowed] (Expr d_iden v_iden p_iden type_info binary_ops_allowed)
 
     | Expr'BinaryOps ID.ExprID binary_ops_allowed type_info Span (Expr d_iden v_iden p_iden type_info binary_ops_allowed) [(v_iden, Expr d_iden v_iden p_iden type_info binary_ops_allowed)]
 
@@ -129,6 +130,7 @@ expr_type (Expr'Bool _ type_info _ _) = type_info
 expr_type (Expr'Tuple _ type_info _ _ _) = type_info
 expr_type (Expr'Lambda _ type_info _ _ _) = type_info
 expr_type (Expr'Let _ type_info _ _ _) = type_info
+expr_type (Expr'LetRec _ type_info _ _ _) = type_info
 expr_type (Expr'BinaryOps _ _ type_info _ _ _) = type_info
 expr_type (Expr'Call _ type_info _ _ _) = type_info
 expr_type (Expr'If _ type_info _ _ _ _ _) = type_info
@@ -149,6 +151,7 @@ expr_span (Expr'Bool _ _ sp _) = sp
 expr_span (Expr'Tuple _ _ sp _ _) = sp
 expr_span (Expr'Lambda _ _ sp _ _) = sp
 expr_span (Expr'Let _ _ sp _ _) = sp
+expr_span (Expr'LetRec _ _ sp _ _) = sp
 expr_span (Expr'BinaryOps _ _ _ sp _ _) = sp
 expr_span (Expr'Call _ _ sp _ _) = sp
 expr_span (Expr'If _ _ sp _ _ _ _) = sp

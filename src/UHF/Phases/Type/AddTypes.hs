@@ -63,7 +63,7 @@ add mods adts type_synonyms bound_values decls =
     ) (decls, bound_values, adts)
 
 bound_value :: UntypedBoundValue -> ContextReader decls bvs TypedWithUnkADTArena TypedWithUnkBoundValue
-bound_value (SIR.BoundValue id () def_span) = SIR.BoundValue id <$> lift (lift $ Type.Type'Unknown <$> new_type_unknown (BoundValue def_span)) <*> pure def_span
+bound_value (SIR.BoundValue id () name@(Located def_span _)) = SIR.BoundValue id <$> lift (lift $ Type.Type'Unknown <$> new_type_unknown (BoundValue def_span)) <*> pure name
 bound_value (SIR.BoundValue'ADTVariant id variant_index@(Type.ADTVariantIndex adt_key _) () def_span) = do
     (_, _, adts) <- ask
     let (Type.ADT _ _ type_params _) = Arena.get adts adt_key
@@ -146,7 +146,7 @@ binding (SIR.Binding p eq_sp e) =
     expr e >>= \ e ->
     lift (tell [Eq InAssignment eq_sp (loc_pat_type p) (loc_expr_type e)]) >>
     pure (SIR.Binding p eq_sp e)
-binding (SIR.Binding'ADTVariant bvk variant) = pure $ SIR.Binding'ADTVariant bvk variant
+binding (SIR.Binding'ADTVariant sp bvk variant) = pure $ SIR.Binding'ADTVariant sp bvk variant
 
 loc_pat_type :: SIR.Pattern p_iden type_info -> Located type_info
 loc_pat_type pattern = Located (SIR.pattern_span pattern) (SIR.pattern_type pattern)

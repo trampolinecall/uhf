@@ -16,7 +16,7 @@ import qualified UHF.Phases.Type.RemoveUnknowns as RemoveUnknowns
 
 -- also does type inference
 typecheck :: UntypedSIR -> Compiler.WithDiagnostics Error Void TypedSIR
-typecheck (SIR.SIR decls mods adts type_synonyms type_vars bound_values mod) =
+typecheck (SIR.SIR decls mods adts type_synonyms type_vars bound_values mod) = -- TODO: do not destructure ir?
     runStateT
         (
             runWriterT (AddTypes.add mods adts type_synonyms bound_values decls) >>= \ ((mods, adts, type_synonyms, bound_values, decls), constraints) ->

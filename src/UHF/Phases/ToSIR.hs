@@ -35,15 +35,11 @@ data DeclAt = DeclAt Span | ImplicitPrim deriving Show
 
 instance Diagnostic.ToError Error where
     to_error (PathInPattern (Located sp _)) = Diagnostic.Error Codes.binding_lhs_path (Just sp) "path in pattern" [] []
-
     to_error (PathInTypeName (Located sp _)) = Diagnostic.Error Codes.path_in_type_name (Just sp) "path in type name" [] []
-
     to_error (PathInVariantName (Located sp _)) = Diagnostic.Error Codes.path_in_variant_name (Just sp) "path in 'data' variant name" [] []
-
     to_error (PathInFieldName (Located sp _)) = Diagnostic.Error Codes.path_in_field_name (Just sp) "path in field name" [] []
 
     to_error (Tuple1 sp) = Diagnostic.Error Codes.tuple1 (Just sp) "tuple of 1 element" [] []
-
     to_error (Tuple0 sp) = Diagnostic.Error Codes.tuple0 (Just sp) "tuple of 0 elements" [] []
 
 type SIR = SIR.SIR Identifier Identifier Identifier () ()
@@ -175,9 +171,9 @@ convert_decls bv_parent decl_parent prev_decl_entries prev_bv_entries decls =
                 mapM (lift . new_type_var . unlocate) type_param_names >>= \ ty_param_vars ->
                 zipWithM (\ (Located sp name) var -> (name, DeclAt sp,) <$> lift (new_decl $ SIR.Decl'Type $ Type.Type'Variable var)) type_param_names ty_param_vars >>= \ new_decls ->
 
-                iden1_for_type_name name >>= \ (Located name1sp name1) ->
+                iden1_for_type_name name >>= \ name1withsp@(Located name1sp name1) ->
                 mapM (convert_variant) variants >>= \ variants_converted ->
-                let datatype = Type.ADT (ID.DeclID decl_parent name1) name1 ty_param_vars variants_converted
+                let datatype = Type.ADT (ID.DeclID decl_parent name1) name1withsp ty_param_vars variants_converted
                 in
 
                 lift (new_adt datatype) >>= \ adt_key ->
@@ -192,7 +188,7 @@ convert_decls bv_parent decl_parent prev_decl_entries prev_bv_entries decls =
                             in
                             let variant_index = Type.ADTVariantIndex adt_key index
                              in lift (new_bound_value (SIR.BoundValue'ADTVariant (ID.BoundValueID bv_parent name) variant_index () name_sp)) >>= \ bv_key ->
-                            pure (Just ((name, DeclAt name_sp, bv_key), SIR.Binding'ADTVariant bv_key variant_index))
+                            pure (Just ((name, DeclAt name_sp, bv_key), SIR.Binding'ADTVariant name_sp bv_key variant_index))
                         (Type.ADTVariant'Named _ _, _, _) -> pure Nothing
                     )
                     (zip3 variants_converted [0..] variants)) >>= \ (variant_bvs, constructor_bindings) ->
@@ -214,8 +210,8 @@ convert_decls bv_parent decl_parent prev_decl_entries prev_bv_entries decls =
         convert_decl (AST.Decl'TypeSyn name expansion) =
             runMaybeT (
                 lift (convert_type expansion) >>= \ expansion' ->
-                iden1_for_type_name name >>= \ (Located name1sp name1) ->
-                lift (new_type_synonym (Type.TypeSynonym (ID.DeclID decl_parent name1) name1 expansion')) >>= \ syn_key ->
+                iden1_for_type_name name >>= \ name1withsp@(Located name1sp name1) ->
+                lift (new_type_synonym (Type.TypeSynonym (ID.DeclID decl_parent name1) name1withsp expansion')) >>= \ syn_key ->
                 lift (new_decl (SIR.Decl'Type $ Type.Type'Synonym syn_key)) >>= \ decl_key ->
 
                 pure (name1, DeclAt name1sp, decl_key, syn_key)
@@ -342,8 +338,8 @@ convert_expr (AST.Expr'Hole sp hid) = new_expr_id >>= \ eid -> pure (SIR.Expr'Ho
 convert_pattern :: ID.BoundValueParent -> AST.Pattern -> MakeIRState (BoundValueList, Pattern)
 convert_pattern parent (AST.Pattern'Identifier iden) =
     make_iden1_with_err PathInPattern iden >>= \case
-        Just (Located name_sp name) ->
-            new_bound_value (SIR.BoundValue (ID.BoundValueID parent name) () name_sp) >>= \ bn ->
+        Just (located_name@(Located name_sp name)) ->
+            new_bound_value (SIR.BoundValue (ID.BoundValueID parent name) () located_name) >>= \ bn ->
             pure ([(name, DeclAt name_sp, bn)], SIR.Pattern'Identifier () name_sp bn)
 
         Nothing -> pure ([], SIR.Pattern'Poison () (just_span iden))
@@ -360,8 +356,8 @@ convert_pattern parent (AST.Pattern'Tuple sp subpats) =
 convert_pattern parent (AST.Pattern'Named sp iden at_sp subpat) =
     convert_pattern parent subpat >>= \ (sub_bn, subpat') ->
     make_iden1_with_err PathInPattern iden >>= \case
-        Just (Located name_sp name) ->
-            new_bound_value (SIR.BoundValue (ID.BoundValueID parent name) () name_sp) >>= \ bn ->
+        Just (located_name@(Located name_sp name)) ->
+            new_bound_value (SIR.BoundValue (ID.BoundValueID parent name) () located_name) >>= \ bn ->
             pure ((name, DeclAt name_sp, bn) : sub_bn, SIR.Pattern'Named () sp at_sp (Located name_sp bn) subpat')
 
         Nothing ->

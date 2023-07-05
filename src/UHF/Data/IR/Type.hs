@@ -23,6 +23,8 @@ import qualified Arena
 import UHF.Data.IR.Keys
 import qualified UHF.Data.IR.ID as ID
 
+import UHF.IO.Located (Located)
+
 import qualified Data.List as List
 
 data Type unk
@@ -40,7 +42,7 @@ data Type unk
     | Type'Forall (NonEmpty TypeVarKey) (Type unk)
     deriving Show
 
-data ADT ty = ADT ID.DeclID Text [TypeVarKey] [ADTVariant ty] deriving Show
+data ADT ty = ADT ID.DeclID (Located Text) [TypeVarKey] [ADTVariant ty] deriving Show
 data ADTVariant ty
     = ADTVariant'Named Text [(Text, ty)]
     | ADTVariant'Anon Text [ty]
@@ -60,6 +62,6 @@ get_adt_variant adts (ADTVariantIndex key i) =
     let (ADT _ _ _ variants) = Arena.get adts key
     in variants List.!! i
 
-data TypeSynonym ty = TypeSynonym ID.DeclID Text ty deriving Show
+data TypeSynonym ty = TypeSynonym ID.DeclID (Located Text) ty deriving Show
 
 newtype Var = Var Text deriving Show -- TODO: put id

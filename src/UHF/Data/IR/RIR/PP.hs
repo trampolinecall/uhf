@@ -26,7 +26,7 @@ get_adt :: Type.ADTKey -> IRReader (Type.ADT (Maybe (Type.Type Void)))
 get_adt k = reader (\ (RIR.RIR adts _ _ _ _) -> Arena.get adts k)
 get_type_synonym :: Type.TypeSynonymKey -> IRReader (Type.TypeSynonym (Maybe (Type.Type Void)))
 get_type_synonym k = reader (\ (RIR.RIR _ type_synonyms _ _ _) -> Arena.get type_synonyms k)
-get_bv :: RIR.BoundValueKey -> IRReader (RIR.BoundValue (Maybe (Type.Type Void)))
+get_bv :: RIR.BoundValueKey -> IRReader RIR.BoundValue
 get_bv k = reader (\ (RIR.RIR _ _ _ bvs _) -> Arena.get bvs k)
 get_type_var :: Type.TypeVarKey -> IRReader Type.Var
 get_type_var k = reader (\ (RIR.RIR _ _ type_vars _ _) -> Arena.get type_vars k)

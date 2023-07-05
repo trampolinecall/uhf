@@ -32,10 +32,10 @@ data RIR
         (Arena.Arena (Type.ADT (Maybe (Type.Type Void))) ADTKey)
         (Arena.Arena (Type.TypeSynonym (Maybe (Type.Type Void))) TypeSynonymKey)
         (Arena.Arena Type.Var Type.TypeVarKey)
-        (Arena.Arena (BoundValue (Maybe (Type.Type Void))) BoundValueKey)
+        (Arena.Arena BoundValue BoundValueKey)
         CU
 
-data BoundValue type_info = BoundValue ID.BoundValueID type_info Span deriving Show
+data BoundValue = BoundValue ID.BoundValueID (Maybe (Type.Type Void)) Span deriving Show
 
 -- "compilation unit"
 data CU = CU [Binding] [ADTKey] [TypeSynonymKey]

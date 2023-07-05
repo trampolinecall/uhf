@@ -11,6 +11,8 @@ import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.PP as Type.PP
 import qualified UHF.Data.IR.ID as ID
 
+import UHF.IO.Located (Located (Located))
+
 -- TODO: dump types too
 
 type IRReader = Reader RIR.RIR
@@ -60,7 +62,7 @@ refer_bv :: RIR.BoundValueKey -> IRReader PP.Token
 refer_bv bvk = get_bv bvk >>= \ (RIR.BoundValue id _ _) -> pure (PP.String (ID.stringify id))
 
 type_var :: Type.TypeVarKey -> IRReader PP.Token
-type_var k = get_type_var k >>= \ (Type.Var name) -> pure (PP.String name)
+type_var k = get_type_var k >>= \ (Type.Var (Located _ name)) -> pure (PP.String name)
 
 -- TODO: precedence
 expr :: RIR.Expr -> IRReader PP.Token

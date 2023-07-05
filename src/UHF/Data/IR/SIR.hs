@@ -12,8 +12,6 @@ module UHF.Data.IR.SIR
 
     , Binding (..)
 
-    , NameContext (..)
-
     , TypeExpr(..)
     , Expr(..)
     , Pattern(..)
@@ -31,8 +29,6 @@ import qualified Arena
 import UHF.Data.IR.Keys
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.ID as ID
-
-import qualified Data.Map as Map
 
 import UHF.IO.Span (Span)
 import UHF.IO.Located (Located)
@@ -66,9 +62,6 @@ data Binding d_iden v_iden p_iden type_info binary_ops_allowed
     = Binding (Pattern p_iden type_info) Span (Expr d_iden v_iden p_iden type_info binary_ops_allowed)
     | Binding'ADTVariant BoundValueKey Type.ADTVariantIndex
     deriving Show
-
--- TODO: move to NameResolve
-data NameContext = NameContext (Map.Map Text DeclKey) (Map.Map Text BoundValueKey) (Map.Map Text Type.ADTVariantIndex) (Maybe NameContext) deriving Show
 
 type HoleIdentifier = Located [Located Text] -- TODO: disallow paths in holes?
 

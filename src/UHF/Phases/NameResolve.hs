@@ -167,7 +167,6 @@ resolve (SIR.SIR decls mods adts type_synonyms type_vars bound_values mod) =
     pure (SIR.SIR decls mods adts synonyms type_vars bound_values mod)
 
 -- TODO: clean up this module
--- TODO: flip monads
 
 collect_child_maps :: UnresolvedModuleArena -> UnresolvedTypeSynonymArena -> (NRReader UnresolvedADTArena BoundValueArena type_var_arena module_child_maps (MakeDeclState CollectingErrors)) (Arena.Arena ChildMaps SIR.ModuleKey)
 collect_child_maps mod_arena type_synonym_arena = Arena.transformM go mod_arena

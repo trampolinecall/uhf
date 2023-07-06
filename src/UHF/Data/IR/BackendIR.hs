@@ -23,7 +23,6 @@ module UHF.Data.IR.BackendIR
     , binding_id
     , chunk_bindings
     ) where
--- TODO: move this out of IR module?
 
 import UHF.Util.Prelude
 
@@ -35,7 +34,6 @@ import UHF.Data.IR.Keys
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.ID as ID
 
--- this is so similar to anfir that i made it by copying and pasting the anfir and modifying it
 data BackendIR ty poison_allowed
     = BackendIR
         (Arena.Arena (Type.ADT ty) ADTKey)
@@ -92,7 +90,7 @@ data Expr ty poison_allowed
 
     | Expr'Call ID ty BindingKey BindingKey
 
-    | Expr'Switch ID ty BindingKey [(SwitchMatcher, BindingGroup , BindingKey)]
+    | Expr'Switch ID ty BindingKey [(SwitchMatcher, BindingGroup, BindingKey)]
 
     | Expr'TupleDestructure1 ID ty BindingKey -- TODO: figure out better solution to this (probably general destructure expr for any type, or actually probably use case expressions to match on things)
     | Expr'TupleDestructure2 ID ty BindingKey

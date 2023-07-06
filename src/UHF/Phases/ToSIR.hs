@@ -8,7 +8,6 @@ import qualified UHF.Data.AST as AST
 import qualified UHF.Data.IR.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.ID as ID
-import qualified UHF.Data.IR.IDGen as IDGen
 
 import UHF.IO.Span (Span)
 import UHF.IO.Located (Located (..))
@@ -60,7 +59,7 @@ type TypeSynonymArena = Arena.Arena TypeSynonym Type.TypeSynonymKey
 type BoundValueArena = Arena.Arena BoundValue SIR.BoundValueKey
 type TypeVarArena = Arena.Arena Type.Var Type.TypeVarKey
 
-type MakeIRState = StateT (DeclArena, ModuleArena, ADTArena, TypeSynonymArena, TypeVarArena, BoundValueArena) (IDGen.IDGenT ID.ExprID (Compiler.WithDiagnostics Error Void))
+type MakeIRState = StateT (DeclArena, ModuleArena, ADTArena, TypeSynonymArena, TypeVarArena, BoundValueArena) (Compiler.WithDiagnostics Error Void)
 
 new_module :: Module -> MakeIRState SIR.ModuleKey
 new_module m =
@@ -93,10 +92,7 @@ new_bound_value bv =
         in (key, (decls, mods, adts, type_synonyms, type_vars, bound_values'))
 
 tell_error :: Error -> MakeIRState ()
-tell_error = lift . lift . Compiler.tell_error
-
-new_expr_id :: MakeIRState ID.ExprID
-new_expr_id = lift IDGen.gen_id
+tell_error = lift . Compiler.tell_error
 
 make_iden1 :: Located [Located Text] -> Maybe (Located Text)
 make_iden1 (Located _ [iden1]) = Just iden1
@@ -110,28 +106,27 @@ make_iden1_with_err make_err iden =
 
 convert :: [AST.Decl] -> Compiler.WithDiagnostics Error Void SIR
 convert decls =
-    IDGen.run_id_gen_t ID.ExprID'SIRGen $
-        runStateT
-            (
-                let module_id = ID.ModuleID [] -- TODO: figure out how the module system is going to work
-                in convert_decls (ID.BVParent'Module module_id) (ID.DeclParent'Module module_id) decls >>= \ (bindings, adts, type_synonyms) ->
-                new_module (SIR.Module module_id bindings adts type_synonyms)
-            )
-            (Arena.new, Arena.new, Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (mod, (decls, mods, adts, type_synonyms, type_vars, bound_values)) ->
-        pure (SIR.SIR decls mods adts type_synonyms type_vars bound_values mod)
+    runStateT
+        (
+            let module_id = ID.ModuleID [] -- TODO: figure out how the module system is going to work
+            in convert_decls (ID.BVParent'Module module_id) (ID.DeclParent'Module module_id) decls >>= \ (bindings, adts, type_synonyms) ->
+            new_module (SIR.Module module_id bindings adts type_synonyms)
+        )
+        (Arena.new, Arena.new, Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (mod, (decls, mods, adts, type_synonyms, type_vars, bound_values)) ->
+    pure (SIR.SIR decls mods adts type_synonyms type_vars bound_values mod)
 
 convert_decls :: ID.BoundValueParent -> ID.DeclParent -> [AST.Decl] -> MakeIRState ([Binding], [Type.ADTKey], [Type.TypeSynonymKey])
 convert_decls bv_parent decl_parent decls =
-    unzip3 <$> mapM convert_decl decls >>= \ (bindings, adts, type_synonyms) ->
+    unzip3 <$> zipWithM convert_decl [0..] decls >>= \ (bindings, adts, type_synonyms) ->
     pure (concat bindings, concat adts, concat type_synonyms)
     where
-        convert_decl :: AST.Decl -> MakeIRState ([Binding], [Type.ADTKey], [Type.TypeSynonymKey])
-        convert_decl (AST.Decl'Value target eq_sp expr) =
-            convert_expr expr >>= \ expr' ->
+        convert_decl :: Int -> AST.Decl -> MakeIRState ([Binding], [Type.ADTKey], [Type.TypeSynonymKey])
+        convert_decl ind (AST.Decl'Value target eq_sp expr) =
+            convert_expr (ID.ExprID'InitializerOf decl_parent ind) expr >>= \ expr' ->
             convert_pattern bv_parent target >>= \ (target') ->
             pure ([SIR.Binding target' eq_sp expr'], [], [])
 
-        convert_decl (AST.Decl'Data name type_params variants) =
+        convert_decl _ (AST.Decl'Data name type_params variants) =
             runMaybeT (
                 mapM (iden1_for_type_name) type_params >>= \ ty_param_names ->
                 mapM (lift . new_type_var) ty_param_names >>= \ ty_param_vars ->
@@ -162,7 +157,7 @@ convert_decls bv_parent decl_parent decls =
                 Just (adt_key, constructor_bindings) -> pure (constructor_bindings, [adt_key], [])
                 Nothing -> pure ([], [], [])
 
-        convert_decl (AST.Decl'TypeSyn name expansion) =
+        convert_decl _ (AST.Decl'TypeSyn name expansion) =
             runMaybeT (
                 lift (convert_type expansion) >>= \ expansion' ->
                 iden1_for_type_name name >>= \ l_syn_name@(Located _ syn_name) ->
@@ -208,78 +203,80 @@ convert_type (AST.Type'Apply sp ty args) =
     foldlM (\ ty arg -> SIR.TypeExpr'Apply () sp ty <$> convert_type arg) ty args -- TODO: fix spans
 convert_type (AST.Type'Wild sp) = pure $ SIR.TypeExpr'Wild () sp
 
-convert_expr :: AST.Expr -> MakeIRState Expr
-convert_expr (AST.Expr'Identifier iden) = new_expr_id >>= \ id -> pure (SIR.Expr'Identifier id () (just_span iden) (unlocate iden))
-convert_expr (AST.Expr'Char sp c) = new_expr_id >>= \ id -> pure (SIR.Expr'Char id () sp c)
-convert_expr (AST.Expr'String sp s) = new_expr_id >>= \ id -> pure (SIR.Expr'String id () sp s)
-convert_expr (AST.Expr'Int sp i) = new_expr_id >>= \ id -> pure (SIR.Expr'Int id () sp i)
-convert_expr (AST.Expr'Float sp f) = new_expr_id >>= \ id -> pure (SIR.Expr'Float id () sp f)
-convert_expr (AST.Expr'Bool sp b) = new_expr_id >>= \ id -> pure (SIR.Expr'Bool id () sp b)
+convert_expr :: ID.ExprID -> AST.Expr -> MakeIRState Expr
+convert_expr cur_id (AST.Expr'Identifier iden) = pure (SIR.Expr'Identifier cur_id () (just_span iden) (unlocate iden))
+convert_expr cur_id (AST.Expr'Char sp c) = pure (SIR.Expr'Char cur_id () sp c)
+convert_expr cur_id (AST.Expr'String sp s) = pure (SIR.Expr'String cur_id () sp s)
+convert_expr cur_id (AST.Expr'Int sp i) = pure (SIR.Expr'Int cur_id () sp i)
+convert_expr cur_id (AST.Expr'Float sp f) = pure (SIR.Expr'Float cur_id () sp f)
+convert_expr cur_id (AST.Expr'Bool sp b) = pure (SIR.Expr'Bool cur_id () sp b)
 
-convert_expr (AST.Expr'Tuple sp items) =
-    mapM (convert_expr)  items >>= group_items
+convert_expr cur_id (AST.Expr'Tuple sp items) = group_items cur_id items
     where
-        group_items [a, b] = new_expr_id >>= \ id -> pure (SIR.Expr'Tuple id () sp a b)
-        group_items (a:b:more) = new_expr_id >>= \ id -> SIR.Expr'Tuple id () sp a <$> group_items (b:more) -- TODO: properly do span of b:more because this just takes the span of the whole thing
-        group_items [_] = tell_error (Tuple1 sp) >> new_expr_id >>= \ id -> pure (SIR.Expr'Poison id () sp)
-        group_items [] = tell_error (Tuple0 sp) >> new_expr_id >>= \ id -> pure (SIR.Expr'Poison id () sp)
+        group_items cur_id [a, b] = convert_expr (ID.ExprID'TupleFirstOf cur_id) a >>= \ a -> convert_expr (ID.ExprID'TupleSecondOf cur_id) b >>= \ b -> pure (SIR.Expr'Tuple cur_id () sp a b)
+        group_items cur_id (a:b:more) = convert_expr (ID.ExprID'TupleFirstOf cur_id) a >>= \ a -> SIR.Expr'Tuple cur_id () sp a <$> group_items (ID.ExprID'TupleSecondOf cur_id) (b:more) -- TODO: properly do span of b:more because this just takes the span of the whole thing
+        group_items cur_id [_] = tell_error (Tuple1 sp) >> pure (SIR.Expr'Poison cur_id () sp)
+        group_items cur_id [] = tell_error (Tuple0 sp) >> pure (SIR.Expr'Poison cur_id () sp)
 
-convert_expr (AST.Expr'Lambda sp params body) = convert_lambda params body
+convert_expr cur_id (AST.Expr'Lambda sp params body) = convert_lambda cur_id params body
     where
-        convert_lambda (param:more) body =
-            new_expr_id >>= \ id ->
-            convert_pattern (ID.BVParent'LambdaParam id) param >>= \ (param) ->
-            SIR.Expr'Lambda id () sp param <$> convert_lambda more body -- TODO: properly do spans of parts because this also just takes the whole span
+        convert_lambda cur_id (param:more) body =
+            convert_pattern (ID.BVParent'LambdaParam cur_id) param >>= \ (param) ->
+            SIR.Expr'Lambda cur_id () sp param <$> convert_lambda (ID.ExprID'LambdaBodyOf cur_id) more body -- TODO: properly do spans of parts because this also just takes the whole span
 
-        convert_lambda [] body = convert_expr body
+        convert_lambda cur_id [] body = convert_expr cur_id body
 
-convert_expr (AST.Expr'Let sp decls subexpr) = go decls
+convert_expr cur_id (AST.Expr'Let sp decls subexpr) = go cur_id decls
     where
-        go [] = convert_expr subexpr
-        go (first:more) =
-            new_expr_id >>= \ id ->
-            convert_decls (ID.BVParent'Let id) (ID.DeclParent'Let id) [first] >>= \ (bindings, _, _) -> -- TODO: put adts and type synonyms
-            SIR.Expr'Let id () sp bindings <$> go more
-convert_expr (AST.Expr'LetRec sp decls subexpr) =
-    new_expr_id >>= \ id ->
-    convert_decls (ID.BVParent'Let id) (ID.DeclParent'Let id) decls >>= \ (bindings, _, _) -> -- TODO: put adts and type synonyms
-    SIR.Expr'LetRec id () sp bindings <$> convert_expr subexpr
+        go cur_id [] = convert_expr cur_id subexpr
+        go cur_id (first:more) =
+            convert_decls (ID.BVParent'Let cur_id) (ID.DeclParent'Let cur_id) [first] >>= \ (bindings, _, _) -> -- TODO: put adts and type synonyms
+            SIR.Expr'Let cur_id () sp bindings <$> go (ID.ExprID'LetResultOf cur_id) more
+convert_expr cur_id (AST.Expr'LetRec sp decls subexpr) =
+    convert_decls (ID.BVParent'Let cur_id) (ID.DeclParent'Let cur_id) decls >>= \ (bindings, _, _) -> -- TODO: put adts and type synonyms
+    SIR.Expr'LetRec cur_id () sp bindings <$> convert_expr (ID.ExprID'LetResultOf cur_id) subexpr
 
-convert_expr (AST.Expr'BinaryOps sp first ops) = new_expr_id >>= \ id -> SIR.Expr'BinaryOps id () () sp <$> convert_expr first <*> mapM (\ (op, right) -> convert_expr right >>= \ right' -> pure ((unlocate op), right')) ops
+convert_expr cur_id (AST.Expr'BinaryOps sp first ops) = SIR.Expr'BinaryOps cur_id () () sp <$> convert_expr (ID.ExprID'BinaryOperand cur_id 0) first <*> zipWithM (\ ind (op, right) -> convert_expr (ID.ExprID'BinaryOperand cur_id ind) right >>= \ right' -> pure ((unlocate op), right')) [1..] ops
 
-convert_expr (AST.Expr'Call sp callee args) =
-    convert_expr callee >>= \ callee ->
-    foldlM (\ callee arg -> new_expr_id >>= \ id -> SIR.Expr'Call id () sp callee <$> convert_expr arg) callee args -- TODO: fix span for this
+convert_expr cur_id (AST.Expr'Call sp callee args) =
+    convert_expr (ID.ExprID'CallCalleeIn cur_id) callee >>= \ callee ->
+    snd <$> foldlM
+        (\ (cur_id, callee) arg ->
+            convert_expr (ID.ExprID'CallArgOf cur_id) arg >>= \ arg ->
+            pure (ID.ExprID'CallEnclosing cur_id, SIR.Expr'Call cur_id () sp callee arg))
+        (ID.ExprID'CallEnclosing cur_id, callee)
+        args -- TODO: fix span for this
 
-convert_expr (AST.Expr'If sp if_sp cond t f) = new_expr_id >>= \ id -> SIR.Expr'If id () sp if_sp <$> convert_expr cond <*> convert_expr t <*> convert_expr f
-convert_expr (AST.Expr'Case sp case_sp e arms) =
-    new_expr_id >>= \ id ->
-    convert_expr e >>= \ e ->
+convert_expr cur_id (AST.Expr'If sp if_sp cond t f) = SIR.Expr'If cur_id () sp if_sp <$> convert_expr (ID.ExprID'IfCond cur_id) cond <*> convert_expr (ID.ExprID'IfTrue cur_id) t <*> convert_expr (ID.ExprID'IfFalse cur_id) f
+convert_expr cur_id (AST.Expr'Case sp case_sp e arms) =
+    convert_expr (ID.ExprID'CaseScrutinee cur_id) e >>= \ e ->
     zipWithM
         (\ ind (pat, choice) ->
-            convert_pattern (ID.BVParent'CaseArm id ind) pat >>= \ pat ->
-            convert_expr choice >>= \ choice ->
+            convert_pattern (ID.BVParent'CaseArm cur_id ind) pat >>= \ pat ->
+            convert_expr (ID.ExprID'CaseArm cur_id ind) choice >>= \ choice ->
             pure (pat, choice))
         [0..]
         arms
         >>= \ arms ->
-    pure (SIR.Expr'Case id () sp case_sp e arms)
+    pure (SIR.Expr'Case cur_id () sp case_sp e arms)
 
-convert_expr (AST.Expr'TypeAnnotation sp ty e) = new_expr_id >>= \ id -> SIR.Expr'TypeAnnotation id () sp <$> convert_type ty <*> convert_expr e
-convert_expr (AST.Expr'Forall sp tys e) =
+convert_expr cur_id (AST.Expr'TypeAnnotation sp ty e) = SIR.Expr'TypeAnnotation cur_id () sp <$> convert_type ty <*> convert_expr (ID.ExprID'TypeAnnotationSubject cur_id) e
+convert_expr cur_id (AST.Expr'Forall sp tys e) =
     catMaybes <$> mapM (make_iden1_with_err PathInTypeName) tys >>= \ tys ->
-
     mapM new_type_var tys >>= \ ty_vars ->
-
-    new_expr_id >>= \ id ->
     case ty_vars of
-        [] -> convert_expr e
-        tyv1:tyv_more -> SIR.Expr'Forall id () sp (tyv1 :| tyv_more) <$> convert_expr e
+        [] -> convert_expr (ID.ExprID'ForallResult cur_id) e
+        tyv1:tyv_more -> SIR.Expr'Forall cur_id () sp (tyv1 :| tyv_more) <$> convert_expr (ID.ExprID'ForallResult cur_id) e
 
-convert_expr (AST.Expr'TypeApply sp e args) =
-    convert_expr e >>= \ e ->
-    foldlM (\ e arg -> new_expr_id >>= \ id -> SIR.Expr'TypeApply id () sp e <$> convert_type arg) e args -- TODO: fix span for this
-convert_expr (AST.Expr'Hole sp hid) = new_expr_id >>= \ eid -> pure (SIR.Expr'Hole eid () sp hid)
+convert_expr cur_id (AST.Expr'TypeApply sp e args) =
+    convert_expr (ID.ExprID'TypeApplyFirst cur_id) e >>= \ e ->
+    snd <$> foldlM
+        (\ (apply_id, e) arg ->
+            convert_type arg >>= \ arg ->
+            pure (ID.ExprID'TypeApplyOn apply_id, SIR.Expr'TypeApply apply_id () sp e arg))
+        (ID.ExprID'TypeApplyOn cur_id, e)
+        args -- TODO: fix span for this
+convert_expr cur_id (AST.Expr'Hole sp hid) = pure (SIR.Expr'Hole cur_id () sp hid)
 
 convert_pattern :: ID.BoundValueParent -> AST.Pattern -> MakeIRState Pattern
 convert_pattern parent (AST.Pattern'Identifier iden) =

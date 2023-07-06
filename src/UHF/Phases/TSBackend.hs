@@ -16,9 +16,6 @@ import qualified UHF.Data.IR.BackendIR as BackendIR
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.ID as ID
 
-type CaptureList = Set.Set BackendIR.BindingKey
-type DependencyList = Set.Set BackendIR.BindingKey
-
 type CU = BackendIR.CU
 type Type = Type.Type Void
 type ADT = Type.ADT Type

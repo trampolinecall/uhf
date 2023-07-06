@@ -142,7 +142,7 @@ convert_decls bv_parent decl_parent decls =
                     (\ case
                         (Type.ADTVariant'Anon (Located name_sp name) _, index) ->
                             let variant_index = Type.ADTVariantIndex adt_key index
-                             in lift (new_bound_value (SIR.BoundValue'ADTVariant (ID.BoundValueID bv_parent name) variant_index () name_sp)) >>= \ bv_key ->
+                            in lift (new_bound_value (SIR.BoundValue'ADTVariant (ID.BoundValueID bv_parent name) variant_index () name_sp)) >>= \ bv_key ->
                             pure (Just (SIR.Binding'ADTVariant name_sp bv_key variant_index))
                         (Type.ADTVariant'Named _ _, _) -> pure Nothing
                     )

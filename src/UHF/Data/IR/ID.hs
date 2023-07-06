@@ -126,31 +126,30 @@ instance Mangle DeclID where
     mangle' (DeclID parent name) = mangle' parent <> mangle' name
 instance Mangle DeclParent where
     mangle' (DeclParent'Module m) = "m" <> mangle' m
-    mangle' (DeclParent'Let e) = "e" <> mangle' e
+    mangle' (DeclParent'Let e) = "l" <> mangle' e
 
 instance Mangle ExprID where
-    -- TODO: decide on better leters
     mangle' (ExprID'ANFIRGen i) = "a" <> mangle' i
     mangle' (ExprID'BinaryOperand e i) = "b" <> mangle' i <> mangle' e
-    mangle' (ExprID'CallEnclosing e) = "c" <> mangle' e
-    mangle' (ExprID'CaseArm e i) = "d" <> mangle' e <> mangle' i
-    mangle' (ExprID'CallArgOf e) = "e" <> mangle' e
-    mangle' (ExprID'ForallResult e) = "f" <> mangle' e
+    mangle' (ExprID'CallArgOf e) = "c" <> mangle' e
+    mangle' (ExprID'CallCalleeIn e) = "d" <> mangle' e
+    mangle' (ExprID'CallEnclosing e) = "e" <> mangle' e
+    mangle' (ExprID'CaseArm e i) = "f" <> mangle' e <> mangle' i
     mangle' (ExprID'CaseScrutinee e) = "g" <> mangle' e
-    mangle' (ExprID'CallCalleeIn e) = "h" <> mangle' e
-    mangle' (ExprID'InfixGroupGen i) = "i" <> mangle' i
-    mangle' (ExprID'InitializerOf parent ind) = "j" <> mangle' parent <> mangle' ind
-    mangle' (ExprID'IfCond e) = "k" <> mangle' e
-    mangle' (ExprID'LambdaBodyOf e) = "l" <> mangle' e
-    mangle' (ExprID'LetResultOf e) = "m" <> mangle' e
-    mangle' (ExprID'IfTrue e) = "n" <> mangle' e
-    mangle' (ExprID'IfFalse e) = "o" <> mangle' e
+    mangle' (ExprID'ForallResult e) = "h" <> mangle' e
+    mangle' (ExprID'IfCond e) = "i" <> mangle' e
+    mangle' (ExprID'IfFalse e) = "j" <> mangle' e
+    mangle' (ExprID'IfTrue e) = "k" <> mangle' e
+    mangle' (ExprID'InfixGroupGen i) = "l" <> mangle' i
+    mangle' (ExprID'InitializerOf parent ind) = "m" <> mangle' parent <> mangle' ind
+    mangle' (ExprID'LambdaBodyOf e) = "n" <> mangle' e
+    mangle' (ExprID'LetResultOf e) = "o" <> mangle' e
     mangle' (ExprID'RIRGen i) = "r" <> mangle' i
     mangle' (ExprID'TupleFirstOf e) = "t" <> mangle' e
     mangle' (ExprID'TupleSecondOf e) = "u" <> mangle' e
-    mangle' (ExprID'TypeApplyOn e) = "v" <> mangle' e
-    mangle' (ExprID'TypeAnnotationSubject e) = "w" <> mangle' e
-    mangle' (ExprID'TypeApplyFirst e) = "x" <> mangle' e
+    mangle' (ExprID'TypeAnnotationSubject e) = "v" <> mangle' e
+    mangle' (ExprID'TypeApplyFirst e) = "w" <> mangle' e
+    mangle' (ExprID'TypeApplyOn e) = "x" <> mangle' e
 
 instance Mangle BoundValueID where
     mangle' (BoundValueID parent pieces) = "b" <> mangle' parent <> mangle' pieces

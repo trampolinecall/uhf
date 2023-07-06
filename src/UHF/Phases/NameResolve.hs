@@ -322,7 +322,6 @@ resolve_in_expr nc_stack (SIR.Expr'Lambda id type_info sp param body) =
     lift (lift $ make_child_maps [] param_bvs []) >>= \ new_nc ->
     SIR.Expr'Lambda id type_info sp <$> resolve_in_pat nc_stack param <*> resolve_in_expr (ChildMapStack new_nc (Just nc_stack)) body
 
--- TODO: make Let only have 1 binding
 resolve_in_expr nc_stack (SIR.Expr'Let id type_info sp bindings body) =
     (unzip3 <$> mapM binding_children bindings) >>= \ (decl_children, bv_children, variant_children) ->
     lift (lift $ make_child_maps (concat decl_children) (concat bv_children) (concat variant_children)) >>= \ new_nc ->

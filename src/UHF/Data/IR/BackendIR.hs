@@ -83,7 +83,7 @@ data Expr ty poison_allowed
     | Expr'Char ID ty Char
     | Expr'String ID ty Text
     | Expr'Tuple ID ty BindingKey BindingKey -- TODO: replace with call constructor expr
-    | Expr'MakeADT ID ty Type.ADTVariantIndex [BindingKey]
+    | Expr'MakeADT ID ty Type.ADTVariantIndex [ty] [BindingKey]
 
     | Expr'Lambda ID ty ParamKey (BindingGroup) BindingKey
     | Expr'Param ID ty ParamKey
@@ -123,7 +123,7 @@ expr_type (Expr'TupleDestructure1 _ ty _) = ty
 expr_type (Expr'TupleDestructure2 _ ty _) = ty
 expr_type (Expr'Forall _ ty _ _ _) = ty
 expr_type (Expr'TypeApply _ ty _ _) = ty
-expr_type (Expr'MakeADT _ ty _ _) = ty
+expr_type (Expr'MakeADT _ ty _ _ _) = ty
 expr_type (Expr'Poison _ ty _) = ty
 
 expr_id :: Expr ty poison_allowed -> ID
@@ -142,7 +142,7 @@ expr_id (Expr'TupleDestructure1 id _ _) = id
 expr_id (Expr'TupleDestructure2 id _ _) = id
 expr_id (Expr'Forall id _ _ _ _) = id
 expr_id (Expr'TypeApply id _ _ _) = id
-expr_id (Expr'MakeADT id _ _ _) = id
+expr_id (Expr'MakeADT id _ _ _ _) = id
 expr_id (Expr'Poison id _ _) = id
 
 binding_type :: Binding ty poison_allowed -> ty

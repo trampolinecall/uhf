@@ -82,8 +82,9 @@ convert_binding (SIR.Binding'ADTVariant _ bvk variant_index@(Type.ADTVariantInde
     pure [RIR.Binding bvk lambdas]
     where
         make_lambdas type_params variant_index@(Type.ADTVariantIndex adt_key _) refer_to_params [] =
-            new_made_up_expr_id >>= \ make_adt_id ->
-            pure $ RIR.Expr'MakeADT make_adt_id (Type.Type'ADT adt_key (map Type.Type'Variable type_params)) todo variant_index refer_to_params
+            let ty_params_as_tys = map Type.Type'Variable type_params
+            in new_made_up_expr_id >>= \ make_adt_id ->
+            pure $ RIR.Expr'MakeADT make_adt_id (Type.Type'ADT adt_key ty_params_as_tys) todo variant_index (map Just ty_params_as_tys) refer_to_params
 
         make_lambdas type_params variant_index refer_to_params (cur_field_ty:more_field_tys) =
             Unique.make_unique >>= \ lambda_uniq ->

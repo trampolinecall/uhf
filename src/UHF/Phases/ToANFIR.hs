@@ -66,7 +66,7 @@ make_binding_group bindings =
                     ANFIR.Expr'TupleDestructure2 _ _ tup -> [tup]
                     ANFIR.Expr'Forall _ _ _ group e -> ANFIR.binding_group_captures group <> exclude_if_in_group group e
                     ANFIR.Expr'TypeApply _ _ e _ -> [e]
-                    ANFIR.Expr'MakeADT _ _ _ args -> Set.fromList args
+                    ANFIR.Expr'MakeADT _ _ _ _ args -> Set.fromList args
                     ANFIR.Expr'Poison _ _ -> []
             )
             where
@@ -219,6 +219,6 @@ convert_expr bv_map m_bvid (RIR.Expr'Forall id ty _ vars e) =
     ANFIR.Expr'Forall (choose_id m_bvid id) ty vars <$> lift (make_binding_group e_involved_bindings) <*> pure e >>= new_binding
 convert_expr bv_map m_bvid (RIR.Expr'TypeApply id ty _ e arg) = ANFIR.Expr'TypeApply (choose_id m_bvid id) ty <$> convert_expr bv_map Nothing e <*> pure arg >>= new_binding
 
-convert_expr bv_map m_bvid (RIR.Expr'MakeADT id ty _ variant args) = ANFIR.Expr'MakeADT (choose_id m_bvid id) (Just ty) variant <$> mapM (convert_expr bv_map Nothing) args >>= new_binding
+convert_expr bv_map m_bvid (RIR.Expr'MakeADT id ty _ variant tyargs args) = ANFIR.Expr'MakeADT (choose_id m_bvid id) (Just ty) variant tyargs <$> mapM (convert_expr bv_map Nothing) args >>= new_binding
 
 convert_expr _ m_bvid (RIR.Expr'Poison id ty _) = new_binding (ANFIR.Expr'Poison (choose_id m_bvid id) ty)

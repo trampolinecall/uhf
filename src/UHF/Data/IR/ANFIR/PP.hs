@@ -102,10 +102,11 @@ expr (ANFIR.Expr'TupleDestructure1 _ _ other) = refer_binding other >>= \ other 
 expr (ANFIR.Expr'TupleDestructure2 _ _ other) = refer_binding other >>= \ other ->  pure (PP.List [other, ".1"])
 expr (ANFIR.Expr'Forall _ _ vars group e) = mapM type_var vars >>= \ vars -> define_binding_group group >>= \ group -> refer_binding e >>= \ e -> pure (PP.FirstOnLineIfMultiline $ PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList vars, " ", PP.indented_block [group, e]])
 expr (ANFIR.Expr'TypeApply _ _ e arg) = refer_binding e >>= \ e -> refer_type arg >>= \ arg -> pure (PP.List [e, "#(", arg, ")"])
-expr (ANFIR.Expr'MakeADT _ _ variant_index@(Type.ADTVariantIndex adt_key _) args) =
+expr (ANFIR.Expr'MakeADT _ _ variant_index@(Type.ADTVariantIndex adt_key _) tyargs args) =
     Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_referred ->
     Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
     mapM refer_binding args >>= \ args ->
+    mapM refer_type tyargs >>= \ tyargs ->
     let variant_name = Type.variant_name variant
-    in pure $ PP.List ["adt ", adt_referred, " ", PP.String $ unlocate variant_name, PP.bracketed_comma_list PP.Inconsistent args]
+    in pure $ PP.List ["adt ", adt_referred, " ", PP.String $ unlocate variant_name, "#", PP.parenthesized_comma_list PP.Inconsistent tyargs, PP.bracketed_comma_list PP.Inconsistent args]
 expr (ANFIR.Expr'Poison _ _) = pure $ PP.String "poison"

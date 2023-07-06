@@ -69,7 +69,7 @@ to_dot (BackendIR.BackendIR _ _ _ bindings params _) =
                         BackendIR.Expr'Forall _ _ _ _ e -> ("forall", [("e", e)], []) -- TODO: put vars
                         BackendIR.Expr'TypeApply _ _ e ty -> ("type apply", [("e", e)], []) -- TODO: put type
 
-                        BackendIR.Expr'MakeADT _ _ _ args -> ("type apply", zipWith (\ i a -> ("arg" <> show (i :: Int), a)) [0..] args, []) -- TODO: connect to variant
+                        BackendIR.Expr'MakeADT _ _ _ _ args -> ("type apply", zipWith (\ i a -> ("arg" <> show (i :: Int), a)) [0..] args, []) -- TODO: connect to variant
 
                         BackendIR.Expr'Poison _ _ void -> absurd void
 

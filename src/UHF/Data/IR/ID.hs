@@ -21,7 +21,7 @@ import qualified Numeric
 newtype ModuleID = ModuleID [Text] deriving Show
 
 data DeclID = DeclID DeclParent Text deriving Show
-data DeclParent = DeclParent'Module ModuleID | DeclParent'Expr ExprID deriving Show
+data DeclParent = DeclParent'Module ModuleID | DeclParent'Let ExprID deriving Show
 
 data ExprID = ExprID'SIRGen Int | ExprID'InfixGroupGen Int | ExprID'RIRGen Int | ExprID'ANFIRGen Int deriving Show
 
@@ -65,7 +65,7 @@ stringify = stringify' . to_general_id
         stringify_bv_parent (BVParent'CaseArm e i) = stringify' (GE e) <> "::arm" <> show i
 
         stringify_decl_parent (DeclParent'Module mod) = stringify' (GM mod)
-        stringify_decl_parent (DeclParent'Expr e) = stringify' (GE e)
+        stringify_decl_parent (DeclParent'Let e) = stringify' (GE e)
 
 class Mangle m where
     mangle' :: m -> Text
@@ -83,7 +83,7 @@ instance Mangle DeclID where
     mangle' (DeclID parent name) = mangle' parent <> mangle' name
 instance Mangle DeclParent where
     mangle' (DeclParent'Module m) = "m" <> mangle' m
-    mangle' (DeclParent'Expr e) = "e" <> mangle' e
+    mangle' (DeclParent'Let e) = "e" <> mangle' e
 
 instance Mangle ExprID where
     mangle' (ExprID'SIRGen i) = "s" <> mangle' i

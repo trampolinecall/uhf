@@ -13,7 +13,7 @@ import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.PP as Type.PP
 import qualified UHF.Data.IR.ID as ID
 
-import UHF.IO.Located (Located (Located))
+import UHF.IO.Located (Located (Located, unlocate))
 
 import qualified Data.Set as Set
 
@@ -116,6 +116,6 @@ expr (BackendIR.Expr'MakeADT _ _ variant_index@(Type.ADTVariantIndex adt_key _) 
     Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_referred ->
     Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
     mapM refer_binding args >>= \ args ->
-    let variant_name = Type.variant_name variant
+    let variant_name = unlocate $ Type.variant_name variant
     in pure $ PP.List ["adt ", adt_referred, " ", PP.String variant_name, PP.bracketed_comma_list PP.Inconsistent args]
 expr (BackendIR.Expr'Poison _ _ _) = pure $ PP.String "poison"

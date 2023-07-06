@@ -80,7 +80,12 @@ type ResolvedADTArena = Arena.Arena ResolvedADT Type.ADTKey
 type ResolvedTypeSynonymArena = Arena.Arena ResolvedTypeSynonym Type.TypeSynonymKey
 
 type CollectingErrors = Compiler.WithDiagnostics Error Void
+
 type MakeDeclState = StateT DeclArena
+
+new_decl :: Monad under => SIR.Decl -> MakeDeclState under SIR.DeclKey
+new_decl d = StateT (\ arena -> pure $ Arena.put d arena)
+
 type NRReader adt_arena bv_arena type_var_arena module_child_maps = ReaderT (adt_arena, bv_arena, type_var_arena, module_child_maps)
 
 ask_adt_arena :: Applicative under => NRReader adt_arena bv_arena type_var_arena module_child_maps under adt_arena
@@ -125,6 +130,29 @@ type DeclChildrenList = [(Text, DeclAt, SIR.DeclKey)]
 type BoundValueList = [(Text, DeclAt, SIR.BoundValueKey)]
 type ADTVariantList = [(Text, DeclAt, Type.ADTVariantIndex)]
 
+binding_children :: Monad under => UnresolvedBinding -> NRReader UnresolvedADTArena BoundValueArena type_var_arena module_child_maps under (DeclChildrenList, BoundValueList, ADTVariantList)
+binding_children (SIR.Binding pat _ _) = ([],, []) <$> pattern_bvs pat
+binding_children (SIR.Binding'ADTVariant sp bvk variant_index) = bv_name bvk >>= \ name -> pure ([], [(name, DeclAt sp, bvk)], [(name, DeclAt sp, variant_index)]) -- TODO: move variants to inside their types, also dont handle adt variants here
+
+pattern_bvs :: Monad under => UnresolvedPattern -> NRReader UnresolvedADTArena BoundValueArena type_var_arena module_child_maps under BoundValueList
+pattern_bvs (SIR.Pattern'Identifier _ sp bvk) = bv_name bvk >>= \ name -> pure [(name, DeclAt sp, bvk)]
+pattern_bvs (SIR.Pattern'Wildcard _ _) = pure []
+pattern_bvs (SIR.Pattern'Tuple _ _ a b) = pattern_bvs a >>= \ a -> pattern_bvs b >>= \ b -> pure (a ++ b)
+pattern_bvs (SIR.Pattern'Named _ _ _ (Located bv_span bvk) subpat) = bv_name bvk >>= \ name -> pattern_bvs subpat >>= \ subpat -> pure ((name, DeclAt bv_span, bvk) : subpat)
+pattern_bvs (SIR.Pattern'AnonADTVariant _ _ _ fields) = concat <$> mapM (pattern_bvs) fields
+pattern_bvs (SIR.Pattern'NamedADTVariant _ _ _ fields) = concat <$> mapM (pattern_bvs . snd) fields
+pattern_bvs (SIR.Pattern'Poison _ _) = pure []
+
+bv_name :: Monad under => SIR.BoundValueKey -> NRReader UnresolvedADTArena BoundValueArena type_var_arena module_child_maps under Text
+bv_name bvk =
+    ask_bv_arena >>= \ bv_arena ->
+    case Arena.get bv_arena bvk of
+        SIR.BoundValue _ _ (Located _ name) -> pure name
+        SIR.BoundValue'ADTVariant _ variant_index _ _ ->
+            ask_adt_arena >>= \ adt_arena ->
+            let variant = Type.get_adt_variant adt_arena variant_index
+            in pure $ Type.variant_name variant
+
 make_child_maps :: DeclChildrenList -> BoundValueList -> ADTVariantList -> CollectingErrors ChildMaps
 make_child_maps decls bound_values adt_variants =
     let decl_dups = find_dups decls
@@ -150,9 +178,6 @@ make_child_maps decls bound_values adt_variants =
             where
                 get_decl_at (_, d, _) = d
 
-new_decl :: Monad under => SIR.Decl -> MakeDeclState under SIR.DeclKey
-new_decl d = StateT (\ arena -> pure $ Arena.put d arena)
-
 resolve :: UnresolvedSIR -> CollectingErrors ResolvedSIR
 resolve (SIR.SIR decls mods adts type_synonyms type_vars bound_values mod) =
     runStateT
@@ -165,8 +190,6 @@ resolve (SIR.SIR decls mods adts type_synonyms type_vars bound_values mod) =
         )
         decls >>= \ ((mods, adts, synonyms), decls) ->
     pure (SIR.SIR decls mods adts synonyms type_vars bound_values mod)
-
--- TODO: clean up this module
 
 collect_child_maps :: UnresolvedModuleArena -> UnresolvedTypeSynonymArena -> (NRReader UnresolvedADTArena BoundValueArena type_var_arena module_child_maps (MakeDeclState CollectingErrors)) (Arena.Arena ChildMaps SIR.ModuleKey)
 collect_child_maps mod_arena type_synonym_arena = Arena.transformM go mod_arena
@@ -211,29 +234,6 @@ collect_child_maps mod_arena type_synonym_arena = Arena.transformM go mod_arena
                 (concat $ primitive_decls : binding_decl_entries ++ adt_decl_entries ++ type_synonym_decl_entries)
                 (concat $ primitive_bvs : binding_bv_entries ++ adt_bv_entries ++ type_synonym_bv_entries)
                 (concat $ binding_variant_entries ++ adt_variant_entries ++ type_synonym_variant_entries))
-
-binding_children :: Monad under => UnresolvedBinding -> NRReader UnresolvedADTArena BoundValueArena type_var_arena module_child_maps under (DeclChildrenList, BoundValueList, ADTVariantList)
-binding_children (SIR.Binding pat _ _) = ([],, []) <$> pattern_bvs pat
-binding_children (SIR.Binding'ADTVariant sp bvk variant_index) = bv_name bvk >>= \ name -> pure ([], [(name, DeclAt sp, bvk)], [(name, DeclAt sp, variant_index)]) -- TODO: move variants to inside their types, also dont handle adt variants here
-
-pattern_bvs :: Monad under => UnresolvedPattern -> NRReader UnresolvedADTArena BoundValueArena type_var_arena module_child_maps under BoundValueList
-pattern_bvs (SIR.Pattern'Identifier _ sp bvk) = bv_name bvk >>= \ name -> pure [(name, DeclAt sp, bvk)]
-pattern_bvs (SIR.Pattern'Wildcard _ _) = pure []
-pattern_bvs (SIR.Pattern'Tuple _ _ a b) = pattern_bvs a >>= \ a -> pattern_bvs b >>= \ b -> pure (a ++ b)
-pattern_bvs (SIR.Pattern'Named _ _ _ (Located bv_span bvk) subpat) = bv_name bvk >>= \ name -> pattern_bvs subpat >>= \ subpat -> pure ((name, DeclAt bv_span, bvk) : subpat)
-pattern_bvs (SIR.Pattern'AnonADTVariant _ _ _ fields) = concat <$> mapM (pattern_bvs) fields
-pattern_bvs (SIR.Pattern'NamedADTVariant _ _ _ fields) = concat <$> mapM (pattern_bvs . snd) fields
-pattern_bvs (SIR.Pattern'Poison _ _) = pure []
-
-bv_name :: Monad under => SIR.BoundValueKey -> NRReader UnresolvedADTArena BoundValueArena type_var_arena module_child_maps under Text
-bv_name bvk =
-    ask_bv_arena >>= \ bv_arena ->
-    case Arena.get bv_arena bvk of
-        SIR.BoundValue _ _ (Located _ name) -> pure name
-        SIR.BoundValue'ADTVariant _ variant_index _ _ ->
-            ask_adt_arena >>= \ adt_arena ->
-            let variant = Type.get_adt_variant adt_arena variant_index
-            in pure $ Type.variant_name variant
 
 resolve_in_mods :: UnresolvedModuleArena -> (NRReader UnresolvedADTArena BoundValueArena TypeVarArena ModuleChildMaps (MakeDeclState CollectingErrors)) (ResolvedModuleArena, Map.Map Type.ADTKey ChildMaps, Map.Map Type.TypeSynonymKey ChildMaps)
 resolve_in_mods module_arena =

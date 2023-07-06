@@ -176,7 +176,7 @@ instance Mangle Text where
                     in "_" <> Text.replicate (4 - Text.length code) "0" <> code
 
 instance Mangle Int where
-    mangle' i = mangle' (show i :: Text)
+    mangle' i = show i <> "_"
 
 mangle :: ID i => i -> Text
 mangle = mangle' . to_general_id

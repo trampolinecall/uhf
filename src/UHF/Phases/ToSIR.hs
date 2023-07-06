@@ -140,17 +140,13 @@ convert_decls bv_parent decl_parent decls =
 
                 (catMaybes <$> mapM
                     (\ case
-                        (Type.ADTVariant'Anon name _, index, adt_variant_ast) ->
-                            let name_sp = case adt_variant_ast of
-                                    AST.DataVariant'Anon name _ -> just_span name
-                                    AST.DataVariant'Named _ _ -> unreachable -- not possible for a named ast to become an anonymous data variant
-                            in
+                        (Type.ADTVariant'Anon (Located name_sp name) _, index) ->
                             let variant_index = Type.ADTVariantIndex adt_key index
                              in lift (new_bound_value (SIR.BoundValue'ADTVariant (ID.BoundValueID bv_parent name) variant_index () name_sp)) >>= \ bv_key ->
                             pure (Just (SIR.Binding'ADTVariant name_sp bv_key variant_index))
-                        (Type.ADTVariant'Named _ _, _, _) -> pure Nothing
+                        (Type.ADTVariant'Named _ _, _) -> pure Nothing
                     )
-                    (zip3 variants_converted [0..] variants)) >>= \ constructor_bindings ->
+                    (zip variants_converted [0..])) >>= \ constructor_bindings ->
 
                 pure (adt_key, constructor_bindings)
             ) >>= \case
@@ -170,10 +166,10 @@ convert_decls bv_parent decl_parent decls =
         iden1_for_type_name = MaybeT . make_iden1_with_err PathInTypeName
         iden1_for_field_name = MaybeT . make_iden1_with_err PathInFieldName
 
-        convert_variant (AST.DataVariant'Anon name fields) = Type.ADTVariant'Anon <$> (unlocate <$> iden1_for_variant_name name) <*> lift (mapM convert_type fields)
+        convert_variant (AST.DataVariant'Anon name fields) = Type.ADTVariant'Anon <$> (iden1_for_variant_name name) <*> lift (mapM convert_type fields)
         convert_variant (AST.DataVariant'Named name fields) =
             Type.ADTVariant'Named
-                <$> (unlocate <$> iden1_for_variant_name name)
+                <$> (iden1_for_variant_name name)
                 <*> mapM
                     (\ (field_name, ty_ast) ->
                         (,)

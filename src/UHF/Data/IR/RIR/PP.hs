@@ -11,7 +11,7 @@ import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.PP as Type.PP
 import qualified UHF.Data.IR.ID as ID
 
-import UHF.IO.Located (Located (Located))
+import UHF.IO.Located (Located (Located, unlocate))
 
 -- TODO: dump types too
 
@@ -90,5 +90,5 @@ expr (RIR.Expr'MakeADT _ _ _ variant_index@(Type.ADTVariantIndex adt_key _) args
     Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
     mapM expr args >>= \ args ->
     let variant_name = Type.variant_name variant
-    in pure $ PP.FirstOnLineIfMultiline $ PP.List ["adt ", adt_refer, " ", PP.String variant_name, PP.bracketed_comma_list PP.Inconsistent args]
+    in pure $ PP.FirstOnLineIfMultiline $ PP.List ["adt ", adt_refer, " ", PP.String $ unlocate variant_name, PP.bracketed_comma_list PP.Inconsistent args]
 expr (RIR.Expr'Poison _ _ _) = pure $ PP.List ["poison"]

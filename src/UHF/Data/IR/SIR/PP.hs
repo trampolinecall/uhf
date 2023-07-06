@@ -55,7 +55,7 @@ define_binding (SIR.Binding pat _ init) = pattern pat >>= \ pat -> expr init >>=
 define_binding (SIR.Binding'ADTVariant _ bvk variant_index@(Type.ADTVariantIndex adt_key _)) =
     Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
     Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
-    let variant_name = Type.variant_name variant
+    let variant_name = unlocate $ Type.variant_name variant
     in refer_bv bvk >>= \ bvk ->
     pure $ PP.List [bvk, " = <constructor for ", adt_refer, " ", PP.String variant_name, ">;"]
 
@@ -96,7 +96,7 @@ instance DumpableIdentifier (Maybe Type.ADTVariantIndex) where -- TODO: remove t
     refer_iden (Just variant_index@(Type.ADTVariantIndex adt_key _)) =
         Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_referred ->
         Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
-        let variant_name = Type.variant_name variant
+        let variant_name = unlocate $ Type.variant_name variant
         in pure $ PP.List [adt_referred, "::", PP.String variant_name]
     refer_iden Nothing = pure $ PP.String "<name resolution error>"
 

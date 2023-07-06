@@ -6,8 +6,9 @@ import UHF.Util.Prelude
 
 import qualified Arena
 
-import qualified Data.Set as Set
 import qualified Data.FileEmbed as FileEmbed
+
+import UHF.IO.Located (Located (unlocate))
 
 import qualified UHF.Phases.TSBackend.TS as TS
 import qualified UHF.Phases.TSBackend.TS.PP as TS.PP
@@ -94,7 +95,7 @@ convert_ts_adt (TSADT key) =
                     pure (foldl' TS.Type'Union first more)
 
         convert_variant variant =
-            let name_field = ("discriminant", Just $ TS.Type'StrLit $ Type.variant_name variant)
+            let name_field = ("discriminant", Just $ TS.Type'StrLit $ unlocate $ Type.variant_name variant)
             in (case variant of
                     Type.ADTVariant'Named _ fields -> zipWithM (\ i (_, f) -> ("_" <> show (i :: Int),) . Just <$> refer_type f) [0..] fields
                     Type.ADTVariant'Anon _ fields -> zipWithM (\ i f -> ("_" <> show (i :: Int),) . Just <$> refer_type f) [0..] fields) >>= \ fields ->
@@ -227,7 +228,7 @@ lower_binding (BackendIR.Binding init) = l init
             mangle_adt adt_key >>= \ adt_mangled ->
             Type.variant_name <$> (Type.get_adt_variant <$> get_adt_arena <*> pure variant_index) >>= \ variant_name ->
             zipWithM (\ i arg -> mangle_binding_as_var arg >>= \ arg -> pure ("_" <> show (i :: Int), Just $ TS.Expr'Identifier arg)) [0..] args >>= \ object_fields ->
-            let_current id (TS.Expr'New (TS.Expr'Identifier adt_mangled) [TS.Expr'Object $ ("discriminant", Just $ TS.Expr'StrLit variant_name) : object_fields]) >>= \ let_stmt ->
+            let_current id (TS.Expr'New (TS.Expr'Identifier adt_mangled) [TS.Expr'Object $ ("discriminant", Just $ TS.Expr'StrLit $ unlocate variant_name) : object_fields]) >>= \ let_stmt ->
                 pure ([let_stmt], [])
 
         l (BackendIR.Expr'Lambda id _ _ group _) =

@@ -27,7 +27,7 @@ import qualified UHF.Compiler as Compiler
 
 import qualified UHF.IO.Located as Located
 import UHF.IO.Span (Span)
-import UHF.IO.Located (Located (Located))
+import UHF.IO.Located (Located (Located, unlocate))
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Codes as Diagnostic.Codes
 
@@ -151,7 +151,7 @@ bv_name bvk =
         SIR.BoundValue'ADTVariant _ variant_index _ _ ->
             ask_adt_arena >>= \ adt_arena ->
             let variant = Type.get_adt_variant adt_arena variant_index
-            in pure $ Type.variant_name variant
+            in pure $ unlocate $ Type.variant_name variant
 
 make_child_maps :: DeclChildrenList -> BoundValueList -> ADTVariantList -> CollectingErrors ChildMaps
 make_child_maps decls bound_values adt_variants =

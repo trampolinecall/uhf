@@ -158,7 +158,7 @@ instance Mangle BoundValueID where
 instance Mangle BoundValueParent where
     mangle' (BVParent'Module mod) = "m" <> mangle' mod
     mangle' (BVParent'LambdaParam lam) = "l" <> mangle' lam
-    mangle' (BVParent'Let e) = "m" <> mangle' e -- m is the letter after l
+    mangle' (BVParent'Let e) = "n" <> mangle' e -- skip m because m is already taken by module
     mangle' (BVParent'CaseArm e ind) = "c" <> mangle' e <> mangle' ind
 
 instance Mangle a => Mangle [a] where

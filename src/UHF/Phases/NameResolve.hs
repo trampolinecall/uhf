@@ -219,11 +219,11 @@ binding_children (SIR.Binding'ADTVariant sp bvk variant_index) = bv_name bvk >>=
 
 pattern_bvs :: Monad under => UnresolvedPattern -> NRReader UnresolvedADTArena BoundValueArena type_var_arena module_child_maps under BoundValueList
 pattern_bvs (SIR.Pattern'Identifier _ sp bvk) = bv_name bvk >>= \ name -> pure [(name, DeclAt sp, bvk)]
-pattern_bvs (SIR.Pattern'Wildcard _ sp) = pure []
-pattern_bvs (SIR.Pattern'Tuple _ sp a b) = pattern_bvs a >>= \ a -> pattern_bvs b >>= \ b -> pure (a ++ b)
+pattern_bvs (SIR.Pattern'Wildcard _ _) = pure []
+pattern_bvs (SIR.Pattern'Tuple _ _ a b) = pattern_bvs a >>= \ a -> pattern_bvs b >>= \ b -> pure (a ++ b)
 pattern_bvs (SIR.Pattern'Named _ _ _ (Located bv_span bvk) subpat) = bv_name bvk >>= \ name -> pattern_bvs subpat >>= \ subpat -> pure ((name, DeclAt bv_span, bvk) : subpat)
-pattern_bvs (SIR.Pattern'AnonADTVariant _ sp p_iden fields) = concat <$> mapM (pattern_bvs) fields
-pattern_bvs (SIR.Pattern'NamedADTVariant _ sp p_iden fields) = concat <$> mapM (pattern_bvs . snd) fields
+pattern_bvs (SIR.Pattern'AnonADTVariant _ _ _ fields) = concat <$> mapM (pattern_bvs) fields
+pattern_bvs (SIR.Pattern'NamedADTVariant _ _ _ fields) = concat <$> mapM (pattern_bvs . snd) fields
 pattern_bvs (SIR.Pattern'Poison _ _) = pure []
 
 bv_name :: Monad under => SIR.BoundValueKey -> NRReader UnresolvedADTArena BoundValueArena type_var_arena module_child_maps under Text
@@ -271,12 +271,12 @@ resolve_in_type_synonym parent_maps synonym_key (Type.TypeSynonym id name expans
 
 resolve_in_binding :: ChildMapStack -> UnresolvedBinding -> (NRReader UnresolvedADTArena BoundValueArena TypeVarArena ModuleChildMaps (MakeDeclState CollectingErrors)) ResolvedBinding
 resolve_in_binding nc_stack (SIR.Binding target eq_sp expr) = SIR.Binding <$> resolve_in_pat nc_stack target <*> pure eq_sp <*> resolve_in_expr nc_stack expr
-resolve_in_binding nc_stack (SIR.Binding'ADTVariant bvk variant sp) = pure $ SIR.Binding'ADTVariant bvk variant sp
+resolve_in_binding _ (SIR.Binding'ADTVariant bvk variant sp) = pure $ SIR.Binding'ADTVariant bvk variant sp
 
 resolve_in_type_expr :: ChildMapStack -> UnresolvedTypeExpr -> (NRReader adt_arena bv_arena TypeVarArena ModuleChildMaps (MakeDeclState CollectingErrors)) ResolvedTypeExpr
 resolve_in_type_expr nc_stack (SIR.TypeExpr'Identifier type_info sp id) = SIR.TypeExpr'Identifier type_info sp <$> resolve_iden_in_monad resolve_type_iden nc_stack id
 resolve_in_type_expr nc_stack (SIR.TypeExpr'Tuple type_info a b) = SIR.TypeExpr'Tuple type_info <$> resolve_in_type_expr nc_stack a <*> resolve_in_type_expr nc_stack b
-resolve_in_type_expr nc_stack (SIR.TypeExpr'Hole type_info sp hid) = pure $ SIR.TypeExpr'Hole type_info sp hid
+resolve_in_type_expr _ (SIR.TypeExpr'Hole type_info sp hid) = pure $ SIR.TypeExpr'Hole type_info sp hid
 resolve_in_type_expr nc_stack (SIR.TypeExpr'Function type_info sp arg res) = SIR.TypeExpr'Function type_info sp <$> resolve_in_type_expr nc_stack arg <*> resolve_in_type_expr nc_stack res
 resolve_in_type_expr nc_stack (SIR.TypeExpr'Forall type_info vars ty) =
     mapM
@@ -289,25 +289,25 @@ resolve_in_type_expr nc_stack (SIR.TypeExpr'Forall type_info vars ty) =
     lift (lift $ make_child_maps vars' [] []) >>= \ new_nc ->
     SIR.TypeExpr'Forall type_info vars <$> resolve_in_type_expr (ChildMapStack new_nc (Just nc_stack)) ty
 resolve_in_type_expr nc_stack (SIR.TypeExpr'Apply type_info sp ty args) = SIR.TypeExpr'Apply type_info sp <$> resolve_in_type_expr nc_stack ty <*> resolve_in_type_expr nc_stack args
-resolve_in_type_expr nc_stack (SIR.TypeExpr'Wild type_info sp) = pure $ SIR.TypeExpr'Wild type_info sp
-resolve_in_type_expr nc_stack (SIR.TypeExpr'Poison type_info sp) = pure $ SIR.TypeExpr'Poison type_info sp
+resolve_in_type_expr _ (SIR.TypeExpr'Wild type_info sp) = pure $ SIR.TypeExpr'Wild type_info sp
+resolve_in_type_expr _ (SIR.TypeExpr'Poison type_info sp) = pure $ SIR.TypeExpr'Poison type_info sp
 
 resolve_in_pat :: ChildMapStack -> UnresolvedPattern -> (NRReader adt_arena bv_arena type_var_arena ModuleChildMaps (MakeDeclState CollectingErrors)) ResolvedPattern
-resolve_in_pat nc_stack (SIR.Pattern'Identifier type_info sp bnk) = pure $ SIR.Pattern'Identifier type_info sp bnk
-resolve_in_pat nc_stack (SIR.Pattern'Wildcard type_info sp) = pure $ SIR.Pattern'Wildcard type_info sp
+resolve_in_pat _ (SIR.Pattern'Identifier type_info sp bnk) = pure $ SIR.Pattern'Identifier type_info sp bnk
+resolve_in_pat _ (SIR.Pattern'Wildcard type_info sp) = pure $ SIR.Pattern'Wildcard type_info sp
 resolve_in_pat nc_stack (SIR.Pattern'Tuple type_info sp a b) = SIR.Pattern'Tuple type_info sp <$> resolve_in_pat nc_stack a <*> resolve_in_pat nc_stack b
 resolve_in_pat nc_stack (SIR.Pattern'Named type_info sp at_sp bnk subpat) = SIR.Pattern'Named type_info sp at_sp bnk <$> resolve_in_pat nc_stack subpat
 resolve_in_pat nc_stack (SIR.Pattern'AnonADTVariant type_info sp variant subpat) = SIR.Pattern'AnonADTVariant type_info sp <$> (resolve_iden_in_monad resolve_pat_iden nc_stack (split_iden variant)) <*> mapM (resolve_in_pat nc_stack) subpat
 resolve_in_pat nc_stack (SIR.Pattern'NamedADTVariant type_info sp variant subpat) = SIR.Pattern'NamedADTVariant type_info sp <$> (resolve_iden_in_monad resolve_pat_iden nc_stack (split_iden variant)) <*> mapM (\ (field_name, field_pat) -> (field_name,) <$> resolve_in_pat nc_stack field_pat) subpat
-resolve_in_pat nc_stack (SIR.Pattern'Poison type_info sp) = pure $ SIR.Pattern'Poison type_info sp
+resolve_in_pat _ (SIR.Pattern'Poison type_info sp) = pure $ SIR.Pattern'Poison type_info sp
 
 resolve_in_expr :: ChildMapStack -> UnresolvedExpr -> (NRReader UnresolvedADTArena BoundValueArena TypeVarArena ModuleChildMaps (MakeDeclState CollectingErrors)) ResolvedExpr
 resolve_in_expr nc_stack (SIR.Expr'Identifier id type_info sp i) = SIR.Expr'Identifier id type_info sp <$> resolve_iden_in_monad resolve_expr_iden nc_stack (split_iden i)
-resolve_in_expr nc_stack (SIR.Expr'Char id type_info sp c) = pure $ SIR.Expr'Char id type_info sp c
-resolve_in_expr nc_stack (SIR.Expr'String id type_info sp s) = pure $ SIR.Expr'String id type_info sp s
-resolve_in_expr nc_stack (SIR.Expr'Int id type_info sp i) = pure $ SIR.Expr'Int id type_info sp i
-resolve_in_expr nc_stack (SIR.Expr'Float id type_info sp f) = pure $ SIR.Expr'Float id type_info sp f
-resolve_in_expr nc_stack (SIR.Expr'Bool id type_info sp b) = pure $ SIR.Expr'Bool id type_info sp b
+resolve_in_expr _ (SIR.Expr'Char id type_info sp c) = pure $ SIR.Expr'Char id type_info sp c
+resolve_in_expr _ (SIR.Expr'String id type_info sp s) = pure $ SIR.Expr'String id type_info sp s
+resolve_in_expr _ (SIR.Expr'Int id type_info sp i) = pure $ SIR.Expr'Int id type_info sp i
+resolve_in_expr _ (SIR.Expr'Float id type_info sp f) = pure $ SIR.Expr'Float id type_info sp f
+resolve_in_expr _ (SIR.Expr'Bool id type_info sp b) = pure $ SIR.Expr'Bool id type_info sp b
 
 resolve_in_expr nc_stack (SIR.Expr'Tuple id type_info sp a b) = SIR.Expr'Tuple id type_info sp <$> resolve_in_expr nc_stack a <*> resolve_in_expr nc_stack b
 
@@ -359,9 +359,9 @@ resolve_in_expr nc_stack (SIR.Expr'Forall id type_info sp vars e) =
     SIR.Expr'Forall id type_info sp vars <$> resolve_in_expr (ChildMapStack new_nc (Just nc_stack)) e
 resolve_in_expr nc_stack (SIR.Expr'TypeApply id type_info sp e args) = SIR.Expr'TypeApply id type_info sp <$> resolve_in_expr nc_stack e <*> resolve_in_type_expr nc_stack args
 
-resolve_in_expr nc_stack (SIR.Expr'Hole id type_info sp hid) = pure $ SIR.Expr'Hole id type_info sp hid
+resolve_in_expr _ (SIR.Expr'Hole id type_info sp hid) = pure $ SIR.Expr'Hole id type_info sp hid
 
-resolve_in_expr nc_stack (SIR.Expr'Poison id type_info sp) = pure $ SIR.Expr'Poison id type_info sp
+resolve_in_expr _ (SIR.Expr'Poison id type_info sp) = pure $ SIR.Expr'Poison id type_info sp
 
 split_iden :: [Located Text] -> (Maybe [Located Text], Located Text)
 split_iden [] = error "empty identifier"
@@ -398,7 +398,7 @@ resolve_expr_iden _ _ child_map_stack (Nothing, last_segment@(Located last_segme
                         Nothing -> Left $ CouldNotFind Nothing name
 
 resolve_type_iden :: DeclArena -> ModuleChildMaps -> ChildMapStack -> UnresolvedDIden -> CollectingErrors (Maybe SIR.DeclKey)
-resolve_type_iden _ _ child_map_stack ([]) = error "empty identifier"
+resolve_type_iden _ _ _ ([]) = error "empty identifier"
 resolve_type_iden decls mods child_map_stack (first:more) =
     case resolve_first child_map_stack first of
         Right first_resolved ->

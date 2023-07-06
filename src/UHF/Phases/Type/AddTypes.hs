@@ -73,7 +73,7 @@ bound_value (SIR.BoundValue'ADTVariant id variant_index@(Type.ADTVariantIndex ad
             Type.ADTVariant'Anon _ fields ->
                 let wrap_in_forall = case type_params of
                         [] -> identity
-                        param:more -> Type.Type'Forall (param :| more)
+                        param:more -> Type.Type'Forall (param :| more) -- TODO: duplicate type params
                  in wrap_in_forall $ foldr (Type.Type'Function . SIR.type_expr_type_info) (Type.Type'ADT adt_key (map Type.Type'Variable type_params)) fields -- function type that takes all the field types and then results in the adt type
     pure (SIR.BoundValue'ADTVariant id variant_index ty def_span)
 

@@ -107,5 +107,5 @@ expr (ANFIR.Expr'MakeADT _ _ variant_index@(Type.ADTVariantIndex adt_key _) args
     Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
     mapM refer_binding args >>= \ args ->
     let variant_name = Type.variant_name variant
-    in pure $ PP.List ["adt ", adt_referred, " ", PP.String variant_name, PP.bracketed_comma_list PP.Inconsistent args]
+    in pure $ PP.List ["adt ", adt_referred, " ", PP.String $ unlocate variant_name, PP.bracketed_comma_list PP.Inconsistent args]
 expr (ANFIR.Expr'Poison _ _) = pure $ PP.String "poison"

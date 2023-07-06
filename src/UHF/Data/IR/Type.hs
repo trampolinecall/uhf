@@ -44,12 +44,12 @@ data Type unk
 
 data ADT ty = ADT ID.DeclID (Located Text) [TypeVarKey] [ADTVariant ty] deriving Show
 data ADTVariant ty
-    = ADTVariant'Named Text [(Text, ty)]
-    | ADTVariant'Anon Text [ty]
+    = ADTVariant'Named (Located Text) [(Text, ty)]
+    | ADTVariant'Anon (Located Text) [ty]
     deriving Show
 data ADTVariantIndex = ADTVariantIndex ADTKey Int deriving Show
 
-variant_name :: ADTVariant ty -> Text
+variant_name :: ADTVariant ty -> Located Text
 variant_name (ADTVariant'Anon name _) = name
 variant_name (ADTVariant'Named name _) = name
 variant_field_types :: ADTVariant ty -> [ty]

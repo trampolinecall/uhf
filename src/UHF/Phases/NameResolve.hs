@@ -255,10 +255,17 @@ resolve_in_module mod_key (SIR.Module id bindings adts type_synonyms) =
     SIR.Module id <$> (mapM (lift . lift . resolve_in_binding (ChildMapStack cur_map Nothing)) bindings) <*> pure adts <*> pure type_synonyms
 
 resolve_in_adt :: Map.Map Type.ADTKey ChildMaps -> Type.ADTKey -> UnresolvedADT -> (NRReader adt_arena bv_arena TypeVarArena ModuleChildMaps (MakeDeclState CollectingErrors)) ResolvedADT
--- TODO: remember to make type parameters in scope
 resolve_in_adt adt_parent_child_maps adt_key (Type.ADT id name type_vars variants) =
     let parent = adt_parent_child_maps Map.! adt_key
-    in Type.ADT id name type_vars <$> mapM (resolve_in_variant (ChildMapStack parent Nothing)) variants
+    in mapM
+        (\ var ->
+            ask_type_var_arena >>= \ type_var_arena ->
+            let (Type.Var (Located name_sp name)) = Arena.get type_var_arena var
+            in lift (new_decl (SIR.Decl'Type $ Type.Type'Variable var)) >>= \ var_decl ->
+            pure (name, DeclAt name_sp, var_decl))
+        type_vars >>= \ type_vars' ->
+    lift (lift $ make_child_maps type_vars' [] []) >>= \ new_nc ->
+    Type.ADT id name type_vars <$> mapM (resolve_in_variant (ChildMapStack new_nc (Just $ ChildMapStack parent Nothing))) variants
     where
         resolve_in_variant nc_stack (Type.ADTVariant'Named name fields) = Type.ADTVariant'Named name <$> mapM (\ (name, ty) -> (,) name <$> resolve_in_type_expr nc_stack ty) fields
         resolve_in_variant nc_stack (Type.ADTVariant'Anon name fields) = Type.ADTVariant'Anon name <$> mapM (resolve_in_type_expr nc_stack) fields

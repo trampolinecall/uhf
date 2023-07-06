@@ -79,7 +79,7 @@ data Expr
     | Expr'Char ID (Maybe (Type.Type Void)) Char
     | Expr'String ID (Maybe (Type.Type Void)) Text
     | Expr'Tuple ID (Maybe (Type.Type Void)) BindingKey BindingKey -- TODO: replace with call constructor expr
-    | Expr'MakeADT ID (Maybe (Type.Type Void)) Type.ADTVariantIndex [BindingKey]
+    | Expr'MakeADT ID (Maybe (Type.Type Void)) Type.ADTVariantIndex [Maybe (Type.Type Void)] [BindingKey]
 
     | Expr'Lambda ID (Maybe (Type.Type Void)) ParamKey BindingGroup BindingKey
     | Expr'Param ID (Maybe (Type.Type Void)) ParamKey
@@ -119,7 +119,7 @@ expr_type (Expr'TupleDestructure1 _ ty _) = ty
 expr_type (Expr'TupleDestructure2 _ ty _) = ty
 expr_type (Expr'Forall _ ty _ _ _) = ty
 expr_type (Expr'TypeApply _ ty _ _) = ty
-expr_type (Expr'MakeADT _ ty _ _) = ty
+expr_type (Expr'MakeADT _ ty _ _ _) = ty
 expr_type (Expr'Poison _ ty) = ty
 
 expr_id :: Expr -> ID
@@ -138,7 +138,7 @@ expr_id (Expr'TupleDestructure1 id _ _) = id
 expr_id (Expr'TupleDestructure2 id _ _) = id
 expr_id (Expr'Forall id _ _ _ _) = id
 expr_id (Expr'TypeApply id _ _ _) = id
-expr_id (Expr'MakeADT id _ _ _) = id
+expr_id (Expr'MakeADT id _ _ _ _) = id
 expr_id (Expr'Poison id _) = id
 
 binding_type :: Binding -> Maybe (Type.Type Void)

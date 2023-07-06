@@ -323,6 +323,8 @@ resolve_in_expr nc_stack (SIR.Expr'Lambda id type_info sp param body) =
     SIR.Expr'Lambda id type_info sp <$> resolve_in_pat nc_stack param <*> resolve_in_expr (ChildMapStack new_nc (Just nc_stack)) body
 
 resolve_in_expr nc_stack (SIR.Expr'Let id type_info sp bindings body) =
+    -- do not need to do binding by binding because the ToSIR should have already desugared that into a sequence of lets
+    -- so this let should only have 1 or 0 bindings
     (unzip3 <$> mapM binding_children bindings) >>= \ (decl_children, bv_children, variant_children) ->
     lift (lift $ make_child_maps (concat decl_children) (concat bv_children) (concat variant_children)) >>= \ new_nc ->
     SIR.Expr'Let id type_info sp <$> mapM (resolve_in_binding nc_stack) bindings <*> resolve_in_expr (ChildMapStack new_nc (Just nc_stack)) body

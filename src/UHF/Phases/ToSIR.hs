@@ -198,9 +198,7 @@ convert_type (AST.Type'Hole sp id) = pure $ SIR.TypeExpr'Hole () sp id
 convert_type (AST.Type'Function sp arg res) = SIR.TypeExpr'Function () sp <$> convert_type arg <*> convert_type res
 convert_type (AST.Type'Forall _ tys ty) =
     catMaybes <$> mapM (make_iden1_with_err PathInTypeName) tys >>= \ tys ->
-
-    mapM (new_type_var) tys >>= \ ty_vars ->
-
+    mapM new_type_var tys >>= \ ty_vars ->
     case ty_vars of
         [] -> convert_type ty -- can happen if there are errors in all the type names or if the user passed none
         tyv1:tyv_more -> SIR.TypeExpr'Forall () (tyv1 :| tyv_more) <$> convert_type ty
@@ -240,11 +238,11 @@ convert_expr (AST.Expr'Let sp decls subexpr) = go decls
         go [] = convert_expr subexpr
         go (first:more) =
             new_expr_id >>= \ id ->
-            convert_decls (ID.BVParent'Let id) (ID.DeclParent'Expr id) [first] >>= \ (bindings, _, _) -> -- TODO: put adts and type synonyms
+            convert_decls (ID.BVParent'Let id) (ID.DeclParent'Let id) [first] >>= \ (bindings, _, _) -> -- TODO: put adts and type synonyms
             SIR.Expr'Let id () sp bindings <$> go more
 convert_expr (AST.Expr'LetRec sp decls subexpr) =
     new_expr_id >>= \ id ->
-    convert_decls (ID.BVParent'Let id) (ID.DeclParent'Expr id) decls >>= \ (bindings, _, _) -> -- TODO: put adts and type synonyms
+    convert_decls (ID.BVParent'Let id) (ID.DeclParent'Let id) decls >>= \ (bindings, _, _) -> -- TODO: put adts and type synonyms
     SIR.Expr'LetRec id () sp bindings <$> convert_expr subexpr
 
 convert_expr (AST.Expr'BinaryOps sp first ops) = new_expr_id >>= \ id -> SIR.Expr'BinaryOps id () () sp <$> convert_expr first <*> mapM (\ (op, right) -> convert_expr right >>= \ right' -> pure ((unlocate op), right')) ops

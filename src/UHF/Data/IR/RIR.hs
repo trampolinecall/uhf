@@ -65,7 +65,7 @@ data Expr
     | Expr'Forall ID.ExprID (Maybe Type) Span (NonEmpty TypeVarKey) Expr
     | Expr'TypeApply ID.ExprID (Maybe Type) Span Expr (Maybe Type)
 
-    | Expr'MakeADT ID.ExprID Type Span Type.ADTVariantIndex [Expr]
+    | Expr'MakeADT ID.ExprID Type Span Type.ADTVariantIndex [Maybe Type] [Expr]
 
     | Expr'Poison ID.ExprID (Maybe Type) Span
     deriving Show
@@ -90,7 +90,7 @@ expr_type (Expr'Call _ ty _ _ _) = ty
 expr_type (Expr'Switch _ ty _ _ _) = ty
 expr_type (Expr'Forall _ ty _ _ _) = ty
 expr_type (Expr'TypeApply _ ty _ _ _) = ty
-expr_type (Expr'MakeADT _ ty _ _ _) = Just ty
+expr_type (Expr'MakeADT _ ty _ _ _ _) = Just ty
 expr_type (Expr'Poison _ ty _) = ty
 
 expr_span :: Expr -> Span -- TODO: remove?
@@ -107,5 +107,5 @@ expr_span (Expr'Call _ _ sp _ _) = sp
 expr_span (Expr'Switch _ _ sp _ _) = sp
 expr_span (Expr'Forall _ _ sp _ _) = sp
 expr_span (Expr'TypeApply _ _ sp _ _) = sp
-expr_span (Expr'MakeADT _ _ sp _ _) = sp
+expr_span (Expr'MakeADT _ _ sp _ _ _) = sp
 expr_span (Expr'Poison _ _ sp) = sp

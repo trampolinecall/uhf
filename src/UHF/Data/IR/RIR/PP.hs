@@ -85,10 +85,11 @@ expr (RIR.Expr'Switch _ _ _ e arms) = mapM pp_arm arms >>= \ arms -> expr e >>= 
         pp_arm (RIR.Switch'Default, e) = expr e >>= \ e -> pure (PP.List ["_ -> ", e, ";"])
 expr (RIR.Expr'Forall _ _ _ tys e) = mapM type_var tys >>= \ tys -> expr e >>= \ e -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList tys, " ", e])
 expr (RIR.Expr'TypeApply _ _ _ e arg) = expr e >>= \ e -> refer_m_type arg >>= \ arg -> pure (PP.List [e, "#(", arg, ")"])
-expr (RIR.Expr'MakeADT _ _ _ variant_index@(Type.ADTVariantIndex adt_key _) args) =
+expr (RIR.Expr'MakeADT _ _ _ variant_index@(Type.ADTVariantIndex adt_key _) tyargs args) =
     Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
     Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
     mapM expr args >>= \ args ->
+    mapM refer_m_type tyargs >>= \ tyargs ->
     let variant_name = Type.variant_name variant
-    in pure $ PP.FirstOnLineIfMultiline $ PP.List ["adt ", adt_refer, " ", PP.String $ unlocate variant_name, PP.bracketed_comma_list PP.Inconsistent args]
+    in pure $ PP.FirstOnLineIfMultiline $ PP.List ["adt ", adt_refer, " ", PP.String $ unlocate variant_name, "#", PP.parenthesized_comma_list PP.Inconsistent tyargs, PP.bracketed_comma_list PP.Inconsistent args]
 expr (RIR.Expr'Poison _ _ _) = pure $ PP.List ["poison"]

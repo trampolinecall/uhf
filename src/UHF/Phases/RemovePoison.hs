@@ -69,7 +69,7 @@ rp_expr (BackendIR.Expr'TupleDestructure2 id ty t) = ty >>= \ ty -> pure (Backen
 rp_expr (BackendIR.Expr'Forall id ty vars group e) = ty >>= \ ty -> pure (BackendIR.Expr'Forall id ty vars group e)
 rp_expr (BackendIR.Expr'TypeApply id ty e arg) = ty >>= \ ty -> arg >>= \ arg -> pure (BackendIR.Expr'TypeApply id ty e arg)
 
-rp_expr (BackendIR.Expr'MakeADT id ty variant args) = ty >>= \ ty -> pure (BackendIR.Expr'MakeADT id ty variant args)
+rp_expr (BackendIR.Expr'MakeADT id ty variant tyargs args) = ty >>= \ ty -> sequence tyargs >>= \ tyargs -> pure (BackendIR.Expr'MakeADT id ty variant tyargs args)
 
 rp_expr (BackendIR.Expr'Poison _ _ _) = Nothing
 

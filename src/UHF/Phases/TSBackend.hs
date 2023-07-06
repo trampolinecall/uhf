@@ -224,7 +224,7 @@ lower_binding (BackendIR.Binding init) = l init
         l (BackendIR.Expr'String id _ s) = let_current id (TS.Expr'New (TS.Expr'Identifier "UHFString") [TS.Expr'String s]) >>= \ let_stmt -> pure ([let_stmt], [])
 
         l (BackendIR.Expr'Tuple id _ a b) = mangle_binding_as_var a >>= \ a -> mangle_binding_as_var b >>= \ b -> let_current id (TS.Expr'New (TS.Expr'Identifier "Tuple") [TS.Expr'Identifier a, TS.Expr'Identifier b]) >>= \ let_stmt -> pure ([let_stmt], [])
-        l (BackendIR.Expr'MakeADT id _ variant_index@(Type.ADTVariantIndex adt_key _) args) =
+        l (BackendIR.Expr'MakeADT id _ variant_index@(Type.ADTVariantIndex adt_key _) _ args) =
             mangle_adt adt_key >>= \ adt_mangled ->
             Type.variant_name <$> (Type.get_adt_variant <$> get_adt_arena <*> pure variant_index) >>= \ variant_name ->
             zipWithM (\ i arg -> mangle_binding_as_var arg >>= \ arg -> pure ("_" <> show (i :: Int), Just $ TS.Expr'Identifier arg)) [0..] args >>= \ object_fields ->

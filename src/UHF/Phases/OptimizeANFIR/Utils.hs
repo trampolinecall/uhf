@@ -41,7 +41,7 @@ iterate_over_all_subexpressions modify = iterate_over_bindings do_binding
         do_expr (ANFIR.Expr'Char id ty c) = pure (ANFIR.Expr'Char id ty c)
         do_expr (ANFIR.Expr'String id ty s) = pure (ANFIR.Expr'String id ty s)
         do_expr (ANFIR.Expr'Tuple id ty a b) = modify a >>= \ a -> modify b >>= \ b -> pure (ANFIR.Expr'Tuple id ty a b)
-        do_expr (ANFIR.Expr'MakeADT id ty variant args) = mapM modify args >>= \ args -> pure (ANFIR.Expr'MakeADT id ty variant args)
+        do_expr (ANFIR.Expr'MakeADT id ty variant tyargs args) = mapM modify args >>= \ args -> pure (ANFIR.Expr'MakeADT id ty variant tyargs args)
 
         do_expr (ANFIR.Expr'Lambda id ty param group res) = modify res >>= \ res -> pure (ANFIR.Expr'Lambda id ty param group res)
         do_expr (ANFIR.Expr'Param id ty param) = pure (ANFIR.Expr'Param id ty param)

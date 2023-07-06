@@ -125,7 +125,6 @@ convert_decls bv_parent decl_parent decls =
     unzip3 <$> mapM convert_decl decls >>= \ (bindings, adts, type_synonyms) ->
     pure (concat bindings, concat adts, concat type_synonyms)
     where
-        -- TODO: clean this up
         convert_decl :: AST.Decl -> MakeIRState ([Binding], [Type.ADTKey], [Type.TypeSynonymKey])
         convert_decl (AST.Decl'Value target eq_sp expr) =
             convert_expr expr >>= \ expr' ->
@@ -137,9 +136,9 @@ convert_decls bv_parent decl_parent decls =
                 mapM (iden1_for_type_name) type_params >>= \ ty_param_names ->
                 mapM (lift . new_type_var) ty_param_names >>= \ ty_param_vars ->
 
-                iden1_for_type_name name >>= \ name1withsp@(Located _ name1) ->
+                iden1_for_type_name name >>= \ l_data_name@(Located _ data_name) ->
                 mapM convert_variant variants >>= \ variants_converted ->
-                let datatype = Type.ADT (ID.DeclID decl_parent name1) name1withsp ty_param_vars variants_converted
+                let datatype = Type.ADT (ID.DeclID decl_parent data_name) l_data_name ty_param_vars variants_converted
                 in
 
                 lift (new_adt datatype) >>= \ adt_key ->
@@ -149,7 +148,7 @@ convert_decls bv_parent decl_parent decls =
                         (Type.ADTVariant'Anon name _, index, adt_variant_ast) ->
                             let name_sp = case adt_variant_ast of
                                     AST.DataVariant'Anon name _ -> just_span name
-                                    AST.DataVariant'Named name _ -> just_span name -- technically not possible for a named ast to become an anonymous data variant but it is nice to have this not emit a warning
+                                    AST.DataVariant'Named _ _ -> unreachable -- not possible for a named ast to become an anonymous data variant
                             in
                             let variant_index = Type.ADTVariantIndex adt_key index
                              in lift (new_bound_value (SIR.BoundValue'ADTVariant (ID.BoundValueID bv_parent name) variant_index () name_sp)) >>= \ bv_key ->
@@ -160,16 +159,14 @@ convert_decls bv_parent decl_parent decls =
 
                 pure (adt_key, constructor_bindings)
             ) >>= \case
-                Just (adt_key, constructor_bindings) -> pure (constructor_bindings, [adt_key], []) -- constructors are added directly to the current namespace and are not namespaced under the type name
+                Just (adt_key, constructor_bindings) -> pure (constructor_bindings, [adt_key], [])
                 Nothing -> pure ([], [], [])
 
         convert_decl (AST.Decl'TypeSyn name expansion) =
             runMaybeT (
                 lift (convert_type expansion) >>= \ expansion' ->
-                iden1_for_type_name name >>= \ name1withsp@(Located _ name1) ->
-                lift (new_type_synonym (Type.TypeSynonym (ID.DeclID decl_parent name1) name1withsp expansion')) >>= \ syn_key ->
-
-                pure syn_key
+                iden1_for_type_name name >>= \ l_syn_name@(Located _ syn_name) ->
+                lift (new_type_synonym (Type.TypeSynonym (ID.DeclID decl_parent syn_name) l_syn_name expansion'))
             ) >>= \case
                 Just syn_key -> pure ([], [], [syn_key])
                 Nothing -> pure ([], [], [])

@@ -23,7 +23,29 @@ newtype ModuleID = ModuleID [Text] deriving Show
 data DeclID = DeclID DeclParent Text deriving Show
 data DeclParent = DeclParent'Module ModuleID | DeclParent'Let ExprID deriving Show
 
-data ExprID = ExprID'SIRGen Int | ExprID'InfixGroupGen Int | ExprID'RIRGen Int | ExprID'ANFIRGen Int deriving Show
+data ExprID
+    = ExprID'InitializerOf DeclParent Int
+    | ExprID'BinaryOperand ExprID Int
+    | ExprID'CallCalleeIn ExprID
+    | ExprID'CallArgOf ExprID
+    | ExprID'CallEnclosing ExprID
+    | ExprID'CaseArm ExprID Int
+    | ExprID'CaseScrutinee ExprID
+    | ExprID'ForallResult ExprID
+    | ExprID'IfCond ExprID
+    | ExprID'IfFalse ExprID
+    | ExprID'IfTrue ExprID
+    | ExprID'LambdaBodyOf ExprID
+    | ExprID'LetResultOf ExprID
+    | ExprID'TupleFirstOf ExprID
+    | ExprID'TupleSecondOf ExprID
+    | ExprID'TypeAnnotationSubject ExprID
+    | ExprID'TypeApplyOn ExprID
+    | ExprID'TypeApplyFirst ExprID
+    | ExprID'InfixGroupGen Int
+    | ExprID'RIRGen Int
+    | ExprID'ANFIRGen Int
+    deriving Show
 
 data BoundValueParent = BVParent'Module ModuleID | BVParent'LambdaParam ExprID | BVParent'Let ExprID | BVParent'CaseArm ExprID Int deriving Show
 data BoundValueID = BoundValueID BoundValueParent Text | BoundValueID'RIRMadeUp Int deriving Show
@@ -52,12 +74,33 @@ stringify = stringify' . to_general_id
         stringify' (GM (ModuleID [])) = "root"
         stringify' (GM (ModuleID segments)) = Text.intercalate "::" segments
         stringify' (GD (DeclID parent name)) = stringify_decl_parent parent <> "::" <> name
-        stringify' (GE (ExprID'SIRGen i)) = "s" <> show i
-        stringify' (GE (ExprID'RIRGen i)) = "r" <> show i
-        stringify' (GE (ExprID'ANFIRGen i)) = "a" <> show i
-        stringify' (GE (ExprID'InfixGroupGen i)) = "i" <> show i
+        stringify' (GE e) = "expr_" <> stringify_expr_id e
         stringify' (GBV (BoundValueID bv_parent t)) = stringify_bv_parent bv_parent <> "::" <> t
         stringify' (GBV (BoundValueID'RIRMadeUp i)) = "rir_" <> show i
+
+        stringify_expr_id (ExprID'InitializerOf parent ind) = "initializer_of_" <> stringify_decl_parent parent <> "_" <> show ind
+
+        stringify_expr_id (ExprID'BinaryOperand e i) = "binop" <> show i <> "_" <> stringify_expr_id e
+        stringify_expr_id (ExprID'CallArgOf e) = "callarg_" <> stringify_expr_id e
+        stringify_expr_id (ExprID'CallCalleeIn e) = "callcallee_" <> stringify_expr_id e
+        stringify_expr_id (ExprID'CallEnclosing e) = "callenc_" <> stringify_expr_id e
+        stringify_expr_id (ExprID'CaseArm e i) = "case_arm" <> show i <> "_" <> stringify_expr_id e
+        stringify_expr_id (ExprID'CaseScrutinee e) = "cscru_" <> stringify_expr_id e
+        stringify_expr_id (ExprID'ForallResult e) = "forallres_" <> stringify_expr_id e
+        stringify_expr_id (ExprID'IfCond e) = "ifcond_" <> stringify_expr_id e
+        stringify_expr_id (ExprID'IfFalse e) = "iffalse_" <> stringify_expr_id e
+        stringify_expr_id (ExprID'IfTrue e) = "iftrue_" <> stringify_expr_id e
+        stringify_expr_id (ExprID'LambdaBodyOf e) = "lbody_" <> stringify_expr_id e
+        stringify_expr_id (ExprID'LetResultOf e) = "letres_" <> stringify_expr_id e
+        stringify_expr_id (ExprID'TupleFirstOf e) = "tuple1_" <> stringify_expr_id e
+        stringify_expr_id (ExprID'TupleSecondOf e) = "tuple2_" <> stringify_expr_id e
+        stringify_expr_id (ExprID'TypeAnnotationSubject e) = "tann_" <> stringify_expr_id e
+        stringify_expr_id (ExprID'TypeApplyOn e) = "tapp_" <> stringify_expr_id e
+        stringify_expr_id (ExprID'TypeApplyFirst e) = "tappf_" <> stringify_expr_id e
+
+        stringify_expr_id (ExprID'RIRGen i) = "r" <> show i
+        stringify_expr_id (ExprID'ANFIRGen i) = "a" <> show i
+        stringify_expr_id (ExprID'InfixGroupGen i) = "i" <> show i
 
         stringify_bv_parent (BVParent'Module mod) = stringify' (GM mod)
         stringify_bv_parent (BVParent'Let e) = stringify' (GE e)
@@ -86,10 +129,28 @@ instance Mangle DeclParent where
     mangle' (DeclParent'Let e) = "e" <> mangle' e
 
 instance Mangle ExprID where
-    mangle' (ExprID'SIRGen i) = "s" <> mangle' i
-    mangle' (ExprID'InfixGroupGen i) = "i" <> mangle' i
-    mangle' (ExprID'RIRGen i) = "r" <> mangle' i
+    -- TODO: decide on better leters
     mangle' (ExprID'ANFIRGen i) = "a" <> mangle' i
+    mangle' (ExprID'BinaryOperand e i) = "b" <> mangle' i <> mangle' e
+    mangle' (ExprID'CallEnclosing e) = "c" <> mangle' e
+    mangle' (ExprID'CaseArm e i) = "d" <> mangle' e <> mangle' i
+    mangle' (ExprID'CallArgOf e) = "e" <> mangle' e
+    mangle' (ExprID'ForallResult e) = "f" <> mangle' e
+    mangle' (ExprID'CaseScrutinee e) = "g" <> mangle' e
+    mangle' (ExprID'CallCalleeIn e) = "h" <> mangle' e
+    mangle' (ExprID'InfixGroupGen i) = "i" <> mangle' i
+    mangle' (ExprID'InitializerOf parent ind) = "j" <> mangle' parent <> mangle' ind
+    mangle' (ExprID'IfCond e) = "k" <> mangle' e
+    mangle' (ExprID'LambdaBodyOf e) = "l" <> mangle' e
+    mangle' (ExprID'LetResultOf e) = "m" <> mangle' e
+    mangle' (ExprID'IfTrue e) = "n" <> mangle' e
+    mangle' (ExprID'IfFalse e) = "o" <> mangle' e
+    mangle' (ExprID'RIRGen i) = "r" <> mangle' i
+    mangle' (ExprID'TupleFirstOf e) = "t" <> mangle' e
+    mangle' (ExprID'TupleSecondOf e) = "u" <> mangle' e
+    mangle' (ExprID'TypeApplyOn e) = "v" <> mangle' e
+    mangle' (ExprID'TypeAnnotationSubject e) = "w" <> mangle' e
+    mangle' (ExprID'TypeApplyFirst e) = "x" <> mangle' e
 
 instance Mangle BoundValueID where
     mangle' (BoundValueID parent pieces) = "b" <> mangle' parent <> mangle' pieces

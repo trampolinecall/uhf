@@ -60,7 +60,7 @@ type_synonym key = ask >>= \ (SIR.SIR _ _ _ type_synonyms _ _ _) -> let (Type.Ty
 
 binding :: Binding d_iden v_iden p_iden binary_ops_allowed -> ReaderT (SIR d_iden v_iden p_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()
 binding (SIR.Binding p _ e) = pattern p >> expr e
-binding (SIR.Binding'ADTVariant _ _ _) = pure ()
+binding (SIR.Binding'ADTVariant _ _ _ _) = pure ()
 
 pattern :: Pattern p_iden -> ReaderT (SIR d_iden v_iden p_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()
 pattern _ = pure () -- TODO: remove or keep for symmetry?

@@ -132,7 +132,7 @@ type ADTVariantList = [(Text, DeclAt, Type.ADTVariantIndex)]
 
 binding_children :: Monad under => UnresolvedBinding -> NRReader UnresolvedADTArena BoundValueArena type_var_arena module_child_maps under (DeclChildrenList, BoundValueList, ADTVariantList)
 binding_children (SIR.Binding pat _ _) = ([],, []) <$> pattern_bvs pat
-binding_children (SIR.Binding'ADTVariant sp bvk variant_index) = bv_name bvk >>= \ name -> pure ([], [(name, DeclAt sp, bvk)], [(name, DeclAt sp, variant_index)]) -- TODO: move variants to inside their types, also dont handle adt variants here
+binding_children (SIR.Binding'ADTVariant sp bvk _ variant_index) = bv_name bvk >>= \ name -> pure ([], [(name, DeclAt sp, bvk)], [(name, DeclAt sp, variant_index)]) -- TODO: move variants to inside their types, also dont handle adt variants here
 
 pattern_bvs :: Monad under => UnresolvedPattern -> NRReader UnresolvedADTArena BoundValueArena type_var_arena module_child_maps under BoundValueList
 pattern_bvs (SIR.Pattern'Identifier _ sp bvk) = bv_name bvk >>= \ name -> pure [(name, DeclAt sp, bvk)]
@@ -148,7 +148,7 @@ bv_name bvk =
     ask_bv_arena >>= \ bv_arena ->
     case Arena.get bv_arena bvk of
         SIR.BoundValue _ _ (Located _ name) -> pure name
-        SIR.BoundValue'ADTVariant _ variant_index _ _ ->
+        SIR.BoundValue'ADTVariant _ variant_index _ _ _ ->
             ask_adt_arena >>= \ adt_arena ->
             let variant = Type.get_adt_variant adt_arena variant_index
             in pure $ unlocate $ Type.variant_name variant
@@ -277,7 +277,7 @@ resolve_in_type_synonym parent_maps synonym_key (Type.TypeSynonym id name expans
 
 resolve_in_binding :: ChildMapStack -> UnresolvedBinding -> (NRReader UnresolvedADTArena BoundValueArena TypeVarArena ModuleChildMaps (MakeDeclState CollectingErrors)) ResolvedBinding
 resolve_in_binding nc_stack (SIR.Binding target eq_sp expr) = SIR.Binding <$> resolve_in_pat nc_stack target <*> pure eq_sp <*> resolve_in_expr nc_stack expr
-resolve_in_binding _ (SIR.Binding'ADTVariant bvk variant sp) = pure $ SIR.Binding'ADTVariant bvk variant sp
+resolve_in_binding _ (SIR.Binding'ADTVariant bvk variant vars sp) = pure $ SIR.Binding'ADTVariant bvk variant vars sp
 
 resolve_in_type_expr :: ChildMapStack -> UnresolvedTypeExpr -> (NRReader adt_arena bv_arena TypeVarArena ModuleChildMaps (MakeDeclState CollectingErrors)) ResolvedTypeExpr
 resolve_in_type_expr nc_stack (SIR.TypeExpr'Identifier type_info sp id) = SIR.TypeExpr'Identifier type_info sp <$> resolve_iden_in_monad resolve_type_iden nc_stack id

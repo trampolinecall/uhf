@@ -68,28 +68,28 @@ convert_type_synonym (Type.TypeSynonym id name expansion) = Type.TypeSynonym id 
 
 convert_binding :: SIRBinding -> ConvertState [RIRBinding]
 convert_binding (SIR.Binding pat _ expr) = convert_expr expr >>= assign_pattern pat
-convert_binding (SIR.Binding'ADTVariant _ bvk type_params variant_index) =
+convert_binding (SIR.Binding'ADTVariant name_sp bvk type_params variant_index) =
     lift ask >>= \ adts ->
     let variant = Type.get_adt_variant adts variant_index
 
         wrap_in_forall = case type_params of
             [] -> pure
-            param:more -> \ lambda -> new_made_up_expr_id (\ id -> RIR.Expr'Forall id (Type.Type'Forall (param :| more) <$> RIR.expr_type lambda) todo (param :| more) lambda)
+            param:more -> \ lambda -> new_made_up_expr_id (\ id -> RIR.Expr'Forall id (Type.Type'Forall (param :| more) <$> RIR.expr_type lambda) name_sp (param :| more) lambda)
     in make_lambdas type_params variant_index [] (Type.variant_field_types variant) >>= wrap_in_forall >>= \ lambdas ->
     pure [RIR.Binding bvk lambdas]
     where
         make_lambdas type_params variant_index@(Type.ADTVariantIndex adt_key _) refer_to_params [] =
             let ty_params_as_tys = map Type.Type'Variable type_params
-            in new_made_up_expr_id $ \ id -> RIR.Expr'MakeADT id (Type.Type'ADT adt_key ty_params_as_tys) todo variant_index (map Just ty_params_as_tys) refer_to_params
+            in new_made_up_expr_id $ \ id -> RIR.Expr'MakeADT id (Type.Type'ADT adt_key ty_params_as_tys) name_sp variant_index (map Just ty_params_as_tys) refer_to_params
 
         make_lambdas type_params variant_index refer_to_params (cur_field_ty:more_field_tys) =
             Unique.make_unique >>= \ lambda_uniq ->
-            new_bound_value cur_field_ty todo >>= \ param_bvk ->
-            new_made_up_expr_id (\ id -> RIR.Expr'Identifier id cur_field_ty todo (Just param_bvk)) >>= \ refer_expr ->
+            new_bound_value cur_field_ty name_sp >>= \ param_bvk ->
+            new_made_up_expr_id (\ id -> RIR.Expr'Identifier id cur_field_ty name_sp (Just param_bvk)) >>= \ refer_expr ->
 
             make_lambdas type_params variant_index (refer_to_params <> [refer_expr]) more_field_tys >>= \ lambda_result ->
             let lambda_ty = Type.Type'Function <$> cur_field_ty <*> RIR.expr_type lambda_result
-            in new_made_up_expr_id (\ id -> RIR.Expr'Lambda id lambda_ty todo lambda_uniq param_bvk lambda_result)
+            in new_made_up_expr_id (\ id -> RIR.Expr'Lambda id lambda_ty name_sp lambda_uniq param_bvk lambda_result)
 
 new_made_up_bv_id :: ConvertState ID.BoundValueID
 new_made_up_bv_id = lift $ lift $ lift IDGen.gen_id

@@ -27,7 +27,7 @@ get_bv_type bv = do
     (_, bvs, _) <- ask
     case Arena.get bvs bv of
         SIR.BoundValue _ ty _ -> pure ty
-        SIR.BoundValue'ADTVariant _ _ ty _ -> pure ty
+        SIR.BoundValue'ADTVariant _ _ _ ty _ -> pure ty
 
 -- TODO: sort constraints by priority so that certain weird things dont happen
 -- for example:
@@ -64,18 +64,21 @@ add mods adts type_synonyms bound_values decls =
 
 bound_value :: UntypedBoundValue -> ContextReader decls bvs TypedWithUnkADTArena TypedWithUnkBoundValue
 bound_value (SIR.BoundValue id () name@(Located def_span _)) = SIR.BoundValue id <$> lift (lift $ Type.Type'Unknown <$> new_type_unknown (BoundValue def_span)) <*> pure name
-bound_value (SIR.BoundValue'ADTVariant id variant_index@(Type.ADTVariantIndex adt_key _) () def_span) = do
+bound_value (SIR.BoundValue'ADTVariant id variant_index@(Type.ADTVariantIndex adt_key _) bv_type_params () def_span) = do
     (_, _, adts) <- ask
-    let (Type.ADT _ _ type_params _) = Arena.get adts adt_key
+    unk_arena <- lift (lift get)
+    let (Type.ADT _ _ adt_type_params _) = Arena.get adts adt_key
     let variant = Type.get_adt_variant adts variant_index
     let ty = case variant of
             Type.ADTVariant'Named _ _ -> error "bound value should not be made for a named adt variant" -- TODO: statically make sure this cant happen?
             Type.ADTVariant'Anon _ fields ->
-                let wrap_in_forall = case type_params of
+                let change_type_params = \ ty -> foldl' (\ ty (adt_typaram, bv_typaram) -> substitute unk_arena adt_typaram (Type.Type'Variable bv_typaram) ty) ty (zip adt_type_params bv_type_params)
+                    arg_tys = map (change_type_params . SIR.type_expr_type_info) fields
+                    wrap_in_forall = case bv_type_params of
                         [] -> identity
-                        param:more -> Type.Type'Forall (param :| more) -- TODO: duplicate type params
-                 in wrap_in_forall $ foldr (Type.Type'Function . SIR.type_expr_type_info) (Type.Type'ADT adt_key (map Type.Type'Variable type_params)) fields -- function type that takes all the field types and then results in the adt type
-    pure (SIR.BoundValue'ADTVariant id variant_index ty def_span)
+                        param:more -> Type.Type'Forall (param :| more)
+                 in wrap_in_forall $ foldr (Type.Type'Function) (Type.Type'ADT adt_key (map Type.Type'Variable bv_type_params)) arg_tys -- function type that takes all the field types and then results in the adt type
+    pure (SIR.BoundValue'ADTVariant id variant_index bv_type_params ty def_span)
 
 module_ :: UntypedModule -> ContextReader UntypedDeclArena TypedWithUnkBoundValueArena TypedWithUnkADTArena TypedWithUnkModule
 module_ (SIR.Module id bindings adts type_synonyms) = SIR.Module id <$> mapM binding bindings <*> pure adts <*> pure type_synonyms
@@ -146,7 +149,7 @@ binding (SIR.Binding p eq_sp e) =
     expr e >>= \ e ->
     lift (tell [Eq InAssignment eq_sp (loc_pat_type p) (loc_expr_type e)]) >>
     pure (SIR.Binding p eq_sp e)
-binding (SIR.Binding'ADTVariant sp bvk variant) = pure $ SIR.Binding'ADTVariant sp bvk variant
+binding (SIR.Binding'ADTVariant sp bvk vars variant) = pure $ SIR.Binding'ADTVariant sp bvk vars variant
 
 loc_pat_type :: SIR.Pattern p_iden type_info -> Located type_info
 loc_pat_type pattern = Located (SIR.pattern_span pattern) (SIR.pattern_type pattern)

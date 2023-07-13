@@ -55,12 +55,12 @@ data Module d_iden v_iden p_iden type_info binary_ops_allowed
 
 data BoundValue type_info
     = BoundValue ID.BoundValueID type_info (Located Text)
-    | BoundValue'ADTVariant ID.BoundValueID Type.ADTVariantIndex type_info Span
+    | BoundValue'ADTVariant ID.BoundValueID Type.ADTVariantIndex [Type.TypeVarKey] type_info Span
     deriving Show
 
 data Binding d_iden v_iden p_iden type_info binary_ops_allowed
     = Binding (Pattern p_iden type_info) Span (Expr d_iden v_iden p_iden type_info binary_ops_allowed)
-    | Binding'ADTVariant Span BoundValueKey Type.ADTVariantIndex
+    | Binding'ADTVariant Span BoundValueKey [Type.TypeVarKey] Type.ADTVariantIndex
     deriving Show
 
 type HoleIdentifier = Located [Located Text] -- TODO: disallow paths in holes?

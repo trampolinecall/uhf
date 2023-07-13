@@ -8,6 +8,7 @@ module UHF.Data.IR.RIR
     , BoundValue (..)
 
     , Type
+    , MaybeSpan (..)
     , Expr (..)
     , SwitchMatcher (..)
     , expr_type
@@ -25,6 +26,11 @@ import qualified UHF.Data.IR.ID as ID
 
 import UHF.IO.Span (Span)
 
+data MaybeSpan
+    = JustSpan Span
+    | Desugared
+    deriving Show
+
 -- "reduced ir"
 -- not used a lot; serves mostly as a intermediary step where a lot of things get desugared to make the transition to anfir easier
 data RIR
@@ -35,7 +41,7 @@ data RIR
         (Arena.Arena BoundValue BoundValueKey)
         CU
 
-data BoundValue = BoundValue ID.BoundValueID (Maybe (Type.Type Void)) Span deriving Show
+data BoundValue = BoundValue ID.BoundValueID (Maybe (Type.Type Void)) MaybeSpan deriving Show
 
 -- "compilation unit"
 data CU = CU [Binding] [ADTKey] [TypeSynonymKey]
@@ -45,29 +51,29 @@ data Binding = Binding BoundValueKey Expr deriving Show
 type Type = Type.Type Void
 
 data Expr
-    = Expr'Identifier ID.ExprID (Maybe Type) Span (Maybe BoundValueKey)
-    | Expr'Char ID.ExprID (Maybe Type) Span Char
-    | Expr'String ID.ExprID (Maybe Type) Span Text
-    | Expr'Int ID.ExprID (Maybe Type) Span Integer
-    | Expr'Float ID.ExprID (Maybe Type) Span Rational
-    | Expr'Bool ID.ExprID (Maybe Type) Span Bool -- TODO: replace with identifier exprs
+    = Expr'Identifier ID.ExprID (Maybe Type) MaybeSpan (Maybe BoundValueKey)
+    | Expr'Char ID.ExprID (Maybe Type) MaybeSpan Char
+    | Expr'String ID.ExprID (Maybe Type) MaybeSpan Text
+    | Expr'Int ID.ExprID (Maybe Type) MaybeSpan Integer
+    | Expr'Float ID.ExprID (Maybe Type) MaybeSpan Rational
+    | Expr'Bool ID.ExprID (Maybe Type) MaybeSpan Bool -- TODO: replace with identifier exprs
 
-    | Expr'Tuple ID.ExprID (Maybe Type) Span Expr Expr
+    | Expr'Tuple ID.ExprID (Maybe Type) MaybeSpan Expr Expr
 
-    | Expr'Lambda ID.ExprID (Maybe Type) Span Unique.Unique BoundValueKey Expr
+    | Expr'Lambda ID.ExprID (Maybe Type) MaybeSpan Unique.Unique BoundValueKey Expr
 
-    | Expr'Let ID.ExprID (Maybe Type) Span [Binding] Expr
+    | Expr'Let ID.ExprID (Maybe Type) MaybeSpan [Binding] Expr
 
-    | Expr'Call ID.ExprID (Maybe Type) Span Expr Expr
+    | Expr'Call ID.ExprID (Maybe Type) MaybeSpan Expr Expr
 
-    | Expr'Switch ID.ExprID (Maybe Type) Span Expr [(SwitchMatcher, Expr)]
+    | Expr'Switch ID.ExprID (Maybe Type) MaybeSpan Expr [(SwitchMatcher, Expr)]
 
-    | Expr'Forall ID.ExprID (Maybe Type) Span (NonEmpty TypeVarKey) Expr
-    | Expr'TypeApply ID.ExprID (Maybe Type) Span Expr (Maybe Type)
+    | Expr'Forall ID.ExprID (Maybe Type) MaybeSpan (NonEmpty TypeVarKey) Expr
+    | Expr'TypeApply ID.ExprID (Maybe Type) MaybeSpan Expr (Maybe Type)
 
-    | Expr'MakeADT ID.ExprID Type Span Type.ADTVariantIndex [Maybe Type] [Expr]
+    | Expr'MakeADT ID.ExprID Type MaybeSpan Type.ADTVariantIndex [Maybe Type] [Expr]
 
-    | Expr'Poison ID.ExprID (Maybe Type) Span
+    | Expr'Poison ID.ExprID (Maybe Type) MaybeSpan
     deriving Show
 
 data SwitchMatcher
@@ -93,7 +99,7 @@ expr_type (Expr'TypeApply _ ty _ _ _) = ty
 expr_type (Expr'MakeADT _ ty _ _ _ _) = Just ty
 expr_type (Expr'Poison _ ty _) = ty
 
-expr_span :: Expr -> Span -- TODO: remove?
+expr_span :: Expr -> MaybeSpan
 expr_span (Expr'Identifier _ _ sp _) = sp
 expr_span (Expr'Char _ _ sp _) = sp
 expr_span (Expr'String _ _ sp _) = sp

@@ -44,7 +44,7 @@ convert_binding :: ANFIRBinding -> BackendIRBinding
 convert_binding (ANFIR.Binding initializer) = BackendIR.Binding $ convert_expr initializer
 
 convert_binding_group :: ANFIRBindingGroup -> BackendIRBindingGroup
-convert_binding_group (ANFIR.BindingGroup captures chunks) = BackendIR.BindingGroup captures (map convert_binding_chunk chunks)
+convert_binding_group (ANFIR.BindingGroup chunks) = BackendIR.BindingGroup (map convert_binding_chunk chunks)
 
 convert_binding_chunk :: ANFIRBindingChunk -> BackendIRBindingChunk
 convert_binding_chunk (ANFIR.SingleBinding bk) = BackendIR.SingleBinding bk
@@ -67,7 +67,7 @@ convert_expr (ANFIR.Expr'Char id ty c) = BackendIR.Expr'Char (convert_id id) ty 
 convert_expr (ANFIR.Expr'String id ty s) = BackendIR.Expr'String (convert_id id) ty s
 convert_expr (ANFIR.Expr'Tuple id ty a b) = BackendIR.Expr'Tuple (convert_id id) ty a b
 convert_expr (ANFIR.Expr'MakeADT id ty var_idx tyargs args) = BackendIR.Expr'MakeADT (convert_id id) ty var_idx tyargs args
-convert_expr (ANFIR.Expr'Lambda id ty param group result) = BackendIR.Expr'Lambda (convert_id id) ty param (convert_binding_group group) result
+convert_expr (ANFIR.Expr'Lambda id ty param captures group result) = BackendIR.Expr'Lambda (convert_id id) ty param captures (convert_binding_group group) result
 convert_expr (ANFIR.Expr'Param id ty param) = BackendIR.Expr'Param (convert_id id) ty param
 convert_expr (ANFIR.Expr'Call id ty callee arg) = BackendIR.Expr'Call (convert_id id) ty callee arg
 convert_expr (ANFIR.Expr'Switch id ty scrutinee arms) = BackendIR.Expr'Switch (convert_id id) ty scrutinee (map (\ (matcher, group, result) -> (convert_matcher matcher, convert_binding_group group, result)) arms)

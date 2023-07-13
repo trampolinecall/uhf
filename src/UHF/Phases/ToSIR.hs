@@ -141,9 +141,10 @@ convert_decls bv_parent decl_parent decls =
                 (catMaybes <$> mapM
                     (\ case
                         (Type.ADTVariant'Anon (Located name_sp name) _, index) ->
+                            mapM (lift . new_type_var) ty_param_names >>= \ ty_param_vars_for_constructor ->
                             let variant_index = Type.ADTVariantIndex adt_key index
-                            in lift (new_bound_value (SIR.BoundValue'ADTVariant (ID.BoundValueID bv_parent name) variant_index () name_sp)) >>= \ bv_key ->
-                            pure (Just (SIR.Binding'ADTVariant name_sp bv_key variant_index))
+                            in lift (new_bound_value (SIR.BoundValue'ADTVariant (ID.BoundValueID bv_parent name) variant_index ty_param_vars_for_constructor () name_sp)) >>= \ bv_key ->
+                            pure (Just (SIR.Binding'ADTVariant name_sp bv_key ty_param_vars_for_constructor variant_index))
                         (Type.ADTVariant'Named _ _, _) -> pure Nothing
                     )
                     (zip variants_converted [0..])) >>= \ constructor_bindings ->

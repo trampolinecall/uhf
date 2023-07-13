@@ -47,7 +47,7 @@ convert (SIR.SIR _ modules adts type_synonyms type_vars bvs mod) =
             Arena.transform
             (\case
                 SIR.BoundValue id ty (Located sp _) -> RIR.BoundValue id ty sp
-                SIR.BoundValue'ADTVariant id _ ty sp -> RIR.BoundValue id ty sp
+                SIR.BoundValue'ADTVariant id _ _ ty sp -> RIR.BoundValue id ty sp
             )
             bvs_with_new
     in RIR.RIR adts_converted type_synonyms_converted type_vars bvs_converted cu
@@ -68,16 +68,16 @@ convert_type_synonym (Type.TypeSynonym id name expansion) = Type.TypeSynonym id 
 
 convert_binding :: SIRBinding -> ConvertState [RIRBinding]
 convert_binding (SIR.Binding pat _ expr) = convert_expr expr >>= assign_pattern pat
-convert_binding (SIR.Binding'ADTVariant _ bvk variant_index@(Type.ADTVariantIndex adt_key _)) =
+convert_binding (SIR.Binding'ADTVariant _ bvk type_params variant_index@(Type.ADTVariantIndex adt_key _)) =
     lift ask >>= \ adts ->
-    let (Type.ADT _ _ type_params _) = Arena.get adts adt_key
+    let (Type.ADT _ _ _ _) = Arena.get adts adt_key
         variant = Type.get_adt_variant adts variant_index
 
         wrap_in_forall = case type_params of
             [] -> pure
             param:more -> \ lambda ->
                 new_made_up_expr_id >>= \ forall_id ->
-                pure (RIR.Expr'Forall forall_id (Type.Type'Forall (param :| more) <$> RIR.expr_type lambda) todo (param :| more) lambda) -- TODO: duplicate type params
+                pure (RIR.Expr'Forall forall_id (Type.Type'Forall (param :| more) <$> RIR.expr_type lambda) todo (param :| more) lambda)
     in make_lambdas type_params variant_index [] (Type.variant_field_types variant) >>= wrap_in_forall >>= \ lambdas ->
     pure [RIR.Binding bvk lambdas]
     where

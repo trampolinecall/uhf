@@ -60,9 +60,9 @@ dump_captures :: Set.Set BackendIR.BindingKey -> IRReader ty poison_allowed [PP.
 dump_captures = mapM refer_binding . toList
 
 define_binding_group_flat :: (DumpableType ty) => BackendIR.BindingGroup -> IRReader ty poison_allowed [PP.Token]
-define_binding_group_flat (BackendIR.BindingGroup _ chunks) = mapM define_chunk chunks
+define_binding_group_flat (BackendIR.BindingGroup chunks) = mapM define_chunk chunks
 define_binding_group :: (DumpableType ty) => BackendIR.BindingGroup -> IRReader ty poison_allowed PP.Token
-define_binding_group (BackendIR.BindingGroup captures chunks) = mapM define_chunk chunks >>= \ chunks -> dump_captures captures >>= \ captures -> pure (PP.braced_block $ if null captures then chunks else PP.List ["capture ", PP.comma_separated PP.Inconsistent captures, ";"] : chunks)
+define_binding_group (BackendIR.BindingGroup chunks) = mapM define_chunk chunks >>= \ chunks -> pure (PP.braced_block chunks)
 
 define_chunk :: (DumpableType ty) => BackendIR.BindingChunk -> IRReader ty poison_allowed PP.Token
 define_chunk (BackendIR.SingleBinding bk) = define_binding bk
@@ -100,7 +100,7 @@ expr (BackendIR.Expr'Bool _ _ b) = pure $ PP.String $ if b then "true" else "fal
 expr (BackendIR.Expr'Char _ _ c) = pure $ PP.String $ show c
 expr (BackendIR.Expr'String _ _ s) = pure $ PP.String $ show s
 expr (BackendIR.Expr'Tuple _ _ a b) = refer_binding a >>= \ a -> refer_binding b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b])
-expr (BackendIR.Expr'Lambda _ _ param group body) = refer_param param >>= \ param -> define_binding_group group >>= \ group -> refer_binding body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, " ->", PP.indented_block [group, body]])
+expr (BackendIR.Expr'Lambda _ _ param captures group body) = refer_param param >>= \ param -> define_binding_group group >>= \ group -> refer_binding body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, " ->", PP.indented_block [group, body]]) -- TODO: show captures
 expr (BackendIR.Expr'Param _ _ pk) = refer_param pk
 expr (BackendIR.Expr'Call _ _ callee arg) = refer_binding callee >>= \ callee -> refer_binding arg >>= \ arg -> pure (PP.List [callee, "(", arg, ")"])
 expr (BackendIR.Expr'Switch _ _ e arms) = refer_binding e >>= \ e -> mapM arm arms >>= \ arms -> pure (PP.List ["switch ", e, " ", PP.braced_block arms])

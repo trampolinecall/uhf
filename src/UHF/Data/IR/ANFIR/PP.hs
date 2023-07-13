@@ -55,9 +55,9 @@ refer_binding :: ANFIR.BindingKey -> IRReader PP.Token
 refer_binding key = ANFIR.binding_id <$> get_binding key >>= \ id -> pure (PP.String (ANFIR.stringify_id id))
 
 define_binding_group_flat :: ANFIR.BindingGroup -> IRReader [PP.Token]
-define_binding_group_flat (ANFIR.BindingGroup _ chunks) = mapM define_chunk chunks
+define_binding_group_flat (ANFIR.BindingGroup chunks) = mapM define_chunk chunks
 define_binding_group :: ANFIR.BindingGroup -> IRReader PP.Token
-define_binding_group (ANFIR.BindingGroup captures chunks) = mapM refer_binding (toList captures) >>= \ captures -> mapM define_chunk chunks >>= \ chunks -> pure (PP.braced_block $ if null captures then chunks else PP.List ["capture ", PP.comma_separated PP.Inconsistent captures, ";"] : chunks)
+define_binding_group (ANFIR.BindingGroup chunks) = mapM define_chunk chunks >>= \ chunks -> pure (PP.braced_block chunks)
 
 define_chunk :: ANFIR.BindingChunk -> IRReader PP.Token
 define_chunk (ANFIR.SingleBinding bk) = define_binding bk
@@ -90,7 +90,7 @@ expr (ANFIR.Expr'Bool _ _ b) = pure $ PP.String $ if b then "true" else "false"
 expr (ANFIR.Expr'Char _ _ c) = pure $ PP.String $ show c
 expr (ANFIR.Expr'String _ _ s) = pure $ PP.String $ show s
 expr (ANFIR.Expr'Tuple _ _ a b) = refer_binding a >>= \ a -> refer_binding b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b])
-expr (ANFIR.Expr'Lambda _ _ param group body) = refer_param param >>= \ param -> define_binding_group group >>= \ group -> refer_binding body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, " ->", PP.indented_block [group, body]])
+expr (ANFIR.Expr'Lambda _ _ param captures group body) = refer_param param >>= \ param -> define_binding_group group >>= \ group -> refer_binding body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, " ->", PP.indented_block [group, body]]) -- TODO: show captures
 expr (ANFIR.Expr'Param _ _ pk) = refer_param pk
 expr (ANFIR.Expr'Call _ _ callee arg) = refer_binding callee >>= \ callee -> refer_binding arg >>= \ arg -> pure (PP.List [callee, "(", arg, ")"])
 expr (ANFIR.Expr'Switch _ _ e arms) = refer_binding e >>= \ e -> mapM arm arms >>= \ arms -> pure (PP.List ["switch ", e, " ", PP.braced_block arms])

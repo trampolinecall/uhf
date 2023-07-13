@@ -56,7 +56,7 @@ rp_expr (BackendIR.Expr'Char id ty c) = ty >>= \ ty -> pure (BackendIR.Expr'Char
 rp_expr (BackendIR.Expr'String id ty t) = ty >>= \ ty -> pure (BackendIR.Expr'String id ty t)
 rp_expr (BackendIR.Expr'Tuple id ty a b) = ty >>= \ ty -> pure (BackendIR.Expr'Tuple id ty a b)
 
-rp_expr (BackendIR.Expr'Lambda id ty a g r) = ty >>= \ ty -> pure (BackendIR.Expr'Lambda id ty a g r)
+rp_expr (BackendIR.Expr'Lambda id ty a c g r) = ty >>= \ ty -> pure (BackendIR.Expr'Lambda id ty a c g r)
 rp_expr (BackendIR.Expr'Param id ty p) = ty >>= \ ty -> pure (BackendIR.Expr'Param id ty p)
 
 rp_expr (BackendIR.Expr'Call id ty c a) = ty >>= \ ty -> pure (BackendIR.Expr'Call id ty c a)

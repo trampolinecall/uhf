@@ -56,7 +56,7 @@ to_dot (BackendIR.BackendIR _ _ _ bindings params _) =
                         BackendIR.Expr'String _ _ s -> ("string: \\\"" <> s <> "\\\"", [], [])
                         BackendIR.Expr'Tuple _ _ a b -> ("tuple", [("a", a), ("b", b)], [])
 
-                        BackendIR.Expr'Lambda _ _ param _ body -> ("lambda", [("body", body)], [("param", param)])
+                        BackendIR.Expr'Lambda _ _ param _ _ body -> ("lambda", [("body", body)], [("param", param)])
                         BackendIR.Expr'Param _ _ param -> ("param", [], [("p", param)])
 
                         BackendIR.Expr'Call _ _ callee arg -> ("call", [("callee", callee), ("arg", arg)], [])

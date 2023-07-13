@@ -13,7 +13,7 @@ iterate_over_bindings change (ANFIR.ANFIR adts type_synonyms vars bindings param
     where
         do_cu (ANFIR.CU group _ _) = do_group group
 
-        do_group (ANFIR.BindingGroup _ chunks) = mapM_ do_chunk chunks
+        do_group (ANFIR.BindingGroup chunks) = mapM_ do_chunk chunks
 
         do_chunk (ANFIR.SingleBinding b) = do_binding b
         do_chunk (ANFIR.MutuallyRecursiveBindings b) = mapM_ do_binding b
@@ -22,7 +22,7 @@ iterate_over_bindings change (ANFIR.ANFIR adts type_synonyms vars bindings param
         do_binding bk =
             StateT (\ bindings -> ((),) <$> Arena.modifyM bindings bk change) >>
             ANFIR.binding_initializer <$> (Arena.get <$> get <*> pure bk) >>= \case
-                    ANFIR.Expr'Lambda _ _ _ group _ -> do_group group
+                    ANFIR.Expr'Lambda _ _ _ _ group _ -> do_group group
                     ANFIR.Expr'Switch _ _ _ arms -> mapM_ (\ (_, group, _) -> do_group group) arms
                     ANFIR.Expr'Forall _ _ _ group _ -> do_group group
 
@@ -43,7 +43,7 @@ iterate_over_all_subexpressions modify = iterate_over_bindings do_binding
         do_expr (ANFIR.Expr'Tuple id ty a b) = modify a >>= \ a -> modify b >>= \ b -> pure (ANFIR.Expr'Tuple id ty a b)
         do_expr (ANFIR.Expr'MakeADT id ty variant tyargs args) = mapM modify args >>= \ args -> pure (ANFIR.Expr'MakeADT id ty variant tyargs args)
 
-        do_expr (ANFIR.Expr'Lambda id ty param group res) = modify res >>= \ res -> pure (ANFIR.Expr'Lambda id ty param group res)
+        do_expr (ANFIR.Expr'Lambda id ty param captures group res) = modify res >>= \ res -> pure (ANFIR.Expr'Lambda id ty param captures group res)
         do_expr (ANFIR.Expr'Param id ty param) = pure (ANFIR.Expr'Param id ty param)
 
         do_expr (ANFIR.Expr'Call id ty callee arg) = modify callee >>= \ callee -> modify arg >>= \ arg -> pure (ANFIR.Expr'Call id ty callee arg)

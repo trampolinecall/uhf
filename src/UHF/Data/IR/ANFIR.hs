@@ -52,11 +52,7 @@ data Param = Param ID.BoundValueID (Maybe (Type.Type Void)) deriving Show
 data BindingChunk
     = SingleBinding BindingKey
     | MutuallyRecursiveBindings [BindingKey] deriving Show
-data BindingGroup
-    = BindingGroup
-        { binding_group_captures :: Set.Set BindingKey -- TODO: dont use Ord BindingKey for order of captures in backends
-        , binding_group_chunks :: [BindingChunk]
-        } deriving Show
+data BindingGroup = BindingGroup { binding_group_chunks :: [BindingChunk] } deriving Show
 data Binding = Binding { binding_initializer :: Expr } deriving Show
 
 data ID
@@ -81,7 +77,7 @@ data Expr
     | Expr'Tuple ID (Maybe (Type.Type Void)) BindingKey BindingKey -- TODO: replace with call constructor expr
     | Expr'MakeADT ID (Maybe (Type.Type Void)) Type.ADTVariantIndex [Maybe (Type.Type Void)] [BindingKey]
 
-    | Expr'Lambda ID (Maybe (Type.Type Void)) ParamKey BindingGroup BindingKey
+    | Expr'Lambda ID (Maybe (Type.Type Void)) ParamKey (Set.Set BindingKey) BindingGroup BindingKey -- TODO: dont use BindingKey Ord for order of captures
     | Expr'Param ID (Maybe (Type.Type Void)) ParamKey
 
     | Expr'Call ID (Maybe (Type.Type Void)) BindingKey BindingKey
@@ -111,7 +107,7 @@ expr_type (Expr'Bool _ ty _) = ty
 expr_type (Expr'Char _ ty _) = ty
 expr_type (Expr'String _ ty _) = ty
 expr_type (Expr'Tuple _ ty _ _) = ty
-expr_type (Expr'Lambda _ ty _ _ _) = ty
+expr_type (Expr'Lambda _ ty _ _ _ _) = ty
 expr_type (Expr'Param _ ty _) = ty
 expr_type (Expr'Call _ ty _ _) = ty
 expr_type (Expr'Switch _ ty _ _) = ty
@@ -130,7 +126,7 @@ expr_id (Expr'Bool id _ _) = id
 expr_id (Expr'Char id _ _) = id
 expr_id (Expr'String id _ _) = id
 expr_id (Expr'Tuple id _ _ _) = id
-expr_id (Expr'Lambda id _ _ _ _) = id
+expr_id (Expr'Lambda id _ _ _ _ _) = id
 expr_id (Expr'Param id _ _) = id
 expr_id (Expr'Call id _ _ _) = id
 expr_id (Expr'Switch id _ _ _) = id

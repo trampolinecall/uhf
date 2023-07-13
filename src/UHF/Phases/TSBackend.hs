@@ -7,6 +7,7 @@ import UHF.Util.Prelude
 import qualified Arena
 
 import qualified Data.FileEmbed as FileEmbed
+import qualified Data.Set as Set
 
 import UHF.IO.Located (Located (unlocate))
 
@@ -57,7 +58,7 @@ runtime_code = $(FileEmbed.embedStringFile "data/ts_runtime.ts")
 data TSDecl
 newtype TSADT = TSADT Type.ADTKey
 -- TODO: dont use BoundValueKey Ord for order of captures in parameters of function
-data TSLambda = TSLambda BackendIR.BindingKey BindingGroup Type Type BackendIR.BindingKey
+data TSLambda = TSLambda BackendIR.BindingKey (Set.Set BackendIR.BindingKey) BindingGroup Type Type BackendIR.BindingKey
 data TS = TS [TSDecl] [TSADT] [TSLambda] [TS.Stmt]
 
 instance Semigroup TS where
@@ -102,7 +103,7 @@ convert_ts_adt (TSADT key) =
             pure (TS.Type'Object $ name_field : fields)
 
 convert_ts_lambda :: TSLambda -> IRReader TS.Stmt
-convert_ts_lambda (TSLambda key group@(BackendIR.BindingGroup captures _) arg_ty result_ty body_key) =
+convert_ts_lambda (TSLambda key captures group@(BackendIR.BindingGroup _) arg_ty result_ty body_key) =
     refer_type_raw arg_ty >>= \ arg_type_raw ->
     refer_type arg_ty >>= \ arg_type ->
     refer_type_raw result_ty >>= \ result_type_raw ->
@@ -195,14 +196,14 @@ define_cu (BackendIR.CU global_group adts _) =
     pure ()
 
 define_lambda_type :: BackendIR.BindingKey -> Binding -> TSWriter ()
-define_lambda_type key (BackendIR.Binding (BackendIR.Expr'Lambda _ _ param group body)) =
+define_lambda_type key (BackendIR.Binding (BackendIR.Expr'Lambda _ _ param captures group body)) =
     lift (get_param param) >>= \ (BackendIR.Param _ param_ty) ->
     lift (binding_type body) >>= \ body_type ->
-    tell_lambda (TSLambda key group param_ty body_type body)
+    tell_lambda (TSLambda key captures group param_ty body_type body)
 define_lambda_type _ _ = pure ()
 
 lower_binding_group :: BindingGroup -> IRReader [TS.Stmt]
-lower_binding_group (BackendIR.BindingGroup _ chunks) = concat <$> mapM chunk chunks
+lower_binding_group (BackendIR.BindingGroup chunks) = concat <$> mapM chunk chunks
     where
         chunk (BackendIR.SingleBinding bk) =
             lower_binding_key bk >>= \ (early, late) ->
@@ -231,17 +232,16 @@ lower_binding (BackendIR.Binding init) = l init
             let_current id (TS.Expr'New (TS.Expr'Identifier adt_mangled) [TS.Expr'Object $ ("discriminant", Just $ TS.Expr'StrLit $ unlocate variant_name) : object_fields]) >>= \ let_stmt ->
                 pure ([let_stmt], [])
 
-        l (BackendIR.Expr'Lambda id _ _ group _) =
+        l (BackendIR.Expr'Lambda id _ _ captures _ _) =
             mangle_binding_id_as_var id >>= \ current_var ->
-            let lambda_captures = BackendIR.binding_group_captures group
-            in mangle_binding_id_as_lambda id >>= \ lambda ->
+            mangle_binding_id_as_lambda id >>= \ lambda ->
             mapM
                 (\ capt ->
                     mangle_binding_as_var capt >>= \ capt_var ->
                     mangle_binding_as_capture capt >>= \ capt_capt ->
                     pure (TS.Stmt'Expr $ TS.Expr'Assign (TS.Expr'Get (TS.Expr'Identifier current_var) capt_capt) (TS.Expr'Identifier capt_var)))
-                (toList lambda_captures) >>= \ set_captures ->
-            let_current id (TS.Expr'New (TS.Expr'Identifier lambda) (map (const (TS.Expr'Identifier "undefined")) (toList lambda_captures))) >>= \ let_stmt ->
+                (toList captures) >>= \ set_captures ->
+            let_current id (TS.Expr'New (TS.Expr'Identifier lambda) (map (const (TS.Expr'Identifier "undefined")) (toList captures))) >>= \ let_stmt ->
             pure ([let_stmt], set_captures)
         l (BackendIR.Expr'Param id _ _) = let_current id (TS.Expr'Identifier "param") >>= \ let_stmt -> pure ([let_stmt], [])
         l (BackendIR.Expr'Call id _ callee arg) = mangle_binding_as_var callee >>= \ callee -> mangle_binding_as_var arg >>= \ arg -> let_current id (TS.Expr'Call (TS.Expr'Get (TS.Expr'Identifier callee) "call") [TS.Expr'Identifier arg]) >>= \ let_stmt -> pure ([let_stmt], [])

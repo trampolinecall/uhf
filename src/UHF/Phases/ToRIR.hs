@@ -29,9 +29,9 @@ type SIRBinding = SIR.Binding DIden VIden PIden Type Void
 type RIRExpr = RIR.Expr
 type RIRBinding = RIR.Binding
 
-type SIRBoundValueArena = Arena.Arena (SIR.BoundValue Type) SIR.BoundValueKey
+type BoundValueArena = Arena.Arena RIR.BoundValue RIR.BoundValueKey
 
-type ConvertState = Unique.UniqueMakerT (ReaderT (Arena.Arena (Type.ADT Type) Type.ADTKey) (StateT SIRBoundValueArena (IDGen.IDGenT ID.BoundValueID (IDGen.IDGen ID.ExprID))))
+type ConvertState = Unique.UniqueMakerT (ReaderT (Arena.Arena (Type.ADT Type) Type.ADTKey) (StateT BoundValueArena (IDGen.IDGenT ID.BoundValueID (IDGen.IDGen ID.ExprID))))
 
 new_made_up_expr_id :: (ID.ExprID -> a) -> ConvertState a
 new_made_up_expr_id make =
@@ -42,15 +42,15 @@ convert :: SIR -> RIR.RIR
 convert (SIR.SIR _ modules adts type_synonyms type_vars bvs mod) =
     let adts_converted = Arena.transform convert_adt adts
         type_synonyms_converted = Arena.transform convert_type_synonym type_synonyms
-        (cu, bvs_with_new) = IDGen.run_id_gen ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.BoundValueID'RIRMadeUp $ runStateT (runReaderT (Unique.run_unique_maker_t (assemble_cu modules mod)) adts_converted) bvs
         bvs_converted =
             Arena.transform
-            (\case
-                SIR.BoundValue id ty (Located sp _) -> RIR.BoundValue id ty sp
-                SIR.BoundValue'ADTVariant id _ _ ty sp -> RIR.BoundValue id ty sp
-            )
-            bvs_with_new
-    in RIR.RIR adts_converted type_synonyms_converted type_vars bvs_converted cu
+                (\case
+                    SIR.BoundValue id ty (Located sp _) -> RIR.BoundValue id ty sp
+                    SIR.BoundValue'ADTVariant id _ _ ty sp -> RIR.BoundValue id ty sp
+                )
+                bvs
+        (cu, bvs_with_new) = IDGen.run_id_gen ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.BoundValueID'RIRMadeUp $ runStateT (runReaderT (Unique.run_unique_maker_t (assemble_cu modules mod)) adts_converted) bvs_converted
+    in RIR.RIR adts_converted type_synonyms_converted type_vars bvs_with_new cu
 
 assemble_cu :: Arena.Arena SIRModule SIR.ModuleKey -> SIR.ModuleKey -> ConvertState RIR.CU
 assemble_cu modules mod =
@@ -96,7 +96,7 @@ new_made_up_bv_id = lift $ lift $ lift IDGen.gen_id
 new_bound_value :: Type -> Span -> ConvertState SIR.BoundValueKey
 new_bound_value ty sp =
     new_made_up_bv_id >>= \ id ->
-    lift (lift $ state $ Arena.put (SIR.BoundValue id ty (Located sp ""))) -- name will be removed pretty much right away at the end of the transition to rir
+    lift (lift $ state $ Arena.put (RIR.BoundValue id ty sp))
 
 convert_expr :: SIRExpr -> ConvertState RIRExpr
 convert_expr (SIR.Expr'Identifier id ty sp bv) = pure $ RIR.Expr'Identifier id ty sp (unlocate bv)

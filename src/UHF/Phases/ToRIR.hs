@@ -33,10 +33,10 @@ type SIRBoundValueArena = Arena.Arena (SIR.BoundValue Type) SIR.BoundValueKey
 
 type ConvertState = Unique.UniqueMakerT (ReaderT (Arena.Arena (Type.ADT Type) Type.ADTKey) (StateT SIRBoundValueArena (IDGen.IDGenT ID.BoundValueID (IDGen.IDGen ID.ExprID))))
 
-new_made_up_bv_id :: ConvertState ID.BoundValueID
-new_made_up_bv_id = lift $ lift $ lift IDGen.gen_id
-new_made_up_expr_id :: ConvertState ID.ExprID
-new_made_up_expr_id = lift $ lift $ lift $ lift IDGen.gen_id
+new_made_up_expr_id :: (ID.ExprID -> a) -> ConvertState a
+new_made_up_expr_id make =
+    (lift $ lift $ lift $ lift IDGen.gen_id) >>= \ id ->
+    pure (make id)
 
 convert :: SIR -> RIR.RIR
 convert (SIR.SIR _ modules adts type_synonyms type_vars bvs mod) =
@@ -68,38 +68,35 @@ convert_type_synonym (Type.TypeSynonym id name expansion) = Type.TypeSynonym id 
 
 convert_binding :: SIRBinding -> ConvertState [RIRBinding]
 convert_binding (SIR.Binding pat _ expr) = convert_expr expr >>= assign_pattern pat
-convert_binding (SIR.Binding'ADTVariant _ bvk type_params variant_index@(Type.ADTVariantIndex adt_key _)) =
+convert_binding (SIR.Binding'ADTVariant _ bvk type_params variant_index) =
     lift ask >>= \ adts ->
-    let (Type.ADT _ _ _ _) = Arena.get adts adt_key
-        variant = Type.get_adt_variant adts variant_index
+    let variant = Type.get_adt_variant adts variant_index
 
         wrap_in_forall = case type_params of
             [] -> pure
-            param:more -> \ lambda ->
-                new_made_up_expr_id >>= \ forall_id ->
-                pure (RIR.Expr'Forall forall_id (Type.Type'Forall (param :| more) <$> RIR.expr_type lambda) todo (param :| more) lambda)
+            param:more -> \ lambda -> new_made_up_expr_id (\ id -> RIR.Expr'Forall id (Type.Type'Forall (param :| more) <$> RIR.expr_type lambda) todo (param :| more) lambda)
     in make_lambdas type_params variant_index [] (Type.variant_field_types variant) >>= wrap_in_forall >>= \ lambdas ->
     pure [RIR.Binding bvk lambdas]
     where
         make_lambdas type_params variant_index@(Type.ADTVariantIndex adt_key _) refer_to_params [] =
             let ty_params_as_tys = map Type.Type'Variable type_params
-            in new_made_up_expr_id >>= \ make_adt_id ->
-            pure $ RIR.Expr'MakeADT make_adt_id (Type.Type'ADT adt_key ty_params_as_tys) todo variant_index (map Just ty_params_as_tys) refer_to_params
+            in new_made_up_expr_id $ \ id -> RIR.Expr'MakeADT id (Type.Type'ADT adt_key ty_params_as_tys) todo variant_index (map Just ty_params_as_tys) refer_to_params
 
         make_lambdas type_params variant_index refer_to_params (cur_field_ty:more_field_tys) =
             Unique.make_unique >>= \ lambda_uniq ->
-            new_made_up_bv_id >>= \ bv_id ->
-            new_bound_value bv_id cur_field_ty todo >>= \ param_bvk ->
-            new_made_up_expr_id >>= \ expr_id ->
-            let refer_expr = RIR.Expr'Identifier expr_id cur_field_ty todo (Just param_bvk)
+            new_bound_value cur_field_ty todo >>= \ param_bvk ->
+            new_made_up_expr_id (\ id -> RIR.Expr'Identifier id cur_field_ty todo (Just param_bvk)) >>= \ refer_expr ->
 
-            in new_made_up_expr_id >>= \ lambda_id ->
             make_lambdas type_params variant_index (refer_to_params <> [refer_expr]) more_field_tys >>= \ lambda_result ->
             let lambda_ty = Type.Type'Function <$> cur_field_ty <*> RIR.expr_type lambda_result
-            in pure (RIR.Expr'Lambda lambda_id lambda_ty todo lambda_uniq param_bvk lambda_result)
+            in new_made_up_expr_id (\ id -> RIR.Expr'Lambda id lambda_ty todo lambda_uniq param_bvk lambda_result)
 
-new_bound_value :: ID.BoundValueID -> Type -> Span -> ConvertState SIR.BoundValueKey
-new_bound_value id ty sp = lift (lift $ state $ Arena.put (SIR.BoundValue id ty (Located sp ""))) -- name will be removed pretty much right away at the end of the transition to rir
+new_made_up_bv_id :: ConvertState ID.BoundValueID
+new_made_up_bv_id = lift $ lift $ lift IDGen.gen_id
+new_bound_value :: Type -> Span -> ConvertState SIR.BoundValueKey
+new_bound_value ty sp =
+    new_made_up_bv_id >>= \ id ->
+    lift (lift $ state $ Arena.put (SIR.BoundValue id ty (Located sp ""))) -- name will be removed pretty much right away at the end of the transition to rir
 
 convert_expr :: SIRExpr -> ConvertState RIRExpr
 convert_expr (SIR.Expr'Identifier id ty sp bv) = pure $ RIR.Expr'Identifier id ty sp (unlocate bv)
@@ -116,8 +113,7 @@ convert_expr (SIR.Expr'Lambda id ty sp param_pat body) =
     in
     -- '\ (...) -> body' becomes '\ (arg) -> let ... = arg; body'
     Unique.make_unique >>= \ uniq -> -- TODO: remove?
-    new_made_up_bv_id >>= \ param_bv_id ->
-    new_bound_value param_bv_id param_ty (SIR.pattern_span param_pat) >>= \ param_bk ->
+    new_bound_value param_ty (SIR.pattern_span param_pat) >>= \ param_bk ->
     assign_pattern param_pat (RIR.Expr'Identifier id param_ty (SIR.pattern_span param_pat) (Just param_bk)) >>= \ bindings ->
     RIR.Expr'Lambda id ty sp uniq param_bk <$> (RIR.Expr'Let id body_ty body_sp bindings <$> convert_expr body)
 
@@ -148,26 +144,17 @@ assign_pattern (SIR.Pattern'Tuple whole_ty whole_sp a b) expr =
     --     ... = case whole { (a, _) -> a }
     --     ... = case whole { (_, b) -> b }
 
-    new_made_up_bv_id >>= \ whole_id ->
-    new_made_up_bv_id >>= \ a_id ->
-    new_made_up_bv_id >>= \ b_id ->
+    new_bound_value whole_ty whole_sp >>= \ whole_bv ->
+    new_bound_value a_ty a_sp >>= \ a_bv ->
+    new_bound_value b_ty b_sp >>= \ b_bv ->
 
-    new_bound_value whole_id whole_ty whole_sp >>= \ whole_bv ->
-    new_bound_value a_id a_ty a_sp >>= \ a_bv ->
-    new_bound_value b_id b_ty b_sp >>= \ b_bv ->
+    new_made_up_expr_id identity >>= \ l_extract_id ->
+    new_made_up_expr_id identity >>= \ r_extract_id ->
 
-    new_made_up_expr_id >>= \ l_switch_id ->
-    new_made_up_expr_id >>= \ r_switch_id ->
-    new_made_up_expr_id >>= \ l_refer_whole_id ->
-    new_made_up_expr_id >>= \ r_refer_whole_id ->
-    new_made_up_expr_id >>= \ l_extract_id ->
-    new_made_up_expr_id >>= \ r_extract_id ->
-
-    let l_whole_expr = RIR.Expr'Identifier l_refer_whole_id whole_ty whole_sp (Just whole_bv)
-        r_whole_expr = RIR.Expr'Identifier r_refer_whole_id whole_ty whole_sp (Just whole_bv)
-        extract_a = RIR.Expr'Switch l_switch_id a_ty a_sp l_whole_expr [(RIR.Switch'Tuple (Just a_bv) Nothing, RIR.Expr'Identifier l_extract_id a_ty a_sp (Just a_bv))]
-        extract_b = RIR.Expr'Switch r_switch_id b_ty b_sp r_whole_expr [(RIR.Switch'Tuple Nothing (Just b_bv), RIR.Expr'Identifier r_extract_id b_ty b_sp (Just b_bv))]
-    in
+    new_made_up_expr_id (\ id -> RIR.Expr'Identifier id whole_ty whole_sp (Just whole_bv)) >>= \ l_whole_expr ->
+    new_made_up_expr_id (\ id -> RIR.Expr'Identifier id whole_ty whole_sp (Just whole_bv)) >>= \ r_whole_expr  ->
+    new_made_up_expr_id (\ id -> RIR.Expr'Switch id a_ty a_sp l_whole_expr [(RIR.Switch'Tuple (Just a_bv) Nothing, RIR.Expr'Identifier l_extract_id a_ty a_sp (Just a_bv))]) >>= \ extract_a  ->
+    new_made_up_expr_id (\ id -> RIR.Expr'Switch id b_ty b_sp r_whole_expr [(RIR.Switch'Tuple Nothing (Just b_bv), RIR.Expr'Identifier r_extract_id b_ty b_sp (Just b_bv))]) >>= \ extract_b ->
 
     assign_pattern a extract_a >>= \ assign_a ->
     assign_pattern b extract_b >>= \ assign_b ->
@@ -179,8 +166,8 @@ assign_pattern (SIR.Pattern'Named ty sp _ bv other) expr =
     --  becomes
     --      a = e
     --      ... = a
-    new_made_up_expr_id >>= \ refer ->
-    assign_pattern other (RIR.Expr'Identifier refer ty sp (Just $ unlocate bv)) >>= \ other_assignments ->
+    new_made_up_expr_id (\ id -> RIR.Expr'Identifier id ty sp (Just $ unlocate bv)) >>= \ refer ->
+    assign_pattern other refer >>= \ other_assignments ->
     pure (RIR.Binding (unlocate bv) expr : other_assignments)
 
 assign_pattern (SIR.Pattern'AnonADTVariant ty sp variant fields) expr = todo

@@ -139,8 +139,8 @@ pattern_bvs (SIR.Pattern'Identifier _ sp bvk) = bv_name bvk >>= \ name -> pure [
 pattern_bvs (SIR.Pattern'Wildcard _ _) = pure []
 pattern_bvs (SIR.Pattern'Tuple _ _ a b) = pattern_bvs a >>= \ a -> pattern_bvs b >>= \ b -> pure (a ++ b)
 pattern_bvs (SIR.Pattern'Named _ _ _ (Located bv_span bvk) subpat) = bv_name bvk >>= \ name -> pattern_bvs subpat >>= \ subpat -> pure ((name, DeclAt bv_span, bvk) : subpat)
-pattern_bvs (SIR.Pattern'AnonADTVariant _ _ _ fields) = concat <$> mapM (pattern_bvs) fields
-pattern_bvs (SIR.Pattern'NamedADTVariant _ _ _ fields) = concat <$> mapM (pattern_bvs . snd) fields
+pattern_bvs (SIR.Pattern'AnonADTVariant _ _ _ _ fields) = concat <$> mapM (pattern_bvs) fields
+pattern_bvs (SIR.Pattern'NamedADTVariant _ _ _ _ fields) = concat <$> mapM (pattern_bvs . snd) fields
 pattern_bvs (SIR.Pattern'Poison _ _) = pure []
 
 bv_name :: Monad under => SIR.BoundValueKey -> NRReader UnresolvedADTArena BoundValueArena type_var_arena module_child_maps under Text
@@ -303,8 +303,8 @@ resolve_in_pat _ (SIR.Pattern'Identifier type_info sp bnk) = pure $ SIR.Pattern'
 resolve_in_pat _ (SIR.Pattern'Wildcard type_info sp) = pure $ SIR.Pattern'Wildcard type_info sp
 resolve_in_pat nc_stack (SIR.Pattern'Tuple type_info sp a b) = SIR.Pattern'Tuple type_info sp <$> resolve_in_pat nc_stack a <*> resolve_in_pat nc_stack b
 resolve_in_pat nc_stack (SIR.Pattern'Named type_info sp at_sp bnk subpat) = SIR.Pattern'Named type_info sp at_sp bnk <$> resolve_in_pat nc_stack subpat
-resolve_in_pat nc_stack (SIR.Pattern'AnonADTVariant type_info sp variant subpat) = SIR.Pattern'AnonADTVariant type_info sp <$> (resolve_iden_in_monad resolve_pat_iden nc_stack (split_iden variant)) <*> mapM (resolve_in_pat nc_stack) subpat
-resolve_in_pat nc_stack (SIR.Pattern'NamedADTVariant type_info sp variant subpat) = SIR.Pattern'NamedADTVariant type_info sp <$> (resolve_iden_in_monad resolve_pat_iden nc_stack (split_iden variant)) <*> mapM (\ (field_name, field_pat) -> (field_name,) <$> resolve_in_pat nc_stack field_pat) subpat
+resolve_in_pat nc_stack (SIR.Pattern'AnonADTVariant type_info sp variant tyargs subpat) = SIR.Pattern'AnonADTVariant type_info sp <$> (resolve_iden_in_monad resolve_pat_iden nc_stack (split_iden variant)) <*> pure tyargs <*> mapM (resolve_in_pat nc_stack) subpat
+resolve_in_pat nc_stack (SIR.Pattern'NamedADTVariant type_info sp variant tyargs subpat) = SIR.Pattern'NamedADTVariant type_info sp <$> (resolve_iden_in_monad resolve_pat_iden nc_stack (split_iden variant)) <*> pure tyargs <*> mapM (\ (field_name, field_pat) -> (field_name,) <$> resolve_in_pat nc_stack field_pat) subpat
 resolve_in_pat _ (SIR.Pattern'Poison type_info sp) = pure $ SIR.Pattern'Poison type_info sp
 
 resolve_in_expr :: ChildMapStack -> UnresolvedExpr -> (NRReader UnresolvedADTArena BoundValueArena TypeVarArena ModuleChildMaps (MakeDeclState CollectingErrors)) ResolvedExpr

@@ -303,7 +303,7 @@ convert_pattern parent (AST.Pattern'Named sp iden at_sp subpat) =
         Nothing -> pure (SIR.Pattern'Poison () sp)
 convert_pattern parent (AST.Pattern'AnonADTVariant sp iden fields) =
     mapM (convert_pattern parent) fields >>= \ (fields) ->
-    pure (SIR.Pattern'AnonADTVariant () sp (unlocate iden) fields)
+    pure (SIR.Pattern'AnonADTVariant () sp (unlocate iden) [] fields)
 convert_pattern parent (AST.Pattern'NamedADTVariant sp iden fields) =
     mapM (\ (field_name, field_pat) ->
         make_iden1_with_err PathInFieldName field_name >>= \case
@@ -313,5 +313,5 @@ convert_pattern parent (AST.Pattern'NamedADTVariant sp iden fields) =
             Nothing -> pure Nothing
         ) fields >>= \ fields ->
     case sequence fields of
-        Just fields -> pure (SIR.Pattern'NamedADTVariant () sp (unlocate iden) fields)
+        Just fields -> pure (SIR.Pattern'NamedADTVariant () sp (unlocate iden) [] fields)
         Nothing -> pure (SIR.Pattern'Poison () sp)

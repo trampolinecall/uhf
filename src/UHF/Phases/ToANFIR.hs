@@ -187,7 +187,7 @@ convert_expr m_bvid (RIR.Expr'Bool id ty _ b) = new_binding (\ _ -> ([], pure $ 
 
 convert_expr m_bvid (RIR.Expr'Tuple id ty _ a b) = convert_expr Nothing a >>= \ a -> convert_expr Nothing b >>= \ b -> new_binding (\ _ -> ([a, b], pure $ ANFIR.Expr'Tuple (choose_id m_bvid id) ty a b))
 
-convert_expr m_bvid (RIR.Expr'Lambda id ty _ uniq param_bv body) =
+convert_expr m_bvid (RIR.Expr'Lambda id ty _ param_bv body) =
     lift (get_bv param_bv) >>= \ (RIR.BoundValue param_id param_ty _) ->
     new_param (ANFIR.Param param_id param_ty) >>= \ anfir_param ->
     lift (runWriterT $ -- lambda bodies should not be included in the parent included bindings because they do not need to be evaluated to create the lambda object

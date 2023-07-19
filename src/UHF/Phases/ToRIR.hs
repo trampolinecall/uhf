@@ -3,7 +3,6 @@ module UHF.Phases.ToRIR (convert) where
 import UHF.Util.Prelude
 
 import qualified Arena
-import qualified Unique
 
 import UHF.IO.Span (Span)
 import UHF.IO.Located (Located (Located, unlocate))
@@ -31,11 +30,11 @@ type RIRBinding = RIR.Binding
 
 type BoundValueArena = Arena.Arena RIR.BoundValue RIR.BoundValueKey
 
-type ConvertState = Unique.UniqueMakerT (ReaderT (Arena.Arena (Type.ADT Type) Type.ADTKey) (StateT BoundValueArena (IDGen.IDGenT ID.BoundValueID (IDGen.IDGen ID.ExprID))))
+type ConvertState = ReaderT (Arena.Arena (Type.ADT Type) Type.ADTKey) (StateT BoundValueArena (IDGen.IDGenT ID.BoundValueID (IDGen.IDGen ID.ExprID)))
 
 new_made_up_expr_id :: (ID.ExprID -> a) -> ConvertState a
 new_made_up_expr_id make =
-    (lift $ lift $ lift $ lift IDGen.gen_id) >>= \ id ->
+    (lift $ lift $ lift IDGen.gen_id) >>= \ id ->
     pure (make id)
 
 convert :: SIR -> RIR.RIR
@@ -49,7 +48,7 @@ convert (SIR.SIR _ modules adts type_synonyms type_vars bvs mod) =
                     SIR.BoundValue'ADTVariant id _ _ ty sp -> RIR.BoundValue id ty sp
                 )
                 bvs
-        (cu, bvs_with_new) = IDGen.run_id_gen ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.BoundValueID'RIRMadeUp $ runStateT (runReaderT (Unique.run_unique_maker_t (assemble_cu modules mod)) adts_converted) bvs_converted
+        (cu, bvs_with_new) = IDGen.run_id_gen ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.BoundValueID'RIRMadeUp $ runStateT (runReaderT (assemble_cu modules mod) adts_converted) bvs_converted
     in RIR.RIR adts_converted type_synonyms_converted type_vars bvs_with_new cu
 
 assemble_cu :: Arena.Arena SIRModule SIR.ModuleKey -> SIR.ModuleKey -> ConvertState RIR.CU
@@ -69,7 +68,7 @@ convert_type_synonym (Type.TypeSynonym id name expansion) = Type.TypeSynonym id 
 convert_binding :: SIRBinding -> ConvertState [RIRBinding]
 convert_binding (SIR.Binding pat _ expr) = convert_expr expr >>= assign_pattern pat
 convert_binding (SIR.Binding'ADTVariant name_sp bvk type_params variant_index) =
-    lift ask >>= \ adts ->
+    ask >>= \ adts ->
     let variant = Type.get_adt_variant adts variant_index
 
         wrap_in_forall = case type_params of
@@ -83,20 +82,19 @@ convert_binding (SIR.Binding'ADTVariant name_sp bvk type_params variant_index) =
             in new_made_up_expr_id $ \ id -> RIR.Expr'MakeADT id (Type.Type'ADT adt_key ty_params_as_tys) name_sp variant_index (map Just ty_params_as_tys) refer_to_params
 
         make_lambdas type_params variant_index refer_to_params (cur_field_ty:more_field_tys) =
-            Unique.make_unique >>= \ lambda_uniq ->
             new_bound_value cur_field_ty name_sp >>= \ param_bvk ->
             new_made_up_expr_id (\ id -> RIR.Expr'Identifier id cur_field_ty name_sp (Just param_bvk)) >>= \ refer_expr ->
 
             make_lambdas type_params variant_index (refer_to_params <> [refer_expr]) more_field_tys >>= \ lambda_result ->
             let lambda_ty = Type.Type'Function <$> cur_field_ty <*> RIR.expr_type lambda_result
-            in new_made_up_expr_id (\ id -> RIR.Expr'Lambda id lambda_ty name_sp lambda_uniq param_bvk lambda_result)
+            in new_made_up_expr_id (\ id -> RIR.Expr'Lambda id lambda_ty name_sp param_bvk lambda_result)
 
 new_made_up_bv_id :: ConvertState ID.BoundValueID
-new_made_up_bv_id = lift $ lift $ lift IDGen.gen_id
+new_made_up_bv_id = lift $ lift IDGen.gen_id
 new_bound_value :: Type -> Span -> ConvertState SIR.BoundValueKey
 new_bound_value ty sp =
     new_made_up_bv_id >>= \ id ->
-    lift (lift $ state $ Arena.put (RIR.BoundValue id ty sp))
+    lift (state $ Arena.put (RIR.BoundValue id ty sp))
 
 convert_expr :: SIRExpr -> ConvertState RIRExpr
 convert_expr (SIR.Expr'Identifier id ty sp bv) = pure $ RIR.Expr'Identifier id ty sp (unlocate bv)
@@ -112,10 +110,9 @@ convert_expr (SIR.Expr'Lambda id ty sp param_pat body) =
         body_sp = SIR.expr_span body
     in
     -- '\ (...) -> body' becomes '\ (arg) -> let ... = arg; body'
-    Unique.make_unique >>= \ uniq -> -- TODO: remove?
     new_bound_value param_ty (SIR.pattern_span param_pat) >>= \ param_bk ->
     assign_pattern param_pat (RIR.Expr'Identifier id param_ty (SIR.pattern_span param_pat) (Just param_bk)) >>= \ bindings ->
-    RIR.Expr'Lambda id ty sp uniq param_bk <$> (RIR.Expr'Let id body_ty body_sp bindings <$> convert_expr body)
+    RIR.Expr'Lambda id ty sp param_bk <$> (RIR.Expr'Let id body_ty body_sp bindings <$> convert_expr body)
 
 convert_expr (SIR.Expr'Let id ty sp bindings body) = RIR.Expr'Let id ty sp <$> (concat <$> mapM convert_binding bindings) <*> convert_expr body
 convert_expr (SIR.Expr'LetRec id ty sp bindings body) = RIR.Expr'Let id ty sp <$> (concat <$> mapM convert_binding bindings) <*> convert_expr body

@@ -70,11 +70,10 @@ convert_expr (ANFIR.Expr'MakeADT id ty var_idx tyargs args) = BackendIR.Expr'Mak
 convert_expr (ANFIR.Expr'Lambda id ty param captures group result) = BackendIR.Expr'Lambda (convert_id id) ty param captures (convert_binding_group group) result
 convert_expr (ANFIR.Expr'Param id ty param) = BackendIR.Expr'Param (convert_id id) ty param
 convert_expr (ANFIR.Expr'Call id ty callee arg) = BackendIR.Expr'Call (convert_id id) ty callee arg
-convert_expr (ANFIR.Expr'Case id ty scrutinee arms) = BackendIR.Expr'Case (convert_id id) ty scrutinee (map (\ (matcher, group, result) -> (convert_matcher matcher, convert_binding_group group, result)) arms)
+convert_expr (ANFIR.Expr'Case id ty arms) = todo {- BackendIR.Expr'Case (convert_id id) ty scrutinee (map (\ (matcher, group, result) -> (convert_matcher matcher, convert_binding_group group, result)) arms)
     where
         convert_matcher (ANFIR.Case'BoolLiteral b) = BackendIR.Case'BoolLiteral b
-        convert_matcher (ANFIR.Case'Tuple) = BackendIR.Case'Tuple
-        convert_matcher (ANFIR.Case'Default) = BackendIR.Case'Default
+        convert_matcher (ANFIR.Case'Tuple) = BackendIR.Case'Tuple -}
 convert_expr (ANFIR.Expr'TupleDestructure1 id ty tup) = BackendIR.Expr'TupleDestructure1 (convert_id id) ty tup
 convert_expr (ANFIR.Expr'TupleDestructure2 id ty tup) = BackendIR.Expr'TupleDestructure2 (convert_id id) ty tup
 convert_expr (ANFIR.Expr'Forall id ty tvars group result) = BackendIR.Expr'Forall (convert_id id) ty tvars (convert_binding_group group) result

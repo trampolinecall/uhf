@@ -55,7 +55,7 @@ data AlmostExpr
 
     | AlmostExpr'Call ANFIR.ID (Maybe (Type.Type Void)) ANFIR.BindingKey ANFIR.BindingKey
 
-    | AlmostExpr'Case ANFIR.ID (Maybe (Type.Type Void)) ANFIR.BindingKey [(ANFIR.CaseMatcher, [ANFIR.BindingKey], ANFIR.BindingKey)]
+    | AlmostExpr'Case ANFIR.ID (Maybe (Type.Type Void)) [([ANFIR.CaseMatchingClause], [ANFIR.BindingKey], ANFIR.BindingKey)]
 
     | AlmostExpr'TupleDestructure1 ANFIR.ID (Maybe (Type.Type Void)) ANFIR.BindingKey
     | AlmostExpr'TupleDestructure2 ANFIR.ID (Maybe (Type.Type Void)) ANFIR.BindingKey
@@ -135,7 +135,7 @@ convert_expr _ (RIR.Expr'Let _ _ _ bindings e) = mapM (lift . convert_binding) b
 
 convert_expr m_bvid (RIR.Expr'Call id ty _ callee arg) = convert_expr Nothing callee >>= \ callee -> convert_expr Nothing arg >>= \ arg -> new_binding (\ _ -> (AlmostExpr'Call (choose_id m_bvid id) ty callee arg))
 
-convert_expr m_bvid (RIR.Expr'Case id ty testing arms) = todo
+convert_expr m_bvid (RIR.Expr'Case id ty _ arms) = todo
     {-
     convert_expr Nothing testing >>= \ testing ->
     mapM
@@ -207,7 +207,7 @@ convert_almost_expr (AlmostExpr'MakeADT id ty var_idx tyargs args) = pure $ ANFI
 convert_almost_expr (AlmostExpr'Lambda id ty param bindings result) = ANFIR.Expr'Lambda id ty param <$> get_dependencies_of_binding_list_and_expr bindings result <*> make_binding_group bindings <*> pure result
 convert_almost_expr (AlmostExpr'Param id ty param) = pure $ ANFIR.Expr'Param id ty param
 convert_almost_expr (AlmostExpr'Call id ty callee arg) = pure $ ANFIR.Expr'Call id ty callee arg
-convert_almost_expr (AlmostExpr'Case id ty scrutinee arms) = ANFIR.Expr'Case id ty scrutinee <$> mapM (\ (matcher, bindings, result) -> (matcher,,result) <$> make_binding_group bindings) arms
+convert_almost_expr (AlmostExpr'Case id ty arms) = ANFIR.Expr'Case id ty <$> mapM (\ (matcher, bindings, result) -> (matcher,,result) <$> make_binding_group bindings) arms
 convert_almost_expr (AlmostExpr'TupleDestructure1 id ty tup) = pure $ ANFIR.Expr'TupleDestructure1 id ty tup
 convert_almost_expr (AlmostExpr'TupleDestructure2 id ty tup) = pure $ ANFIR.Expr'TupleDestructure2 id ty tup
 convert_almost_expr (AlmostExpr'Forall id ty tys bindings result) = ANFIR.Expr'Forall id ty tys <$> (make_binding_group bindings) <*> pure result
@@ -233,14 +233,13 @@ get_dependencies_of_almost_expr bk =
         AlmostExpr'Lambda _ _ _ bindings result -> get_dependencies_of_binding_list_and_expr bindings result
         AlmostExpr'Param _ _ _ -> pure []
         AlmostExpr'Call _ _ callee arg -> pure [callee, arg]
-        AlmostExpr'Case _ _ test arms ->
-            Set.unions <$>
-                mapM
+        AlmostExpr'Case _ _ arms ->
+            arms
+                & mapM
                     (\ (_, bindings, res) ->
                         get_dependencies_of_binding_list_and_expr bindings res
                     )
-                    arms >>= \ arms_dependencies ->
-            pure ([test] <> arms_dependencies)
+                <&> Set.unions
         AlmostExpr'TupleDestructure1 _ _ tup -> pure [tup]
         AlmostExpr'TupleDestructure2 _ _ tup -> pure [tup]
         AlmostExpr'Forall _ _ _ bindings e -> get_dependencies_of_binding_list_and_expr bindings e

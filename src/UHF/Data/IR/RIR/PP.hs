@@ -87,7 +87,19 @@ expr (RIR.Expr'Case _ _ _ arms) = mapM pp_arm arms >>= \ arms -> pure (PP.List [
 
         pp_matcher (RIR.Case'BoolLiteral b) = pure $ if b then "true" else "false"
         pp_matcher (RIR.Case'Tuple a b) = maybe (pure "_") refer_bv a >>= \ a -> maybe (pure "_") refer_bv b >>= \ b -> pure (PP.List ["(", a, ", ", b, ")"])
-        pp_matcher RIR.Case'Default = pure "_"
+        pp_matcher (RIR.Case'AnonADTVariant m_variant tyargs fields) =
+            maybe
+                (pure "<name resolution error>")
+                (\ variant_index@(Type.ADTVariantIndex adt_key _) ->
+                    Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
+                    Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
+                    let variant_name = Type.variant_name variant
+                    in pure $ PP.List [adt_refer, " ", PP.String $ unlocate variant_name]
+                )
+                m_variant >>= \ refer_variant ->
+            mapM refer_m_type tyargs >>= \ tyargs ->
+            mapM refer_bv fields >>= \ fields ->
+            pure (PP.List [refer_variant, "#", PP.parenthesized_comma_list PP.Inconsistent tyargs, PP.parenthesized_comma_list PP.Inconsistent fields])
 
 expr (RIR.Expr'Forall _ _ _ tys e) = mapM type_var tys >>= \ tys -> expr e >>= \ e -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList tys, " ", e])
 expr (RIR.Expr'TypeApply _ _ _ e arg) = expr e >>= \ e -> refer_m_type arg >>= \ arg -> pure (PP.List [e, "#(", arg, ")"])

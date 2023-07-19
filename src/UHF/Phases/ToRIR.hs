@@ -191,7 +191,14 @@ convert_expr (SIR.Expr'Case id ty sp _ scrutinee arms) =
             pattern_to_matchers scrutinee_bv subpat >>= \ subpat_matchers ->
             pure (RIR.CaseClause'Assign bvk scrutinee_bv : subpat_matchers)
 
-        pattern_to_matchers _ (SIR.Pattern'AnonADTVariant _ _ _ _) = todo
+        pattern_to_matchers scrutinee_bv (SIR.Pattern'AnonADTVariant ty sp variant_index fields) =
+            -- Variant(F1, F2, F3, ...) becomes [scrutinee -> Variant(f1, f2, f3, ...), f1 -> F1, f2 -> F2, f3 -> F3, ...]
+            mapM
+                (\ pat -> new_bound_value (SIR.pattern_type pat) (SIR.pattern_span pat))
+                fields >>= \ field_bvs ->
+            zipWithM pattern_to_matchers field_bvs fields >>= \ field_clauses ->
+            pure (RIR.CaseClause'Match scrutinee_bv (RIR.Case'AnonADTVariant variant_index todo field_bvs) : concat field_clauses)
+
         pattern_to_matchers _ (SIR.Pattern'NamedADTVariant _ _ _ _) = todo
         pattern_to_matchers _ (SIR.Pattern'Poison _ _) = pure []
 

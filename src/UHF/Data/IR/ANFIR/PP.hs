@@ -93,11 +93,28 @@ expr (ANFIR.Expr'Tuple _ _ a b) = refer_binding a >>= \ a -> refer_binding b >>=
 expr (ANFIR.Expr'Lambda _ _ param captures group body) = refer_param param >>= \ param -> define_binding_group group >>= \ group -> refer_binding body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, " ->", PP.indented_block [group, body]]) -- TODO: show captures
 expr (ANFIR.Expr'Param _ _ pk) = refer_param pk
 expr (ANFIR.Expr'Call _ _ callee arg) = refer_binding callee >>= \ callee -> refer_binding arg >>= \ arg -> pure (PP.List [callee, "(", arg, ")"])
-expr (ANFIR.Expr'Case _ _ e arms) = refer_binding e >>= \ e -> mapM arm arms >>= \ arms -> pure (PP.List ["switch ", e, " ", PP.braced_block arms])
+expr (ANFIR.Expr'Case _ _ arms) = mapM arm arms >>= \ arms -> pure (PP.List ["case ", PP.braced_block arms])
     where
-        arm (ANFIR.Case'BoolLiteral b, group, expr) = define_binding_group group >>= \ group -> refer_binding expr >>= \ expr -> pure (PP.List [if b then "true" else "false", " -> ", PP.indented_block [group, expr], ";"])
-        arm (ANFIR.Case'Tuple, group, expr) = define_binding_group group >>= \ group -> refer_binding expr >>= \ expr -> pure (PP.List ["(,) -> ", PP.indented_block [group, expr], ";"])
-        arm (ANFIR.Case'Default, group, expr) = define_binding_group group >>= \ group -> refer_binding expr >>= \ expr -> pure (PP.List ["_ -> ", PP.indented_block [group, expr], ";"])
+        arm (clauses, group, expr) = mapM clause clauses >>= \ clauses -> define_binding_group group >>= \ group -> refer_binding expr >>= \ expr -> pure (PP.List [PP.bracketed_comma_list PP.Inconsistent clauses, " -> ", PP.indented_block [group, expr], ";"])
+
+        clause (ANFIR.CaseClause'Match b m) = refer_binding b >>= \ b -> matcher m >>= \ matcher -> pure (PP.List [b, " -> ", matcher])
+        clause (ANFIR.CaseClause'Binding b) = define_binding b
+
+        matcher (ANFIR.Case'BoolLiteral b) = pure $ if b then "true" else "false"
+        matcher (ANFIR.Case'Tuple) = pure "(,)"
+        matcher (ANFIR.Case'AnonADTVariant m_variant tyargs) =
+            maybe
+                (pure "<name resolution error>")
+                (\ variant_index@(Type.ADTVariantIndex adt_key _) ->
+                    Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
+                    Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
+                    let variant_name = Type.variant_name variant
+                    in pure $ PP.List [adt_refer, " ", PP.String $ unlocate variant_name]
+                )
+                m_variant >>= \ refer_variant ->
+            mapM refer_type tyargs >>= \ tyargs ->
+            pure (PP.List [refer_variant, "#", PP.parenthesized_comma_list PP.Inconsistent tyargs])
+
 expr (ANFIR.Expr'TupleDestructure1 _ _ other) = refer_binding other >>= \ other ->  pure (PP.List [other, ".0"])
 expr (ANFIR.Expr'TupleDestructure2 _ _ other) = refer_binding other >>= \ other ->  pure (PP.List [other, ".1"])
 expr (ANFIR.Expr'Forall _ _ vars group e) = mapM type_var vars >>= \ vars -> define_binding_group group >>= \ group -> refer_binding e >>= \ e -> pure (PP.FirstOnLineIfMultiline $ PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList vars, " ", PP.indented_block [group, e]])

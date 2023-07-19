@@ -78,7 +78,7 @@ bound_value (SIR.BoundValue'ADTVariant id variant_index@(Type.ADTVariantIndex ad
                         [] -> identity
                         param:more -> Type.Type'Forall (param :| more)
                  in wrap_in_forall $ foldr (Type.Type'Function) (Type.Type'ADT adt_key (map Type.Type'Variable bv_type_params)) arg_tys -- function type that takes all the field types and then results in the adt type
-    pure (SIR.BoundValue'ADTVariant id variant_index bv_type_params ty def_span)
+    pure $ SIR.BoundValue'ADTVariant id variant_index bv_type_params ty def_span
 
 module_ :: UntypedModule -> ContextReader UntypedDeclArena TypedWithUnkBoundValueArena TypedWithUnkADTArena TypedWithUnkModule
 module_ (SIR.Module id bindings adts type_synonyms) = SIR.Module id <$> mapM binding bindings <*> pure adts <*> pure type_synonyms

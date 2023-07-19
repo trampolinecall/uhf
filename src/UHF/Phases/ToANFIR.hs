@@ -38,7 +38,7 @@ type BoundValueMap = Map.Map RIR.BoundValueKey ANFIR.BindingKey
 
 type MakeGraphState binding = WriterT BoundValueMap (StateT (BindingArena binding, ANFIRParamArena) (IDGen.IDGenT ID.ExprID (Reader BoundValueArena)))
 
--- the same thing as AlmostExpr except lambdas dont have captures and all the binding groups are actually just [BindingKey]
+-- the same thing as ANFIR.Expr except lambdas dont have captures and all the binding groups are actually just [BindingKey]
 data AlmostExpr
     = AlmostExpr'Refer ANFIR.ID (Maybe (Type.Type Void)) ANFIR.BindingKey
 
@@ -129,8 +129,7 @@ convert_expr m_bvid (RIR.Expr'Lambda id ty _ param_bv body) =
         convert_expr Nothing body
     ) >>= \ (body, body_included_bindings) ->
 
-    new_binding
-        (\ _ -> (AlmostExpr'Lambda (choose_id m_bvid id) ty anfir_param body_included_bindings body))
+    new_binding (\ _ -> (AlmostExpr'Lambda (choose_id m_bvid id) ty anfir_param body_included_bindings body))
 
 convert_expr _ (RIR.Expr'Let _ _ _ bindings e) = mapM (lift . convert_binding) bindings >>= \ binding_involved_bindings -> tell (concat binding_involved_bindings) >> convert_expr Nothing e
 

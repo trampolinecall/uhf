@@ -17,7 +17,6 @@ module UHF.Data.IR.RIR
 import UHF.Util.Prelude
 
 import qualified Arena
-import qualified Unique
 
 import UHF.Data.IR.Keys
 import qualified UHF.Data.IR.Type as Type
@@ -27,24 +26,24 @@ import UHF.IO.Span (Span)
 
 -- "reduced ir"
 -- not used a lot; serves mostly as a intermediary step where a lot of things get desugared to make the transition to anfir easier
-data RIR
+data RIR captures
     = RIR
         (Arena.Arena (Type.ADT (Maybe (Type.Type Void))) ADTKey)
         (Arena.Arena (Type.TypeSynonym (Maybe (Type.Type Void))) TypeSynonymKey)
         (Arena.Arena Type.Var Type.TypeVarKey)
         (Arena.Arena BoundValue BoundValueKey)
-        CU
+        (CU captures)
 
 data BoundValue = BoundValue ID.BoundValueID (Maybe (Type.Type Void)) Span deriving Show
 
 -- "compilation unit"
-data CU = CU [Binding] [ADTKey] [TypeSynonymKey]
+data CU captures = CU [Binding captures] [ADTKey] [TypeSynonymKey]
 
-data Binding = Binding BoundValueKey Expr deriving Show
+data Binding captures = Binding BoundValueKey (Expr captures) deriving Show
 
 type Type = Type.Type Void
 
-data Expr
+data Expr captures
     = Expr'Identifier ID.ExprID (Maybe Type) Span (Maybe BoundValueKey)
     | Expr'Char ID.ExprID (Maybe Type) Span Char
     | Expr'String ID.ExprID (Maybe Type) Span Text
@@ -52,20 +51,20 @@ data Expr
     | Expr'Float ID.ExprID (Maybe Type) Span Rational
     | Expr'Bool ID.ExprID (Maybe Type) Span Bool -- TODO: replace with identifier exprs
 
-    | Expr'Tuple ID.ExprID (Maybe Type) Span Expr Expr
+    | Expr'Tuple ID.ExprID (Maybe Type) Span (Expr captures) (Expr captures)
 
-    | Expr'Lambda ID.ExprID (Maybe Type) Span Unique.Unique BoundValueKey Expr
+    | Expr'Lambda ID.ExprID (Maybe Type) Span captures BoundValueKey (Expr captures)
 
-    | Expr'Let ID.ExprID (Maybe Type) Span [Binding] Expr
+    | Expr'Let ID.ExprID (Maybe Type) Span [Binding captures] (Expr captures)
 
-    | Expr'Call ID.ExprID (Maybe Type) Span Expr Expr
+    | Expr'Call ID.ExprID (Maybe Type) Span (Expr captures) (Expr captures)
 
-    | Expr'Switch ID.ExprID (Maybe Type) Span Expr [(SwitchMatcher, Expr)]
+    | Expr'Switch ID.ExprID (Maybe Type) Span (Expr captures) [(SwitchMatcher, (Expr captures))]
 
-    | Expr'Forall ID.ExprID (Maybe Type) Span (NonEmpty TypeVarKey) Expr
-    | Expr'TypeApply ID.ExprID (Maybe Type) Span Expr (Maybe Type)
+    | Expr'Forall ID.ExprID (Maybe Type) Span (NonEmpty TypeVarKey) (Expr captures)
+    | Expr'TypeApply ID.ExprID (Maybe Type) Span (Expr captures) (Maybe Type)
 
-    | Expr'MakeADT ID.ExprID Type Span Type.ADTVariantIndex [Maybe Type] [Expr]
+    | Expr'MakeADT ID.ExprID Type Span Type.ADTVariantIndex [Maybe Type] [(Expr captures)]
 
     | Expr'Poison ID.ExprID (Maybe Type) Span
     deriving Show
@@ -76,7 +75,7 @@ data SwitchMatcher
     | Switch'Default
     deriving Show
 
-expr_type :: Expr -> Maybe Type
+expr_type :: (Expr captures) -> Maybe Type
 expr_type (Expr'Identifier _ ty _ _) = ty
 expr_type (Expr'Char _ ty _ _) = ty
 expr_type (Expr'String _ ty _ _) = ty
@@ -93,7 +92,7 @@ expr_type (Expr'TypeApply _ ty _ _ _) = ty
 expr_type (Expr'MakeADT _ ty _ _ _ _) = Just ty
 expr_type (Expr'Poison _ ty _) = ty
 
-expr_span :: Expr -> Span -- TODO: remove?
+expr_span :: (Expr captures) -> Span -- TODO: remove?
 expr_span (Expr'Identifier _ _ sp _) = sp
 expr_span (Expr'Char _ _ sp _) = sp
 expr_span (Expr'String _ _ sp _) = sp

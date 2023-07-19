@@ -113,8 +113,8 @@ data Pattern p_iden type_info
     | Pattern'Wildcard type_info Span
     | Pattern'Tuple type_info Span (Pattern p_iden type_info) (Pattern p_iden type_info)
     | Pattern'Named type_info Span Span (Located BoundValueKey) (Pattern p_iden type_info)
-    | Pattern'AnonADTVariant type_info Span p_iden [Pattern p_iden type_info]
-    | Pattern'NamedADTVariant type_info Span p_iden [(Located Text, Pattern p_iden type_info)]
+    | Pattern'AnonADTVariant type_info Span p_iden [type_info] [Pattern p_iden type_info]
+    | Pattern'NamedADTVariant type_info Span p_iden [type_info] [(Located Text, Pattern p_iden type_info)]
 
     | Pattern'Poison type_info Span
     deriving Show
@@ -177,8 +177,8 @@ pattern_type (Pattern'Wildcard type_info _) = type_info
 pattern_type (Pattern'Tuple type_info _ _ _) = type_info
 pattern_type (Pattern'Named type_info _ _ _ _) = type_info
 pattern_type (Pattern'Poison type_info _) = type_info
-pattern_type (Pattern'AnonADTVariant type_info _ _ _) = type_info
-pattern_type (Pattern'NamedADTVariant type_info _ _ _) = type_info
+pattern_type (Pattern'AnonADTVariant type_info _ _ _ _) = type_info
+pattern_type (Pattern'NamedADTVariant type_info _ _ _ _) = type_info
 
 pattern_span :: Pattern p_iden type_info -> Span
 pattern_span (Pattern'Identifier _ sp _) = sp
@@ -186,5 +186,5 @@ pattern_span (Pattern'Wildcard _ sp) = sp
 pattern_span (Pattern'Tuple _ sp _ _) = sp
 pattern_span (Pattern'Named _ sp _ _ _) = sp
 pattern_span (Pattern'Poison _ sp) = sp
-pattern_span (Pattern'AnonADTVariant _ sp _ _) = sp
-pattern_span (Pattern'NamedADTVariant _ sp _ _) = sp
+pattern_span (Pattern'AnonADTVariant _ sp _ _ _) = sp
+pattern_span (Pattern'NamedADTVariant _ sp _ _ _) = sp

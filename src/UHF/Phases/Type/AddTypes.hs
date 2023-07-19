@@ -176,11 +176,11 @@ pattern (SIR.Pattern'Named () sp at_sp bvk subpat) =
     lift (tell [Eq InNamedPattern at_sp (Located (just_span bvk) bv_ty) (loc_pat_type subpat)]) >>
     pure (SIR.Pattern'Named bv_ty sp at_sp bvk subpat)
 
-pattern (SIR.Pattern'AnonADTVariant () sp Nothing fields) =
+pattern (SIR.Pattern'AnonADTVariant () sp Nothing _ fields) =
     mapM pattern fields >>= \ fields ->
     Type.Type'Unknown <$> lift (lift $ new_type_unknown (UnresolvedADTVariantPattern sp)) >>= \ ty ->
-    pure (SIR.Pattern'AnonADTVariant ty sp Nothing fields)
-pattern (SIR.Pattern'AnonADTVariant () sp (Just variant_index@(Type.ADTVariantIndex adt_key _)) fields) =
+    pure (SIR.Pattern'AnonADTVariant ty sp Nothing [] fields)
+pattern (SIR.Pattern'AnonADTVariant () sp (Just variant_index@(Type.ADTVariantIndex adt_key _)) _ fields) =
     mapM pattern fields >>= \ pattern_fields ->
 
     ask >>= \ (_, _, adts) ->
@@ -208,13 +208,13 @@ pattern (SIR.Pattern'AnonADTVariant () sp (Just variant_index@(Type.ADTVariantIn
          Type.ADTVariant'Named _ _ -> error "named variant pattern used with anonymous variant" -- TODO: also report proper error
         >>
 
-    pure (SIR.Pattern'AnonADTVariant whole_pat_type sp (Just variant_index) pattern_fields)
+    pure (SIR.Pattern'AnonADTVariant whole_pat_type sp (Just variant_index) type_param_unks pattern_fields)
 
-pattern (SIR.Pattern'NamedADTVariant () sp Nothing fields) =
+pattern (SIR.Pattern'NamedADTVariant () sp Nothing _ fields) =
     mapM (\ (field_name, field_pat) -> (field_name,) <$> pattern field_pat) fields >>= \ fields ->
     Type.Type'Unknown <$> lift (lift $ new_type_unknown (UnresolvedADTVariantPattern sp)) >>= \ ty ->
-    pure (SIR.Pattern'NamedADTVariant ty sp Nothing fields)
-pattern (SIR.Pattern'NamedADTVariant () _ (Just _) _) = todo
+    pure (SIR.Pattern'NamedADTVariant ty sp Nothing [] fields)
+pattern (SIR.Pattern'NamedADTVariant () _ (Just _) _ _) = todo
 -- 4 things:
 --     - check variant is named variant
 --     - check field names are correct

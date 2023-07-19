@@ -135,50 +135,60 @@ convert_expr _ (RIR.Expr'Let _ _ _ bindings e) = mapM (lift . convert_binding) b
 
 convert_expr m_bvid (RIR.Expr'Call id ty _ callee arg) = convert_expr Nothing callee >>= \ callee -> convert_expr Nothing arg >>= \ arg -> new_binding (\ _ -> (AlmostExpr'Call (choose_id m_bvid id) ty callee arg))
 
-convert_expr m_bvid (RIR.Expr'Case id ty _ arms) = todo
-    {-
-    convert_expr Nothing testing >>= \ testing ->
+convert_expr m_bvid (RIR.Expr'Case id ty _ arms) =
     mapM
-        (\ (matcher, arm) ->
+        (\ (clauses, arm) ->
             lift (runWriterT $
-                convert_matcher matcher testing >>= \ matcher ->
+                mapM convert_clause clauses >>= \ clauses ->
                 convert_expr Nothing arm >>= \ arm ->
-                pure (matcher, arm)) >>= \ ((matcher, arm), arm_involved_bindings) ->
-            pure (matcher, arm_involved_bindings, arm))
+                pure (clauses, arm)) >>= \ ((clauses, arm), arm_involved_bindings) ->
+            pure (clauses, arm_involved_bindings, arm))
         arms >>= \ arms ->
 
-    new_binding (\ _ -> AlmostExpr'Case (choose_id m_bvid id) ty testing arms)
+    new_binding
+        (\ bv_map ->
+            AlmostExpr'Case (choose_id m_bvid id) ty
+                (arms & map (\ (clauses, bindings, result) -> (concatMap ($ bv_map) clauses, bindings, result)))
+        )
     where
-        convert_matcher :: RIR.CaseMatcher -> ANFIR.BindingKey -> WriterT [ANFIR.BindingKey] (MakeGraphState (NeedsBVMap AlmostExpr)) ANFIR.CaseMatcher
-        convert_matcher (RIR.Case'BoolLiteral b) _ = pure $ ANFIR.Case'BoolLiteral b
-        convert_matcher (RIR.Case'Tuple a b) testing =
-            -- case thing {
-            --     (a, b) -> e
-            -- }
+        convert_clause (RIR.CaseClause'Match binding (RIR.Case'BoolLiteral bool)) = pure (\ bv_map -> [ANFIR.CaseClause'Match (bv_map Map.! binding) (ANFIR.Case'BoolLiteral bool)])
+
+        convert_clause (RIR.CaseClause'Match c (RIR.Case'Tuple a b)) =
+            -- c -> (a, b)
             -- becomes
-            -- case thing {
-            --     (,) ->
-            --         let a = TupleDestructure1 thing;
-            --         let b = TupleDestructure2 thing;
-            --         e
-            -- }
-            (case a of
-                Just a ->
-                    lift (get_bv a) >>= \ (RIR.BoundValue _ a_ty _) ->
-                    lift new_expr_id >>= \ id ->
-                    new_binding (\ _ -> (AlmostExpr'TupleDestructure1 (ANFIR.ExprID id) a_ty testing)) >>= \ a_destructure ->
-                    lift (map_bound_value a a_destructure)
-                Nothing -> pure ()) >>
-            (case b of
-                Just b ->
-                    lift (get_bv b) >>= \ (RIR.BoundValue _ b_ty _) ->
-                    lift new_expr_id >>= \ id ->
-                    new_binding (\ _ -> (AlmostExpr'TupleDestructure2 (ANFIR.ExprID id) b_ty testing)) >>= \ b_destructure ->
-                    lift (map_bound_value b b_destructure)
-                Nothing -> pure ()) >>
-            pure ANFIR.Case'Tuple
-        convert_matcher RIR.Case'Default _ = pure ANFIR.Case'Default
-    -}
+            -- [c -> (,), a = TupleDestructure1 c, b = TupleDestructure2 c]
+
+            lift (runWriterT $
+                (case a of
+                    Just a ->
+                        lift (get_bv a) >>= \ (RIR.BoundValue _ a_ty _) ->
+                        lift new_expr_id >>= \ id ->
+                        new_binding (\ bv_map -> (AlmostExpr'TupleDestructure1 (ANFIR.ExprID id) a_ty (bv_map Map.! c))) >>= \ a_destructure ->
+                        lift (map_bound_value a a_destructure)
+
+                    Nothing -> pure ()) >>
+
+                (case b of
+                    Just b ->
+                        lift (get_bv b) >>= \ (RIR.BoundValue _ b_ty _) ->
+                        lift new_expr_id >>= \ id ->
+                        new_binding (\ bv_map -> (AlmostExpr'TupleDestructure2 (ANFIR.ExprID id) b_ty (bv_map Map.! c))) >>= \ b_destructure ->
+                        lift (map_bound_value b b_destructure)
+
+                    Nothing -> pure ())
+
+            ) >>= \ ((), destructure_bindings) ->
+
+            pure (\ bv_map -> ANFIR.CaseClause'Match (bv_map Map.! c) ANFIR.Case'Tuple : map ANFIR.CaseClause'Binding destructure_bindings)
+
+        convert_clause (RIR.CaseClause'Match c (RIR.Case'AnonADTVariant m_variant_index tyargs fields)) = todo
+
+        convert_clause (RIR.CaseClause'Assign target other) =
+            lift (get_bv other) >>= \ (RIR.BoundValue _ other_ty _) ->
+            lift new_expr_id >>= \ id ->
+            new_binding (\ bv_map -> AlmostExpr'Refer (ANFIR.ExprID id) other_ty (bv_map Map.! other)) >>= \ binding ->
+            lift (map_bound_value target binding) >>
+            pure (\ _ -> [ANFIR.CaseClause'Binding binding])
 
 convert_expr m_bvid (RIR.Expr'Forall id ty _ vars e) =
     lift (runWriterT (convert_expr Nothing e)) >>= \ (e, e_involved_bindings) ->

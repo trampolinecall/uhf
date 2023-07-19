@@ -7,7 +7,6 @@ module UHF.Driver
 import UHF.Util.Prelude
 
 import qualified Data.Text.IO as Text.IO
-import qualified Data.Set as Set
 
 import qualified System.FilePath as FilePath
 
@@ -44,7 +43,6 @@ import qualified UHF.Phases.InfixGroup as InfixGroup
 import qualified UHF.Phases.Type as Type
 import qualified UHF.Phases.ReportHoles as ReportHoles
 import qualified UHF.Phases.ToRIR as ToRIR
-import qualified UHF.Phases.AnnotateCaptures as AnnotateCaptures
 import qualified UHF.Phases.ToANFIR as ToANFIR
 import qualified UHF.Phases.OptimizeANFIR as OptimizeANFIR
 import qualified UHF.Phases.ToBackendIR as ToBackendIR
@@ -59,8 +57,7 @@ type FirstSIR = SIR.SIR ([Located Text]) ([Located Text]) ([Located Text]) () ()
 type NRSIR = SIR.SIR (Maybe IR.Keys.DeclKey) (Located (Maybe IR.Keys.BoundValueKey)) (Maybe IR.Type.ADTVariantIndex) () ()
 type InfixGroupedSIR = SIR.SIR (Maybe IR.Keys.DeclKey) (Located (Maybe IR.Keys.BoundValueKey)) (Maybe IR.Type.ADTVariantIndex) () Void
 type TypedSIR = SIR.SIR (Maybe IR.Keys.DeclKey) (Located (Maybe IR.Keys.BoundValueKey)) (Maybe IR.Type.ADTVariantIndex) (Maybe (IR.Type.Type Void)) Void
-type FirstRIR = RIR.RIR ()
-type RIRWithCaptures = RIR.RIR (Set.Set RIR.BoundValueKey)
+type RIR = RIR.RIR
 type ANFIR = ANFIR.ANFIR
 type BackendIR = BackendIR.BackendIR (Maybe (IR.Type.Type Void)) ()
 type NoPoisonIR = BackendIR.BackendIR (IR.Type.Type Void) Void
@@ -79,8 +76,7 @@ data PhaseResultsCache
         , _get_nrsir :: Maybe NRSIR
         , _get_infix_grouped :: Maybe InfixGroupedSIR
         , _get_typed_sir :: Maybe TypedSIR
-        , _get_first_rir :: Maybe FirstRIR
-        , _get_rir_with_captures :: Maybe RIRWithCaptures
+        , _get_rir :: Maybe RIR
         , _get_anfir :: Maybe ANFIR
         , _get_optimized_anfir :: Maybe ANFIR
         , _get_backend_ir :: Maybe BackendIR
@@ -90,7 +86,7 @@ data PhaseResultsCache
         }
 type PhaseResultsState = StateT PhaseResultsCache WithDiagnosticsIO
 
-data OutputFormat = AST | ASTDump | SIR | NRSIR | InfixGroupedSIR | TypedSIR | FirstRIR | RIRWithCaptures | ANFIR | OptimizedANFIR | BackendIR | Dot | TS
+data OutputFormat = AST | ASTDump | SIR | NRSIR | InfixGroupedSIR | TypedSIR | RIR | ANFIR | OptimizedANFIR | BackendIR | Dot | TS
 data CompileOptions
     = CompileOptions
         { input_file :: FilePath
@@ -106,7 +102,7 @@ compile c_needed diagnostic_settings compile_options =
     pure (if Compiler.had_errors diagnostics then Left () else Right ())
 
 print_outputs :: CompileOptions -> File -> WithDiagnosticsIO ()
-print_outputs compile_options file = runStateT (mapM print_output_format (output_formats compile_options)) (PhaseResultsCache file Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing) >> pure ()
+print_outputs compile_options file = runStateT (mapM print_output_format (output_formats compile_options)) (PhaseResultsCache file Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing) >> pure ()
     where
         print_output_format AST = get_ast >>= \ ast -> lift (lift (putTextLn $ AST.PP.pp_decls ast))
         print_output_format ASTDump = get_ast >>= \ ast -> lift (lift (putTextLn $ AST.Dump.dump ast))
@@ -114,8 +110,7 @@ print_outputs compile_options file = runStateT (mapM print_output_format (output
         print_output_format NRSIR = get_nrsir >>= \ ir -> lift (lift (write_output_file "uhf_nrsir" (SIR.PP.dump_main_module ir)))
         print_output_format InfixGroupedSIR = get_infix_grouped >>= \ ir -> lift (lift (write_output_file "uhf_infix_grouped" (SIR.PP.dump_main_module ir)))
         print_output_format TypedSIR = get_typed_sir >>= \ ir -> lift (lift (write_output_file "uhf_typed_sir" (SIR.PP.dump_main_module ir)))
-        print_output_format FirstRIR = get_first_rir >>= \ ir -> lift (lift (write_output_file "uhf_rir" (RIR.PP.dump_cu ir)))
-        print_output_format RIRWithCaptures = get_rir_with_captures >>= \ ir -> lift (lift (write_output_file "uhf_rir_captures" (RIR.PP.dump_cu ir)))
+        print_output_format RIR = get_rir >>= \ ir -> lift (lift (write_output_file "uhf_rir" (RIR.PP.dump_cu ir)))
         print_output_format ANFIR = get_anfir >>= \ ir -> lift (lift (write_output_file "uhf_anfir" (ANFIR.PP.dump_cu ir)))
         print_output_format OptimizedANFIR = get_optimized_anfir >>= \ ir -> lift (lift (write_output_file "uhf_anfir_optimized" (ANFIR.PP.dump_cu ir)))
         print_output_format BackendIR = get_backend_ir >>= \ ir -> lift (lift (write_output_file "uhf_backend_ir" (BackendIR.PP.dump_cu ir)))
@@ -173,20 +168,15 @@ get_typed_sir = get_or_calculate _get_typed_sir (\ cache typed_sir -> cache { _g
             convert_stage (ReportHoles.report_holes typed_ir) >>
             pure typed_ir
 
-get_first_rir :: PhaseResultsState FirstRIR
-get_first_rir = get_or_calculate _get_first_rir (\ cache rir -> cache { _get_first_rir = rir }) to_rir
+get_rir :: PhaseResultsState RIR
+get_rir = get_or_calculate _get_rir (\ cache rir -> cache { _get_rir = rir }) to_rir
     where
         to_rir = ToRIR.convert <$> get_typed_sir
-
-get_rir_with_captures :: PhaseResultsState RIRWithCaptures
-get_rir_with_captures = get_or_calculate _get_rir_with_captures (\ cache rir -> cache { _get_rir_with_captures = rir }) to_rir
-    where
-        to_rir = AnnotateCaptures.annotate <$> get_first_rir
 
 get_anfir :: PhaseResultsState ANFIR
 get_anfir = get_or_calculate _get_anfir (\ cache anfir -> cache { _get_anfir = anfir }) to_anfir
     where
-        to_anfir = ToANFIR.convert <$> get_rir_with_captures
+        to_anfir = ToANFIR.convert <$> get_rir
 
 get_optimized_anfir :: PhaseResultsState ANFIR
 get_optimized_anfir = get_or_calculate _get_optimized_anfir (\ cache anfir -> cache { _get_optimized_anfir = anfir }) optimize_anfir

@@ -21,7 +21,7 @@ type RIRExpr = RIR.Expr
 type RIRBinding = RIR.Binding
 
 type ANFIR = ANFIR.ANFIR
-type ANFIRExpr = AlmostExpr
+type ANFIRExpr = ANFIR.Expr
 type ANFIRParam = ANFIR.Param
 type ANFIRBinding = ANFIR.Binding
 type ANFIRBindingGroup = ANFIR.BindingGroup
@@ -30,8 +30,6 @@ type BoundValueArena = Arena.Arena RIR.BoundValue RIR.BoundValueKey
 
 type BindingArena b = Arena.Arena b ANFIR.BindingKey
 type ANFIRParamArena = Arena.Arena ANFIRParam ANFIR.ParamKey
-
-type DependencyList = Set.Set ANFIR.BindingKey
 
 type NeedsBVMap e = BoundValueMap -> e
 type NeedsTopoSort result = Reader (BindingArena AlmostExpr) result

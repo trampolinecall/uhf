@@ -33,7 +33,6 @@ type BoundValueArena = Arena.Arena RIR.BoundValue RIR.BoundValueKey
 type BindingArena b = Arena.Arena b ANFIR.BindingKey
 type ANFIRParamArena = Arena.Arena ANFIRParam ANFIR.ParamKey
 
-data BoundWhere = InGlobal | InLambda Unique.Unique deriving Eq
 type DependencyList = Set.Set ANFIR.BindingKey
 
 type NeedsTopoSort result = forall e. Reader (BindingArena (WithTopoSortInfo e)) result
@@ -46,14 +45,13 @@ type BoundValueMap = Map.Map RIR.BoundValueKey ANFIR.BindingKey
 
 type MakeGraphState binding = WriterT BoundValueMap (StateT (BindingArena binding, ANFIRParamArena) (IDGen.IDGenT ID.ExprID (Reader BoundValueArena)))
 
--- also returns all the dependencies of all the bindings in the binding group except the ones that are defined in inner lambdas
-make_binding_group :: [ANFIR.BindingKey] -> Reader (BindingArena (WithTopoSortInfo e)) (ANFIRBindingGroup, Set.Set ANFIR.BindingKey)
+make_binding_group :: [ANFIR.BindingKey] -> Reader (BindingArena (WithTopoSortInfo e)) ANFIRBindingGroup
 make_binding_group bindings =
     reader $ \ binding_arena ->
         let binding_dependencies = Map.fromList $ map (\ b -> (b, get_dependencies binding_arena b)) bindings
             binding_dependencies_only_here = Map.map (Set.filter (`elem` bindings)) binding_dependencies
             bindings_sorted = topological_sort (todo binding_arena) binding_dependencies_only_here [] bindings
-        in (ANFIR.BindingGroup bindings_sorted, Set.unions $ Map.elems binding_dependencies)
+        in ANFIR.BindingGroup bindings_sorted
     where
         get_dependencies binding_arena bk =
             let (dependencies, binding) = Arena.get binding_arena bk
@@ -144,7 +142,7 @@ convert (RIR.RIR adts type_synonyms type_vars bound_values cu) =
     in ANFIR.ANFIR adts type_synonyms type_vars bindings params cu'
 
 convert_cu :: RIR.CU RIRCaptureList -> MakeGraphState (ExprNeedsBVMap) (NeedsTopoSort ANFIR.CU)
-convert_cu (RIR.CU bindings adts type_synonyms) = concat <$> mapM convert_binding bindings >>= \ (bindings) -> pure (make_binding_group bindings >>= \ (group, _) -> pure (ANFIR.CU group adts type_synonyms))
+convert_cu (RIR.CU bindings adts type_synonyms) = concat <$> mapM convert_binding bindings >>= \ (bindings) -> pure (make_binding_group bindings >>= \ group -> pure (ANFIR.CU group adts type_synonyms))
 
 map_bound_value :: RIR.BoundValueKey -> ANFIR.BindingKey -> MakeGraphState binding ()
 map_bound_value k binding = tell $ Map.singleton k binding
@@ -209,7 +207,7 @@ convert_expr m_bvid (RIR.Expr'Lambda id ty _ rir_captures param_bv body) =
             in
                 ( anfir_captures
                 ,
-                    make_binding_group body_included_bindings >>= \ (body_group, body_deps) ->
+                    make_binding_group body_included_bindings >>= \ body_group ->
                     pure (ANFIR.Expr'Lambda (choose_id m_bvid id) ty anfir_param anfir_captures body_group body)
                 )
         )
@@ -242,7 +240,7 @@ convert_expr m_bvid (RIR.Expr'Switch id ty _ testing arms) =
         (\ bv_map ->
             ( testing_dependencies bv_map <> arms_dependencies bv_map
             ,
-                mapM (\ (matcher, bindings, result) -> make_binding_group bindings >>= \ (group, _) -> pure (matcher, group, result)) arms >>= \ arms ->
+                mapM (\ (matcher, bindings, result) -> make_binding_group bindings >>= \ group -> pure (matcher, group, result)) arms >>= \ arms ->
                 pure (ANFIR.Expr'Switch (choose_id m_bvid id) ty testing arms)
             )
         )
@@ -290,7 +288,7 @@ convert_expr m_bvid (RIR.Expr'Forall id ty _ vars e) =
         (\ bv_map ->
             ( e_dependencies bv_map
             ,
-                fst <$> make_binding_group e_involved_bindings >>= \ group ->
+                make_binding_group e_involved_bindings >>= \ group ->
                 pure (ANFIR.Expr'Forall (choose_id m_bvid id) ty vars group e)
             )
         )

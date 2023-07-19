@@ -74,7 +74,7 @@ expr (RIR.Expr'Int _ _ _ i) = pure $ PP.FirstOnLineIfMultiline $ PP.String $ sho
 expr (RIR.Expr'Float _ _ _ (n :% d)) = pure $ PP.FirstOnLineIfMultiline $ PP.String $ "(" <> show n <> "/" <> show d <> ")"
 expr (RIR.Expr'Bool _ _ _ b) = pure $ PP.String $ if b then "true" else "false"
 expr (RIR.Expr'Tuple _ _ _ a b) = expr a >>= \ a -> expr b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b])
-expr (RIR.Expr'Lambda _ _ _ _ param body) = refer_bv param >>= \ param -> expr body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, " -> ", body])
+expr (RIR.Expr'Lambda _ _ _ param body) = refer_bv param >>= \ param -> expr body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, " -> ", body])
 expr (RIR.Expr'Let _ _ _ [binding] res) = define_binding binding >>= \ binding -> expr res >>= \ res -> pure (PP.FirstOnLineIfMultiline $ PP.List ["let ", binding, "\n", res])
 expr (RIR.Expr'Let _ _ _ bindings res) = expr res >>= \ res -> mapM define_binding bindings >>= \ bindings -> pure (PP.FirstOnLineIfMultiline $ PP.List ["let ", PP.braced_block bindings, "\n", res])
 expr (RIR.Expr'Call _ _ _ callee arg) = expr callee >>= \ callee -> expr arg >>= \ arg -> pure $ PP.List [callee, "(", arg, ")"]

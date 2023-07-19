@@ -17,7 +17,6 @@ module UHF.Data.IR.RIR
 import UHF.Util.Prelude
 
 import qualified Arena
-import qualified Unique
 
 import UHF.Data.IR.Keys
 import qualified UHF.Data.IR.Type as Type
@@ -54,7 +53,7 @@ data Expr
 
     | Expr'Tuple ID.ExprID (Maybe Type) Span Expr Expr
 
-    | Expr'Lambda ID.ExprID (Maybe Type) Span Unique.Unique BoundValueKey Expr
+    | Expr'Lambda ID.ExprID (Maybe Type) Span BoundValueKey Expr
 
     | Expr'Let ID.ExprID (Maybe Type) Span [Binding] Expr
 
@@ -84,7 +83,7 @@ expr_type (Expr'Int _ ty _ _) = ty
 expr_type (Expr'Float _ ty _ _) = ty
 expr_type (Expr'Bool _ ty _ _) = ty
 expr_type (Expr'Tuple _ ty _ _ _) = ty
-expr_type (Expr'Lambda _ ty _ _ _ _) = ty
+expr_type (Expr'Lambda _ ty _ _ _) = ty
 expr_type (Expr'Let _ ty _ _ _) = ty
 expr_type (Expr'Call _ ty _ _ _) = ty
 expr_type (Expr'Switch _ ty _ _ _) = ty
@@ -101,7 +100,7 @@ expr_span (Expr'Int _ _ sp _) = sp
 expr_span (Expr'Float _ _ sp _) = sp
 expr_span (Expr'Bool _ _ sp _) = sp
 expr_span (Expr'Tuple _ _ sp _ _) = sp
-expr_span (Expr'Lambda _ _ sp _ _ _) = sp
+expr_span (Expr'Lambda _ _ sp _ _) = sp
 expr_span (Expr'Let _ _ sp _ _) = sp
 expr_span (Expr'Call _ _ sp _ _) = sp
 expr_span (Expr'Switch _ _ sp _ _) = sp

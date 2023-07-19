@@ -9,6 +9,7 @@ module UHF.Data.IR.RIR
 
     , Type
     , Expr (..)
+    , CaseTree (..)
     , CaseMatchingClause (..)
     , CaseMatcher (..)
     , expr_type
@@ -60,7 +61,7 @@ data Expr
 
     | Expr'Call ID.ExprID (Maybe Type) Span Expr Expr
 
-    | Expr'Case ID.ExprID (Maybe Type) Span [([CaseMatchingClause], Expr)]
+    | Expr'Case ID.ExprID (Maybe Type) Span CaseTree
 
     | Expr'Forall ID.ExprID (Maybe Type) Span (NonEmpty TypeVarKey) Expr
     | Expr'TypeApply ID.ExprID (Maybe Type) Span Expr (Maybe Type)
@@ -70,6 +71,10 @@ data Expr
     | Expr'Poison ID.ExprID (Maybe Type) Span
     deriving Show
 
+-- TODO: split case things into separate module?
+data CaseTree
+    = CaseTree [([CaseMatchingClause], Either CaseTree Expr)]
+    deriving Show
 data CaseMatchingClause
     = CaseClause'Match BoundValueKey CaseMatcher
     | CaseClause'Assign BoundValueKey BoundValueKey

@@ -78,9 +78,16 @@ expr (RIR.Expr'Lambda _ _ _ param body) = refer_bv param >>= \ param -> expr bod
 expr (RIR.Expr'Let _ _ _ [binding] res) = define_binding binding >>= \ binding -> expr res >>= \ res -> pure (PP.FirstOnLineIfMultiline $ PP.List ["let ", binding, "\n", res])
 expr (RIR.Expr'Let _ _ _ bindings res) = expr res >>= \ res -> mapM define_binding bindings >>= \ bindings -> pure (PP.FirstOnLineIfMultiline $ PP.List ["let ", PP.braced_block bindings, "\n", res])
 expr (RIR.Expr'Call _ _ _ callee arg) = expr callee >>= \ callee -> expr arg >>= \ arg -> pure $ PP.List [callee, "(", arg, ")"]
-expr (RIR.Expr'Case _ _ _ arms) = mapM pp_arm arms >>= \ arms -> pure (PP.List ["case ", PP.braced_block arms])
+expr (RIR.Expr'Case _ _ _ tree) = pp_tree tree >>= \ tree -> pure (PP.List ["case ", tree])
     where
-        pp_arm (clauses, e) = mapM pp_clause clauses >>= \ clauses -> expr e >>= \ e -> pure (PP.List [PP.bracketed_comma_list PP.Inconsistent clauses, " -> ", e, ";"])
+        pp_tree (RIR.CaseTree arms) = mapM pp_arm arms >>= \ arms -> pure (PP.braced_block arms)
+
+        pp_arm (clauses, result) =
+            mapM pp_clause clauses >>= \ clauses ->
+            (case result of
+                Right e -> expr e
+                Left subtree -> pp_tree subtree) >>= \ result ->
+            pure (PP.List [PP.bracketed_comma_list PP.Inconsistent clauses, " -> ", result, ";"])
 
         pp_clause (RIR.CaseClause'Match bv matcher) = refer_bv bv >>= \ bv -> pp_matcher matcher >>= \ matcher -> pure (PP.List [bv, " -> ", matcher])
         pp_clause (RIR.CaseClause'Assign target other) = refer_bv target >>= \ target -> refer_bv other >>= \ other -> pure (PP.List [target, " = ", other])

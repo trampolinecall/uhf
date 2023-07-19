@@ -49,6 +49,7 @@ library
       UHF.IO.Location
       UHF.IO.Location.SpanHelper
       UHF.IO.Span
+      UHF.Phases.AnnotateCaptures
       UHF.Phases.InfixGroup
       UHF.Phases.Lexer
       UHF.Phases.Lexer.IdentifierGrouper

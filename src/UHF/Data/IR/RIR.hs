@@ -79,7 +79,7 @@ data CaseMatchingClause
 data CaseMatcher
     = Case'BoolLiteral Bool
     | Case'Tuple (Maybe BoundValueKey) (Maybe BoundValueKey)
-    | Case'AnonADTVariant Type.ADTVariantIndex [Maybe Type] [BoundValueKey]
+    | Case'AnonADTVariant (Maybe Type.ADTVariantIndex) [Maybe Type] [BoundValueKey]
     deriving Show
 
 expr_type :: Expr -> Maybe Type

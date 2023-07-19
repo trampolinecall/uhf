@@ -159,6 +159,7 @@ convert_expr (SIR.Expr'Case id ty sp _ scrutinee arms) =
     convert_expr scrutinee >>= \ scrutinee ->
     new_bound_value (RIR.expr_type scrutinee) (RIR.expr_span scrutinee) >>= \ scrutinee_bv ->
 
+    -- TODO: exhaustiveness check and unreachable patterns check
     mapM
         (\ (pat, result) ->
             pattern_to_matchers scrutinee_bv pat >>= \ matchers ->
@@ -193,9 +194,7 @@ convert_expr (SIR.Expr'Case id ty sp _ scrutinee arms) =
 
         pattern_to_matchers scrutinee_bv (SIR.Pattern'AnonADTVariant ty sp variant_index tyargs fields) =
             -- Variant(F1, F2, F3, ...) becomes [scrutinee -> Variant(f1, f2, f3, ...), f1 -> F1, f2 -> F2, f3 -> F3, ...]
-            mapM
-                (\ pat -> new_bound_value (SIR.pattern_type pat) (SIR.pattern_span pat))
-                fields >>= \ field_bvs ->
+            fields & mapM (\ pat -> new_bound_value (SIR.pattern_type pat) (SIR.pattern_span pat)) >>= \ field_bvs ->
             zipWithM pattern_to_matchers field_bvs fields >>= \ field_clauses ->
             pure (RIR.CaseClause'Match scrutinee_bv (RIR.Case'AnonADTVariant variant_index tyargs field_bvs) : concat field_clauses)
 

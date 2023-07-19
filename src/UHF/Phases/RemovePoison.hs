@@ -61,7 +61,7 @@ rp_expr (BackendIR.Expr'Param id ty p) = ty >>= \ ty -> pure (BackendIR.Expr'Par
 
 rp_expr (BackendIR.Expr'Call id ty c a) = ty >>= \ ty -> pure (BackendIR.Expr'Call id ty c a)
 
-rp_expr (BackendIR.Expr'Switch id ty c a) = ty >>= \ ty -> pure (BackendIR.Expr'Switch id ty c a)
+rp_expr (BackendIR.Expr'Case id ty c a) = ty >>= \ ty -> pure (BackendIR.Expr'Case id ty c a)
 
 rp_expr (BackendIR.Expr'TupleDestructure1 id ty t) = ty >>= \ ty -> pure (BackendIR.Expr'TupleDestructure1 id ty t)
 rp_expr (BackendIR.Expr'TupleDestructure2 id ty t) = ty >>= \ ty -> pure (BackendIR.Expr'TupleDestructure2 id ty t)

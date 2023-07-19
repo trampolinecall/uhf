@@ -36,11 +36,11 @@ to_dot (BackendIR.BackendIR _ _ _ bindings params _) =
         print_param key _ =
             tell ("    " <> param_key_to_dot_id key <> " [label = \"<name> param\"]\n")
 
-        stringify_matcher (BackendIR.Switch'BoolLiteral b)
+        stringify_matcher (BackendIR.Case'BoolLiteral b)
             | b = "true"
             | otherwise = "false"
-        stringify_matcher BackendIR.Switch'Tuple = "tuple"
-        stringify_matcher BackendIR.Switch'Default = "_"
+        stringify_matcher BackendIR.Case'Tuple = "tuple"
+        stringify_matcher BackendIR.Case'Default = "_"
 
         print_binding cur_key (BackendIR.Binding initializer) =
             -- TODO: decide what to do with dependencies
@@ -61,7 +61,7 @@ to_dot (BackendIR.BackendIR _ _ _ bindings params _) =
 
                         BackendIR.Expr'Call _ _ callee arg -> ("call", [("callee", callee), ("arg", arg)], [])
 
-                        BackendIR.Expr'Switch _ _ e arms -> ("switch", ("e", e) : zipWith (\ arm_i (matcher, _, result) -> (show arm_i <> " - " <> stringify_matcher matcher, result)) [0 :: Int ..] arms, [])
+                        BackendIR.Expr'Case _ _ e arms -> ("switch", ("e", e) : zipWith (\ arm_i (matcher, _, result) -> (show arm_i <> " - " <> stringify_matcher matcher, result)) [0 :: Int ..] arms, [])
 
                         BackendIR.Expr'TupleDestructure1 _ _ tup -> ("tuple destructure 1", [("tuple", tup)], [])
                         BackendIR.Expr'TupleDestructure2 _ _ tup -> ("tuple destructure 2", [("tuple", tup)], [])

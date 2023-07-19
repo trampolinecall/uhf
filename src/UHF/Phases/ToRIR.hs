@@ -118,8 +118,83 @@ convert_expr (SIR.Expr'Let id ty sp bindings body) = RIR.Expr'Let id ty sp <$> (
 convert_expr (SIR.Expr'LetRec id ty sp bindings body) = RIR.Expr'Let id ty sp <$> (concat <$> mapM convert_binding bindings) <*> convert_expr body
 convert_expr (SIR.Expr'BinaryOps _ void _ _ _ _) = absurd void
 convert_expr (SIR.Expr'Call id ty sp callee arg) = RIR.Expr'Call id ty sp <$> convert_expr callee <*> convert_expr arg
-convert_expr (SIR.Expr'If id ty sp _ cond true false) = RIR.Expr'Switch id ty sp <$> convert_expr cond <*> sequence [(,) (RIR.Switch'BoolLiteral True) <$> convert_expr true, (,) (RIR.Switch'BoolLiteral False) <$> convert_expr false]
-convert_expr (SIR.Expr'Case _ _ _ _ _ _) = todo -- TODO: case desguaring RIR.Expr'Switch id ty sp <$> convert_expr expr <*> mapM (\ (pat, expr) -> (,) <$> convert_pattern pat <*> convert_expr expr) arms
+convert_expr (SIR.Expr'If id ty sp _ cond true false) =
+    -- if C then T else F
+    -- becomes
+    -- let cond = C;
+    -- case {
+    --     [cond -> true] -> T;
+    --     [cond -> false] -> F;
+    -- }
+
+    convert_expr cond >>= \ cond ->
+    convert_expr true >>= \ true ->
+    convert_expr false >>= \ false ->
+
+    new_bound_value (RIR.expr_type cond) (RIR.expr_span cond) >>= \ cond_bv ->
+
+    new_made_up_expr_id
+        (\ let_id ->
+            RIR.Expr'Let let_id ty sp
+                [RIR.Binding cond_bv cond]
+                (RIR.Expr'Case id ty sp
+                    [ ([RIR.CaseClause'Match cond_bv (RIR.Case'BoolLiteral True)], true)
+                    , ([RIR.CaseClause'Match cond_bv (RIR.Case'BoolLiteral False)], false)
+                    ]
+                )
+        )
+
+convert_expr (SIR.Expr'Case id ty sp _ scrutinee arms) =
+    -- case S {
+    --     P -> ...;
+    --     ...
+    -- }
+    -- becomes
+    -- let scrutinee = S
+    -- case {
+    --     [scrutinee -> P] -> ...;
+    --     ...
+    -- }
+
+    convert_expr scrutinee >>= \ scrutinee ->
+    new_bound_value (RIR.expr_type scrutinee) (RIR.expr_span scrutinee) >>= \ scrutinee_bv ->
+
+    mapM
+        (\ (pat, result) ->
+            pattern_to_matchers scrutinee_bv pat >>= \ matchers ->
+            convert_expr result >>= \ result ->
+            pure (matchers, result)
+        )
+        arms >>= \ arms ->
+
+    new_made_up_expr_id
+        (\ let_id ->
+            RIR.Expr'Let let_id ty sp
+                [RIR.Binding scrutinee_bv scrutinee]
+                (RIR.Expr'Case id ty sp arms)
+        )
+    where
+        pattern_to_matchers scrutinee_bv (SIR.Pattern'Identifier _ _ bvk) = pure [RIR.CaseClause'Assign bvk scrutinee_bv]
+        pattern_to_matchers _ (SIR.Pattern'Wildcard _ _) = pure []
+        pattern_to_matchers scrutinee_bv (SIR.Pattern'Tuple _ _ a b) =
+            -- scrutinee -> (A, B) becomes [scrutinee -> (a, b), a -> A, b -> B]
+            new_bound_value (SIR.pattern_type a) (SIR.pattern_span a) >>= \ a_bv ->
+            new_bound_value (SIR.pattern_type b) (SIR.pattern_span b) >>= \ b_bv ->
+
+            pattern_to_matchers a_bv a >>= \ a_matchers ->
+            pattern_to_matchers b_bv b >>= \ b_matchers ->
+
+            pure (RIR.CaseClause'Match scrutinee_bv (RIR.Case'Tuple (Just a_bv) (Just b_bv)) : (a_matchers <> b_matchers))
+
+        pattern_to_matchers scrutinee_bv (SIR.Pattern'Named _ _ _ (Located _ bvk) subpat) =
+            -- scrutinee -> name@P becomes [name = scrutinee, scrutinee -> P]
+            pattern_to_matchers scrutinee_bv subpat >>= \ subpat_matchers ->
+            pure (RIR.CaseClause'Assign bvk scrutinee_bv : subpat_matchers)
+
+        pattern_to_matchers _ (SIR.Pattern'AnonADTVariant _ _ _ _) = todo
+        pattern_to_matchers _ (SIR.Pattern'NamedADTVariant _ _ _ _) = todo
+        pattern_to_matchers _ (SIR.Pattern'Poison _ _) = pure []
+
 convert_expr (SIR.Expr'Poison id ty sp) = pure $ RIR.Expr'Poison id ty sp
 convert_expr (SIR.Expr'Hole id ty sp _) = pure $ RIR.Expr'Poison id ty sp
 convert_expr (SIR.Expr'TypeAnnotation _ _ _ _ other) = convert_expr other
@@ -138,8 +213,8 @@ assign_pattern (SIR.Pattern'Tuple whole_ty whole_sp a b) expr =
     --     (..., ...) = e
     -- becomes
     --     whole = e
-    --     ... = case whole { (a, _) -> a }
-    --     ... = case whole { (_, b) -> b }
+    --     ... = case { [whole -> (a, _)] -> a }
+    --     ... = case { [whole -> (_, b)] -> b }
 
     new_bound_value whole_ty whole_sp >>= \ whole_bv ->
     new_bound_value a_ty a_sp >>= \ a_bv ->
@@ -148,10 +223,8 @@ assign_pattern (SIR.Pattern'Tuple whole_ty whole_sp a b) expr =
     new_made_up_expr_id identity >>= \ l_extract_id ->
     new_made_up_expr_id identity >>= \ r_extract_id ->
 
-    new_made_up_expr_id (\ id -> RIR.Expr'Identifier id whole_ty whole_sp (Just whole_bv)) >>= \ l_whole_expr ->
-    new_made_up_expr_id (\ id -> RIR.Expr'Identifier id whole_ty whole_sp (Just whole_bv)) >>= \ r_whole_expr  ->
-    new_made_up_expr_id (\ id -> RIR.Expr'Switch id a_ty a_sp l_whole_expr [(RIR.Switch'Tuple (Just a_bv) Nothing, RIR.Expr'Identifier l_extract_id a_ty a_sp (Just a_bv))]) >>= \ extract_a  ->
-    new_made_up_expr_id (\ id -> RIR.Expr'Switch id b_ty b_sp r_whole_expr [(RIR.Switch'Tuple Nothing (Just b_bv), RIR.Expr'Identifier r_extract_id b_ty b_sp (Just b_bv))]) >>= \ extract_b ->
+    new_made_up_expr_id (\ id -> RIR.Expr'Case id a_ty a_sp [([RIR.CaseClause'Match whole_bv (RIR.Case'Tuple (Just a_bv) Nothing)], RIR.Expr'Identifier l_extract_id a_ty a_sp (Just a_bv))]) >>= \ extract_a  ->
+    new_made_up_expr_id (\ id -> RIR.Expr'Case id b_ty b_sp [([RIR.CaseClause'Match whole_bv (RIR.Case'Tuple Nothing (Just b_bv))], RIR.Expr'Identifier r_extract_id b_ty b_sp (Just b_bv))]) >>= \ extract_b ->
 
     assign_pattern a extract_a >>= \ assign_a ->
     assign_pattern b extract_b >>= \ assign_b ->

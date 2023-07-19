@@ -17,7 +17,7 @@ module UHF.Data.IR.ANFIR
     , stringify_id
 
     , Expr (..)
-    , SwitchMatcher (..)
+    , CaseMatcher (..)
     , expr_type
     , expr_id
     , binding_type
@@ -82,7 +82,7 @@ data Expr
 
     | Expr'Call ID (Maybe (Type.Type Void)) BindingKey BindingKey
 
-    | Expr'Switch ID (Maybe (Type.Type Void)) BindingKey [(SwitchMatcher, BindingGroup, BindingKey)]
+    | Expr'Case ID (Maybe (Type.Type Void)) BindingKey [(CaseMatcher, BindingGroup, BindingKey)]
 
     | Expr'TupleDestructure1 ID (Maybe (Type.Type Void)) BindingKey -- TODO: figure out better solution to this (probably general destructure expr for any type, or actually probably use case expressions to match on things)
     | Expr'TupleDestructure2 ID (Maybe (Type.Type Void)) BindingKey
@@ -93,10 +93,10 @@ data Expr
     | Expr'Poison ID (Maybe (Type.Type Void))
     deriving Show
 
-data SwitchMatcher
-    = Switch'BoolLiteral Bool
-    | Switch'Tuple
-    | Switch'Default
+data CaseMatcher
+    = Case'BoolLiteral Bool
+    | Case'Tuple
+    | Case'Default
     deriving Show
 
 expr_type :: Expr -> (Maybe (Type.Type Void))
@@ -110,7 +110,7 @@ expr_type (Expr'Tuple _ ty _ _) = ty
 expr_type (Expr'Lambda _ ty _ _ _ _) = ty
 expr_type (Expr'Param _ ty _) = ty
 expr_type (Expr'Call _ ty _ _) = ty
-expr_type (Expr'Switch _ ty _ _) = ty
+expr_type (Expr'Case _ ty _ _) = ty
 expr_type (Expr'TupleDestructure1 _ ty _) = ty
 expr_type (Expr'TupleDestructure2 _ ty _) = ty
 expr_type (Expr'Forall _ ty _ _ _) = ty
@@ -129,7 +129,7 @@ expr_id (Expr'Tuple id _ _ _) = id
 expr_id (Expr'Lambda id _ _ _ _ _) = id
 expr_id (Expr'Param id _ _) = id
 expr_id (Expr'Call id _ _ _) = id
-expr_id (Expr'Switch id _ _ _) = id
+expr_id (Expr'Case id _ _ _) = id
 expr_id (Expr'TupleDestructure1 id _ _) = id
 expr_id (Expr'TupleDestructure2 id _ _) = id
 expr_id (Expr'Forall id _ _ _ _) = id

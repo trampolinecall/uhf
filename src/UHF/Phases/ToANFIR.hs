@@ -17,9 +17,8 @@ import qualified UHF.Data.IR.ANFIR as ANFIR
 import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.IDGen as IDGen
 
-type RIRExpr = RIR.Expr RIRCaptureList
-type RIRBinding = RIR.Binding RIRCaptureList
-type RIRCaptureList = Set.Set RIR.BoundValueKey
+type RIRExpr = RIR.Expr
+type RIRBinding = RIR.Binding
 
 type ANFIR = ANFIR.ANFIR
 type ANFIRExpr = ANFIR.Expr
@@ -130,7 +129,7 @@ make_binding_group bindings =
                         allowed_in_loop (ANFIR.Expr'Forall _ _ _ _ _) = True
                         allowed_in_loop _ = False
 
-convert :: RIR.RIR RIRCaptureList -> ANFIR
+convert :: RIR.RIR -> ANFIR
 convert (RIR.RIR adts type_synonyms type_vars bound_values cu) =
     let ((cu_needs_deps, bv_map), (bindings_needs_bv_map, params)) = runReader (IDGen.run_id_gen_t ID.ExprID'ANFIRGen (runStateT (runWriterT (convert_cu cu)) (Arena.new, Arena.new))) bound_values
         bindings_needs_deps = Arena.transform ($ bv_map) bindings_needs_bv_map
@@ -138,7 +137,7 @@ convert (RIR.RIR adts type_synonyms type_vars bound_values cu) =
         cu' = runReader cu_needs_deps bindings_needs_deps
     in ANFIR.ANFIR adts type_synonyms type_vars bindings params cu'
 
-convert_cu :: RIR.CU RIRCaptureList -> MakeGraphState (NeedsBVMap (WithTopoSortInfo (NeedsTopoSort ANFIRExpr))) (NeedsTopoSort ANFIR.CU)
+convert_cu :: RIR.CU -> MakeGraphState (NeedsBVMap (WithTopoSortInfo (NeedsTopoSort ANFIRExpr))) (NeedsTopoSort ANFIR.CU)
 convert_cu (RIR.CU bindings adts type_synonyms) = concat <$> mapM convert_binding bindings >>= \ (bindings) -> pure (make_binding_group bindings >>= \ group -> pure (ANFIR.CU group adts type_synonyms))
 
 map_bound_value :: RIR.BoundValueKey -> ANFIR.BindingKey -> MakeGraphState binding ()
@@ -188,7 +187,7 @@ convert_expr m_bvid (RIR.Expr'Bool id ty _ b) = new_binding (\ _ -> ([], pure $ 
 
 convert_expr m_bvid (RIR.Expr'Tuple id ty _ a b) = convert_expr Nothing a >>= \ a -> convert_expr Nothing b >>= \ b -> new_binding (\ _ -> ([a, b], pure $ ANFIR.Expr'Tuple (choose_id m_bvid id) ty a b))
 
-convert_expr m_bvid (RIR.Expr'Lambda id ty _ rir_captures param_bv body) =
+convert_expr m_bvid (RIR.Expr'Lambda id ty _ uniq param_bv body) =
     lift (get_bv param_bv) >>= \ (RIR.BoundValue param_id param_ty _) ->
     new_param (ANFIR.Param param_id param_ty) >>= \ anfir_param ->
     lift (runWriterT $ -- lambda bodies should not be included in the parent included bindings because they do not need to be evaluated to create the lambda object
@@ -200,7 +199,7 @@ convert_expr m_bvid (RIR.Expr'Lambda id ty _ rir_captures param_bv body) =
 
     new_binding
         (\ bv_map ->
-            let anfir_captures = Set.map (bv_map Map.!) rir_captures
+            let anfir_captures = todo
             in
                 ( anfir_captures
                 ,
@@ -280,7 +279,6 @@ convert_expr m_bvid (RIR.Expr'Forall id ty _ vars e) =
             let almost_expr = Arena.get binding_arena e
             in fst $ almost_expr bv_map -- same note as above about needing to be in a let because of polytypes and unification
     in
-
     new_binding
         (\ bv_map ->
             ( e_dependencies bv_map

@@ -78,11 +78,17 @@ expr (RIR.Expr'Lambda _ _ _ param body) = refer_bv param >>= \ param -> expr bod
 expr (RIR.Expr'Let _ _ _ [binding] res) = define_binding binding >>= \ binding -> expr res >>= \ res -> pure (PP.FirstOnLineIfMultiline $ PP.List ["let ", binding, "\n", res])
 expr (RIR.Expr'Let _ _ _ bindings res) = expr res >>= \ res -> mapM define_binding bindings >>= \ bindings -> pure (PP.FirstOnLineIfMultiline $ PP.List ["let ", PP.braced_block bindings, "\n", res])
 expr (RIR.Expr'Call _ _ _ callee arg) = expr callee >>= \ callee -> expr arg >>= \ arg -> pure $ PP.List [callee, "(", arg, ")"]
-expr (RIR.Expr'Switch _ _ _ e arms) = mapM pp_arm arms >>= \ arms -> expr e >>= \ e -> pure (PP.List ["switch ", e, " ", PP.braced_block arms])
+expr (RIR.Expr'Case _ _ _ arms) = mapM pp_arm arms >>= \ arms -> pure (PP.List ["case ", PP.braced_block arms])
     where
-        pp_arm (RIR.Switch'BoolLiteral b, e) = expr e >>= \ e -> pure (PP.List [if b then "true" else "false", " -> ", e, ";"])
-        pp_arm (RIR.Switch'Tuple a b, e) = maybe (pure "_") refer_bv a >>= \ a -> maybe (pure "_") refer_bv b >>= \ b -> expr e >>= \ e -> pure (PP.List ["(", a, ", ", b, ") -> ", e, ";"])
-        pp_arm (RIR.Switch'Default, e) = expr e >>= \ e -> pure (PP.List ["_ -> ", e, ";"])
+        pp_arm (clauses, e) = mapM pp_clause clauses >>= \ clauses -> expr e >>= \ e -> pure (PP.List [PP.bracketed_comma_list PP.Inconsistent clauses, " -> ", e, ";"])
+
+        pp_clause (RIR.CaseClause'Match bv matcher) = refer_bv bv >>= \ bv -> pp_matcher matcher >>= \ matcher -> pure (PP.List [bv, " -> ", matcher])
+        pp_clause (RIR.CaseClause'Assign target other) = refer_bv target >>= \ target -> refer_bv other >>= \ other -> pure (PP.List [target, " = ", other])
+
+        pp_matcher (RIR.Case'BoolLiteral b) = pure $ if b then "true" else "false"
+        pp_matcher (RIR.Case'Tuple a b) = maybe (pure "_") refer_bv a >>= \ a -> maybe (pure "_") refer_bv b >>= \ b -> pure (PP.List ["(", a, ", ", b, ")"])
+        pp_matcher RIR.Case'Default = pure "_"
+
 expr (RIR.Expr'Forall _ _ _ tys e) = mapM type_var tys >>= \ tys -> expr e >>= \ e -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList tys, " ", e])
 expr (RIR.Expr'TypeApply _ _ _ e arg) = expr e >>= \ e -> refer_m_type arg >>= \ arg -> pure (PP.List [e, "#(", arg, ")"])
 expr (RIR.Expr'MakeADT _ _ _ variant_index@(Type.ADTVariantIndex adt_key _) tyargs args) =

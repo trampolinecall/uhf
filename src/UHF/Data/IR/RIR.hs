@@ -9,7 +9,8 @@ module UHF.Data.IR.RIR
 
     , Type
     , Expr (..)
-    , SwitchMatcher (..)
+    , CaseMatchingClause (..)
+    , CaseMatcher (..)
     , expr_type
     , expr_span
     ) where
@@ -59,7 +60,7 @@ data Expr
 
     | Expr'Call ID.ExprID (Maybe Type) Span Expr Expr
 
-    | Expr'Switch ID.ExprID (Maybe Type) Span Expr [(SwitchMatcher, Expr)]
+    | Expr'Case ID.ExprID (Maybe Type) Span [([CaseMatchingClause], Expr)]
 
     | Expr'Forall ID.ExprID (Maybe Type) Span (NonEmpty TypeVarKey) Expr
     | Expr'TypeApply ID.ExprID (Maybe Type) Span Expr (Maybe Type)
@@ -69,10 +70,16 @@ data Expr
     | Expr'Poison ID.ExprID (Maybe Type) Span
     deriving Show
 
-data SwitchMatcher
-    = Switch'BoolLiteral Bool
-    | Switch'Tuple (Maybe BoundValueKey) (Maybe BoundValueKey)
-    | Switch'Default
+data CaseMatchingClause
+    = CaseClause'Match BoundValueKey CaseMatcher
+    | CaseClause'Assign BoundValueKey BoundValueKey
+    -- eventually bool predicates will be added here
+    deriving Show
+
+data CaseMatcher
+    = Case'BoolLiteral Bool
+    | Case'Tuple (Maybe BoundValueKey) (Maybe BoundValueKey)
+    | Case'AnonADTVariant Type.ADTVariantIndex [Maybe Type] [BoundValueKey]
     deriving Show
 
 expr_type :: Expr -> Maybe Type
@@ -86,7 +93,7 @@ expr_type (Expr'Tuple _ ty _ _ _) = ty
 expr_type (Expr'Lambda _ ty _ _ _) = ty
 expr_type (Expr'Let _ ty _ _ _) = ty
 expr_type (Expr'Call _ ty _ _ _) = ty
-expr_type (Expr'Switch _ ty _ _ _) = ty
+expr_type (Expr'Case _ ty _ _) = ty
 expr_type (Expr'Forall _ ty _ _ _) = ty
 expr_type (Expr'TypeApply _ ty _ _ _) = ty
 expr_type (Expr'MakeADT _ ty _ _ _ _) = Just ty
@@ -103,7 +110,7 @@ expr_span (Expr'Tuple _ _ sp _ _) = sp
 expr_span (Expr'Lambda _ _ sp _ _) = sp
 expr_span (Expr'Let _ _ sp _ _) = sp
 expr_span (Expr'Call _ _ sp _ _) = sp
-expr_span (Expr'Switch _ _ sp _ _) = sp
+expr_span (Expr'Case _ _ sp _) = sp
 expr_span (Expr'Forall _ _ sp _ _) = sp
 expr_span (Expr'TypeApply _ _ sp _ _) = sp
 expr_span (Expr'MakeADT _ _ sp _ _ _) = sp

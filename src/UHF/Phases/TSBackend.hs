@@ -246,7 +246,7 @@ lower_binding (BackendIR.Binding init) = l init
         l (BackendIR.Expr'Param id _ _) = let_current id (TS.Expr'Identifier "param") >>= \ let_stmt -> pure ([let_stmt], [])
         l (BackendIR.Expr'Call id _ callee arg) = mangle_binding_as_var callee >>= \ callee -> mangle_binding_as_var arg >>= \ arg -> let_current id (TS.Expr'Call (TS.Expr'Get (TS.Expr'Identifier callee) "call") [TS.Expr'Identifier arg]) >>= \ let_stmt -> pure ([let_stmt], [])
 
-        l (BackendIR.Expr'Switch id _ scrutinee arms) =
+        l (BackendIR.Expr'Case id _ scrutinee arms) =
             mangle_binding_id_as_var id >>= \ current_var ->
             mangle_binding_as_var scrutinee >>= \ scrutinee ->
 
@@ -270,9 +270,9 @@ lower_binding (BackendIR.Binding init) = l init
             pure ([TS.Stmt'Let current_var Nothing Nothing, ifs], [])
 
             where
-                convert_matcher (BackendIR.Switch'BoolLiteral b) = TS.Expr'Call (TS.Expr'Identifier "bool_literal_matcher") [TS.Expr'Bool b]
-                convert_matcher BackendIR.Switch'Tuple = TS.Expr'Call (TS.Expr'Identifier "tuple_matcher") []
-                convert_matcher BackendIR.Switch'Default = TS.Expr'Call (TS.Expr'Identifier "default_matcher") []
+                convert_matcher (BackendIR.Case'BoolLiteral b) = TS.Expr'Call (TS.Expr'Identifier "bool_literal_matcher") [TS.Expr'Bool b]
+                convert_matcher BackendIR.Case'Tuple = TS.Expr'Call (TS.Expr'Identifier "tuple_matcher") []
+                convert_matcher BackendIR.Case'Default = TS.Expr'Call (TS.Expr'Identifier "default_matcher") []
 
         l (BackendIR.Expr'TupleDestructure1 id _ tup) = mangle_binding_as_var tup >>= \ tup -> let_current id (TS.Expr'Get (TS.Expr'Identifier tup) "first") >>= \ let_stmt -> pure ([let_stmt], [])
         l (BackendIR.Expr'TupleDestructure2 id _ tup) = mangle_binding_as_var tup >>= \ tup -> let_current id (TS.Expr'Get (TS.Expr'Identifier tup) "second") >>= \ let_stmt -> pure ([let_stmt], [])

@@ -16,7 +16,6 @@ import qualified UHF.Data.IR.RIR as RIR
 import qualified UHF.Data.IR.ANFIR as ANFIR
 import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.IDGen as IDGen
-import qualified Unique
 
 type RIRExpr = RIR.Expr RIRCaptureList
 type RIRBinding = RIR.Binding RIRCaptureList
@@ -36,10 +35,8 @@ type ANFIRParamArena = Arena.Arena ANFIRParam ANFIR.ParamKey
 type DependencyList = Set.Set ANFIR.BindingKey
 
 type NeedsTopoSort result = forall e. Reader (BindingArena (WithTopoSortInfo e)) result
+type NeedsBVMap e = BoundValueMap -> e
 type WithTopoSortInfo e = (DependencyList, e)
-
-type ExprNeedsBVMap = BoundValueMap -> WithTopoSortInfo ExprNeedsTopoSort
-type ExprNeedsTopoSort = NeedsTopoSort ANFIRExpr
 
 type BoundValueMap = Map.Map RIR.BoundValueKey ANFIR.BindingKey
 
@@ -141,7 +138,7 @@ convert (RIR.RIR adts type_synonyms type_vars bound_values cu) =
         cu' = runReader cu_needs_deps bindings_needs_deps
     in ANFIR.ANFIR adts type_synonyms type_vars bindings params cu'
 
-convert_cu :: RIR.CU RIRCaptureList -> MakeGraphState (ExprNeedsBVMap) (NeedsTopoSort ANFIR.CU)
+convert_cu :: RIR.CU RIRCaptureList -> MakeGraphState (NeedsBVMap (WithTopoSortInfo (NeedsTopoSort ANFIRExpr))) (NeedsTopoSort ANFIR.CU)
 convert_cu (RIR.CU bindings adts type_synonyms) = concat <$> mapM convert_binding bindings >>= \ (bindings) -> pure (make_binding_group bindings >>= \ group -> pure (ANFIR.CU group adts type_synonyms))
 
 map_bound_value :: RIR.BoundValueKey -> ANFIR.BindingKey -> MakeGraphState binding ()
@@ -150,7 +147,7 @@ map_bound_value k binding = tell $ Map.singleton k binding
 get_bv :: RIR.BoundValueKey -> MakeGraphState binding RIR.BoundValue
 get_bv k = lift $ lift $ lift $ reader (\ a -> Arena.get a k)
 
-convert_binding :: RIRBinding -> MakeGraphState ExprNeedsBVMap [ANFIR.BindingKey]
+convert_binding :: RIRBinding -> MakeGraphState (NeedsBVMap (WithTopoSortInfo (NeedsTopoSort ANFIRExpr))) [ANFIR.BindingKey]
 convert_binding (RIR.Binding target expr) =
     get_bv target >>= \ (RIR.BoundValue bvid _ _) ->
     runWriterT (convert_expr (Just bvid) expr) >>= \ (expr_result_binding, expr_involved_bindings) ->
@@ -169,12 +166,12 @@ choose_id :: Maybe ID.BoundValueID -> ID.ExprID -> ANFIR.ID
 choose_id (Just bvid) _ = ANFIR.BVID bvid
 choose_id Nothing eid = ANFIR.ExprID eid
 
-get_dependencies_of_binding_list_and_expr :: BindingArena ExprNeedsBVMap -> BoundValueMap -> [ANFIR.BindingKey] -> ANFIR.BindingKey -> Set.Set ANFIR.BindingKey
+get_dependencies_of_binding_list_and_expr :: BindingArena (NeedsBVMap (WithTopoSortInfo (NeedsTopoSort ANFIRExpr))) -> BoundValueMap -> [ANFIR.BindingKey] -> ANFIR.BindingKey -> Set.Set ANFIR.BindingKey
 get_dependencies_of_binding_list_and_expr binding_arena bv_map bindings e =
     let bindings_dependencies = Set.unions $ map (fst . ($ bv_map) . Arena.get binding_arena) bindings
     in (bindings_dependencies <> [e]) `Set.difference` Set.fromList bindings
 
-convert_expr :: Maybe ID.BoundValueID -> RIRExpr -> WriterT [ANFIR.BindingKey] (MakeGraphState (ExprNeedsBVMap)) ANFIR.BindingKey
+convert_expr :: Maybe ID.BoundValueID -> RIRExpr -> WriterT [ANFIR.BindingKey] (MakeGraphState (NeedsBVMap (WithTopoSortInfo (NeedsTopoSort ANFIRExpr)))) ANFIR.BindingKey
 convert_expr m_bvid (RIR.Expr'Identifier id ty _ bvkey) =
     case bvkey of
         Just bvkey ->
@@ -245,7 +242,7 @@ convert_expr m_bvid (RIR.Expr'Switch id ty _ testing arms) =
             )
         )
     where
-        convert_matcher :: RIR.SwitchMatcher -> ANFIR.BindingKey -> WriterT [ANFIR.BindingKey] (MakeGraphState ExprNeedsBVMap) ANFIR.SwitchMatcher
+        convert_matcher :: RIR.SwitchMatcher -> ANFIR.BindingKey -> WriterT [ANFIR.BindingKey] (MakeGraphState (NeedsBVMap (WithTopoSortInfo (NeedsTopoSort ANFIRExpr)))) ANFIR.SwitchMatcher
         convert_matcher (RIR.Switch'BoolLiteral b) _ = pure $ ANFIR.Switch'BoolLiteral b
         convert_matcher (RIR.Switch'Tuple a b) testing =
             -- case thing {

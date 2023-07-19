@@ -135,7 +135,8 @@ convert_expr _ (RIR.Expr'Let _ _ _ bindings e) = mapM (lift . convert_binding) b
 
 convert_expr m_bvid (RIR.Expr'Call id ty _ callee arg) = convert_expr Nothing callee >>= \ callee -> convert_expr Nothing arg >>= \ arg -> new_binding (\ _ -> (AlmostExpr'Call (choose_id m_bvid id) ty callee arg))
 
-convert_expr m_bvid (RIR.Expr'Case id ty _ arms) =
+convert_expr m_bvid (RIR.Expr'Case id ty _ arms) = todo
+    {-
     mapM
         (\ (clauses, arm) ->
             lift (runWriterT $
@@ -189,6 +190,7 @@ convert_expr m_bvid (RIR.Expr'Case id ty _ arms) =
             new_binding (\ bv_map -> AlmostExpr'Refer (ANFIR.ExprID id) other_ty (bv_map Map.! other)) >>= \ binding ->
             lift (map_bound_value target binding) >>
             pure (\ _ -> [ANFIR.CaseClause'Binding binding])
+    -}
 
 convert_expr m_bvid (RIR.Expr'Forall id ty _ vars e) =
     lift (runWriterT (convert_expr Nothing e)) >>= \ (e, e_involved_bindings) ->

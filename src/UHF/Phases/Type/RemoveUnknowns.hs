@@ -70,8 +70,8 @@ pattern unks (SIR.Pattern'Identifier ty sp bn) = SIR.Pattern'Identifier (type_ u
 pattern unks (SIR.Pattern'Wildcard ty sp) = SIR.Pattern'Wildcard (type_ unks ty) sp
 pattern unks (SIR.Pattern'Tuple ty sp l r) = SIR.Pattern'Tuple (type_ unks ty) sp (pattern unks l) (pattern unks r)
 pattern unks (SIR.Pattern'Named ty sp at_sp bnk subpat) = SIR.Pattern'Named (type_ unks ty) sp at_sp bnk (pattern unks subpat)
-pattern unks (SIR.Pattern'AnonADTVariant ty sp variant fields) = SIR.Pattern'AnonADTVariant (type_ unks ty) sp variant (map (pattern unks) fields)
-pattern unks (SIR.Pattern'NamedADTVariant ty sp variant fields) = SIR.Pattern'NamedADTVariant (type_ unks ty) sp variant (map (\ (field_name, field_pat) -> (field_name, pattern unks field_pat)) fields)
+pattern unks (SIR.Pattern'AnonADTVariant ty sp variant tyargs fields) = SIR.Pattern'AnonADTVariant (type_ unks ty) sp variant (map (type_ unks) tyargs) (map (pattern unks) fields)
+pattern unks (SIR.Pattern'NamedADTVariant ty sp variant tyargs fields) = SIR.Pattern'NamedADTVariant (type_ unks ty) sp variant (map (type_ unks) tyargs) (map (\ (field_name, field_pat) -> (field_name, pattern unks field_pat)) fields)
 pattern unks (SIR.Pattern'Poison ty sp) = SIR.Pattern'Poison (type_ unks ty) sp
 
 expr :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkExpr -> TypedExpr

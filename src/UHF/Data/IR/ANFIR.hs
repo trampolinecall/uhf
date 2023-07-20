@@ -18,7 +18,7 @@ module UHF.Data.IR.ANFIR
 
     , Expr (..)
     , CaseTree (..)
-    , CaseMatchingClause (..)
+    , CaseClause (..)
     , CaseMatcher (..)
     , expr_type
     , expr_id
@@ -97,9 +97,9 @@ data Expr
 
 -- TODO: split case things into separate module?
 data CaseTree
-    = CaseTree [([CaseMatchingClause], Either CaseTree (BindingGroup, BindingKey))]
+    = CaseTree [([CaseClause], Either CaseTree (BindingGroup, BindingKey))]
     deriving Show
-data CaseMatchingClause
+data CaseClause
     = CaseClause'Match BindingKey CaseMatcher
     | CaseClause'Binding BindingKey
     deriving Show

@@ -76,7 +76,7 @@ data Expr
     | Expr'Bool ID (Maybe (Type.Type Void)) Bool
     | Expr'Char ID (Maybe (Type.Type Void)) Char
     | Expr'String ID (Maybe (Type.Type Void)) Text
-    | Expr'Tuple ID (Maybe (Type.Type Void)) BindingKey BindingKey -- TODO: replace with call constructor expr
+    | Expr'Tuple ID (Maybe (Type.Type Void)) BindingKey BindingKey
     | Expr'MakeADT ID (Maybe (Type.Type Void)) Type.ADTVariantIndex [Maybe (Type.Type Void)] [BindingKey]
 
     | Expr'Lambda ID (Maybe (Type.Type Void)) ParamKey (Set.Set BindingKey) BindingGroup BindingKey -- TODO: dont use BindingKey Ord for order of captures
@@ -86,7 +86,7 @@ data Expr
 
     | Expr'Case ID (Maybe (Type.Type Void)) CaseTree
 
-    | Expr'TupleDestructure1 ID (Maybe (Type.Type Void)) BindingKey -- TODO: figure out better solution to this (probably general destructure expr for any type, or actually probably use case expressions to match on things)
+    | Expr'TupleDestructure1 ID (Maybe (Type.Type Void)) BindingKey
     | Expr'TupleDestructure2 ID (Maybe (Type.Type Void)) BindingKey
     | Expr'ADTDestructure ID (Maybe (Type.Type Void)) BindingKey (Maybe Type.ADTVariantIndex) Int
 

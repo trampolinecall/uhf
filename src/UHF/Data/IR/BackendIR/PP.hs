@@ -133,19 +133,19 @@ expr (BackendIR.Expr'Case _ _ t) = tree t >>= \ t -> pure (PP.List ["case ", t])
                 m_variant
 expr (BackendIR.Expr'TupleDestructure1 _ _ other) = refer_binding other >>= \ other ->  pure (PP.List [other, ".0"])
 expr (BackendIR.Expr'TupleDestructure2 _ _ other) = refer_binding other >>= \ other ->  pure (PP.List [other, ".1"])
-expr (BackendIR.Expr'ADTDestructure _ _ base m_variant_idx field_idx) =
+expr (BackendIR.Expr'ADTDestructure _ _ base m_field_idx) =
     -- TODO: factor out referring to variant index into Type module?
     refer_binding base >>= \ base ->
     either
-        (\ _ -> pure "<name resolution error>")
-        (\ variant_idx@(Type.ADTVariantIndex adt_key _) ->
+        (\ _ -> pure ("<error>", "<error>"))
+        (\ (Type.ADTFieldIndex variant_idx@(Type.ADTVariantIndex adt_key _) field_idx) ->
             Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_referred ->
             Type.get_adt_variant <$> get_adt_arena <*> pure variant_idx >>= \ variant ->
             let variant_name = Type.variant_name variant
-            in pure (PP.List [adt_referred, " ", PP.String $ unlocate variant_name])
+            in pure (PP.List [adt_referred, " ", PP.String $ unlocate variant_name], PP.String $ show field_idx)
         )
-        m_variant_idx >>= \ variant_referred ->
-    pure (PP.List ["(", base, " as ", variant_referred, ").", PP.String $ show field_idx])
+        m_field_idx >>= \ (variant_referred, field) ->
+    pure (PP.List ["(", base, " as ", variant_referred, ").", field])
 expr (BackendIR.Expr'Forall _ _ vars group e) = mapM type_var vars >>= \ vars -> define_binding_group group >>= \ group -> refer_binding e >>= \ e -> pure (PP.FirstOnLineIfMultiline $ PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList vars, " ", PP.indented_block [group, e]])
 expr (BackendIR.Expr'TypeApply _ _ e arg) = refer_binding e >>= \ e -> refer_type arg >>= \ arg -> pure (PP.List [e, "#(", arg, ")"])
 expr (BackendIR.Expr'MakeADT _ _ variant_index@(Type.ADTVariantIndex adt_key _) tyargs args) =

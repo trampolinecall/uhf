@@ -203,7 +203,7 @@ convert_expr (SIR.Expr'Case id ty sp _ scrutinee arms) =
             -- Variant(F0, F1, ...) becomes [scrutinee -> Variant, f0 = (scrutinee as Variant).0, f1 = (scrutinee as Variant).1, f0 -> F0, f1 -> F1, ...]
             fields & mapM (\ pat -> new_bound_value (SIR.pattern_type pat) (SIR.pattern_span pat)) >>= \ field_bvs ->
             zipWithM pattern_to_clauses field_bvs fields >>= \ field_subpat_clauses ->
-            pure (RIR.CaseClause'Match scrutinee_bv (RIR.Case'AnonADTVariant variant_index) : zipWith (\ i field_bv -> RIR.CaseClause'Assign field_bv (RIR.CaseAssignRHS'AnonADTVariantField (SIR.pattern_type $ fields List.!! i) scrutinee_bv variant_index i)) [0..] field_bvs <> concat field_subpat_clauses)
+            pure (RIR.CaseClause'Match scrutinee_bv (RIR.Case'AnonADTVariant variant_index) : zipWith (\ i field_bv -> RIR.CaseClause'Assign field_bv (RIR.CaseAssignRHS'AnonADTVariantField (SIR.pattern_type $ fields List.!! i) scrutinee_bv (Type.ADTFieldIndex <$> variant_index <*> pure i))) [0..] field_bvs <> concat field_subpat_clauses)
 
         pattern_to_clauses _ (SIR.Pattern'NamedADTVariant _ _ _ _ _) = todo
         pattern_to_clauses _ (SIR.Pattern'Poison _ _) = pure []

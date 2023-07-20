@@ -88,7 +88,7 @@ data Expr ty poison_allowed
 
     | Expr'TupleDestructure1 ID ty BindingKey
     | Expr'TupleDestructure2 ID ty BindingKey
-    | Expr'ADTDestructure ID ty BindingKey (Either poison_allowed Type.ADTVariantIndex) Int
+    | Expr'ADTDestructure ID ty BindingKey (Either poison_allowed Type.ADTFieldIndex)
 
     | Expr'Forall ID ty (NonEmpty TypeVarKey) (BindingGroup) BindingKey
     | Expr'TypeApply ID ty BindingKey ty
@@ -123,7 +123,7 @@ expr_type (Expr'Call _ ty _ _) = ty
 expr_type (Expr'Case _ ty _) = ty
 expr_type (Expr'TupleDestructure1 _ ty _) = ty
 expr_type (Expr'TupleDestructure2 _ ty _) = ty
-expr_type (Expr'ADTDestructure _ ty _ _ _) = ty
+expr_type (Expr'ADTDestructure _ ty _ _) = ty
 expr_type (Expr'Forall _ ty _ _ _) = ty
 expr_type (Expr'TypeApply _ ty _ _) = ty
 expr_type (Expr'MakeADT _ ty _ _ _) = ty
@@ -143,7 +143,7 @@ expr_id (Expr'Call id _ _ _) = id
 expr_id (Expr'Case id _ _) = id
 expr_id (Expr'TupleDestructure1 id _ _) = id
 expr_id (Expr'TupleDestructure2 id _ _) = id
-expr_id (Expr'ADTDestructure id _ _ _ _) = id
+expr_id (Expr'ADTDestructure id _ _ _) = id
 expr_id (Expr'Forall id _ _ _ _) = id
 expr_id (Expr'TypeApply id _ _ _) = id
 expr_id (Expr'MakeADT id _ _ _ _) = id

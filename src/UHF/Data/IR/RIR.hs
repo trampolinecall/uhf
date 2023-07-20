@@ -97,7 +97,7 @@ data CaseAssignRHS
     = CaseAssignRHS'OtherBVK BoundValueKey
     | CaseAssignRHS'TupleDestructure1 (Maybe Type) BoundValueKey
     | CaseAssignRHS'TupleDestructure2 (Maybe Type) BoundValueKey
-    | CaseAssignRHS'AnonADTVariantField (Maybe Type) BoundValueKey (Maybe Type.ADTVariantIndex) Int -- TODO: make ADTFieldIndex in Type module
+    | CaseAssignRHS'AnonADTVariantField (Maybe Type) BoundValueKey (Maybe Type.ADTFieldIndex)
     deriving Show
 
 expr_type :: Arena.Arena BoundValue BoundValueKey -> Expr -> Maybe Type

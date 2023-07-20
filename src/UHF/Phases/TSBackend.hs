@@ -295,10 +295,11 @@ lower_binding (BackendIR.Binding init) = l init
 
         l (BackendIR.Expr'TupleDestructure1 id _ tup) = mangle_binding_as_var tup >>= \ tup -> let_current id (TS.Expr'Get (TS.Expr'Identifier tup) "first") >>= \ let_stmt -> pure ([let_stmt], [])
         l (BackendIR.Expr'TupleDestructure2 id _ tup) = mangle_binding_as_var tup >>= \ tup -> let_current id (TS.Expr'Get (TS.Expr'Identifier tup) "second") >>= \ let_stmt -> pure ([let_stmt], [])
-        l (BackendIR.Expr'ADTDestructure id _ b variant_index field) =
+        l (BackendIR.Expr'ADTDestructure id _ b (Right (Type.ADTFieldIndex _ field))) =
             mangle_binding_as_var b >>= \ b ->
             let_current id (TS.Expr'Get (TS.Expr'Get (TS.Expr'Identifier b) "data") ("_" <> show field)) >>= \ let_stmt ->
             pure ([let_stmt], [])
+        l (BackendIR.Expr'ADTDestructure id _ b (Left void)) = absurd void
 
         -- TODO: lower these 2 properly
         l (BackendIR.Expr'Forall id _ _ group result) =

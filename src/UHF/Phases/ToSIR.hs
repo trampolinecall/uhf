@@ -172,7 +172,7 @@ convert_decls bv_parent decl_parent decls =
             iden1_for_variant_name name >>= \ variant_name ->
             let variant_id = ID.ADTVariantID adt_id (unlocate variant_name)
             in Type.ADTVariant'Anon variant_name variant_id
-                <$> zipWithM (\ field_idx ty_ast -> (ID.ADTFieldID variant_id ("_" <> show (field_idx :: Int)),) <$> lift (convert_type ty_ast)) [0..] fields
+                <$> zipWithM (\ field_idx ty_ast -> (ID.ADTFieldID variant_id (show (field_idx :: Int)),) <$> lift (convert_type ty_ast)) [0..] fields
         convert_variant adt_id (AST.DataVariant'Named name fields) =
             iden1_for_variant_name name >>= \ variant_name ->
             let variant_id = ID.ADTVariantID adt_id (unlocate variant_name)

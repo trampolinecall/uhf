@@ -246,36 +246,64 @@ lower_binding (BackendIR.Binding init) = l init
         l (BackendIR.Expr'Param id _ _) = let_current id (TS.Expr'Identifier "param") >>= \ let_stmt -> pure ([let_stmt], [])
         l (BackendIR.Expr'Call id _ callee arg) = mangle_binding_as_var callee >>= \ callee -> mangle_binding_as_var arg >>= \ arg -> let_current id (TS.Expr'Call (TS.Expr'Get (TS.Expr'Identifier callee) "call") [TS.Expr'Identifier arg]) >>= \ let_stmt -> pure ([let_stmt], [])
 
-        l (BackendIR.Expr'Case id _ scrutinee arms) =
-            mangle_binding_id_as_var id >>= \ current_var ->
-            mangle_binding_as_var scrutinee >>= \ scrutinee ->
-
-            let set_current e = TS.Stmt'Expr $ TS.Expr'Assign (TS.Expr'Identifier current_var) e
+        l (BackendIR.Expr'Case id _ tree) =
+            mangle_binding_id_as_var id >>= \ result_var ->
+            let label_name = "label_for_case" <> result_var
             in
 
+            let set_result e = [TS.Stmt'Expr $ TS.Expr'Assign (TS.Expr'Identifier result_var) e, TS.Stmt'Break (Just label_name)]
+            in
+
+            lower_tree set_result tree >>= \ lowered_tree ->
+
+            {-
             foldrM
                 (\ (matcher, group, result) current_if ->
                     lower_binding_group group >>= \ group_lowered ->
                     mangle_binding_as_var result >>= \ result ->
                     pure (
-                        TS.Stmt'If
-                            (TS.Expr'Call (convert_matcher matcher) [TS.Expr'Identifier scrutinee])
-                            (TS.Stmt'Block $ group_lowered ++ [set_current $ TS.Expr'Identifier result])
-                            (Just current_if)
                     )
                 )
-                (set_current $ TS.Expr'Identifier "undefined")
-                arms >>= \ ifs -> -- TODO: raise error instead of using undefined?
+                (set_current $ TS.Expr'Identifier "undefined") -- TODO: raise error instead of using undefined?
+                arms >>= \ ifs ->
+            -}
 
-            pure ([TS.Stmt'Let current_var Nothing Nothing, ifs], [])
+            pure ([TS.Stmt'Let result_var Nothing Nothing, lowered_tree], [])
 
             where
+                lower_tree set_result (BackendIR.CaseTree arms) =
+                    TS.Stmt'Block
+                        <$> mapM
+                            (\ (clauses, result) ->
+                                (case result of
+                                    Right (group, result) ->
+                                        lower_binding_group group >>= \ group_lowered ->
+                                        mangle_binding_as_var result >>= \ result ->
+                                        pure (TS.Stmt'Block $ group_lowered ++ set_result (TS.Expr'Identifier result))
+                                    Left subtree -> lower_tree set_result subtree) >>= \ result ->
+                                foldrM lower_clause result clauses
+                            )
+                            arms
+
+                lower_clause (BackendIR.CaseClause'Match b matcher) result =
+                    mangle_binding_as_var b >>= \ b ->
+                    pure (TS.Stmt'If
+                        (TS.Expr'Call (convert_matcher matcher) [TS.Expr'Identifier b])
+                        result
+                        Nothing
+                    )
+                lower_clause (BackendIR.CaseClause'Binding b) result =
+                    get_binding b >>= lower_binding >>= \ (early, late) ->
+                    pure (TS.Stmt'Block $ early <> late <> [result])
+
                 convert_matcher (BackendIR.Case'BoolLiteral b) = TS.Expr'Call (TS.Expr'Identifier "bool_literal_matcher") [TS.Expr'Bool b]
                 convert_matcher BackendIR.Case'Tuple = TS.Expr'Call (TS.Expr'Identifier "tuple_matcher") []
-                convert_matcher BackendIR.Case'Default = TS.Expr'Call (TS.Expr'Identifier "default_matcher") []
+                convert_matcher (BackendIR.Case'AnonADTVariant (Right v)) = todo
+                convert_matcher (BackendIR.Case'AnonADTVariant (Left void)) = absurd void
 
         l (BackendIR.Expr'TupleDestructure1 id _ tup) = mangle_binding_as_var tup >>= \ tup -> let_current id (TS.Expr'Get (TS.Expr'Identifier tup) "first") >>= \ let_stmt -> pure ([let_stmt], [])
         l (BackendIR.Expr'TupleDestructure2 id _ tup) = mangle_binding_as_var tup >>= \ tup -> let_current id (TS.Expr'Get (TS.Expr'Identifier tup) "second") >>= \ let_stmt -> pure ([let_stmt], [])
+        l (BackendIR.Expr'ADTDestructure id _ b variant field) = todo
 
         -- TODO: lower these 2 properly
         l (BackendIR.Expr'Forall id _ _ group result) =

@@ -61,10 +61,32 @@ rp_expr (BackendIR.Expr'Param id ty p) = ty >>= \ ty -> pure (BackendIR.Expr'Par
 
 rp_expr (BackendIR.Expr'Call id ty c a) = ty >>= \ ty -> pure (BackendIR.Expr'Call id ty c a)
 
-rp_expr (BackendIR.Expr'Case id ty c a) = ty >>= \ ty -> pure (BackendIR.Expr'Case id ty c a)
+rp_expr (BackendIR.Expr'Case id ty t) = ty >>= \ ty -> rp_tree t >>= \ t -> pure (BackendIR.Expr'Case id ty t)
+    where
+        rp_tree (BackendIR.CaseTree arms) =
+            BackendIR.CaseTree
+                <$> mapM
+                    (\ (clauses, result) ->
+                        (,)
+                            <$> mapM rp_clause clauses
+                            <*> case result of
+                                    Right e -> Just $ Right e
+                                    Left subtree -> Left <$> rp_tree subtree
+                    )
+                    arms
+
+        rp_clause (BackendIR.CaseClause'Match bk matcher) = BackendIR.CaseClause'Match bk <$> rp_matcher matcher
+        rp_clause (BackendIR.CaseClause'Binding bk) = Just $ BackendIR.CaseClause'Binding bk
+
+        rp_matcher (BackendIR.Case'BoolLiteral b) = Just $ BackendIR.Case'BoolLiteral b
+        rp_matcher (BackendIR.Case'Tuple) = Just $ BackendIR.Case'Tuple
+        rp_matcher (BackendIR.Case'AnonADTVariant (Left ())) = Nothing
+        rp_matcher (BackendIR.Case'AnonADTVariant (Right variant)) = Just $ BackendIR.Case'AnonADTVariant (Right variant)
 
 rp_expr (BackendIR.Expr'TupleDestructure1 id ty t) = ty >>= \ ty -> pure (BackendIR.Expr'TupleDestructure1 id ty t)
 rp_expr (BackendIR.Expr'TupleDestructure2 id ty t) = ty >>= \ ty -> pure (BackendIR.Expr'TupleDestructure2 id ty t)
+rp_expr (BackendIR.Expr'ADTDestructure id ty b (Right variant) field) = ty >>= \ ty -> pure (BackendIR.Expr'ADTDestructure id ty b (Right variant) field)
+rp_expr (BackendIR.Expr'ADTDestructure _ _ _ (Left ()) _) = Nothing
 
 rp_expr (BackendIR.Expr'Forall id ty vars group e) = ty >>= \ ty -> pure (BackendIR.Expr'Forall id ty vars group e)
 rp_expr (BackendIR.Expr'TypeApply id ty e arg) = ty >>= \ ty -> arg >>= \ arg -> pure (BackendIR.Expr'TypeApply id ty e arg)

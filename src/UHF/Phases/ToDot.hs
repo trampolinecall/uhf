@@ -40,7 +40,8 @@ to_dot (BackendIR.BackendIR _ _ _ bindings params _) =
             | b = "true"
             | otherwise = "false"
         stringify_matcher BackendIR.Case'Tuple = "tuple"
-        stringify_matcher BackendIR.Case'Default = "_"
+        stringify_matcher (BackendIR.Case'AnonADTVariant (Right variant)) = todo -- TODO
+        stringify_matcher (BackendIR.Case'AnonADTVariant (Left void)) = absurd void
 
         print_binding cur_key (BackendIR.Binding initializer) =
             -- TODO: decide what to do with dependencies
@@ -61,10 +62,11 @@ to_dot (BackendIR.BackendIR _ _ _ bindings params _) =
 
                         BackendIR.Expr'Call _ _ callee arg -> ("call", [("callee", callee), ("arg", arg)], [])
 
-                        BackendIR.Expr'Case _ _ e arms -> ("switch", ("e", e) : zipWith (\ arm_i (matcher, _, result) -> (show arm_i <> " - " <> stringify_matcher matcher, result)) [0 :: Int ..] arms, [])
+                        BackendIR.Expr'Case _ _ arms -> ("switch", [], []) -- TODO
 
                         BackendIR.Expr'TupleDestructure1 _ _ tup -> ("tuple destructure 1", [("tuple", tup)], [])
                         BackendIR.Expr'TupleDestructure2 _ _ tup -> ("tuple destructure 2", [("tuple", tup)], [])
+                        BackendIR.Expr'ADTDestructure _ _ _ _ _ -> todo
 
                         BackendIR.Expr'Forall _ _ _ _ e -> ("forall", [("e", e)], []) -- TODO: put vars
                         BackendIR.Expr'TypeApply _ _ e ty -> ("type apply", [("e", e)], []) -- TODO: put type

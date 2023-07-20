@@ -273,7 +273,7 @@ get_dependencies_of_almost_expr bk =
                         <&> Set.unions
 
                 -- first element is bindings referenced, second element is bindings defined
-                go_through_clause (ANFIR.CaseClause'Match binding matcher) = ([binding], [])
+                go_through_clause (ANFIR.CaseClause'Match binding _) = ([binding], [])
                 go_through_clause (ANFIR.CaseClause'Binding b) = ([], [b])
 
         AlmostExpr'TupleDestructure1 _ _ tup -> pure [tup]

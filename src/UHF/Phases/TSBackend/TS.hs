@@ -16,6 +16,8 @@ data Stmt
     | Stmt'Expr Expr
     | Stmt'Block [Stmt]
     | Stmt'If Expr Stmt (Maybe Stmt)
+    | Stmt'Label Text Stmt
+    | Stmt'Break (Maybe Text)
     | Stmt'Spacer
 
 data Expr

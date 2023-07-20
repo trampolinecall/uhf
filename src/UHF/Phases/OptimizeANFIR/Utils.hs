@@ -23,7 +23,15 @@ iterate_over_bindings change (ANFIR.ANFIR adts type_synonyms vars bindings param
             StateT (\ bindings -> ((),) <$> Arena.modifyM bindings bk change) >>
             ANFIR.binding_initializer <$> (Arena.get <$> get <*> pure bk) >>= \case
                     ANFIR.Expr'Lambda _ _ _ _ group _ -> do_group group
-                    ANFIR.Expr'Case _ _ arms -> mapM_ (\ (_, group, _) -> do_group group) arms
+                    ANFIR.Expr'Case _ _ tree -> do_tree tree
+                        where
+                            do_tree (ANFIR.CaseTree arms) = mapM_
+                                (\ (_, result) ->
+                                    case result of
+                                        Left subtree -> do_tree subtree
+                                        Right (group, _) -> do_group group
+                                )
+                                arms
                     ANFIR.Expr'Forall _ _ _ group _ -> do_group group
 
                     _ -> pure ()
@@ -48,8 +56,19 @@ iterate_over_all_subexpressions modify = iterate_over_bindings do_binding
 
         do_expr (ANFIR.Expr'Call id ty callee arg) = modify callee >>= \ callee -> modify arg >>= \ arg -> pure (ANFIR.Expr'Call id ty callee arg)
 
-        do_expr (ANFIR.Expr'Case id ty arms) = mapM (\ (matchers, group, res) -> (, group,) <$> mapM do_case_clause matchers <*> modify res) arms >>= \ arms -> pure (ANFIR.Expr'Case id ty arms)
+        do_expr (ANFIR.Expr'Case id ty tree) = do_tree tree >>= \ tree -> pure (ANFIR.Expr'Case id ty tree)
             where
+                do_tree (ANFIR.CaseTree arms) =
+                    ANFIR.CaseTree <$>
+                        mapM
+                            (\ (clauses, result) ->
+                                mapM do_case_clause clauses >>= \ clauses ->
+                                (case result of
+                                    Left subtree -> Left <$> do_tree subtree
+                                    Right (group, res) -> modify res >>= \ res -> pure (Right (group, res))) >>= \ result ->
+                                pure (clauses, result))
+                            arms
+
                 do_case_clause (ANFIR.CaseClause'Match binding matcher) = ANFIR.CaseClause'Match <$> modify binding <*> pure matcher
                 do_case_clause (ANFIR.CaseClause'Binding b) = ANFIR.CaseClause'Binding <$> modify b
 

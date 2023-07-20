@@ -8,7 +8,10 @@ module UHF.Data.IR.Type
     , ADTFieldIndex (..)
     , get_adt_variant
     , get_adt_field_type
+    , get_adt_field_id
     , variant_name
+    , variant_id
+    , variant_field_ids
     , variant_field_types
 
     , TypeSynonymKey
@@ -47,31 +50,42 @@ data Type unk
 data ADT ty = ADT ID.DeclID (Located Text) [TypeVarKey] [ADTVariant ty] deriving Show
 -- TODO: variant ids and field ids
 data ADTVariant ty
-    = ADTVariant'Named (Located Text) [(Text, ty)]
-    | ADTVariant'Anon (Located Text) [ty]
+    = ADTVariant'Named (Located Text) ID.ADTVariantID [(ID.ADTFieldID, Text, ty)]
+    | ADTVariant'Anon (Located Text) ID.ADTVariantID [(ID.ADTFieldID, ty)]
     deriving Show
 data ADTVariantIndex = ADTVariantIndex ADTKey Int deriving Show
 data ADTFieldIndex = ADTFieldIndex ADTVariantIndex Int deriving Show
 
 variant_name :: ADTVariant ty -> Located Text
-variant_name (ADTVariant'Anon name _) = name
-variant_name (ADTVariant'Named name _) = name
+variant_name (ADTVariant'Anon name _ _) = name
+variant_name (ADTVariant'Named name _ _) = name
+variant_id :: ADTVariant ty -> ID.ADTVariantID
+variant_id (ADTVariant'Anon _ id _) = id
+variant_id (ADTVariant'Named _ id _) = id
+variant_field_ids :: ADTVariant ty -> [ID.ADTFieldID]
+variant_field_ids (ADTVariant'Anon _ _ fields) = map fst fields
+variant_field_ids (ADTVariant'Named _ _ fields) = fields & map (\ (id, _, _) -> id)
 variant_field_types :: ADTVariant ty -> [ty]
-variant_field_types (ADTVariant'Anon _ tys) = tys
-variant_field_types (ADTVariant'Named _ tys) = map snd tys
+variant_field_types (ADTVariant'Anon _ _ tys) = map snd tys
+variant_field_types (ADTVariant'Named _ _ tys) = tys & map (\ (_, _, ty) -> ty)
 
 -- technically can error, but every ADTVariantIndex constructed should be a valid variant, so hopefully if everything is functioning correctly, this should never fail
-get_adt_variant :: Arena.Arena (ADT ty) ADTKey -> ADTVariantIndex  -> ADTVariant ty
+get_adt_variant :: Arena.Arena (ADT ty) ADTKey -> ADTVariantIndex -> ADTVariant ty
 get_adt_variant adts (ADTVariantIndex key i) =
     let (ADT _ _ _ variants) = Arena.get adts key
     in variants List.!! i
 
--- technically can error, but every ADTVariantIndex constructed should be a valid variant, so hopefully if everything is functioning correctly, this should never fail
-get_adt_field_type :: Arena.Arena (ADT ty) ADTKey -> ADTFieldIndex  -> ty
+-- hope that field index is legal
+get_adt_field_type :: Arena.Arena (ADT ty) ADTKey -> ADTFieldIndex -> ty
 get_adt_field_type adts (ADTFieldIndex variant i) =
     case get_adt_variant adts variant of
-        ADTVariant'Named _ fields -> snd $ fields List.!! i
-        ADTVariant'Anon _ fields -> fields List.!! i
+        ADTVariant'Named _ _ fields -> fields List.!! i & \ (_, _, ty) -> ty
+        ADTVariant'Anon _ _ fields -> snd $ fields List.!! i
+get_adt_field_id :: Arena.Arena (ADT ty) ADTKey -> ADTFieldIndex -> ID.ADTFieldID
+get_adt_field_id adts (ADTFieldIndex variant i) =
+    case get_adt_variant adts variant of
+        ADTVariant'Named _ _ fields -> fields List.!! i & \ (id, _, _) -> id
+        ADTVariant'Anon _ _ fields -> fst $ fields List.!! i
 
 data TypeSynonym ty = TypeSynonym ID.DeclID (Located Text) ty deriving Show
 

@@ -52,8 +52,8 @@ module_ key =
 adt :: Type.ADTKey -> ReaderT (SIR d_iden v_iden p_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()
 adt key = ask >>= \ (SIR.SIR _ _ adts _ _ _ _) -> let (Type.ADT _ _ _ variants) = Arena.get adts key in mapM_ variant variants
     where
-        variant (Type.ADTVariant'Named _ fields) = mapM_ (\ (_, ty) -> type_expr ty) fields
-        variant (Type.ADTVariant'Anon _ fields) = mapM_ type_expr fields
+        variant (Type.ADTVariant'Named _ _ fields) = mapM_ (\ (_, _, ty) -> type_expr ty) fields
+        variant (Type.ADTVariant'Anon _ _ fields) = mapM_ (\ (_, ty) -> type_expr ty) fields
 
 type_synonym :: Type.TypeSynonymKey -> ReaderT (SIR d_iden v_iden p_iden binary_ops_allowed) (Compiler.WithDiagnostics (Error d_iden) Void) ()
 type_synonym key = ask >>= \ (SIR.SIR _ _ _ type_synonyms _ _ _) -> let (Type.TypeSynonym _ _ expansion) = Arena.get type_synonyms key in type_expr expansion

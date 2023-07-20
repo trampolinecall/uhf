@@ -17,6 +17,7 @@ module UHF.Data.IR.ANFIR
     , stringify_id
 
     , Expr (..)
+    , CaseTree (..)
     , CaseMatchingClause (..)
     , CaseMatcher (..)
     , expr_type
@@ -83,7 +84,7 @@ data Expr
 
     | Expr'Call ID (Maybe (Type.Type Void)) BindingKey BindingKey
 
-    | Expr'Case ID (Maybe (Type.Type Void)) [([CaseMatchingClause], BindingGroup, BindingKey)]
+    | Expr'Case ID (Maybe (Type.Type Void)) CaseTree
 
     | Expr'TupleDestructure1 ID (Maybe (Type.Type Void)) BindingKey -- TODO: figure out better solution to this (probably general destructure expr for any type, or actually probably use case expressions to match on things)
     | Expr'TupleDestructure2 ID (Maybe (Type.Type Void)) BindingKey
@@ -94,11 +95,14 @@ data Expr
     | Expr'Poison ID (Maybe (Type.Type Void))
     deriving Show
 
+-- TODO: split case things into separate module?
+data CaseTree
+    = CaseTree [([CaseMatchingClause], Either CaseTree (BindingGroup, BindingKey))]
+    deriving Show
 data CaseMatchingClause
     = CaseClause'Match BindingKey CaseMatcher
     | CaseClause'Binding BindingKey
     deriving Show
-
 data CaseMatcher
     = Case'BoolLiteral Bool
     | Case'Tuple

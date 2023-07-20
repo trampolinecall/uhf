@@ -93,9 +93,18 @@ expr (ANFIR.Expr'Tuple _ _ a b) = refer_binding a >>= \ a -> refer_binding b >>=
 expr (ANFIR.Expr'Lambda _ _ param captures group body) = refer_param param >>= \ param -> define_binding_group group >>= \ group -> refer_binding body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, " ->", PP.indented_block [group, body]]) -- TODO: show captures
 expr (ANFIR.Expr'Param _ _ pk) = refer_param pk
 expr (ANFIR.Expr'Call _ _ callee arg) = refer_binding callee >>= \ callee -> refer_binding arg >>= \ arg -> pure (PP.List [callee, "(", arg, ")"])
-expr (ANFIR.Expr'Case _ _ arms) = mapM arm arms >>= \ arms -> pure (PP.List ["case ", PP.braced_block arms])
+expr (ANFIR.Expr'Case _ _ t) = tree t >>= \ t -> pure (PP.List ["case ", t])
     where
-        arm (clauses, group, expr) = mapM clause clauses >>= \ clauses -> define_binding_group group >>= \ group -> refer_binding expr >>= \ expr -> pure (PP.List [PP.bracketed_comma_list PP.Inconsistent clauses, " -> ", PP.indented_block [group, expr], ";"])
+        tree (ANFIR.CaseTree arms) = mapM arm arms >>= \ arms -> pure (PP.braced_block arms)
+
+        arm (clauses, result) =
+            mapM clause clauses >>= \ clauses ->
+            (case result of
+                Right (group, expr) ->
+                    define_binding_group group >>= \ group -> refer_binding expr >>= \ expr ->
+                    pure (PP.indented_block [group, expr])
+                Left subtree -> tree subtree) >>= \ result ->
+            pure (PP.List [PP.bracketed_comma_list PP.Inconsistent clauses, " -> ", result, ";"])
 
         clause (ANFIR.CaseClause'Match b m) = refer_binding b >>= \ b -> matcher m >>= \ matcher -> pure (PP.List [b, " -> ", matcher])
         clause (ANFIR.CaseClause'Binding b) = define_binding b

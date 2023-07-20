@@ -25,5 +25,5 @@ typecheck (SIR.SIR decls mods adts type_synonyms type_vars bound_values mod) = -
         )
         Arena.new >>= \ ((decls, mods, adts, type_synonyms, bound_values), vars) ->
 
-    RemoveUnknowns.remove vars decls mods adts type_synonyms bound_values >>= \ (decls, mods, adts, type_synonyms, bound_values) ->
+    RemoveUnknowns.remove vars mods adts type_synonyms bound_values >>= \ (mods, adts, type_synonyms, bound_values) ->
     pure (SIR.SIR decls mods adts type_synonyms type_vars bound_values mod)

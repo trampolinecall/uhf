@@ -17,10 +17,10 @@ import qualified Data.List.NonEmpty as NonEmpty
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Control.Monad.Fix (mfix)
 
-remove :: TypeUnknownArena -> TypedWithUnkDeclArena -> TypedWithUnkModuleArena -> TypedWithUnkADTArena -> TypedWithUnkTypeSynonymArena -> TypedWithUnkBoundValueArena -> Compiler.WithDiagnostics Error Void (TypedDeclArena, TypedModuleArena, TypedADTArena, TypedTypeSynonymArena, TypedBoundValueArena)
-remove unks decls mods adts type_synonyms bvs =
+remove :: TypeUnknownArena -> TypedWithUnkModuleArena -> TypedWithUnkADTArena -> TypedWithUnkTypeSynonymArena -> TypedWithUnkBoundValueArena -> Compiler.WithDiagnostics Error Void (TypedModuleArena, TypedADTArena, TypedTypeSynonymArena, TypedBoundValueArena)
+remove unks mods adts type_synonyms bvs =
     convert_vars unks >>= \ unks ->
-    pure (decls, Arena.transform (module_ unks) mods, Arena.transform (adt unks) adts, Arena.transform (type_synonym unks) type_synonyms, Arena.transform (bound_value unks) bvs) -- TODO: remove decls from return
+    pure (Arena.transform (module_ unks) mods, Arena.transform (adt unks) adts, Arena.transform (type_synonym unks) type_synonyms, Arena.transform (bound_value unks) bvs)
 
 convert_vars :: TypeUnknownArena -> Compiler.WithDiagnostics Error Void (Arena.Arena (Maybe Type) TypeUnknownKey)
 convert_vars unks =

@@ -211,6 +211,7 @@ convert_expr (SIR.Expr'TypeAnnotation _ _ _ _ other) = convert_expr other
 convert_expr (SIR.Expr'Forall id ty sp vars e) = RIR.Expr'Forall id ty sp vars <$> convert_expr e
 convert_expr (SIR.Expr'TypeApply id ty sp e arg) = RIR.Expr'TypeApply id ty sp <$> convert_expr e <*> pure (SIR.type_expr_type_info arg)
 
+-- TODO: exhaustiveness check
 assign_pattern :: SIRPattern -> RIRExpr -> ConvertState [RIRBinding]
 assign_pattern (SIR.Pattern'Identifier _ _ bv) expr = pure [RIR.Binding bv expr]
 assign_pattern (SIR.Pattern'Wildcard _ _) _ = pure []

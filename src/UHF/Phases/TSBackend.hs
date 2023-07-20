@@ -256,19 +256,7 @@ lower_binding (BackendIR.Binding init) = l init
 
             lower_tree set_result tree >>= \ lowered_tree ->
 
-            {-
-            foldrM
-                (\ (matcher, group, result) current_if ->
-                    lower_binding_group group >>= \ group_lowered ->
-                    mangle_binding_as_var result >>= \ result ->
-                    pure (
-                    )
-                )
-                (set_current $ TS.Expr'Identifier "undefined") -- TODO: raise error instead of using undefined?
-                arms >>= \ ifs ->
-            -}
-
-            pure ([TS.Stmt'Let result_var Nothing Nothing, TS.Stmt'Label label_name lowered_tree], [])
+            pure ([TS.Stmt'Let result_var Nothing Nothing, TS.Stmt'Label label_name lowered_tree], []) -- TODO: check if result is undefined for sanity check even though that should not be possible once exhaustiveness checking is implemented
 
             where
                 lower_tree set_result (BackendIR.CaseTree arms) =

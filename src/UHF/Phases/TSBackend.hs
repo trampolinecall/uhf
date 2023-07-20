@@ -268,7 +268,7 @@ lower_binding (BackendIR.Binding init) = l init
                 arms >>= \ ifs ->
             -}
 
-            pure ([TS.Stmt'Let result_var Nothing Nothing, lowered_tree], [])
+            pure ([TS.Stmt'Let result_var Nothing Nothing, TS.Stmt'Label label_name lowered_tree], [])
 
             where
                 lower_tree set_result (BackendIR.CaseTree arms) =

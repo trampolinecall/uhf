@@ -111,7 +111,7 @@ expr (ANFIR.Expr'Case _ _ t) = tree t >>= \ t -> pure (PP.List ["case ", t])
 
         matcher (ANFIR.Case'BoolLiteral b) = pure $ if b then "true" else "false"
         matcher (ANFIR.Case'Tuple) = pure "(,)"
-        matcher (ANFIR.Case'AnonADTVariant m_variant tyargs) =
+        matcher (ANFIR.Case'AnonADTVariant m_variant) =
             maybe
                 (pure "<name resolution error>")
                 (\ variant_index@(Type.ADTVariantIndex adt_key _) ->
@@ -120,12 +120,22 @@ expr (ANFIR.Expr'Case _ _ t) = tree t >>= \ t -> pure (PP.List ["case ", t])
                     let variant_name = Type.variant_name variant
                     in pure $ PP.List [adt_refer, " ", PP.String $ unlocate variant_name]
                 )
-                m_variant >>= \ refer_variant ->
-            mapM refer_type tyargs >>= \ tyargs ->
-            pure (PP.List [refer_variant, "#", PP.parenthesized_comma_list PP.Inconsistent tyargs])
+                m_variant
 
-expr (ANFIR.Expr'TupleDestructure1 _ _ other) = refer_binding other >>= \ other ->  pure (PP.List [other, ".0"])
-expr (ANFIR.Expr'TupleDestructure2 _ _ other) = refer_binding other >>= \ other ->  pure (PP.List [other, ".1"])
+expr (ANFIR.Expr'TupleDestructure1 _ _ other) = refer_binding other >>= \ other ->  pure (PP.List [other, ".tuple_l"])
+expr (ANFIR.Expr'TupleDestructure2 _ _ other) = refer_binding other >>= \ other ->  pure (PP.List [other, ".tuple_r"])
+expr (ANFIR.Expr'ADTDestructure _ _ base m_variant_idx field_idx) =
+    refer_binding base >>= \ base ->
+    maybe
+        (pure "<name resolution error>")
+        (\ variant_idx@(Type.ADTVariantIndex adt_key _) ->
+            Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_referred ->
+            Type.get_adt_variant <$> get_adt_arena <*> pure variant_idx >>= \ variant ->
+            let variant_name = Type.variant_name variant
+            in pure (PP.List [adt_referred, " ", PP.String $ unlocate variant_name])
+        )
+        m_variant_idx >>= \ variant_referred ->
+    pure (PP.List ["(", base, " as ", variant_referred, ").", PP.String $ show field_idx])
 expr (ANFIR.Expr'Forall _ _ vars group e) = mapM type_var vars >>= \ vars -> define_binding_group group >>= \ group -> refer_binding e >>= \ e -> pure (PP.FirstOnLineIfMultiline $ PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList vars, " ", PP.indented_block [group, e]])
 expr (ANFIR.Expr'TypeApply _ _ e arg) = refer_binding e >>= \ e -> refer_type arg >>= \ arg -> pure (PP.List [e, "#(", arg, ")"])
 expr (ANFIR.Expr'MakeADT _ _ variant_index@(Type.ADTVariantIndex adt_key _) tyargs args) =

@@ -59,6 +59,7 @@ data AlmostExpr
 
     | AlmostExpr'TupleDestructure1 ANFIR.ID (Maybe (Type.Type Void)) ANFIR.BindingKey
     | AlmostExpr'TupleDestructure2 ANFIR.ID (Maybe (Type.Type Void)) ANFIR.BindingKey
+    | AlmostExpr'ADTDestructure ANFIR.ID (Maybe (Type.Type Void)) ANFIR.BindingKey (Maybe Type.ADTVariantIndex) Int
 
     | AlmostExpr'Forall ANFIR.ID (Maybe (Type.Type Void)) (NonEmpty Type.TypeVarKey) [ANFIR.BindingKey] ANFIR.BindingKey
     | AlmostExpr'TypeApply ANFIR.ID (Maybe (Type.Type Void)) ANFIR.BindingKey (Maybe (Type.Type Void))
@@ -159,43 +160,32 @@ convert_expr m_bvid (RIR.Expr'Case id ty _ tree) =
             pure (\ bv_map -> AlmostCaseTree (map ($ bv_map) arms))
 
         convert_clause (RIR.CaseClause'Match binding (RIR.Case'BoolLiteral bool)) = pure (\ bv_map -> [ANFIR.CaseClause'Match (bv_map Map.! binding) (ANFIR.Case'BoolLiteral bool)])
+        convert_clause (RIR.CaseClause'Match c RIR.Case'Tuple) = pure (\ bv_map -> [ANFIR.CaseClause'Match (bv_map Map.! c) ANFIR.Case'Tuple])
+        convert_clause (RIR.CaseClause'Match scrutinee (RIR.Case'AnonADTVariant m_variant_index)) = pure (\ bv_map -> [ANFIR.CaseClause'Match (bv_map Map.! scrutinee) (ANFIR.Case'AnonADTVariant m_variant_index)])
 
-        convert_clause (RIR.CaseClause'Match c (RIR.Case'Tuple a b)) =
-            -- c -> (a, b)
-            -- becomes
-            -- [c -> (,), a = TupleDestructure1 c, b = TupleDestructure2 c]
+        convert_clause (RIR.CaseClause'Assign target rhs) =
+            convert_assign_rhs rhs >>= \ rhs_binding ->
+            map_bound_value target rhs_binding >>
+            pure (\ _ -> [ANFIR.CaseClause'Binding rhs_binding])
 
-            (runWriterT $
-                (case a of
-                    Just a ->
-                        lift (get_bv a) >>= \ (RIR.BoundValue _ a_ty _) ->
-                        lift new_expr_id >>= \ id ->
-                        new_binding (\ bv_map -> (AlmostExpr'TupleDestructure1 (ANFIR.ExprID id) a_ty (bv_map Map.! c))) >>= \ a_destructure ->
-                        lift (map_bound_value a a_destructure)
-
-                    Nothing -> pure ()) >>
-
-                (case b of
-                    Just b ->
-                        lift (get_bv b) >>= \ (RIR.BoundValue _ b_ty _) ->
-                        lift new_expr_id >>= \ id ->
-                        new_binding (\ bv_map -> (AlmostExpr'TupleDestructure2 (ANFIR.ExprID id) b_ty (bv_map Map.! c))) >>= \ b_destructure ->
-                        lift (map_bound_value b b_destructure)
-
-                    Nothing -> pure ())
-
-            ) >>= \ ((), destructure_bindings) ->
-
-            pure (\ bv_map -> ANFIR.CaseClause'Match (bv_map Map.! c) ANFIR.Case'Tuple : map ANFIR.CaseClause'Binding destructure_bindings)
-
-        convert_clause (RIR.CaseClause'Match c (RIR.Case'AnonADTVariant m_variant_index tyargs fields)) = todo
-
-        convert_clause (RIR.CaseClause'Assign target other) =
+        convert_assign_rhs (RIR.CaseAssignRHS'OtherBVK other) =
             (get_bv other) >>= \ (RIR.BoundValue _ other_ty _) ->
             new_expr_id >>= \ id ->
-            runWriterT (new_binding (\ bv_map -> AlmostExpr'Refer (ANFIR.ExprID id) other_ty (bv_map Map.! other))) >>= \ (binding, _) -> -- second element is all the bindings made, but because there is only one call to new_binding in this WriterT, the only binding ever made is this one, so we do not need to keep track of the second variable
-            (map_bound_value target binding) >>
-            pure (\ _ -> [ANFIR.CaseClause'Binding binding])
+            -- second element is all the bindings made, but because there is only one call to new_binding in this WriterT, the only binding ever made is this one, so we do not need to keep track of the second variable
+            runWriterT (new_binding (\ bv_map -> AlmostExpr'Refer (ANFIR.ExprID id) other_ty (bv_map Map.! other))) >>= \ (binding, _) ->
+            pure binding
+        convert_assign_rhs (RIR.CaseAssignRHS'TupleDestructure1 tup) =
+            new_expr_id >>= \ id ->
+            runWriterT (new_binding (\ bv_map -> AlmostExpr'TupleDestructure1 (ANFIR.ExprID id) todo (bv_map Map.! tup))) >>= \ (binding, _) -> -- same note about all the bindings made as above
+            pure binding
+        convert_assign_rhs (RIR.CaseAssignRHS'TupleDestructure2 tup) =
+            new_expr_id >>= \ id ->
+            runWriterT (new_binding (\ bv_map -> AlmostExpr'TupleDestructure2 (ANFIR.ExprID id) todo (bv_map Map.! tup))) >>= \ (binding, _) -> -- same note as above
+            pure binding
+        convert_assign_rhs (RIR.CaseAssignRHS'AnonADTVariantField base variant_idx field) =
+            new_expr_id >>= \ id ->
+            runWriterT (new_binding (\ bv_map -> AlmostExpr'ADTDestructure (ANFIR.ExprID id) todo (bv_map Map.! base) variant_idx field)) >>= \ (binding, _) -> -- same note as above
+            pure binding
 
 convert_expr m_bvid (RIR.Expr'Forall id ty _ vars e) =
     lift (runWriterT (convert_expr Nothing e)) >>= \ (e, e_involved_bindings) ->
@@ -239,6 +229,7 @@ convert_almost_expr (AlmostExpr'Case id ty tree) = ANFIR.Expr'Case id ty <$> con
 
 convert_almost_expr (AlmostExpr'TupleDestructure1 id ty tup) = pure $ ANFIR.Expr'TupleDestructure1 id ty tup
 convert_almost_expr (AlmostExpr'TupleDestructure2 id ty tup) = pure $ ANFIR.Expr'TupleDestructure2 id ty tup
+convert_almost_expr (AlmostExpr'ADTDestructure id ty base variant_idx field_idx) = pure $ ANFIR.Expr'ADTDestructure id ty base variant_idx field_idx
 convert_almost_expr (AlmostExpr'Forall id ty tys bindings result) = ANFIR.Expr'Forall id ty tys <$> (make_binding_group bindings) <*> pure result
 convert_almost_expr (AlmostExpr'TypeApply id ty e tyarg) = pure $ ANFIR.Expr'TypeApply id ty e tyarg
 convert_almost_expr (AlmostExpr'Poison id ty) = pure $ ANFIR.Expr'Poison id ty
@@ -287,6 +278,7 @@ get_dependencies_of_almost_expr bk =
 
         AlmostExpr'TupleDestructure1 _ _ tup -> pure [tup]
         AlmostExpr'TupleDestructure2 _ _ tup -> pure [tup]
+        AlmostExpr'ADTDestructure _ _ base _ _ -> pure [base]
         AlmostExpr'Forall _ _ _ bindings e -> get_dependencies_of_binding_list_and_expr bindings e
         AlmostExpr'TypeApply _ _ e _ -> pure [e]
         AlmostExpr'MakeADT _ _ _ _ args -> pure $ Set.fromList args

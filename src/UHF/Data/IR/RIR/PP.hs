@@ -66,18 +66,18 @@ type_var k = get_type_var k >>= \ (Type.Var (Located _ name)) -> pure (PP.String
 
 -- TODO: precedence
 expr :: RIR.Expr -> IRReader PP.Token
-expr (RIR.Expr'Identifier _ _ _ (Just bvk)) = refer_bv bvk
-expr (RIR.Expr'Identifier _ _ _ Nothing) = pure $ PP.List ["<name resolution error>"]
-expr (RIR.Expr'Char _ _ _ c) = pure $ PP.FirstOnLineIfMultiline $ PP.String $ show c
-expr (RIR.Expr'String _ _ _ s) = pure $ PP.FirstOnLineIfMultiline $ PP.String $ show s
-expr (RIR.Expr'Int _ _ _ i) = pure $ PP.FirstOnLineIfMultiline $ PP.String $ show i
-expr (RIR.Expr'Float _ _ _ (n :% d)) = pure $ PP.FirstOnLineIfMultiline $ PP.String $ "(" <> show n <> "/" <> show d <> ")"
-expr (RIR.Expr'Bool _ _ _ b) = pure $ PP.String $ if b then "true" else "false"
-expr (RIR.Expr'Tuple _ _ _ a b) = expr a >>= \ a -> expr b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b])
-expr (RIR.Expr'Lambda _ _ _ param body) = refer_bv param >>= \ param -> expr body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, " -> ", body])
-expr (RIR.Expr'Let _ _ _ [binding] res) = define_binding binding >>= \ binding -> expr res >>= \ res -> pure (PP.FirstOnLineIfMultiline $ PP.List ["let ", binding, "\n", res])
-expr (RIR.Expr'Let _ _ _ bindings res) = expr res >>= \ res -> mapM define_binding bindings >>= \ bindings -> pure (PP.FirstOnLineIfMultiline $ PP.List ["let ", PP.braced_block bindings, "\n", res])
-expr (RIR.Expr'Call _ _ _ callee arg) = expr callee >>= \ callee -> expr arg >>= \ arg -> pure $ PP.List [callee, "(", arg, ")"]
+expr (RIR.Expr'Identifier _ _ (Just bvk)) = refer_bv bvk
+expr (RIR.Expr'Identifier _ _ Nothing) = pure $ PP.List ["<name resolution error>"]
+expr (RIR.Expr'Char _ _ c) = pure $ PP.FirstOnLineIfMultiline $ PP.String $ show c
+expr (RIR.Expr'String _ _ s) = pure $ PP.FirstOnLineIfMultiline $ PP.String $ show s
+expr (RIR.Expr'Int _ _ i) = pure $ PP.FirstOnLineIfMultiline $ PP.String $ show i
+expr (RIR.Expr'Float _ _ (n :% d)) = pure $ PP.FirstOnLineIfMultiline $ PP.String $ "(" <> show n <> "/" <> show d <> ")"
+expr (RIR.Expr'Bool _ _ b) = pure $ PP.String $ if b then "true" else "false"
+expr (RIR.Expr'Tuple _ _ a b) = expr a >>= \ a -> expr b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b])
+expr (RIR.Expr'Lambda _ _ param body) = refer_bv param >>= \ param -> expr body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, " -> ", body])
+expr (RIR.Expr'Let _ _ [binding] res) = define_binding binding >>= \ binding -> expr res >>= \ res -> pure (PP.FirstOnLineIfMultiline $ PP.List ["let ", binding, "\n", res])
+expr (RIR.Expr'Let _ _ bindings res) = expr res >>= \ res -> mapM define_binding bindings >>= \ bindings -> pure (PP.FirstOnLineIfMultiline $ PP.List ["let ", PP.braced_block bindings, "\n", res])
+expr (RIR.Expr'Call _ _ callee arg) = expr callee >>= \ callee -> expr arg >>= \ arg -> pure $ PP.List [callee, "(", arg, ")"]
 expr (RIR.Expr'Case _ _ _ tree) = pp_tree tree >>= \ tree -> pure (PP.List ["case ", tree])
     where
         pp_tree (RIR.CaseTree arms) = mapM pp_arm arms >>= \ arms -> pure (PP.braced_block arms)
@@ -122,9 +122,9 @@ expr (RIR.Expr'Case _ _ _ tree) = pp_tree tree >>= \ tree -> pure (PP.List ["cas
                 m_variant >>= \ refer_variant ->
             pure (PP.List ["(", base, " as ", refer_variant, ").", PP.String $ show field_idx])
 
-expr (RIR.Expr'Forall _ _ _ tys e) = mapM type_var tys >>= \ tys -> expr e >>= \ e -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList tys, " ", e])
+expr (RIR.Expr'Forall _ _ tys e) = mapM type_var tys >>= \ tys -> expr e >>= \ e -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList tys, " ", e])
 expr (RIR.Expr'TypeApply _ _ _ e arg) = expr e >>= \ e -> refer_m_type arg >>= \ arg -> pure (PP.List [e, "#(", arg, ")"])
-expr (RIR.Expr'MakeADT _ _ _ variant_index@(Type.ADTVariantIndex adt_key _) tyargs args) =
+expr (RIR.Expr'MakeADT _ _ variant_index@(Type.ADTVariantIndex adt_key _) tyargs args) =
     Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
     Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
     mapM expr args >>= \ args ->

@@ -68,3 +68,8 @@ function tuple_matcher<A extends Showable, B extends Showable>(): SwitchMatcher<
         return true;
     }
 }
+function adt_matcher(discr: string): SwitchMatcher<{ data: { discriminant: string} }> {
+    return (d: { data: { discriminant: string } }) => {
+        return d.data.discriminant === discr;
+    }
+}

@@ -132,20 +132,21 @@ convert_decls bv_parent decl_parent decls =
                 mapM (lift . new_type_var) ty_param_names >>= \ ty_param_vars ->
 
                 iden1_for_type_name name >>= \ l_data_name@(Located _ data_name) ->
-                mapM convert_variant variants >>= \ variants_converted ->
-                let datatype = Type.ADT (ID.DeclID decl_parent data_name) l_data_name ty_param_vars variants_converted
+                let adt_id = ID.DeclID decl_parent data_name
+                in mapM (convert_variant adt_id) variants >>= \ variants_converted ->
+                let adt = Type.ADT adt_id l_data_name ty_param_vars variants_converted
                 in
 
-                lift (new_adt datatype) >>= \ adt_key ->
+                lift (new_adt adt) >>= \ adt_key ->
 
                 (catMaybes <$> mapM
                     (\ case
-                        (Type.ADTVariant'Anon (Located name_sp name) _, index) ->
+                        (Type.ADTVariant'Anon (Located name_sp name) _ _, index) ->
                             mapM (lift . new_type_var) ty_param_names >>= \ ty_param_vars_for_constructor ->
                             let variant_index = Type.ADTVariantIndex adt_key index
                             in lift (new_bound_value (SIR.BoundValue'ADTVariant (ID.BoundValueID bv_parent name) variant_index ty_param_vars_for_constructor () name_sp)) >>= \ bv_key ->
                             pure (Just (SIR.Binding'ADTVariant name_sp bv_key ty_param_vars_for_constructor variant_index))
-                        (Type.ADTVariant'Named _ _, _) -> pure Nothing
+                        (Type.ADTVariant'Named _ _ _, _) -> pure Nothing
                     )
                     (zip variants_converted [0..])) >>= \ constructor_bindings ->
 
@@ -167,15 +168,20 @@ convert_decls bv_parent decl_parent decls =
         iden1_for_type_name = MaybeT . make_iden1_with_err PathInTypeName
         iden1_for_field_name = MaybeT . make_iden1_with_err PathInFieldName
 
-        convert_variant (AST.DataVariant'Anon name fields) = Type.ADTVariant'Anon <$> (iden1_for_variant_name name) <*> lift (mapM convert_type fields)
-        convert_variant (AST.DataVariant'Named name fields) =
-            Type.ADTVariant'Named
-                <$> (iden1_for_variant_name name)
-                <*> mapM
+        convert_variant adt_id (AST.DataVariant'Anon name fields) =
+            iden1_for_variant_name name >>= \ variant_name ->
+            let variant_id = ID.ADTVariantID adt_id (unlocate variant_name)
+            in Type.ADTVariant'Anon variant_name variant_id
+                <$> zipWithM (\ field_idx ty_ast -> (ID.ADTFieldID variant_id ("_" <> show (field_idx :: Int)),) <$> lift (convert_type ty_ast)) [0..] fields
+        convert_variant adt_id (AST.DataVariant'Named name fields) =
+            iden1_for_variant_name name >>= \ variant_name ->
+            let variant_id = ID.ADTVariantID adt_id (unlocate variant_name)
+            in Type.ADTVariant'Named variant_name variant_id
+            -- TODO: check no duplicate field names
+                <$> mapM
                     (\ (field_name, ty_ast) ->
-                        (,)
-                            <$> (unlocate <$> iden1_for_field_name field_name)
-                            <*> lift (convert_type ty_ast))
+                        unlocate <$> iden1_for_field_name field_name >>= \ field_name ->
+                        (ID.ADTFieldID variant_id field_name, field_name,) <$> lift (convert_type ty_ast))
                     fields
 
 convert_type :: AST.Type -> MakeIRState TypeExpr

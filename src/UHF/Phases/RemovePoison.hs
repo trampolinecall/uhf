@@ -38,8 +38,8 @@ remove_poison (BackendIR.BackendIR adts type_synonyms type_vars bindings params 
 rp_adt :: PoisonedADT -> Maybe NoPoisonADT
 rp_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM rp_variant variants
     where
-        rp_variant (Type.ADTVariant'Named name fields) = Type.ADTVariant'Named name <$> mapM (\ (field_name, field_ty) -> (field_name,) <$> field_ty) fields
-        rp_variant (Type.ADTVariant'Anon name fields) = Type.ADTVariant'Anon name <$> sequence fields
+        rp_variant (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id <$> mapM (\ (field_id, field_name, field_ty) -> (field_id, field_name,) <$> field_ty) fields
+        rp_variant (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id <$> mapM (\ (field_id, field_ty) -> (field_id,) <$> field_ty) fields
 
 rp_type_synonym :: PoisonedTypeSynonym -> Maybe NoPoisonTypeSynonym
 rp_type_synonym (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name <$> expansion

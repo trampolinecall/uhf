@@ -267,8 +267,8 @@ resolve_in_adt adt_parent_child_maps adt_key (Type.ADT id name type_vars variant
     lift (lift $ make_child_maps type_vars' [] []) >>= \ new_nc ->
     Type.ADT id name type_vars <$> mapM (resolve_in_variant (ChildMapStack new_nc (Just $ ChildMapStack parent Nothing))) variants
     where
-        resolve_in_variant nc_stack (Type.ADTVariant'Named name fields) = Type.ADTVariant'Named name <$> mapM (\ (name, ty) -> (,) name <$> resolve_in_type_expr nc_stack ty) fields
-        resolve_in_variant nc_stack (Type.ADTVariant'Anon name fields) = Type.ADTVariant'Anon name <$> mapM (resolve_in_type_expr nc_stack) fields
+        resolve_in_variant nc_stack (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id <$> mapM (\ (id, name, ty) -> (id, name, ) <$> resolve_in_type_expr nc_stack ty) fields
+        resolve_in_variant nc_stack (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id <$> mapM (\ (id, ty) -> (id,) <$> resolve_in_type_expr nc_stack ty) fields
 
 resolve_in_type_synonym :: Map.Map Type.TypeSynonymKey ChildMaps -> Type.TypeSynonymKey -> UnresolvedTypeSynonym -> (NRReader adt_arena bv_arena TypeVarArena ModuleChildMaps (MakeDeclState CollectingErrors)) ResolvedTypeSynonym
 resolve_in_type_synonym parent_maps synonym_key (Type.TypeSynonym id name expansion) =

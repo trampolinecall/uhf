@@ -7,6 +7,8 @@ module UHF.Data.IR.ID
     , ExprID (..)
     , BoundValueParent (..)
     , BoundValueID (..)
+    , ADTVariantID (..)
+    , ADTFieldID (..)
 
     , stringify
     , mangle
@@ -50,11 +52,16 @@ data ExprID
 data BoundValueParent = BVParent'Module ModuleID | BVParent'LambdaParam ExprID | BVParent'Let ExprID | BVParent'CaseArm ExprID Int deriving Show
 data BoundValueID = BoundValueID BoundValueParent Text | BoundValueID'RIRMadeUp Int deriving Show
 
+data ADTVariantID = ADTVariantID DeclID Text deriving Show
+data ADTFieldID = ADTFieldID ADTVariantID Text deriving Show
+
 data GeneralID
     = GM ModuleID
     | GD DeclID
     | GE ExprID
     | GBV BoundValueID
+    | GADTV ADTVariantID
+    | GADTF ADTFieldID
 
 class ID i where
     to_general_id :: i -> GeneralID
@@ -67,6 +74,10 @@ instance ID ExprID where
     to_general_id = GE
 instance ID BoundValueID where
     to_general_id = GBV
+instance ID ADTVariantID where
+    to_general_id = GADTV
+instance ID ADTFieldID where
+    to_general_id = GADTF
 
 stringify :: ID i => i -> Text
 stringify = stringify' . to_general_id
@@ -77,6 +88,8 @@ stringify = stringify' . to_general_id
         stringify' (GE e) = "expr_" <> stringify_expr_id e
         stringify' (GBV (BoundValueID bv_parent t)) = stringify_bv_parent bv_parent <> "::" <> t
         stringify' (GBV (BoundValueID'RIRMadeUp i)) = "rir_" <> show i
+        stringify' (GADTV (ADTVariantID adt_decl name)) = stringify' (GD adt_decl) <> "::" <> name
+        stringify' (GADTF (ADTFieldID variant_id name)) = stringify' (GADTV variant_id) <> "::" <> name
 
         stringify_expr_id (ExprID'InitializerOf parent ind) = "initializer_of_" <> stringify_decl_parent parent <> "_" <> show ind
 
@@ -118,6 +131,8 @@ instance Mangle GeneralID where
     mangle' (GD d) = "d" <> mangle' d
     mangle' (GE e) = "e" <> mangle' e
     mangle' (GBV bv) = "b" <> mangle' bv
+    mangle' (GADTV adtv) = "v" <> mangle' adtv
+    mangle' (GADTF adtf) = "f" <> mangle' adtf
 
 instance Mangle ModuleID where
     mangle' (ModuleID path) = mangle' path
@@ -160,6 +175,12 @@ instance Mangle BoundValueParent where
     mangle' (BVParent'LambdaParam lam) = "l" <> mangle' lam
     mangle' (BVParent'Let e) = "n" <> mangle' e -- skip m because m is already taken by module
     mangle' (BVParent'CaseArm e ind) = "c" <> mangle' e <> mangle' ind
+
+instance Mangle ADTVariantID where
+    mangle' (ADTVariantID adt_decl variant_name) = mangle' adt_decl <> mangle' variant_name
+
+instance Mangle ADTFieldID where
+    mangle' (ADTFieldID variant field_name) = mangle' variant <> mangle' field_name
 
 instance Mangle a => Mangle [a] where
     mangle' things = show (length things) <> "_" <> Text.concat (map mangle' things)

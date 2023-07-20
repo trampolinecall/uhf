@@ -275,8 +275,9 @@ lower_binding (BackendIR.Binding init) = l init
 
                 lower_clause (BackendIR.CaseClause'Match b matcher) result =
                     mangle_binding_as_var b >>= \ b ->
+                        convert_matcher matcher >>= \ matcher ->
                     pure (TS.Stmt'If
-                        (TS.Expr'Call (convert_matcher matcher) [TS.Expr'Identifier b])
+                        (TS.Expr'Call matcher [TS.Expr'Identifier b])
                         result
                         Nothing
                     )
@@ -284,14 +285,20 @@ lower_binding (BackendIR.Binding init) = l init
                     get_binding b >>= lower_binding >>= \ (early, late) ->
                     pure (TS.Stmt'Block $ early <> late <> [result])
 
-                convert_matcher (BackendIR.Case'BoolLiteral b) = TS.Expr'Call (TS.Expr'Identifier "bool_literal_matcher") [TS.Expr'Bool b]
-                convert_matcher BackendIR.Case'Tuple = TS.Expr'Call (TS.Expr'Identifier "tuple_matcher") []
-                convert_matcher (BackendIR.Case'AnonADTVariant (Right v)) = todo
+                convert_matcher (BackendIR.Case'BoolLiteral b) = pure $ TS.Expr'Call (TS.Expr'Identifier "bool_literal_matcher") [TS.Expr'Bool b]
+                convert_matcher BackendIR.Case'Tuple = pure $ TS.Expr'Call (TS.Expr'Identifier "tuple_matcher") []
+                -- TODO: clean this up
+                convert_matcher (BackendIR.Case'AnonADTVariant (Right variant_index)) =
+                    Type.variant_name <$> (Type.get_adt_variant <$> get_adt_arena <*> pure variant_index) >>= \ variant_name ->
+                    pure (TS.Expr'Call (TS.Expr'Identifier "adt_matcher") [TS.Expr'String $ unlocate variant_name])
                 convert_matcher (BackendIR.Case'AnonADTVariant (Left void)) = absurd void
 
         l (BackendIR.Expr'TupleDestructure1 id _ tup) = mangle_binding_as_var tup >>= \ tup -> let_current id (TS.Expr'Get (TS.Expr'Identifier tup) "first") >>= \ let_stmt -> pure ([let_stmt], [])
         l (BackendIR.Expr'TupleDestructure2 id _ tup) = mangle_binding_as_var tup >>= \ tup -> let_current id (TS.Expr'Get (TS.Expr'Identifier tup) "second") >>= \ let_stmt -> pure ([let_stmt], [])
-        l (BackendIR.Expr'ADTDestructure id _ b variant field) = todo
+        l (BackendIR.Expr'ADTDestructure id _ b variant_index field) =
+            mangle_binding_as_var b >>= \ b ->
+            let_current id (TS.Expr'Get (TS.Expr'Get (TS.Expr'Identifier b) "data") ("_" <> show field)) >>= \ let_stmt ->
+            pure ([let_stmt], [])
 
         -- TODO: lower these 2 properly
         l (BackendIR.Expr'Forall id _ _ group result) =

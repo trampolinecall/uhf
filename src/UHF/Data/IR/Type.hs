@@ -48,7 +48,6 @@ data Type unk
     deriving Show
 
 data ADT ty = ADT ID.DeclID (Located Text) [TypeVarKey] [ADTVariant ty] deriving Show
--- TODO: variant ids and field ids
 data ADTVariant ty
     = ADTVariant'Named (Located Text) ID.ADTVariantID [(ID.ADTFieldID, Text, ty)]
     | ADTVariant'Anon (Located Text) ID.ADTVariantID [(ID.ADTFieldID, ty)]

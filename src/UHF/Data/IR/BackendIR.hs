@@ -76,7 +76,7 @@ data Expr ty poison_allowed
     | Expr'Bool ID ty Bool
     | Expr'Char ID ty Char
     | Expr'String ID ty Text
-    | Expr'Tuple ID ty BindingKey BindingKey -- TODO: replace with call constructor expr
+    | Expr'Tuple ID ty BindingKey BindingKey
     | Expr'MakeADT ID ty Type.ADTVariantIndex [ty] [BindingKey]
 
     | Expr'Lambda ID ty ParamKey (Set.Set BindingKey) BindingGroup BindingKey

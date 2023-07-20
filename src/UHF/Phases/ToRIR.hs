@@ -75,21 +75,22 @@ convert_binding (SIR.Binding'ADTVariant name_sp bvk type_params variant_index) =
 
         wrap_in_forall = case type_params of
             [] -> pure
-            param:more -> \ lambda -> new_made_up_expr_id (\ id -> RIR.Expr'Forall id (Type.Type'Forall (param :| more) <$> RIR.expr_type lambda) name_sp (param :| more) lambda)
-    in make_lambdas type_params variant_index [] (Type.variant_field_types variant) >>= wrap_in_forall >>= \ lambdas ->
+            param:more -> \ lambda -> new_made_up_expr_id (\ id -> RIR.Expr'Forall id name_sp (param :| more) lambda)
+    in
+    make_lambdas type_params variant_index [] (Type.variant_field_types variant) >>= wrap_in_forall >>= \ lambdas ->
     pure [RIR.Binding bvk lambdas]
     where
-        make_lambdas type_params variant_index@(Type.ADTVariantIndex adt_key _) refer_to_params [] =
+        make_lambdas type_params variant_index refer_to_params [] =
             let ty_params_as_tys = map Type.Type'Variable type_params
-            in new_made_up_expr_id $ \ id -> RIR.Expr'MakeADT id (Type.Type'ADT adt_key ty_params_as_tys) name_sp variant_index (map Just ty_params_as_tys) refer_to_params
+            in new_made_up_expr_id $ \ id -> RIR.Expr'MakeADT id name_sp variant_index (map Just ty_params_as_tys) refer_to_params
 
         make_lambdas type_params variant_index refer_to_params (cur_field_ty:more_field_tys) =
             new_bound_value cur_field_ty name_sp >>= \ param_bvk ->
-            new_made_up_expr_id (\ id -> RIR.Expr'Identifier id cur_field_ty name_sp (Just param_bvk)) >>= \ refer_expr ->
+            new_made_up_expr_id (\ id -> RIR.Expr'Identifier id name_sp (Just param_bvk)) >>= \ refer_expr ->
 
             make_lambdas type_params variant_index (refer_to_params <> [refer_expr]) more_field_tys >>= \ lambda_result ->
-            let lambda_ty = Type.Type'Function <$> cur_field_ty <*> RIR.expr_type lambda_result
-            in new_made_up_expr_id (\ id -> RIR.Expr'Lambda id lambda_ty name_sp param_bvk lambda_result)
+            lift get >>= \ bv_arena ->
+            new_made_up_expr_id (\ id -> RIR.Expr'Lambda id name_sp param_bvk lambda_result)
 
 new_made_up_bv_id :: ConvertState ID.BoundValueID
 new_made_up_bv_id = lift $ lift IDGen.gen_id
@@ -99,13 +100,13 @@ new_bound_value ty sp =
     lift (state $ Arena.put (RIR.BoundValue id ty sp))
 
 convert_expr :: SIRExpr -> ConvertState RIRExpr
-convert_expr (SIR.Expr'Identifier id ty sp bv) = pure $ RIR.Expr'Identifier id ty sp (unlocate bv)
-convert_expr (SIR.Expr'Char id ty sp c) = pure $ RIR.Expr'Char id ty sp c
-convert_expr (SIR.Expr'String id ty sp s) = pure $ RIR.Expr'String id ty sp s
-convert_expr (SIR.Expr'Int id ty sp i) = pure $ RIR.Expr'Int id ty sp i
-convert_expr (SIR.Expr'Float id ty sp f) = pure $ RIR.Expr'Float id ty sp f
-convert_expr (SIR.Expr'Bool id ty sp b) = pure $ RIR.Expr'Bool id ty sp b
-convert_expr (SIR.Expr'Tuple id ty sp a b) = RIR.Expr'Tuple id ty sp <$> convert_expr a <*> convert_expr b
+convert_expr (SIR.Expr'Identifier id ty sp bv) = pure $ RIR.Expr'Identifier id sp (unlocate bv)
+convert_expr (SIR.Expr'Char id ty sp c) = pure $ RIR.Expr'Char id sp c
+convert_expr (SIR.Expr'String id ty sp s) = pure $ RIR.Expr'String id sp s
+convert_expr (SIR.Expr'Int id ty sp i) = pure $ RIR.Expr'Int id sp i
+convert_expr (SIR.Expr'Float id ty sp f) = pure $ RIR.Expr'Float id sp f
+convert_expr (SIR.Expr'Bool id ty sp b) = pure $ RIR.Expr'Bool id sp b
+convert_expr (SIR.Expr'Tuple id ty sp a b) = RIR.Expr'Tuple id sp <$> convert_expr a <*> convert_expr b
 convert_expr (SIR.Expr'Lambda id ty sp param_pat body) =
     let param_ty = SIR.pattern_type param_pat
         body_ty = SIR.expr_type body
@@ -113,13 +114,13 @@ convert_expr (SIR.Expr'Lambda id ty sp param_pat body) =
     in
     -- '\ (...) -> body' becomes '\ (arg) -> let ... = arg; body'
     new_bound_value param_ty (SIR.pattern_span param_pat) >>= \ param_bk ->
-    assign_pattern param_pat (RIR.Expr'Identifier id param_ty (SIR.pattern_span param_pat) (Just param_bk)) >>= \ bindings ->
-    RIR.Expr'Lambda id ty sp param_bk <$> (RIR.Expr'Let id body_ty body_sp bindings <$> convert_expr body)
+    assign_pattern param_pat (RIR.Expr'Identifier id (SIR.pattern_span param_pat) (Just param_bk)) >>= \ bindings ->
+    RIR.Expr'Lambda id sp param_bk <$> (RIR.Expr'Let id body_sp bindings <$> convert_expr body)
 
-convert_expr (SIR.Expr'Let id ty sp bindings body) = RIR.Expr'Let id ty sp <$> (concat <$> mapM convert_binding bindings) <*> convert_expr body
-convert_expr (SIR.Expr'LetRec id ty sp bindings body) = RIR.Expr'Let id ty sp <$> (concat <$> mapM convert_binding bindings) <*> convert_expr body
+convert_expr (SIR.Expr'Let id ty sp bindings body) = RIR.Expr'Let id sp <$> (concat <$> mapM convert_binding bindings) <*> convert_expr body
+convert_expr (SIR.Expr'LetRec id ty sp bindings body) = RIR.Expr'Let id sp <$> (concat <$> mapM convert_binding bindings) <*> convert_expr body
 convert_expr (SIR.Expr'BinaryOps _ void _ _ _ _) = absurd void
-convert_expr (SIR.Expr'Call id ty sp callee arg) = RIR.Expr'Call id ty sp <$> convert_expr callee <*> convert_expr arg
+convert_expr (SIR.Expr'Call id ty sp callee arg) = RIR.Expr'Call id sp <$> convert_expr callee <*> convert_expr arg
 convert_expr (SIR.Expr'If id ty sp _ cond true false) =
     -- if C then T else F
     -- becomes
@@ -133,11 +134,12 @@ convert_expr (SIR.Expr'If id ty sp _ cond true false) =
     convert_expr true >>= \ true ->
     convert_expr false >>= \ false ->
 
-    new_bound_value (RIR.expr_type cond) (RIR.expr_span cond) >>= \ cond_bv ->
+    lift get >>= \ bv_arena ->
+    new_bound_value (RIR.expr_type bv_arena cond) (RIR.expr_span cond) >>= \ cond_bv ->
 
     new_made_up_expr_id
         (\ let_id ->
-            RIR.Expr'Let let_id ty sp
+            RIR.Expr'Let let_id sp
                 [RIR.Binding cond_bv cond]
                 (RIR.Expr'Case id ty sp
                     (RIR.CaseTree
@@ -161,7 +163,8 @@ convert_expr (SIR.Expr'Case id ty sp _ scrutinee arms) =
     -- }
 
     convert_expr scrutinee >>= \ scrutinee ->
-    new_bound_value (RIR.expr_type scrutinee) (RIR.expr_span scrutinee) >>= \ scrutinee_bv ->
+    lift get >>= \ bv_arena ->
+    new_bound_value (RIR.expr_type bv_arena scrutinee) (RIR.expr_span scrutinee) >>= \ scrutinee_bv ->
 
     -- TODO: exhaustiveness check and unreachable patterns check
     mapM
@@ -174,7 +177,7 @@ convert_expr (SIR.Expr'Case id ty sp _ scrutinee arms) =
 
     new_made_up_expr_id
         (\ let_id ->
-            RIR.Expr'Let let_id ty sp
+            RIR.Expr'Let let_id sp
                 [RIR.Binding scrutinee_bv scrutinee]
                 (RIR.Expr'Case id ty sp (RIR.CaseTree arms))
         )
@@ -208,7 +211,7 @@ convert_expr (SIR.Expr'Case id ty sp _ scrutinee arms) =
 convert_expr (SIR.Expr'Poison id ty sp) = pure $ RIR.Expr'Poison id ty sp
 convert_expr (SIR.Expr'Hole id ty sp _) = pure $ RIR.Expr'Poison id ty sp
 convert_expr (SIR.Expr'TypeAnnotation _ _ _ _ other) = convert_expr other
-convert_expr (SIR.Expr'Forall id ty sp vars e) = RIR.Expr'Forall id ty sp vars <$> convert_expr e
+convert_expr (SIR.Expr'Forall id ty sp vars e) = RIR.Expr'Forall id sp vars <$> convert_expr e
 convert_expr (SIR.Expr'TypeApply id ty sp e arg) = RIR.Expr'TypeApply id ty sp <$> convert_expr e <*> pure (SIR.type_expr_type_info arg)
 
 -- TODO: exhaustiveness check
@@ -234,8 +237,8 @@ assign_pattern (SIR.Pattern'Tuple whole_ty whole_sp a b) expr =
     new_made_up_expr_id identity >>= \ l_extract_id ->
     new_made_up_expr_id identity >>= \ r_extract_id ->
 
-    new_made_up_expr_id (\ id -> RIR.Expr'Case id a_ty a_sp (RIR.CaseTree [([RIR.CaseClause'Match whole_bv RIR.Case'Tuple, RIR.CaseClause'Assign a_bv (RIR.CaseAssignRHS'TupleDestructure1 (SIR.pattern_type a) whole_bv)], Right $ RIR.Expr'Identifier l_extract_id a_ty a_sp (Just a_bv))])) >>= \ extract_a  ->
-    new_made_up_expr_id (\ id -> RIR.Expr'Case id b_ty b_sp (RIR.CaseTree [([RIR.CaseClause'Match whole_bv RIR.Case'Tuple, RIR.CaseClause'Assign b_bv (RIR.CaseAssignRHS'TupleDestructure2 (SIR.pattern_type b) whole_bv)], Right $ RIR.Expr'Identifier r_extract_id b_ty b_sp (Just b_bv))])) >>= \ extract_b ->
+    new_made_up_expr_id (\ id -> RIR.Expr'Case id a_ty a_sp (RIR.CaseTree [([RIR.CaseClause'Match whole_bv RIR.Case'Tuple, RIR.CaseClause'Assign a_bv (RIR.CaseAssignRHS'TupleDestructure1 (SIR.pattern_type a) whole_bv)], Right $ RIR.Expr'Identifier l_extract_id a_sp (Just a_bv))])) >>= \ extract_a  ->
+    new_made_up_expr_id (\ id -> RIR.Expr'Case id b_ty b_sp (RIR.CaseTree [([RIR.CaseClause'Match whole_bv RIR.Case'Tuple, RIR.CaseClause'Assign b_bv (RIR.CaseAssignRHS'TupleDestructure2 (SIR.pattern_type b) whole_bv)], Right $ RIR.Expr'Identifier r_extract_id b_sp (Just b_bv))])) >>= \ extract_b ->
 
     assign_pattern a extract_a >>= \ assign_a ->
     assign_pattern b extract_b >>= \ assign_b ->
@@ -247,7 +250,7 @@ assign_pattern (SIR.Pattern'Named ty sp _ bv other) expr =
     --  becomes
     --      a = e
     --      ... = a
-    new_made_up_expr_id (\ id -> RIR.Expr'Identifier id ty sp (Just $ unlocate bv)) >>= \ refer ->
+    new_made_up_expr_id (\ id -> RIR.Expr'Identifier id sp (Just $ unlocate bv)) >>= \ refer ->
     assign_pattern other refer >>= \ other_assignments ->
     pure (RIR.Binding (unlocate bv) expr : other_assignments)
 

@@ -25,10 +25,8 @@ remove unks mods adts type_synonyms bvs =
 convert_vars :: TypeUnknownArena -> Compiler.WithDiagnostics Error Void (Arena.Arena (Maybe Type) TypeUnknownKey)
 convert_vars unks =
     -- infinite recursion is not possible because occurs check prevents loops in substitution
-    let (res, errs) = (runWriter $ mfix (\ unks_converted -> Arena.transformM (runMaybeT . convert_var unks_converted) unks))
-    in Compiler.tell_errors errs >> pure res
+    mfix (\ unks_converted -> Arena.transformM (runMaybeT . convert_var unks_converted) unks)
     where
-        -- this usage of mfix does not play nicely with the IO in the Compiler monad so this must be done in the Writer monad
         r _ Type.Type'Int = pure Type.Type'Int
         r _ Type.Type'Float = pure Type.Type'Float
         r _ Type.Type'Char = pure Type.Type'Char
@@ -43,7 +41,7 @@ convert_vars unks =
         r unks_converted (Type.Type'Forall vars ty) = Type.Type'Forall vars <$> r unks_converted ty
 
         convert_var unks_converted (TypeUnknown _ (Substituted s)) = r unks_converted s
-        convert_var _ (TypeUnknown for_what Fresh) = lift (tell [AmbiguousType for_what]) >> MaybeT (pure Nothing)
+        convert_var _ (TypeUnknown for_what Fresh) = lift (Compiler.tell_error $ AmbiguousType for_what) >> MaybeT (pure Nothing)
 
 module_ :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkModule -> TypedModule
 module_ unks (SIR.Module id bindings adts type_synonyms) = SIR.Module id (map (binding unks) bindings) adts type_synonyms

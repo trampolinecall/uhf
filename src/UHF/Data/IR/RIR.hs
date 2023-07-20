@@ -88,9 +88,9 @@ data CaseMatcher
     deriving Show
 data CaseAssignRHS
     = CaseAssignRHS'OtherBVK BoundValueKey
-    | CaseAssignRHS'TupleDestructure1 BoundValueKey
-    | CaseAssignRHS'TupleDestructure2 BoundValueKey
-    | CaseAssignRHS'AnonADTVariantField BoundValueKey (Maybe Type.ADTVariantIndex) Int -- TODO: make ADTFieldIndex in Type module
+    | CaseAssignRHS'TupleDestructure1 (Maybe Type) BoundValueKey
+    | CaseAssignRHS'TupleDestructure2 (Maybe Type) BoundValueKey
+    | CaseAssignRHS'AnonADTVariantField (Maybe Type) BoundValueKey (Maybe Type.ADTVariantIndex) Int -- TODO: make ADTFieldIndex in Type module
     deriving Show
 
 expr_type :: Expr -> Maybe Type

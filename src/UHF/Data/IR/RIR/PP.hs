@@ -106,9 +106,9 @@ expr (RIR.Expr'Case _ _ _ tree) = pp_tree tree >>= \ tree -> pure (PP.List ["cas
                 m_variant
 
         pp_assign_rhs (RIR.CaseAssignRHS'OtherBVK other) = refer_bv other
-        pp_assign_rhs (RIR.CaseAssignRHS'TupleDestructure1 tup) = refer_bv tup >>= \ tup -> pure (PP.List [tup, ".tuple_l"])
-        pp_assign_rhs (RIR.CaseAssignRHS'TupleDestructure2 tup) = refer_bv tup >>= \ tup -> pure (PP.List [tup, ".tuple_r"])
-        pp_assign_rhs (RIR.CaseAssignRHS'AnonADTVariantField base m_variant field_idx) =
+        pp_assign_rhs (RIR.CaseAssignRHS'TupleDestructure1 _ tup) = refer_bv tup >>= \ tup -> pure (PP.List [tup, ".tuple_l"])
+        pp_assign_rhs (RIR.CaseAssignRHS'TupleDestructure2 _ tup) = refer_bv tup >>= \ tup -> pure (PP.List [tup, ".tuple_r"])
+        pp_assign_rhs (RIR.CaseAssignRHS'AnonADTVariantField _ base m_variant field_idx) =
             refer_bv base >>= \ base ->
             -- TODO: unduplicate this?
             maybe

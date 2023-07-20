@@ -174,17 +174,17 @@ convert_expr m_bvid (RIR.Expr'Case id ty _ tree) =
             -- second element is all the bindings made, but because there is only one call to new_binding in this WriterT, the only binding ever made is this one, so we do not need to keep track of the second variable
             runWriterT (new_binding (\ bv_map -> AlmostExpr'Refer (ANFIR.ExprID id) other_ty (bv_map Map.! other))) >>= \ (binding, _) ->
             pure binding
-        convert_assign_rhs (RIR.CaseAssignRHS'TupleDestructure1 tup) =
+        convert_assign_rhs (RIR.CaseAssignRHS'TupleDestructure1 ty tup) =
             new_expr_id >>= \ id ->
-            runWriterT (new_binding (\ bv_map -> AlmostExpr'TupleDestructure1 (ANFIR.ExprID id) todo (bv_map Map.! tup))) >>= \ (binding, _) -> -- same note about all the bindings made as above
+            runWriterT (new_binding (\ bv_map -> AlmostExpr'TupleDestructure1 (ANFIR.ExprID id) ty (bv_map Map.! tup))) >>= \ (binding, _) -> -- same note about all the bindings made as above
             pure binding
-        convert_assign_rhs (RIR.CaseAssignRHS'TupleDestructure2 tup) =
+        convert_assign_rhs (RIR.CaseAssignRHS'TupleDestructure2 ty tup) =
             new_expr_id >>= \ id ->
-            runWriterT (new_binding (\ bv_map -> AlmostExpr'TupleDestructure2 (ANFIR.ExprID id) todo (bv_map Map.! tup))) >>= \ (binding, _) -> -- same note as above
+            runWriterT (new_binding (\ bv_map -> AlmostExpr'TupleDestructure2 (ANFIR.ExprID id) ty (bv_map Map.! tup))) >>= \ (binding, _) -> -- same note as above
             pure binding
-        convert_assign_rhs (RIR.CaseAssignRHS'AnonADTVariantField base variant_idx field) =
+        convert_assign_rhs (RIR.CaseAssignRHS'AnonADTVariantField ty base variant_idx field) =
             new_expr_id >>= \ id ->
-            runWriterT (new_binding (\ bv_map -> AlmostExpr'ADTDestructure (ANFIR.ExprID id) todo (bv_map Map.! base) variant_idx field)) >>= \ (binding, _) -> -- same note as above
+            runWriterT (new_binding (\ bv_map -> AlmostExpr'ADTDestructure (ANFIR.ExprID id) ty (bv_map Map.! base) variant_idx field)) >>= \ (binding, _) -> -- same note as above
             pure binding
 
 convert_expr m_bvid (RIR.Expr'Forall id ty _ vars e) =

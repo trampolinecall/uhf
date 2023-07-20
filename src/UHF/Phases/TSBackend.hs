@@ -275,7 +275,7 @@ lower_binding (BackendIR.Binding init) = l init
 
                 lower_clause (BackendIR.CaseClause'Match b matcher) result =
                     mangle_binding_as_var b >>= \ b ->
-                        convert_matcher matcher >>= \ matcher ->
+                    convert_matcher matcher >>= \ matcher ->
                     pure (TS.Stmt'If
                         (TS.Expr'Call matcher [TS.Expr'Identifier b])
                         result

@@ -110,7 +110,7 @@ expr_type (Expr'TypeApply _ ty _ _ _) = ty
 expr_type (Expr'MakeADT _ ty _ _ _ _) = Just ty
 expr_type (Expr'Poison _ ty _) = ty
 
-expr_span :: Expr -> Span -- TODO: remove?
+expr_span :: Expr -> Span
 expr_span (Expr'Identifier _ _ sp _) = sp
 expr_span (Expr'Char _ _ sp _) = sp
 expr_span (Expr'String _ _ sp _) = sp

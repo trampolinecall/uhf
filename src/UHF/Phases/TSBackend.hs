@@ -274,23 +274,19 @@ lower_binding (BackendIR.Binding init) = l init
 
                 lower_clause (BackendIR.CaseClause'Match b matcher) result =
                     mangle_binding_as_var b >>= \ b ->
-                    convert_matcher matcher >>= \ matcher ->
-                    pure (TS.Stmt'If
-                        (TS.Expr'Call matcher [TS.Expr'Identifier b])
-                        result
-                        Nothing
-                    )
+                    convert_matcher (TS.Expr'Identifier b) matcher >>= \ check ->
+                    pure (TS.Stmt'If check result Nothing)
                 lower_clause (BackendIR.CaseClause'Binding b) result =
                     get_binding b >>= lower_binding >>= \ (early, late) ->
                     pure (TS.Stmt'Block $ early <> late <> [result])
 
-                convert_matcher (BackendIR.Case'BoolLiteral b) = pure $ TS.Expr'Call (TS.Expr'Identifier "bool_literal_matcher") [TS.Expr'Bool b]
-                convert_matcher BackendIR.Case'Tuple = pure $ TS.Expr'Call (TS.Expr'Identifier "tuple_matcher") []
+                convert_matcher checking (BackendIR.Case'BoolLiteral b) = pure $ TS.Expr'Eq checking (TS.Expr'Bool b)
+                convert_matcher _ BackendIR.Case'Tuple = pure $ TS.Expr'Bool True -- tuple always matches because there is only 1 constructor
                 -- TODO: clean this up
-                convert_matcher (BackendIR.Case'AnonADTVariant (Right variant_index)) =
+                convert_matcher checking (BackendIR.Case'AnonADTVariant (Right variant_index)) =
                     Type.variant_id <$> (Type.get_adt_variant <$> get_adt_arena <*> pure variant_index) >>= \ variant_id ->
-                    pure (TS.Expr'Call (TS.Expr'Identifier "adt_matcher") [TS.Expr'String $ ID.mangle variant_id])
-                convert_matcher (BackendIR.Case'AnonADTVariant (Left void)) = absurd void
+                    pure (TS.Expr'Eq (TS.Expr'Get (TS.Expr'Get checking "data") "discriminant") (TS.Expr'String $ ID.mangle variant_id))
+                convert_matcher _ (BackendIR.Case'AnonADTVariant (Left void)) = absurd void
 
         l (BackendIR.Expr'TupleDestructure1 id _ tup) = mangle_binding_as_var tup >>= \ tup -> let_current id (TS.Expr'Get (TS.Expr'Identifier tup) "first") >>= \ let_stmt -> pure ([let_stmt], [])
         l (BackendIR.Expr'TupleDestructure2 id _ tup) = mangle_binding_as_var tup >>= \ tup -> let_current id (TS.Expr'Get (TS.Expr'Identifier tup) "second") >>= \ let_stmt -> pure ([let_stmt], [])
@@ -299,7 +295,7 @@ lower_binding (BackendIR.Binding init) = l init
             Type.get_adt_field_id <$> get_adt_arena <*> pure field_idx >>= \ field_id ->
             let_current id (TS.Expr'Get (TS.Expr'Get (TS.Expr'Identifier b) "data") (ID.mangle field_id)) >>= \ let_stmt ->
             pure ([let_stmt], [])
-        l (BackendIR.Expr'ADTDestructure id _ b (Left void)) = absurd void
+        l (BackendIR.Expr'ADTDestructure _ _ _ (Left void)) = absurd void
 
         -- TODO: lower these 2 properly
         l (BackendIR.Expr'Forall id _ _ group result) =

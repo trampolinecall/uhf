@@ -53,8 +53,8 @@ bound_value unks (SIR.BoundValue'ADTVariant id index tparams ty sp) = SIR.BoundV
 adt :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkADT -> TypedADT
 adt unks (Type.ADT id name type_var variants) = Type.ADT id name type_var (map variant variants)
     where
-        variant (Type.ADTVariant'Named name fields) = Type.ADTVariant'Named name (map (\ (name, ty) -> (name, type_expr unks ty)) fields)
-        variant (Type.ADTVariant'Anon name fields) = Type.ADTVariant'Anon name (map (type_expr unks) fields)
+        variant (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id (map (\ (name, id, ty) -> (name, id, type_expr unks ty)) fields)
+        variant (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id (map (\ (id, ty) -> (id, type_expr unks ty)) fields)
 
 type_synonym :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkTypeSynonym -> TypedTypeSynonym
 type_synonym unks (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name (type_expr unks expansion)

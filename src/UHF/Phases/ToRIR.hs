@@ -61,8 +61,8 @@ assemble_cu modules mod =
 convert_adt :: Type.ADT SIRTypeExpr -> Type.ADT Type
 convert_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars (map convert_variant variants)
     where
-        convert_variant (Type.ADTVariant'Named name fields) = Type.ADTVariant'Named name (map (\ (name, ty) -> (name, SIR.type_expr_type_info ty)) fields)
-        convert_variant (Type.ADTVariant'Anon name fields) = Type.ADTVariant'Anon name (map SIR.type_expr_type_info fields)
+        convert_variant (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id (map (\ (id, name, ty) -> (id, name, SIR.type_expr_type_info ty)) fields)
+        convert_variant (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id (map (\ (id, ty) -> (id, SIR.type_expr_type_info ty)) fields)
 
 convert_type_synonym :: Type.TypeSynonym SIRTypeExpr -> Type.TypeSynonym Type
 convert_type_synonym (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name (SIR.type_expr_type_info expansion)
@@ -89,7 +89,6 @@ convert_binding (SIR.Binding'ADTVariant name_sp bvk type_params variant_index) =
             new_made_up_expr_id (\ id -> RIR.Expr'Identifier id name_sp (Just param_bvk)) >>= \ refer_expr ->
 
             make_lambdas type_params variant_index (refer_to_params <> [refer_expr]) more_field_tys >>= \ lambda_result ->
-            lift get >>= \ bv_arena ->
             new_made_up_expr_id (\ id -> RIR.Expr'Lambda id name_sp param_bvk lambda_result)
 
 new_made_up_bv_id :: ConvertState ID.BoundValueID

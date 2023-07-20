@@ -88,7 +88,7 @@ data Expr
 
     | Expr'TupleDestructure1 ID (Maybe (Type.Type Void)) BindingKey
     | Expr'TupleDestructure2 ID (Maybe (Type.Type Void)) BindingKey
-    | Expr'ADTDestructure ID (Maybe (Type.Type Void)) BindingKey (Maybe Type.ADTVariantIndex) Int
+    | Expr'ADTDestructure ID (Maybe (Type.Type Void)) BindingKey (Maybe Type.ADTFieldIndex)
 
     | Expr'Forall ID (Maybe (Type.Type Void)) (NonEmpty TypeVarKey) BindingGroup BindingKey
     | Expr'TypeApply ID (Maybe (Type.Type Void)) BindingKey (Maybe (Type.Type Void))
@@ -124,7 +124,7 @@ expr_type (Expr'Call _ ty _ _) = ty
 expr_type (Expr'Case _ ty _) = ty
 expr_type (Expr'TupleDestructure1 _ ty _) = ty
 expr_type (Expr'TupleDestructure2 _ ty _) = ty
-expr_type (Expr'ADTDestructure _ ty _ _ _) = ty
+expr_type (Expr'ADTDestructure _ ty _ _) = ty
 expr_type (Expr'Forall _ ty _ _ _) = ty
 expr_type (Expr'TypeApply _ ty _ _) = ty
 expr_type (Expr'MakeADT _ ty _ _ _) = ty
@@ -144,7 +144,7 @@ expr_id (Expr'Call id _ _ _) = id
 expr_id (Expr'Case id _ _) = id
 expr_id (Expr'TupleDestructure1 id _ _) = id
 expr_id (Expr'TupleDestructure2 id _ _) = id
-expr_id (Expr'ADTDestructure id _ _ _ _) = id
+expr_id (Expr'ADTDestructure id _ _ _) = id
 expr_id (Expr'Forall id _ _ _ _) = id
 expr_id (Expr'TypeApply id _ _ _) = id
 expr_id (Expr'MakeADT id _ _ _ _) = id

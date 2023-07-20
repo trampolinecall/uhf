@@ -5,7 +5,9 @@ module UHF.Data.IR.Type
     , ADT (..)
     , ADTVariant (..)
     , ADTVariantIndex (..)
+    , ADTFieldIndex (..)
     , get_adt_variant
+    , get_adt_field_type
     , variant_name
     , variant_field_types
 
@@ -49,6 +51,7 @@ data ADTVariant ty
     | ADTVariant'Anon (Located Text) [ty]
     deriving Show
 data ADTVariantIndex = ADTVariantIndex ADTKey Int deriving Show
+data ADTFieldIndex = ADTFieldIndex ADTVariantIndex Int deriving Show
 
 variant_name :: ADTVariant ty -> Located Text
 variant_name (ADTVariant'Anon name _) = name
@@ -62,6 +65,13 @@ get_adt_variant :: Arena.Arena (ADT ty) ADTKey -> ADTVariantIndex  -> ADTVariant
 get_adt_variant adts (ADTVariantIndex key i) =
     let (ADT _ _ _ variants) = Arena.get adts key
     in variants List.!! i
+
+-- technically can error, but every ADTVariantIndex constructed should be a valid variant, so hopefully if everything is functioning correctly, this should never fail
+get_adt_field_type :: Arena.Arena (ADT ty) ADTKey -> ADTFieldIndex  -> ty
+get_adt_field_type adts (ADTFieldIndex variant i) =
+    case get_adt_variant adts variant of
+        ADTVariant'Named _ fields -> snd $ fields List.!! i
+        ADTVariant'Anon _ fields -> fields List.!! i
 
 data TypeSynonym ty = TypeSynonym ID.DeclID (Located Text) ty deriving Show
 

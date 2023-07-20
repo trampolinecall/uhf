@@ -85,8 +85,8 @@ rp_expr (BackendIR.Expr'Case id ty t) = ty >>= \ ty -> rp_tree t >>= \ t -> pure
 
 rp_expr (BackendIR.Expr'TupleDestructure1 id ty t) = ty >>= \ ty -> pure (BackendIR.Expr'TupleDestructure1 id ty t)
 rp_expr (BackendIR.Expr'TupleDestructure2 id ty t) = ty >>= \ ty -> pure (BackendIR.Expr'TupleDestructure2 id ty t)
-rp_expr (BackendIR.Expr'ADTDestructure id ty b (Right variant) field) = ty >>= \ ty -> pure (BackendIR.Expr'ADTDestructure id ty b (Right variant) field)
-rp_expr (BackendIR.Expr'ADTDestructure _ _ _ (Left ()) _) = Nothing
+rp_expr (BackendIR.Expr'ADTDestructure id ty b (Right field)) = ty >>= \ ty -> pure (BackendIR.Expr'ADTDestructure id ty b (Right field))
+rp_expr (BackendIR.Expr'ADTDestructure _ _ _ (Left ())) = Nothing
 
 rp_expr (BackendIR.Expr'Forall id ty vars group e) = ty >>= \ ty -> pure (BackendIR.Expr'Forall id ty vars group e)
 rp_expr (BackendIR.Expr'TypeApply id ty e arg) = ty >>= \ ty -> arg >>= \ arg -> pure (BackendIR.Expr'TypeApply id ty e arg)

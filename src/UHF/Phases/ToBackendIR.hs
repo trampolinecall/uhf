@@ -76,6 +76,7 @@ convert_expr (ANFIR.Expr'Case id ty arms) = todo {- BackendIR.Expr'Case (convert
         convert_matcher (ANFIR.Case'Tuple) = BackendIR.Case'Tuple -}
 convert_expr (ANFIR.Expr'TupleDestructure1 id ty tup) = BackendIR.Expr'TupleDestructure1 (convert_id id) ty tup
 convert_expr (ANFIR.Expr'TupleDestructure2 id ty tup) = BackendIR.Expr'TupleDestructure2 (convert_id id) ty tup
+convert_expr (ANFIR.Expr'ADTDestructure id ty _ _ _) = todo
 convert_expr (ANFIR.Expr'Forall id ty tvars group result) = BackendIR.Expr'Forall (convert_id id) ty tvars (convert_binding_group group) result
 convert_expr (ANFIR.Expr'TypeApply id ty e tyarg) = BackendIR.Expr'TypeApply (convert_id id) ty e tyarg
 convert_expr (ANFIR.Expr'Poison id ty) = BackendIR.Expr'Poison (convert_id id) ty ()

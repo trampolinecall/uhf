@@ -90,11 +90,27 @@ expr (RIR.Expr'Case _ _ _ tree) = pp_tree tree >>= \ tree -> pure (PP.List ["cas
             pure (PP.List [PP.bracketed_comma_list PP.Inconsistent clauses, " -> ", result, ";"])
 
         pp_clause (RIR.CaseClause'Match bv matcher) = refer_bv bv >>= \ bv -> pp_matcher matcher >>= \ matcher -> pure (PP.List [bv, " -> ", matcher])
-        pp_clause (RIR.CaseClause'Assign target other) = refer_bv target >>= \ target -> refer_bv other >>= \ other -> pure (PP.List [target, " = ", other])
+        pp_clause (RIR.CaseClause'Assign target rhs) = refer_bv target >>= \ target -> pp_assign_rhs rhs >>= \ rhs -> pure (PP.List [target, " = ", rhs])
 
         pp_matcher (RIR.Case'BoolLiteral b) = pure $ if b then "true" else "false"
-        pp_matcher (RIR.Case'Tuple a b) = maybe (pure "_") refer_bv a >>= \ a -> maybe (pure "_") refer_bv b >>= \ b -> pure (PP.List ["(", a, ", ", b, ")"])
-        pp_matcher (RIR.Case'AnonADTVariant m_variant tyargs fields) =
+        pp_matcher (RIR.Case'Tuple) = pure "(,)"
+        pp_matcher (RIR.Case'AnonADTVariant m_variant) =
+            maybe
+                (pure "<name resolution error>")
+                (\ variant_index@(Type.ADTVariantIndex adt_key _) ->
+                    Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
+                    Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
+                    let variant_name = Type.variant_name variant
+                    in pure $ PP.List [adt_refer, " ", PP.String $ unlocate variant_name]
+                )
+                m_variant
+
+        pp_assign_rhs (RIR.CaseAssignRHS'OtherBVK other) = refer_bv other
+        pp_assign_rhs (RIR.CaseAssignRHS'TupleDestructure1 tup) = refer_bv tup >>= \ tup -> pure (PP.List [tup, ".tuple_l"])
+        pp_assign_rhs (RIR.CaseAssignRHS'TupleDestructure2 tup) = refer_bv tup >>= \ tup -> pure (PP.List [tup, ".tuple_r"])
+        pp_assign_rhs (RIR.CaseAssignRHS'AnonADTVariantField base m_variant field_idx) =
+            refer_bv base >>= \ base ->
+            -- TODO: unduplicate this?
             maybe
                 (pure "<name resolution error>")
                 (\ variant_index@(Type.ADTVariantIndex adt_key _) ->
@@ -104,9 +120,7 @@ expr (RIR.Expr'Case _ _ _ tree) = pp_tree tree >>= \ tree -> pure (PP.List ["cas
                     in pure $ PP.List [adt_refer, " ", PP.String $ unlocate variant_name]
                 )
                 m_variant >>= \ refer_variant ->
-            mapM refer_m_type tyargs >>= \ tyargs ->
-            mapM refer_bv fields >>= \ fields ->
-            pure (PP.List [refer_variant, "#", PP.parenthesized_comma_list PP.Inconsistent tyargs, PP.parenthesized_comma_list PP.Inconsistent fields])
+            pure (PP.List ["(", base, " as ", refer_variant, ").", PP.String $ show field_idx])
 
 expr (RIR.Expr'Forall _ _ _ tys e) = mapM type_var tys >>= \ tys -> expr e >>= \ e -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList tys, " ", e])
 expr (RIR.Expr'TypeApply _ _ _ e arg) = expr e >>= \ e -> refer_m_type arg >>= \ arg -> pure (PP.List [e, "#(", arg, ")"])

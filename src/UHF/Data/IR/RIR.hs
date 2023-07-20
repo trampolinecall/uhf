@@ -10,8 +10,9 @@ module UHF.Data.IR.RIR
     , Type
     , Expr (..)
     , CaseTree (..)
-    , CaseMatchingClause (..)
+    , CaseClause (..)
     , CaseMatcher (..)
+    , CaseAssignRHS (..)
     , expr_type
     , expr_span
     ) where
@@ -73,18 +74,23 @@ data Expr
 
 -- TODO: split case things into separate module?
 data CaseTree
-    = CaseTree [([CaseMatchingClause], Either CaseTree Expr)]
+    = CaseTree [([CaseClause], Either CaseTree Expr)]
     deriving Show
-data CaseMatchingClause
+data CaseClause
     = CaseClause'Match BoundValueKey CaseMatcher
-    | CaseClause'Assign BoundValueKey BoundValueKey
+    | CaseClause'Assign BoundValueKey CaseAssignRHS
     -- eventually bool predicates will be added here
     deriving Show
-
 data CaseMatcher
     = Case'BoolLiteral Bool
-    | Case'Tuple (Maybe BoundValueKey) (Maybe BoundValueKey)
-    | Case'AnonADTVariant (Maybe Type.ADTVariantIndex) [Maybe Type] [BoundValueKey]
+    | Case'Tuple
+    | Case'AnonADTVariant (Maybe Type.ADTVariantIndex)
+    deriving Show
+data CaseAssignRHS
+    = CaseAssignRHS'OtherBVK BoundValueKey
+    | CaseAssignRHS'TupleDestructure1 BoundValueKey
+    | CaseAssignRHS'TupleDestructure2 BoundValueKey
+    | CaseAssignRHS'AnonADTVariantField BoundValueKey (Maybe Type.ADTVariantIndex) Int -- TODO: make ADTFieldIndex in Type module
     deriving Show
 
 expr_type :: Expr -> Maybe Type

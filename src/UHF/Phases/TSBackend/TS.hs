@@ -35,6 +35,7 @@ data Expr
     | Expr'Call Expr [Expr]
     | Expr'Get Expr Text
     | Expr'Div Expr Expr
+    | Expr'Eq Expr Expr
     | Expr'Assign Expr Expr
 
 data Type

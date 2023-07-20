@@ -80,7 +80,8 @@ expr = level1
         level7 = level8
 
         -- level 8: equality ltr
-        level8 = level9
+        level8 (TS.Expr'Eq a b) = PP.List [level8 a, " == ", level9 b]
+        level8 e = level9 e
 
         -- level 9: comparison ltr, 'in' ltr, 'instanceof' ltr
         level9 = level10

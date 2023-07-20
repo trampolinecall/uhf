@@ -66,7 +66,7 @@ data AlmostExpr
     | AlmostExpr'Poison ANFIR.ID (Maybe (Type.Type Void))
 
 data AlmostCaseTree
-    = AlmostCaseTree [([ANFIR.CaseMatchingClause], Either AlmostCaseTree ([ANFIR.BindingKey], ANFIR.BindingKey))]
+    = AlmostCaseTree [([ANFIR.CaseClause], Either AlmostCaseTree ([ANFIR.BindingKey], ANFIR.BindingKey))]
 
 convert :: RIR.RIR -> ANFIR
 convert (RIR.RIR adts type_synonyms type_vars bound_values cu) =

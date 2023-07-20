@@ -262,13 +262,12 @@ get_dependencies_of_almost_expr bk =
                                 let (referenced_in_clauses, bindings_defined_in_clauses) = clauses
                                         & map go_through_clause
                                         & unzip
-                                    clauses_dependencies = Set.unions referenced_in_clauses `Set.difference` Set.unions bindings_defined_in_clauses
                                 in
 
                                 (case result of
                                     Left subtree -> go_through_tree subtree
                                     Right (bindings, e) -> get_dependencies_of_binding_list_and_expr bindings e) >>= \ result_dependencies ->
-                                pure (clauses_dependencies <> result_dependencies)
+                                pure ((Set.unions referenced_in_clauses <> result_dependencies) `Set.difference` Set.unions bindings_defined_in_clauses)
                             )
                         <&> Set.unions
 

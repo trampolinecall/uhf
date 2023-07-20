@@ -47,7 +47,6 @@ import qualified UHF.Phases.ToANFIR as ToANFIR
 import qualified UHF.Phases.OptimizeANFIR as OptimizeANFIR
 import qualified UHF.Phases.ToBackendIR as ToBackendIR
 import qualified UHF.Phases.RemovePoison as RemovePoison
-import qualified UHF.Phases.ToDot as ToDot
 import qualified UHF.Phases.TSBackend as TSBackend
 
 -- TODO: only print unerrored versions of each (double each thing in the PhaseResultsState, each one has ErrorsPossible and NoErrors variant, only print the NoErrors variant, but future phases use the ErrorsPossible variant to keep compilation going as long as possible)
@@ -61,7 +60,6 @@ type RIR = RIR.RIR
 type ANFIR = ANFIR.ANFIR
 type BackendIR = BackendIR.BackendIR (Maybe (IR.Type.Type Void)) ()
 type NoPoisonIR = BackendIR.BackendIR (IR.Type.Type Void) Void
-type Dot = Text
 type TS = Text
 
 type WithDiagnosticsIO = Compiler.WithDiagnosticsT Diagnostic.Error Diagnostic.Warning IO
@@ -81,12 +79,11 @@ data PhaseResultsCache
         , _get_optimized_anfir :: Maybe ANFIR
         , _get_backend_ir :: Maybe BackendIR
         , _get_no_poison_ir :: Maybe (Maybe NoPoisonIR)
-        , _get_dot :: Maybe (Maybe Dot)
         , _get_ts :: Maybe (Maybe TS)
         }
 type PhaseResultsState = StateT PhaseResultsCache WithDiagnosticsIO
 
-data OutputFormat = AST | ASTDump | SIR | NRSIR | InfixGroupedSIR | TypedSIR | RIR | ANFIR | OptimizedANFIR | BackendIR | Dot | TS
+data OutputFormat = AST | ASTDump | SIR | NRSIR | InfixGroupedSIR | TypedSIR | RIR | ANFIR | OptimizedANFIR | BackendIR | TS
 data CompileOptions
     = CompileOptions
         { input_file :: FilePath
@@ -102,7 +99,7 @@ compile c_needed diagnostic_settings compile_options =
     pure (if Compiler.had_errors diagnostics then Left () else Right ())
 
 print_outputs :: CompileOptions -> File -> WithDiagnosticsIO ()
-print_outputs compile_options file = runStateT (mapM print_output_format (output_formats compile_options)) (PhaseResultsCache file Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing) >> pure ()
+print_outputs compile_options file = runStateT (mapM print_output_format (output_formats compile_options)) (PhaseResultsCache file Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing) >> pure ()
     where
         print_output_format AST = get_ast >>= \ ast -> lift (lift (putTextLn $ AST.PP.pp_decls ast))
         print_output_format ASTDump = get_ast >>= \ ast -> lift (lift (putTextLn $ AST.Dump.dump ast))
@@ -114,7 +111,6 @@ print_outputs compile_options file = runStateT (mapM print_output_format (output
         print_output_format ANFIR = get_anfir >>= \ ir -> lift (lift (write_output_file "uhf_anfir" (ANFIR.PP.dump_cu ir)))
         print_output_format OptimizedANFIR = get_optimized_anfir >>= \ ir -> lift (lift (write_output_file "uhf_anfir_optimized" (ANFIR.PP.dump_cu ir)))
         print_output_format BackendIR = get_backend_ir >>= \ ir -> lift (lift (write_output_file "uhf_backend_ir" (BackendIR.PP.dump_cu ir)))
-        print_output_format Dot = get_dot >>= lift . lift . maybe (pure ()) (write_output_file "dot")
         print_output_format TS = get_ts >>= lift . lift . maybe (pure ()) (write_output_file "ts")
 
         module_name' =
@@ -134,6 +130,7 @@ get_or_calculate extract update calculate = extract <$> get >>= \case
 convert_stage :: (Diagnostic.ToError e, Diagnostic.ToWarning w) => Compiler.WithDiagnostics e w r -> PhaseResultsState r
 convert_stage s = (\ (res, diagnostics) -> lift (tell diagnostics) >> pure res) $ runWriter (Compiler.convert_diagnostics s)
 
+--- TODO: use template haskell for this?
 get_tokens :: PhaseResultsState Tokens
 get_tokens = get_or_calculate _get_tokens (\ cache tokens -> cache { _get_tokens = tokens }) lex
     where
@@ -193,11 +190,6 @@ get_no_poison_ir :: PhaseResultsState (Maybe NoPoisonIR)
 get_no_poison_ir = get_or_calculate _get_no_poison_ir (\ cache no_poison_ir -> cache { _get_no_poison_ir = no_poison_ir }) remove_poison
     where
         remove_poison = RemovePoison.remove_poison <$> get_backend_ir
-
-get_dot :: PhaseResultsState (Maybe Dot)
-get_dot = get_or_calculate _get_dot (\ cache dot -> cache { _get_dot = dot }) to_dot
-    where
-        to_dot = get_no_poison_ir >>= maybe (pure Nothing) (\ anfir -> pure (Just $ ToDot.to_dot anfir))
 
 get_ts :: PhaseResultsState (Maybe TS)
 get_ts = get_or_calculate _get_ts (\ cache ts -> cache { _get_ts = ts }) to_ts

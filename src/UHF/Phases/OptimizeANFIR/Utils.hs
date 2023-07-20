@@ -74,7 +74,7 @@ iterate_over_all_subexpressions modify = iterate_over_bindings do_binding
 
         do_expr (ANFIR.Expr'TupleDestructure1 id ty tup) = modify tup >>= \ tup -> pure (ANFIR.Expr'TupleDestructure1 id ty tup)
         do_expr (ANFIR.Expr'TupleDestructure2 id ty tup) = modify tup >>= \ tup -> pure (ANFIR.Expr'TupleDestructure2 id ty tup)
-        do_expr (ANFIR.Expr'ADTDestructure id ty base variant_idx field_idx) = modify base >>= \ base -> pure (ANFIR.Expr'ADTDestructure id ty base variant_idx field_idx)
+        do_expr (ANFIR.Expr'ADTDestructure id ty base field_idx) = modify base >>= \ base -> pure (ANFIR.Expr'ADTDestructure id ty base field_idx)
 
         do_expr (ANFIR.Expr'Forall id ty tys group res) = modify res >>= \ res -> pure (ANFIR.Expr'Forall id ty tys group res)
         do_expr (ANFIR.Expr'TypeApply id ty other argty) = modify other >>= \ other -> pure (ANFIR.Expr'TypeApply id ty other argty)

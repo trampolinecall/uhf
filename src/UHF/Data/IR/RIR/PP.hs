@@ -108,19 +108,19 @@ expr (RIR.Expr'Case _ _ _ tree) = pp_tree tree >>= \ tree -> pure (PP.List ["cas
         pp_assign_rhs (RIR.CaseAssignRHS'OtherBVK other) = refer_bv other
         pp_assign_rhs (RIR.CaseAssignRHS'TupleDestructure1 _ tup) = refer_bv tup >>= \ tup -> pure (PP.List [tup, ".tuple_l"])
         pp_assign_rhs (RIR.CaseAssignRHS'TupleDestructure2 _ tup) = refer_bv tup >>= \ tup -> pure (PP.List [tup, ".tuple_r"])
-        pp_assign_rhs (RIR.CaseAssignRHS'AnonADTVariantField _ base m_variant field_idx) =
+        pp_assign_rhs (RIR.CaseAssignRHS'AnonADTVariantField _ base m_field) =
             refer_bv base >>= \ base ->
             -- TODO: unduplicate this?
             maybe
-                (pure "<name resolution error>")
-                (\ variant_index@(Type.ADTVariantIndex adt_key _) ->
+                (pure ("<error>", "<error>"))
+                (\ (Type.ADTFieldIndex variant_idx@(Type.ADTVariantIndex adt_key _) field_idx) ->
                     Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
-                    Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
+                    Type.get_adt_variant <$> get_adt_arena <*> pure variant_idx >>= \ variant ->
                     let variant_name = Type.variant_name variant
-                    in pure $ PP.List [adt_refer, " ", PP.String $ unlocate variant_name]
+                    in pure $ (PP.List [adt_refer, " ", PP.String $ unlocate variant_name], PP.String $ show field_idx)
                 )
-                m_variant >>= \ refer_variant ->
-            pure (PP.List ["(", base, " as ", refer_variant, ").", PP.String $ show field_idx])
+                m_field >>= \ (refer_variant, field_idx) ->
+            pure (PP.List ["(", base, " as ", refer_variant, ").", field_idx])
 
 expr (RIR.Expr'Forall _ _ tys e) = mapM type_var tys >>= \ tys -> expr e >>= \ e -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList tys, " ", e])
 expr (RIR.Expr'TypeApply _ _ _ e arg) = expr e >>= \ e -> refer_m_type arg >>= \ arg -> pure (PP.List [e, "#(", arg, ")"])

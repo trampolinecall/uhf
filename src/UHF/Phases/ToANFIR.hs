@@ -59,7 +59,7 @@ data AlmostExpr
 
     | AlmostExpr'TupleDestructure1 ANFIR.ID (Maybe (Type.Type Void)) ANFIR.BindingKey
     | AlmostExpr'TupleDestructure2 ANFIR.ID (Maybe (Type.Type Void)) ANFIR.BindingKey
-    | AlmostExpr'ADTDestructure ANFIR.ID (Maybe (Type.Type Void)) ANFIR.BindingKey (Maybe Type.ADTVariantIndex) Int
+    | AlmostExpr'ADTDestructure ANFIR.ID (Maybe (Type.Type Void)) ANFIR.BindingKey (Maybe Type.ADTFieldIndex)
 
     | AlmostExpr'Forall ANFIR.ID (Maybe (Type.Type Void)) (NonEmpty Type.TypeVarKey) [ANFIR.BindingKey] ANFIR.BindingKey
     | AlmostExpr'TypeApply ANFIR.ID (Maybe (Type.Type Void)) ANFIR.BindingKey (Maybe (Type.Type Void))
@@ -185,9 +185,9 @@ convert_expr m_bvid (RIR.Expr'Case id ty _ tree) =
             new_expr_id >>= \ id ->
             runWriterT (new_binding (\ bv_map -> AlmostExpr'TupleDestructure2 (ANFIR.ExprID id) ty (bv_map Map.! tup))) >>= \ (binding, _) -> -- same note as above
             pure binding
-        convert_assign_rhs (RIR.CaseAssignRHS'AnonADTVariantField ty base variant_idx field) =
+        convert_assign_rhs (RIR.CaseAssignRHS'AnonADTVariantField ty base field_idx) =
             new_expr_id >>= \ id ->
-            runWriterT (new_binding (\ bv_map -> AlmostExpr'ADTDestructure (ANFIR.ExprID id) ty (bv_map Map.! base) variant_idx field)) >>= \ (binding, _) -> -- same note as above
+            runWriterT (new_binding (\ bv_map -> AlmostExpr'ADTDestructure (ANFIR.ExprID id) ty (bv_map Map.! base) field_idx)) >>= \ (binding, _) -> -- same note as above
             pure binding
 
 convert_expr m_bvid expr@(RIR.Expr'Forall id _ vars e) =
@@ -233,7 +233,7 @@ convert_almost_expr (AlmostExpr'Case id ty tree) = ANFIR.Expr'Case id ty <$> con
 
 convert_almost_expr (AlmostExpr'TupleDestructure1 id ty tup) = pure $ ANFIR.Expr'TupleDestructure1 id ty tup
 convert_almost_expr (AlmostExpr'TupleDestructure2 id ty tup) = pure $ ANFIR.Expr'TupleDestructure2 id ty tup
-convert_almost_expr (AlmostExpr'ADTDestructure id ty base variant_idx field_idx) = pure $ ANFIR.Expr'ADTDestructure id ty base variant_idx field_idx
+convert_almost_expr (AlmostExpr'ADTDestructure id ty base field_idx) = pure $ ANFIR.Expr'ADTDestructure id ty base field_idx
 convert_almost_expr (AlmostExpr'Forall id ty tys bindings result) = ANFIR.Expr'Forall id ty tys <$> (make_binding_group bindings) <*> pure result
 convert_almost_expr (AlmostExpr'TypeApply id ty e tyarg) = pure $ ANFIR.Expr'TypeApply id ty e tyarg
 convert_almost_expr (AlmostExpr'Poison id ty) = pure $ ANFIR.Expr'Poison id ty
@@ -281,7 +281,7 @@ get_dependencies_of_almost_expr bk =
 
         AlmostExpr'TupleDestructure1 _ _ tup -> pure [tup]
         AlmostExpr'TupleDestructure2 _ _ tup -> pure [tup]
-        AlmostExpr'ADTDestructure _ _ base _ _ -> pure [base]
+        AlmostExpr'ADTDestructure _ _ base _ -> pure [base]
         AlmostExpr'Forall _ _ _ bindings e -> get_dependencies_of_binding_list_and_expr bindings e
         AlmostExpr'TypeApply _ _ e _ -> pure [e]
         AlmostExpr'MakeADT _ _ _ _ args -> pure $ Set.fromList args

@@ -51,25 +51,3 @@ class Tuple<A extends Showable, B extends Showable> {
     }
 }
 
-type SwitchMatcher<T> = (a: T) => boolean;
-function bool_literal_matcher(expecting: boolean): SwitchMatcher<Bool> {
-    return (b: Bool) => {
-        return b.value == expecting;
-    }
-}
-function default_matcher<T>(): SwitchMatcher<T> {
-    return (_: T) => {
-        return true;
-    }
-}
-// TODO: same todo about extends Showable constraint
-function tuple_matcher<A extends Showable, B extends Showable>(): SwitchMatcher<Tuple<A, B>> {
-    return (_: Tuple<A, B>) => {
-        return true;
-    }
-}
-function adt_matcher(discr: string): SwitchMatcher<{ data: { discriminant: string} }> {
-    return (d: { data: { discriminant: string } }) => {
-        return d.data.discriminant === discr;
-    }
-}

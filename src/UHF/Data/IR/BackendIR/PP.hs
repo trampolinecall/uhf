@@ -103,13 +103,49 @@ expr (BackendIR.Expr'Tuple _ _ a b) = refer_binding a >>= \ a -> refer_binding b
 expr (BackendIR.Expr'Lambda _ _ param captures group body) = refer_param param >>= \ param -> define_binding_group group >>= \ group -> refer_binding body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, " ->", PP.indented_block [group, body]]) -- TODO: show captures
 expr (BackendIR.Expr'Param _ _ pk) = refer_param pk
 expr (BackendIR.Expr'Call _ _ callee arg) = refer_binding callee >>= \ callee -> refer_binding arg >>= \ arg -> pure (PP.List [callee, "(", arg, ")"])
-expr (BackendIR.Expr'Case _ _ e arms) = refer_binding e >>= \ e -> mapM arm arms >>= \ arms -> pure (PP.List ["switch ", e, " ", PP.braced_block arms])
+expr (BackendIR.Expr'Case _ _ t) = tree t >>= \ t -> pure (PP.List ["case ", t])
     where
-        arm (BackendIR.Case'BoolLiteral b, group, expr) = define_binding_group group >>= \ group -> refer_binding expr >>= \ expr -> pure (PP.List [if b then "true" else "false", " -> ", PP.indented_block [group, expr], ";"])
-        arm (BackendIR.Case'Tuple, group, expr) = define_binding_group group >>= \ group -> refer_binding expr >>= \ expr -> pure (PP.List ["(,) -> ", PP.indented_block [group, expr], ";"])
-        arm (BackendIR.Case'Default, group, expr) = define_binding_group group >>= \ group -> refer_binding expr >>= \ expr -> pure (PP.List ["_ -> ", PP.indented_block [group, expr], ";"])
+        tree (BackendIR.CaseTree arms) = mapM arm arms >>= \ arms -> pure (PP.braced_block arms)
+
+        arm (clauses, result) =
+            mapM clause clauses >>= \ clauses ->
+            (case result of
+                Right (group, expr) ->
+                    define_binding_group group >>= \ group -> refer_binding expr >>= \ expr ->
+                    pure (PP.indented_block [group, expr])
+                Left subtree -> tree subtree) >>= \ result ->
+            pure (PP.List [PP.bracketed_comma_list PP.Inconsistent clauses, " -> ", result, ";"])
+
+        clause (BackendIR.CaseClause'Match b m) = refer_binding b >>= \ b -> matcher m >>= \ matcher -> pure (PP.List [b, " -> ", matcher])
+        clause (BackendIR.CaseClause'Binding b) = define_binding b
+
+        matcher (BackendIR.Case'BoolLiteral b) = pure $ if b then "true" else "false"
+        matcher (BackendIR.Case'Tuple) = pure "(,)"
+        matcher (BackendIR.Case'AnonADTVariant m_variant) =
+            either
+                (\ _ -> pure "<name resolution error>")
+                (\ variant_index@(Type.ADTVariantIndex adt_key _) ->
+                    Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
+                    Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
+                    let variant_name = Type.variant_name variant
+                    in pure $ PP.List [adt_refer, " ", PP.String $ unlocate variant_name]
+                )
+                m_variant
 expr (BackendIR.Expr'TupleDestructure1 _ _ other) = refer_binding other >>= \ other ->  pure (PP.List [other, ".0"])
 expr (BackendIR.Expr'TupleDestructure2 _ _ other) = refer_binding other >>= \ other ->  pure (PP.List [other, ".1"])
+expr (BackendIR.Expr'ADTDestructure _ _ base m_variant_idx field_idx) =
+    -- TODO: factor out referring to variant index into Type module?
+    refer_binding base >>= \ base ->
+    either
+        (\ _ -> pure "<name resolution error>")
+        (\ variant_idx@(Type.ADTVariantIndex adt_key _) ->
+            Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_referred ->
+            Type.get_adt_variant <$> get_adt_arena <*> pure variant_idx >>= \ variant ->
+            let variant_name = Type.variant_name variant
+            in pure (PP.List [adt_referred, " ", PP.String $ unlocate variant_name])
+        )
+        m_variant_idx >>= \ variant_referred ->
+    pure (PP.List ["(", base, " as ", variant_referred, ").", PP.String $ show field_idx])
 expr (BackendIR.Expr'Forall _ _ vars group e) = mapM type_var vars >>= \ vars -> define_binding_group group >>= \ group -> refer_binding e >>= \ e -> pure (PP.FirstOnLineIfMultiline $ PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList vars, " ", PP.indented_block [group, e]])
 expr (BackendIR.Expr'TypeApply _ _ e arg) = refer_binding e >>= \ e -> refer_type arg >>= \ arg -> pure (PP.List [e, "#(", arg, ")"])
 expr (BackendIR.Expr'MakeADT _ _ variant_index@(Type.ADTVariantIndex adt_key _) tyargs args) =

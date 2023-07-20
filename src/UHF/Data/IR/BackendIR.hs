@@ -16,6 +16,8 @@ module UHF.Data.IR.BackendIR
     , stringify_id
 
     , Expr (..)
+    , CaseTree (..)
+    , CaseClause (..)
     , CaseMatcher (..)
     , expr_type
     , expr_id
@@ -48,7 +50,6 @@ data CU = CU (BindingGroup) [ADTKey] [TypeSynonymKey]
 
 data Param ty = Param ID.BoundValueID ty deriving Show
 
--- TODO: make BindingGroupNum = Globals | Local Unique.Unique
 data BindingChunk
     = SingleBinding BindingKey
     | MutuallyRecursiveBindings [BindingKey] deriving Show
@@ -83,10 +84,11 @@ data Expr ty poison_allowed
 
     | Expr'Call ID ty BindingKey BindingKey
 
-    | Expr'Case ID ty BindingKey [(CaseMatcher, BindingGroup, BindingKey)]
+    | Expr'Case ID ty (CaseTree poison_allowed)
 
-    | Expr'TupleDestructure1 ID ty BindingKey -- TODO: figure out better solution to this (probably general destructure expr for any type, or actually probably use case expressions to match on things)
+    | Expr'TupleDestructure1 ID ty BindingKey
     | Expr'TupleDestructure2 ID ty BindingKey
+    | Expr'ADTDestructure ID ty BindingKey (Either poison_allowed Type.ADTVariantIndex) Int
 
     | Expr'Forall ID ty (NonEmpty TypeVarKey) (BindingGroup) BindingKey
     | Expr'TypeApply ID ty BindingKey ty
@@ -94,10 +96,17 @@ data Expr ty poison_allowed
     | Expr'Poison ID ty poison_allowed
     deriving Show
 
-data CaseMatcher
+data CaseTree poison_allowed
+    = CaseTree [([CaseClause poison_allowed], Either (CaseTree poison_allowed) (BindingGroup, BindingKey))]
+    deriving Show
+data CaseClause poison_allowed
+    = CaseClause'Match BindingKey (CaseMatcher poison_allowed)
+    | CaseClause'Binding BindingKey
+    deriving Show
+data CaseMatcher poison_allowed
     = Case'BoolLiteral Bool
     | Case'Tuple
-    | Case'Default
+    | Case'AnonADTVariant (Either poison_allowed Type.ADTVariantIndex)
     deriving Show
 
 expr_type :: Expr ty poison_allowed -> ty
@@ -111,9 +120,10 @@ expr_type (Expr'Tuple _ ty _ _) = ty
 expr_type (Expr'Lambda _ ty _ _ _ _) = ty
 expr_type (Expr'Param _ ty _) = ty
 expr_type (Expr'Call _ ty _ _) = ty
-expr_type (Expr'Case _ ty _ _) = ty
+expr_type (Expr'Case _ ty _) = ty
 expr_type (Expr'TupleDestructure1 _ ty _) = ty
 expr_type (Expr'TupleDestructure2 _ ty _) = ty
+expr_type (Expr'ADTDestructure _ ty _ _ _) = ty
 expr_type (Expr'Forall _ ty _ _ _) = ty
 expr_type (Expr'TypeApply _ ty _ _) = ty
 expr_type (Expr'MakeADT _ ty _ _ _) = ty
@@ -130,9 +140,10 @@ expr_id (Expr'Tuple id _ _ _) = id
 expr_id (Expr'Lambda id _ _ _ _ _) = id
 expr_id (Expr'Param id _ _) = id
 expr_id (Expr'Call id _ _ _) = id
-expr_id (Expr'Case id _ _ _) = id
+expr_id (Expr'Case id _ _) = id
 expr_id (Expr'TupleDestructure1 id _ _) = id
 expr_id (Expr'TupleDestructure2 id _ _) = id
+expr_id (Expr'ADTDestructure id _ _ _ _) = id
 expr_id (Expr'Forall id _ _ _ _) = id
 expr_id (Expr'TypeApply id _ _ _) = id
 expr_id (Expr'MakeADT id _ _ _ _) = id

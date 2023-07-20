@@ -39,6 +39,9 @@ stmt (TS.Stmt'If test true false) =
         Nothing -> true'
     where
         true' = PP.List ["if (", expr test, ") ", stmt true]
+stmt (TS.Stmt'Label name body) = PP.List [PP.String name, ": ", stmt body]
+stmt (TS.Stmt'Break Nothing) = "break;"
+stmt (TS.Stmt'Break (Just label)) = PP.List ["break ", PP.String label, ";"]
 
 stmt TS.Stmt'Spacer = PP.List []
 

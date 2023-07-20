@@ -48,7 +48,6 @@ argparser =
                                 , ("anfir", Driver.ANFIR)
                                 , ("anfir-optimized", Driver.OptimizedANFIR)
                                 , ("backend-ir", Driver.BackendIR)
-                                , ("dot", Driver.Dot)
                                 , ("ts", Driver.TS)
                                 ])
                             (long "output"

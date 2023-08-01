@@ -96,7 +96,7 @@ data Expr d_iden v_iden p_iden type_info binary_ops_allowed
     | Expr'Call ID.ExprID type_info Span (Expr d_iden v_iden p_iden type_info binary_ops_allowed) (Expr d_iden v_iden p_iden type_info binary_ops_allowed)
 
     | Expr'If ID.ExprID type_info Span Span (Expr d_iden v_iden p_iden type_info binary_ops_allowed) (Expr d_iden v_iden p_iden type_info binary_ops_allowed) (Expr d_iden v_iden p_iden type_info binary_ops_allowed)
-    | Expr'Case ID.ExprID type_info Span Span (Expr d_iden v_iden p_iden type_info binary_ops_allowed) [(Pattern p_iden type_info, Expr d_iden v_iden p_iden type_info binary_ops_allowed)]
+    | Expr'Match ID.ExprID type_info Span Span (Expr d_iden v_iden p_iden type_info binary_ops_allowed) [(Pattern p_iden type_info, Expr d_iden v_iden p_iden type_info binary_ops_allowed)]
 
     | Expr'Forall ID.ExprID type_info Span (NonEmpty TypeVarKey) (Expr d_iden v_iden p_iden type_info binary_ops_allowed)
     | Expr'TypeApply ID.ExprID type_info Span (Expr d_iden v_iden p_iden type_info binary_ops_allowed) (TypeExpr d_iden type_info)
@@ -143,7 +143,7 @@ expr_type (Expr'LetRec _ type_info _ _ _) = type_info
 expr_type (Expr'BinaryOps _ _ type_info _ _ _) = type_info
 expr_type (Expr'Call _ type_info _ _ _) = type_info
 expr_type (Expr'If _ type_info _ _ _ _ _) = type_info
-expr_type (Expr'Case _ type_info _ _ _ _) = type_info
+expr_type (Expr'Match _ type_info _ _ _ _) = type_info
 expr_type (Expr'Poison _ type_info _) = type_info
 expr_type (Expr'Hole _ type_info _ _) = type_info
 expr_type (Expr'Forall _ type_info _ _ _) = type_info
@@ -164,7 +164,7 @@ expr_span (Expr'LetRec _ _ sp _ _) = sp
 expr_span (Expr'BinaryOps _ _ _ sp _ _) = sp
 expr_span (Expr'Call _ _ sp _ _) = sp
 expr_span (Expr'If _ _ sp _ _ _ _) = sp
-expr_span (Expr'Case _ _ sp _ _ _) = sp
+expr_span (Expr'Match _ _ sp _ _ _) = sp
 expr_span (Expr'Poison _ _ sp) = sp
 expr_span (Expr'Hole _ _ sp _) = sp
 expr_span (Expr'Forall _ _ sp _ _) = sp

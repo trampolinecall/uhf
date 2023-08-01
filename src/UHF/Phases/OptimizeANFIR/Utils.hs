@@ -23,9 +23,9 @@ iterate_over_bindings change (ANFIR.ANFIR adts type_synonyms vars bindings param
             StateT (\ bindings -> ((),) <$> Arena.modifyM bindings bk change) >>
             ANFIR.binding_initializer <$> (Arena.get <$> get <*> pure bk) >>= \case
                     ANFIR.Expr'Lambda _ _ _ _ group _ -> do_group group
-                    ANFIR.Expr'Case _ _ tree -> do_tree tree
+                    ANFIR.Expr'Match _ _ tree -> do_tree tree
                         where
-                            do_tree (ANFIR.CaseTree arms) = mapM_
+                            do_tree (ANFIR.MatchTree arms) = mapM_
                                 (\ (_, result) ->
                                     case result of
                                         Left subtree -> do_tree subtree
@@ -56,21 +56,21 @@ iterate_over_all_subexpressions modify = iterate_over_bindings do_binding
 
         do_expr (ANFIR.Expr'Call id ty callee arg) = modify callee >>= \ callee -> modify arg >>= \ arg -> pure (ANFIR.Expr'Call id ty callee arg)
 
-        do_expr (ANFIR.Expr'Case id ty tree) = do_tree tree >>= \ tree -> pure (ANFIR.Expr'Case id ty tree)
+        do_expr (ANFIR.Expr'Match id ty tree) = do_tree tree >>= \ tree -> pure (ANFIR.Expr'Match id ty tree)
             where
-                do_tree (ANFIR.CaseTree arms) =
-                    ANFIR.CaseTree <$>
+                do_tree (ANFIR.MatchTree arms) =
+                    ANFIR.MatchTree <$>
                         mapM
                             (\ (clauses, result) ->
-                                mapM do_case_clause clauses >>= \ clauses ->
+                                mapM do_match_clause clauses >>= \ clauses ->
                                 (case result of
                                     Left subtree -> Left <$> do_tree subtree
                                     Right (group, res) -> modify res >>= \ res -> pure (Right (group, res))) >>= \ result ->
                                 pure (clauses, result))
                             arms
 
-                do_case_clause (ANFIR.CaseClause'Match binding matcher) = ANFIR.CaseClause'Match <$> modify binding <*> pure matcher
-                do_case_clause (ANFIR.CaseClause'Binding b) = ANFIR.CaseClause'Binding <$> modify b
+                do_match_clause (ANFIR.MatchClause'Match binding matcher) = ANFIR.MatchClause'Match <$> modify binding <*> pure matcher
+                do_match_clause (ANFIR.MatchClause'Binding b) = ANFIR.MatchClause'Binding <$> modify b
 
         do_expr (ANFIR.Expr'TupleDestructure1 id ty tup) = modify tup >>= \ tup -> pure (ANFIR.Expr'TupleDestructure1 id ty tup)
         do_expr (ANFIR.Expr'TupleDestructure2 id ty tup) = modify tup >>= \ tup -> pure (ANFIR.Expr'TupleDestructure2 id ty tup)

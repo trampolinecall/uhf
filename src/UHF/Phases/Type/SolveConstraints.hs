@@ -199,7 +199,7 @@ set_type_unk_state :: TypeUnknownKey -> TypeUnknownState -> TypeContextReader St
 set_type_unk_state unk new_state = lift $ modify $ \ ty_arena -> Arena.modify ty_arena unk (\ (TypeUnknown for _) -> TypeUnknown for new_state)
 
 unify_unk :: (TypeUnknownKey, VarSubMap) -> (TypeWithUnk, VarSubMap) -> Bool -> ExceptT UnifyError (VarSubGenerator (TypeContextReader StateWithUnk)) ()
-unify_unk (unk, unk_var_map) (other, other_var_map) unk_on_right = Arena.get <$> lift (lift $ lift get) <*> pure unk >>= \ case
+unify_unk (unk, unk_var_map) (other, other_var_map) unk_on_right = Arena.get <$> lift (lift $ lift get) <*> pure unk >>= \case
     -- if this unknown can be expanded, unify its expansion
     TypeUnknown _ (Substituted unk_sub) ->
         if unk_on_right

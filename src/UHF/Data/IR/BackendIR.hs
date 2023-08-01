@@ -16,9 +16,9 @@ module UHF.Data.IR.BackendIR
     , stringify_id
 
     , Expr (..)
-    , CaseTree (..)
-    , CaseClause (..)
-    , CaseMatcher (..)
+    , MatchTree (..)
+    , MatchClause (..)
+    , MatchMatcher (..)
     , expr_type
     , expr_id
     , binding_type
@@ -84,7 +84,7 @@ data Expr ty poison_allowed
 
     | Expr'Call ID ty BindingKey BindingKey
 
-    | Expr'Case ID ty (CaseTree poison_allowed)
+    | Expr'Match ID ty (MatchTree poison_allowed)
 
     | Expr'TupleDestructure1 ID ty BindingKey
     | Expr'TupleDestructure2 ID ty BindingKey
@@ -96,17 +96,17 @@ data Expr ty poison_allowed
     | Expr'Poison ID ty poison_allowed
     deriving Show
 
-data CaseTree poison_allowed
-    = CaseTree [([CaseClause poison_allowed], Either (CaseTree poison_allowed) (BindingGroup, BindingKey))]
+data MatchTree poison_allowed
+    = MatchTree [([MatchClause poison_allowed], Either (MatchTree poison_allowed) (BindingGroup, BindingKey))]
     deriving Show
-data CaseClause poison_allowed
-    = CaseClause'Match BindingKey (CaseMatcher poison_allowed)
-    | CaseClause'Binding BindingKey
+data MatchClause poison_allowed
+    = MatchClause'Match BindingKey (MatchMatcher poison_allowed)
+    | MatchClause'Binding BindingKey
     deriving Show
-data CaseMatcher poison_allowed
-    = Case'BoolLiteral Bool
-    | Case'Tuple
-    | Case'AnonADTVariant (Either poison_allowed Type.ADTVariantIndex)
+data MatchMatcher poison_allowed
+    = Match'BoolLiteral Bool
+    | Match'Tuple
+    | Match'AnonADTVariant (Either poison_allowed Type.ADTVariantIndex)
     deriving Show
 
 expr_type :: Expr ty poison_allowed -> ty
@@ -120,7 +120,7 @@ expr_type (Expr'Tuple _ ty _ _) = ty
 expr_type (Expr'Lambda _ ty _ _ _ _) = ty
 expr_type (Expr'Param _ ty _) = ty
 expr_type (Expr'Call _ ty _ _) = ty
-expr_type (Expr'Case _ ty _) = ty
+expr_type (Expr'Match _ ty _) = ty
 expr_type (Expr'TupleDestructure1 _ ty _) = ty
 expr_type (Expr'TupleDestructure2 _ ty _) = ty
 expr_type (Expr'ADTDestructure _ ty _ _) = ty
@@ -140,7 +140,7 @@ expr_id (Expr'Tuple id _ _ _) = id
 expr_id (Expr'Lambda id _ _ _ _ _) = id
 expr_id (Expr'Param id _ _) = id
 expr_id (Expr'Call id _ _ _) = id
-expr_id (Expr'Case id _ _) = id
+expr_id (Expr'Match id _ _) = id
 expr_id (Expr'TupleDestructure1 id _ _) = id
 expr_id (Expr'TupleDestructure2 id _ _) = id
 expr_id (Expr'ADTDestructure id _ _ _) = id

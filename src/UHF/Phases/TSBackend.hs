@@ -245,9 +245,9 @@ lower_binding (BackendIR.Binding init) = l init
         l (BackendIR.Expr'Param id _ _) = let_current id (TS.Expr'Identifier "param") >>= \ let_stmt -> pure ([let_stmt], [])
         l (BackendIR.Expr'Call id _ callee arg) = mangle_binding_as_var callee >>= \ callee -> mangle_binding_as_var arg >>= \ arg -> let_current id (TS.Expr'Call (TS.Expr'Get (TS.Expr'Identifier callee) "call") [TS.Expr'Identifier arg]) >>= \ let_stmt -> pure ([let_stmt], [])
 
-        l (BackendIR.Expr'Case id _ tree) =
+        l (BackendIR.Expr'Match id _ tree) =
             mangle_binding_id_as_var id >>= \ result_var ->
-            let label_name = "label_for_case" <> result_var
+            let label_name = "label_for_match" <> result_var
             in
 
             let set_result e = [TS.Stmt'Expr $ TS.Expr'Assign (TS.Expr'Identifier result_var) e, TS.Stmt'Break (Just label_name)]
@@ -258,7 +258,7 @@ lower_binding (BackendIR.Binding init) = l init
             pure ([TS.Stmt'Let result_var Nothing Nothing, TS.Stmt'Label label_name lowered_tree], []) -- TODO: check if result is undefined for sanity check even though that should not be possible once exhaustiveness checking is implemented
 
             where
-                lower_tree set_result (BackendIR.CaseTree arms) =
+                lower_tree set_result (BackendIR.MatchTree arms) =
                     TS.Stmt'Block
                         <$> mapM
                             (\ (clauses, result) ->
@@ -272,21 +272,21 @@ lower_binding (BackendIR.Binding init) = l init
                             )
                             arms
 
-                lower_clause (BackendIR.CaseClause'Match b matcher) result =
+                lower_clause (BackendIR.MatchClause'Match b matcher) result =
                     mangle_binding_as_var b >>= \ b ->
                     convert_matcher (TS.Expr'Identifier b) matcher >>= \ check ->
                     pure (TS.Stmt'If check result Nothing)
-                lower_clause (BackendIR.CaseClause'Binding b) result =
+                lower_clause (BackendIR.MatchClause'Binding b) result =
                     get_binding b >>= lower_binding >>= \ (early, late) ->
                     pure (TS.Stmt'Block $ early <> late <> [result])
 
-                convert_matcher checking (BackendIR.Case'BoolLiteral b) = pure $ TS.Expr'Eq checking (TS.Expr'Bool b)
-                convert_matcher _ BackendIR.Case'Tuple = pure $ TS.Expr'Bool True -- tuple always matches because there is only 1 constructor
+                convert_matcher checking (BackendIR.Match'BoolLiteral b) = pure $ TS.Expr'Eq checking (TS.Expr'Bool b)
+                convert_matcher _ BackendIR.Match'Tuple = pure $ TS.Expr'Bool True -- tuple always matches because there is only 1 constructor
                 -- TODO: clean this up
-                convert_matcher checking (BackendIR.Case'AnonADTVariant (Right variant_index)) =
+                convert_matcher checking (BackendIR.Match'AnonADTVariant (Right variant_index)) =
                     Type.variant_id <$> (Type.get_adt_variant <$> get_adt_arena <*> pure variant_index) >>= \ variant_id ->
                     pure (TS.Expr'Eq (TS.Expr'Get (TS.Expr'Get checking "data") "discriminant") (TS.Expr'String $ ID.mangle variant_id))
-                convert_matcher _ (BackendIR.Case'AnonADTVariant (Left void)) = absurd void
+                convert_matcher _ (BackendIR.Match'AnonADTVariant (Left void)) = absurd void
 
         l (BackendIR.Expr'TupleDestructure1 id _ tup) = mangle_binding_as_var tup >>= \ tup -> let_current id (TS.Expr'Get (TS.Expr'Identifier tup) "first") >>= \ let_stmt -> pure ([let_stmt], [])
         l (BackendIR.Expr'TupleDestructure2 id _ tup) = mangle_binding_as_var tup >>= \ tup -> let_current id (TS.Expr'Get (TS.Expr'Identifier tup) "second") >>= \ let_stmt -> pure ([let_stmt], [])

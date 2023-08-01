@@ -78,9 +78,9 @@ expr (RIR.Expr'Lambda _ _ param body) = refer_bv param >>= \ param -> expr body 
 expr (RIR.Expr'Let _ _ [binding] res) = define_binding binding >>= \ binding -> expr res >>= \ res -> pure (PP.FirstOnLineIfMultiline $ PP.List ["let ", binding, "\n", res])
 expr (RIR.Expr'Let _ _ bindings res) = expr res >>= \ res -> mapM define_binding bindings >>= \ bindings -> pure (PP.FirstOnLineIfMultiline $ PP.List ["let ", PP.braced_block bindings, "\n", res])
 expr (RIR.Expr'Call _ _ callee arg) = expr callee >>= \ callee -> expr arg >>= \ arg -> pure $ PP.List [callee, "(", arg, ")"]
-expr (RIR.Expr'Case _ _ _ tree) = pp_tree tree >>= \ tree -> pure (PP.List ["case ", tree])
+expr (RIR.Expr'Match _ _ _ tree) = pp_tree tree >>= \ tree -> pure (PP.List ["match ", tree])
     where
-        pp_tree (RIR.CaseTree arms) = mapM pp_arm arms >>= \ arms -> pure (PP.braced_block arms)
+        pp_tree (RIR.MatchTree arms) = mapM pp_arm arms >>= \ arms -> pure (PP.braced_block arms)
 
         pp_arm (clauses, result) =
             mapM pp_clause clauses >>= \ clauses ->
@@ -89,12 +89,12 @@ expr (RIR.Expr'Case _ _ _ tree) = pp_tree tree >>= \ tree -> pure (PP.List ["cas
                 Left subtree -> pp_tree subtree) >>= \ result ->
             pure (PP.List [PP.bracketed_comma_list PP.Inconsistent clauses, " -> ", result, ";"])
 
-        pp_clause (RIR.CaseClause'Match bv matcher) = refer_bv bv >>= \ bv -> pp_matcher matcher >>= \ matcher -> pure (PP.List [bv, " -> ", matcher])
-        pp_clause (RIR.CaseClause'Assign target rhs) = refer_bv target >>= \ target -> pp_assign_rhs rhs >>= \ rhs -> pure (PP.List [target, " = ", rhs])
+        pp_clause (RIR.MatchClause'Match bv matcher) = refer_bv bv >>= \ bv -> pp_matcher matcher >>= \ matcher -> pure (PP.List [bv, " -> ", matcher])
+        pp_clause (RIR.MatchClause'Assign target rhs) = refer_bv target >>= \ target -> pp_assign_rhs rhs >>= \ rhs -> pure (PP.List [target, " = ", rhs])
 
-        pp_matcher (RIR.Case'BoolLiteral b) = pure $ if b then "true" else "false"
-        pp_matcher (RIR.Case'Tuple) = pure "(,)"
-        pp_matcher (RIR.Case'AnonADTVariant m_variant) =
+        pp_matcher (RIR.Match'BoolLiteral b) = pure $ if b then "true" else "false"
+        pp_matcher (RIR.Match'Tuple) = pure "(,)"
+        pp_matcher (RIR.Match'AnonADTVariant m_variant) =
             maybe
                 (pure "<name resolution error>")
                 (\ variant_index@(Type.ADTVariantIndex adt_key _) ->
@@ -105,10 +105,10 @@ expr (RIR.Expr'Case _ _ _ tree) = pp_tree tree >>= \ tree -> pure (PP.List ["cas
                 )
                 m_variant
 
-        pp_assign_rhs (RIR.CaseAssignRHS'OtherBVK other) = refer_bv other
-        pp_assign_rhs (RIR.CaseAssignRHS'TupleDestructure1 _ tup) = refer_bv tup >>= \ tup -> pure (PP.List [tup, ".tuple_l"])
-        pp_assign_rhs (RIR.CaseAssignRHS'TupleDestructure2 _ tup) = refer_bv tup >>= \ tup -> pure (PP.List [tup, ".tuple_r"])
-        pp_assign_rhs (RIR.CaseAssignRHS'AnonADTVariantField _ base m_field) =
+        pp_assign_rhs (RIR.MatchAssignRHS'OtherBVK other) = refer_bv other
+        pp_assign_rhs (RIR.MatchAssignRHS'TupleDestructure1 _ tup) = refer_bv tup >>= \ tup -> pure (PP.List [tup, ".tuple_l"])
+        pp_assign_rhs (RIR.MatchAssignRHS'TupleDestructure2 _ tup) = refer_bv tup >>= \ tup -> pure (PP.List [tup, ".tuple_r"])
+        pp_assign_rhs (RIR.MatchAssignRHS'AnonADTVariantField _ base m_field) =
             refer_bv base >>= \ base ->
             -- TODO: unduplicate this?
             maybe

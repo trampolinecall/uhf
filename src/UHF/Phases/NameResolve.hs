@@ -340,8 +340,8 @@ resolve_in_expr nc_stack (SIR.Expr'BinaryOps id allowed type_info sp first ops) 
 resolve_in_expr nc_stack (SIR.Expr'Call id type_info sp callee arg) = SIR.Expr'Call id type_info sp <$> resolve_in_expr nc_stack callee <*> resolve_in_expr nc_stack arg
 
 resolve_in_expr nc_stack (SIR.Expr'If id type_info sp if_sp cond t f) = SIR.Expr'If id type_info sp if_sp <$> resolve_in_expr nc_stack cond <*> resolve_in_expr nc_stack t <*> resolve_in_expr nc_stack f
-resolve_in_expr nc_stack (SIR.Expr'Case id type_info sp case_sp e arms) =
-    SIR.Expr'Case id type_info sp case_sp
+resolve_in_expr nc_stack (SIR.Expr'Match id type_info sp match_tok_sp e arms) =
+    SIR.Expr'Match id type_info sp match_tok_sp
         <$> resolve_in_expr nc_stack e
         <*> mapM
                 (\ (pat, expr) ->

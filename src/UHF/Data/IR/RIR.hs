@@ -9,10 +9,10 @@ module UHF.Data.IR.RIR
 
     , Type
     , Expr (..)
-    , CaseTree (..)
-    , CaseClause (..)
-    , CaseMatcher (..)
-    , CaseAssignRHS (..)
+    , MatchTree (..)
+    , MatchClause (..)
+    , MatchMatcher (..)
+    , MatchAssignRHS (..)
     , expr_type
     , expr_span
     ) where
@@ -68,8 +68,8 @@ data Expr
 
     | Expr'Call ID.ExprID Span Expr Expr
 
-    -- case needs to know its type in case its case tree has no arms
-    | Expr'Case ID.ExprID (Maybe Type) Span CaseTree
+    -- match needs to know its type in case its match tree has no arms
+    | Expr'Match ID.ExprID (Maybe Type) Span MatchTree
 
     | Expr'Forall ID.ExprID Span (NonEmpty TypeVarKey) Expr
     | Expr'TypeApply ID.ExprID (Maybe Type) Span Expr (Maybe Type) -- TODO: remove type from this
@@ -79,25 +79,25 @@ data Expr
     | Expr'Poison ID.ExprID (Maybe Type) Span
     deriving Show
 
--- TODO: split case things into separate module?
-data CaseTree
-    = CaseTree [([CaseClause], Either CaseTree Expr)]
+-- TODO: split match things into separate module?
+data MatchTree
+    = MatchTree [([MatchClause], Either MatchTree Expr)]
     deriving Show
-data CaseClause
-    = CaseClause'Match BoundValueKey CaseMatcher
-    | CaseClause'Assign BoundValueKey CaseAssignRHS
+data MatchClause
+    = MatchClause'Match BoundValueKey MatchMatcher
+    | MatchClause'Assign BoundValueKey MatchAssignRHS
     -- eventually bool predicates will be added here
     deriving Show
-data CaseMatcher
-    = Case'BoolLiteral Bool
-    | Case'Tuple
-    | Case'AnonADTVariant (Maybe Type.ADTVariantIndex)
+data MatchMatcher
+    = Match'BoolLiteral Bool
+    | Match'Tuple
+    | Match'AnonADTVariant (Maybe Type.ADTVariantIndex)
     deriving Show
-data CaseAssignRHS
-    = CaseAssignRHS'OtherBVK BoundValueKey
-    | CaseAssignRHS'TupleDestructure1 (Maybe Type) BoundValueKey
-    | CaseAssignRHS'TupleDestructure2 (Maybe Type) BoundValueKey
-    | CaseAssignRHS'AnonADTVariantField (Maybe Type) BoundValueKey (Maybe Type.ADTFieldIndex)
+data MatchAssignRHS
+    = MatchAssignRHS'OtherBVK BoundValueKey
+    | MatchAssignRHS'TupleDestructure1 (Maybe Type) BoundValueKey
+    | MatchAssignRHS'TupleDestructure2 (Maybe Type) BoundValueKey
+    | MatchAssignRHS'AnonADTVariantField (Maybe Type) BoundValueKey (Maybe Type.ADTFieldIndex)
     deriving Show
 
 expr_type :: Arena.Arena BoundValue BoundValueKey -> Expr -> Maybe Type
@@ -115,7 +115,7 @@ expr_type bv_arena (Expr'Call _ _ callee _) =
     in callee_ty <&> \case
         Type.Type'Function _ res -> res
         _ -> error $ "rir call expression created with callee of type " <> show callee_ty
-expr_type _ (Expr'Case _ ty _ _) = ty
+expr_type _ (Expr'Match _ ty _ _) = ty
 expr_type bv_arena (Expr'Forall _ _ tyvars res) = Type.Type'Forall tyvars <$> expr_type bv_arena res
 expr_type _ (Expr'TypeApply _ ty _ _ _) = ty
 expr_type _ (Expr'MakeADT _ _ (Type.ADTVariantIndex adt_key _) vars _) = Type.Type'ADT adt_key <$> sequence vars
@@ -132,7 +132,7 @@ expr_span (Expr'Tuple _ sp _ _) = sp
 expr_span (Expr'Lambda _ sp _ _) = sp
 expr_span (Expr'Let _ sp _ _) = sp
 expr_span (Expr'Call _ sp _ _) = sp
-expr_span (Expr'Case _ _ sp _) = sp
+expr_span (Expr'Match _ _ sp _) = sp
 expr_span (Expr'Forall _ sp _ _) = sp
 expr_span (Expr'TypeApply _ _ sp _ _) = sp
 expr_span (Expr'MakeADT _ sp _ _ _) = sp

@@ -53,7 +53,7 @@ data Expr
     | Expr'Call Span Expr [Expr]
 
     | Expr'If Span Span Expr Expr Expr
-    | Expr'Case Span Span Expr [(Pattern, Expr)]
+    | Expr'Match Span Span Expr [(Pattern, Expr)]
 
     | Expr'Forall Span [Identifier] Expr -- TODO: add constraints like '#(T, U; Constraint#(T, U)) ...'
     | Expr'TypeApply Span Expr [Type]
@@ -95,7 +95,7 @@ expr_span (Expr'LetRec sp _ _) = sp
 expr_span (Expr'BinaryOps sp _ _) = sp
 expr_span (Expr'Call sp _ _) = sp
 expr_span (Expr'If sp _ _ _ _) = sp
-expr_span (Expr'Case sp _ _ _) = sp
+expr_span (Expr'Match sp _ _ _) = sp
 expr_span (Expr'Forall sp _ _) = sp
 expr_span (Expr'TypeApply sp _ _) = sp
 expr_span (Expr'TypeAnnotation sp _ _) = sp

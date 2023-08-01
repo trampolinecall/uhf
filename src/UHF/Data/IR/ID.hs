@@ -26,30 +26,30 @@ data DeclID = DeclID DeclParent Text deriving Show
 data DeclParent = DeclParent'Module ModuleID | DeclParent'Let ExprID deriving Show
 
 data ExprID
-    = ExprID'InitializerOf DeclParent Int
+    = ExprID'ANFIRGen Int
     | ExprID'BinaryOperand ExprID Int
-    | ExprID'CallCalleeIn ExprID
     | ExprID'CallArgOf ExprID
+    | ExprID'CallCalleeIn ExprID
     | ExprID'CallEnclosing ExprID
-    | ExprID'CaseArm ExprID Int
-    | ExprID'CaseScrutinee ExprID
     | ExprID'ForallResult ExprID
     | ExprID'IfCond ExprID
     | ExprID'IfFalse ExprID
     | ExprID'IfTrue ExprID
+    | ExprID'InfixGroupGen Int
+    | ExprID'InitializerOf DeclParent Int
     | ExprID'LambdaBodyOf ExprID
     | ExprID'LetResultOf ExprID
+    | ExprID'MatchArm ExprID Int
+    | ExprID'MatchScrutinee ExprID
+    | ExprID'RIRGen Int
     | ExprID'TupleFirstOf ExprID
     | ExprID'TupleSecondOf ExprID
     | ExprID'TypeAnnotationSubject ExprID
-    | ExprID'TypeApplyOn ExprID
     | ExprID'TypeApplyFirst ExprID
-    | ExprID'InfixGroupGen Int
-    | ExprID'RIRGen Int
-    | ExprID'ANFIRGen Int
+    | ExprID'TypeApplyOn ExprID
     deriving Show
 
-data BoundValueParent = BVParent'Module ModuleID | BVParent'LambdaParam ExprID | BVParent'Let ExprID | BVParent'CaseArm ExprID Int deriving Show
+data BoundValueParent = BVParent'Module ModuleID | BVParent'LambdaParam ExprID | BVParent'Let ExprID | BVParent'MatchArm ExprID Int deriving Show
 data BoundValueID = BoundValueID BoundValueParent Text | BoundValueID'RIRMadeUp Int deriving Show
 
 data ADTVariantID = ADTVariantID DeclID Text deriving Show
@@ -97,8 +97,8 @@ stringify = stringify' . to_general_id
         stringify_expr_id (ExprID'CallArgOf e) = "callarg_" <> stringify_expr_id e
         stringify_expr_id (ExprID'CallCalleeIn e) = "callcallee_" <> stringify_expr_id e
         stringify_expr_id (ExprID'CallEnclosing e) = "callenc_" <> stringify_expr_id e
-        stringify_expr_id (ExprID'CaseArm e i) = "case_arm" <> show i <> "_" <> stringify_expr_id e
-        stringify_expr_id (ExprID'CaseScrutinee e) = "cscru_" <> stringify_expr_id e
+        stringify_expr_id (ExprID'MatchArm e i) = "match_arm" <> show i <> "_" <> stringify_expr_id e
+        stringify_expr_id (ExprID'MatchScrutinee e) = "mscru_" <> stringify_expr_id e
         stringify_expr_id (ExprID'ForallResult e) = "forallres_" <> stringify_expr_id e
         stringify_expr_id (ExprID'IfCond e) = "ifcond_" <> stringify_expr_id e
         stringify_expr_id (ExprID'IfFalse e) = "iffalse_" <> stringify_expr_id e
@@ -118,7 +118,7 @@ stringify = stringify' . to_general_id
         stringify_bv_parent (BVParent'Module mod) = stringify' (GM mod)
         stringify_bv_parent (BVParent'Let e) = stringify' (GE e)
         stringify_bv_parent (BVParent'LambdaParam e) = stringify' (GE e)
-        stringify_bv_parent (BVParent'CaseArm e i) = stringify' (GE e) <> "::arm" <> show i
+        stringify_bv_parent (BVParent'MatchArm e i) = stringify' (GE e) <> "::arm" <> show i
 
         stringify_decl_parent (DeclParent'Module mod) = stringify' (GM mod)
         stringify_decl_parent (DeclParent'Let e) = stringify' (GE e)
@@ -149,9 +149,7 @@ instance Mangle ExprID where
     mangle' (ExprID'CallArgOf e) = "c" <> mangle' e
     mangle' (ExprID'CallCalleeIn e) = "d" <> mangle' e
     mangle' (ExprID'CallEnclosing e) = "e" <> mangle' e
-    mangle' (ExprID'CaseArm e i) = "f" <> mangle' e <> mangle' i
-    mangle' (ExprID'CaseScrutinee e) = "g" <> mangle' e
-    mangle' (ExprID'ForallResult e) = "h" <> mangle' e
+    mangle' (ExprID'ForallResult e) = "f" <> mangle' e
     mangle' (ExprID'IfCond e) = "i" <> mangle' e
     mangle' (ExprID'IfFalse e) = "j" <> mangle' e
     mangle' (ExprID'IfTrue e) = "k" <> mangle' e
@@ -159,6 +157,8 @@ instance Mangle ExprID where
     mangle' (ExprID'InitializerOf parent ind) = "m" <> mangle' parent <> mangle' ind
     mangle' (ExprID'LambdaBodyOf e) = "n" <> mangle' e
     mangle' (ExprID'LetResultOf e) = "o" <> mangle' e
+    mangle' (ExprID'MatchArm e i) = "p" <> mangle' e <> mangle' i
+    mangle' (ExprID'MatchScrutinee e) = "q" <> mangle' e
     mangle' (ExprID'RIRGen i) = "r" <> mangle' i
     mangle' (ExprID'TupleFirstOf e) = "t" <> mangle' e
     mangle' (ExprID'TupleSecondOf e) = "u" <> mangle' e
@@ -171,10 +171,10 @@ instance Mangle BoundValueID where
     mangle' (BoundValueID'RIRMadeUp i) = "r" <> mangle' i
 
 instance Mangle BoundValueParent where
-    mangle' (BVParent'Module mod) = "m" <> mangle' mod
     mangle' (BVParent'LambdaParam lam) = "l" <> mangle' lam
-    mangle' (BVParent'Let e) = "n" <> mangle' e -- skip m because m is already taken by module
-    mangle' (BVParent'CaseArm e ind) = "c" <> mangle' e <> mangle' ind
+    mangle' (BVParent'Let e) = "m" <> mangle' e
+    mangle' (BVParent'MatchArm e ind) = "n" <> mangle' e <> mangle' ind
+    mangle' (BVParent'Module mod) = "o" <> mangle' mod
 
 instance Mangle ADTVariantID where
     mangle' (ADTVariantID adt_decl variant_name) = mangle' adt_decl <> mangle' variant_name

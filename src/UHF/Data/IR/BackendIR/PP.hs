@@ -103,9 +103,9 @@ expr (BackendIR.Expr'Tuple _ _ a b) = refer_binding a >>= \ a -> refer_binding b
 expr (BackendIR.Expr'Lambda _ _ param captures group body) = refer_param param >>= \ param -> define_binding_group group >>= \ group -> refer_binding body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, " ->", PP.indented_block [group, body]]) -- TODO: show captures
 expr (BackendIR.Expr'Param _ _ pk) = refer_param pk
 expr (BackendIR.Expr'Call _ _ callee arg) = refer_binding callee >>= \ callee -> refer_binding arg >>= \ arg -> pure (PP.List [callee, "(", arg, ")"])
-expr (BackendIR.Expr'Case _ _ t) = tree t >>= \ t -> pure (PP.List ["case ", t])
+expr (BackendIR.Expr'Match _ _ t) = tree t >>= \ t -> pure (PP.List ["match ", t])
     where
-        tree (BackendIR.CaseTree arms) = mapM arm arms >>= \ arms -> pure (PP.braced_block arms)
+        tree (BackendIR.MatchTree arms) = mapM arm arms >>= \ arms -> pure (PP.braced_block arms)
 
         arm (clauses, result) =
             mapM clause clauses >>= \ clauses ->
@@ -116,12 +116,12 @@ expr (BackendIR.Expr'Case _ _ t) = tree t >>= \ t -> pure (PP.List ["case ", t])
                 Left subtree -> tree subtree) >>= \ result ->
             pure (PP.List [PP.bracketed_comma_list PP.Inconsistent clauses, " -> ", result, ";"])
 
-        clause (BackendIR.CaseClause'Match b m) = refer_binding b >>= \ b -> matcher m >>= \ matcher -> pure (PP.List [b, " -> ", matcher])
-        clause (BackendIR.CaseClause'Binding b) = define_binding b
+        clause (BackendIR.MatchClause'Match b m) = refer_binding b >>= \ b -> matcher m >>= \ matcher -> pure (PP.List [b, " -> ", matcher])
+        clause (BackendIR.MatchClause'Binding b) = define_binding b
 
-        matcher (BackendIR.Case'BoolLiteral b) = pure $ if b then "true" else "false"
-        matcher (BackendIR.Case'Tuple) = pure "(,)"
-        matcher (BackendIR.Case'AnonADTVariant m_variant) =
+        matcher (BackendIR.Match'BoolLiteral b) = pure $ if b then "true" else "false"
+        matcher (BackendIR.Match'Tuple) = pure "(,)"
+        matcher (BackendIR.Match'AnonADTVariant m_variant) =
             either
                 (\ _ -> pure "<name resolution error>")
                 (\ variant_index@(Type.ADTVariantIndex adt_key _) ->

@@ -26,7 +26,7 @@ data TypeUnknownForWhat
     = BoundValue Span
     | UnresolvedIdenExpr Span
     | CallExpr Span
-    | CaseExpr Span
+    | MatchExpr Span
     | PoisonExpr Span
     | PoisonPattern Span
     | TypeExpr Span
@@ -42,7 +42,7 @@ type_unk_for_what_sp :: TypeUnknownForWhat -> Span
 type_unk_for_what_sp (BoundValue sp) = sp
 type_unk_for_what_sp (UnresolvedIdenExpr sp) = sp
 type_unk_for_what_sp (CallExpr sp) = sp
-type_unk_for_what_sp (CaseExpr sp) = sp
+type_unk_for_what_sp (MatchExpr sp) = sp
 type_unk_for_what_sp (PoisonExpr sp) = sp
 type_unk_for_what_sp (PoisonPattern sp) = sp
 type_unk_for_what_sp (TypeExpr sp) = sp
@@ -57,7 +57,7 @@ type_unk_for_what_name :: TypeUnknownForWhat -> Text
 type_unk_for_what_name (BoundValue _) = "binding"
 type_unk_for_what_name (UnresolvedIdenExpr _) = "identifier expression"
 type_unk_for_what_name (CallExpr _) = "call expression"
-type_unk_for_what_name (CaseExpr _) = "case expression"
+type_unk_for_what_name (MatchExpr _) = "match expression"
 type_unk_for_what_name (PoisonExpr _) = "expression"
 type_unk_for_what_name (PoisonPattern _) = "pattern"
 type_unk_for_what_name (TypeExpr _) = "type expression"

@@ -70,10 +70,10 @@ convert_expr (ANFIR.Expr'MakeADT id ty var_idx tyargs args) = BackendIR.Expr'Mak
 convert_expr (ANFIR.Expr'Lambda id ty param captures group result) = BackendIR.Expr'Lambda (convert_id id) ty param captures (convert_binding_group group) result
 convert_expr (ANFIR.Expr'Param id ty param) = BackendIR.Expr'Param (convert_id id) ty param
 convert_expr (ANFIR.Expr'Call id ty callee arg) = BackendIR.Expr'Call (convert_id id) ty callee arg
-convert_expr (ANFIR.Expr'Case id ty tree) = BackendIR.Expr'Case (convert_id id) ty (convert_tree tree)
+convert_expr (ANFIR.Expr'Match id ty tree) = BackendIR.Expr'Match (convert_id id) ty (convert_tree tree)
     where
-        convert_tree (ANFIR.CaseTree arms) =
-            BackendIR.CaseTree $
+        convert_tree (ANFIR.MatchTree arms) =
+            BackendIR.MatchTree $
                 map
                     (\ (clauses, result) ->
                         let result' = case result of
@@ -82,13 +82,13 @@ convert_expr (ANFIR.Expr'Case id ty tree) = BackendIR.Expr'Case (convert_id id) 
                         in (map convert_clause clauses, result'))
                     arms
 
-        convert_clause (ANFIR.CaseClause'Match b matcher) = BackendIR.CaseClause'Match b (convert_matcher matcher)
-        convert_clause (ANFIR.CaseClause'Binding b) = BackendIR.CaseClause'Binding b
+        convert_clause (ANFIR.MatchClause'Match b matcher) = BackendIR.MatchClause'Match b (convert_matcher matcher)
+        convert_clause (ANFIR.MatchClause'Binding b) = BackendIR.MatchClause'Binding b
 
-        convert_matcher (ANFIR.Case'BoolLiteral b) = BackendIR.Case'BoolLiteral b
-        convert_matcher (ANFIR.Case'Tuple) = BackendIR.Case'Tuple
-        convert_matcher (ANFIR.Case'AnonADTVariant (Just v)) = BackendIR.Case'AnonADTVariant (Right v)
-        convert_matcher (ANFIR.Case'AnonADTVariant Nothing) = BackendIR.Case'AnonADTVariant (Left ())
+        convert_matcher (ANFIR.Match'BoolLiteral b) = BackendIR.Match'BoolLiteral b
+        convert_matcher (ANFIR.Match'Tuple) = BackendIR.Match'Tuple
+        convert_matcher (ANFIR.Match'AnonADTVariant (Just v)) = BackendIR.Match'AnonADTVariant (Right v)
+        convert_matcher (ANFIR.Match'AnonADTVariant Nothing) = BackendIR.Match'AnonADTVariant (Left ())
 convert_expr (ANFIR.Expr'TupleDestructure1 id ty tup) = BackendIR.Expr'TupleDestructure1 (convert_id id) ty tup
 convert_expr (ANFIR.Expr'TupleDestructure2 id ty tup) = BackendIR.Expr'TupleDestructure2 (convert_id id) ty tup
 convert_expr (ANFIR.Expr'ADTDestructure id ty b field_idx) = BackendIR.Expr'ADTDestructure (convert_id id) ty b (maybe (Left ()) Right field_idx)

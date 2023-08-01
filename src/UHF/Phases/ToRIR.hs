@@ -140,16 +140,16 @@ convert_expr (SIR.Expr'If id ty sp _ cond true false) =
         (\ let_id ->
             RIR.Expr'Let let_id sp
                 [RIR.Binding cond_bv cond]
-                (RIR.Expr'Case id ty sp
-                    (RIR.CaseTree
-                        [ ([RIR.CaseClause'Match cond_bv (RIR.Case'BoolLiteral True)], Right true)
-                        , ([RIR.CaseClause'Match cond_bv (RIR.Case'BoolLiteral False)], Right false)
+                (RIR.Expr'Match id ty sp
+                    (RIR.MatchTree
+                        [ ([RIR.MatchClause'Match cond_bv (RIR.Match'BoolLiteral True)], Right true)
+                        , ([RIR.MatchClause'Match cond_bv (RIR.Match'BoolLiteral False)], Right false)
                         ]
                     )
                 )
         )
 
-convert_expr (SIR.Expr'Case id ty sp _ scrutinee arms) =
+convert_expr (SIR.Expr'Match id ty sp _ scrutinee arms) =
     -- case S {
     --     P -> ...;
     --     ...
@@ -178,10 +178,10 @@ convert_expr (SIR.Expr'Case id ty sp _ scrutinee arms) =
         (\ let_id ->
             RIR.Expr'Let let_id sp
                 [RIR.Binding scrutinee_bv scrutinee]
-                (RIR.Expr'Case id ty sp (RIR.CaseTree arms))
+                (RIR.Expr'Match id ty sp (RIR.MatchTree arms))
         )
     where
-        pattern_to_clauses scrutinee_bv (SIR.Pattern'Identifier _ _ bvk) = pure [RIR.CaseClause'Assign bvk (RIR.CaseAssignRHS'OtherBVK scrutinee_bv)]
+        pattern_to_clauses scrutinee_bv (SIR.Pattern'Identifier _ _ bvk) = pure [RIR.MatchClause'Assign bvk (RIR.MatchAssignRHS'OtherBVK scrutinee_bv)]
         pattern_to_clauses _ (SIR.Pattern'Wildcard _ _) = pure []
         pattern_to_clauses scrutinee_bv (SIR.Pattern'Tuple _ _ a b) =
             -- scrutinee -> (A, B) becomes [scrutinee -> (,), a = scrutinee.tuple_l, b = scrutinee.tuple_r, a -> A, b -> B]
@@ -191,18 +191,18 @@ convert_expr (SIR.Expr'Case id ty sp _ scrutinee arms) =
             pattern_to_clauses a_bv a >>= \ a_subpat_matchers ->
             pattern_to_clauses b_bv b >>= \ b_subpat_matchers ->
 
-            pure (RIR.CaseClause'Match scrutinee_bv RIR.Case'Tuple : RIR.CaseClause'Assign a_bv (RIR.CaseAssignRHS'TupleDestructure1 (SIR.pattern_type a) scrutinee_bv) : RIR.CaseClause'Assign b_bv (RIR.CaseAssignRHS'TupleDestructure2 (SIR.pattern_type b) scrutinee_bv) : (a_subpat_matchers <> b_subpat_matchers))
+            pure (RIR.MatchClause'Match scrutinee_bv RIR.Match'Tuple : RIR.MatchClause'Assign a_bv (RIR.MatchAssignRHS'TupleDestructure1 (SIR.pattern_type a) scrutinee_bv) : RIR.MatchClause'Assign b_bv (RIR.MatchAssignRHS'TupleDestructure2 (SIR.pattern_type b) scrutinee_bv) : (a_subpat_matchers <> b_subpat_matchers))
 
         pattern_to_clauses scrutinee_bv (SIR.Pattern'Named _ _ _ (Located _ bvk) subpat) =
             -- scrutinee -> name@P becomes [name = scrutinee, scrutinee -> P]
             pattern_to_clauses scrutinee_bv subpat >>= \ subpat_matchers ->
-            pure (RIR.CaseClause'Assign bvk (RIR.CaseAssignRHS'OtherBVK scrutinee_bv) : subpat_matchers)
+            pure (RIR.MatchClause'Assign bvk (RIR.MatchAssignRHS'OtherBVK scrutinee_bv) : subpat_matchers)
 
         pattern_to_clauses scrutinee_bv (SIR.Pattern'AnonADTVariant ty sp variant_index tyargs fields) =
             -- Variant(F0, F1, ...) becomes [scrutinee -> Variant, f0 = (scrutinee as Variant).0, f1 = (scrutinee as Variant).1, f0 -> F0, f1 -> F1, ...]
             fields & mapM (\ pat -> new_bound_value (SIR.pattern_type pat) (SIR.pattern_span pat)) >>= \ field_bvs ->
             zipWithM pattern_to_clauses field_bvs fields >>= \ field_subpat_clauses ->
-            pure (RIR.CaseClause'Match scrutinee_bv (RIR.Case'AnonADTVariant variant_index) : zipWith (\ i field_bv -> RIR.CaseClause'Assign field_bv (RIR.CaseAssignRHS'AnonADTVariantField (SIR.pattern_type $ fields List.!! i) scrutinee_bv (Type.ADTFieldIndex <$> variant_index <*> pure i))) [0..] field_bvs <> concat field_subpat_clauses)
+            pure (RIR.MatchClause'Match scrutinee_bv (RIR.Match'AnonADTVariant variant_index) : zipWith (\ i field_bv -> RIR.MatchClause'Assign field_bv (RIR.MatchAssignRHS'AnonADTVariantField (SIR.pattern_type $ fields List.!! i) scrutinee_bv (Type.ADTFieldIndex <$> variant_index <*> pure i))) [0..] field_bvs <> concat field_subpat_clauses)
 
         pattern_to_clauses _ (SIR.Pattern'NamedADTVariant _ _ _ _ _) = todo
         pattern_to_clauses _ (SIR.Pattern'Poison _ _) = pure []
@@ -236,8 +236,8 @@ assign_pattern (SIR.Pattern'Tuple whole_ty whole_sp a b) expr =
     new_made_up_expr_id identity >>= \ l_extract_id ->
     new_made_up_expr_id identity >>= \ r_extract_id ->
 
-    new_made_up_expr_id (\ id -> RIR.Expr'Case id a_ty a_sp (RIR.CaseTree [([RIR.CaseClause'Match whole_bv RIR.Case'Tuple, RIR.CaseClause'Assign a_bv (RIR.CaseAssignRHS'TupleDestructure1 (SIR.pattern_type a) whole_bv)], Right $ RIR.Expr'Identifier l_extract_id a_sp (Just a_bv))])) >>= \ extract_a  ->
-    new_made_up_expr_id (\ id -> RIR.Expr'Case id b_ty b_sp (RIR.CaseTree [([RIR.CaseClause'Match whole_bv RIR.Case'Tuple, RIR.CaseClause'Assign b_bv (RIR.CaseAssignRHS'TupleDestructure2 (SIR.pattern_type b) whole_bv)], Right $ RIR.Expr'Identifier r_extract_id b_sp (Just b_bv))])) >>= \ extract_b ->
+    new_made_up_expr_id (\ id -> RIR.Expr'Match id a_ty a_sp (RIR.MatchTree [([RIR.MatchClause'Match whole_bv RIR.Match'Tuple, RIR.MatchClause'Assign a_bv (RIR.MatchAssignRHS'TupleDestructure1 (SIR.pattern_type a) whole_bv)], Right $ RIR.Expr'Identifier l_extract_id a_sp (Just a_bv))])) >>= \ extract_a  ->
+    new_made_up_expr_id (\ id -> RIR.Expr'Match id b_ty b_sp (RIR.MatchTree [([RIR.MatchClause'Match whole_bv RIR.Match'Tuple, RIR.MatchClause'Assign b_bv (RIR.MatchAssignRHS'TupleDestructure2 (SIR.pattern_type b) whole_bv)], Right $ RIR.Expr'Identifier r_extract_id b_sp (Just b_bv))])) >>= \ extract_b ->
 
     assign_pattern a extract_a >>= \ assign_a ->
     assign_pattern b extract_b >>= \ assign_b ->

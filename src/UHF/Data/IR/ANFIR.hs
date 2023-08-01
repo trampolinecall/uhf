@@ -17,9 +17,9 @@ module UHF.Data.IR.ANFIR
     , stringify_id
 
     , Expr (..)
-    , CaseTree (..)
-    , CaseClause (..)
-    , CaseMatcher (..)
+    , MatchTree (..)
+    , MatchClause (..)
+    , MatchMatcher (..)
     , expr_type
     , expr_id
     , binding_type
@@ -84,7 +84,7 @@ data Expr
 
     | Expr'Call ID (Maybe (Type.Type Void)) BindingKey BindingKey
 
-    | Expr'Case ID (Maybe (Type.Type Void)) CaseTree
+    | Expr'Match ID (Maybe (Type.Type Void)) MatchTree
 
     | Expr'TupleDestructure1 ID (Maybe (Type.Type Void)) BindingKey
     | Expr'TupleDestructure2 ID (Maybe (Type.Type Void)) BindingKey
@@ -96,18 +96,18 @@ data Expr
     | Expr'Poison ID (Maybe (Type.Type Void))
     deriving Show
 
--- TODO: split case things into separate module?
-data CaseTree
-    = CaseTree [([CaseClause], Either CaseTree (BindingGroup, BindingKey))]
+-- TODO: split match things into separate module?
+data MatchTree
+    = MatchTree [([MatchClause], Either MatchTree (BindingGroup, BindingKey))]
     deriving Show
-data CaseClause
-    = CaseClause'Match BindingKey CaseMatcher
-    | CaseClause'Binding BindingKey
+data MatchClause
+    = MatchClause'Match BindingKey MatchMatcher
+    | MatchClause'Binding BindingKey
     deriving Show
-data CaseMatcher
-    = Case'BoolLiteral Bool
-    | Case'Tuple
-    | Case'AnonADTVariant (Maybe Type.ADTVariantIndex)
+data MatchMatcher
+    = Match'BoolLiteral Bool
+    | Match'Tuple
+    | Match'AnonADTVariant (Maybe Type.ADTVariantIndex)
     deriving Show
 
 expr_type :: Expr -> (Maybe (Type.Type Void))
@@ -121,7 +121,7 @@ expr_type (Expr'Tuple _ ty _ _) = ty
 expr_type (Expr'Lambda _ ty _ _ _ _) = ty
 expr_type (Expr'Param _ ty _) = ty
 expr_type (Expr'Call _ ty _ _) = ty
-expr_type (Expr'Case _ ty _) = ty
+expr_type (Expr'Match _ ty _) = ty
 expr_type (Expr'TupleDestructure1 _ ty _) = ty
 expr_type (Expr'TupleDestructure2 _ ty _) = ty
 expr_type (Expr'ADTDestructure _ ty _ _) = ty
@@ -141,7 +141,7 @@ expr_id (Expr'Tuple id _ _ _) = id
 expr_id (Expr'Lambda id _ _ _ _ _) = id
 expr_id (Expr'Param id _ _) = id
 expr_id (Expr'Call id _ _ _) = id
-expr_id (Expr'Case id _ _) = id
+expr_id (Expr'Match id _ _) = id
 expr_id (Expr'TupleDestructure1 id _ _) = id
 expr_id (Expr'TupleDestructure2 id _ _) = id
 expr_id (Expr'ADTDestructure id _ _ _) = id

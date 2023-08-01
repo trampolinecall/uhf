@@ -140,7 +140,7 @@ expr (SIR.Expr'LetRec _ _ _ bindings body) = pp_let "letrec" bindings body
 expr (SIR.Expr'BinaryOps _ _ _ _ first ops) = expr first >>= \ first -> mapM (\ (op, rhs) -> refer_iden op >>= \ op -> expr rhs >>= \ rhs -> pure (PP.List [op, " ", rhs])) ops >>= \ ops -> pure (PP.List ["(", first, PP.Block PP.Inconsistent Nothing (Just " ") Nothing ops, ")"])
 expr (SIR.Expr'Call _ _ _ callee arg) = expr callee >>= \ callee -> expr arg >>= \ arg -> pure (PP.FirstOnLineIfMultiline $ PP.List [callee, "(", arg, ")"])
 expr (SIR.Expr'If _ _ _ _ cond t f) = expr cond >>= \ cond -> expr t >>= \ t -> expr f >>= \ f -> pure (PP.FirstOnLineIfMultiline $ PP.List ["if ", cond, " then ", t, " else ", f])
-expr (SIR.Expr'Case _ _ _ _ e arms) = expr e >>= \ e -> mapM (\ (p, e) -> pattern p >>= \ p -> expr e >>= \ e -> pure (PP.List [p, " -> ", e, ";"])) arms >>= \ arms -> pure (PP.List ["case ", e, " ", PP.braced_block arms])
+expr (SIR.Expr'Match _ _ _ _ e arms) = expr e >>= \ e -> mapM (\ (p, e) -> pattern p >>= \ p -> expr e >>= \ e -> pure (PP.List [p, " -> ", e, ";"])) arms >>= \ arms -> pure (PP.List ["match ", e, " ", PP.braced_block arms])
 expr (SIR.Expr'TypeAnnotation _ _ _ ty e) = type_expr ty >>= \ ty -> expr e >>= \ e -> pure (PP.List [":", ty, ": ", e])
 expr (SIR.Expr'Hole _ _ _ hid) = put_iden_list_of_text (unlocate hid) >>= \ hid -> pure (PP.List ["?", hid])
 expr (SIR.Expr'Forall _ _ _ tys e) = mapM type_var tys >>= \ tys -> expr e >>= \ e -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList tys, " ", e])

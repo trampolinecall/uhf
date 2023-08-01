@@ -277,20 +277,20 @@ expr (SIR.Expr'If id () sp if_sp cond true false) =
 
     pure (SIR.Expr'If id (SIR.expr_type true) sp if_sp cond true false)
 
-expr (SIR.Expr'Case id () sp case_tok_sp testing arms) =
+expr (SIR.Expr'Match id () sp match_tok_sp testing arms) =
     expr testing >>= \ testing ->
     mapM (\ (p, e) -> (,) <$> pattern p <*> expr e) arms >>= \ arms ->
 
     -- first expr matches all pattern types
-    lift (tell (map (\ (arm_pat, _) -> Eq InCasePatterns case_tok_sp (loc_pat_type arm_pat) (loc_expr_type testing)) arms)) >>
+    lift (tell (map (\ (arm_pat, _) -> Eq InMatchPatterns match_tok_sp (loc_pat_type arm_pat) (loc_expr_type testing)) arms)) >>
     -- all arm types are the same
-    lift (tell (zipWith (\ (_, arm_result_1) (_, arm_result_2) -> Eq InCaseArms case_tok_sp (loc_expr_type arm_result_1) (loc_expr_type arm_result_2)) arms (drop 1 arms))) >>
+    lift (tell (zipWith (\ (_, arm_result_1) (_, arm_result_2) -> Eq InMatchArms match_tok_sp (loc_expr_type arm_result_1) (loc_expr_type arm_result_2)) arms (drop 1 arms))) >>
 
     (case headMay arms of
         Just (_, first_arm_result) -> pure $ SIR.expr_type first_arm_result
-        Nothing -> Type.Type'Unknown <$> lift (lift $ new_type_unknown $ CaseExpr sp)) >>= \ result_ty ->
+        Nothing -> Type.Type'Unknown <$> lift (lift $ new_type_unknown $ MatchExpr sp)) >>= \ result_ty ->
 
-    pure (SIR.Expr'Case id result_ty sp case_tok_sp testing arms)
+    pure (SIR.Expr'Match id result_ty sp match_tok_sp testing arms)
 
 expr (SIR.Expr'Poison id () sp) = SIR.Expr'Poison id <$> (Type.Type'Unknown <$> lift (lift $ new_type_unknown $ PoisonExpr sp)) <*> pure sp
 expr (SIR.Expr'Hole id () sp hid) = SIR.Expr'Hole id <$> (Type.Type'Unknown <$> lift (lift $ new_type_unknown $ HoleExpr sp)) <*> pure sp <*> pure hid

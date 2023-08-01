@@ -62,7 +62,7 @@ data SingleTypeToken
     | If
     | Then
     | Else
-    | Case
+    | Match
 
     | OBrace
     | CBrace
@@ -109,7 +109,7 @@ instance Format SingleTypeToken where
     format If = "'if'"
     format Then = "'then'"
     format Else = "'else'"
-    format Case = "'case'"
+    format Match = "match"
 
     format OBrace = "'{'"
     format CBrace = "'}'"

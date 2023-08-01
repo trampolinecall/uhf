@@ -61,10 +61,10 @@ rp_expr (BackendIR.Expr'Param id ty p) = ty >>= \ ty -> pure (BackendIR.Expr'Par
 
 rp_expr (BackendIR.Expr'Call id ty c a) = ty >>= \ ty -> pure (BackendIR.Expr'Call id ty c a)
 
-rp_expr (BackendIR.Expr'Case id ty t) = ty >>= \ ty -> rp_tree t >>= \ t -> pure (BackendIR.Expr'Case id ty t)
+rp_expr (BackendIR.Expr'Match id ty t) = ty >>= \ ty -> rp_tree t >>= \ t -> pure (BackendIR.Expr'Match id ty t)
     where
-        rp_tree (BackendIR.CaseTree arms) =
-            BackendIR.CaseTree
+        rp_tree (BackendIR.MatchTree arms) =
+            BackendIR.MatchTree
                 <$> mapM
                     (\ (clauses, result) ->
                         (,)
@@ -75,13 +75,13 @@ rp_expr (BackendIR.Expr'Case id ty t) = ty >>= \ ty -> rp_tree t >>= \ t -> pure
                     )
                     arms
 
-        rp_clause (BackendIR.CaseClause'Match bk matcher) = BackendIR.CaseClause'Match bk <$> rp_matcher matcher
-        rp_clause (BackendIR.CaseClause'Binding bk) = Just $ BackendIR.CaseClause'Binding bk
+        rp_clause (BackendIR.MatchClause'Match bk matcher) = BackendIR.MatchClause'Match bk <$> rp_matcher matcher
+        rp_clause (BackendIR.MatchClause'Binding bk) = Just $ BackendIR.MatchClause'Binding bk
 
-        rp_matcher (BackendIR.Case'BoolLiteral b) = Just $ BackendIR.Case'BoolLiteral b
-        rp_matcher (BackendIR.Case'Tuple) = Just $ BackendIR.Case'Tuple
-        rp_matcher (BackendIR.Case'AnonADTVariant (Left ())) = Nothing
-        rp_matcher (BackendIR.Case'AnonADTVariant (Right variant)) = Just $ BackendIR.Case'AnonADTVariant (Right variant)
+        rp_matcher (BackendIR.Match'BoolLiteral b) = Just $ BackendIR.Match'BoolLiteral b
+        rp_matcher (BackendIR.Match'Tuple) = Just $ BackendIR.Match'Tuple
+        rp_matcher (BackendIR.Match'AnonADTVariant (Left ())) = Nothing
+        rp_matcher (BackendIR.Match'AnonADTVariant (Right variant)) = Just $ BackendIR.Match'AnonADTVariant (Right variant)
 
 rp_expr (BackendIR.Expr'TupleDestructure1 id ty t) = ty >>= \ ty -> pure (BackendIR.Expr'TupleDestructure1 id ty t)
 rp_expr (BackendIR.Expr'TupleDestructure2 id ty t) = ty >>= \ ty -> pure (BackendIR.Expr'TupleDestructure2 id ty t)

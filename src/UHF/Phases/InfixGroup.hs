@@ -78,7 +78,7 @@ group_expr (SIR.Expr'BinaryOps _ () () _ first ops) =
 group_expr (SIR.Expr'Call id () sp callee arg) = SIR.Expr'Call id () sp <$> group_expr callee <*> group_expr arg
 
 group_expr (SIR.Expr'If id () sp if_sp cond true false) = SIR.Expr'If id () sp if_sp <$> group_expr cond <*> group_expr true <*> group_expr false
-group_expr (SIR.Expr'Case id () sp case_sp e arms) = SIR.Expr'Case id () sp case_sp <$> group_expr e <*> mapM (\ (p, e) -> (p,) <$> group_expr e) arms
+group_expr (SIR.Expr'Match id () sp match_tok_sp e arms) = SIR.Expr'Match id () sp match_tok_sp <$> group_expr e <*> mapM (\ (p, e) -> (p,) <$> group_expr e) arms
 
 group_expr (SIR.Expr'Poison id () sp) = pure $ SIR.Expr'Poison id () sp
 

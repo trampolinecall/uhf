@@ -55,7 +55,7 @@ data AlmostExpr
 
     | AlmostExpr'Call ANFIR.ID (Maybe (Type.Type Void)) ANFIR.BindingKey ANFIR.BindingKey
 
-    | AlmostExpr'Case ANFIR.ID (Maybe (Type.Type Void)) AlmostCaseTree
+    | AlmostExpr'Match ANFIR.ID (Maybe (Type.Type Void)) AlmostMatchTree
 
     | AlmostExpr'TupleDestructure1 ANFIR.ID (Maybe (Type.Type Void)) ANFIR.BindingKey
     | AlmostExpr'TupleDestructure2 ANFIR.ID (Maybe (Type.Type Void)) ANFIR.BindingKey
@@ -66,8 +66,8 @@ data AlmostExpr
 
     | AlmostExpr'Poison ANFIR.ID (Maybe (Type.Type Void))
 
-data AlmostCaseTree
-    = AlmostCaseTree [([ANFIR.CaseClause], Either AlmostCaseTree ([ANFIR.BindingKey], ANFIR.BindingKey))]
+data AlmostMatchTree
+    = AlmostMatchTree [([ANFIR.MatchClause], Either AlmostMatchTree ([ANFIR.BindingKey], ANFIR.BindingKey))]
 
 convert :: RIR.RIR -> ANFIR
 convert (RIR.RIR adts type_synonyms type_vars bound_values cu) =
@@ -142,12 +142,12 @@ convert_expr _ (RIR.Expr'Let _ _ bindings e) = mapM (lift . convert_binding) bin
 
 convert_expr m_bvid expr@(RIR.Expr'Call id _ callee arg) = lift (lift $ lift $ lift ask) >>= \ bv_arena -> let ty = RIR.expr_type bv_arena expr in convert_expr Nothing callee >>= \ callee -> convert_expr Nothing arg >>= \ arg -> new_binding (\ _ -> (AlmostExpr'Call (choose_id m_bvid id) ty callee arg))
 
-convert_expr m_bvid (RIR.Expr'Case id ty _ tree) =
+convert_expr m_bvid (RIR.Expr'Match id ty _ tree) =
     lift (convert_tree tree) >>= \ tree ->
 
-    new_binding (\ bv_map -> AlmostExpr'Case (choose_id m_bvid id) ty (tree bv_map))
+    new_binding (\ bv_map -> AlmostExpr'Match (choose_id m_bvid id) ty (tree bv_map))
     where
-        convert_tree (RIR.CaseTree arms) =
+        convert_tree (RIR.MatchTree arms) =
             mapM
                 (\ (clauses, result) ->
                     mapM convert_clause clauses >>= \ clauses ->
@@ -160,32 +160,32 @@ convert_expr m_bvid (RIR.Expr'Case id ty _ tree) =
                             pure (\ bv_map -> Left (subtree bv_map))) >>= \ result ->
                     pure (\ bv_map -> (concat $ map ($ bv_map) clauses, result bv_map)))
                 arms >>= \ arms ->
-            pure (\ bv_map -> AlmostCaseTree (map ($ bv_map) arms))
+            pure (\ bv_map -> AlmostMatchTree (map ($ bv_map) arms))
 
-        convert_clause (RIR.CaseClause'Match binding (RIR.Case'BoolLiteral bool)) = pure (\ bv_map -> [ANFIR.CaseClause'Match (bv_map Map.! binding) (ANFIR.Case'BoolLiteral bool)])
-        convert_clause (RIR.CaseClause'Match c RIR.Case'Tuple) = pure (\ bv_map -> [ANFIR.CaseClause'Match (bv_map Map.! c) ANFIR.Case'Tuple])
-        convert_clause (RIR.CaseClause'Match scrutinee (RIR.Case'AnonADTVariant m_variant_index)) = pure (\ bv_map -> [ANFIR.CaseClause'Match (bv_map Map.! scrutinee) (ANFIR.Case'AnonADTVariant m_variant_index)])
+        convert_clause (RIR.MatchClause'Match binding (RIR.Match'BoolLiteral bool)) = pure (\ bv_map -> [ANFIR.MatchClause'Match (bv_map Map.! binding) (ANFIR.Match'BoolLiteral bool)])
+        convert_clause (RIR.MatchClause'Match c RIR.Match'Tuple) = pure (\ bv_map -> [ANFIR.MatchClause'Match (bv_map Map.! c) ANFIR.Match'Tuple])
+        convert_clause (RIR.MatchClause'Match scrutinee (RIR.Match'AnonADTVariant m_variant_index)) = pure (\ bv_map -> [ANFIR.MatchClause'Match (bv_map Map.! scrutinee) (ANFIR.Match'AnonADTVariant m_variant_index)])
 
-        convert_clause (RIR.CaseClause'Assign target rhs) =
+        convert_clause (RIR.MatchClause'Assign target rhs) =
             convert_assign_rhs rhs >>= \ rhs_binding ->
             map_bound_value target rhs_binding >>
-            pure (\ _ -> [ANFIR.CaseClause'Binding rhs_binding])
+            pure (\ _ -> [ANFIR.MatchClause'Binding rhs_binding])
 
-        convert_assign_rhs (RIR.CaseAssignRHS'OtherBVK other) =
+        convert_assign_rhs (RIR.MatchAssignRHS'OtherBVK other) =
             (get_bv other) >>= \ (RIR.BoundValue _ other_ty _) ->
             new_expr_id >>= \ id ->
             -- second element is all the bindings made, but because there is only one call to new_binding in this WriterT, the only binding ever made is this one, so we do not need to keep track of the second variable
             runWriterT (new_binding (\ bv_map -> AlmostExpr'Refer (ANFIR.ExprID id) other_ty (bv_map Map.! other))) >>= \ (binding, _) ->
             pure binding
-        convert_assign_rhs (RIR.CaseAssignRHS'TupleDestructure1 ty tup) =
+        convert_assign_rhs (RIR.MatchAssignRHS'TupleDestructure1 ty tup) =
             new_expr_id >>= \ id ->
             runWriterT (new_binding (\ bv_map -> AlmostExpr'TupleDestructure1 (ANFIR.ExprID id) ty (bv_map Map.! tup))) >>= \ (binding, _) -> -- same note about all the bindings made as above
             pure binding
-        convert_assign_rhs (RIR.CaseAssignRHS'TupleDestructure2 ty tup) =
+        convert_assign_rhs (RIR.MatchAssignRHS'TupleDestructure2 ty tup) =
             new_expr_id >>= \ id ->
             runWriterT (new_binding (\ bv_map -> AlmostExpr'TupleDestructure2 (ANFIR.ExprID id) ty (bv_map Map.! tup))) >>= \ (binding, _) -> -- same note as above
             pure binding
-        convert_assign_rhs (RIR.CaseAssignRHS'AnonADTVariantField ty base field_idx) =
+        convert_assign_rhs (RIR.MatchAssignRHS'AnonADTVariantField ty base field_idx) =
             new_expr_id >>= \ id ->
             runWriterT (new_binding (\ bv_map -> AlmostExpr'ADTDestructure (ANFIR.ExprID id) ty (bv_map Map.! base) field_idx)) >>= \ (binding, _) -> -- same note as above
             pure binding
@@ -218,10 +218,10 @@ convert_almost_expr (AlmostExpr'MakeADT id ty var_idx tyargs args) = pure $ ANFI
 convert_almost_expr (AlmostExpr'Lambda id ty param bindings result) = ANFIR.Expr'Lambda id ty param <$> get_dependencies_of_binding_list_and_expr bindings result <*> make_binding_group bindings <*> pure result
 convert_almost_expr (AlmostExpr'Param id ty param) = pure $ ANFIR.Expr'Param id ty param
 convert_almost_expr (AlmostExpr'Call id ty callee arg) = pure $ ANFIR.Expr'Call id ty callee arg
-convert_almost_expr (AlmostExpr'Case id ty tree) = ANFIR.Expr'Case id ty <$> convert_tree tree
+convert_almost_expr (AlmostExpr'Match id ty tree) = ANFIR.Expr'Match id ty <$> convert_tree tree
     where
-        convert_tree (AlmostCaseTree arms) =
-            ANFIR.CaseTree
+        convert_tree (AlmostMatchTree arms) =
+            ANFIR.MatchTree
                 <$> mapM
                     (\ (clauses, result) ->
                         (case result of
@@ -257,9 +257,9 @@ get_dependencies_of_almost_expr bk =
         AlmostExpr'Lambda _ _ _ bindings result -> get_dependencies_of_binding_list_and_expr bindings result
         AlmostExpr'Param _ _ _ -> pure []
         AlmostExpr'Call _ _ callee arg -> pure [callee, arg]
-        AlmostExpr'Case _ _ tree -> go_through_tree tree
+        AlmostExpr'Match _ _ tree -> go_through_tree tree
             where
-                go_through_tree (AlmostCaseTree arms) =
+                go_through_tree (AlmostMatchTree arms) =
                     arms
                         & mapM
                             (\ (clauses, result) ->
@@ -276,8 +276,8 @@ get_dependencies_of_almost_expr bk =
                         <&> Set.unions
 
                 -- first element is bindings referenced, second element is bindings defined
-                go_through_clause (ANFIR.CaseClause'Match binding _) = ([binding], [])
-                go_through_clause (ANFIR.CaseClause'Binding b) = ([], [b])
+                go_through_clause (ANFIR.MatchClause'Match binding _) = ([binding], [])
+                go_through_clause (ANFIR.MatchClause'Binding b) = ([], [b])
 
         AlmostExpr'TupleDestructure1 _ _ tup -> pure [tup]
         AlmostExpr'TupleDestructure2 _ _ tup -> pure [tup]

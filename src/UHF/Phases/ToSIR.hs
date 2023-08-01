@@ -251,17 +251,17 @@ convert_expr cur_id (AST.Expr'Call sp callee args) =
         args -- TODO: fix span for this
 
 convert_expr cur_id (AST.Expr'If sp if_sp cond t f) = SIR.Expr'If cur_id () sp if_sp <$> convert_expr (ID.ExprID'IfCond cur_id) cond <*> convert_expr (ID.ExprID'IfTrue cur_id) t <*> convert_expr (ID.ExprID'IfFalse cur_id) f
-convert_expr cur_id (AST.Expr'Case sp case_sp e arms) =
-    convert_expr (ID.ExprID'CaseScrutinee cur_id) e >>= \ e ->
+convert_expr cur_id (AST.Expr'Match sp match_tok_sp e arms) =
+    convert_expr (ID.ExprID'MatchScrutinee cur_id) e >>= \ e ->
     zipWithM
         (\ ind (pat, choice) ->
-            convert_pattern (ID.BVParent'CaseArm cur_id ind) pat >>= \ pat ->
-            convert_expr (ID.ExprID'CaseArm cur_id ind) choice >>= \ choice ->
+            convert_pattern (ID.BVParent'MatchArm cur_id ind) pat >>= \ pat ->
+            convert_expr (ID.ExprID'MatchArm cur_id ind) choice >>= \ choice ->
             pure (pat, choice))
         [0..]
         arms
         >>= \ arms ->
-    pure (SIR.Expr'Case cur_id () sp case_sp e arms)
+    pure (SIR.Expr'Match cur_id () sp match_tok_sp e arms)
 
 convert_expr cur_id (AST.Expr'TypeAnnotation sp ty e) = SIR.Expr'TypeAnnotation cur_id () sp <$> convert_type ty <*> convert_expr (ID.ExprID'TypeAnnotationSubject cur_id) e
 convert_expr cur_id (AST.Expr'Forall sp tys e) =

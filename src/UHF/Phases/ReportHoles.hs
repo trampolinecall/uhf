@@ -85,7 +85,7 @@ expr (SIR.Expr'BinaryOps _ _ _ _ first ops) = expr first >> mapM_ (\ (_, rhs) ->
 expr (SIR.Expr'Call _ _ _ callee arg) = expr callee >> expr arg
 
 expr (SIR.Expr'If _ _ _ _ cond t f) = expr cond >> expr t >> expr f
-expr (SIR.Expr'Case _ _ _ _ e arms) = expr e >> mapM_ (\ (p, e) -> pattern p >> expr e) arms
+expr (SIR.Expr'Match _ _ _ _ e arms) = expr e >> mapM_ (\ (p, e) -> pattern p >> expr e) arms
 
 expr (SIR.Expr'TypeAnnotation _ _ _ ty e) = type_expr ty >> expr e
 

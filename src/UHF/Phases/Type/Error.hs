@@ -88,8 +88,8 @@ instance Diagnostic.ToError Error where
                 InAssignment -> "assignment"
                 InNamedPattern -> "named pattern"
                 InIfBranches -> "'if' expression"
-                InCasePatterns -> "'case' expression patterns"
-                InCaseArms -> "'case' expression arms"
+                InMatchPatterns -> "'case' expression patterns"
+                InMatchArms -> "'case' expression arms"
 
             ((a_part_printed, b_part_printed, a_whole_printed, b_whole_printed), var_names) =
                 run_unk_namer $ -- TODO: somehow make it so that this can be used without UnkNamer

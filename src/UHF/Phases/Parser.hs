@@ -166,7 +166,7 @@ expr_primary =
         , expr_bool_lit
 
         , expr_if
-        , expr_case
+        , expr_match
 
         , expr_forall
 
@@ -275,9 +275,9 @@ expr_if =
     expr >>= \ false_choice ->
     pure (AST.Expr'If (if_sp <> AST.expr_span false_choice) if_sp cond true_choice false_choice)
 
-expr_case :: PEG.Parser AST.Expr
-expr_case =
-    PEG.consume' "'case'" (Token.SingleTypeToken Token.Case) >>= \ (Located case_sp _) ->
+expr_match :: PEG.Parser AST.Expr
+expr_match =
+    PEG.consume' "match" (Token.SingleTypeToken Token.Match) >>= \ (Located match_sp _) ->
     expr >>= \ e ->
     PEG.consume' "'{'" (Token.SingleTypeToken Token.OBrace) >>
     PEG.star (
@@ -288,7 +288,7 @@ expr_case =
         pure (pat, choice)
     ) >>= \ arms ->
     PEG.consume' "'}'" (Token.SingleTypeToken Token.CBrace) >>= \ (Located cb_sp _) ->
-    pure (AST.Expr'Case (case_sp <> cb_sp) case_sp e arms)
+    pure (AST.Expr'Match (match_sp <> cb_sp) match_sp e arms)
 
 expr_type_annotation :: PEG.Parser AST.Expr
 expr_type_annotation =

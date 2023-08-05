@@ -15,6 +15,7 @@ module UHF.Util.Prelude
     , trace
     , trace_show_id
     , trace_with_message
+    , assert
 
     , putStr
     , putStrLn
@@ -105,6 +106,10 @@ identity = Data.Function.id
 
 error :: GHC.Stack.HasCallStack => Prelude.String -> a
 error = Prelude.error
+
+assert :: GHC.Stack.HasCallStack => Bool -> Prelude.String -> a -> a
+assert True _ a = a
+assert False msg _ = error msg
 
 unreachable :: GHC.Stack.HasCallStack => a
 unreachable = Prelude.error "unreachable code reached"

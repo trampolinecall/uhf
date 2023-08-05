@@ -139,6 +139,7 @@ convert_decls bv_parent decl_parent decls =
 
                 lift (new_adt adt) >>= \ adt_key ->
 
+                -- TODO: use Type.adt_variant_idxs?
                 (catMaybes <$> mapM
                     (\ case
                         (Type.ADTVariant'Anon (Located name_sp name) _ _, index) ->

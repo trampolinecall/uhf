@@ -1,19 +1,32 @@
-module UHF.Phases.ToRIR (convert) where
+module UHF.Phases.ToRIR (Error, convert) where
 
 import UHF.Util.Prelude
 
 import qualified Arena
 
+import qualified UHF.Compiler as Compiler
+
 import UHF.IO.Span (Span)
 import UHF.IO.Located (Located (Located, unlocate))
+
+import qualified UHF.Diagnostic as Diagnostic
 
 import qualified UHF.Data.IR.SIR as SIR
 import qualified UHF.Data.IR.RIR as RIR
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.IDGen as IDGen
+import qualified UHF.Phases.ToRIR.PatternCheck as PatternCheck
 
 import qualified Data.List as List
+
+data Error
+    = CompletenessError PatternCheck.CompletenessError
+    | NotUsefulError PatternCheck.NotUsefulError -- TODO: this is actually supposed to be a warning
+
+instance Diagnostic.ToError Error where
+    to_error (CompletenessError ce) = Diagnostic.to_error ce
+    to_error (NotUsefulError nue) = Diagnostic.to_error nue
 
 type Type = Maybe (Type.Type Void)
 
@@ -32,26 +45,26 @@ type RIRBinding = RIR.Binding
 
 type BoundValueArena = Arena.Arena RIR.BoundValue RIR.BoundValueKey
 
-type ConvertState = ReaderT (Arena.Arena (Type.ADT Type) Type.ADTKey) (StateT BoundValueArena (IDGen.IDGenT ID.BoundValueID (IDGen.IDGen ID.ExprID)))
+type ConvertState = ReaderT (Arena.Arena (Type.ADT Type) Type.ADTKey) (StateT BoundValueArena (IDGen.IDGenT ID.BoundValueID (IDGen.IDGenT ID.ExprID (Compiler.WithDiagnostics Error Void))))
 
 new_made_up_expr_id :: (ID.ExprID -> a) -> ConvertState a
 new_made_up_expr_id make =
     (lift $ lift $ lift IDGen.gen_id) >>= \ id ->
     pure (make id)
 
-convert :: SIR -> RIR.RIR
-convert (SIR.SIR _ modules adts type_synonyms type_vars bvs mod) =
+convert :: SIR -> Compiler.WithDiagnostics Error Void RIR.RIR
+convert (SIR.SIR _ modules adts type_synonyms type_vars bvs mod) = do
     let adts_converted = Arena.transform convert_adt adts
-        type_synonyms_converted = Arena.transform convert_type_synonym type_synonyms
-        bvs_converted =
+    let type_synonyms_converted = Arena.transform convert_type_synonym type_synonyms
+    let bvs_converted =
             Arena.transform
                 (\case
                     SIR.BoundValue id ty (Located sp _) -> RIR.BoundValue id ty sp
                     SIR.BoundValue'ADTVariant id _ _ ty sp -> RIR.BoundValue id ty sp
                 )
                 bvs
-        (cu, bvs_with_new) = IDGen.run_id_gen ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.BoundValueID'RIRMadeUp $ runStateT (runReaderT (assemble_cu modules mod) adts_converted) bvs_converted
-    in RIR.RIR adts_converted type_synonyms_converted type_vars bvs_with_new cu
+    (cu, bvs_with_new) <- IDGen.run_id_gen_t ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.BoundValueID'RIRMadeUp $ runStateT (runReaderT (assemble_cu modules mod) adts_converted) bvs_converted
+    pure (RIR.RIR adts_converted type_synonyms_converted type_vars bvs_with_new cu)
 
 assemble_cu :: Arena.Arena SIRModule SIR.ModuleKey -> SIR.ModuleKey -> ConvertState RIR.CU
 assemble_cu modules mod =
@@ -68,7 +81,7 @@ convert_type_synonym :: Type.TypeSynonym SIRTypeExpr -> Type.TypeSynonym Type
 convert_type_synonym (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name (SIR.type_expr_type_info expansion)
 
 convert_binding :: SIRBinding -> ConvertState [RIRBinding]
-convert_binding (SIR.Binding pat _ expr) = convert_expr expr >>= assign_pattern pat
+convert_binding (SIR.Binding pat eq_sp expr) = convert_expr expr >>= assign_pattern eq_sp pat
 convert_binding (SIR.Binding'ADTVariant name_sp bvk type_params variant_index) =
     ask >>= \ adts ->
     let variant = Type.get_adt_variant adts variant_index
@@ -108,12 +121,11 @@ convert_expr (SIR.Expr'Bool id ty sp b) = pure $ RIR.Expr'Bool id sp b
 convert_expr (SIR.Expr'Tuple id ty sp a b) = RIR.Expr'Tuple id sp <$> convert_expr a <*> convert_expr b
 convert_expr (SIR.Expr'Lambda id ty sp param_pat body) =
     let param_ty = SIR.pattern_type param_pat
-        body_ty = SIR.expr_type body
         body_sp = SIR.expr_span body
     in
     -- '\ (...) -> body' becomes '\ (arg) -> let ... = arg; body'
     new_bound_value param_ty (SIR.pattern_span param_pat) >>= \ param_bk ->
-    assign_pattern param_pat (RIR.Expr'Identifier id (SIR.pattern_span param_pat) (Just param_bk)) >>= \ bindings ->
+    assign_pattern (SIR.pattern_span param_pat) param_pat (RIR.Expr'Identifier id (SIR.pattern_span param_pat) (Just param_bk)) >>= \ bindings ->
     RIR.Expr'Lambda id sp param_bk <$> (RIR.Expr'Let id body_sp bindings <$> convert_expr body)
 
 convert_expr (SIR.Expr'Let id ty sp bindings body) = RIR.Expr'Let id sp <$> (concat <$> mapM convert_binding bindings) <*> convert_expr body
@@ -149,7 +161,7 @@ convert_expr (SIR.Expr'If id ty sp _ cond true false) =
                 )
         )
 
-convert_expr (SIR.Expr'Match id ty sp _ scrutinee arms) =
+convert_expr (SIR.Expr'Match id ty sp case_tok_sp scrutinee arms) = do
     -- case S {
     --     P -> ...;
     --     ...
@@ -161,18 +173,25 @@ convert_expr (SIR.Expr'Match id ty sp _ scrutinee arms) =
     --     ...
     -- }
 
-    convert_expr scrutinee >>= \ scrutinee ->
-    lift get >>= \ bv_arena ->
-    new_bound_value (RIR.expr_type bv_arena scrutinee) (RIR.expr_span scrutinee) >>= \ scrutinee_bv ->
+    scrutinee <- convert_expr scrutinee
+    bv_arena <- lift get
+    scrutinee_bv <- new_bound_value (RIR.expr_type bv_arena scrutinee) (RIR.expr_span scrutinee)
 
-    -- TODO: exhaustiveness check and unreachable patterns check
-    mapM
+    adt_arena <- ask
+    case PatternCheck.check_complete adt_arena case_tok_sp (map fst arms) of
+        Right () -> pure ()
+        Left err -> lift $ lift $ lift $ lift $ Compiler.tell_error $ CompletenessError err
+    case PatternCheck.check_useful adt_arena (map fst arms) of
+        Right () -> pure ()
+        Left errs -> lift $ lift $ lift $ lift $ Compiler.tell_errors $ map NotUsefulError errs
+
+    arms <- mapM
         (\ (pat, result) ->
             pattern_to_clauses scrutinee_bv pat >>= \ clauses ->
             convert_expr result >>= \ result ->
             pure (clauses, Right result)
         )
-        arms >>= \ arms ->
+        arms
 
     new_made_up_expr_id
         (\ let_id ->
@@ -213,47 +232,54 @@ convert_expr (SIR.Expr'TypeAnnotation _ _ _ _ other) = convert_expr other
 convert_expr (SIR.Expr'Forall id ty sp vars e) = RIR.Expr'Forall id sp vars <$> convert_expr e
 convert_expr (SIR.Expr'TypeApply id ty sp e arg) = RIR.Expr'TypeApply id ty sp <$> convert_expr e <*> pure (SIR.type_expr_type_info arg)
 
--- TODO: exhaustiveness check
-assign_pattern :: SIRPattern -> RIRExpr -> ConvertState [RIRBinding]
-assign_pattern (SIR.Pattern'Identifier _ _ bv) expr = pure [RIR.Binding bv expr]
-assign_pattern (SIR.Pattern'Wildcard _ _) _ = pure []
-assign_pattern (SIR.Pattern'Tuple whole_ty whole_sp a b) expr =
-    let a_sp = SIR.pattern_span a
-        b_sp = SIR.pattern_span b
-        a_ty = SIR.pattern_type a
-        b_ty = SIR.pattern_type b
-    in
-    --     (..., ...) = e
-    -- becomes
-    --     whole = e
-    --     ... = case { [whole -> (a, _)] -> a }
-    --     ... = case { [whole -> (_, b)] -> b }
+assign_pattern :: Span -> SIRPattern -> RIRExpr -> ConvertState [RIRBinding]
+assign_pattern incomplete_err_sp pat expr = do
+    adt_arena <- ask
+    case PatternCheck.check_complete adt_arena incomplete_err_sp [pat] of
+        Right () -> pure ()
+        Left err -> lift $ lift $ lift $ lift $ Compiler.tell_error (CompletenessError err)
 
-    new_bound_value whole_ty whole_sp >>= \ whole_bv ->
-    new_bound_value a_ty a_sp >>= \ a_bv ->
-    new_bound_value b_ty b_sp >>= \ b_bv ->
+    go pat expr
+    where
+        go (SIR.Pattern'Identifier _ _ bv) expr = pure [RIR.Binding bv expr]
+        go (SIR.Pattern'Wildcard _ _) _ = pure []
+        go (SIR.Pattern'Tuple whole_ty whole_sp a b) expr =
+            let a_sp = SIR.pattern_span a
+                b_sp = SIR.pattern_span b
+                a_ty = SIR.pattern_type a
+                b_ty = SIR.pattern_type b
+            in
+            --     (..., ...) = e
+            -- becomes
+            --     whole = e
+            --     ... = case { [whole -> (a, _)] -> a }
+            --     ... = case { [whole -> (_, b)] -> b }
 
-    new_made_up_expr_id identity >>= \ l_extract_id ->
-    new_made_up_expr_id identity >>= \ r_extract_id ->
+            new_bound_value whole_ty whole_sp >>= \ whole_bv ->
+            new_bound_value a_ty a_sp >>= \ a_bv ->
+            new_bound_value b_ty b_sp >>= \ b_bv ->
 
-    new_made_up_expr_id (\ id -> RIR.Expr'Match id a_ty a_sp (RIR.MatchTree [([RIR.MatchClause'Match whole_bv RIR.Match'Tuple, RIR.MatchClause'Assign a_bv (RIR.MatchAssignRHS'TupleDestructure1 (SIR.pattern_type a) whole_bv)], Right $ RIR.Expr'Identifier l_extract_id a_sp (Just a_bv))])) >>= \ extract_a  ->
-    new_made_up_expr_id (\ id -> RIR.Expr'Match id b_ty b_sp (RIR.MatchTree [([RIR.MatchClause'Match whole_bv RIR.Match'Tuple, RIR.MatchClause'Assign b_bv (RIR.MatchAssignRHS'TupleDestructure2 (SIR.pattern_type b) whole_bv)], Right $ RIR.Expr'Identifier r_extract_id b_sp (Just b_bv))])) >>= \ extract_b ->
+            new_made_up_expr_id identity >>= \ l_extract_id ->
+            new_made_up_expr_id identity >>= \ r_extract_id ->
 
-    assign_pattern a extract_a >>= \ assign_a ->
-    assign_pattern b extract_b >>= \ assign_b ->
+            new_made_up_expr_id (\ id -> RIR.Expr'Match id a_ty a_sp (RIR.MatchTree [([RIR.MatchClause'Match whole_bv RIR.Match'Tuple, RIR.MatchClause'Assign a_bv (RIR.MatchAssignRHS'TupleDestructure1 (SIR.pattern_type a) whole_bv)], Right $ RIR.Expr'Identifier l_extract_id a_sp (Just a_bv))])) >>= \ extract_a  ->
+            new_made_up_expr_id (\ id -> RIR.Expr'Match id b_ty b_sp (RIR.MatchTree [([RIR.MatchClause'Match whole_bv RIR.Match'Tuple, RIR.MatchClause'Assign b_bv (RIR.MatchAssignRHS'TupleDestructure2 (SIR.pattern_type b) whole_bv)], Right $ RIR.Expr'Identifier r_extract_id b_sp (Just b_bv))])) >>= \ extract_b ->
 
-    pure (RIR.Binding whole_bv expr : assign_a ++ assign_b)
+            go a extract_a >>= \ assign_a ->
+            go b extract_b >>= \ assign_b ->
 
-assign_pattern (SIR.Pattern'Named ty sp _ bv other) expr =
-    --      a@... = e
-    --  becomes
-    --      a = e
-    --      ... = a
-    new_made_up_expr_id (\ id -> RIR.Expr'Identifier id sp (Just $ unlocate bv)) >>= \ refer ->
-    assign_pattern other refer >>= \ other_assignments ->
-    pure (RIR.Binding (unlocate bv) expr : other_assignments)
+            pure (RIR.Binding whole_bv expr : assign_a ++ assign_b)
 
-assign_pattern (SIR.Pattern'AnonADTVariant ty sp variant tyargs fields) expr = todo
-assign_pattern (SIR.Pattern'NamedADTVariant ty sp variant tyargs fields) expr = todo
+        go (SIR.Pattern'Named ty sp _ bv other) expr =
+            --      a@... = e
+            --  becomes
+            --      a = e
+            --      ... = a
+            new_made_up_expr_id (\ id -> RIR.Expr'Identifier id sp (Just $ unlocate bv)) >>= \ refer ->
+            go other refer >>= \ other_assignments ->
+            pure (RIR.Binding (unlocate bv) expr : other_assignments)
 
-assign_pattern (SIR.Pattern'Poison _ _) _ = pure []
+        go (SIR.Pattern'AnonADTVariant ty sp variant tyargs fields) expr = todo
+        go (SIR.Pattern'NamedADTVariant ty sp variant tyargs fields) expr = todo
+
+        go (SIR.Pattern'Poison _ _) _ = pure []

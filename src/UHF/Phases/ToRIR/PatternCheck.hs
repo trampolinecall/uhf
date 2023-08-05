@@ -1,6 +1,6 @@
 module UHF.Phases.ToRIR.PatternCheck
     ( CompletenessError (..)
-    , NotUsefulError (..)
+    , NotUseful (..)
     , MatchValue (..)
     , check_complete
     , check_useful
@@ -24,7 +24,7 @@ import qualified Data.List as List
 import qualified Data.Text as Text
 
 data CompletenessError = CompletenessError (Arena.Arena (Type.ADT Type) Type.ADTKey) Span [Pattern] [MatchValue]
-data NotUsefulError = NotUsefulError Pattern
+data NotUseful = NotUseful Pattern
 
 instance Diagnostic.ToError CompletenessError where
     to_error (CompletenessError adt_arena sp pats left_over) =
@@ -34,8 +34,8 @@ instance Diagnostic.ToError CompletenessError where
             )
             []
 
-instance Diagnostic.ToError NotUsefulError where
-    to_error (NotUsefulError pat) = Diagnostic.Error Diagnostic.Codes.useless_pattern (Just $ SIR.pattern_span pat) "useless pattern" [] []
+instance Diagnostic.ToWarning NotUseful where
+    to_warning (NotUseful pat) = Diagnostic.Warning Diagnostic.Codes.useless_pattern (Just $ SIR.pattern_span pat) "useless pattern" [] []
 
 type Type = Maybe (Type.Type Void)
 type Pattern = SIR.Pattern (Maybe Type.ADTVariantIndex) Type
@@ -158,10 +158,10 @@ check_complete adt_arena err_sp patterns =
         then Right ()
         else Left $ CompletenessError adt_arena err_sp patterns left_over
 
-check_useful :: Arena.Arena (Type.ADT Type) Type.ADTKey -> [Pattern] -> Either [NotUsefulError] ()
+check_useful :: Arena.Arena (Type.ADT Type) Type.ADTKey -> [Pattern] -> Either [NotUseful] ()
 check_useful adt_arena patterns =
     let (_, patterns') = check adt_arena patterns
-        errs = mapMaybe (\ (pat, covers) -> if null covers then Just (NotUsefulError pat) else Nothing) patterns'
-    in if null errs
+        warns = mapMaybe (\ (pat, covers) -> if null covers then Just (NotUseful pat) else Nothing) patterns'
+    in if null warns
         then Right ()
-        else Left errs
+        else Left warns

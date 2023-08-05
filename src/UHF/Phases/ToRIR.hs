@@ -1,4 +1,4 @@
-module UHF.Phases.ToRIR (Error, convert) where
+module UHF.Phases.ToRIR (PatternCheck.CompletenessError, PatternCheck.NotUseful, convert) where
 
 import UHF.Util.Prelude
 
@@ -9,8 +9,6 @@ import qualified UHF.Compiler as Compiler
 import UHF.IO.Span (Span)
 import UHF.IO.Located (Located (Located, unlocate))
 
-import qualified UHF.Diagnostic as Diagnostic
-
 import qualified UHF.Data.IR.SIR as SIR
 import qualified UHF.Data.IR.RIR as RIR
 import qualified UHF.Data.IR.Type as Type
@@ -19,14 +17,6 @@ import qualified UHF.Data.IR.IDGen as IDGen
 import qualified UHF.Phases.ToRIR.PatternCheck as PatternCheck
 
 import qualified Data.List as List
-
-data Error
-    = CompletenessError PatternCheck.CompletenessError
-    | NotUsefulError PatternCheck.NotUsefulError -- TODO: this is actually supposed to be a warning
-
-instance Diagnostic.ToError Error where
-    to_error (CompletenessError ce) = Diagnostic.to_error ce
-    to_error (NotUsefulError nue) = Diagnostic.to_error nue
 
 type Type = Maybe (Type.Type Void)
 
@@ -45,14 +35,14 @@ type RIRBinding = RIR.Binding
 
 type BoundValueArena = Arena.Arena RIR.BoundValue RIR.BoundValueKey
 
-type ConvertState = ReaderT (Arena.Arena (Type.ADT Type) Type.ADTKey) (StateT BoundValueArena (IDGen.IDGenT ID.BoundValueID (IDGen.IDGenT ID.ExprID (Compiler.WithDiagnostics Error Void))))
+type ConvertState = ReaderT (Arena.Arena (Type.ADT Type) Type.ADTKey) (StateT BoundValueArena (IDGen.IDGenT ID.BoundValueID (IDGen.IDGenT ID.ExprID (Compiler.WithDiagnostics PatternCheck.CompletenessError PatternCheck.NotUseful))))
 
 new_made_up_expr_id :: (ID.ExprID -> a) -> ConvertState a
 new_made_up_expr_id make =
     (lift $ lift $ lift IDGen.gen_id) >>= \ id ->
     pure (make id)
 
-convert :: SIR -> Compiler.WithDiagnostics Error Void RIR.RIR
+convert :: SIR -> Compiler.WithDiagnostics PatternCheck.CompletenessError PatternCheck.NotUseful RIR.RIR
 convert (SIR.SIR _ modules adts type_synonyms type_vars bvs mod) = do
     let adts_converted = Arena.transform convert_adt adts
     let type_synonyms_converted = Arena.transform convert_type_synonym type_synonyms
@@ -180,10 +170,10 @@ convert_expr (SIR.Expr'Match id ty sp case_tok_sp scrutinee arms) = do
     adt_arena <- ask
     case PatternCheck.check_complete adt_arena case_tok_sp (map fst arms) of
         Right () -> pure ()
-        Left err -> lift $ lift $ lift $ lift $ Compiler.tell_error $ CompletenessError err
+        Left err -> lift $ lift $ lift $ lift $ Compiler.tell_error  err
     case PatternCheck.check_useful adt_arena (map fst arms) of
         Right () -> pure ()
-        Left errs -> lift $ lift $ lift $ lift $ Compiler.tell_errors $ map NotUsefulError errs
+        Left warns -> lift $ lift $ lift $ lift $ Compiler.tell_warnings $ warns
 
     arms <- mapM
         (\ (pat, result) ->
@@ -237,7 +227,7 @@ assign_pattern incomplete_err_sp pat expr = do
     adt_arena <- ask
     case PatternCheck.check_complete adt_arena incomplete_err_sp [pat] of
         Right () -> pure ()
-        Left err -> lift $ lift $ lift $ lift $ Compiler.tell_error (CompletenessError err)
+        Left err -> lift $ lift $ lift $ lift $ Compiler.tell_error err
 
     go pat expr
     where

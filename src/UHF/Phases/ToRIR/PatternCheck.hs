@@ -52,13 +52,13 @@ show_match_value adt_arena (AnonADT variant fields) =
     in refer_variant <> "(" <> Text.intercalate ", " (map (show_match_value adt_arena) fields) <> ")"
 show_match_value adt_arena (Tuple a b) = "(" <> show_match_value adt_arena a <> ", " <> show_match_value adt_arena b <> ")" -- TODO: print multi-element tuples better
 
--- TODO: this function assumes that all the pattern types are correct which might not always happen because things can pass the typechecking phase with invalid types that become Nothing; might cause internal error? - fix?
 check :: Arena.Arena (Type.ADT Type) Type.ADTKey -> [Pattern] -> ([MatchValue], [(Pattern, [MatchValue])])
 check adt_arena patterns = mapAccumL check_one_pattern [Any] patterns
     where
         check_one_pattern :: [MatchValue] -> Pattern -> ([MatchValue], (Pattern, [MatchValue]))
         check_one_pattern uncovered cur_pattern =
             let (still_uncovered, covered) = unzip $ map (check_against_one_uncovered_value cur_pattern) uncovered
+            -- TODO: filter duplicates, also almost duplicates where _ and constructors are included
             in (filter is_valid_match_value $ concat still_uncovered, (cur_pattern, filter is_valid_match_value $ concat covered))
 
         check_against_one_uncovered_value :: Pattern -> MatchValue -> ([MatchValue], [MatchValue])
@@ -73,14 +73,15 @@ check adt_arena patterns = mapAccumL check_one_pattern [Any] patterns
                 Any -> go Any Any
                 Tuple uncovered_a uncovered_b -> go uncovered_a uncovered_b
 
-                AnonADT _ _ -> error "checking tuple pattern against adt uncovered value"
+                AnonADT _ _ -> ([uncovered_value], []) -- is not an illegal state because things are allowed to pass to this stage even if they have type errors; just treat it like a poison pattern
+
             where
                 make_into_tuple [a, b] = Tuple a b
                 make_into_tuple _ = error "cannot make field combo of not 2 fields into a tuple"
 
                 go uncovered_a uncovered_b =
                     let (uncovered_field_combos, covered_field_combos) = check_fields [field_a_pat, field_b_pat] [uncovered_a, uncovered_b]
-                    in (map make_into_tuple uncovered_field_combos, map make_into_tuple covered_field_combos)
+                    in (map make_into_tuple uncovered_field_combos, map make_into_tuple covered_field_combos) -- make_into_tuple will not error because the field combos must be 2 fields long
 
         check_against_one_uncovered_value (SIR.Pattern'AnonADTVariant (Just ty) _ (Just pat_variant) _ pat_fields) uncovered_value =
             case uncovered_value of
@@ -89,7 +90,7 @@ check adt_arena patterns = mapAccumL check_one_pattern [Any] patterns
                     in (concat still_uncovered, concat covered)
                 AnonADT uncovered_variant uncovered_fields -> go uncovered_variant uncovered_fields
 
-                Tuple _ _ -> error "checking anonymous adt pattern against tuple uncovered value"
+                Tuple _ _ -> ([uncovered_value], []) -- like above: not illegal state; treat like a poison pattern
 
             where
                 enumerate_adt_ctors_and_fields (Type.Type'ADT adt_key _) =

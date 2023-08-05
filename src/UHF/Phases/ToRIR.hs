@@ -151,7 +151,7 @@ convert_expr (SIR.Expr'If id ty sp _ cond true false) =
                 )
         )
 
-convert_expr (SIR.Expr'Match id ty sp case_tok_sp scrutinee arms) = do
+convert_expr (SIR.Expr'Match id ty sp match_tok_sp scrutinee arms) = do
     -- case S {
     --     P -> ...;
     --     ...
@@ -168,7 +168,7 @@ convert_expr (SIR.Expr'Match id ty sp case_tok_sp scrutinee arms) = do
     scrutinee_bv <- new_bound_value (RIR.expr_type bv_arena scrutinee) (RIR.expr_span scrutinee)
 
     adt_arena <- ask
-    case PatternCheck.check_complete adt_arena case_tok_sp (map fst arms) of
+    case PatternCheck.check_complete adt_arena match_tok_sp (map fst arms) of
         Right () -> pure ()
         Left err -> lift $ lift $ lift $ lift $ Compiler.tell_error  err
     case PatternCheck.check_useful adt_arena (map fst arms) of

@@ -29,7 +29,7 @@ data NotUseful = NotUseful Pattern
 instance Diagnostic.ToError CompletenessError where
     to_error (CompletenessError adt_arena sp pats left_over) =
         Diagnostic.Error Diagnostic.Codes.incomplete_patterns (Just sp) "incomplete patterns"
-            ( (Just sp, Diagnostic.MsgNote, Just $ "values not matched: " <> Text.intercalate ", " (map (show_match_value adt_arena) left_over)) :
+            ( (Just sp, Diagnostic.MsgError, Just $ "values not matched: " <> Text.intercalate ", " (map (show_match_value adt_arena) left_over)) :
                  map (\ pat -> (Just $ SIR.pattern_span pat, Diagnostic.MsgNote, Nothing)) pats
             )
             []

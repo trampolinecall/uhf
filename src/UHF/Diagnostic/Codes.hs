@@ -33,3 +33,6 @@ $(error_code 0404 "does_not_take_type_argument")
 $(error_code 0405 "wrong_type_argument")
 
 $(error_code 0500 "hole")
+
+$(error_code 0600 "incomplete_patterns")
+$(error_code 0601 "useless_pattern")

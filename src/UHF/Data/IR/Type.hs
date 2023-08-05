@@ -9,6 +9,7 @@ module UHF.Data.IR.Type
     , get_adt_variant
     , get_adt_field_type
     , get_adt_field_id
+    , adt_variant_idxs
     , variant_name
     , variant_id
     , variant_field_ids
@@ -52,8 +53,13 @@ data ADTVariant ty
     = ADTVariant'Named (Located Text) ID.ADTVariantID [(ID.ADTFieldID, Text, ty)]
     | ADTVariant'Anon (Located Text) ID.ADTVariantID [(ID.ADTFieldID, ty)]
     deriving Show
-data ADTVariantIndex = ADTVariantIndex ADTKey Int deriving Show
-data ADTFieldIndex = ADTFieldIndex ADTVariantIndex Int deriving Show
+data ADTVariantIndex = ADTVariantIndex ADTKey Int deriving (Show, Eq)
+data ADTFieldIndex = ADTFieldIndex ADTVariantIndex Int deriving (Show, Eq)
+
+adt_variant_idxs :: Arena.Arena (ADT ty) ADTKey -> ADTKey -> [ADTVariantIndex]
+adt_variant_idxs arena key =
+    let (ADT _ _ _ variants) = Arena.get arena key
+    in map (ADTVariantIndex key) [0 .. length variants - 1]
 
 variant_name :: ADTVariant ty -> Located Text
 variant_name (ADTVariant'Anon name _ _) = name

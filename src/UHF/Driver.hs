@@ -168,7 +168,7 @@ get_typed_sir = get_or_calculate _get_typed_sir (\ cache typed_sir -> cache { _g
 get_rir :: PhaseResultsState RIR
 get_rir = get_or_calculate _get_rir (\ cache rir -> cache { _get_rir = rir }) to_rir
     where
-        to_rir = ToRIR.convert <$> get_typed_sir
+        to_rir = get_typed_sir >>= convert_stage . ToRIR.convert
 
 get_anfir :: PhaseResultsState ANFIR
 get_anfir = get_or_calculate _get_anfir (\ cache anfir -> cache { _get_anfir = anfir }) to_anfir

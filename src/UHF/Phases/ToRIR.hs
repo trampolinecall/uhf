@@ -175,8 +175,8 @@ convert_expr (SIR.Expr'Match id ty sp match_tok_sp scrutinee arms) = do
         Right () -> pure ()
         Left warns -> lift $ lift $ lift $ lift $ Compiler.tell_warnings $ warns
 
-    arms <- arms &
-        mapM (\ (pat, result) ->
+    arms <- arms
+        & mapM (\ (pat, result) ->
             pattern_to_clauses scrutinee_bv pat >>= \ clauses ->
             convert_expr result >>= \ result ->
             pure (clauses, Right result)

@@ -116,7 +116,7 @@ check adt_arena patterns = mapAccumL check_one_pattern [Any] patterns
 
         check_wild _ uncovered_value = ([], [uncovered_value]) -- wildcard pattern always covers everything
 
-        check_fields field_pats uncovered_value_fields = (uncovered_field_combos, covered_field_combos)
+        check_fields field_pats uncovered_value_fields = assert (length field_pats == length uncovered_value_fields) "must have the same number of field patterns and uncovered value fields" (uncovered_field_combos, covered_field_combos)
             where
                 (fields_uncovered, fields_covered) = unzip $ zipWith check_against_one_uncovered_value field_pats uncovered_value_fields
 

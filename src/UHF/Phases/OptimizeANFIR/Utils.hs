@@ -22,7 +22,7 @@ iterate_over_bindings change (ANFIR.ANFIR adts type_synonyms vars bindings param
         do_binding bk =
             StateT (\ bindings -> ((),) <$> Arena.modifyM bindings bk change) >>
             ANFIR.binding_initializer <$> (Arena.get <$> get <*> pure bk) >>= \case
-                    ANFIR.Expr'Lambda _ _ _ _ group _ -> do_group group
+                    ANFIR.Expr'Lambda _ _ _ group _ -> do_group group
                     ANFIR.Expr'Match _ _ tree -> do_tree tree
                         where
                             do_tree (ANFIR.MatchTree arms) = mapM_
@@ -32,7 +32,7 @@ iterate_over_bindings change (ANFIR.ANFIR adts type_synonyms vars bindings param
                                         Right (group, _) -> do_group group
                                 )
                                 arms
-                    ANFIR.Expr'Forall _ _ _ group _ -> do_group group
+                    ANFIR.Expr'Forall _ _ group _ -> do_group group
 
                     _ -> pure ()
 
@@ -41,20 +41,20 @@ iterate_over_all_subexpressions modify = iterate_over_bindings do_binding
     where
         do_binding (ANFIR.Binding init) = ANFIR.Binding <$> do_expr init
 
-        do_expr (ANFIR.Expr'Refer id ty bk) = modify bk >>= \ bk -> pure (ANFIR.Expr'Refer id ty bk)
+        do_expr (ANFIR.Expr'Refer id bk) = modify bk >>= \ bk -> pure (ANFIR.Expr'Refer id bk)
 
-        do_expr (ANFIR.Expr'Int id ty i) = pure (ANFIR.Expr'Int id ty i)
-        do_expr (ANFIR.Expr'Float id ty r) = pure (ANFIR.Expr'Float id ty r)
-        do_expr (ANFIR.Expr'Bool id ty b) = pure (ANFIR.Expr'Bool id ty b)
-        do_expr (ANFIR.Expr'Char id ty c) = pure (ANFIR.Expr'Char id ty c)
-        do_expr (ANFIR.Expr'String id ty s) = pure (ANFIR.Expr'String id ty s)
-        do_expr (ANFIR.Expr'Tuple id ty a b) = modify a >>= \ a -> modify b >>= \ b -> pure (ANFIR.Expr'Tuple id ty a b)
-        do_expr (ANFIR.Expr'MakeADT id ty variant tyargs args) = mapM modify args >>= \ args -> pure (ANFIR.Expr'MakeADT id ty variant tyargs args)
+        do_expr (ANFIR.Expr'Int id i) = pure (ANFIR.Expr'Int id i)
+        do_expr (ANFIR.Expr'Float id r) = pure (ANFIR.Expr'Float id r)
+        do_expr (ANFIR.Expr'Bool id b) = pure (ANFIR.Expr'Bool id b)
+        do_expr (ANFIR.Expr'Char id c) = pure (ANFIR.Expr'Char id c)
+        do_expr (ANFIR.Expr'String id s) = pure (ANFIR.Expr'String id s)
+        do_expr (ANFIR.Expr'Tuple id a b) = modify a >>= \ a -> modify b >>= \ b -> pure (ANFIR.Expr'Tuple id a b)
+        do_expr (ANFIR.Expr'MakeADT id variant tyargs args) = mapM modify args >>= \ args -> pure (ANFIR.Expr'MakeADT id variant tyargs args)
 
-        do_expr (ANFIR.Expr'Lambda id ty param captures group res) = modify res >>= \ res -> pure (ANFIR.Expr'Lambda id ty param captures group res)
-        do_expr (ANFIR.Expr'Param id ty param) = pure (ANFIR.Expr'Param id ty param)
+        do_expr (ANFIR.Expr'Lambda id param captures group res) = modify res >>= \ res -> pure (ANFIR.Expr'Lambda id param captures group res)
+        do_expr (ANFIR.Expr'Param id param) = pure (ANFIR.Expr'Param id param)
 
-        do_expr (ANFIR.Expr'Call id ty callee arg) = modify callee >>= \ callee -> modify arg >>= \ arg -> pure (ANFIR.Expr'Call id ty callee arg)
+        do_expr (ANFIR.Expr'Call id callee arg) = modify callee >>= \ callee -> modify arg >>= \ arg -> pure (ANFIR.Expr'Call id callee arg)
 
         do_expr (ANFIR.Expr'Match id ty tree) = do_tree tree >>= \ tree -> pure (ANFIR.Expr'Match id ty tree)
             where
@@ -72,11 +72,11 @@ iterate_over_all_subexpressions modify = iterate_over_bindings do_binding
                 do_match_clause (ANFIR.MatchClause'Match binding matcher) = ANFIR.MatchClause'Match <$> modify binding <*> pure matcher
                 do_match_clause (ANFIR.MatchClause'Binding b) = ANFIR.MatchClause'Binding <$> modify b
 
-        do_expr (ANFIR.Expr'TupleDestructure1 id ty tup) = modify tup >>= \ tup -> pure (ANFIR.Expr'TupleDestructure1 id ty tup)
-        do_expr (ANFIR.Expr'TupleDestructure2 id ty tup) = modify tup >>= \ tup -> pure (ANFIR.Expr'TupleDestructure2 id ty tup)
+        do_expr (ANFIR.Expr'TupleDestructure1 id tup) = modify tup >>= \ tup -> pure (ANFIR.Expr'TupleDestructure1 id tup)
+        do_expr (ANFIR.Expr'TupleDestructure2 id tup) = modify tup >>= \ tup -> pure (ANFIR.Expr'TupleDestructure2 id tup)
         do_expr (ANFIR.Expr'ADTDestructure id ty base field_idx) = modify base >>= \ base -> pure (ANFIR.Expr'ADTDestructure id ty base field_idx)
 
-        do_expr (ANFIR.Expr'Forall id ty tys group res) = modify res >>= \ res -> pure (ANFIR.Expr'Forall id ty tys group res)
+        do_expr (ANFIR.Expr'Forall id tys group res) = modify res >>= \ res -> pure (ANFIR.Expr'Forall id tys group res)
         do_expr (ANFIR.Expr'TypeApply id ty other argty) = modify other >>= \ other -> pure (ANFIR.Expr'TypeApply id ty other argty)
 
         do_expr (ANFIR.Expr'Poison id ty) = pure (ANFIR.Expr'Poison id ty)

@@ -83,16 +83,16 @@ type_var :: Type.TypeVarKey -> IRReader PP.Token
 type_var k = get_type_var k >>= \ (Type.Var (Located _ name)) -> pure (PP.String name)
 
 expr :: ANFIR.Expr -> IRReader PP.Token
-expr (ANFIR.Expr'Refer _ _ bk) = refer_binding bk
-expr (ANFIR.Expr'Int _ _ i) = pure $ PP.String $ show i
-expr (ANFIR.Expr'Float _ _ (n :% d)) = pure $ PP.String $ "(" <> show n <> "/" <> show d <> ")"
-expr (ANFIR.Expr'Bool _ _ b) = pure $ PP.String $ if b then "true" else "false"
-expr (ANFIR.Expr'Char _ _ c) = pure $ PP.String $ show c
-expr (ANFIR.Expr'String _ _ s) = pure $ PP.String $ show s
-expr (ANFIR.Expr'Tuple _ _ a b) = refer_binding a >>= \ a -> refer_binding b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b])
-expr (ANFIR.Expr'Lambda _ _ param captures group body) = refer_param param >>= \ param -> define_binding_group group >>= \ group -> refer_binding body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, " ->", PP.indented_block [group, body]]) -- TODO: show captures
-expr (ANFIR.Expr'Param _ _ pk) = refer_param pk
-expr (ANFIR.Expr'Call _ _ callee arg) = refer_binding callee >>= \ callee -> refer_binding arg >>= \ arg -> pure (PP.List [callee, "(", arg, ")"])
+expr (ANFIR.Expr'Refer _ bk) = refer_binding bk
+expr (ANFIR.Expr'Int _ i) = pure $ PP.String $ show i
+expr (ANFIR.Expr'Float _ (n :% d)) = pure $ PP.String $ "(" <> show n <> "/" <> show d <> ")"
+expr (ANFIR.Expr'Bool _ b) = pure $ PP.String $ if b then "true" else "false"
+expr (ANFIR.Expr'Char _ c) = pure $ PP.String $ show c
+expr (ANFIR.Expr'String _ s) = pure $ PP.String $ show s
+expr (ANFIR.Expr'Tuple _ a b) = refer_binding a >>= \ a -> refer_binding b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b])
+expr (ANFIR.Expr'Lambda _ param captures group body) = refer_param param >>= \ param -> define_binding_group group >>= \ group -> refer_binding body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, " ->", PP.indented_block [group, body]]) -- TODO: show captures
+expr (ANFIR.Expr'Param _ pk) = refer_param pk
+expr (ANFIR.Expr'Call _ callee arg) = refer_binding callee >>= \ callee -> refer_binding arg >>= \ arg -> pure (PP.List [callee, "(", arg, ")"])
 expr (ANFIR.Expr'Match _ _ t) = tree t >>= \ t -> pure (PP.List ["match ", t])
     where
         tree (ANFIR.MatchTree arms) = mapM arm arms >>= \ arms -> pure (PP.braced_block arms)
@@ -122,8 +122,8 @@ expr (ANFIR.Expr'Match _ _ t) = tree t >>= \ t -> pure (PP.List ["match ", t])
                 )
                 m_variant
 
-expr (ANFIR.Expr'TupleDestructure1 _ _ other) = refer_binding other >>= \ other ->  pure (PP.List [other, ".tuple_l"])
-expr (ANFIR.Expr'TupleDestructure2 _ _ other) = refer_binding other >>= \ other ->  pure (PP.List [other, ".tuple_r"])
+expr (ANFIR.Expr'TupleDestructure1 _ other) = refer_binding other >>= \ other ->  pure (PP.List [other, ".tuple_l"])
+expr (ANFIR.Expr'TupleDestructure2 _ other) = refer_binding other >>= \ other ->  pure (PP.List [other, ".tuple_r"])
 expr (ANFIR.Expr'ADTDestructure _ _ base m_field_idx) =
     refer_binding base >>= \ base ->
     maybe
@@ -136,9 +136,9 @@ expr (ANFIR.Expr'ADTDestructure _ _ base m_field_idx) =
         )
         m_field_idx >>= \ (variant_referred, field) ->
     pure (PP.List ["(", base, " as ", variant_referred, ").", field])
-expr (ANFIR.Expr'Forall _ _ vars group e) = mapM type_var vars >>= \ vars -> define_binding_group group >>= \ group -> refer_binding e >>= \ e -> pure (PP.FirstOnLineIfMultiline $ PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList vars, " ", PP.indented_block [group, e]])
+expr (ANFIR.Expr'Forall _ vars group e) = mapM type_var vars >>= \ vars -> define_binding_group group >>= \ group -> refer_binding e >>= \ e -> pure (PP.FirstOnLineIfMultiline $ PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList vars, " ", PP.indented_block [group, e]])
 expr (ANFIR.Expr'TypeApply _ _ e arg) = refer_binding e >>= \ e -> refer_type arg >>= \ arg -> pure (PP.List [e, "#(", arg, ")"])
-expr (ANFIR.Expr'MakeADT _ _ variant_index@(Type.ADTVariantIndex adt_key _) tyargs args) =
+expr (ANFIR.Expr'MakeADT _ variant_index@(Type.ADTVariantIndex adt_key _) tyargs args) =
     Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_referred ->
     Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
     mapM refer_binding args >>= \ args ->

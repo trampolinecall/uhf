@@ -49,7 +49,7 @@ data ANFIR
 -- "compilation unit"
 data CU = CU (BindingGroup) [ADTKey] [TypeSynonymKey]
 
-data Param = Param ID.BoundValueID (Maybe (Type.Type Void)) deriving Show
+data Param = Param { param_bvid :: ID.BoundValueID, param_ty :: Maybe (Type.Type Void) } deriving Show
 
 data BindingChunk
     = SingleBinding BindingKey
@@ -69,29 +69,30 @@ stringify_id (ExprID id) = ID.stringify id
 stringify_id (BVID id) = ID.stringify id
 
 data Expr
-    = Expr'Refer ID (Maybe (Type.Type Void)) BindingKey
+    = Expr'Refer ID BindingKey
 
-    | Expr'Int ID (Maybe (Type.Type Void)) Integer
-    | Expr'Float ID (Maybe (Type.Type Void)) Rational
-    | Expr'Bool ID (Maybe (Type.Type Void)) Bool
-    | Expr'Char ID (Maybe (Type.Type Void)) Char
-    | Expr'String ID (Maybe (Type.Type Void)) Text
-    | Expr'Tuple ID (Maybe (Type.Type Void)) BindingKey BindingKey
-    | Expr'MakeADT ID (Maybe (Type.Type Void)) Type.ADTVariantIndex [Maybe (Type.Type Void)] [BindingKey]
+    | Expr'Int ID Integer
+    | Expr'Float ID Rational
+    | Expr'Bool ID Bool
+    | Expr'Char ID Char
+    | Expr'String ID Text
+    | Expr'Tuple ID BindingKey BindingKey
+    | Expr'MakeADT ID Type.ADTVariantIndex [Maybe (Type.Type Void)] [BindingKey]
 
-    | Expr'Lambda ID (Maybe (Type.Type Void)) ParamKey (Set.Set BindingKey) BindingGroup BindingKey -- TODO: dont use BindingKey Ord for order of captures
-    | Expr'Param ID (Maybe (Type.Type Void)) ParamKey
+    | Expr'Lambda ID ParamKey (Set.Set BindingKey) BindingGroup BindingKey -- TODO: dont use BindingKey Ord for order of captures
+    | Expr'Param ID ParamKey
 
-    | Expr'Call ID (Maybe (Type.Type Void)) BindingKey BindingKey
+    | Expr'Call ID BindingKey BindingKey
 
+    -- same comment as in rir: match needs to know its result type in case its match tree has no arms
     | Expr'Match ID (Maybe (Type.Type Void)) MatchTree
 
-    | Expr'TupleDestructure1 ID (Maybe (Type.Type Void)) BindingKey
-    | Expr'TupleDestructure2 ID (Maybe (Type.Type Void)) BindingKey
-    | Expr'ADTDestructure ID (Maybe (Type.Type Void)) BindingKey (Maybe Type.ADTFieldIndex)
+    | Expr'TupleDestructure1 ID BindingKey
+    | Expr'TupleDestructure2 ID BindingKey
+    | Expr'ADTDestructure ID (Maybe (Type.Type Void)) BindingKey (Maybe Type.ADTFieldIndex) -- TODO: remove type from this; also substitute function?; also function in Type to get field type of adt but already substituted?
 
-    | Expr'Forall ID (Maybe (Type.Type Void)) (NonEmpty TypeVarKey) BindingGroup BindingKey
-    | Expr'TypeApply ID (Maybe (Type.Type Void)) BindingKey (Maybe (Type.Type Void))
+    | Expr'Forall ID (NonEmpty TypeVarKey) BindingGroup BindingKey
+    | Expr'TypeApply ID (Maybe (Type.Type Void)) BindingKey (Maybe (Type.Type Void)) -- TODO: also remove type from this
 
     | Expr'Poison ID (Maybe (Type.Type Void))
     deriving Show
@@ -110,48 +111,62 @@ data MatchMatcher
     | Match'AnonADTVariant (Maybe Type.ADTVariantIndex)
     deriving Show
 
-expr_type :: Expr -> (Maybe (Type.Type Void))
-expr_type (Expr'Refer _ ty _) = ty
-expr_type (Expr'Int _ ty _) = ty
-expr_type (Expr'Float _ ty _) = ty
-expr_type (Expr'Bool _ ty _) = ty
-expr_type (Expr'Char _ ty _) = ty
-expr_type (Expr'String _ ty _) = ty
-expr_type (Expr'Tuple _ ty _ _) = ty
-expr_type (Expr'Lambda _ ty _ _ _ _) = ty
-expr_type (Expr'Param _ ty _) = ty
-expr_type (Expr'Call _ ty _ _) = ty
-expr_type (Expr'Match _ ty _) = ty
-expr_type (Expr'TupleDestructure1 _ ty _) = ty
-expr_type (Expr'TupleDestructure2 _ ty _) = ty
-expr_type (Expr'ADTDestructure _ ty _ _) = ty
-expr_type (Expr'Forall _ ty _ _ _) = ty
-expr_type (Expr'TypeApply _ ty _ _) = ty
-expr_type (Expr'MakeADT _ ty _ _ _) = ty
-expr_type (Expr'Poison _ ty) = ty
+get_bk_ty :: Arena.Arena Param ParamKey -> Arena.Arena Binding BindingKey -> BindingKey -> Maybe (Type.Type Void)
+get_bk_ty param_arena binding_arena bk = Arena.get binding_arena bk & binding_initializer & expr_type param_arena binding_arena
+expr_type :: Arena.Arena Param ParamKey -> Arena.Arena Binding BindingKey -> Expr -> (Maybe (Type.Type Void))
+expr_type param_arena binding_arena (Expr'Refer _ other) = get_bk_ty param_arena binding_arena other
+expr_type _ _ (Expr'Int _ _) = Just Type.Type'Int
+expr_type _ _ (Expr'Float _ _) = Just Type.Type'Float
+expr_type _ _ (Expr'Bool _ _) = Just Type.Type'Bool
+expr_type _ _ (Expr'Char _ _) = Just Type.Type'Char
+expr_type _ _ (Expr'String _ _) = Just Type.Type'String
+expr_type param_arena binding_arena (Expr'Tuple _ a b) = Type.Type'Tuple <$> (get_bk_ty param_arena binding_arena a) <*> (get_bk_ty param_arena binding_arena b)
+expr_type _ _ (Expr'MakeADT _ (Type.ADTVariantIndex adt_key _) vars _) = Type.Type'ADT adt_key <$> sequence vars
+expr_type param_arena binding_arena (Expr'Lambda _ param _ _ result) = Type.Type'Function <$> (Arena.get param_arena param & param_ty) <*> get_bk_ty param_arena binding_arena result
+expr_type param_arena _ (Expr'Param _ param) = Arena.get param_arena param & param_ty
+expr_type param_arena binding_arena (Expr'Call _ callee _) =
+    let callee_ty = get_bk_ty param_arena binding_arena callee
+    in callee_ty <&> \case
+        Type.Type'Function _ res -> res
+        _ -> error $ "anfir call expression created with callee of type " <> show callee_ty
+expr_type _ _ (Expr'Match _ ty _) = ty
+expr_type param_arena binding_arena (Expr'TupleDestructure1 _ tup) =
+    let tup_ty = get_bk_ty param_arena binding_arena tup
+    in tup_ty <&> \case
+        Type.Type'Tuple a _ -> a
+        _ -> error $ "anfir TupleDestructure1 expr created with tuple of type " <> show tup_ty
+expr_type param_arena binding_arena (Expr'TupleDestructure2 _ tup) =
+    let tup_ty = get_bk_ty param_arena binding_arena tup
+    in tup_ty <&> \case
+        Type.Type'Tuple _ b -> b
+        _ -> error $ "anfir TupleDestructure2 expr created with tuple of type " <> show tup_ty
+expr_type _ _ (Expr'ADTDestructure _ ty _ _) = ty
+expr_type param_arena binding_arena (Expr'Forall _ tyvars _ result) = Type.Type'Forall tyvars <$> get_bk_ty param_arena binding_arena result
+expr_type _ _ (Expr'TypeApply _ ty _ _) = ty
+expr_type _ _ (Expr'Poison _ ty) = ty
 
 expr_id :: Expr -> ID
-expr_id (Expr'Refer id _ _) = id
-expr_id (Expr'Int id _ _) = id
-expr_id (Expr'Float id _ _) = id
-expr_id (Expr'Bool id _ _) = id
-expr_id (Expr'Char id _ _) = id
-expr_id (Expr'String id _ _) = id
-expr_id (Expr'Tuple id _ _ _) = id
-expr_id (Expr'Lambda id _ _ _ _ _) = id
-expr_id (Expr'Param id _ _) = id
-expr_id (Expr'Call id _ _ _) = id
+expr_id (Expr'Refer id _) = id
+expr_id (Expr'Int id _) = id
+expr_id (Expr'Float id _) = id
+expr_id (Expr'Bool id _) = id
+expr_id (Expr'Char id _) = id
+expr_id (Expr'String id _) = id
+expr_id (Expr'Tuple id _ _) = id
+expr_id (Expr'MakeADT id _ _ _) = id
+expr_id (Expr'Lambda id _ _ _ _) = id
+expr_id (Expr'Param id _) = id
+expr_id (Expr'Call id _ _) = id
 expr_id (Expr'Match id _ _) = id
-expr_id (Expr'TupleDestructure1 id _ _) = id
-expr_id (Expr'TupleDestructure2 id _ _) = id
+expr_id (Expr'TupleDestructure1 id _) = id
+expr_id (Expr'TupleDestructure2 id _) = id
 expr_id (Expr'ADTDestructure id _ _ _) = id
-expr_id (Expr'Forall id _ _ _ _) = id
+expr_id (Expr'Forall id _ _ _) = id
 expr_id (Expr'TypeApply id _ _ _) = id
-expr_id (Expr'MakeADT id _ _ _ _) = id
 expr_id (Expr'Poison id _) = id
 
-binding_type :: Binding -> Maybe (Type.Type Void)
-binding_type = expr_type . binding_initializer
+binding_type :: Arena.Arena Param ParamKey -> Arena.Arena Binding BindingKey -> Binding -> Maybe (Type.Type Void)
+binding_type param_arena binding_arena = expr_type param_arena binding_arena . binding_initializer
 binding_id :: Binding -> ID
 binding_id = expr_id . binding_initializer
 

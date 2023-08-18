@@ -92,14 +92,11 @@ render = IndentationMonad.exec_pp . render'
 
         block_is_multiline consistency left_if_single_line right_if_single_line items =
             let any_multiline = any is_multiline items
-            in case consistency of
-                Consistent
-                    | any_multiline || length items > 1 -> True -- '\n' appears after delim
-                Inconsistent
-                    | any_multiline -> True -- '\n' appears after delim, and there is guaranteed to be one that needs breaking (esp because if items is empty, any_multiline will be False)
-                _
-                    | null items -> False
-                    | otherwise -> maybe False has_nl left_if_single_line || maybe False has_nl right_if_single_line
+            in if any_multiline
+                then True -- '\n' appears after delim, which is guaranteed to appear after whichever item needs breaking (if items is empty, any_multiline will be false)
+                else if null items
+                    then False
+                    else maybe False has_nl left_if_single_line || maybe False has_nl right_if_single_line
 
         has_nl = Text.any (=='\n')
 

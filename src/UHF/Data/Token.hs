@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE FlexibleInstances #-}
 
 module UHF.Data.Token
@@ -19,6 +20,7 @@ import UHF.Util.Prelude
 
 import qualified UHF.IO.Located as Located
 import UHF.IO.Located (Located)
+import UHF.IO.EqIgnoringSpans
 
 import qualified Data.Text as Text
 
@@ -27,7 +29,7 @@ data IntBase
     | Oct
     | Hex
     | Bin
-    deriving (Show, Eq)
+    deriving (Show, Eq, Generic, EqIgnoringSpans)
 
 type LToken = Located Token
 type LInternalToken = Located InternalToken
@@ -67,7 +69,7 @@ data SingleTypeToken
     | OBrace
     | CBrace
     | Semicolon
-    deriving (Show, Eq)
+    deriving (Show, Eq, Generic, EqIgnoringSpans)
 
 data BaseToken identifier eof char_lit_data string_lit_data intlit_base int_lit_data float_lit_data bool_lit_data
     = SingleTypeToken SingleTypeToken
@@ -82,7 +84,7 @@ data BaseToken identifier eof char_lit_data string_lit_data intlit_base int_lit_
     | AlphaIdentifier identifier
 
     | EOF eof
-    deriving (Show, Eq)
+    deriving (Show, Eq, Generic, EqIgnoringSpans)
 
 instance Format SingleTypeToken where
     format OParen = "'('"

@@ -53,7 +53,8 @@ data Binding = Binding BoundValueKey Expr deriving Show
 type Type = Type.Type Void
 
 data Expr
-    = Expr'Identifier ID.ExprID Span (Maybe BoundValueKey)
+    -- identifiers need explicit types in case there the identifiers form loops
+    = Expr'Identifier ID.ExprID (Maybe Type) Span (Maybe BoundValueKey)
     | Expr'Char ID.ExprID Span Char
     | Expr'String ID.ExprID Span Text
     | Expr'Int ID.ExprID Span Integer
@@ -101,7 +102,7 @@ data MatchAssignRHS
     deriving Show
 
 expr_type :: Arena.Arena BoundValue BoundValueKey -> Expr -> Maybe Type
-expr_type bv_arena (Expr'Identifier _ _ bv) = Arena.get bv_arena <$> bv >>= bv_ty
+expr_type _ (Expr'Identifier _ ty _ _) = ty
 expr_type _ (Expr'Char _ _ _) = Just Type.Type'Char
 expr_type _ (Expr'String _ _ _) = Just Type.Type'String
 expr_type _ (Expr'Int _ _ _) = Just Type.Type'Int
@@ -122,7 +123,7 @@ expr_type _ (Expr'MakeADT _ _ (Type.ADTVariantIndex adt_key _) vars _) = Type.Ty
 expr_type _ (Expr'Poison _ ty _) = ty
 
 expr_span :: Expr -> Span
-expr_span (Expr'Identifier _ sp _) = sp
+expr_span (Expr'Identifier _ _ sp _) = sp
 expr_span (Expr'Char _ sp _) = sp
 expr_span (Expr'String _ sp _) = sp
 expr_span (Expr'Int _ sp _) = sp

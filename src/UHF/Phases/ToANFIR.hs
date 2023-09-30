@@ -102,7 +102,7 @@ choose_id (Just bvid) _ = ANFIR.BVID bvid
 choose_id Nothing eid = ANFIR.ExprID eid
 
 convert_expr :: Maybe ID.BoundValueID -> RIR.Expr -> WriterT [ANFIR.BindingKey] (MakeGraphState (NeedsBVMap AlmostExpr)) ANFIR.BindingKey
-convert_expr m_bvid expr@(RIR.Expr'Identifier id _ bvkey) =
+convert_expr m_bvid expr@(RIR.Expr'Identifier id _ _ bvkey) =
     case bvkey of
         Just bvkey -> new_binding $ \ bv_map -> AlmostExpr'Refer (choose_id m_bvid id) (bv_map Map.! bvkey)
         Nothing -> do

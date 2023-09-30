@@ -89,7 +89,7 @@ convert_binding (SIR.Binding'ADTVariant name_sp bvk type_params variant_index) =
 
         make_lambdas type_params variant_index refer_to_params (cur_field_ty:more_field_tys) =
             new_bound_value cur_field_ty name_sp >>= \ param_bvk ->
-            new_made_up_expr_id (\ id -> RIR.Expr'Identifier id name_sp (Just param_bvk)) >>= \ refer_expr ->
+            new_made_up_expr_id (\ id -> RIR.Expr'Identifier id cur_field_ty name_sp (Just param_bvk)) >>= \ refer_expr ->
 
             make_lambdas type_params variant_index (refer_to_params <> [refer_expr]) more_field_tys >>= \ lambda_result ->
             new_made_up_expr_id (\ id -> RIR.Expr'Lambda id name_sp param_bvk lambda_result)
@@ -102,7 +102,7 @@ new_bound_value ty sp =
     lift (state $ Arena.put (RIR.BoundValue id ty sp))
 
 convert_expr :: SIRExpr -> ConvertState RIRExpr
-convert_expr (SIR.Expr'Identifier id ty sp bv) = pure $ RIR.Expr'Identifier id sp (unlocate bv)
+convert_expr (SIR.Expr'Identifier id ty sp bv) = pure $ RIR.Expr'Identifier id ty sp (unlocate bv)
 convert_expr (SIR.Expr'Char id ty sp c) = pure $ RIR.Expr'Char id sp c
 convert_expr (SIR.Expr'String id ty sp s) = pure $ RIR.Expr'String id sp s
 convert_expr (SIR.Expr'Int id ty sp i) = pure $ RIR.Expr'Int id sp i
@@ -115,7 +115,7 @@ convert_expr (SIR.Expr'Lambda id ty sp param_pat body) =
     in
     -- '\ (...) -> body' becomes '\ (arg) -> let ... = arg; body'
     new_bound_value param_ty (SIR.pattern_span param_pat) >>= \ param_bk ->
-    assign_pattern (SIR.pattern_span param_pat) param_pat (RIR.Expr'Identifier id (SIR.pattern_span param_pat) (Just param_bk)) >>= \ bindings ->
+    assign_pattern (SIR.pattern_span param_pat) param_pat (RIR.Expr'Identifier id param_ty (SIR.pattern_span param_pat) (Just param_bk)) >>= \ bindings ->
     RIR.Expr'Lambda id sp param_bk <$> (RIR.Expr'Let id body_sp bindings <$> convert_expr body)
 
 convert_expr (SIR.Expr'Let id ty sp bindings body) = RIR.Expr'Let id sp <$> (concat <$> mapM convert_binding bindings) <*> convert_expr body
@@ -251,8 +251,8 @@ assign_pattern incomplete_err_sp pat expr = do
             new_made_up_expr_id identity >>= \ l_extract_id ->
             new_made_up_expr_id identity >>= \ r_extract_id ->
 
-            new_made_up_expr_id (\ id -> RIR.Expr'Match id a_ty a_sp (RIR.MatchTree [([RIR.MatchClause'Match whole_bv RIR.Match'Tuple, RIR.MatchClause'Assign a_bv (RIR.MatchAssignRHS'TupleDestructure1 (SIR.pattern_type a) whole_bv)], Right $ RIR.Expr'Identifier l_extract_id a_sp (Just a_bv))])) >>= \ extract_a  ->
-            new_made_up_expr_id (\ id -> RIR.Expr'Match id b_ty b_sp (RIR.MatchTree [([RIR.MatchClause'Match whole_bv RIR.Match'Tuple, RIR.MatchClause'Assign b_bv (RIR.MatchAssignRHS'TupleDestructure2 (SIR.pattern_type b) whole_bv)], Right $ RIR.Expr'Identifier r_extract_id b_sp (Just b_bv))])) >>= \ extract_b ->
+            new_made_up_expr_id (\ id -> RIR.Expr'Match id a_ty a_sp (RIR.MatchTree [([RIR.MatchClause'Match whole_bv RIR.Match'Tuple, RIR.MatchClause'Assign a_bv (RIR.MatchAssignRHS'TupleDestructure1 (SIR.pattern_type a) whole_bv)], Right $ RIR.Expr'Identifier l_extract_id a_ty a_sp (Just a_bv))])) >>= \ extract_a  ->
+            new_made_up_expr_id (\ id -> RIR.Expr'Match id b_ty b_sp (RIR.MatchTree [([RIR.MatchClause'Match whole_bv RIR.Match'Tuple, RIR.MatchClause'Assign b_bv (RIR.MatchAssignRHS'TupleDestructure2 (SIR.pattern_type b) whole_bv)], Right $ RIR.Expr'Identifier r_extract_id b_ty b_sp (Just b_bv))])) >>= \ extract_b ->
 
             go a extract_a >>= \ assign_a ->
             go b extract_b >>= \ assign_b ->
@@ -264,7 +264,7 @@ assign_pattern incomplete_err_sp pat expr = do
             --  becomes
             --      a = e
             --      ... = a
-            new_made_up_expr_id (\ id -> RIR.Expr'Identifier id sp (Just $ unlocate bv)) >>= \ refer ->
+            new_made_up_expr_id (\ id -> RIR.Expr'Identifier id ty sp (Just $ unlocate bv)) >>= \ refer ->
             go other refer >>= \ other_assignments ->
             pure (RIR.Binding (unlocate bv) expr : other_assignments)
 

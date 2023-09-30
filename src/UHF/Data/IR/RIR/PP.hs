@@ -66,8 +66,8 @@ type_var k = get_type_var k >>= \ (Type.Var (Located _ name)) -> pure (PP.String
 
 -- TODO: precedence
 expr :: RIR.Expr -> IRReader PP.Token
-expr (RIR.Expr'Identifier _ _ (Just bvk)) = refer_bv bvk
-expr (RIR.Expr'Identifier _ _ Nothing) = pure $ PP.List ["<name resolution error>"]
+expr (RIR.Expr'Identifier _ _ _ (Just bvk)) = refer_bv bvk
+expr (RIR.Expr'Identifier _ _ _ Nothing) = pure $ PP.List ["<name resolution error>"]
 expr (RIR.Expr'Char _ _ c) = pure $ PP.FirstOnLineIfMultiline $ PP.String $ show c
 expr (RIR.Expr'String _ _ s) = pure $ PP.FirstOnLineIfMultiline $ PP.String $ show s
 expr (RIR.Expr'Int _ _ i) = pure $ PP.FirstOnLineIfMultiline $ PP.String $ show i

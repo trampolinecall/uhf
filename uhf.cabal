@@ -43,6 +43,7 @@ library
       UHF.Diagnostic.Report.Utils
       UHF.Diagnostic.Settings
       UHF.Driver
+      UHF.IO.EqIgnoringSpans
       UHF.IO.File
       UHF.IO.FormattedString
       UHF.IO.Located
@@ -92,6 +93,7 @@ library
       src
   default-extensions:
       LambdaCase
+      DeriveGeneric
       TupleSections
       TemplateHaskell
       OverloadedStrings
@@ -121,6 +123,7 @@ executable uhfc
       exe/uhfc
   default-extensions:
       LambdaCase
+      DeriveGeneric
       TupleSections
       TemplateHaskell
       OverloadedStrings
@@ -143,6 +146,7 @@ test-suite uhf-test
       test/
   default-extensions:
       LambdaCase
+      DeriveGeneric
       TupleSections
       TemplateHaskell
       OverloadedStrings

@@ -42,7 +42,6 @@ import qualified Data.Text.IO
 import qualified Debug.Trace
 import qualified System.IO
 import qualified UHF.IO.FormattedString
-import qualified GHC.Stack
 import Control.Monad.IO.Class (MonadIO, liftIO)
 
 import GHC.IO as X (IO)
@@ -50,6 +49,8 @@ import GHC.Num as X (Num(..), Integer)
 import GHC.Real as X (Ratio(..), Rational, Real(..), Integral(..), Fractional(..), RealFrac(..), odd, even, fromIntegral, (^), (^^))
 import GHC.Float as X (Float, Double)
 import GHC.Show as X (Show)
+import GHC.Generics as X (Generic)
+import GHC.Stack as X (HasCallStack)
 
 import Data.Int as X (Int)
 import Data.Bits as X (Bits(..))
@@ -104,18 +105,18 @@ import Test.Tasty.TH as X (testGroupGenerator)
 identity :: a -> a
 identity = Data.Function.id
 
-error :: GHC.Stack.HasCallStack => Prelude.String -> a
+error :: HasCallStack => Prelude.String -> a
 error = Prelude.error
 
-assert :: GHC.Stack.HasCallStack => Bool -> Prelude.String -> a -> a
+assert :: HasCallStack => Bool -> Prelude.String -> a -> a
 assert True _ a = a
 assert False msg _ = error msg
 
-unreachable :: GHC.Stack.HasCallStack => a
+unreachable :: HasCallStack => a
 unreachable = Prelude.error "unreachable code reached"
 
 {-# WARNING todo "'todo'" #-}
-todo :: GHC.Stack.HasCallStack => a
+todo :: HasCallStack => a
 todo = Prelude.error "not implemented yet"
 
 {-# WARNING trace "'trace'" #-}

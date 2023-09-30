@@ -32,7 +32,7 @@ type BackendIRParamArena = Arena.Arena BackendIRParam BackendIR.ParamKey
 
 convert :: ANFIR -> BackendIR
 convert (ANFIR.ANFIR adts type_synonyms type_vars bindings params cu) =
-    let bindings' = Arena.transform (convert_binding params bindings) bindings
+    let bindings' = Arena.transform convert_binding bindings
         params' = Arena.transform convert_param params
         cu' = convert_cu cu
     in BackendIR.BackendIR adts type_synonyms type_vars bindings' params' cu'
@@ -40,8 +40,8 @@ convert (ANFIR.ANFIR adts type_synonyms type_vars bindings params cu) =
 convert_cu :: ANFIR.CU -> BackendIR.CU
 convert_cu (ANFIR.CU group adts type_synonyms) = BackendIR.CU (convert_binding_group group) adts type_synonyms
 
-convert_binding :: ANFIRParamArena -> ANFIRBindingArena -> ANFIRBinding -> BackendIRBinding
-convert_binding param_arena binding_arena (ANFIR.Binding initializer) = BackendIR.Binding $ convert_expr param_arena binding_arena initializer
+convert_binding :: ANFIRBinding -> BackendIRBinding
+convert_binding (ANFIR.Binding initializer) = BackendIR.Binding $ convert_expr initializer
 
 convert_binding_group :: ANFIRBindingGroup -> BackendIRBindingGroup
 convert_binding_group (ANFIR.BindingGroup chunks) = BackendIR.BindingGroup (map convert_binding_chunk chunks)
@@ -58,19 +58,19 @@ convert_id :: ANFIR.ID -> BackendIR.ID
 convert_id (ANFIR.ExprID e) = BackendIR.ExprID e
 convert_id (ANFIR.BVID e) = BackendIR.BVID e
 
-convert_expr :: ANFIRParamArena -> ANFIRBindingArena -> ANFIRExpr -> BackendIRExpr
-convert_expr param_arena binding_arena expr@(ANFIR.Expr'Refer id bk) = BackendIR.Expr'Refer (convert_id id) (ANFIR.expr_type param_arena binding_arena expr) bk
-convert_expr param_arena binding_arena expr@(ANFIR.Expr'Int id i) = BackendIR.Expr'Int (convert_id id) (ANFIR.expr_type param_arena binding_arena expr) i
-convert_expr param_arena binding_arena expr@(ANFIR.Expr'Float id f) = BackendIR.Expr'Float (convert_id id) (ANFIR.expr_type param_arena binding_arena expr) f
-convert_expr param_arena binding_arena expr@(ANFIR.Expr'Bool id b) = BackendIR.Expr'Bool (convert_id id) (ANFIR.expr_type param_arena binding_arena expr) b
-convert_expr param_arena binding_arena expr@(ANFIR.Expr'Char id c) = BackendIR.Expr'Char (convert_id id) (ANFIR.expr_type param_arena binding_arena expr) c
-convert_expr param_arena binding_arena expr@(ANFIR.Expr'String id s) = BackendIR.Expr'String (convert_id id) (ANFIR.expr_type param_arena binding_arena expr) s
-convert_expr param_arena binding_arena expr@(ANFIR.Expr'Tuple id a b) = BackendIR.Expr'Tuple (convert_id id) (ANFIR.expr_type param_arena binding_arena expr) a b
-convert_expr param_arena binding_arena expr@(ANFIR.Expr'MakeADT id var_idx tyargs args) = BackendIR.Expr'MakeADT (convert_id id) (ANFIR.expr_type param_arena binding_arena expr) var_idx tyargs args
-convert_expr param_arena binding_arena expr@(ANFIR.Expr'Lambda id param captures group result) = BackendIR.Expr'Lambda (convert_id id) (ANFIR.expr_type param_arena binding_arena expr) param captures (convert_binding_group group) result
-convert_expr param_arena binding_arena expr@(ANFIR.Expr'Param id param) = BackendIR.Expr'Param (convert_id id) (ANFIR.expr_type param_arena binding_arena expr) param
-convert_expr param_arena binding_arena expr@(ANFIR.Expr'Call id callee arg) = BackendIR.Expr'Call (convert_id id) (ANFIR.expr_type param_arena binding_arena expr) callee arg
-convert_expr param_arena binding_arena expr@(ANFIR.Expr'Match id _ tree) = BackendIR.Expr'Match (convert_id id) (ANFIR.expr_type param_arena binding_arena expr) (convert_tree tree)
+convert_expr :: ANFIRExpr -> BackendIRExpr
+convert_expr (ANFIR.Expr'Refer id ty bk) = BackendIR.Expr'Refer (convert_id id) ty bk
+convert_expr (ANFIR.Expr'Int id ty i) = BackendIR.Expr'Int (convert_id id) ty i
+convert_expr (ANFIR.Expr'Float id ty f) = BackendIR.Expr'Float (convert_id id) ty f
+convert_expr (ANFIR.Expr'Bool id ty b) = BackendIR.Expr'Bool (convert_id id) ty b
+convert_expr (ANFIR.Expr'Char id ty c) = BackendIR.Expr'Char (convert_id id) ty c
+convert_expr (ANFIR.Expr'String id ty s) = BackendIR.Expr'String (convert_id id) ty s
+convert_expr (ANFIR.Expr'Tuple id ty a b) = BackendIR.Expr'Tuple (convert_id id) ty a b
+convert_expr (ANFIR.Expr'MakeADT id ty var_idx tyargs args) = BackendIR.Expr'MakeADT (convert_id id) ty var_idx tyargs args
+convert_expr (ANFIR.Expr'Lambda id ty param captures group result) = BackendIR.Expr'Lambda (convert_id id) ty param captures (convert_binding_group group) result
+convert_expr (ANFIR.Expr'Param id ty param) = BackendIR.Expr'Param (convert_id id) ty param
+convert_expr (ANFIR.Expr'Call id ty callee arg) = BackendIR.Expr'Call (convert_id id) ty callee arg
+convert_expr (ANFIR.Expr'Match id ty tree) = BackendIR.Expr'Match (convert_id id) ty (convert_tree tree)
     where
         convert_tree (ANFIR.MatchTree arms) =
             BackendIR.MatchTree $
@@ -89,9 +89,9 @@ convert_expr param_arena binding_arena expr@(ANFIR.Expr'Match id _ tree) = Backe
         convert_matcher (ANFIR.Match'Tuple) = BackendIR.Match'Tuple
         convert_matcher (ANFIR.Match'AnonADTVariant (Just v)) = BackendIR.Match'AnonADTVariant (Right v)
         convert_matcher (ANFIR.Match'AnonADTVariant Nothing) = BackendIR.Match'AnonADTVariant (Left ())
-convert_expr param_arena binding_arena expr@(ANFIR.Expr'TupleDestructure1 id tup) = BackendIR.Expr'TupleDestructure1 (convert_id id) (ANFIR.expr_type param_arena binding_arena expr) tup
-convert_expr param_arena binding_arena expr@(ANFIR.Expr'TupleDestructure2 id tup) = BackendIR.Expr'TupleDestructure2 (convert_id id) (ANFIR.expr_type param_arena binding_arena expr) tup
-convert_expr _ _ (ANFIR.Expr'ADTDestructure id ty b field_idx) = BackendIR.Expr'ADTDestructure (convert_id id) ty b (maybe (Left ()) Right field_idx)
-convert_expr param_arena binding_arena expr@(ANFIR.Expr'Forall id tvars group result) = BackendIR.Expr'Forall (convert_id id) (ANFIR.expr_type param_arena binding_arena expr) tvars (convert_binding_group group) result
-convert_expr _ _ (ANFIR.Expr'TypeApply id ty e tyarg) = BackendIR.Expr'TypeApply (convert_id id) ty e tyarg
-convert_expr _ _ (ANFIR.Expr'Poison id ty) = BackendIR.Expr'Poison (convert_id id) ty ()
+convert_expr (ANFIR.Expr'TupleDestructure1 id ty tup) = BackendIR.Expr'TupleDestructure1 (convert_id id) ty tup
+convert_expr (ANFIR.Expr'TupleDestructure2 id ty tup) = BackendIR.Expr'TupleDestructure2 (convert_id id) ty tup
+convert_expr (ANFIR.Expr'ADTDestructure id ty b field_idx) = BackendIR.Expr'ADTDestructure (convert_id id) ty b (maybe (Left ()) Right field_idx)
+convert_expr (ANFIR.Expr'Forall id ty tvars group result) = BackendIR.Expr'Forall (convert_id id) ty tvars (convert_binding_group group) result
+convert_expr (ANFIR.Expr'TypeApply id ty e tyarg) = BackendIR.Expr'TypeApply (convert_id id) ty e tyarg
+convert_expr (ANFIR.Expr'Poison id ty) = BackendIR.Expr'Poison (convert_id id) ty ()

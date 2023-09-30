@@ -52,6 +52,11 @@ instance (EqIgnoringSpans a, EqIgnoringSpans b) => EqIgnoringSpans (a, b) where
 instance EqIgnoringSpans a => EqIgnoringSpans (Ratio a) where
     (n1 :% d1) `eqis` (n2 :% d2) = n1 `eqis` n2 && d1 `eqis` d2
 
+instance EqIgnoringSpans a => EqIgnoringSpans (Maybe a) where
+    (Just a1) `eqis` (Just a2) = a1 `eqis` a2
+    Nothing `eqis` Nothing = True
+    _ `eqis` _ = False
+
 instance EqIgnoringSpans () where a `eqis` b = a == b
 instance EqIgnoringSpans Int where a `eqis` b = a == b
 instance EqIgnoringSpans Integer where a `eqis` b = a == b

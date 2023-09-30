@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE FlexibleInstances #-}
 
 module UHF.Phases.Parser.Error
@@ -12,11 +13,12 @@ import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Codes as Codes
 import qualified UHF.IO.Located as Located
 import UHF.IO.Located (Located (Located))
+import UHF.IO.EqIgnoringSpans
 
 data Error
     = BadToken Int Token.LToken Token.TokenType Text
     -- | NoneMatched Token.LToken [Error]
-    deriving (Eq, Show)
+    deriving (Generic, EqIgnoringSpans, Show, Eq)
 
 instance Diagnostic.ToError (Located [Error]) where
     to_error (Located sp bits) =

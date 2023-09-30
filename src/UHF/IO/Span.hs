@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 module UHF.IO.Span
     ( Span
 
@@ -20,7 +21,7 @@ import UHF.IO.File (File)
 import qualified UHF.IO.Location as Location
 import UHF.IO.Location (Location)
 
-data Span = Span Location.Location Location.Location Location.Location deriving (Show, Eq) -- TODO: remove Eq
+data Span = Span Location.Location Location.Location Location.Location deriving (Show, Eq)
 
 instance Format Span where
     format (Span l1 _ l2) = format (Location.loc_file l1) <> ":" <> format (Location.lc_row $ Location.lc l1) <> ":" <> format (Location.lc_col $ Location.lc l1) <> ":" <> format (Location.lc_row $ Location.lc l2) <> ":" <> format (Location.lc_col $ Location.lc l2)

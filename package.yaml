@@ -15,6 +15,7 @@ ghc-options:
 
 default-extensions:
   - LambdaCase
+  - DeriveGeneric
   - TupleSections
   - TemplateHaskell
   - OverloadedStrings

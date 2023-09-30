@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass #-}
+
 module UHF.Data.AST where
 
 -- TODO: rename this to literal ast and make it literally store tokens
@@ -6,6 +8,7 @@ import UHF.Util.Prelude
 
 import UHF.IO.Span (Span)
 import UHF.IO.Located (Located (..))
+import UHF.IO.EqIgnoringSpans
 
 type Identifier = Located [Located Text]
 
@@ -16,12 +19,12 @@ data Decl
     | Decl'Data Identifier [Identifier] [DataVariant]
     | Decl'TypeSyn Identifier Type
     -- TODO: | Decl'Import Type
-    deriving (Eq, Show)
+    deriving (Generic, EqIgnoringSpans, Show)
 
 data DataVariant
     = DataVariant'Anon Identifier [Type]
     | DataVariant'Named Identifier [(Identifier, Type)]
-    deriving (Eq, Show)
+    deriving (Generic, EqIgnoringSpans, Show)
 
 data Type
     = Type'Identifier Identifier
@@ -31,7 +34,7 @@ data Type
     | Type'Forall Span [Identifier] Type
     | Type'Apply Span Type [Type]
     | Type'Wild Span -- TODO: come up with better name for this
-    deriving (Eq, Show)
+    deriving (Generic, EqIgnoringSpans, Show)
 
 data Expr
     = Expr'Identifier Identifier
@@ -61,7 +64,7 @@ data Expr
     | Expr'TypeAnnotation Span Type Expr
 
     | Expr'Hole Span Identifier
-    deriving (Eq, Show)
+    deriving (Generic, EqIgnoringSpans, Show)
 
 data Pattern
     = Pattern'Identifier Identifier
@@ -70,7 +73,7 @@ data Pattern
     | Pattern'Named Span Identifier Span Pattern -- TODO: merge with Identifier?
     | Pattern'AnonADTVariant Span Identifier [Pattern]
     | Pattern'NamedADTVariant Span Identifier [(Identifier, Pattern)]
-    deriving (Eq, Show)
+    deriving (Generic, EqIgnoringSpans, Show)
 
 type_span :: Type -> Span
 type_span (Type'Identifier iden) = just_span iden

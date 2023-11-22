@@ -123,12 +123,12 @@ convert_decls bv_parent decl_parent decls =
         convert_decl :: Int -> AST.Decl -> MakeIRState ([Binding], [Type.ADTKey], [Type.TypeSynonymKey])
         convert_decl ind (AST.Decl'Value target eq_sp expr) =
             convert_expr (ID.ExprID'InitializerOf decl_parent ind) expr >>= \ expr' ->
-            convert_pattern bv_parent target >>= \ (target') ->
+            convert_pattern bv_parent target >>= \ target' ->
             pure ([SIR.Binding target' eq_sp expr'], [], [])
 
         convert_decl _ (AST.Decl'Data name type_params variants) =
             runMaybeT (
-                mapM (iden1_for_type_name) type_params >>= \ ty_param_names ->
+                mapM iden1_for_type_name type_params >>= \ ty_param_names ->
                 mapM (lift . new_type_var) ty_param_names >>= \ ty_param_vars ->
 
                 iden1_for_type_name name >>= \ l_data_name@(Located _ data_name) ->
@@ -187,7 +187,7 @@ convert_decls bv_parent decl_parent decls =
 
 convert_type :: AST.Type -> MakeIRState TypeExpr
 convert_type (AST.Type'Identifier id) = pure $ SIR.TypeExpr'Identifier () (just_span id) (unlocate id)
-convert_type (AST.Type'Tuple sp items) = mapM (convert_type) items >>= group_items
+convert_type (AST.Type'Tuple sp items) = mapM convert_type items >>= group_items
     where
         group_items [a, b] = pure $ SIR.TypeExpr'Tuple () a b
         group_items (a:b:more) = SIR.TypeExpr'Tuple () a <$> group_items (b:more)
@@ -197,8 +197,7 @@ convert_type (AST.Type'Hole sp id) = pure $ SIR.TypeExpr'Hole () sp id
 convert_type (AST.Type'Function sp arg res) = SIR.TypeExpr'Function () sp <$> convert_type arg <*> convert_type res
 convert_type (AST.Type'Forall _ tys ty) =
     catMaybes <$> mapM (make_iden1_with_err PathInTypeName) tys >>= \ tys ->
-    mapM new_type_var tys >>= \ ty_vars ->
-    case ty_vars of
+    mapM new_type_var tys >>= \case
         [] -> convert_type ty -- can happen if there are errors in all the type names or if the user passed none
         tyv1:tyv_more -> SIR.TypeExpr'Forall () (tyv1 :| tyv_more) <$> convert_type ty
 
@@ -225,7 +224,7 @@ convert_expr cur_id (AST.Expr'Tuple sp items) = group_items cur_id items
 convert_expr cur_id (AST.Expr'Lambda sp params body) = convert_lambda cur_id params body
     where
         convert_lambda cur_id (param:more) body =
-            convert_pattern (ID.BVParent'LambdaParam cur_id) param >>= \ (param) ->
+            convert_pattern (ID.BVParent'LambdaParam cur_id) param >>= \ param ->
             SIR.Expr'Lambda cur_id () sp param <$> convert_lambda (ID.ExprID'LambdaBodyOf cur_id) more body -- TODO: properly do spans of parts because this also just takes the whole span
 
         convert_lambda cur_id [] body = convert_expr cur_id body
@@ -240,7 +239,7 @@ convert_expr cur_id (AST.Expr'LetRec sp decls subexpr) =
     convert_decls (ID.BVParent'Let cur_id) (ID.DeclParent'Let cur_id) decls >>= \ (bindings, _, _) -> -- TODO: put adts and type synonyms
     SIR.Expr'LetRec cur_id () sp bindings <$> convert_expr (ID.ExprID'LetResultOf cur_id) subexpr
 
-convert_expr cur_id (AST.Expr'BinaryOps sp first ops) = SIR.Expr'BinaryOps cur_id () () sp <$> convert_expr (ID.ExprID'BinaryOperand cur_id 0) first <*> zipWithM (\ ind (op, right) -> convert_expr (ID.ExprID'BinaryOperand cur_id ind) right >>= \ right' -> pure ((unlocate op), right')) [1..] ops
+convert_expr cur_id (AST.Expr'BinaryOps sp first ops) = SIR.Expr'BinaryOps cur_id () () sp <$> convert_expr (ID.ExprID'BinaryOperand cur_id 0) first <*> zipWithM (\ ind (op, right) -> convert_expr (ID.ExprID'BinaryOperand cur_id ind) right >>= \ right' -> pure (unlocate op, right')) [1..] ops
 
 convert_expr cur_id (AST.Expr'Call sp callee args) =
     convert_expr (ID.ExprID'CallCalleeIn cur_id) callee >>= \ callee ->
@@ -267,8 +266,7 @@ convert_expr cur_id (AST.Expr'Match sp match_tok_sp e arms) =
 convert_expr cur_id (AST.Expr'TypeAnnotation sp ty e) = SIR.Expr'TypeAnnotation cur_id () sp <$> convert_type ty <*> convert_expr (ID.ExprID'TypeAnnotationSubject cur_id) e
 convert_expr cur_id (AST.Expr'Forall sp tys e) =
     catMaybes <$> mapM (make_iden1_with_err PathInTypeName) tys >>= \ tys ->
-    mapM new_type_var tys >>= \ ty_vars ->
-    case ty_vars of
+    mapM new_type_var tys >>= \case
         [] -> convert_expr (ID.ExprID'ForallResult cur_id) e
         tyv1:tyv_more -> SIR.Expr'Forall cur_id () sp (tyv1 :| tyv_more) <$> convert_expr (ID.ExprID'ForallResult cur_id) e
 
@@ -285,7 +283,7 @@ convert_expr cur_id (AST.Expr'Hole sp hid) = pure (SIR.Expr'Hole cur_id () sp hi
 convert_pattern :: ID.BoundValueParent -> AST.Pattern -> MakeIRState Pattern
 convert_pattern parent (AST.Pattern'Identifier iden) =
     make_iden1_with_err PathInPattern iden >>= \case
-        Just (located_name@(Located name_sp name)) ->
+        Just located_name@(Located name_sp name) ->
             new_bound_value (SIR.BoundValue (ID.BoundValueID parent name) () located_name) >>= \ bn ->
             pure (SIR.Pattern'Identifier () name_sp bn)
 
@@ -294,22 +292,22 @@ convert_pattern _ (AST.Pattern'Wildcard sp) = pure (SIR.Pattern'Wildcard () sp)
 convert_pattern parent (AST.Pattern'Tuple sp subpats) =
     mapM (convert_pattern parent) subpats >>= \ subpats' ->
     go subpats' >>= \ subpats_grouped ->
-    pure (subpats_grouped)
+    pure subpats_grouped
     where
         go [a, b] = pure $ SIR.Pattern'Tuple () sp a b
         go (a:b:more) = SIR.Pattern'Tuple () sp a <$> go (b:more)
         go [_] = tell_error (Tuple1 sp) >> pure (SIR.Pattern'Poison () sp)
         go [] = tell_error (Tuple0 sp) >> pure (SIR.Pattern'Poison () sp)
 convert_pattern parent (AST.Pattern'Named sp iden at_sp subpat) =
-    convert_pattern parent subpat >>= \ (subpat') ->
+    convert_pattern parent subpat >>= \ subpat' ->
     make_iden1_with_err PathInPattern iden >>= \case
-        Just (located_name@(Located name_sp name)) ->
+        Just located_name@(Located name_sp name) ->
             new_bound_value (SIR.BoundValue (ID.BoundValueID parent name) () located_name) >>= \ bn ->
             pure (SIR.Pattern'Named () sp at_sp (Located name_sp bn) subpat')
 
         Nothing -> pure (SIR.Pattern'Poison () sp)
 convert_pattern parent (AST.Pattern'AnonADTVariant sp iden fields) =
-    mapM (convert_pattern parent) fields >>= \ (fields) ->
+    mapM (convert_pattern parent) fields >>= \ fields ->
     pure (SIR.Pattern'AnonADTVariant () sp (unlocate iden) [] fields)
 convert_pattern parent (AST.Pattern'NamedADTVariant sp iden fields) =
     mapM (\ (field_name, field_pat) ->

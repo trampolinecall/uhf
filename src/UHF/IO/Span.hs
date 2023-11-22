@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
 module UHF.IO.Span
     ( Span
 

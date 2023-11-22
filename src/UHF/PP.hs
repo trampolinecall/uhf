@@ -91,10 +91,8 @@ render = IndentationMonad.exec_pp . render'
         is_multiline (String t) = has_nl t
 
         block_is_multiline consistency left_if_single_line right_if_single_line items =
-            let any_multiline = any is_multiline items
-            in if any_multiline
-                then True -- '\n' appears after delim, which is guaranteed to appear after whichever item needs breaking (if items is empty, any_multiline will be false)
-                else if null items
+            any is_multiline items -- '\n' appears after delim, which is guaranteed to appear after whichever item needs breaking (if items is empty, any_multiline will be false)
+                || if null items
                     then False
                     else maybe False has_nl left_if_single_line || maybe False has_nl right_if_single_line
 

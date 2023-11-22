@@ -44,10 +44,10 @@ rp_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> ma
 rp_type_synonym :: PoisonedTypeSynonym -> Maybe NoPoisonTypeSynonym
 rp_type_synonym (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name <$> expansion
 
-rp_binding :: PoisonedBinding -> Maybe (NoPoisonBinding)
+rp_binding :: PoisonedBinding -> Maybe NoPoisonBinding
 rp_binding (BackendIR.Binding initializer) = BackendIR.Binding <$> rp_expr initializer
 
-rp_expr :: PoisonedExpr -> Maybe (NoPoisonExpr)
+rp_expr :: PoisonedExpr -> Maybe NoPoisonExpr
 rp_expr (BackendIR.Expr'Refer id ty b) = ty >>= \ ty -> pure (BackendIR.Expr'Refer id ty b)
 rp_expr (BackendIR.Expr'Int id ty i) = ty >>= \ ty -> pure (BackendIR.Expr'Int id ty i)
 rp_expr (BackendIR.Expr'Float id ty f) = ty >>= \ ty -> pure (BackendIR.Expr'Float id ty f)
@@ -79,7 +79,7 @@ rp_expr (BackendIR.Expr'Match id ty t) = ty >>= \ ty -> rp_tree t >>= \ t -> pur
         rp_clause (BackendIR.MatchClause'Binding bk) = Just $ BackendIR.MatchClause'Binding bk
 
         rp_matcher (BackendIR.Match'BoolLiteral b) = Just $ BackendIR.Match'BoolLiteral b
-        rp_matcher (BackendIR.Match'Tuple) = Just $ BackendIR.Match'Tuple
+        rp_matcher BackendIR.Match'Tuple = Just BackendIR.Match'Tuple
         rp_matcher (BackendIR.Match'AnonADTVariant (Left ())) = Nothing
         rp_matcher (BackendIR.Match'AnonADTVariant (Right variant)) = Just $ BackendIR.Match'AnonADTVariant (Right variant)
 

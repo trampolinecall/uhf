@@ -86,7 +86,7 @@ convert_expr (ANFIR.Expr'Match id ty tree) = BackendIR.Expr'Match (convert_id id
         convert_clause (ANFIR.MatchClause'Binding b) = BackendIR.MatchClause'Binding b
 
         convert_matcher (ANFIR.Match'BoolLiteral b) = BackendIR.Match'BoolLiteral b
-        convert_matcher (ANFIR.Match'Tuple) = BackendIR.Match'Tuple
+        convert_matcher ANFIR.Match'Tuple = BackendIR.Match'Tuple
         convert_matcher (ANFIR.Match'AnonADTVariant (Just v)) = BackendIR.Match'AnonADTVariant (Right v)
         convert_matcher (ANFIR.Match'AnonADTVariant Nothing) = BackendIR.Match'AnonADTVariant (Left ())
 convert_expr (ANFIR.Expr'TupleDestructure1 id ty tup) = BackendIR.Expr'TupleDestructure1 (convert_id id) ty tup

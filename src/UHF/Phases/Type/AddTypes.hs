@@ -72,12 +72,12 @@ bound_value (SIR.BoundValue'ADTVariant id variant_index@(Type.ADTVariantIndex ad
     let ty = case variant of
             Type.ADTVariant'Named _ _ _ -> error "bound value should not be made for a named adt variant" -- TODO: statically make sure this cant happen?
             Type.ADTVariant'Anon _ _ fields ->
-                let change_type_params = \ ty -> foldl' (\ ty (adt_typaram, bv_typaram) -> substitute unk_arena adt_typaram (Type.Type'Variable bv_typaram) ty) ty (zip adt_type_params bv_type_params)
+                let change_type_params ty = foldl' (\ ty (adt_typaram, bv_typaram) -> substitute unk_arena adt_typaram (Type.Type'Variable bv_typaram) ty) ty (zip adt_type_params bv_type_params)
                     arg_tys = map (change_type_params . SIR.type_expr_type_info . snd) fields
                     wrap_in_forall = case bv_type_params of
                         [] -> identity
                         param:more -> Type.Type'Forall (param :| more)
-                 in wrap_in_forall $ foldr (Type.Type'Function) (Type.Type'ADT adt_key (map Type.Type'Variable bv_type_params)) arg_tys -- function type that takes all the field types and then results in the adt type
+                 in wrap_in_forall $ foldr Type.Type'Function (Type.Type'ADT adt_key (map Type.Type'Variable bv_type_params)) arg_tys -- function type that takes all the field types and then results in the adt type
     pure $ SIR.BoundValue'ADTVariant id variant_index bv_type_params ty def_span
 
 module_ :: UntypedModule -> ContextReader UntypedDeclArena TypedWithUnkBoundValueArena TypedWithUnkADTArena TypedWithUnkModule

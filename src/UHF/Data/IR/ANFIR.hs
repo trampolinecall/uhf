@@ -47,7 +47,7 @@ data ANFIR
         CU
 
 -- "compilation unit"
-data CU = CU (BindingGroup) [ADTKey] [TypeSynonymKey]
+data CU = CU BindingGroup [ADTKey] [TypeSynonymKey]
 
 data Param = Param ID.BoundValueID (Maybe (Type.Type Void)) deriving Show
 
@@ -110,7 +110,7 @@ data MatchMatcher
     | Match'AnonADTVariant (Maybe Type.ADTVariantIndex)
     deriving Show
 
-expr_type :: Expr -> (Maybe (Type.Type Void))
+expr_type :: Expr -> Maybe (Type.Type Void)
 expr_type (Expr'Refer _ ty _) = ty
 expr_type (Expr'Int _ ty _) = ty
 expr_type (Expr'Float _ ty _) = ty

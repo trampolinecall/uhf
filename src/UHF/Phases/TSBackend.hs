@@ -188,9 +188,9 @@ lower (BackendIR.BackendIR adts type_synonyms type_vars bindings params cu) =
 
 define_cu :: CU -> TSWriter ()
 define_cu (BackendIR.CU global_group adts _) =
-    mapM (tell_adt . TSADT) adts >>
+    mapM_ (tell_adt . TSADT) adts >>
     lift (lower_binding_group global_group) >>= \ global_init_stmts ->
-    mapM tell_global_stmt global_init_stmts >>
+    mapM_ tell_global_stmt global_init_stmts >>
     pure ()
 
 define_lambda_type :: BackendIR.BindingKey -> Binding -> TSWriter ()

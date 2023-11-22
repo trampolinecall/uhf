@@ -83,7 +83,7 @@ convert_step_1 bound_values cu =
     in (bindings_needs_deps, params, cu_needs_deps)
 
 convert_cu :: RIR.CU -> MakeGraphState (NeedsBVMap AlmostExpr) (NeedsTopoSort ANFIR.CU)
-convert_cu (RIR.CU bindings adts type_synonyms) = concat <$> mapM convert_binding bindings >>= \ (bindings) -> pure (make_binding_group bindings >>= \ group -> pure (ANFIR.CU group adts type_synonyms))
+convert_cu (RIR.CU bindings adts type_synonyms) = concat <$> mapM convert_binding bindings >>= \ bindings -> pure (make_binding_group bindings >>= \ group -> pure (ANFIR.CU group adts type_synonyms))
 
 map_bound_value :: RIR.BoundValueKey -> ANFIR.BindingKey -> MakeGraphState binding ()
 map_bound_value k binding = tell $ Map.singleton k binding
@@ -116,14 +116,14 @@ convert_expr m_bvid expr@(RIR.Expr'Identifier id _ _ bvkey) =
     case bvkey of
         Just bvkey -> new_binding $ \ bv_map -> AlmostExpr'Refer (choose_id m_bvid id) ty (bv_map Map.! bvkey)
         Nothing -> new_binding $ \ _ -> AlmostExpr'Poison (choose_id m_bvid id) ty
-convert_expr m_bvid expr@(RIR.Expr'Char id _ c) = lift (lift $ lift $ lift ask) >>= \ bv_arena -> let ty = RIR.expr_type bv_arena expr in new_binding (\ _ -> (AlmostExpr'Char (choose_id m_bvid id) ty c))
+convert_expr m_bvid expr@(RIR.Expr'Char id _ c) = lift (lift $ lift $ lift ask) >>= \ bv_arena -> let ty = RIR.expr_type bv_arena expr in new_binding (\ _ -> AlmostExpr'Char (choose_id m_bvid id) ty c)
 
-convert_expr m_bvid expr@(RIR.Expr'String id _ s) = lift (lift $ lift $ lift ask) >>= \ bv_arena -> let ty = RIR.expr_type bv_arena expr in new_binding (\ _ -> (AlmostExpr'String (choose_id m_bvid id) ty s))
-convert_expr m_bvid expr@(RIR.Expr'Int id _ i) = lift (lift $ lift $ lift ask) >>= \ bv_arena -> let ty = RIR.expr_type bv_arena expr in new_binding (\ _ -> (AlmostExpr'Int (choose_id m_bvid id) ty i))
-convert_expr m_bvid expr@(RIR.Expr'Float id _ f) = lift (lift $ lift $ lift ask) >>= \ bv_arena -> let ty = RIR.expr_type bv_arena expr in new_binding (\ _ -> (AlmostExpr'Float (choose_id m_bvid id) ty f))
-convert_expr m_bvid expr@(RIR.Expr'Bool id _ b) = lift (lift $ lift $ lift ask) >>= \ bv_arena -> let ty = RIR.expr_type bv_arena expr in new_binding (\ _ -> (AlmostExpr'Bool (choose_id m_bvid id) ty b))
+convert_expr m_bvid expr@(RIR.Expr'String id _ s) = lift (lift $ lift $ lift ask) >>= \ bv_arena -> let ty = RIR.expr_type bv_arena expr in new_binding (\ _ -> AlmostExpr'String (choose_id m_bvid id) ty s)
+convert_expr m_bvid expr@(RIR.Expr'Int id _ i) = lift (lift $ lift $ lift ask) >>= \ bv_arena -> let ty = RIR.expr_type bv_arena expr in new_binding (\ _ -> AlmostExpr'Int (choose_id m_bvid id) ty i)
+convert_expr m_bvid expr@(RIR.Expr'Float id _ f) = lift (lift $ lift $ lift ask) >>= \ bv_arena -> let ty = RIR.expr_type bv_arena expr in new_binding (\ _ -> AlmostExpr'Float (choose_id m_bvid id) ty f)
+convert_expr m_bvid expr@(RIR.Expr'Bool id _ b) = lift (lift $ lift $ lift ask) >>= \ bv_arena -> let ty = RIR.expr_type bv_arena expr in new_binding (\ _ -> AlmostExpr'Bool (choose_id m_bvid id) ty b)
 
-convert_expr m_bvid expr@(RIR.Expr'Tuple id _ a b) = lift (lift $ lift $ lift ask) >>= \ bv_arena -> let ty = RIR.expr_type bv_arena expr in convert_expr Nothing a >>= \ a -> convert_expr Nothing b >>= \ b -> new_binding (\ _ -> (AlmostExpr'Tuple (choose_id m_bvid id) ty a b))
+convert_expr m_bvid expr@(RIR.Expr'Tuple id _ a b) = lift (lift $ lift $ lift ask) >>= \ bv_arena -> let ty = RIR.expr_type bv_arena expr in convert_expr Nothing a >>= \ a -> convert_expr Nothing b >>= \ b -> new_binding (\ _ -> AlmostExpr'Tuple (choose_id m_bvid id) ty a b)
 
 convert_expr m_bvid expr@(RIR.Expr'Lambda id _ param_bv body) =
     lift (lift $ lift $ lift ask) >>= \ bv_arena -> let ty = RIR.expr_type bv_arena expr in
@@ -131,16 +131,16 @@ convert_expr m_bvid expr@(RIR.Expr'Lambda id _ param_bv body) =
     new_param (ANFIR.Param param_id param_ty) >>= \ anfir_param ->
     lift (runWriterT $ -- lambda bodies should not be included in the parent included bindings because they do not need to be evaluated to create the lambda object
         lift new_expr_id >>= \ param_binding_id ->
-        new_binding (\ _ -> (AlmostExpr'Param (ANFIR.ExprID param_binding_id) param_ty anfir_param)) >>= \ param_binding ->
+        new_binding (\ _ -> AlmostExpr'Param (ANFIR.ExprID param_binding_id) param_ty anfir_param) >>= \ param_binding ->
         lift (map_bound_value param_bv param_binding) >>
         convert_expr Nothing body
     ) >>= \ (body, body_included_bindings) ->
 
-    new_binding (\ _ -> (AlmostExpr'Lambda (choose_id m_bvid id) ty anfir_param body_included_bindings body))
+    new_binding (\ _ -> AlmostExpr'Lambda (choose_id m_bvid id) ty anfir_param body_included_bindings body)
 
 convert_expr _ (RIR.Expr'Let _ _ bindings e) = mapM (lift . convert_binding) bindings >>= \ binding_involved_bindings -> tell (concat binding_involved_bindings) >> convert_expr Nothing e
 
-convert_expr m_bvid expr@(RIR.Expr'Call id _ callee arg) = lift (lift $ lift $ lift ask) >>= \ bv_arena -> let ty = RIR.expr_type bv_arena expr in convert_expr Nothing callee >>= \ callee -> convert_expr Nothing arg >>= \ arg -> new_binding (\ _ -> (AlmostExpr'Call (choose_id m_bvid id) ty callee arg))
+convert_expr m_bvid expr@(RIR.Expr'Call id _ callee arg) = lift (lift $ lift $ lift ask) >>= \ bv_arena -> let ty = RIR.expr_type bv_arena expr in convert_expr Nothing callee >>= \ callee -> convert_expr Nothing arg >>= \ arg -> new_binding (\ _ -> AlmostExpr'Call (choose_id m_bvid id) ty callee arg)
 
 convert_expr m_bvid (RIR.Expr'Match id ty _ tree) =
     lift (convert_tree tree) >>= \ tree ->
@@ -158,7 +158,7 @@ convert_expr m_bvid (RIR.Expr'Match id ty _ tree) =
                         Left subtree ->
                             convert_tree subtree >>= \ subtree ->
                             pure (\ bv_map -> Left (subtree bv_map))) >>= \ result ->
-                    pure (\ bv_map -> (concat $ map ($ bv_map) clauses, result bv_map)))
+                    pure (\ bv_map -> (concatMap ($ bv_map) clauses, result bv_map)))
                 arms >>= \ arms ->
             pure (\ bv_map -> AlmostMatchTree (map ($ bv_map) arms))
 
@@ -172,7 +172,7 @@ convert_expr m_bvid (RIR.Expr'Match id ty _ tree) =
             pure (\ _ -> [ANFIR.MatchClause'Binding rhs_binding])
 
         convert_assign_rhs (RIR.MatchAssignRHS'OtherBVK other) =
-            (get_bv other) >>= \ (RIR.BoundValue _ other_ty _) ->
+            get_bv other >>= \ (RIR.BoundValue _ other_ty _) ->
             new_expr_id >>= \ id ->
             -- second element is all the bindings made, but because there is only one call to new_binding in this WriterT, the only binding ever made is this one, so we do not need to keep track of the second variable
             runWriterT (new_binding (\ bv_map -> AlmostExpr'Refer (ANFIR.ExprID id) other_ty (bv_map Map.! other))) >>= \ (binding, _) ->
@@ -194,11 +194,11 @@ convert_expr m_bvid expr@(RIR.Expr'Forall id _ vars e) =
     lift (lift $ lift $ lift ask) >>= \ bv_arena -> let ty = RIR.expr_type bv_arena expr in
     lift (runWriterT (convert_expr Nothing e)) >>= \ (e, e_involved_bindings) ->
     new_binding (\ _ -> AlmostExpr'Forall (choose_id m_bvid id) ty vars e_involved_bindings e)
-convert_expr m_bvid (RIR.Expr'TypeApply id ty _ e arg) = convert_expr Nothing e >>= \ e -> new_binding (\ _ -> (AlmostExpr'TypeApply (choose_id m_bvid id) ty e arg))
+convert_expr m_bvid (RIR.Expr'TypeApply id ty _ e arg) = convert_expr Nothing e >>= \ e -> new_binding (\ _ -> AlmostExpr'TypeApply (choose_id m_bvid id) ty e arg)
 
-convert_expr m_bvid expr@(RIR.Expr'MakeADT id _ variant tyargs args) = lift (lift $ lift $ lift ask) >>= \ bv_arena -> let ty = RIR.expr_type bv_arena expr in mapM (convert_expr Nothing) args >>= \ args -> new_binding (\ _ -> (AlmostExpr'MakeADT (choose_id m_bvid id) ty variant tyargs args))
+convert_expr m_bvid expr@(RIR.Expr'MakeADT id _ variant tyargs args) = lift (lift $ lift $ lift ask) >>= \ bv_arena -> let ty = RIR.expr_type bv_arena expr in mapM (convert_expr Nothing) args >>= \ args -> new_binding (\ _ -> AlmostExpr'MakeADT (choose_id m_bvid id) ty variant tyargs args)
 
-convert_expr m_bvid (RIR.Expr'Poison id ty _) = new_binding (\ _ -> (AlmostExpr'Poison (choose_id m_bvid id) ty))
+convert_expr m_bvid (RIR.Expr'Poison id ty _) = new_binding (\ _ -> AlmostExpr'Poison (choose_id m_bvid id) ty)
 -- second step: converting from almost anfir to actual anfir {{{1
 convert_step_2 :: BindingArena AlmostExpr -> Reader (BindingArena AlmostExpr) ANFIR.CU -> (BindingArena ANFIR.Binding, ANFIR.CU)
 convert_step_2 bindings cu =
@@ -234,13 +234,13 @@ convert_almost_expr (AlmostExpr'Match id ty tree) = ANFIR.Expr'Match id ty <$> c
 convert_almost_expr (AlmostExpr'TupleDestructure1 id ty tup) = pure $ ANFIR.Expr'TupleDestructure1 id ty tup
 convert_almost_expr (AlmostExpr'TupleDestructure2 id ty tup) = pure $ ANFIR.Expr'TupleDestructure2 id ty tup
 convert_almost_expr (AlmostExpr'ADTDestructure id ty base field_idx) = pure $ ANFIR.Expr'ADTDestructure id ty base field_idx
-convert_almost_expr (AlmostExpr'Forall id ty tys bindings result) = ANFIR.Expr'Forall id ty tys <$> (make_binding_group bindings) <*> pure result
+convert_almost_expr (AlmostExpr'Forall id ty tys bindings result) = ANFIR.Expr'Forall id ty tys <$> make_binding_group bindings <*> pure result
 convert_almost_expr (AlmostExpr'TypeApply id ty e tyarg) = pure $ ANFIR.Expr'TypeApply id ty e tyarg
 convert_almost_expr (AlmostExpr'Poison id ty) = pure $ ANFIR.Expr'Poison id ty
 
 get_dependencies_of_binding_list_and_expr :: [ANFIR.BindingKey] -> ANFIR.BindingKey -> Reader (BindingArena AlmostExpr) (Set ANFIR.BindingKey)
 get_dependencies_of_binding_list_and_expr bindings e =
-    Set.unions <$> mapM (get_dependencies_of_almost_expr) bindings >>= \ bindings_dependencies ->
+    Set.unions <$> mapM get_dependencies_of_almost_expr bindings >>= \ bindings_dependencies ->
     pure ((bindings_dependencies <> [e]) `Set.difference` Set.fromList bindings)
 
 get_dependencies_of_almost_expr :: ANFIR.BindingKey -> Reader (BindingArena AlmostExpr) (Set.Set ANFIR.BindingKey)
@@ -328,7 +328,7 @@ make_binding_group bindings =
 
                 deal_with_loop loop =
                     ask >>= \ binding_arena ->
-                    if and (map (allowed_in_loop . Arena.get binding_arena) loop)
+                    if all (allowed_in_loop . Arena.get binding_arena) loop
                         then pure $ ANFIR.MutuallyRecursiveBindings loop
                         else error "illegal loop" -- TODO: proper error message for this
                     where

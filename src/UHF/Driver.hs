@@ -51,7 +51,7 @@ import qualified UHF.Phases.TSBackend as TSBackend
 
 type Tokens = ([Token.LToken], Token.LToken)
 type AST = [AST.Decl]
-type FirstSIR = SIR.SIR ([Located Text]) ([Located Text]) ([Located Text]) () ()
+type FirstSIR = SIR.SIR [Located Text] [Located Text] [Located Text] () ()
 type NRSIR = SIR.SIR (Maybe IR.Keys.DeclKey) (Located (Maybe IR.Keys.BoundValueKey)) (Maybe IR.Type.ADTVariantIndex) () ()
 type InfixGroupedSIR = SIR.SIR (Maybe IR.Keys.DeclKey) (Located (Maybe IR.Keys.BoundValueKey)) (Maybe IR.Type.ADTVariantIndex) () Void
 type TypedSIR = SIR.SIR (Maybe IR.Keys.DeclKey) (Located (Maybe IR.Keys.BoundValueKey)) (Maybe IR.Type.ADTVariantIndex) (Maybe (IR.Type.Type Void)) Void
@@ -67,16 +67,16 @@ type WithDiagnosticsIO = Compiler.WithDiagnosticsT Diagnostic.Error Diagnostic.W
 data PhaseResultsCache
     = PhaseResultsCache
         { _get_file :: File
-        , _get_tokens :: Maybe (Either Tokens Tokens)
-        , _get_ast :: Maybe (Either AST AST)
-        , _get_first_sir :: Maybe (Either FirstSIR FirstSIR)
-        , _get_nrsir :: Maybe (Either NRSIR NRSIR)
-        , _get_infix_grouped :: Maybe (Either InfixGroupedSIR InfixGroupedSIR)
-        , _get_typed_sir :: Maybe (Either TypedSIR TypedSIR)
-        , _get_rir :: Maybe (Either RIR RIR)
-        , _get_anfir :: Maybe (Either ANFIR ANFIR)
-        , _get_optimized_anfir :: Maybe (Either ANFIR ANFIR)
-        , _get_backend_ir :: Maybe (Either BackendIR BackendIR)
+        , _get_tokens :: Maybe (Tokens, Outputable)
+        , _get_ast :: Maybe (AST, Outputable)
+        , _get_first_sir :: Maybe (FirstSIR, Outputable)
+        , _get_nrsir :: Maybe (NRSIR, Outputable)
+        , _get_infix_grouped :: Maybe (InfixGroupedSIR, Outputable)
+        , _get_typed_sir :: Maybe (TypedSIR, Outputable)
+        , _get_rir :: Maybe (RIR, Outputable)
+        , _get_anfir :: Maybe (ANFIR, Outputable)
+        , _get_optimized_anfir :: Maybe (ANFIR, Outputable)
+        , _get_backend_ir :: Maybe (BackendIR, Outputable)
         , _get_no_poison_ir :: Maybe (Either () NoPoisonIR)
         , _get_ts :: Maybe (Either () TS)
         }
@@ -98,22 +98,25 @@ compile c_needed diagnostic_settings compile_options =
     pure (if Compiler.had_errors diagnostics then Left () else Right ())
 
 print_outputs :: CompileOptions -> File -> WithDiagnosticsIO ()
-print_outputs compile_options file = runStateT (mapM print_output_format (output_formats compile_options)) (PhaseResultsCache file Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing) >> pure ()
+print_outputs compile_options file = evalStateT (mapM_ print_output_format (output_formats compile_options)) (PhaseResultsCache file Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing)
     where
-        print_output_format AST = get_ast >>= when_right (\ ast -> lift (lift (putTextLn $ AST.PP.pp_decls ast)))
-        print_output_format ASTDump = get_ast >>= when_right (\ ast -> lift (lift (putTextLn $ AST.Dump.dump ast)))
-        print_output_format SIR = get_first_sir >>= when_right (\ ir -> lift (lift (write_output_file "uhf_sir" (SIR.PP.dump_main_module ir))))
-        print_output_format NRSIR = get_nrsir >>= when_right (\ ir -> lift (lift (write_output_file "uhf_nrsir" (SIR.PP.dump_main_module ir))))
-        print_output_format InfixGroupedSIR = get_infix_grouped >>= when_right (\ ir -> lift (lift (write_output_file "uhf_infix_grouped" (SIR.PP.dump_main_module ir))))
-        print_output_format TypedSIR = get_typed_sir >>= when_right (\ ir -> lift (lift (write_output_file "uhf_typed_sir" (SIR.PP.dump_main_module ir))))
-        print_output_format RIR = get_rir >>= when_right (\ ir -> lift (lift (write_output_file "uhf_rir" (RIR.PP.dump_cu ir))))
-        print_output_format ANFIR = get_anfir >>= when_right (\ ir -> lift (lift (write_output_file "uhf_anfir" (ANFIR.PP.dump_cu ir))))
-        print_output_format OptimizedANFIR = get_optimized_anfir >>= when_right (\ ir -> lift (lift (write_output_file "uhf_anfir_optimized" (ANFIR.PP.dump_cu ir))))
-        print_output_format BackendIR = get_backend_ir >>= when_right (\ ir -> lift (lift (write_output_file "uhf_backend_ir" (BackendIR.PP.dump_cu ir))))
-        print_output_format TS = get_ts >>= when_right (lift . lift . write_output_file "ts")
+        print_output_format AST = get_ast >>= output_if_outputable (\ ast -> lift (lift (putTextLn $ AST.PP.pp_decls ast)))
+        print_output_format ASTDump = get_ast >>= output_if_outputable (\ ast -> lift (lift (putTextLn $ AST.Dump.dump ast)))
+        print_output_format SIR = get_first_sir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_sir" (SIR.PP.dump_main_module ir))))
+        print_output_format NRSIR = get_nrsir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_nrsir" (SIR.PP.dump_main_module ir))))
+        print_output_format InfixGroupedSIR = get_infix_grouped >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_infix_grouped" (SIR.PP.dump_main_module ir))))
+        print_output_format TypedSIR = get_typed_sir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_typed_sir" (SIR.PP.dump_main_module ir))))
+        print_output_format RIR = get_rir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_rir" (RIR.PP.dump_cu ir))))
+        print_output_format ANFIR = get_anfir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_anfir" (ANFIR.PP.dump_cu ir))))
+        print_output_format OptimizedANFIR = get_optimized_anfir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_anfir_optimized" (ANFIR.PP.dump_cu ir))))
+        print_output_format BackendIR = get_backend_ir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_backend_ir" (BackendIR.PP.dump_cu ir))))
+        print_output_format TS = get_ts >>= output_when_right (lift . lift . write_output_file "ts")
 
-        when_right output (Right s) = output s
-        when_right _ (Left _) = pure ()
+        output_if_outputable output (s, Outputable) = output s
+        output_if_outputable _ (_, HadError) = pure ()
+
+        output_when_right output (Right s) = output s
+        output_when_right _ (Left _) = pure ()
 
         module_name' =
             case module_name compile_options of
@@ -129,89 +132,93 @@ get_or_calculate extract update calculate = extract <$> get >>= \case
     Just res -> pure res
     Nothing -> calculate >>= \ res -> modify (`update` Just res) >> pure res
 
--- convert a stage with WithDiagnostics into a PhaseResultsState, and also changes the result into Either r r by making it Left r if there had been errors in this phase and Right r if there had been no errors
-convert_stage :: (Diagnostic.ToError e, Diagnostic.ToWarning w) => Compiler.WithDiagnostics e w r -> PhaseResultsState (Either r r)
-convert_stage s = runWriter (Compiler.convert_diagnostics s) & \ (res, diagnostics) -> lift (tell diagnostics) >> pure (if Compiler.had_errors diagnostics then Left res else Right res)
+-- convert WithDiagnostics into a PhaseResultsState by reporting the diagnostics onto IO, and also changes the result into (r, Outputable)
+convert_errors :: (Diagnostic.ToError e, Diagnostic.ToWarning w) => Compiler.WithDiagnostics e w r -> PhaseResultsState (r, Outputable)
+convert_errors s = do
+    let (res, diagnostics) = runWriter (Compiler.convert_diagnostics s)
+    lift (tell diagnostics)
+    pure (res, if Compiler.had_errors diagnostics then HadError else Outputable)
 
-run_stage_on_both_either :: Functor m => (a -> m (Either b b)) -> Either a a -> m (Either b b)
-run_stage_on_both_either f (Right a) = f a <&> \case
-    Right r -> Right r
-    Left l -> Left l
-run_stage_on_both_either f (Left a) = f a <&> \case
-    Right r -> Left r
-    Left l -> Left l
+-- for the phases that result in a (result, Outputable), the Outputable will be HadError if that phase or any of the previous phases had an error, indicating that the result of that phase is not completely correct and therefore cannot be outputed
+-- if the Outputable is Outputable, then there had been no errors leading up to this phase and that result can be outputted
+data Outputable = Outputable | HadError
+instance Semigroup Outputable where
+    HadError <> _ = HadError
+    Outputable <> b = b
 
-map_either :: (a -> b) -> Either a a -> Either b b
-map_either f (Right a) = Right $ f a
-map_either f (Left a) = Left $ f a
+run_stage_on_previous_stage_output :: (previous -> PhaseResultsState (result, Outputable)) -> (previous, Outputable) -> PhaseResultsState (result, Outputable)
+run_stage_on_previous_stage_output f (a, last_outputable) = do
+    (res, this_outputable) <- f a
+    pure (res, last_outputable <> this_outputable)
+
+on_tuple_first :: (a -> b) -> (a, c) -> (b, c)
+on_tuple_first f (a, b) = (f a, b)
 
 --- TODO: use template haskell for this?
 -- all of these functions return the result of a phase either by calculating it or retrieving it from the cache
--- for the phases whose results are in the form Either a a, the result will be Left a if that phase had an error or any of the previous phases had an error (which for most of the phases is accomplished with run_stage_on_both_either above)
--- the result will be Right a if there have been no errors in the chain of phases that led to the result of this phase
-get_tokens :: PhaseResultsState (Either Tokens Tokens)
+get_tokens :: PhaseResultsState (Tokens, Outputable)
 get_tokens = get_or_calculate _get_tokens (\ cache tokens -> cache { _get_tokens = tokens }) lex
     where
-        lex = _get_file <$> get >>= \ file -> convert_stage (Lexer.lex file)
+        lex = _get_file <$> get >>= \ file -> convert_errors (Lexer.lex file)
 
-get_ast :: PhaseResultsState (Either AST AST)
+get_ast :: PhaseResultsState (AST, Outputable)
 get_ast = get_or_calculate _get_ast (\ cache ast -> cache { _get_ast = ast }) parse_phase
     where
-        parse_phase = get_tokens >>= run_stage_on_both_either (\ (tokens, eof) -> convert_stage $ Parser.parse tokens eof)
+        parse_phase = get_tokens >>= run_stage_on_previous_stage_output (\ (tokens, eof) -> convert_errors $ Parser.parse tokens eof)
 
-get_first_sir :: PhaseResultsState (Either FirstSIR FirstSIR)
+get_first_sir :: PhaseResultsState (FirstSIR, Outputable)
 get_first_sir = get_or_calculate _get_first_sir (\ cache first_sir -> cache { _get_first_sir = first_sir }) to_sir
     where
-        to_sir = get_ast >>= run_stage_on_both_either (\ ast -> convert_stage (ToSIR.convert ast))
+        to_sir = get_ast >>= run_stage_on_previous_stage_output (convert_errors . ToSIR.convert)
 
-get_nrsir :: PhaseResultsState (Either NRSIR NRSIR)
+get_nrsir :: PhaseResultsState (NRSIR, Outputable)
 get_nrsir = get_or_calculate _get_nrsir (\ cache nrsir -> cache { _get_nrsir = nrsir }) name_resolve
     where
-        name_resolve = get_first_sir >>= run_stage_on_both_either (\ sir -> convert_stage (NameResolve.resolve sir))
+        name_resolve = get_first_sir >>= run_stage_on_previous_stage_output (convert_errors . NameResolve.resolve)
 
-get_infix_grouped :: PhaseResultsState (Either InfixGroupedSIR InfixGroupedSIR)
+get_infix_grouped :: PhaseResultsState (InfixGroupedSIR, Outputable)
 get_infix_grouped = get_or_calculate _get_infix_grouped (\ cache infix_grouped -> cache { _get_infix_grouped = infix_grouped }) group_infix
     where
-        group_infix = map_either InfixGroup.group <$> get_nrsir
+        group_infix = on_tuple_first InfixGroup.group <$> get_nrsir
 
-get_typed_sir :: PhaseResultsState (Either TypedSIR TypedSIR)
+get_typed_sir :: PhaseResultsState (TypedSIR, Outputable)
 get_typed_sir = get_or_calculate _get_typed_sir (\ cache typed_sir -> cache { _get_typed_sir = typed_sir }) type_
     where
         type_ =
             get_infix_grouped >>=
-            run_stage_on_both_either (\ infix_grouped_ir -> convert_stage (Type.typecheck infix_grouped_ir)) >>= \ typed_ir ->
-            run_stage_on_both_either (\ typed_ir -> convert_stage (ReportHoles.report_holes typed_ir)) typed_ir >>
+            run_stage_on_previous_stage_output (convert_errors . Type.typecheck) >>= \ typed_ir ->
+            run_stage_on_previous_stage_output (convert_errors . ReportHoles.report_holes) typed_ir >>
             pure typed_ir
 
-get_rir :: PhaseResultsState (Either RIR RIR)
+get_rir :: PhaseResultsState (RIR, Outputable)
 get_rir = get_or_calculate _get_rir (\ cache rir -> cache { _get_rir = rir }) to_rir
     where
-        to_rir = get_typed_sir >>= run_stage_on_both_either (convert_stage . ToRIR.convert)
+        to_rir = get_typed_sir >>= run_stage_on_previous_stage_output (convert_errors . ToRIR.convert)
 
-get_anfir :: PhaseResultsState (Either ANFIR ANFIR)
+get_anfir :: PhaseResultsState (ANFIR, Outputable)
 get_anfir = get_or_calculate _get_anfir (\ cache anfir -> cache { _get_anfir = anfir }) to_anfir
     where
-        to_anfir = map_either ToANFIR.convert <$> get_rir
+        to_anfir = on_tuple_first ToANFIR.convert <$> get_rir
 
-get_optimized_anfir :: PhaseResultsState (Either ANFIR ANFIR)
+get_optimized_anfir :: PhaseResultsState (ANFIR, Outputable)
 get_optimized_anfir = get_or_calculate _get_optimized_anfir (\ cache anfir -> cache { _get_optimized_anfir = anfir }) optimize_anfir
     where
         -- TODO: move after remove poison?
-        optimize_anfir = map_either OptimizeANFIR.optimize <$> get_anfir -- TODO: optimization levels
+        optimize_anfir = on_tuple_first OptimizeANFIR.optimize <$> get_anfir -- TODO: optimization levels
 
-get_backend_ir :: PhaseResultsState (Either BackendIR BackendIR)
+get_backend_ir :: PhaseResultsState (BackendIR, Outputable)
 get_backend_ir = get_or_calculate _get_backend_ir (\ cache backend_ir -> cache { _get_backend_ir = backend_ir }) to_backend_ir
     where
-        to_backend_ir = map_either ToBackendIR.convert <$> get_optimized_anfir
+        to_backend_ir = on_tuple_first ToBackendIR.convert <$> get_optimized_anfir
 
 get_no_poison_ir :: PhaseResultsState (Either () NoPoisonIR)
 get_no_poison_ir = get_or_calculate _get_no_poison_ir (\ cache no_poison_ir -> cache { _get_no_poison_ir = no_poison_ir }) remove_poison
     where
         remove_poison = get_backend_ir <&> \case
-            Right bir -> case RemovePoison.remove_poison bir of
+            (bir, Outputable) -> case RemovePoison.remove_poison bir of
                 Just res -> Right res
                 Nothing -> Left ()
-            Left _ -> Left ()
+            _ -> Left ()
 
 get_ts :: PhaseResultsState (Either () TS)
 get_ts = get_or_calculate _get_ts (\ cache ts -> cache { _get_ts = ts }) to_ts

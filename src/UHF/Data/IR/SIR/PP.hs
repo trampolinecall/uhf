@@ -31,7 +31,7 @@ get_type_var_arena = reader (\ (SIR.SIR _ _ _ _ vars _ _) -> vars)
 
 get_bv :: SIR.BoundValueKey -> IRReader d_iden v_iden p_iden type_info binary_ops_allowed (SIR.BoundValue type_info)
 get_bv k = reader (\ (SIR.SIR _ _ _ _ _ bvs _) -> Arena.get bvs k)
-get_decl :: SIR.DeclKey -> IRReader d_iden v_iden p_iden type_info binary_ops_allowed (SIR.Decl)
+get_decl :: SIR.DeclKey -> IRReader d_iden v_iden p_iden type_info binary_ops_allowed SIR.Decl
 get_decl k = reader (\ (SIR.SIR decls _ _ _ _ _ _) -> Arena.get decls k)
 get_module :: SIR.ModuleKey -> IRReader d_iden v_iden p_iden type_info binary_ops_allowed (SIR.Module d_iden v_iden p_iden type_info binary_ops_allowed)
 get_module k = reader (\ (SIR.SIR _ modules _ _ _ _ _) -> Arena.get modules k)
@@ -82,7 +82,7 @@ put_iden_list_of_text :: [Located Text] -> IRReader d_iden v_iden p_iden type_in
 put_iden_list_of_text = pure . PP.String . Text.intercalate "::" . map unlocate
 
 instance DumpableIdentifier [Located Text] where
-    refer_iden segments = put_iden_list_of_text segments
+    refer_iden = put_iden_list_of_text
 instance DumpableIdentifier (Located (Maybe SIR.BoundValueKey)) where -- TODO: remove this
     refer_iden k = case unlocate k of
         Just k -> refer_iden k

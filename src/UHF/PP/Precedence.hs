@@ -3,6 +3,7 @@ module UHF.PP.Precedence
     ( PPGivenCurrentAndNextLevels
     , Levels
     , pp_precedence
+    , parenthesize
 
     , tests
     ) where
@@ -14,14 +15,17 @@ import qualified UHF.PP as PP
 type PPGivenCurrentAndNextLevels thing = (thing -> PP.Token) -> (thing -> PP.Token) -> PP.Token
 type Levels thing = thing -> (Int, PPGivenCurrentAndNextLevels thing)
 
-pp_precedence :: Levels thing -> thing -> PP.Token
-pp_precedence levels = helper 0
+pp_precedence :: Levels thing -> (PP.Token -> PP.Token) -> thing -> PP.Token
+pp_precedence levels brackets = helper 0
     where
         helper current_precedence thing =
             let (level, pp) = levels thing
             in if level >= current_precedence
                 then pp (helper level) (helper (level + 1))
-                else PP.List ["(", pp (helper 0) (helper 1), ")"]
+                else brackets $ pp (helper 0) (helper 1)
+
+parenthesize :: PP.Token -> PP.Token
+parenthesize x = PP.List ["(", x, ")"]
 
 -- tests {{{1
 data AdditionAndMultiplication
@@ -39,7 +43,7 @@ test_addition_and_multiplication =
 
         make_test_case name expr expect =
             testCase name $
-                let pped = PP.render $ pp expr
+                let pped = PP.render $ pp parenthesize expr
                 in expect @=? pped
 
         a = Primary "a"

@@ -60,7 +60,7 @@ check adt_arena type_synonym_arena patterns = mapAccumL check_one_pattern [Any] 
         check_one_pattern :: [MatchValue] -> Pattern -> ([MatchValue], (Pattern, [MatchValue]))
         check_one_pattern uncovered cur_pattern =
             let (still_uncovered, covered) = unzip $ map (check_against_one_uncovered_value cur_pattern) uncovered
-            -- TODO: filter duplicates, also almost duplicates where _ and constructors are included
+            -- TODO: filter duplicates, also almost duplicates where _ and constructors are included (as of 2023-11-21, i am not sure what this todo is talking about)
             in (filter is_valid_match_value $ concat still_uncovered, (cur_pattern, filter is_valid_match_value $ concat covered))
 
         -- first list of tuple is all of the unmatched values

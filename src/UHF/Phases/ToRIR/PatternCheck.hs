@@ -52,8 +52,10 @@ show_match_value adt_arena (AnonADT variant fields) =
     in refer_variant <> "(" <> Text.intercalate ", " (map (show_match_value adt_arena) fields) <> ")"
 show_match_value adt_arena (Tuple a b) = "(" <> show_match_value adt_arena a <> ", " <> show_match_value adt_arena b <> ")" -- TODO: print multi-element tuples better
 
-check :: Arena.Arena (Type.ADT Type) Type.ADTKey -> [Pattern] -> ([MatchValue], [(Pattern, [MatchValue])])
-check adt_arena patterns = mapAccumL check_one_pattern [Any] patterns
+-- TODO: clean this up
+-- TODO: use actual type of expression being matched against, not types of patterns
+check :: Arena.Arena (Type.ADT Type) Type.ADTKey -> Arena.Arena (Type.TypeSynonym Type) Type.TypeSynonymKey -> [Pattern] -> ([MatchValue], [(Pattern, [MatchValue])])
+check adt_arena type_synonym_arena patterns = mapAccumL check_one_pattern [Any] patterns
     where
         check_one_pattern :: [MatchValue] -> Pattern -> ([MatchValue], (Pattern, [MatchValue]))
         check_one_pattern uncovered cur_pattern =
@@ -61,6 +63,8 @@ check adt_arena patterns = mapAccumL check_one_pattern [Any] patterns
             -- TODO: filter duplicates, also almost duplicates where _ and constructors are included
             in (filter is_valid_match_value $ concat still_uncovered, (cur_pattern, filter is_valid_match_value $ concat covered))
 
+        -- first list of tuple is all of the unmatched values
+        -- second list of tuple is all of the matched values
         check_against_one_uncovered_value :: Pattern -> MatchValue -> ([MatchValue], [MatchValue])
         check_against_one_uncovered_value (SIR.Pattern'Identifier ty _ _) uncovered_value = check_wild ty uncovered_value
         check_against_one_uncovered_value (SIR.Pattern'Wildcard ty _) uncovered_value = check_wild ty uncovered_value
@@ -86,7 +90,7 @@ check adt_arena patterns = mapAccumL check_one_pattern [Any] patterns
         check_against_one_uncovered_value (SIR.Pattern'AnonADTVariant (Just ty) _ (Just pat_variant) _ pat_fields) uncovered_value =
             case uncovered_value of
                 Any ->
-                    let (still_uncovered, covered) = unzip $ enumerate_adt_ctors_and_fields ty & map (uncurry go)
+                    let (still_uncovered, covered) = enumerate_adt_ctors_and_fields ty & map (uncurry go) & unzip
                     in (concat still_uncovered, concat covered)
                 AnonADT uncovered_variant uncovered_fields -> go uncovered_variant uncovered_fields
 
@@ -100,7 +104,23 @@ check adt_arena patterns = mapAccumL check_one_pattern [Any] patterns
                                 fields = Type.variant_field_types variant
                             in (variant_idx, map (const Any) fields)
                         )
-                enumerate_adt_ctors_and_fields _ = error "cannot enumerate adt variants of non-adt type"
+                enumerate_adt_ctors_and_fields (Type.Type'Synonym ts_key) =
+                    let (Type.TypeSynonym _ _ expansion) = Arena.get type_synonym_arena ts_key
+                    in case expansion of
+                         Just expansion -> enumerate_adt_ctors_and_fields expansion
+                         Nothing -> [] -- type error; treat it like it has no constructors / like an uninhabited type
+                enumerate_adt_ctors_and_fields (Type.Type'Int) = error_for_enumerate_adt_ctors_and_fields "Type'Int"
+                enumerate_adt_ctors_and_fields (Type.Type'Float) = error_for_enumerate_adt_ctors_and_fields "Type'Float"
+                enumerate_adt_ctors_and_fields (Type.Type'Char) = error_for_enumerate_adt_ctors_and_fields "Type'Char"
+                enumerate_adt_ctors_and_fields (Type.Type'String) = error_for_enumerate_adt_ctors_and_fields "Type'String"
+                enumerate_adt_ctors_and_fields (Type.Type'Bool) = error_for_enumerate_adt_ctors_and_fields "Type'Bool"
+                enumerate_adt_ctors_and_fields (Type.Type'Function _ _) = error_for_enumerate_adt_ctors_and_fields "Type'Function"
+                enumerate_adt_ctors_and_fields (Type.Type'Tuple _ _) = error_for_enumerate_adt_ctors_and_fields "Type'Tuple"
+                enumerate_adt_ctors_and_fields (Type.Type'Unknown v) = absurd v
+                enumerate_adt_ctors_and_fields (Type.Type'Variable _) = error_for_enumerate_adt_ctors_and_fields "Type'Variable"
+                enumerate_adt_ctors_and_fields (Type.Type'Forall _ _) = error_for_enumerate_adt_ctors_and_fields "Type'Forall"
+
+                error_for_enumerate_adt_ctors_and_fields ty = error $ "cannot enumerate adt constructors for " ++ ty
 
                 go uncovered_variant uncovered_fields
                     | uncovered_variant == pat_variant =
@@ -129,7 +149,7 @@ check adt_arena patterns = mapAccumL check_one_pattern [Any] patterns
                     -- and then we move on to Q2, take the original field combo [F1, F2], and replace F2 with Q2
                     -- finally, we move on to R2, so we replace F2 in the original field combo with R2
                     -- the resulting field combos would be [Q1, F2], [F1, Q2], [F1, R2]
-                    -- this works because for a field combo to be uncovered, it only needs 1 of its field to not match
+                    -- this works because for a field combo to be uncovered, it only needs 1 of its fields to not match
                     fields_uncovered
                         & zipWith
                             (\ field_i uncovered_possibilities ->
@@ -152,16 +172,16 @@ check adt_arena patterns = mapAccumL check_one_pattern [Any] patterns
 
         is_valid_match_value mv = True -- TODO: not (has_uninhabited_values mv)
 
-check_complete :: Arena.Arena (Type.ADT Type) Type.ADTKey -> Span -> [Pattern] -> Either CompletenessError ()
-check_complete adt_arena err_sp patterns =
-    let (left_over, _) = check adt_arena patterns
+check_complete :: Arena.Arena (Type.ADT Type) Type.ADTKey -> Arena.Arena (Type.TypeSynonym Type) Type.TypeSynonymKey -> Span -> [Pattern] -> Either CompletenessError ()
+check_complete adt_arena type_synonym_arena err_sp patterns =
+    let (left_over, _) = check adt_arena type_synonym_arena patterns
     in if null left_over
         then Right ()
         else Left $ CompletenessError adt_arena err_sp patterns left_over
 
-check_useful :: Arena.Arena (Type.ADT Type) Type.ADTKey -> [Pattern] -> Either [NotUseful] ()
-check_useful adt_arena patterns =
-    let (_, patterns') = check adt_arena patterns
+check_useful :: Arena.Arena (Type.ADT Type) Type.ADTKey -> Arena.Arena (Type.TypeSynonym Type) Type.TypeSynonymKey -> [Pattern] -> Either [NotUseful] ()
+check_useful adt_arena type_synonym_arena patterns =
+    let (_, patterns') = check adt_arena type_synonym_arena patterns
         warns = mapMaybe (\ (pat, covers) -> if null covers then Just (NotUseful pat) else Nothing) patterns'
     in if null warns
         then Right ()

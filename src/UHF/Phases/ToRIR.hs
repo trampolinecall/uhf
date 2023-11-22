@@ -35,7 +35,7 @@ type RIRBinding = RIR.Binding
 
 type BoundValueArena = Arena.Arena RIR.BoundValue RIR.BoundValueKey
 
-type ConvertState = ReaderT (Arena.Arena (Type.ADT Type) Type.ADTKey) (StateT BoundValueArena (IDGen.IDGenT ID.BoundValueID (IDGen.IDGenT ID.ExprID (Compiler.WithDiagnostics PatternCheck.CompletenessError PatternCheck.NotUseful))))
+type ConvertState = ReaderT (Arena.Arena (Type.ADT Type) Type.ADTKey, Arena.Arena (Type.TypeSynonym Type) Type.TypeSynonymKey) (StateT BoundValueArena (IDGen.IDGenT ID.BoundValueID (IDGen.IDGenT ID.ExprID (Compiler.WithDiagnostics PatternCheck.CompletenessError PatternCheck.NotUseful))))
 
 new_made_up_expr_id :: (ID.ExprID -> a) -> ConvertState a
 new_made_up_expr_id make =
@@ -53,7 +53,7 @@ convert (SIR.SIR _ modules adts type_synonyms type_vars bvs mod) = do
                     SIR.BoundValue'ADTVariant id _ _ ty sp -> RIR.BoundValue id ty sp
                 )
                 bvs
-    (cu, bvs_with_new) <- IDGen.run_id_gen_t ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.BoundValueID'RIRMadeUp $ runStateT (runReaderT (assemble_cu modules mod) adts_converted) bvs_converted
+    (cu, bvs_with_new) <- IDGen.run_id_gen_t ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.BoundValueID'RIRMadeUp $ runStateT (runReaderT (assemble_cu modules mod) (adts_converted, type_synonyms_converted)) bvs_converted
     pure (RIR.RIR adts_converted type_synonyms_converted type_vars bvs_with_new cu)
 
 assemble_cu :: Arena.Arena SIRModule SIR.ModuleKey -> SIR.ModuleKey -> ConvertState RIR.CU
@@ -73,7 +73,7 @@ convert_type_synonym (Type.TypeSynonym id name expansion) = Type.TypeSynonym id 
 convert_binding :: SIRBinding -> ConvertState [RIRBinding]
 convert_binding (SIR.Binding pat eq_sp expr) = convert_expr expr >>= assign_pattern eq_sp pat
 convert_binding (SIR.Binding'ADTVariant name_sp bvk type_params variant_index) =
-    ask >>= \ adts ->
+    ask >>= \ (adts, _) ->
     let variant = Type.get_adt_variant adts variant_index
 
         wrap_in_forall = case type_params of
@@ -167,11 +167,11 @@ convert_expr (SIR.Expr'Match id ty sp match_tok_sp scrutinee arms) = do
     bv_arena <- lift get
     scrutinee_bv <- new_bound_value (RIR.expr_type bv_arena scrutinee) (RIR.expr_span scrutinee)
 
-    adt_arena <- ask
-    case PatternCheck.check_complete adt_arena match_tok_sp (map fst arms) of
+    (adt_arena, type_synonym_arena) <- ask
+    case PatternCheck.check_complete adt_arena type_synonym_arena match_tok_sp (map fst arms) of
         Right () -> pure ()
         Left err -> lift $ lift $ lift $ lift $ Compiler.tell_error  err
-    case PatternCheck.check_useful adt_arena (map fst arms) of
+    case PatternCheck.check_useful adt_arena type_synonym_arena (map fst arms) of
         Right () -> pure ()
         Left warns -> lift $ lift $ lift $ lift $ Compiler.tell_warnings $ warns
 
@@ -223,8 +223,8 @@ convert_expr (SIR.Expr'TypeApply id ty sp e arg) = RIR.Expr'TypeApply id ty sp <
 
 assign_pattern :: Span -> SIRPattern -> RIRExpr -> ConvertState [RIRBinding]
 assign_pattern incomplete_err_sp pat expr = do
-    adt_arena <- ask
-    case PatternCheck.check_complete adt_arena incomplete_err_sp [pat] of
+    (adt_arena, type_synonym_arena) <- ask
+    case PatternCheck.check_complete adt_arena type_synonym_arena incomplete_err_sp [pat] of
         Right () -> pure ()
         Left err -> lift $ lift $ lift $ lift $ Compiler.tell_error err
 

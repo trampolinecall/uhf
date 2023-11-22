@@ -3,6 +3,7 @@ module UHF.Phases.TSBackend.TS.PP (stmts) where
 import UHF.Util.Prelude
 
 import qualified UHF.PP as PP
+import qualified UHF.PP.Precedence as PP.Precedence
 
 import qualified UHF.Phases.TSBackend.TS as TS
 
@@ -46,86 +47,54 @@ stmt (TS.Stmt'Break (Just label)) = PP.List ["break ", PP.String label, ";"]
 stmt TS.Stmt'Spacer = PP.List []
 
 expr :: TS.Expr -> PP.Token
-expr = level1
+expr = PP.Precedence.pp_precedence levels PP.Precedence.parenthesize
     where
-        -- TODO: fix infinite recursion when adding new thing and forgetting to add to here
-        -- "one simple trick" for printing precedence taken from https://www.haskellforall.com/2020/11/pretty-print-syntax-trees-with-this-one.html
-        -- precedence info is taken from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Operator_Precedence#table, also is not complete
+        -- precedence info is taken from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Operator_Precedence#table
+        -- also, this ast does not cover every possible type of expression
 
         -- level 1: comma / sequence operator (not in this ast)
-        level1 = level2
-
         -- level 2: '=>' rtl, '?:' rtl, assignment rtl
-        level2 (TS.Expr'ArrowFunction p ret body) = PP.List [params p, type_annotation ret, " => ", body']
-            where
-                body' = case body of
-                    Left e -> level2 e
-                    Right stmts -> PP.braced_block $ map stmt stmts
-        level2 (TS.Expr'Assign lhs rhs) = PP.List [level3 lhs, " = ", level2 rhs]
-        level2 e = level3 e
-
+        levels (TS.Expr'ArrowFunction p ret body) =
+            ( 2
+            , \ cur _ ->
+                let body' = case body of
+                        Left e -> cur e
+                        Right stmts -> PP.braced_block $ map stmt stmts
+                in PP.List [params p, type_annotation ret, " => ", body']
+            )
+        levels (TS.Expr'Assign lhs rhs) = (2, \ cur next -> PP.List [next lhs, " = ", cur rhs])
         -- level 3: '||' ltr, '??' ltr
-        level3 = level4
-
         -- level 4: '&&' ltr
-        level4 = level5
-
         -- level 5: '|' ltr
-        level5 = level6
-
         -- level 6: '^' ltr
-        level6 = level7
-
         -- level 7: '&' ltr
-        level7 = level8
-
         -- level 8: equality ltr
-        level8 (TS.Expr'Eq a b) = PP.List [level8 a, " == ", level9 b]
-        level8 e = level9 e
-
+        levels (TS.Expr'Eq a b) = (8, \ cur next -> PP.List [cur a, " == ", next b])
         -- level 9: comparison ltr, 'in' ltr, 'instanceof' ltr
-        level9 = level10
-
         -- level 10: bitwise shift ltr
-        level10 = level11
-
         -- level 11: addition and subtraction ltr
-        level11 = level12
-
         -- level 12: multiplication, division, modulo ltr
-        level12 (TS.Expr'Div a b) = PP.List [level12 a, " / ", level13 b]
-        level12 e = level13 e
-
+        levels (TS.Expr'Div a b) = (12, \ cur next -> PP.List [cur a, " / ", next b])
         -- level 13: exponentiation ('**') rtl
-        level13 = level14
-
         -- level 14: '!x', '~x', '+x', '-x', '++x', '--x', 'typeof x', 'void x', 'delete x', 'await x'
-        level14 = level15
-
         -- level 15: 'x++', 'y++'
-        level15 = level16
-
         -- level 16: 'new x'
-        level16 (TS.Expr'New constructor []) = PP.List ["new ", level17 constructor] -- not sure what this is supposed to be
-        level16 e = level17 e
-
+        levels (TS.Expr'New constructor []) = (16, \ _ next -> PP.List ["new ", next constructor]) -- not entirely sure if this is correct
         -- level 17: 'x[y]', 'new x()', function call, also 'x.y' and 'x?.y' ltr
-        level17 (TS.Expr'Get e field) = PP.List [level17 e, ".", PP.String field]
-        level17 (TS.Expr'Call e args) = PP.List [level17 e, PP.parenthesized_comma_list PP.Inconsistent (map expr args)]
-        level17 (TS.Expr'New constructor args) = PP.List ["new ", level18 constructor, PP.parenthesized_comma_list PP.Inconsistent (map expr args)]
-        level17 e = level18 e
-
+        levels (TS.Expr'Get e field) = (17, \ cur _ -> PP.List [cur e, ".", PP.String field])
+        levels (TS.Expr'Call e args) = (17, \ cur _ -> PP.List [cur e, PP.parenthesized_comma_list PP.Inconsistent (map expr args)])
+        levels (TS.Expr'New constructor args) = (17, \ _ next -> PP.List ["new ", next constructor, PP.parenthesized_comma_list PP.Inconsistent (map expr args)])
         -- level 18: parentheses
-        level18 (TS.Expr'Identifier n) = PP.String n
-        level18 (TS.Expr'Int i) = PP.String $ show i
-        level18 (TS.Expr'Bool b) = if b then "true" else "false"
-        level18 (TS.Expr'Char c) = PP.String $ show c
-        level18 (TS.Expr'String s) = PP.String $ show s
-        level18 TS.Expr'Undefined = "undefined"
-        level18 (TS.Expr'StrLit s) = PP.List ["\"", PP.String s, "\""]
-        level18 (TS.Expr'List es) = PP.bracketed_comma_list PP.Inconsistent (map expr es)
-        level18 (TS.Expr'Object items) =
-            PP.braced_comma_list
+        levels (TS.Expr'Identifier n) = (18, \ _ _ -> PP.String n)
+        levels (TS.Expr'Int i) = (18, \ _ _ -> PP.String $ show i)
+        levels (TS.Expr'Bool b) = (18, \ _ _ -> if b then "true" else "false")
+        levels (TS.Expr'Char c) = (18, \ _ _ -> PP.String $ show c)
+        levels (TS.Expr'String s) = (18, \ _ _ -> PP.String $ show s)
+        levels TS.Expr'Undefined = (18, \ _ _ -> "undefined")
+        levels (TS.Expr'StrLit s) = (18, \ _ _ -> PP.List ["\"", PP.String s, "\""])
+        levels (TS.Expr'List es) = (18, \ _ _ -> PP.bracketed_comma_list PP.Inconsistent (map expr es))
+        levels (TS.Expr'Object items) =
+            (18, \ _ _ -> PP.braced_comma_list
                 PP.Inconsistent
                 (map
                     (\ (n, init) ->
@@ -133,26 +102,17 @@ expr = level1
                                 Nothing -> ""
                                 Just e -> PP.List [": ", expr e]
                         in PP.List [PP.String n, init'])
-                    items)
-        level18 e = PP.List ["(", level1 e, ")"]
+                    items))
 
 type_ :: TS.Type -> PP.Token
-type_ = level1
+type_ = PP.Precedence.pp_precedence levels PP.Precedence.parenthesize
     where
-        -- precedence taken from https://github.com/antlr/grammars-v4/blob/master/javascript/typescript/TypeScriptParser.g4#L80
-        -- same "one simple trick" used
-
-        level1 (TS.Type'StrLit s) = PP.List ["\"", PP.String s, "\""]
-        level1 t = level2 t
-
-        level2 (TS.Type'Union a b) = PP.List [type_ a, " | ", type_ b]
-        level2 t = level3 t
-
-        level3 (TS.Type'Reference ref) = ty_ref ref
-        level3 (TS.Type'Object fields) = PP.braced_comma_list PP.Inconsistent (map field fields)
-            where field (name, ty) = PP.List [PP.String name, type_annotation ty]
-        level3 TS.Type'Never = "never"
-        level3 t = PP.List ["(", level1 t, ")"]
+        -- TODO: putting strlit on level 1 would result in ("a") | ("b"), right? that would be unnecessary; change strlit to level 3?
+        levels (TS.Type'StrLit s) = (1, \ _ _ -> PP.List ["\"", PP.String s, "\""])
+        levels (TS.Type'Union a b) = (2, \ cur next -> PP.List [cur a, " | ", next b])
+        levels (TS.Type'Reference ref) = (3, \ _ _ -> ty_ref ref)
+        levels (TS.Type'Object fields) = (3, \ _ _ -> PP.braced_comma_list PP.Inconsistent (map (\ (name, ty) -> PP.List [PP.String name, type_annotation ty]) fields))
+        levels TS.Type'Never = (3, \ _ _ -> "never")
 
 type_annotation :: Maybe TS.Type -> PP.Token
 type_annotation (Just ty) = PP.List [": ", type_ ty]

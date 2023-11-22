@@ -109,11 +109,11 @@ check adt_arena type_synonym_arena patterns = mapAccumL check_one_pattern [Any] 
                     in case expansion of
                          Just expansion -> enumerate_adt_ctors_and_fields expansion
                          Nothing -> [] -- type error; treat it like it has no constructors / like an uninhabited type
-                enumerate_adt_ctors_and_fields (Type.Type'Int) = error_for_enumerate_adt_ctors_and_fields "Type'Int"
-                enumerate_adt_ctors_and_fields (Type.Type'Float) = error_for_enumerate_adt_ctors_and_fields "Type'Float"
-                enumerate_adt_ctors_and_fields (Type.Type'Char) = error_for_enumerate_adt_ctors_and_fields "Type'Char"
-                enumerate_adt_ctors_and_fields (Type.Type'String) = error_for_enumerate_adt_ctors_and_fields "Type'String"
-                enumerate_adt_ctors_and_fields (Type.Type'Bool) = error_for_enumerate_adt_ctors_and_fields "Type'Bool"
+                enumerate_adt_ctors_and_fields Type.Type'Int = error_for_enumerate_adt_ctors_and_fields "Type'Int"
+                enumerate_adt_ctors_and_fields Type.Type'Float = error_for_enumerate_adt_ctors_and_fields "Type'Float"
+                enumerate_adt_ctors_and_fields Type.Type'Char = error_for_enumerate_adt_ctors_and_fields "Type'Char"
+                enumerate_adt_ctors_and_fields Type.Type'String = error_for_enumerate_adt_ctors_and_fields "Type'String"
+                enumerate_adt_ctors_and_fields Type.Type'Bool = error_for_enumerate_adt_ctors_and_fields "Type'Bool"
                 enumerate_adt_ctors_and_fields (Type.Type'Function _ _) = error_for_enumerate_adt_ctors_and_fields "Type'Function"
                 enumerate_adt_ctors_and_fields (Type.Type'Tuple _ _) = error_for_enumerate_adt_ctors_and_fields "Type'Tuple"
                 enumerate_adt_ctors_and_fields (Type.Type'Unknown v) = absurd v

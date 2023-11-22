@@ -39,7 +39,7 @@ type ConvertState = ReaderT (Arena.Arena (Type.ADT Type) Type.ADTKey, Arena.Aren
 
 new_made_up_expr_id :: (ID.ExprID -> a) -> ConvertState a
 new_made_up_expr_id make =
-    (lift $ lift $ lift IDGen.gen_id) >>= \ id ->
+    lift (lift $ lift IDGen.gen_id) >>= \ id ->
     pure (make id)
 
 convert :: SIR -> Compiler.WithDiagnostics PatternCheck.CompletenessError PatternCheck.NotUseful RIR.RIR
@@ -173,7 +173,7 @@ convert_expr (SIR.Expr'Match id ty sp match_tok_sp scrutinee arms) = do
         Left err -> lift $ lift $ lift $ lift $ Compiler.tell_error  err
     case PatternCheck.check_useful adt_arena type_synonym_arena (map fst arms) of
         Right () -> pure ()
-        Left warns -> lift $ lift $ lift $ lift $ Compiler.tell_warnings $ warns
+        Left warns -> lift $ lift $ lift $ lift $ Compiler.tell_warnings warns
 
     arms <- arms
         & mapM (\ (pat, result) ->

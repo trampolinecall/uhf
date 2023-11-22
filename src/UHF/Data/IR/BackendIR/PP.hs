@@ -120,7 +120,7 @@ expr (BackendIR.Expr'Match _ _ t) = tree t >>= \ t -> pure (PP.List ["match ", t
         clause (BackendIR.MatchClause'Binding b) = define_binding b
 
         matcher (BackendIR.Match'BoolLiteral b) = pure $ if b then "true" else "false"
-        matcher (BackendIR.Match'Tuple) = pure "(,)"
+        matcher BackendIR.Match'Tuple = pure "(,)"
         matcher (BackendIR.Match'AnonADTVariant m_variant) =
             either
                 (\ _ -> pure "<name resolution error>")

@@ -356,7 +356,7 @@ type_parenthesized =
     PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>
     type_ >>= \ ty ->
     PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>
-    pure (ty)
+    pure ty
 
 type_tuple :: PEG.Parser AST.Type
 type_tuple =

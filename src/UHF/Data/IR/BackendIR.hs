@@ -46,7 +46,7 @@ data BackendIR ty poison_allowed
         CU
 
 -- "compilation unit"
-data CU = CU (BindingGroup) [ADTKey] [TypeSynonymKey]
+data CU = CU BindingGroup [ADTKey] [TypeSynonymKey]
 
 data Param ty = Param ID.BoundValueID ty deriving Show
 
@@ -90,7 +90,7 @@ data Expr ty poison_allowed
     | Expr'TupleDestructure2 ID ty BindingKey
     | Expr'ADTDestructure ID ty BindingKey (Either poison_allowed Type.ADTFieldIndex)
 
-    | Expr'Forall ID ty (NonEmpty TypeVarKey) (BindingGroup) BindingKey
+    | Expr'Forall ID ty (NonEmpty TypeVarKey) BindingGroup BindingKey
     | Expr'TypeApply ID ty BindingKey ty
 
     | Expr'Poison ID ty poison_allowed

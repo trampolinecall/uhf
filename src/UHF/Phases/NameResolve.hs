@@ -139,7 +139,7 @@ pattern_bvs (SIR.Pattern'Identifier _ sp bvk) = bv_name bvk >>= \ name -> pure [
 pattern_bvs (SIR.Pattern'Wildcard _ _) = pure []
 pattern_bvs (SIR.Pattern'Tuple _ _ a b) = pattern_bvs a >>= \ a -> pattern_bvs b >>= \ b -> pure (a ++ b)
 pattern_bvs (SIR.Pattern'Named _ _ _ (Located bv_span bvk) subpat) = bv_name bvk >>= \ name -> pattern_bvs subpat >>= \ subpat -> pure ((name, DeclAt bv_span, bvk) : subpat)
-pattern_bvs (SIR.Pattern'AnonADTVariant _ _ _ _ fields) = concat <$> mapM (pattern_bvs) fields
+pattern_bvs (SIR.Pattern'AnonADTVariant _ _ _ _ fields) = concat <$> mapM pattern_bvs fields
 pattern_bvs (SIR.Pattern'NamedADTVariant _ _ _ _ fields) = concat <$> mapM (pattern_bvs . snd) fields
 pattern_bvs (SIR.Pattern'Poison _ _) = pure []
 
@@ -228,8 +228,8 @@ collect_child_maps mod_arena type_synonym_arena = Arena.transformM go mod_arena
                         pure ([(name, DeclAt name_sp, synonym_decl_key)], [], [])
                     )
                     type_synonyms >>= \ (type_synonym_decl_entries, type_synonym_bv_entries, type_synonym_variant_entries) ->
-            (lift primitive_decls) >>= \ primitive_decls ->
-            (lift primitive_bvs) >>= \ primitive_bvs ->
+            lift primitive_decls >>= \ primitive_decls ->
+            lift primitive_bvs >>= \ primitive_bvs ->
             lift (lift $ make_child_maps
                 (concat $ primitive_decls : binding_decl_entries ++ adt_decl_entries ++ type_synonym_decl_entries)
                 (concat $ primitive_bvs : binding_bv_entries ++ adt_bv_entries ++ type_synonym_bv_entries)
@@ -246,13 +246,13 @@ resolve_in_adts adt_parent_child_maps adt_arena = Arena.transform_with_keyM (res
 resolve_in_type_synonyms :: Map.Map Type.TypeSynonymKey ChildMaps -> UnresolvedTypeSynonymArena -> (NRReader adt_arena bv_arena TypeVarArena ModuleChildMaps (MakeDeclState CollectingErrors)) ResolvedTypeSynonymArena
 resolve_in_type_synonyms synonym_parent_child_maps type_synonym_arena = Arena.transform_with_keyM (resolve_in_type_synonym synonym_parent_child_maps) type_synonym_arena
 
-resolve_in_module :: SIR.ModuleKey -> UnresolvedModule -> WriterT (Map Type.ADTKey ChildMaps) (WriterT (Map Type.TypeSynonymKey ChildMaps) ((NRReader UnresolvedADTArena BoundValueArena TypeVarArena ModuleChildMaps (MakeDeclState CollectingErrors)))) ResolvedModule
+resolve_in_module :: SIR.ModuleKey -> UnresolvedModule -> WriterT (Map Type.ADTKey ChildMaps) (WriterT (Map Type.TypeSynonymKey ChildMaps) (NRReader UnresolvedADTArena BoundValueArena TypeVarArena ModuleChildMaps (MakeDeclState CollectingErrors))) ResolvedModule
 resolve_in_module mod_key (SIR.Module id bindings adts type_synonyms) =
-    lift (lift $ ask_module_child_maps) >>= \ module_child_maps ->
+    lift (lift ask_module_child_maps) >>= \ module_child_maps ->
     let cur_map = Arena.get module_child_maps mod_key
-    in mapM (\ adt -> tell $ Map.singleton adt cur_map) adts >>
+    in mapM_ (\ adt -> tell $ Map.singleton adt cur_map) adts >>
     mapM (\ synonym -> lift $ tell $ Map.singleton synonym cur_map) type_synonyms >>
-    SIR.Module id <$> (mapM (lift . lift . resolve_in_binding (ChildMapStack cur_map Nothing)) bindings) <*> pure adts <*> pure type_synonyms
+    SIR.Module id <$> mapM (lift . lift . resolve_in_binding (ChildMapStack cur_map Nothing)) bindings <*> pure adts <*> pure type_synonyms
 
 resolve_in_adt :: Map.Map Type.ADTKey ChildMaps -> Type.ADTKey -> UnresolvedADT -> (NRReader adt_arena bv_arena TypeVarArena ModuleChildMaps (MakeDeclState CollectingErrors)) ResolvedADT
 resolve_in_adt adt_parent_child_maps adt_key (Type.ADT id name type_vars variants) =
@@ -303,8 +303,8 @@ resolve_in_pat _ (SIR.Pattern'Identifier type_info sp bnk) = pure $ SIR.Pattern'
 resolve_in_pat _ (SIR.Pattern'Wildcard type_info sp) = pure $ SIR.Pattern'Wildcard type_info sp
 resolve_in_pat nc_stack (SIR.Pattern'Tuple type_info sp a b) = SIR.Pattern'Tuple type_info sp <$> resolve_in_pat nc_stack a <*> resolve_in_pat nc_stack b
 resolve_in_pat nc_stack (SIR.Pattern'Named type_info sp at_sp bnk subpat) = SIR.Pattern'Named type_info sp at_sp bnk <$> resolve_in_pat nc_stack subpat
-resolve_in_pat nc_stack (SIR.Pattern'AnonADTVariant type_info sp variant tyargs subpat) = SIR.Pattern'AnonADTVariant type_info sp <$> (resolve_iden_in_monad resolve_pat_iden nc_stack (split_iden variant)) <*> pure tyargs <*> mapM (resolve_in_pat nc_stack) subpat
-resolve_in_pat nc_stack (SIR.Pattern'NamedADTVariant type_info sp variant tyargs subpat) = SIR.Pattern'NamedADTVariant type_info sp <$> (resolve_iden_in_monad resolve_pat_iden nc_stack (split_iden variant)) <*> pure tyargs <*> mapM (\ (field_name, field_pat) -> (field_name,) <$> resolve_in_pat nc_stack field_pat) subpat
+resolve_in_pat nc_stack (SIR.Pattern'AnonADTVariant type_info sp variant tyargs subpat) = SIR.Pattern'AnonADTVariant type_info sp <$> resolve_iden_in_monad resolve_pat_iden nc_stack (split_iden variant) <*> pure tyargs <*> mapM (resolve_in_pat nc_stack) subpat
+resolve_in_pat nc_stack (SIR.Pattern'NamedADTVariant type_info sp variant tyargs subpat) = SIR.Pattern'NamedADTVariant type_info sp <$> resolve_iden_in_monad resolve_pat_iden nc_stack (split_iden variant) <*> pure tyargs <*> mapM (\ (field_name, field_pat) -> (field_name,) <$> resolve_in_pat nc_stack field_pat) subpat
 resolve_in_pat _ (SIR.Pattern'Poison type_info sp) = pure $ SIR.Pattern'Poison type_info sp
 
 resolve_in_expr :: ChildMapStack -> UnresolvedExpr -> (NRReader UnresolvedADTArena BoundValueArena TypeVarArena ModuleChildMaps (MakeDeclState CollectingErrors)) ResolvedExpr
@@ -318,7 +318,7 @@ resolve_in_expr _ (SIR.Expr'Bool id type_info sp b) = pure $ SIR.Expr'Bool id ty
 resolve_in_expr nc_stack (SIR.Expr'Tuple id type_info sp a b) = SIR.Expr'Tuple id type_info sp <$> resolve_in_expr nc_stack a <*> resolve_in_expr nc_stack b
 
 resolve_in_expr nc_stack (SIR.Expr'Lambda id type_info sp param body) =
-    (pattern_bvs param) >>= \ param_bvs ->
+    pattern_bvs param >>= \ param_bvs ->
     lift (lift $ make_child_maps [] param_bvs []) >>= \ new_nc ->
     SIR.Expr'Lambda id type_info sp <$> resolve_in_pat nc_stack param <*> resolve_in_expr (ChildMapStack new_nc (Just nc_stack)) body
 
@@ -346,7 +346,7 @@ resolve_in_expr nc_stack (SIR.Expr'Match id type_info sp match_tok_sp e arms) =
         <*> mapM
                 (\ (pat, expr) ->
                     resolve_in_pat nc_stack pat >>= \ pat' ->
-                    (pattern_bvs pat) >>= \ bv_children ->
+                    pattern_bvs pat >>= \ bv_children ->
                     lift (lift $ make_child_maps [] bv_children []) >>= \ arm_nc ->
                     (pat',) <$> resolve_in_expr (ChildMapStack arm_nc (Just nc_stack)) expr
                 )
@@ -405,7 +405,7 @@ resolve_expr_iden _ _ child_map_stack (Nothing, last_segment@(Located last_segme
                         Nothing -> Left $ CouldNotFind Nothing name
 
 resolve_type_iden :: DeclArena -> ModuleChildMaps -> ChildMapStack -> UnresolvedDIden -> CollectingErrors (Maybe SIR.DeclKey)
-resolve_type_iden _ _ _ ([]) = error "empty identifier"
+resolve_type_iden _ _ _ [] = error "empty identifier"
 resolve_type_iden decls mods child_map_stack (first:more) =
     case resolve_first child_map_stack first of
         Right first_resolved ->

@@ -110,7 +110,7 @@ expr (ANFIR.Expr'Match _ _ t) = tree t >>= \ t -> pure (PP.List ["match ", t])
         clause (ANFIR.MatchClause'Binding b) = define_binding b
 
         matcher (ANFIR.Match'BoolLiteral b) = pure $ if b then "true" else "false"
-        matcher (ANFIR.Match'Tuple) = pure "(,)"
+        matcher ANFIR.Match'Tuple = pure "(,)"
         matcher (ANFIR.Match'AnonADTVariant m_variant) =
             maybe
                 (pure "<name resolution error>")

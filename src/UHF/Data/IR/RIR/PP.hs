@@ -117,7 +117,7 @@ expr (RIR.Expr'Match _ _ _ tree) = pp_tree tree >>= \ tree -> pure (PP.List ["ma
                     Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
                     Type.get_adt_variant <$> get_adt_arena <*> pure variant_idx >>= \ variant ->
                     let variant_name = Type.variant_name variant
-                    in pure $ PP.List [adt_refer, " ", PP.String $ unlocate variant_name], PP.String $ show field_idx
+                    in pure (PP.List [adt_refer, " ", PP.String $ unlocate variant_name], PP.String $ show field_idx)
                 )
                 m_field >>= \ (refer_variant, field_idx) ->
             pure (PP.List ["(", base, " as ", refer_variant, ").", field_idx])

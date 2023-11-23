@@ -122,7 +122,7 @@ instance Diagnostic.ToError Error where
             decl_at_span (DeclAt sp) = Just sp
             decl_at_span ImplicitPrim = Nothing
             decl_at_message _ (DeclAt _) = Nothing
-            decl_at_message n ImplicitPrim = Just $ "'" <> convert_str n <> "' is implicitly declared as a primitive" -- TODO: reword this message (ideally when it is declared through the prelude import the message would be something like 'implicitly declared by implicit import of prelude')
+            decl_at_message n ImplicitPrim = Just $ "'" <> convert_str n <> "' is implicitly declared as a primitive" -- TODO: reword this message (ideally when it is declared through the prelude import the message would be something like 'implicitly declared by prelude')
 
 data DeclAt = DeclAt Span | ImplicitPrim deriving Show
 

@@ -31,8 +31,8 @@ type ModuleDeclMap = Arena.Arena DeclMap SIR.ModuleKey
 type DeclArena = Arena.Arena SIR.Decl SIR.DeclKey
 
 type UnevaledDIden = [Located Text]
-type UnevaledVIden = Located [Located Text] -- TODO: make ToSIR make this (Maybe [Located Text], Located Text)
-type UnevaledPIden = [Located Text] -- TODO: make ToSIR make this (Maybe [Located Text], Located Text)
+type UnevaledVIden = Located (Maybe [Located Text], Located Text)
+type UnevaledPIden = (Maybe [Located Text], Located Text)
 
 type UnevaledSIR = SIR.SIR UnevaledDIden UnevaledVIden UnevaledPIden () ()
 type UnevaledModule = SIR.Module UnevaledDIden UnevaledVIden UnevaledPIden () ()
@@ -288,12 +288,12 @@ resolve_in_pat _ (SIR.Pattern'Identifier type_info sp bnk) = pure $ SIR.Pattern'
 resolve_in_pat _ (SIR.Pattern'Wildcard type_info sp) = pure $ SIR.Pattern'Wildcard type_info sp
 resolve_in_pat nc_stack (SIR.Pattern'Tuple type_info sp a b) = SIR.Pattern'Tuple type_info sp <$> resolve_in_pat nc_stack a <*> resolve_in_pat nc_stack b
 resolve_in_pat nc_stack (SIR.Pattern'Named type_info sp at_sp bnk subpat) = SIR.Pattern'Named type_info sp at_sp bnk <$> resolve_in_pat nc_stack subpat
-resolve_in_pat nc_stack (SIR.Pattern'AnonADTVariant type_info sp variant tyargs subpat) = SIR.Pattern'AnonADTVariant type_info sp <$> resolve_iden_in_monad resolve_pat_iden nc_stack (split_iden variant) <*> pure tyargs <*> mapM (resolve_in_pat nc_stack) subpat
-resolve_in_pat nc_stack (SIR.Pattern'NamedADTVariant type_info sp variant tyargs subpat) = SIR.Pattern'NamedADTVariant type_info sp <$> resolve_iden_in_monad resolve_pat_iden nc_stack (split_iden variant) <*> pure tyargs <*> mapM (\ (field_name, field_pat) -> (field_name,) <$> resolve_in_pat nc_stack field_pat) subpat
+resolve_in_pat nc_stack (SIR.Pattern'AnonADTVariant type_info sp variant tyargs subpat) = SIR.Pattern'AnonADTVariant type_info sp <$> resolve_iden_in_monad resolve_pat_iden nc_stack variant <*> pure tyargs <*> mapM (resolve_in_pat nc_stack) subpat
+resolve_in_pat nc_stack (SIR.Pattern'NamedADTVariant type_info sp variant tyargs subpat) = SIR.Pattern'NamedADTVariant type_info sp <$> resolve_iden_in_monad resolve_pat_iden nc_stack variant <*> pure tyargs <*> mapM (\ (field_name, field_pat) -> (field_name,) <$> resolve_in_pat nc_stack field_pat) subpat
 resolve_in_pat _ (SIR.Pattern'Poison type_info sp) = pure $ SIR.Pattern'Poison type_info sp
 
 resolve_in_expr :: DeclMapStack -> UnevaledExpr -> (NRReader UnevaledADTArena BoundValueArena TypeVarArena ModuleDeclMap (MakeDeclState CollectingErrors)) EvaledExpr
-resolve_in_expr nc_stack (SIR.Expr'Identifier id type_info sp i) = SIR.Expr'Identifier id type_info sp <$> resolve_iden_in_monad resolve_expr_iden nc_stack (split_iden <$> i)
+resolve_in_expr nc_stack (SIR.Expr'Identifier id type_info sp i) = SIR.Expr'Identifier id type_info sp <$> resolve_iden_in_monad resolve_expr_iden nc_stack i
 resolve_in_expr _ (SIR.Expr'Char id type_info sp c) = pure $ SIR.Expr'Char id type_info sp c
 resolve_in_expr _ (SIR.Expr'String id type_info sp s) = pure $ SIR.Expr'String id type_info sp s
 resolve_in_expr _ (SIR.Expr'Int id type_info sp i) = pure $ SIR.Expr'Int id type_info sp i
@@ -320,7 +320,7 @@ resolve_in_expr nc_stack (SIR.Expr'LetRec id type_info sp bindings body) =
     let new_nc_stack = DeclMapStack new_nc (Just nc_stack)
     in SIR.Expr'LetRec id type_info sp <$> mapM (resolve_in_binding new_nc_stack) bindings <*> resolve_in_expr new_nc_stack body
 
-resolve_in_expr nc_stack (SIR.Expr'BinaryOps id allowed type_info sp first ops) = SIR.Expr'BinaryOps id allowed type_info sp <$> resolve_in_expr nc_stack first <*> mapM (\ (iden, rhs) -> (,) <$> resolve_iden_in_monad resolve_expr_iden nc_stack (split_iden <$> iden) <*> resolve_in_expr nc_stack rhs) ops
+resolve_in_expr nc_stack (SIR.Expr'BinaryOps id allowed type_info sp first ops) = SIR.Expr'BinaryOps id allowed type_info sp <$> resolve_in_expr nc_stack first <*> mapM (\ (iden, rhs) -> (,) <$> resolve_iden_in_monad resolve_expr_iden nc_stack iden <*> resolve_in_expr nc_stack rhs) ops
 
 resolve_in_expr nc_stack (SIR.Expr'Call id type_info sp callee arg) = SIR.Expr'Call id type_info sp <$> resolve_in_expr nc_stack callee <*> resolve_in_expr nc_stack arg
 
@@ -354,11 +354,6 @@ resolve_in_expr nc_stack (SIR.Expr'TypeApply id type_info sp e args) = SIR.Expr'
 resolve_in_expr _ (SIR.Expr'Hole id type_info sp hid) = pure $ SIR.Expr'Hole id type_info sp hid
 
 resolve_in_expr _ (SIR.Expr'Poison id type_info sp) = pure $ SIR.Expr'Poison id type_info sp
-
-split_iden :: [Located Text] -> (Maybe [Located Text], Located Text)
-split_iden [] = error "empty identifier"
-split_iden [x] = (Nothing, x)
-split_iden x = (Just $ init x, last x)
 
 resolve_iden_in_monad :: Monad under => (DeclArena -> ModuleDeclMap -> DeclMapStack -> iden -> under resolved) -> DeclMapStack -> iden -> NRReader adt_arena bv_arena type_var_arena ModuleDeclMap (MakeDeclState under) resolved
 resolve_iden_in_monad f nc_stack iden =

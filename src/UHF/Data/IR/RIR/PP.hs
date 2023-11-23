@@ -5,6 +5,7 @@ import UHF.Util.Prelude
 import qualified Arena
 
 import qualified UHF.PP as PP
+import qualified UHF.PP.Precedence as PP.Precedence
 
 import qualified UHF.Data.IR.RIR as RIR
 import qualified UHF.Data.IR.Type as Type
@@ -64,71 +65,79 @@ refer_bv bvk = get_bv bvk >>= \ (RIR.BoundValue id _ _) -> pure (PP.String (ID.s
 type_var :: Type.TypeVarKey -> IRReader PP.Token
 type_var k = get_type_var k >>= \ (Type.Var (Located _ name)) -> pure (PP.String name)
 
--- TODO: precedence
 expr :: RIR.Expr -> IRReader PP.Token
-expr (RIR.Expr'Identifier _ _ _ (Just bvk)) = refer_bv bvk
-expr (RIR.Expr'Identifier _ _ _ Nothing) = pure $ PP.List ["<name resolution error>"]
-expr (RIR.Expr'Char _ _ c) = pure $ PP.FirstOnLineIfMultiline $ PP.String $ show c
-expr (RIR.Expr'String _ _ s) = pure $ PP.FirstOnLineIfMultiline $ PP.String $ show s
-expr (RIR.Expr'Int _ _ i) = pure $ PP.FirstOnLineIfMultiline $ PP.String $ show i
-expr (RIR.Expr'Float _ _ (n :% d)) = pure $ PP.FirstOnLineIfMultiline $ PP.String $ "(" <> show n <> "/" <> show d <> ")"
-expr (RIR.Expr'Bool _ _ b) = pure $ PP.String $ if b then "true" else "false"
-expr (RIR.Expr'Tuple _ _ a b) = expr a >>= \ a -> expr b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b])
-expr (RIR.Expr'Lambda _ _ param body) = refer_bv param >>= \ param -> expr body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, " -> ", body])
-expr (RIR.Expr'Let _ _ [binding] res) = define_binding binding >>= \ binding -> expr res >>= \ res -> pure (PP.FirstOnLineIfMultiline $ PP.List ["let ", binding, "\n", res])
-expr (RIR.Expr'Let _ _ bindings res) = expr res >>= \ res -> mapM define_binding bindings >>= \ bindings -> pure (PP.FirstOnLineIfMultiline $ PP.List ["let ", PP.braced_block bindings, "\n", res])
-expr (RIR.Expr'Call _ _ callee arg) = expr callee >>= \ callee -> expr arg >>= \ arg -> pure $ PP.List [callee, "(", arg, ")"]
-expr (RIR.Expr'Match _ _ _ tree) = pp_tree tree >>= \ tree -> pure (PP.List ["match ", tree])
+expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
     where
-        pp_tree (RIR.MatchTree arms) = mapM pp_arm arms >>= \ arms -> pure (PP.braced_block arms)
+        levels (RIR.Expr'Call _ _ callee arg) = (0, \ cur _ -> cur callee >>= \ callee -> expr arg >>= \ arg -> pure $ PP.List [callee, "(", arg, ")"])
+        levels (RIR.Expr'TypeApply _ _ _ e arg) = (0, \ cur _ -> cur e >>= \ e -> refer_m_type arg >>= \ arg -> pure (PP.List [e, "#(", arg, ")"]))
 
-        pp_arm (clauses, result) =
-            mapM pp_clause clauses >>= \ clauses ->
-            (case result of
-                Right e -> expr e
-                Left subtree -> pp_tree subtree) >>= \ result ->
-            pure (PP.List [PP.bracketed_comma_list PP.Inconsistent clauses, " -> ", result, ";"])
+        levels (RIR.Expr'Identifier _ _ _ (Just bvk)) = (1, \ _ _ -> refer_bv bvk)
+        levels (RIR.Expr'Identifier _ _ _ Nothing) = (1, \ _ _ -> pure $ PP.List ["<name resolution error>"])
+        levels (RIR.Expr'Poison _ _ _) = (1, \ _ _ -> pure $ PP.List ["poison"])
+        levels (RIR.Expr'Char _ _ c) = (1, \ _ _ -> pure $ PP.FirstOnLineIfMultiline $ PP.String $ show c)
+        levels (RIR.Expr'String _ _ s) = (1, \ _ _ -> pure $ PP.FirstOnLineIfMultiline $ PP.String $ show s)
+        levels (RIR.Expr'Int _ _ i) = (1, \ _ _ -> pure $ PP.FirstOnLineIfMultiline $ PP.String $ show i)
+        levels (RIR.Expr'Float _ _ (n :% d)) = (1, \ _ _ -> pure $ PP.FirstOnLineIfMultiline $ PP.String $ "(" <> show n <> "/" <> show d <> ")")
+        levels (RIR.Expr'Bool _ _ b) = (1, \ _ _ -> pure $ PP.String $ if b then "true" else "false")
 
-        pp_clause (RIR.MatchClause'Match bv matcher) = refer_bv bv >>= \ bv -> pp_matcher matcher >>= \ matcher -> pure (PP.List [bv, " -> ", matcher])
-        pp_clause (RIR.MatchClause'Assign target rhs) = refer_bv target >>= \ target -> pp_assign_rhs rhs >>= \ rhs -> pure (PP.List [target, " = ", rhs])
+        levels (RIR.Expr'Tuple _ _ a b) = (1, \ _ _ -> expr a >>= \ a -> expr b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b]))
 
-        pp_matcher (RIR.Match'BoolLiteral b) = pure $ if b then "true" else "false"
-        pp_matcher RIR.Match'Tuple = pure "(,)"
-        pp_matcher (RIR.Match'AnonADTVariant m_variant) =
-            maybe
-                (pure "<name resolution error>")
-                (\ variant_index@(Type.ADTVariantIndex adt_key _) ->
-                    Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
-                    Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
-                    let variant_name = Type.variant_name variant
-                    in pure $ PP.List [adt_refer, " ", PP.String $ unlocate variant_name]
-                )
-                m_variant
+        levels (RIR.Expr'MakeADT _ _ variant_index@(Type.ADTVariantIndex adt_key _) tyargs args) =
+            ( 1
+            , \ _ _ -> Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
+                Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
+                mapM expr args >>= \ args ->
+                mapM refer_m_type tyargs >>= \ tyargs ->
+                let variant_name = Type.variant_name variant
+                in pure $ PP.FirstOnLineIfMultiline $ PP.List ["adt ", adt_refer, " ", PP.String $ unlocate variant_name, "#", PP.parenthesized_comma_list PP.Inconsistent tyargs, PP.bracketed_comma_list PP.Inconsistent args]
+            )
 
-        pp_assign_rhs (RIR.MatchAssignRHS'OtherBVK other) = refer_bv other
-        pp_assign_rhs (RIR.MatchAssignRHS'TupleDestructure1 _ tup) = refer_bv tup >>= \ tup -> pure (PP.List [tup, ".tuple_l"])
-        pp_assign_rhs (RIR.MatchAssignRHS'TupleDestructure2 _ tup) = refer_bv tup >>= \ tup -> pure (PP.List [tup, ".tuple_r"])
-        pp_assign_rhs (RIR.MatchAssignRHS'AnonADTVariantField _ base m_field) =
-            refer_bv base >>= \ base ->
-            -- TODO: unduplicate this?
-            maybe
-                (pure ("<error>", "<error>"))
-                (\ (Type.ADTFieldIndex variant_idx@(Type.ADTVariantIndex adt_key _) field_idx) ->
-                    Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
-                    Type.get_adt_variant <$> get_adt_arena <*> pure variant_idx >>= \ variant ->
-                    let variant_name = Type.variant_name variant
-                    in pure (PP.List [adt_refer, " ", PP.String $ unlocate variant_name], PP.String $ show field_idx)
-                )
-                m_field >>= \ (refer_variant, field_idx) ->
-            pure (PP.List ["(", base, " as ", refer_variant, ").", field_idx])
+        levels (RIR.Expr'Lambda _ _ param body) = (1, \ _ _ -> refer_bv param >>= \ param -> expr body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, " -> ", body]))
+        levels (RIR.Expr'Let _ _ [binding] res) = (1, \ _ _ -> define_binding binding >>= \ binding -> expr res >>= \ res -> pure (PP.FirstOnLineIfMultiline $ PP.List ["let ", binding, "\n", res]))
+        levels (RIR.Expr'Let _ _ bindings res) = (1, \ _ _ -> expr res >>= \ res -> mapM define_binding bindings >>= \ bindings -> pure (PP.FirstOnLineIfMultiline $ PP.List ["let ", PP.braced_block bindings, "\n", res]))
 
-expr (RIR.Expr'Forall _ _ tys e) = mapM type_var tys >>= \ tys -> expr e >>= \ e -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList tys, " ", e])
-expr (RIR.Expr'TypeApply _ _ _ e arg) = expr e >>= \ e -> refer_m_type arg >>= \ arg -> pure (PP.List [e, "#(", arg, ")"])
-expr (RIR.Expr'MakeADT _ _ variant_index@(Type.ADTVariantIndex adt_key _) tyargs args) =
-    Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
-    Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
-    mapM expr args >>= \ args ->
-    mapM refer_m_type tyargs >>= \ tyargs ->
-    let variant_name = Type.variant_name variant
-    in pure $ PP.FirstOnLineIfMultiline $ PP.List ["adt ", adt_refer, " ", PP.String $ unlocate variant_name, "#", PP.parenthesized_comma_list PP.Inconsistent tyargs, PP.bracketed_comma_list PP.Inconsistent args]
-expr (RIR.Expr'Poison _ _ _) = pure $ PP.List ["poison"]
+        levels (RIR.Expr'Match _ _ _ tree) = (1, \ _ _ -> pp_match_tree tree >>= \ tree -> pure (PP.List ["match ", tree]))
+
+        levels (RIR.Expr'Forall _ _ tys e) = (1, \ _ _ -> mapM type_var tys >>= \ tys -> expr e >>= \ e -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList tys, " ", e]))
+
+        pp_match_tree (RIR.MatchTree arms) = mapM pp_arm arms >>= \ arms -> pure (PP.braced_block arms)
+            where
+                pp_arm (clauses, result) =
+                    mapM pp_clause clauses >>= \ clauses ->
+                    (case result of
+                        Right e -> expr e
+                        Left subtree -> pp_match_tree subtree) >>= \ result ->
+                    pure (PP.List [PP.bracketed_comma_list PP.Inconsistent clauses, " -> ", result, ";"])
+
+                pp_clause (RIR.MatchClause'Match bv matcher) = refer_bv bv >>= \ bv -> pp_matcher matcher >>= \ matcher -> pure (PP.List [bv, " -> ", matcher])
+                pp_clause (RIR.MatchClause'Assign target rhs) = refer_bv target >>= \ target -> pp_assign_rhs rhs >>= \ rhs -> pure (PP.List [target, " = ", rhs])
+
+                pp_matcher (RIR.Match'BoolLiteral b) = pure $ if b then "true" else "false"
+                pp_matcher RIR.Match'Tuple = pure "(,)"
+                pp_matcher (RIR.Match'AnonADTVariant m_variant) =
+                    maybe
+                        (pure "<name resolution error>")
+                        (\ variant_index@(Type.ADTVariantIndex adt_key _) ->
+                            Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
+                            Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
+                            let variant_name = Type.variant_name variant
+                            in pure $ PP.List [adt_refer, " ", PP.String $ unlocate variant_name]
+                        )
+                        m_variant
+
+                pp_assign_rhs (RIR.MatchAssignRHS'OtherBVK other) = refer_bv other
+                pp_assign_rhs (RIR.MatchAssignRHS'TupleDestructure1 _ tup) = refer_bv tup >>= \ tup -> pure (PP.List [tup, ".tuple_l"])
+                pp_assign_rhs (RIR.MatchAssignRHS'TupleDestructure2 _ tup) = refer_bv tup >>= \ tup -> pure (PP.List [tup, ".tuple_r"])
+                pp_assign_rhs (RIR.MatchAssignRHS'AnonADTVariantField _ base m_field) =
+                    refer_bv base >>= \ base ->
+                    -- TODO: unduplicate this?
+                    maybe
+                        (pure ("<error>", "<error>"))
+                        (\ (Type.ADTFieldIndex variant_idx@(Type.ADTVariantIndex adt_key _) field_idx) ->
+                            Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
+                            Type.get_adt_variant <$> get_adt_arena <*> pure variant_idx >>= \ variant ->
+                            let variant_name = Type.variant_name variant
+                            in pure (PP.List [adt_refer, " ", PP.String $ unlocate variant_name], PP.String $ show field_idx)
+                        )
+                        m_field >>= \ (refer_variant, field_idx) ->
+                    pure (PP.List ["(", base, " as ", refer_variant, ").", field_idx])

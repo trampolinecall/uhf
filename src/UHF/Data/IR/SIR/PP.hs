@@ -7,6 +7,7 @@ import UHF.Util.Prelude
 import qualified Arena
 
 import qualified UHF.PP as PP
+import qualified UHF.PP.Precedence as PP.Precedence
 
 import qualified UHF.Data.IR.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
@@ -106,46 +107,45 @@ type_var :: Type.TypeVarKey -> IRReader d_iden v_iden p_iden type_info binary_op
 type_var k = get_type_var k >>= \ (Type.Var (Located _ name)) -> pure $ PP.String name
 
 type_expr :: DumpableIdentifier d_iden => SIR.TypeExpr d_iden type_info -> IRReader d_iden v_iden p_iden type_info binary_ops_allowed PP.Token
-type_expr = level1
+type_expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
     where
-        -- TODO: fix infinite recursion when adding new thing and forgetting to add to here
-        level1 (SIR.TypeExpr'Forall _ vars ty) = mapM type_var vars >>= \ vars -> level1 ty >>= \ ty -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList vars, " ", ty])
-        level1 t = level2 t
+        levels (SIR.TypeExpr'Forall _ vars ty) = (1, \ cur _ -> mapM type_var vars >>= \ vars -> cur ty >>= \ ty -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList vars, " ", ty]))
+        levels (SIR.TypeExpr'Function _ _ arg res) = (2, \ cur next -> next arg >>= \ arg -> cur res >>= \ res -> pure (PP.List [arg, " -> ", res]))
+        levels (SIR.TypeExpr'Apply _ _ ty arg) = (3, \ cur _ -> cur ty >>= \ ty -> type_expr arg >>= \ arg -> pure (PP.List [ty, "#(", arg, ")"]))
+        levels (SIR.TypeExpr'Identifier _ _ iden) = (4, \ _ _ -> refer_iden iden)
+        levels (SIR.TypeExpr'Tuple _ a b) = (4, \ _ _ -> type_expr a >>= \ a -> type_expr b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b]))
+        levels (SIR.TypeExpr'Hole _ _ hid) = (4, \ _ _ -> put_iden_list_of_text (unlocate hid) >>= \ hid -> pure (PP.List ["?", hid]))
+        levels (SIR.TypeExpr'Wild _ _) = (4, \ _ _ -> pure $ PP.String "_")
+        levels (SIR.TypeExpr'Poison _ _) = (4, \ _ _ -> pure $ PP.String "poison")
 
-        level2 (SIR.TypeExpr'Function _ _ arg res) = level3 arg >>= \ arg -> level2 res >>= \ res -> pure (PP.List [arg, " -> ", res])
-        level2 t = level3 t
-
-        level3 (SIR.TypeExpr'Apply _ _ ty arg) = level3 ty >>= \ ty -> type_expr arg >>= \ arg -> pure (PP.List [ty, "#(", arg, ")"])
-        level3 t = level4 t
-
-        level4 (SIR.TypeExpr'Identifier _ _ iden) = refer_iden iden
-        level4 (SIR.TypeExpr'Tuple _ a b) = type_expr a >>= \ a -> type_expr b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b])
-        level4 (SIR.TypeExpr'Hole _ _ hid) = put_iden_list_of_text (unlocate hid) >>= \ hid -> pure (PP.List ["?", hid])
-        level4 (SIR.TypeExpr'Wild _ _) = pure $ PP.String "_"
-        level4 (SIR.TypeExpr'Poison _ _) = pure $ PP.String "poison"
-        level4 t = type_expr t >>= \ t -> pure (PP.List ["(", t, ")"])
-
--- TODO: deal with precedence
 expr :: (DumpableIdentifier d_iden, DumpableIdentifier v_iden, DumpableIdentifier p_iden) => SIR.Expr d_iden v_iden p_iden type_info binary_ops_allowed -> IRReader d_iden v_iden p_iden type_info binary_ops_allowed PP.Token
-expr (SIR.Expr'Identifier _ _ _ i) = PP.FirstOnLineIfMultiline <$> refer_iden i
-expr (SIR.Expr'Char _ _ _ c) = pure $ PP.FirstOnLineIfMultiline $ PP.String $ show c
-expr (SIR.Expr'String _ _ _ s) = pure $ PP.FirstOnLineIfMultiline $ PP.String $ show s
-expr (SIR.Expr'Int _ _ _ i) = pure $ PP.FirstOnLineIfMultiline $ PP.String $ show i
-expr (SIR.Expr'Float _ _ _ (n :% d)) = pure $ PP.FirstOnLineIfMultiline $ PP.String $ "(" <> show n <> "/" <> show d <> ")"
-expr (SIR.Expr'Bool _ _ _ b) = pure $ PP.FirstOnLineIfMultiline $ PP.String $ if b then "true" else "false"
-expr (SIR.Expr'Tuple _ _ _ a b) = expr a >>= \ a -> expr b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b])
-expr (SIR.Expr'Lambda _ _ _ param body) = PP.FirstOnLineIfMultiline <$> (pattern param >>= \ param -> expr body >>= \ body -> pure (PP.List ["\\ ", param, " -> ", body])) -- TODO: decide if this should be \ (x) -> or \ x ->
-expr (SIR.Expr'Let _ _ _ bindings body) = pp_let "let" bindings body
-expr (SIR.Expr'LetRec _ _ _ bindings body) = pp_let "letrec" bindings body
-expr (SIR.Expr'BinaryOps _ _ _ _ first ops) = expr first >>= \ first -> mapM (\ (op, rhs) -> refer_iden op >>= \ op -> expr rhs >>= \ rhs -> pure (PP.List [op, " ", rhs])) ops >>= \ ops -> pure (PP.List ["(", first, PP.Block PP.Inconsistent Nothing (Just " ") Nothing ops, ")"])
-expr (SIR.Expr'Call _ _ _ callee arg) = expr callee >>= \ callee -> expr arg >>= \ arg -> pure (PP.FirstOnLineIfMultiline $ PP.List [callee, "(", arg, ")"])
-expr (SIR.Expr'If _ _ _ _ cond t f) = expr cond >>= \ cond -> expr t >>= \ t -> expr f >>= \ f -> pure (PP.FirstOnLineIfMultiline $ PP.List ["if ", cond, " then ", t, " else ", f])
-expr (SIR.Expr'Match _ _ _ _ e arms) = expr e >>= \ e -> mapM (\ (p, e) -> pattern p >>= \ p -> expr e >>= \ e -> pure (PP.List [p, " -> ", e, ";"])) arms >>= \ arms -> pure (PP.List ["match ", e, " ", PP.braced_block arms])
-expr (SIR.Expr'TypeAnnotation _ _ _ ty e) = type_expr ty >>= \ ty -> expr e >>= \ e -> pure (PP.List [":", ty, ": ", e])
-expr (SIR.Expr'Hole _ _ _ hid) = put_iden_list_of_text (unlocate hid) >>= \ hid -> pure (PP.List ["?", hid])
-expr (SIR.Expr'Forall _ _ _ tys e) = mapM type_var tys >>= \ tys -> expr e >>= \ e -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList tys, " ", e])
-expr (SIR.Expr'TypeApply _ _ _ e arg) = expr e >>= \ e -> type_expr arg >>= \ arg -> pure (PP.List [e, "#(", arg, ")"])
-expr (SIR.Expr'Poison _ _ _) = pure $ PP.String "poison"
+expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
+    where
+        levels (SIR.Expr'BinaryOps _ _ _ _ first ops) = (0, \ _ next -> next first >>= \ first -> mapM (\ (op, rhs) -> refer_iden op >>= \ op -> next rhs >>= \ rhs -> pure (PP.List [op, " ", rhs])) ops >>= \ ops -> pure (PP.List ["(", first, PP.Block PP.Inconsistent Nothing (Just " ") Nothing ops, ")"]))
+
+        levels (SIR.Expr'Call _ _ _ callee arg) = (1, \ cur _ -> cur callee >>= \ callee -> expr arg >>= \ arg -> pure (PP.FirstOnLineIfMultiline $ PP.List [callee, "(", arg, ")"]))
+        levels (SIR.Expr'TypeApply _ _ _ e arg) = (1, \ cur _ -> cur e >>= \ e -> type_expr arg >>= \ arg -> pure (PP.List [e, "#(", arg, ")"]))
+
+        levels (SIR.Expr'Identifier _ _ _ i) = (2, \ _ _ -> PP.FirstOnLineIfMultiline <$> refer_iden i)
+        levels (SIR.Expr'Hole _ _ _ hid) = (2, \ _ _ -> put_iden_list_of_text (unlocate hid) >>= \ hid -> pure (PP.List ["?", hid]))
+        levels (SIR.Expr'Poison _ _ _) = (2, \ _ _ -> pure $ PP.String "poison")
+        levels (SIR.Expr'Char _ _ _ c) = (2, \ _ _ -> pure $ PP.FirstOnLineIfMultiline $ PP.String $ show c)
+        levels (SIR.Expr'String _ _ _ s) = (2, \ _ _ -> pure $ PP.FirstOnLineIfMultiline $ PP.String $ show s)
+        levels (SIR.Expr'Int _ _ _ i) = (2, \ _ _ -> pure $ PP.FirstOnLineIfMultiline $ PP.String $ show i)
+        levels (SIR.Expr'Float _ _ _ (n :% d)) = (2, \ _ _ -> pure $ PP.FirstOnLineIfMultiline $ PP.String $ "(" <> show n <> "/" <> show d <> ")")
+        levels (SIR.Expr'Bool _ _ _ b) = (2, \ _ _ -> pure $ PP.FirstOnLineIfMultiline $ PP.String $ if b then "true" else "false")
+        levels (SIR.Expr'Tuple _ _ _ a b) = (2, \ _ _ -> expr a >>= \ a -> expr b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b]))
+        levels (SIR.Expr'Lambda _ _ _ param body) = (2, \ _ _ -> PP.FirstOnLineIfMultiline <$> (pattern param >>= \ param -> expr body >>= \ body -> pure (PP.List ["\\ ", param, " -> ", body]))) -- TODO: decide if this should be \ (x) -> or \ x ->
+
+        levels (SIR.Expr'Let _ _ _ bindings body) = (2, \ _ _ -> pp_let "let" bindings body)
+        levels (SIR.Expr'LetRec _ _ _ bindings body) = (2, \ _ _ -> pp_let "letrec" bindings body)
+
+        levels (SIR.Expr'If _ _ _ _ cond t f) = (2, \ _ _ -> expr cond >>= \ cond -> expr t >>= \ t -> expr f >>= \ f -> pure (PP.FirstOnLineIfMultiline $ PP.List ["if ", cond, " then ", t, " else ", f]))
+        levels (SIR.Expr'Match _ _ _ _ e arms) = (2, \ _ _ -> expr e >>= \ e -> mapM (\ (p, e) -> pattern p >>= \ p -> expr e >>= \ e -> pure (PP.List [p, " -> ", e, ";"])) arms >>= \ arms -> pure (PP.List ["match ", e, " ", PP.braced_block arms]))
+
+        levels (SIR.Expr'TypeAnnotation _ _ _ ty e) = (2, \ _ _ -> type_expr ty >>= \ ty -> expr e >>= \ e -> pure (PP.List [":", ty, ": ", e]))
+
+        levels (SIR.Expr'Forall _ _ _ tys e) = (2, \ _ _ -> mapM type_var tys >>= \ tys -> expr e >>= \ e -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList tys, " ", e]))
 
 pp_let :: (DumpableIdentifier d_iden, DumpableIdentifier v_iden, DumpableIdentifier p_iden) => Text -> [SIR.Binding d_iden v_iden p_iden type_info binary_ops_allowed] -> SIR.Expr d_iden v_iden p_iden type_info binary_ops_allowed -> IRReader d_iden v_iden p_iden type_info binary_ops_allowed PP.Token
 pp_let let_kw [binding] body = define_binding binding >>= \ binding -> expr body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List [PP.String let_kw, " ", binding, "\n", body])

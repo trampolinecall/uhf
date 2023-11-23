@@ -111,10 +111,10 @@ instance Diagnostic.ToError Error where
         in Diagnostic.Error Diagnostic.Codes.undef_name (Just sp) message [] []
 
     to_error (MultipleDecls name decl_ats) =
-        let last_decl = last decl_ats
+        let span = headMay $ mapMaybe decl_at_span decl_ats -- take the first span of the decl_ats; if there are no decl_ats with a span, then this will be Ntohing
         in Diagnostic.Error
             Diagnostic.Codes.multiple_decls
-            (decl_at_span last_decl)
+            span
             (show (length decl_ats) <> " declarations of '" <> convert_str name <> "'")
             (map (\ at -> (decl_at_span at, Diagnostic.MsgError, decl_at_message name at)) decl_ats)
             []

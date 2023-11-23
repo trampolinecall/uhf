@@ -302,7 +302,7 @@ expr_match =
 expr_type_annotation :: PEG.Parser AST.Expr
 expr_type_annotation =
     PEG.consume' "':'" (Token.SingleTypeToken Token.Colon) >>= \ (Located colon_sp _) ->
-    type_ >>= \ ty -> -- TODO: this probably needs a delimiter because when type applications types can go on
+    type_ >>= \ ty ->
     PEG.consume' "':'" (Token.SingleTypeToken Token.Colon) >>
     expr >>= \ e ->
     pure (AST.Expr'TypeAnnotation (colon_sp <> AST.expr_span e) ty e)

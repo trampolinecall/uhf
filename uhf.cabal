@@ -85,6 +85,7 @@ library
       UHF.Phases.Type.Utils
       UHF.PP
       UHF.PP.IndentationMonad
+      UHF.PP.Precedence
       UHF.Util.Prelude
       Unique
   other-modules:

@@ -183,7 +183,7 @@ get_teesir = get_or_calculate _get_teesir (\ cache teesir -> cache { _get_teesir
 get_nrsir :: PhaseResultsState (NRSIR, Outputable)
 get_nrsir = get_or_calculate _get_nrsir (\ cache nrsir -> cache { _get_nrsir = nrsir }) name_resolve
     where
-        name_resolve = get_first_sir >>= run_stage_on_previous_stage_output (convert_errors . NameResolve.resolve) -- TODO: make this operate on teesir
+        name_resolve = get_teesir >>= run_stage_on_previous_stage_output (convert_errors . NameResolve.resolve) -- TODO: make this operate on teesir
 
 get_infix_grouped :: PhaseResultsState (InfixGroupedSIR, Outputable)
 get_infix_grouped = get_or_calculate _get_infix_grouped (\ cache infix_grouped -> cache { _get_infix_grouped = infix_grouped }) group_infix

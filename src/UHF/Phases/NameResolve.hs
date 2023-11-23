@@ -30,11 +30,12 @@ type ModuleChildMaps = Arena.Arena ChildMaps SIR.ModuleKey
 -- TODO: instead of decl arena, just have a data Decl = ADT ADTKey | TS TypeSynonymKey or something?, remove SIR.Decl?
 type DeclArena = Arena.Arena SIR.Decl SIR.DeclKey
 
-type UnresolvedDIden = [Located Text]
-type UnresolvedVIden = [Located Text]
-type UnresolvedPIden = [Located Text]
+type DIden = Maybe SIR.DeclKey
 
-type Unresolved = (UnresolvedDIden, UnresolvedVIden, UnresolvedPIden, (), ())
+type UnresolvedVIden = (Maybe (Either () SIR.DeclKey), Located Text)
+type UnresolvedPIden = (Maybe (Either () SIR.DeclKey), Located Text)
+
+type Unresolved = (DIden, UnresolvedVIden, UnresolvedPIden, (), ())
 
 type UnresolvedADT = Type.ADT (SIR.TypeExpr Unresolved)
 type UnresolvedTypeSynonym = Type.TypeSynonym (SIR.TypeExpr Unresolved)
@@ -44,11 +45,10 @@ type UnresolvedADTArena = Arena.Arena UnresolvedADT Type.ADTKey
 type UnresolvedTypeSynonymArena = Arena.Arena UnresolvedTypeSynonym Type.TypeSynonymKey
 type UnresolvedBoundValueArena = Arena.Arena (SIR.BoundValue Unresolved) SIR.BoundValueKey
 
-type ResolvedDIden = Maybe SIR.DeclKey
 type ResolvedVIden = Located (Maybe SIR.BoundValueKey)
 type ResolvedPIden = Maybe Type.ADTVariantIndex
 
-type Resolved = (ResolvedDIden, ResolvedVIden, ResolvedPIden, (), ())
+type Resolved = (DIden, ResolvedVIden, ResolvedPIden, (), ())
 
 type ResolvedADT = Type.ADT (SIR.TypeExpr Resolved)
 type ResolvedTypeSynonym = Type.TypeSynonym (SIR.TypeExpr Resolved)
@@ -284,12 +284,12 @@ resolve_in_pat _ (SIR.Pattern'Identifier type_info sp bnk) = pure $ SIR.Pattern'
 resolve_in_pat _ (SIR.Pattern'Wildcard type_info sp) = pure $ SIR.Pattern'Wildcard type_info sp
 resolve_in_pat nc_stack (SIR.Pattern'Tuple type_info sp a b) = SIR.Pattern'Tuple type_info sp <$> resolve_in_pat nc_stack a <*> resolve_in_pat nc_stack b
 resolve_in_pat nc_stack (SIR.Pattern'Named type_info sp at_sp bnk subpat) = SIR.Pattern'Named type_info sp at_sp bnk <$> resolve_in_pat nc_stack subpat
-resolve_in_pat nc_stack (SIR.Pattern'AnonADTVariant type_info sp variant tyargs subpat) = SIR.Pattern'AnonADTVariant type_info sp <$> resolve_iden_in_monad resolve_pat_iden nc_stack (split_iden variant) <*> pure tyargs <*> mapM (resolve_in_pat nc_stack) subpat
-resolve_in_pat nc_stack (SIR.Pattern'NamedADTVariant type_info sp variant tyargs subpat) = SIR.Pattern'NamedADTVariant type_info sp <$> resolve_iden_in_monad resolve_pat_iden nc_stack (split_iden variant) <*> pure tyargs <*> mapM (\ (field_name, field_pat) -> (field_name,) <$> resolve_in_pat nc_stack field_pat) subpat
+resolve_in_pat nc_stack (SIR.Pattern'AnonADTVariant type_info sp variant tyargs subpat) = SIR.Pattern'AnonADTVariant type_info sp <$> resolve_iden_in_monad resolve_pat_iden nc_stack variant <*> pure tyargs <*> mapM (resolve_in_pat nc_stack) subpat
+resolve_in_pat nc_stack (SIR.Pattern'NamedADTVariant type_info sp variant tyargs subpat) = SIR.Pattern'NamedADTVariant type_info sp <$> resolve_iden_in_monad resolve_pat_iden nc_stack variant <*> pure tyargs <*> mapM (\ (field_name, field_pat) -> (field_name,) <$> resolve_in_pat nc_stack field_pat) subpat
 resolve_in_pat _ (SIR.Pattern'Poison type_info sp) = pure $ SIR.Pattern'Poison type_info sp
 
 resolve_in_expr :: ChildMapStack -> (SIR.Expr Unresolved) -> (NRReader UnresolvedADTArena UnresolvedBoundValueArena TypeVarArena ModuleChildMaps (MakeDeclState CollectingErrors)) (SIR.Expr Resolved)
-resolve_in_expr nc_stack (SIR.Expr'Identifier id type_info sp i) = SIR.Expr'Identifier id type_info sp <$> resolve_iden_in_monad resolve_expr_iden nc_stack (split_iden i)
+resolve_in_expr nc_stack (SIR.Expr'Identifier id type_info sp i) = SIR.Expr'Identifier id type_info sp <$> resolve_iden_in_monad resolve_expr_iden nc_stack i
 resolve_in_expr _ (SIR.Expr'Char id type_info sp c) = pure $ SIR.Expr'Char id type_info sp c
 resolve_in_expr _ (SIR.Expr'String id type_info sp s) = pure $ SIR.Expr'String id type_info sp s
 resolve_in_expr _ (SIR.Expr'Int id type_info sp i) = pure $ SIR.Expr'Int id type_info sp i
@@ -316,7 +316,7 @@ resolve_in_expr nc_stack (SIR.Expr'LetRec id type_info sp bindings body) =
     let new_nc_stack = ChildMapStack new_nc (Just nc_stack)
     in SIR.Expr'LetRec id type_info sp <$> mapM (resolve_in_binding new_nc_stack) bindings <*> resolve_in_expr new_nc_stack body
 
-resolve_in_expr nc_stack (SIR.Expr'BinaryOps id allowed type_info sp first ops) = SIR.Expr'BinaryOps id allowed type_info sp <$> resolve_in_expr nc_stack first <*> mapM (\ (iden, rhs) -> (,) <$> resolve_iden_in_monad resolve_expr_iden nc_stack (split_iden iden) <*> resolve_in_expr nc_stack rhs) ops
+resolve_in_expr nc_stack (SIR.Expr'BinaryOps id allowed type_info sp first ops) = SIR.Expr'BinaryOps id allowed type_info sp <$> resolve_in_expr nc_stack first <*> mapM (\ (iden, rhs) -> (,) <$> resolve_iden_in_monad resolve_expr_iden nc_stack iden <*> resolve_in_expr nc_stack rhs) ops
 
 resolve_in_expr nc_stack (SIR.Expr'Call id type_info sp callee arg) = SIR.Expr'Call id type_info sp <$> resolve_in_expr nc_stack callee <*> resolve_in_expr nc_stack arg
 
@@ -351,11 +351,6 @@ resolve_in_expr _ (SIR.Expr'Hole id type_info sp hid) = pure $ SIR.Expr'Hole id 
 
 resolve_in_expr _ (SIR.Expr'Poison id type_info sp) = pure $ SIR.Expr'Poison id type_info sp
 
-split_iden :: [Located Text] -> (Maybe [Located Text], Located Text)
-split_iden [] = error "empty identifier"
-split_iden [x] = (Nothing, x)
-split_iden x = (Just $ init x, last x)
-
 resolve_iden_in_monad :: Monad under => (DeclArena -> ModuleChildMaps -> ChildMapStack -> iden -> under resolved) -> ChildMapStack -> iden -> NRReader adt_arena bv_arena type_var_arena ModuleChildMaps (MakeDeclState under) resolved
 resolve_iden_in_monad f nc_stack iden =
     lift get >>= \ decls ->
@@ -363,14 +358,13 @@ resolve_iden_in_monad f nc_stack iden =
     lift (lift $ f decls mods nc_stack iden)
 
 -- TODO: factor out repeated code?
-resolve_expr_iden :: DeclArena -> ModuleChildMaps -> ChildMapStack -> (Maybe [Located Text], Located Text) -> CollectingErrors (Located (Maybe SIR.BoundValueKey))
-resolve_expr_iden decls mods child_map_stack (Just type_iden, last_segment) =
-    let sp = Located.just_span (head type_iden) <> Located.just_span last_segment
-    in resolve_type_iden decls mods child_map_stack type_iden >>= \ resolved_type ->
-    case get_value_child decls mods <$> resolved_type <*> pure last_segment of
-        Just (Right v) -> pure $ Located sp (Just v)
-        Just (Left e) -> Compiler.tell_error e >> pure (Located sp Nothing)
-        Nothing -> pure $ Located sp Nothing
+resolve_expr_iden :: DeclArena -> ModuleChildMaps -> ChildMapStack -> UnresolvedVIden -> CollectingErrors ResolvedVIden
+resolve_expr_iden decls mods child_map_stack (Just type_part, last_segment) =
+    let sp = Located.just_span (todo type_part) <> Located.just_span last_segment -- TODO: get span of type part
+    in case get_value_child decls mods <$> type_part <*> pure last_segment of
+        Right (Right v) -> pure $ Located sp (Just v)
+        Right (Left e) -> Compiler.tell_error e >> pure (Located sp Nothing)
+        Left () -> pure $ Located sp Nothing
 
 resolve_expr_iden _ _ child_map_stack (Nothing, last_segment@(Located last_segment_sp _)) =
     case resolve child_map_stack last_segment of
@@ -385,31 +379,15 @@ resolve_expr_iden _ _ child_map_stack (Nothing, last_segment@(Located last_segme
                         Just parent -> resolve parent name
                         Nothing -> Left $ CouldNotFind Nothing name
 
-resolve_type_iden :: DeclArena -> ModuleChildMaps -> ChildMapStack -> UnresolvedDIden -> CollectingErrors ResolvedDIden
-resolve_type_iden _ _ _ [] = error "empty identifier"
-resolve_type_iden decls mods child_map_stack (first:more) =
-    case resolve_first child_map_stack first of
-        Right first_resolved ->
-            case foldlM (get_decl_child decls mods) first_resolved more of
-                Right r -> pure $ Just r
-                Left e -> Compiler.tell_error e >> pure Nothing
-        Left e -> Compiler.tell_error e >> pure Nothing
-    where
-        resolve_first (ChildMapStack (ChildMaps d_children _ _) parent) first =
-            case Map.lookup (Located.unlocate first) d_children of
-                Just decl -> Right decl
-                Nothing ->
-                    case parent of
-                        Just parent -> resolve_first parent first
-                        Nothing -> Left $ CouldNotFind Nothing first -- TODO: put previous in error
+resolve_type_iden :: DeclArena -> ModuleChildMaps -> ChildMapStack -> DIden -> CollectingErrors (Maybe SIR.DeclKey)
+resolve_type_iden decls mods child_map_stack diden = pure diden -- TODO: REMOVE
 
-resolve_pat_iden :: DeclArena -> ModuleChildMaps -> ChildMapStack -> (Maybe [Located Text], Located Text) -> CollectingErrors (Maybe Type.ADTVariantIndex)
-resolve_pat_iden decls mods child_map_stack (Just type_iden, last_segment) =
-    resolve_type_iden decls mods child_map_stack type_iden >>= \ resolved_type ->
-    case get_variant_child decls mods <$> resolved_type <*> pure last_segment of
-        Just (Right v) -> pure $ Just v
-        Just (Left e) -> Compiler.tell_error e >> pure Nothing
-        Nothing -> pure Nothing
+resolve_pat_iden :: DeclArena -> ModuleChildMaps -> ChildMapStack -> UnresolvedPIden -> CollectingErrors ResolvedPIden
+resolve_pat_iden decls mods child_map_stack (Just type_part, last_segment) =
+    case get_variant_child decls mods <$> type_part <*> pure last_segment of
+        Right (Right v) -> pure $ Just v
+        Right (Left e) -> Compiler.tell_error e >> pure Nothing
+        Left () -> pure Nothing
 
 resolve_pat_iden _ _ child_map_stack (Nothing, last_segment) =
     case resolve child_map_stack last_segment of

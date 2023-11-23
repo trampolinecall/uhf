@@ -22,7 +22,7 @@ import qualified UHF.Data.IR.Type as Type
 import qualified Data.Map as Map
 import qualified Data.List as List
 
-data ChildMaps = ChildMaps (Map.Map Text SIR.DeclKey) (Map.Map Text SIR.BoundValueKey) (Map.Map Text Type.ADTVariantIndex) deriving Show
+data ChildMaps = ChildMaps (Map.Map Text SIR.BoundValueKey) (Map.Map Text Type.ADTVariantIndex) deriving Show
 data ChildMapStack = ChildMapStack ChildMaps (Maybe ChildMapStack)
 
 type TypeVarArena = Arena.Arena Type.Var Type.TypeVarKey
@@ -137,7 +137,7 @@ make_child_maps decls bound_values adt_variants =
         bn_dups = find_dups bound_values
         variant_dups = find_dups adt_variants
     in report_dups decl_dups >> report_dups bn_dups >> report_dups variant_dups >>
-    pure (ChildMaps (make_map decls) (make_map bound_values) (make_map adt_variants))
+    pure (ChildMaps (make_map bound_values) (make_map adt_variants))
     where
         -- separate finding duplicates from making maps so that if there is a duplicate the whole name contexet doesnt just disappear
         -- duplicates will just take the last bound name in the last, because of the how Map.fromList is implemented
@@ -370,7 +370,7 @@ resolve_expr_iden _ _ child_map_stack (Located sp (Nothing, iden)) =
         Right v -> pure $ Located sp (Just v)
         Left e -> Compiler.tell_error e >> pure (Located sp Nothing)
     where
-        resolve (ChildMapStack (ChildMaps _ bn_children _) parent) name =
+        resolve (ChildMapStack (ChildMaps bn_children _) parent) name =
             case Map.lookup (Located.unlocate name) bn_children of
                 Just res -> Right res
                 Nothing ->
@@ -382,7 +382,7 @@ resolve_type_iden :: DeclArena -> ModuleChildMaps -> ChildMapStack -> DIden -> C
 resolve_type_iden _ _ _ diden = pure diden -- TODO: REMOVE
 
 resolve_pat_iden :: DeclArena -> ModuleChildMaps -> ChildMapStack -> UnresolvedPIden -> CollectingErrors ResolvedPIden
-resolve_pat_iden decls mods child_map_stack (Just type_part, last_segment) =
+resolve_pat_iden decls mods _ (Just type_part, last_segment) =
     case get_variant_child decls mods <$> type_part <*> pure last_segment of
         Right (Right v) -> pure $ Just v
         Right (Left e) -> Compiler.tell_error e >> pure Nothing
@@ -393,7 +393,7 @@ resolve_pat_iden _ _ child_map_stack (Nothing, last_segment) =
         Right v -> pure $ Just v
         Left e -> Compiler.tell_error e >> pure Nothing
     where
-        resolve (ChildMapStack (ChildMaps _ _ adtv_children) parent) name =
+        resolve (ChildMapStack (ChildMaps _ adtv_children) parent) name =
             case Map.lookup (Located.unlocate name) adtv_children of
                 Just res -> Right res
                 Nothing ->
@@ -405,7 +405,7 @@ get_value_child :: DeclArena -> ModuleChildMaps -> SIR.DeclKey -> Located Text -
 get_value_child decls mods thing name =
     let res = case Arena.get decls thing of
             SIR.Decl'Module m ->
-                let ChildMaps _ v_children _ = Arena.get mods m
+                let ChildMaps v_children _ = Arena.get mods m
                 in Map.lookup (Located.unlocate name) v_children
 
             SIR.Decl'Type _ -> Nothing
@@ -417,7 +417,7 @@ get_variant_child :: DeclArena -> ModuleChildMaps -> SIR.DeclKey -> Located Text
 get_variant_child decls mods thing name =
     let res = case Arena.get decls thing of
             SIR.Decl'Module m ->
-                let ChildMaps _ _ adtv_children = Arena.get mods m
+                let ChildMaps _ adtv_children = Arena.get mods m
                 in Map.lookup (Located.unlocate name) adtv_children
 
             SIR.Decl'Type _ -> Nothing

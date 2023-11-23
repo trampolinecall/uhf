@@ -39,7 +39,7 @@ instance Diagnostic.ToError Error where
     to_error (Tuple1 sp) = Diagnostic.Error Codes.tuple1 (Just sp) "tuple of 1 element" [] []
     to_error (Tuple0 sp) = Diagnostic.Error Codes.tuple0 (Just sp) "tuple of 0 elements" [] []
 
-type SIRStage = (Identifier, Identifier, Identifier, (), ())
+type SIRStage = (Identifier, Located Identifier, Identifier, (), ())
 
 type SIR = SIR.SIR SIRStage
 
@@ -209,7 +209,7 @@ convert_type (AST.Type'Apply sp ty args) =
 convert_type (AST.Type'Wild sp) = pure $ SIR.TypeExpr'Wild () sp
 
 convert_expr :: ID.ExprID -> AST.Expr -> MakeIRState Expr
-convert_expr cur_id (AST.Expr'Identifier iden) = pure (SIR.Expr'Identifier cur_id () (just_span iden) (unlocate iden))
+convert_expr cur_id (AST.Expr'Identifier iden) = pure (SIR.Expr'Identifier cur_id () (just_span iden) iden)
 convert_expr cur_id (AST.Expr'Char sp c) = pure (SIR.Expr'Char cur_id () sp c)
 convert_expr cur_id (AST.Expr'String sp s) = pure (SIR.Expr'String cur_id () sp s)
 convert_expr cur_id (AST.Expr'Int sp i) = pure (SIR.Expr'Int cur_id () sp i)
@@ -241,7 +241,7 @@ convert_expr cur_id (AST.Expr'LetRec sp decls subexpr) =
     convert_decls (ID.BVParent'Let cur_id) (ID.DeclParent'Let cur_id) decls >>= \ (bindings, _, _) -> -- TODO: put adts and type synonyms
     SIR.Expr'LetRec cur_id () sp bindings <$> convert_expr (ID.ExprID'LetResultOf cur_id) subexpr
 
-convert_expr cur_id (AST.Expr'BinaryOps sp first ops) = SIR.Expr'BinaryOps cur_id () () sp <$> convert_expr (ID.ExprID'BinaryOperand cur_id 0) first <*> zipWithM (\ ind (op, right) -> convert_expr (ID.ExprID'BinaryOperand cur_id ind) right >>= \ right' -> pure (unlocate op, right')) [1..] ops
+convert_expr cur_id (AST.Expr'BinaryOps sp first ops) = SIR.Expr'BinaryOps cur_id () () sp <$> convert_expr (ID.ExprID'BinaryOperand cur_id 0) first <*> zipWithM (\ ind (op, right) -> convert_expr (ID.ExprID'BinaryOperand cur_id ind) right >>= \ right' -> pure (op, right')) [1..] ops
 
 convert_expr cur_id (AST.Expr'Call sp callee args) =
     convert_expr (ID.ExprID'CallCalleeIn cur_id) callee >>= \ callee ->

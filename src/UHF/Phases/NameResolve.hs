@@ -32,7 +32,7 @@ type DeclArena = Arena.Arena SIR.Decl SIR.DeclKey
 
 type DIden = Maybe SIR.DeclKey
 
-type UnresolvedVIden = (Maybe (Either () SIR.DeclKey), Located Text)
+type UnresolvedVIden = Located (Maybe (Either () SIR.DeclKey), Located Text)
 type UnresolvedPIden = (Maybe (Either () SIR.DeclKey), Located Text)
 
 type Unresolved = (DIden, UnresolvedVIden, UnresolvedPIden, (), ())
@@ -359,17 +359,16 @@ resolve_iden_in_monad f nc_stack iden =
 
 -- TODO: factor out repeated code?
 resolve_expr_iden :: DeclArena -> ModuleChildMaps -> ChildMapStack -> UnresolvedVIden -> CollectingErrors ResolvedVIden
-resolve_expr_iden decls mods child_map_stack (Just type_part, last_segment) =
-    let sp = Located.just_span (todo type_part) <> Located.just_span last_segment -- TODO: get span of type part
-    in case get_value_child decls mods <$> type_part <*> pure last_segment of
+resolve_expr_iden decls mods _ (Located sp (Just type_part, last_segment)) =
+    case get_value_child decls mods <$> type_part <*> pure last_segment of
         Right (Right v) -> pure $ Located sp (Just v)
         Right (Left e) -> Compiler.tell_error e >> pure (Located sp Nothing)
         Left () -> pure $ Located sp Nothing
 
-resolve_expr_iden _ _ child_map_stack (Nothing, last_segment@(Located last_segment_sp _)) =
-    case resolve child_map_stack last_segment of
-        Right v -> pure $ Located last_segment_sp (Just v)
-        Left e -> Compiler.tell_error e >> pure (Located last_segment_sp Nothing)
+resolve_expr_iden _ _ child_map_stack (Located sp (Nothing, iden)) =
+    case resolve child_map_stack iden of
+        Right v -> pure $ Located sp (Just v)
+        Left e -> Compiler.tell_error e >> pure (Located sp Nothing)
     where
         resolve (ChildMapStack (ChildMaps _ bn_children _) parent) name =
             case Map.lookup (Located.unlocate name) bn_children of
@@ -380,7 +379,7 @@ resolve_expr_iden _ _ child_map_stack (Nothing, last_segment@(Located last_segme
                         Nothing -> Left $ CouldNotFind Nothing name
 
 resolve_type_iden :: DeclArena -> ModuleChildMaps -> ChildMapStack -> DIden -> CollectingErrors (Maybe SIR.DeclKey)
-resolve_type_iden decls mods child_map_stack diden = pure diden -- TODO: REMOVE
+resolve_type_iden _ _ _ diden = pure diden -- TODO: REMOVE
 
 resolve_pat_iden :: DeclArena -> ModuleChildMaps -> ChildMapStack -> UnresolvedPIden -> CollectingErrors ResolvedPIden
 resolve_pat_iden decls mods child_map_stack (Just type_part, last_segment) =
@@ -401,18 +400,6 @@ resolve_pat_iden _ _ child_map_stack (Nothing, last_segment) =
                     case parent of
                         Just parent -> resolve parent name
                         Nothing -> Left $ CouldNotFind Nothing name
-
-get_decl_child :: DeclArena -> ModuleChildMaps -> SIR.DeclKey -> Located Text -> Either Error SIR.DeclKey
-get_decl_child decls mods thing name =
-    let res = case Arena.get decls thing of
-            SIR.Decl'Module m ->
-                let ChildMaps d_children _ _ = Arena.get mods m
-                in Map.lookup (Located.unlocate name) d_children
-
-            SIR.Decl'Type _ -> Nothing
-    in case res of
-        Just res -> Right res
-        Nothing -> Left $ CouldNotFind Nothing name -- TODO: put previous
 
 get_value_child :: DeclArena -> ModuleChildMaps -> SIR.DeclKey -> Located Text -> Either Error SIR.BoundValueKey
 get_value_child decls mods thing name =

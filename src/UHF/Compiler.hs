@@ -40,7 +40,7 @@ instance Semigroup (Diagnostics e w) where
 report_diagnostics :: (Diagnostic.ToError e, Diagnostic.ToWarning w) => FormattedString.ColorsNeeded -> DiagnosticSettings.Settings -> Diagnostics e w -> IO ()
 report_diagnostics c_needed diag_settings (Diagnostics errors warnings) = do
     mapM_ (Diagnostic.report IO.stderr c_needed diag_settings . Diagnostic.to_error) errors
-    mapM_ (Diagnostic.report IO.stdout c_needed diag_settings . Diagnostic.to_warning) warnings
+    mapM_ (Diagnostic.report IO.stderr c_needed diag_settings . Diagnostic.to_warning) warnings
 
 had_errors :: Diagnostics e w -> Bool
 had_errors (Diagnostics errs _) = not $ Sequence.null errs

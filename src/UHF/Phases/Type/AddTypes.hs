@@ -29,7 +29,7 @@ get_bv_type bv = do
         SIR.BoundValue _ ty _ -> pure ty
         SIR.BoundValue'ADTVariant _ _ _ ty _ -> pure ty
 
--- TODO: sort constraints by priority so that certain weird things dont happen
+-- TODO: sort constraints by priority so that certain weird things dont happen (sort by depth?)
 -- for example:
 -- ```
 -- use_wrong = thing(0);

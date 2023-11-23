@@ -85,6 +85,9 @@ put_iden_list_of_text = pure . PP.String . Text.intercalate "::" . map unlocate
 
 instance DumpableIdentifier a => DumpableIdentifier (Located a) where
     refer_iden = refer_iden . unlocate
+instance DumpableIdentifier (Maybe [Located Text], Located Text) where
+    refer_iden (Nothing, i) = pure $ PP.String $ unlocate i
+    refer_iden (Just t, i) = refer_iden t >>= \ t -> pure (PP.List [t, "::", PP.String $ unlocate i])
 instance DumpableIdentifier [Located Text] where
     refer_iden = put_iden_list_of_text
 instance DumpableIdentifier (Maybe (Either () SIR.DeclKey), Located Text) where

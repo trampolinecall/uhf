@@ -52,7 +52,7 @@ import qualified UHF.Phases.TSBackend as TSBackend
 
 type Tokens = ([Token.LToken], Token.LToken)
 type AST = [AST.Decl]
-type FirstSIR = SIR.SIR ([Located Text], (Located [Located Text]), [Located Text], (), ())
+type FirstSIR = SIR.SIR ([Located Text], (Located (Maybe [Located Text], Located Text)), (Maybe [Located Text], Located Text), (), ())
 type TEESIR = SIR.SIR ((Maybe IR.Keys.DeclKey), (Located (Maybe (Either () IR.Keys.DeclKey), Located Text)), (Maybe (Either () IR.Keys.DeclKey), Located Text), (), ())
 type NRSIR = SIR.SIR ((Maybe IR.Keys.DeclKey), (Located (Maybe IR.Keys.BoundValueKey)), (Maybe IR.Type.ADTVariantIndex), (), ())
 type InfixGroupedSIR = SIR.SIR ((Maybe IR.Keys.DeclKey), (Located (Maybe IR.Keys.BoundValueKey)), (Maybe IR.Type.ADTVariantIndex), (), Void)

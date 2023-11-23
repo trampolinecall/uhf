@@ -31,7 +31,7 @@ type ModuleDeclMap = Arena.Arena DeclMap SIR.ModuleKey
 type DeclArena = Arena.Arena SIR.Decl SIR.DeclKey
 
 type UnevaledDIden = [Located Text]
-type UnevaledVIden = [Located Text] -- TODO: make ToSIR make this (Maybe [Located Text], Located Text)
+type UnevaledVIden = Located [Located Text] -- TODO: make ToSIR make this (Maybe [Located Text], Located Text)
 type UnevaledPIden = [Located Text] -- TODO: make ToSIR make this (Maybe [Located Text], Located Text)
 
 type UnevaledSIR = SIR.SIR UnevaledDIden UnevaledVIden UnevaledPIden () ()
@@ -48,7 +48,7 @@ type UnevaledADTArena = Arena.Arena UnevaledADT Type.ADTKey
 type UnevaledTypeSynonymArena = Arena.Arena UnevaledTypeSynonym Type.TypeSynonymKey
 
 type EvaledDIden = Maybe SIR.DeclKey
-type EvaledVIden = (Maybe (Either () SIR.DeclKey), Located Text)
+type EvaledVIden = Located (Maybe (Either () SIR.DeclKey), Located Text)
 type EvaledPIden = (Maybe (Either () SIR.DeclKey), Located Text)
 
 type EvaledSIR = SIR.SIR EvaledDIden EvaledVIden EvaledPIden () ()
@@ -293,7 +293,7 @@ resolve_in_pat nc_stack (SIR.Pattern'NamedADTVariant type_info sp variant tyargs
 resolve_in_pat _ (SIR.Pattern'Poison type_info sp) = pure $ SIR.Pattern'Poison type_info sp
 
 resolve_in_expr :: DeclMapStack -> UnevaledExpr -> (NRReader UnevaledADTArena BoundValueArena TypeVarArena ModuleDeclMap (MakeDeclState CollectingErrors)) EvaledExpr
-resolve_in_expr nc_stack (SIR.Expr'Identifier id type_info sp i) = SIR.Expr'Identifier id type_info sp <$> resolve_iden_in_monad resolve_expr_iden nc_stack (split_iden i)
+resolve_in_expr nc_stack (SIR.Expr'Identifier id type_info sp i) = SIR.Expr'Identifier id type_info sp <$> resolve_iden_in_monad resolve_expr_iden nc_stack (split_iden <$> i)
 resolve_in_expr _ (SIR.Expr'Char id type_info sp c) = pure $ SIR.Expr'Char id type_info sp c
 resolve_in_expr _ (SIR.Expr'String id type_info sp s) = pure $ SIR.Expr'String id type_info sp s
 resolve_in_expr _ (SIR.Expr'Int id type_info sp i) = pure $ SIR.Expr'Int id type_info sp i
@@ -320,7 +320,7 @@ resolve_in_expr nc_stack (SIR.Expr'LetRec id type_info sp bindings body) =
     let new_nc_stack = DeclMapStack new_nc (Just nc_stack)
     in SIR.Expr'LetRec id type_info sp <$> mapM (resolve_in_binding new_nc_stack) bindings <*> resolve_in_expr new_nc_stack body
 
-resolve_in_expr nc_stack (SIR.Expr'BinaryOps id allowed type_info sp first ops) = SIR.Expr'BinaryOps id allowed type_info sp <$> resolve_in_expr nc_stack first <*> mapM (\ (iden, rhs) -> (,) <$> resolve_iden_in_monad resolve_expr_iden nc_stack (split_iden iden) <*> resolve_in_expr nc_stack rhs) ops
+resolve_in_expr nc_stack (SIR.Expr'BinaryOps id allowed type_info sp first ops) = SIR.Expr'BinaryOps id allowed type_info sp <$> resolve_in_expr nc_stack first <*> mapM (\ (iden, rhs) -> (,) <$> resolve_iden_in_monad resolve_expr_iden nc_stack (split_iden <$> iden) <*> resolve_in_expr nc_stack rhs) ops
 
 resolve_in_expr nc_stack (SIR.Expr'Call id type_info sp callee arg) = SIR.Expr'Call id type_info sp <$> resolve_in_expr nc_stack callee <*> resolve_in_expr nc_stack arg
 
@@ -385,12 +385,12 @@ resolve_type_iden decls mods child_map_stack (first:more) =
                         Nothing -> Left $ CouldNotFind Nothing first -- TODO: put previous in error
 
 -- TODO: factor out repeated code?
-resolve_expr_iden :: DeclArena -> ModuleDeclMap -> DeclMapStack -> (Maybe [Located Text], Located Text) -> CollectingErrors EvaledVIden
-resolve_expr_iden decls mods child_map_stack (Just type_iden, last_segment) =
+resolve_expr_iden :: DeclArena -> ModuleDeclMap -> DeclMapStack -> Located (Maybe [Located Text], Located Text) -> CollectingErrors EvaledVIden
+resolve_expr_iden decls mods child_map_stack (Located sp (Just type_iden, last_segment)) =
     resolve_type_iden decls mods child_map_stack type_iden >>= \ resolved_type ->
-    pure (Just (maybe (Left ()) Right resolved_type), last_segment) -- TODO: clean up this maybe call
+    pure (Located sp (Just (maybe (Left ()) Right resolved_type), last_segment)) -- TODO: clean up this maybe call
 
-resolve_expr_iden _ _ _ (Nothing, last_segment) = pure (Nothing, last_segment)
+resolve_expr_iden _ _ _ (Located sp (Nothing, last_segment)) = pure $ Located sp (Nothing, last_segment)
 
 resolve_pat_iden :: DeclArena -> ModuleDeclMap -> DeclMapStack -> (Maybe [Located Text], Located Text) -> CollectingErrors EvaledPIden
 resolve_pat_iden decls mods child_map_stack (Just type_iden, last_segment) =

@@ -157,7 +157,9 @@ expr_call = expr_primary >>= calls
 expr_primary :: PEG.Parser AST.Expr
 expr_primary =
     PEG.choice
-        [ expr_identifier
+        [ expr_parenthesized
+
+        , expr_identifier
         , expr_hole
         , expr_char_lit
         , expr_string_lit
@@ -228,10 +230,17 @@ expr_forall =
     expr >>= \ e ->
     pure (AST.Expr'Forall (sp <> AST.expr_span e) tys e)
 
+expr_parenthesized :: PEG.Parser AST.Expr
+expr_parenthesized =
+    PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ (Located _ _) ->
+    expr >>= \ e ->
+    PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ (Located _ _) ->
+    pure e
+
 expr_tuple :: PEG.Parser AST.Expr
 expr_tuple =
     PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ (Located o_sp _) ->
-    PEG.delim_star expr (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ items -> -- TODO: parenthesized expressions too
+    PEG.delim_star expr (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ items ->
     PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ (Located c_sp _) ->
     pure (AST.Expr'Tuple (o_sp <> c_sp) items)
 
@@ -333,7 +342,7 @@ type_apply = type_primary >>= m_applys
             m_applys (AST.Type'Apply (AST.type_span base <> cp_sp) base tys)
 
 type_primary :: PEG.Parser AST.Type
-type_primary = PEG.choice [type_iden, type_wild, type_hole, type_parenthesized, type_tuple]
+type_primary = PEG.choice [type_parenthesized, type_iden, type_wild, type_hole, type_tuple]
 
 type_iden :: PEG.Parser AST.Type
 type_iden =

@@ -27,6 +27,7 @@ data ChildMapStack = ChildMapStack ChildMaps (Maybe ChildMapStack)
 
 type TypeVarArena = Arena.Arena Type.Var Type.TypeVarKey
 type ModuleChildMaps = Arena.Arena ChildMaps SIR.ModuleKey
+-- TODO: instead of decl arena, just have a data Decl = ADT ADTKey | TS TypeSynonymKey or something?, remove SIR.Decl?
 type DeclArena = Arena.Arena SIR.Decl SIR.DeclKey
 
 type UnresolvedDIden = [Located Text]

@@ -182,9 +182,7 @@ unify (Type.Type'Forall vars1 t1, var_map_1) (Type.Type'Forall vars2 t2, var_map
             lift generate_var_sub >>= \ new_var_sub ->
             -- this will error if the smae type variable appears twice in nested foralls
             -- i.e. something like #(T) T -> #(T) T -> T
-            -- where both Ts have the same TypeVarKey
-            -- this should not happen but it technically could because variables can be reused in multiple foralls
-            -- but because the variables being reused only happens in specific compiler-generated circumstances hopefully this should never error in real code
+            -- because variables are constructed to be unique to each forall, this should never error in practice
             let map1' = Map.insertWith (\ _ _ -> error "variable substitution already in map") var1 new_var_sub map1
                 map2' = Map.insertWith (\ _ _ -> error "variable substitution already in map") var2 new_var_sub map2
             in go vars1 t1 map1' vars2 t2 map2'

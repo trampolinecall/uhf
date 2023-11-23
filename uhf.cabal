@@ -51,6 +51,7 @@ library
       UHF.IO.Location
       UHF.IO.Location.SpanHelper
       UHF.IO.Span
+      UHF.Phases.EvalTypeExprs
       UHF.Phases.InfixGroup
       UHF.Phases.Lexer
       UHF.Phases.Lexer.IdentifierGrouper

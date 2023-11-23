@@ -33,6 +33,7 @@ refer_type_synonym :: Type.TypeSynonym ty -> PP.Token
 refer_type_synonym (Type.TypeSynonym id _ _) = PP.String $ ID.stringify id
 
 -- TODO: construct an ast and print it
+-- TODO: precedence for this
 refer_type :: (tyunk -> PP.Token) -> Arena.Arena (Type.ADT ty) Type.ADTKey -> Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey -> Arena.Arena Type.Var Type.TypeVarKey -> Type.Type tyunk -> PP.Token
 refer_type show_tyunk adts type_synonyms vars ty = runIdentity $ refer_type_m (pure . show_tyunk) adts type_synonyms vars ty
 

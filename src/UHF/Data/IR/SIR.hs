@@ -23,9 +23,10 @@ module UHF.Data.IR.SIR
     , Pattern(..)
     , expr_type
     , pattern_type
+    , type_expr_evaled
     , expr_span
     , pattern_span
-    , type_expr_evaled
+    , type_expr_span
 
     ) where
 
@@ -77,10 +78,10 @@ type HoleIdentifier = Located Text
 data TypeExpr stage
     = TypeExpr'Refer (Stage.TypeExprEvaled stage) Span (Stage.DIdenStart stage)
     | TypeExpr'Get (Stage.TypeExprEvaled stage) Span (TypeExpr stage) (Located Text)
-    | TypeExpr'Tuple (Stage.TypeExprEvaled stage) (TypeExpr stage) (TypeExpr stage)
-    | TypeExpr'Hole (Stage.TypeExprEvaled stage) (Stage.TypeInfo stage) Span HoleIdentifier -- TODO: using a Stage.TypeInfo field here seems a little inelegant
+    | TypeExpr'Tuple (Stage.TypeExprEvaled stage) Span (TypeExpr stage) (TypeExpr stage)
+    | TypeExpr'Hole (Stage.TypeExprEvaled stage) (Stage.TypeInfo stage) Span HoleIdentifier -- TODO: using a TypeInfo field here seems a little inelegant
     | TypeExpr'Function (Stage.TypeExprEvaled stage) Span (TypeExpr stage) (TypeExpr stage)
-    | TypeExpr'Forall (Stage.TypeExprEvaled stage) (NonEmpty TypeVarKey) (TypeExpr stage)
+    | TypeExpr'Forall (Stage.TypeExprEvaled stage) Span (NonEmpty TypeVarKey) (TypeExpr stage)
     | TypeExpr'Apply (Stage.TypeExprEvaled stage) Span (TypeExpr stage) (TypeExpr stage)
     | TypeExpr'Wild (Stage.TypeExprEvaled stage) Span
     | TypeExpr'Poison (Stage.TypeExprEvaled stage) Span
@@ -138,13 +139,24 @@ deriving instance Stage.AllShowable stage => Show (Pattern stage)
 type_expr_evaled :: TypeExpr stage -> (Stage.TypeExprEvaled stage)
 type_expr_evaled (TypeExpr'Refer evaled _ _) = evaled
 type_expr_evaled (TypeExpr'Get evaled _ _ _) = evaled
-type_expr_evaled (TypeExpr'Tuple evaled _ _) = evaled
+type_expr_evaled (TypeExpr'Tuple evaled _ _ _) = evaled
 type_expr_evaled (TypeExpr'Hole evaled _ _ _) = evaled
 type_expr_evaled (TypeExpr'Function evaled _ _ _) = evaled
-type_expr_evaled (TypeExpr'Forall evaled _ _) = evaled
+type_expr_evaled (TypeExpr'Forall evaled _ _ _) = evaled
 type_expr_evaled (TypeExpr'Apply evaled _ _ _) = evaled
 type_expr_evaled (TypeExpr'Wild evaled _) = evaled
 type_expr_evaled (TypeExpr'Poison evaled _) = evaled
+
+type_expr_span :: TypeExpr stage -> Span
+type_expr_span (TypeExpr'Refer _ span _) = span
+type_expr_span (TypeExpr'Get _ span _ _) = span
+type_expr_span (TypeExpr'Tuple _ span _ _) = span
+type_expr_span (TypeExpr'Hole _ _ span _) = span
+type_expr_span (TypeExpr'Function _ span _ _) = span
+type_expr_span (TypeExpr'Forall _ span _ _) = span
+type_expr_span (TypeExpr'Apply _ span _ _) = span
+type_expr_span (TypeExpr'Wild _ span) = span
+type_expr_span (TypeExpr'Poison _ span) = span
 
 expr_type :: Expr stage -> (Stage.TypeInfo stage)
 expr_type (Expr'Identifier _ type_info _ _ _) = type_info

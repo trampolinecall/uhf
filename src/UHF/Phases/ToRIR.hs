@@ -24,7 +24,7 @@ type DIden = Maybe SIR.DeclKey
 type VIden = Located (Maybe SIR.BoundValueKey)
 type PIden = Maybe Type.ADTVariantIndex
 
-type LastSIR = (DIden, VIden, PIden, Type, Type, Void)
+type LastSIR = (DIden, DIden, Type, VIden, VIden, PIden, PIden, Type, Void)
 
 -- TODO: remove these type aliases
 type SIR = SIR.SIR LastSIR
@@ -33,6 +33,9 @@ type SIRExpr = SIR.Expr LastSIR
 type SIRTypeExpr = SIR.TypeExpr LastSIR
 type SIRPattern = SIR.Pattern LastSIR
 type SIRBinding = SIR.Binding LastSIR
+
+type SIRADT = Type.ADT (SIRTypeExpr, Type)
+type SIRTypeSynonym = Type.TypeSynonym (SIRTypeExpr, Type)
 
 type RIRExpr = RIR.Expr
 type RIRBinding = RIR.Binding
@@ -65,14 +68,14 @@ assemble_cu modules mod =
     let SIR.Module _ bindings adts syns = Arena.get modules mod
     in RIR.CU <$> (concat <$> mapM convert_binding bindings) <*> pure adts <*> pure syns
 
-convert_adt :: Type.ADT SIRTypeExpr -> Type.ADT Type
+convert_adt :: SIRADT -> Type.ADT Type
 convert_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars (map convert_variant variants)
     where
-        convert_variant (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id (map (\ (id, name, ty) -> (id, name, SIR.type_expr_evaled ty)) fields)
-        convert_variant (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id (map (\ (id, ty) -> (id, SIR.type_expr_evaled ty)) fields)
+        convert_variant (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id (map (\ (id, name, (_, ty)) -> (id, name, ty)) fields)
+        convert_variant (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id (map (\ (id, (_, ty)) -> (id, ty)) fields)
 
-convert_type_synonym :: Type.TypeSynonym SIRTypeExpr -> Type.TypeSynonym Type
-convert_type_synonym (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name (SIR.type_expr_evaled expansion)
+convert_type_synonym :: SIRTypeSynonym -> Type.TypeSynonym Type
+convert_type_synonym (Type.TypeSynonym id name (_, expansion)) = Type.TypeSynonym id name expansion
 
 convert_binding :: SIRBinding -> ConvertState [RIRBinding]
 convert_binding (SIR.Binding pat eq_sp expr) = convert_expr expr >>= assign_pattern eq_sp pat
@@ -106,7 +109,7 @@ new_bound_value ty sp =
     lift (state $ Arena.put (RIR.BoundValue id ty sp))
 
 convert_expr :: SIRExpr -> ConvertState RIRExpr
-convert_expr (SIR.Expr'Identifier id ty sp bv) = pure $ RIR.Expr'Identifier id ty sp (unlocate bv)
+convert_expr (SIR.Expr'Identifier id ty sp _ bv) = pure $ RIR.Expr'Identifier id ty sp (unlocate bv)
 convert_expr (SIR.Expr'Char id ty sp c) = pure $ RIR.Expr'Char id sp c
 convert_expr (SIR.Expr'String id ty sp s) = pure $ RIR.Expr'String id sp s
 convert_expr (SIR.Expr'Int id ty sp i) = pure $ RIR.Expr'Int id sp i
@@ -210,13 +213,13 @@ convert_expr (SIR.Expr'Match id ty sp match_tok_sp scrutinee arms) = do
             pattern_to_clauses scrutinee_bv subpat >>= \ subpat_matchers ->
             pure (RIR.MatchClause'Assign bvk (RIR.MatchAssignRHS'OtherBVK scrutinee_bv) : subpat_matchers)
 
-        pattern_to_clauses scrutinee_bv (SIR.Pattern'AnonADTVariant ty sp variant_index tyargs fields) =
+        pattern_to_clauses scrutinee_bv (SIR.Pattern'AnonADTVariant ty sp _ variant_index tyargs fields) =
             -- Variant(F0, F1, ...) becomes [scrutinee -> Variant, f0 = (scrutinee as Variant).0, f1 = (scrutinee as Variant).1, f0 -> F0, f1 -> F1, ...]
             fields & mapM (\ pat -> new_bound_value (SIR.pattern_type pat) (SIR.pattern_span pat)) >>= \ field_bvs ->
             zipWithM pattern_to_clauses field_bvs fields >>= \ field_subpat_clauses ->
             pure (RIR.MatchClause'Match scrutinee_bv (RIR.Match'AnonADTVariant variant_index) : zipWith (\ i field_bv -> RIR.MatchClause'Assign field_bv (RIR.MatchAssignRHS'AnonADTVariantField (SIR.pattern_type $ fields List.!! i) scrutinee_bv (Type.ADTFieldIndex <$> variant_index <*> pure i))) [0..] field_bvs <> concat field_subpat_clauses)
 
-        pattern_to_clauses _ (SIR.Pattern'NamedADTVariant _ _ _ _ _) = todo
+        pattern_to_clauses _ (SIR.Pattern'NamedADTVariant _ _ _ _ _ _) = todo
         pattern_to_clauses _ (SIR.Pattern'Poison _ _) = pure []
 
 convert_expr (SIR.Expr'Poison id ty sp) = pure $ RIR.Expr'Poison id ty sp
@@ -272,7 +275,7 @@ assign_pattern incomplete_err_sp pat expr = do
             go other refer >>= \ other_assignments ->
             pure (RIR.Binding (unlocate bv) expr : other_assignments)
 
-        go (SIR.Pattern'AnonADTVariant ty sp variant tyargs fields) expr = todo
-        go (SIR.Pattern'NamedADTVariant ty sp variant tyargs fields) expr = todo
+        go (SIR.Pattern'AnonADTVariant ty sp _ variant tyargs fields) expr = todo
+        go (SIR.Pattern'NamedADTVariant ty sp _ variant tyargs fields) expr = todo
 
         go (SIR.Pattern'Poison _ _) _ = pure []

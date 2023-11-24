@@ -172,16 +172,17 @@ convert_type (AST.Type'Refer id) = pure $ SIR.TypeExpr'Refer () (just_span id) i
 convert_type (AST.Type'Get sp prev name) = convert_type prev >>= \ prev -> pure (SIR.TypeExpr'Get () sp prev name)
 convert_type (AST.Type'Tuple sp items) = mapM convert_type items >>= group_items
     where
-        group_items [a, b] = pure $ SIR.TypeExpr'Tuple () a b
-        group_items (a:b:more) = SIR.TypeExpr'Tuple () a <$> group_items (b:more)
+        -- TODO: better spans for this
+        group_items [a, b] = pure $ SIR.TypeExpr'Tuple () sp a b
+        group_items (a:b:more) = SIR.TypeExpr'Tuple () sp a <$> group_items (b:more)
         group_items [_] = tell_error (Tuple1 sp) >> pure (SIR.TypeExpr'Poison () sp)
         group_items [] = tell_error (Tuple0 sp) >> pure (SIR.TypeExpr'Poison () sp)
 convert_type (AST.Type'Hole sp id) = pure $ SIR.TypeExpr'Hole () () sp id
 convert_type (AST.Type'Function sp arg res) = SIR.TypeExpr'Function () sp <$> convert_type arg <*> convert_type res
-convert_type (AST.Type'Forall _ tys ty) =
+convert_type (AST.Type'Forall sp tys ty) =
     mapM new_type_var tys >>= \case
         [] -> convert_type ty -- can happen if the user passed none
-        tyv1:tyv_more -> SIR.TypeExpr'Forall () (tyv1 :| tyv_more) <$> convert_type ty
+        tyv1:tyv_more -> SIR.TypeExpr'Forall () sp (tyv1 :| tyv_more) <$> convert_type ty
 
 convert_type (AST.Type'Apply sp ty args) =
     convert_type ty >>= \ ty ->

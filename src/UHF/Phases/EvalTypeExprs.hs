@@ -278,7 +278,7 @@ resolve_in_binding nc_stack (SIR.Binding target eq_sp expr) = SIR.Binding <$> re
 resolve_in_binding _ (SIR.Binding'ADTVariant bvk variant vars sp) = pure $ SIR.Binding'ADTVariant bvk variant vars sp
 
 resolve_in_type_expr :: DeclMapStack -> UnevaledTypeExpr -> (EvalReader adt_arena bv_arena TypeVarArena ModuleDeclMap (MakeDeclState CollectingErrors)) EvaledTypeExpr
-resolve_in_type_expr nc_stack (SIR.TypeExpr'Identifier () sp iden) = do
+resolve_in_type_expr nc_stack (SIR.TypeExpr'Refer () sp iden) = do
     iden_resolved <- resolve_iden_in_monad resolve_type_iden nc_stack iden
     decls <- ask_decl_arena
     ty <- case iden_resolved of
@@ -286,8 +286,16 @@ resolve_in_type_expr nc_stack (SIR.TypeExpr'Identifier () sp iden) = do
             SIR.Decl'Module _ -> lift (lift (Compiler.tell_error $ NotAType sp "a module")) >> pure Nothing
             SIR.Decl'Type ty -> pure $ Just ty
         Nothing -> pure Nothing
-    pure (SIR.TypeExpr'Identifier ty sp iden_resolved)
-    where
+    pure (SIR.TypeExpr'Refer ty sp iden_resolved)
+resolve_in_type_expr nc_stack (SIR.TypeExpr'Get () sp parent name) = do
+    decls <- ask_decl_arena
+    mods <- ask_module_child_maps
+    parent <- resolve_in_type_expr nc_stack parent
+    result <- case get_decl_child decls mods parent name of
+        Right r -> pure $ Just r
+        Left e -> Compiler.tell_error e >> pure Nothing
+
+    pure (SIR.TypeExpr'Get result sp parent name)
 resolve_in_type_expr nc_stack (SIR.TypeExpr'Tuple () a b) =
     resolve_in_type_expr nc_stack a >>= \ a_conv ->
     resolve_in_type_expr nc_stack b >>= \ b_conv ->

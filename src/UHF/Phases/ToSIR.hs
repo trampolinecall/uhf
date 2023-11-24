@@ -39,12 +39,12 @@ instance Diagnostic.ToError Error where
     to_error (Tuple1 sp) = Diagnostic.Error Codes.tuple1 (Just sp) "tuple of 1 element" [] []
     to_error (Tuple0 sp) = Diagnostic.Error Codes.tuple0 (Just sp) "tuple of 0 elements" [] []
 
-type SIRStage = (Identifier, Located SplitIdentifier, SplitIdentifier, (), (), ())
+type SplitIdentifier = (Maybe [Located Text], Located Text)
+
+type SIRStage = (Located Text, Located SplitIdentifier, SplitIdentifier, (), (), ())
 
 type SIR = SIR.SIR SIRStage
 
-type Identifier = [Located Text]
-type SplitIdentifier = (Maybe [Located Text], Located Text)
 type Decl = SIR.Decl
 type Module = SIR.Module SIRStage
 type Binding = SIR.Binding SIRStage
@@ -189,7 +189,7 @@ convert_decls bv_parent decl_parent decls =
                     fields
 
 convert_type :: AST.Type -> MakeIRState TypeExpr
-convert_type (AST.Type'Identifier id) = pure $ SIR.TypeExpr'Identifier () (just_span id) (unlocate id)
+convert_type (AST.Type'Identifier id) = pure $ path_to_type_expr (unlocate id)
 convert_type (AST.Type'Tuple sp items) = mapM convert_type items >>= group_items
     where
         group_items [a, b] = pure $ SIR.TypeExpr'Tuple () a b
@@ -208,6 +208,15 @@ convert_type (AST.Type'Apply sp ty args) =
     convert_type ty >>= \ ty ->
     foldlM (\ ty arg -> SIR.TypeExpr'Apply () sp ty <$> convert_type arg) ty args -- TODO: fix spans
 convert_type (AST.Type'Wild sp) = pure $ SIR.TypeExpr'Wild () sp
+
+path_to_type_expr :: [Located Text] -> TypeExpr
+path_to_type_expr [] = error "empty path"
+path_to_type_expr [id] = SIR.TypeExpr'Refer () (just_span id) id
+path_to_type_expr path =
+    let i = init path
+        l = last path
+        f = head path
+    in SIR.TypeExpr'Get () (just_span f <> just_span l) (path_to_type_expr i) l -- TODO: do not do span <> here (handle in the parser / ast)
 
 convert_expr :: ID.ExprID -> AST.Expr -> MakeIRState Expr
 convert_expr cur_id (AST.Expr'Identifier iden) = pure (SIR.Expr'Identifier cur_id () (just_span iden) (split_identifier <$> iden))

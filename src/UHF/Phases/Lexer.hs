@@ -28,11 +28,11 @@ import qualified Data.Map as Map
 import Data.Char (isAlpha, isDigit, isOctDigit, isHexDigit, isSpace, digitToInt)
 
 -- lexing {{{1
-lex :: File -> Compiler.WithDiagnostics LexError.Error Void (Seq Token.LToken, Token.LToken)
+lex :: File -> Compiler.WithDiagnostics LexError.Error Void ([Token.LToken], Token.LToken)
 lex f =
     let eof = Located (Span.end_of_file f) (Token.EOF ())
     in evalStateT (run []) (Location.new f) >>= \ toks ->
-    pure (toks, eof)
+    pure (toList toks, eof)
 
     where
         run toks =

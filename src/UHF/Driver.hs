@@ -53,11 +53,12 @@ import qualified UHF.Phases.TSBackend as TSBackend
 
 type Tokens = ([Token.LToken], Token.LToken)
 type AST = [AST.Decl]
-type FirstSIR = SIR.SIR ([Located Text], (Located (Maybe [Located Text], Located Text)), (Maybe [Located Text], Located Text), (), (), ())
-type TEESIR = SIR.SIR ((Maybe IR.Keys.DeclKey), (Located (Maybe (Either () IR.Keys.DeclKey), Located Text)), (Maybe (Either () IR.Keys.DeclKey), Located Text), (Maybe (IR.Type.Type Void)), (), ())
-type NRSIR = SIR.SIR ((Maybe IR.Keys.DeclKey), (Located (Maybe IR.Keys.BoundValueKey)), (Maybe IR.Type.ADTVariantIndex), (Maybe (IR.Type.Type Void)), (), ())
-type InfixGroupedSIR = SIR.SIR ((Maybe IR.Keys.DeclKey), (Located (Maybe IR.Keys.BoundValueKey)), (Maybe IR.Type.ADTVariantIndex), (Maybe (IR.Type.Type Void)), (), Void)
-type TypedSIR = SIR.SIR ((Maybe IR.Keys.DeclKey), (Located (Maybe IR.Keys.BoundValueKey)), (Maybe IR.Type.ADTVariantIndex), (Maybe (IR.Type.Type Void)), (Maybe (IR.Type.Type Void)), Void)
+type FirstSIR = SIR.SIR (Located Text, (), (), Located Text, (), Located Text, (), (), ())
+type NRStartsSIR = SIR.SIR (Maybe IR.Keys.DeclKey, (), (), Maybe IR.Keys.BoundValueKey, (), Maybe IR.Type.ADTVariantIndex, (), (), ())
+type TEESIR = SIR.SIR (Maybe IR.Keys.DeclKey, Maybe IR.Keys.DeclKey, Maybe (IR.Type.Type Void), Maybe IR.Keys.BoundValueKey, (), Maybe IR.Type.ADTVariantIndex, (), (), ())
+type NRSIR = SIR.SIR (Maybe IR.Keys.DeclKey, Maybe IR.Keys.DeclKey, Maybe (IR.Type.Type Void), Maybe IR.Keys.BoundValueKey, Maybe IR.Keys.BoundValueKey, Maybe IR.Type.ADTVariantIndex, Maybe IR.Type.ADTVariantIndex, (), ())
+type InfixGroupedSIR = SIR.SIR (Maybe IR.Keys.DeclKey, Maybe IR.Keys.DeclKey, Maybe (IR.Type.Type Void), Maybe IR.Keys.BoundValueKey, Maybe IR.Keys.BoundValueKey, Maybe IR.Type.ADTVariantIndex, Maybe IR.Type.ADTVariantIndex, (), Void)
+type TypedSIR = SIR.SIR (Maybe IR.Keys.DeclKey, Maybe IR.Keys.DeclKey, Maybe (IR.Type.Type Void), Maybe IR.Keys.BoundValueKey, Maybe IR.Keys.BoundValueKey, Maybe IR.Type.ADTVariantIndex, Maybe IR.Type.ADTVariantIndex, Maybe (IR.Type.Type Void), Void)
 type RIR = RIR.RIR
 type ANFIR = ANFIR.ANFIR
 type BackendIR = BackendIR.BackendIR (Maybe (IR.Type.Type Void)) ()
@@ -73,6 +74,7 @@ data PhaseResultsCache
         , _get_tokens :: Maybe (Tokens, Outputable)
         , _get_ast :: Maybe (AST, Outputable)
         , _get_first_sir :: Maybe (FirstSIR, Outputable)
+        , _get_nr_starts_sir :: Maybe (NRStartsSIR, Outputable)
         , _get_teesir :: Maybe (TEESIR, Outputable)
         , _get_nrsir :: Maybe (NRSIR, Outputable)
         , _get_infix_grouped :: Maybe (InfixGroupedSIR, Outputable)
@@ -86,7 +88,7 @@ data PhaseResultsCache
         }
 type PhaseResultsState = StateT PhaseResultsCache WithDiagnosticsIO
 
-data OutputFormat = AST | ASTDump | SIR | TEESIR | NRSIR | InfixGroupedSIR | TypedSIR | RIR | ANFIR | OptimizedANFIR | BackendIR | TS
+data OutputFormat = AST | ASTDump | SIR | NRStartsSIR | TEESIR | NRSIR | InfixGroupedSIR | TypedSIR | RIR | ANFIR | OptimizedANFIR | BackendIR | TS
 data CompileOptions
     = CompileOptions
         { input_file :: FilePath
@@ -102,11 +104,12 @@ compile c_needed diagnostic_settings compile_options =
     pure (if Compiler.had_errors diagnostics then Left () else Right ())
 
 print_outputs :: CompileOptions -> File -> WithDiagnosticsIO ()
-print_outputs compile_options file = evalStateT (mapM_ print_output_format (output_formats compile_options)) (PhaseResultsCache file Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing)
+print_outputs compile_options file = evalStateT (mapM_ print_output_format (output_formats compile_options)) (PhaseResultsCache file Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing)
     where
         print_output_format AST = get_ast >>= output_if_outputable (\ ast -> lift (lift (putTextLn $ AST.PP.pp_decls ast)))
         print_output_format ASTDump = get_ast >>= output_if_outputable (\ ast -> lift (lift (putTextLn $ AST.Dump.dump ast)))
         print_output_format SIR = get_first_sir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_sir" (SIR.PP.dump_main_module ir))))
+        print_output_format NRStartsSIR = get_nr_starts_sir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_nr_starts_sir" (SIR.PP.dump_main_module ir))))
         print_output_format TEESIR = get_teesir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_teesir" (SIR.PP.dump_main_module ir))))
         print_output_format NRSIR = get_nrsir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_nrsir" (SIR.PP.dump_main_module ir))))
         print_output_format InfixGroupedSIR = get_infix_grouped >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_infix_grouped" (SIR.PP.dump_main_module ir))))
@@ -176,10 +179,15 @@ get_first_sir = get_or_calculate _get_first_sir (\ cache first_sir -> cache { _g
     where
         to_sir = get_ast >>= run_stage_on_previous_stage_output (convert_errors . ToSIR.convert)
 
+get_nr_starts_sir :: PhaseResultsState (NRStartsSIR, Outputable)
+get_nr_starts_sir = get_or_calculate _get_nr_starts_sir (\ cache nr_starts_sir -> cache { _get_nr_starts_sir = nr_starts_sir }) nr_starts
+    where
+        nr_starts = get_first_sir >>= run_stage_on_previous_stage_output (convert_errors . ResolveReferStarts.resolve)
+
 get_teesir :: PhaseResultsState (TEESIR, Outputable)
 get_teesir = get_or_calculate _get_teesir (\ cache teesir -> cache { _get_teesir = teesir }) eval_type_exprs
     where
-        eval_type_exprs = get_first_sir >>= run_stage_on_previous_stage_output (convert_errors . EvalTypeExprs.eval)
+        eval_type_exprs = get_nr_starts_sir >>= run_stage_on_previous_stage_output (convert_errors . EvalTypeExprs.eval)
 
 get_nrsir :: PhaseResultsState (NRSIR, Outputable)
 get_nrsir = get_or_calculate _get_nrsir (\ cache nrsir -> cache { _get_nrsir = nrsir }) name_resolve

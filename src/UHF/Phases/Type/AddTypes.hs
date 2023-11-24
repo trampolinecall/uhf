@@ -98,6 +98,7 @@ apply_type for_what sp ty arg =
     lift (tell [UnkIsApplyResult sp tyu ty arg]) >>
     pure (Type.Type'Unknown tyu)
 
+-- TODO: (split-nr) this function is not necessary anymore
 type_expr :: UntypedTypeExpr -> ContextReader UntypedDeclArena bvs adts TypedWithUnkTypeExpr
 type_expr (SIR.TypeExpr'Identifier () sp iden) = do
     (decls, _, _) <- ask

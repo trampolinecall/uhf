@@ -24,7 +24,7 @@ type DIden = Maybe SIR.DeclKey
 type VIden = Located (Maybe SIR.BoundValueKey)
 type PIden = Maybe Type.ADTVariantIndex
 
-type LastSIR = (DIden, VIden, PIden, Type, Void)
+type LastSIR = (DIden, VIden, PIden, Type, Type, Void)
 
 -- TODO: remove these type aliases
 type SIR = SIR.SIR LastSIR

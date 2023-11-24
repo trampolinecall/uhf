@@ -126,7 +126,7 @@ type_expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
         levels (SIR.TypeExpr'Get _ _ parent name) = (3, \ cur _ -> cur parent >>= \ parent -> pure (PP.List [parent, "::", PP.String $ unlocate name]))
         levels (SIR.TypeExpr'Refer _ _ iden) = (4, \ _ _ -> refer_iden iden)
         levels (SIR.TypeExpr'Tuple _ a b) = (4, \ _ _ -> type_expr a >>= \ a -> type_expr b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b]))
-        levels (SIR.TypeExpr'Hole _ _ hid) = (4, \ _ _ -> put_iden_list_of_text (unlocate hid) >>= \ hid -> pure (PP.List ["?", hid]))
+        levels (SIR.TypeExpr'Hole _ _ _ hid) = (4, \ _ _ -> put_iden_list_of_text (unlocate hid) >>= \ hid -> pure (PP.List ["?", hid]))
         levels (SIR.TypeExpr'Wild _ _) = (4, \ _ _ -> pure $ PP.String "_")
         levels (SIR.TypeExpr'Poison _ _) = (4, \ _ _ -> pure $ PP.String "poison")
 
@@ -136,7 +136,7 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
         levels (SIR.Expr'BinaryOps _ _ _ _ first ops) = (0, \ _ next -> next first >>= \ first -> mapM (\ (op, rhs) -> refer_iden op >>= \ op -> next rhs >>= \ rhs -> pure (PP.List [op, " ", rhs])) ops >>= \ ops -> pure (PP.List ["(", first, PP.Block PP.Inconsistent Nothing (Just " ") Nothing ops, ")"]))
 
         levels (SIR.Expr'Call _ _ _ callee arg) = (1, \ cur _ -> cur callee >>= \ callee -> expr arg >>= \ arg -> pure (PP.FirstOnLineIfMultiline $ PP.List [callee, "(", arg, ")"]))
-        levels (SIR.Expr'TypeApply _ _ _ e arg) = (1, \ cur _ -> cur e >>= \ e -> type_expr arg >>= \ arg -> pure (PP.List [e, "#(", arg, ")"]))
+        levels (SIR.Expr'TypeApply _ _ _ e (arg, _)) = (1, \ cur _ -> cur e >>= \ e -> type_expr arg >>= \ arg -> pure (PP.List [e, "#(", arg, ")"]))
 
         levels (SIR.Expr'Identifier _ _ _ i) = (2, \ _ _ -> PP.FirstOnLineIfMultiline <$> refer_iden i)
         levels (SIR.Expr'Hole _ _ _ hid) = (2, \ _ _ -> put_iden_list_of_text (unlocate hid) >>= \ hid -> pure (PP.List ["?", hid]))

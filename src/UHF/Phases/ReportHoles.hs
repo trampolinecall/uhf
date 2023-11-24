@@ -41,32 +41,32 @@ instance Diagnostic.ToError (Error stage) where
         let message = "hole: '?" <> Text.intercalate "::" (map unlocate name) <> "' of type '" <> PP.render (Type.PP.refer_type absurd adts type_synonyms vars ty) <> "'"
         in Diagnostic.Error Diagnostic.Codes.hole (Just sp) message [] []
 
-report_holes :: (SIR.TypeInfo stage ~ Maybe Type, SIR.TypeExprTypeInfo stage ~ Maybe Type) => SIR stage -> Compiler.WithDiagnostics (Error stage) Void ()
+report_holes :: (SIR.TypeInfo stage ~ Maybe Type) => SIR stage -> Compiler.WithDiagnostics (Error stage) Void ()
 report_holes sir@(SIR.SIR _ _ _ _ _ _ mod) = runReaderT (module_ mod) sir
 
-module_ :: (SIR.TypeInfo stage ~ Maybe Type, SIR.TypeExprTypeInfo stage ~ Maybe Type) => SIR.ModuleKey -> ReaderT (SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
+module_ :: (SIR.TypeInfo stage ~ Maybe Type) => SIR.ModuleKey -> ReaderT (SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
 module_ key =
     ask >>= \ (SIR.SIR _ modules _ _ _ _ _) ->
     let SIR.Module _ bindings adts type_synonyms = Arena.get modules key
     in mapM_ binding bindings >> mapM_ adt adts >> mapM_ type_synonym type_synonyms
 
-adt :: (SIR.TypeInfo stage ~ Maybe Type, SIR.TypeExprTypeInfo stage ~ Maybe Type) => Type.ADTKey -> ReaderT (SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
+adt :: (SIR.TypeInfo stage ~ Maybe Type) => Type.ADTKey -> ReaderT (SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
 adt key = ask >>= \ (SIR.SIR _ _ adts _ _ _ _) -> let (Type.ADT _ _ _ variants) = Arena.get adts key in mapM_ variant variants
     where
         variant (Type.ADTVariant'Named _ _ fields) = mapM_ (\ (_, _, ty) -> type_expr ty) fields
         variant (Type.ADTVariant'Anon _ _ fields) = mapM_ (\ (_, ty) -> type_expr ty) fields
 
-type_synonym :: (SIR.TypeInfo stage ~ Maybe Type, SIR.TypeExprTypeInfo stage ~ Maybe Type) => Type.TypeSynonymKey -> ReaderT (SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
+type_synonym :: (SIR.TypeInfo stage ~ Maybe Type) => Type.TypeSynonymKey -> ReaderT (SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
 type_synonym key = ask >>= \ (SIR.SIR _ _ _ type_synonyms _ _ _) -> let (Type.TypeSynonym _ _ expansion) = Arena.get type_synonyms key in type_expr expansion
 
-binding :: (SIR.TypeInfo stage ~ Maybe Type, SIR.TypeExprTypeInfo stage ~ Maybe Type) => Binding stage -> ReaderT (SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
+binding :: (SIR.TypeInfo stage ~ Maybe Type) => Binding stage -> ReaderT (SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
 binding (SIR.Binding p _ e) = pattern p >> expr e
 binding (SIR.Binding'ADTVariant _ _ _ _) = pure ()
 
 pattern :: Pattern p_iden -> ReaderT (SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
 pattern _ = pure () -- TODO: remove or keep for symmetry?
 
-expr :: (SIR.TypeInfo stage ~ Maybe Type, SIR.TypeExprTypeInfo stage ~ Maybe Type) => Expr stage -> ReaderT (SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
+expr :: (SIR.TypeInfo stage ~ Maybe Type) => Expr stage -> ReaderT (SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
 expr (SIR.Expr'Identifier _ _ _ _) = pure ()
 expr (SIR.Expr'Char _ _ _ _) = pure ()
 expr (SIR.Expr'String _ _ _ _) = pure ()
@@ -88,7 +88,7 @@ expr (SIR.Expr'Call _ _ _ callee arg) = expr callee >> expr arg
 expr (SIR.Expr'If _ _ _ _ cond t f) = expr cond >> expr t >> expr f
 expr (SIR.Expr'Match _ _ _ _ e arms) = expr e >> mapM_ (\ (p, e) -> pattern p >> expr e) arms
 
-expr (SIR.Expr'TypeAnnotation _ _ _ ty e) = type_expr ty >> expr e
+expr (SIR.Expr'TypeAnnotation _ _ _ (ty, _) e) = type_expr ty >> expr e
 
 expr (SIR.Expr'Forall _ _ _ _ e) = expr e
 expr (SIR.Expr'TypeApply _ _ _ e args) = expr e >> type_expr args
@@ -102,11 +102,11 @@ expr (SIR.Expr'Hole _ type_info sp hid) =
 
 expr (SIR.Expr'Poison _ _ _) = pure ()
 
-type_expr :: (SIR.TypeInfo stage ~ Maybe Type, SIR.TypeExprTypeInfo stage ~ Maybe Type) => TypeExpr stage -> ReaderT (SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
+type_expr :: (SIR.TypeInfo stage ~ Maybe Type) => TypeExpr stage -> ReaderT (SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
 type_expr (SIR.TypeExpr'Refer _ _ _) = pure ()
 type_expr (SIR.TypeExpr'Get _ _ inside _) = type_expr inside
 type_expr (SIR.TypeExpr'Tuple _ a b) = type_expr a >> type_expr b
-type_expr (SIR.TypeExpr'Hole type_info sp hid) =
+type_expr (SIR.TypeExpr'Hole _ type_info sp hid) =
     case type_info of
         Just type_info ->
             ask >>= \ (SIR.SIR _ _ adts type_synonyms vars _ _) ->

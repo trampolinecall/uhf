@@ -261,7 +261,8 @@ resolve_in_binding nc_stack (SIR.Binding target eq_sp expr) = SIR.Binding <$> re
 resolve_in_binding _ (SIR.Binding'ADTVariant bvk variant vars sp) = pure $ SIR.Binding'ADTVariant bvk variant vars sp
 
 resolve_in_type_expr :: ChildMapStack -> (SIR.TypeExpr Unresolved) -> (NRReader adt_arena bv_arena TypeVarArena ModuleChildMaps (MakeDeclState CollectingErrors)) (SIR.TypeExpr Resolved)
-resolve_in_type_expr nc_stack (SIR.TypeExpr'Identifier type_info sp id) = SIR.TypeExpr'Identifier type_info sp <$> resolve_iden_in_monad resolve_type_iden nc_stack id
+resolve_in_type_expr nc_stack (SIR.TypeExpr'Refer type_info sp id) = SIR.TypeExpr'Refer type_info sp <$> resolve_iden_in_monad resolve_type_iden nc_stack id
+resolve_in_type_expr nc_stack (SIR.TypeExpr'Get type_info sp parent name) = SIR.TypeExpr'Get type_info sp <$> resolve_in_type_expr nc_stack parent <*> pure name
 resolve_in_type_expr nc_stack (SIR.TypeExpr'Tuple type_info a b) = SIR.TypeExpr'Tuple type_info <$> resolve_in_type_expr nc_stack a <*> resolve_in_type_expr nc_stack b
 resolve_in_type_expr _ (SIR.TypeExpr'Hole type_info sp hid) = pure $ SIR.TypeExpr'Hole type_info sp hid
 resolve_in_type_expr nc_stack (SIR.TypeExpr'Function type_info sp arg res) = SIR.TypeExpr'Function type_info sp <$> resolve_in_type_expr nc_stack arg <*> resolve_in_type_expr nc_stack res

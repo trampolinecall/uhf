@@ -74,7 +74,8 @@ deriving instance Stage.AllShowable stage => Show (Binding stage)
 type HoleIdentifier = Located [Located Text] -- TODO: disallow paths in holes?
 
 data TypeExpr stage
-    = TypeExpr'Identifier (Stage.TypeExprTypeInfo stage) Span (Stage.DIden stage)
+    = TypeExpr'Refer (Stage.TypeExprTypeInfo stage) Span (Stage.DIden stage)
+    | TypeExpr'Get (Stage.TypeExprTypeInfo stage) Span (TypeExpr stage) (Located Text)
     | TypeExpr'Tuple (Stage.TypeExprTypeInfo stage) (TypeExpr stage) (TypeExpr stage)
     | TypeExpr'Hole (Stage.TypeExprTypeInfo stage) Span HoleIdentifier
     | TypeExpr'Function (Stage.TypeExprTypeInfo stage) Span (TypeExpr stage) (TypeExpr stage)
@@ -85,7 +86,7 @@ data TypeExpr stage
 deriving instance Stage.AllShowable stage => Show (TypeExpr stage)
 
 data Expr stage
-    = Expr'Identifier ID.ExprID (Stage.TypeInfo stage) Span (Stage.VIden stage)
+    = Expr'Identifier ID.ExprID (Stage.TypeInfo stage) Span (Stage.VIden stage) -- TODO: (paths-as-gets) split this into Refer and Get
     | Expr'Char ID.ExprID (Stage.TypeInfo stage) Span Char
     | Expr'String ID.ExprID (Stage.TypeInfo stage) Span Text
     | Expr'Int ID.ExprID (Stage.TypeInfo stage) Span Integer
@@ -117,7 +118,7 @@ data Expr stage
 deriving instance Stage.AllShowable stage => Show (Expr stage)
 
 data Pattern stage
-    = Pattern'Identifier (Stage.TypeInfo stage) Span BoundValueKey
+    = Pattern'Identifier (Stage.TypeInfo stage) Span BoundValueKey -- TODO: (paths-as-gets) split this into Refer and Get
     | Pattern'Wildcard (Stage.TypeInfo stage) Span
     | Pattern'Tuple (Stage.TypeInfo stage) Span (Pattern stage) (Pattern stage)
     | Pattern'Named (Stage.TypeInfo stage) Span Span (Located BoundValueKey) (Pattern stage)
@@ -128,7 +129,8 @@ data Pattern stage
 deriving instance Stage.AllShowable stage => Show (Pattern stage)
 
 type_expr_type_info :: TypeExpr stage -> (Stage.TypeExprTypeInfo stage)
-type_expr_type_info (TypeExpr'Identifier type_info _ _) = type_info
+type_expr_type_info (TypeExpr'Refer type_info _ _) = type_info
+type_expr_type_info (TypeExpr'Get type_info _ _ _) = type_info
 type_expr_type_info (TypeExpr'Tuple type_info _ _) = type_info
 type_expr_type_info (TypeExpr'Hole type_info _ _) = type_info
 type_expr_type_info (TypeExpr'Function type_info _ _ _) = type_info

@@ -106,7 +106,8 @@ group_expr (SIR.Expr'TypeApply id () sp e args) = SIR.Expr'TypeApply id () sp <$
 
 -- TODO: automate functions like this?
 convert_type_expr :: Convertible ungrouped grouped => SIR.TypeExpr ungrouped -> SIR.TypeExpr grouped
-convert_type_expr (SIR.TypeExpr'Identifier tyinfo sp bvk) = SIR.TypeExpr'Identifier tyinfo sp bvk
+convert_type_expr (SIR.TypeExpr'Refer tyinfo sp bvk) = SIR.TypeExpr'Refer tyinfo sp bvk
+convert_type_expr (SIR.TypeExpr'Get tyinfo sp parent name) = SIR.TypeExpr'Get tyinfo sp (convert_type_expr parent) name
 convert_type_expr (SIR.TypeExpr'Tuple tyinfo a b) = SIR.TypeExpr'Tuple tyinfo (convert_type_expr a) (convert_type_expr b)
 convert_type_expr (SIR.TypeExpr'Hole tyinfo sp hiden) = SIR.TypeExpr'Hole tyinfo sp hiden
 convert_type_expr (SIR.TypeExpr'Function tyinfo sp a b) = SIR.TypeExpr'Function tyinfo sp (convert_type_expr a) (convert_type_expr b)

@@ -197,7 +197,7 @@ pattern (SIR.Pattern'Poison () sp) = SIR.Pattern'Poison <$> (Type.Type'Unknown <
 
 expr :: UntypedExpr -> ContextReader UntypedDeclArena TypedWithUnkBoundValueArena TypedWithUnkADTArena TypedWithUnkExpr
 expr (SIR.Expr'Identifier id () sp iden bv) =
-    (case unlocate bv of
+    (case bv of
         Just bv -> get_bv_type bv
         Nothing -> Type.Type'Unknown <$> lift (lift $ new_type_unknown (UnresolvedIdenExpr sp))) >>= \ ty ->
 

@@ -6,15 +6,13 @@ import qualified Arena
 import qualified UHF.Data.IR.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
 
-import UHF.IO.Located (Located (..))
-
 import qualified UHF.Phases.Type.Unknown as Unknown
 
 type TypeWithUnk = Type.Type Unknown.TypeUnknownKey
 type Type = Type.Type Void
 
 type DIden = Maybe SIR.DeclKey
-type VIden = Located (Maybe SIR.BoundValueKey)
+type VIden = Maybe SIR.BoundValueKey
 type PIden = Maybe Type.ADTVariantIndex
 
 type TypeVarArena = Arena.Arena Type.Var Type.TypeVarKey

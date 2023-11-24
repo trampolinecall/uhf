@@ -21,7 +21,7 @@ import qualified Data.List as List
 type Type = Maybe (Type.Type Void)
 
 type DIden = Maybe SIR.DeclKey
-type VIden = Located (Maybe SIR.BoundValueKey)
+type VIden = Maybe SIR.BoundValueKey
 type PIden = Maybe Type.ADTVariantIndex
 
 type LastSIR = (DIden, DIden, Type, VIden, VIden, PIden, PIden, Type, Void)
@@ -109,7 +109,7 @@ new_bound_value ty sp =
     lift (state $ Arena.put (RIR.BoundValue id ty sp))
 
 convert_expr :: SIRExpr -> ConvertState RIRExpr
-convert_expr (SIR.Expr'Identifier id ty sp _ bv) = pure $ RIR.Expr'Identifier id ty sp (unlocate bv)
+convert_expr (SIR.Expr'Identifier id ty sp _ bv) = pure $ RIR.Expr'Identifier id ty sp bv
 convert_expr (SIR.Expr'Char id ty sp c) = pure $ RIR.Expr'Char id sp c
 convert_expr (SIR.Expr'String id ty sp s) = pure $ RIR.Expr'String id sp s
 convert_expr (SIR.Expr'Int id ty sp i) = pure $ RIR.Expr'Int id sp i

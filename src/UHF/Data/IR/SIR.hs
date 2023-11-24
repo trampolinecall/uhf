@@ -71,7 +71,7 @@ data Binding stage
     | Binding'ADTVariant Span BoundValueKey [Type.TypeVarKey] Type.ADTVariantIndex
 deriving instance Stage.AllShowable stage => Show (Binding stage)
 
-type HoleIdentifier = Located [Located Text] -- TODO: disallow paths in holes?
+type HoleIdentifier = Located Text
 
 data TypeExpr stage
     = TypeExpr'Refer (Stage.TypeExprEvaled stage) Span (Stage.DIden stage)
@@ -100,7 +100,7 @@ data Expr stage
     | Expr'Let ID.ExprID (Stage.TypeInfo stage) Span [Binding stage] (Expr stage)
     | Expr'LetRec ID.ExprID (Stage.TypeInfo stage) Span [Binding stage] (Expr stage)
 
-    | Expr'BinaryOps ID.ExprID (Stage.BinaryOpsAllowed stage) (Stage.TypeInfo stage) Span (Expr stage) [((Stage.VIden stage), Expr stage)]
+    | Expr'BinaryOps ID.ExprID (Stage.BinaryOpsAllowed stage) (Stage.TypeInfo stage) Span (Expr stage) [(Stage.VIden stage, Expr stage)]
 
     | Expr'Call ID.ExprID (Stage.TypeInfo stage) Span (Expr stage) (Expr stage)
 

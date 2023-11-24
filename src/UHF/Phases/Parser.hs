@@ -127,9 +127,9 @@ expr_binary_ops :: PEG.Parser AST.Expr
 expr_binary_ops =
     expr_call >>= \ first ->
     PEG.star (
-        PEG.consume' "operator" (Token.SymbolIdentifier ()) >>= \ (Located op_sp (Token.SymbolIdentifier op)) ->
+        path_or_single_symbol_iden >>= \ op ->
         expr_call >>= \ second ->
-        pure (Located op_sp op, second)
+        pure (op, second)
     ) >>= \ ops ->
     if null ops
         then pure first
@@ -437,6 +437,18 @@ path_or_single_iden = PEG.choice [path, single_iden]
             pure (Located (AST.type_span ty <> next_sp) (AST.PathOrSingleIden'Path ty (Located next_sp next)))
         single_iden =
             PEG.consume' "identifier" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
+            pure (Located iden_sp (AST.PathOrSingleIden'Single (Located iden_sp iden)))
+
+path_or_single_symbol_iden :: PEG.Parser (Located AST.PathOrSingleIden)
+path_or_single_symbol_iden = PEG.choice [path, single_iden]
+    where
+        path =
+            type_ >>= \ ty ->
+            PEG.consume' "'::'" (Token.SingleTypeToken Token.Colon) >>= \ _ ->
+            PEG.consume' "symbol identifier" (Token.SymbolIdentifier ()) >>= \ (Located next_sp (Token.SymbolIdentifier next)) ->
+            pure (Located (AST.type_span ty <> next_sp) (AST.PathOrSingleIden'Path ty (Located next_sp next)))
+        single_iden =
+            PEG.consume' "operator" (Token.SymbolIdentifier ()) >>= \ (Located iden_sp (Token.SymbolIdentifier iden)) ->
             pure (Located iden_sp (AST.PathOrSingleIden'Single (Located iden_sp iden)))
 
 -- tests {{{1

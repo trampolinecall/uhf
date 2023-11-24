@@ -1,3 +1,6 @@
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module UHF.Phases.ToRIR.PatternCheck
     ( CompletenessError (..)
     , NotUseful (..)
@@ -23,10 +26,10 @@ import qualified UHF.Data.IR.Type as Type
 import qualified Data.List as List
 import qualified Data.Text as Text
 
-data CompletenessError = CompletenessError (Arena.Arena (Type.ADT Type) Type.ADTKey) Span [Pattern] [MatchValue]
-data NotUseful = NotUseful Pattern
+data CompletenessError stage = CompletenessError (Arena.Arena (Type.ADT Type) Type.ADTKey) Span [(SIR.Pattern stage)] [MatchValue]
+data NotUseful stage = NotUseful (SIR.Pattern stage)
 
-instance Diagnostic.ToError CompletenessError where
+instance Diagnostic.ToError (CompletenessError stage) where
     to_error (CompletenessError adt_arena sp pats left_over) =
         Diagnostic.Error Diagnostic.Codes.incomplete_patterns (Just sp) "incomplete patterns"
             ( (Just sp, Diagnostic.MsgError, Just $ "values not matched: " <> Text.intercalate ", " (map (show_match_value adt_arena) left_over)) :
@@ -34,11 +37,11 @@ instance Diagnostic.ToError CompletenessError where
             )
             []
 
-instance Diagnostic.ToWarning NotUseful where
+instance Diagnostic.ToWarning (NotUseful stage) where
     to_warning (NotUseful pat) = Diagnostic.Warning Diagnostic.Codes.useless_pattern (Just $ SIR.pattern_span pat) "useless pattern" [] []
 
 type Type = Maybe (Type.Type Void)
-type Pattern = SIR.Pattern (Maybe Type.ADTVariantIndex) Type
+type CorrectStage s = (SIR.TypeInfo s ~ Type, SIR.PIden s ~ (Maybe Type.ADTVariantIndex))
 
 data MatchValue
     = Any
@@ -54,10 +57,10 @@ show_match_value adt_arena (Tuple a b) = "(" <> show_match_value adt_arena a <> 
 
 -- TODO: clean this up
 -- TODO: use actual type of expression being matched against, not types of patterns
-check :: Arena.Arena (Type.ADT Type) Type.ADTKey -> Arena.Arena (Type.TypeSynonym Type) Type.TypeSynonymKey -> [Pattern] -> ([MatchValue], [(Pattern, [MatchValue])])
+check :: forall stage. CorrectStage stage => Arena.Arena (Type.ADT Type) Type.ADTKey -> Arena.Arena (Type.TypeSynonym Type) Type.TypeSynonymKey -> [(SIR.Pattern stage)] -> ([MatchValue], [((SIR.Pattern stage), [MatchValue])])
 check adt_arena type_synonym_arena patterns = mapAccumL check_one_pattern [Any] patterns
     where
-        check_one_pattern :: [MatchValue] -> Pattern -> ([MatchValue], (Pattern, [MatchValue]))
+        check_one_pattern :: [MatchValue] -> (SIR.Pattern stage) -> ([MatchValue], ((SIR.Pattern stage), [MatchValue]))
         check_one_pattern uncovered cur_pattern =
             let (still_uncovered, covered) = unzip $ map (check_against_one_uncovered_value cur_pattern) uncovered
             -- TODO: filter duplicates, also almost duplicates where _ and constructors are included (as of 2023-11-21, i am not sure what this todo is talking about)
@@ -65,7 +68,7 @@ check adt_arena type_synonym_arena patterns = mapAccumL check_one_pattern [Any] 
 
         -- first list of tuple is all of the unmatched values
         -- second list of tuple is all of the matched values
-        check_against_one_uncovered_value :: Pattern -> MatchValue -> ([MatchValue], [MatchValue])
+        check_against_one_uncovered_value :: (SIR.Pattern stage) -> MatchValue -> ([MatchValue], [MatchValue])
         check_against_one_uncovered_value (SIR.Pattern'Identifier ty _ _) uncovered_value = check_wild ty uncovered_value
         check_against_one_uncovered_value (SIR.Pattern'Wildcard ty _) uncovered_value = check_wild ty uncovered_value
 
@@ -172,14 +175,14 @@ check adt_arena type_synonym_arena patterns = mapAccumL check_one_pattern [Any] 
 
         is_valid_match_value mv = True -- TODO: not (has_uninhabited_values mv)
 
-check_complete :: Arena.Arena (Type.ADT Type) Type.ADTKey -> Arena.Arena (Type.TypeSynonym Type) Type.TypeSynonymKey -> Span -> [Pattern] -> Either CompletenessError ()
+check_complete :: CorrectStage stage => Arena.Arena (Type.ADT Type) Type.ADTKey -> Arena.Arena (Type.TypeSynonym Type) Type.TypeSynonymKey -> Span -> [(SIR.Pattern stage)] -> Either (CompletenessError stage) ()
 check_complete adt_arena type_synonym_arena err_sp patterns =
     let (left_over, _) = check adt_arena type_synonym_arena patterns
     in if null left_over
         then Right ()
         else Left $ CompletenessError adt_arena err_sp patterns left_over
 
-check_useful :: Arena.Arena (Type.ADT Type) Type.ADTKey -> Arena.Arena (Type.TypeSynonym Type) Type.TypeSynonymKey -> [Pattern] -> Either [NotUseful] ()
+check_useful :: CorrectStage stage => Arena.Arena (Type.ADT Type) Type.ADTKey -> Arena.Arena (Type.TypeSynonym Type) Type.TypeSynonymKey -> [(SIR.Pattern stage)] -> Either [NotUseful stage] ()
 check_useful adt_arena type_synonym_arena patterns =
     let (_, patterns') = check adt_arena type_synonym_arena patterns
         warns = mapMaybe (\ (pat, covers) -> if null covers then Just (NotUseful pat) else Nothing) patterns'

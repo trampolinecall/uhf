@@ -56,6 +56,7 @@ library
       UHF.Phases.Lexer
       UHF.Phases.Lexer.LexError
       UHF.Phases.NameResolve
+      UHF.Phases.NameResolve.Utils
       UHF.Phases.OptimizeANFIR
       UHF.Phases.OptimizeANFIR.RemoveRefers
       UHF.Phases.OptimizeANFIR.Utils

@@ -46,8 +46,8 @@ type SIR = SIR.SIR SIRStage
 type Decl = SIR.Decl
 type Module = SIR.Module SIRStage
 type Binding = SIR.Binding SIRStage
-type ADT = Type.ADT TypeExpr
-type TypeSynonym = Type.TypeSynonym TypeExpr
+type ADT = Type.ADT (TypeExpr, ())
+type TypeSynonym = Type.TypeSynonym (TypeExpr, ())
 type TypeExpr = SIR.TypeExpr SIRStage
 type Expr = SIR.Expr SIRStage
 type Pattern = SIR.Pattern SIRStage
@@ -149,7 +149,7 @@ convert_decls bv_parent decl_parent decls =
             runMaybeT (
                 lift (convert_type expansion) >>= \ expansion' ->
                 let l_syn_name@(Located _ syn_name) = name -- TODO: remove
-                in lift (new_type_synonym (Type.TypeSynonym (ID.DeclID decl_parent syn_name) l_syn_name expansion'))
+                in lift (new_type_synonym (Type.TypeSynonym (ID.DeclID decl_parent syn_name) l_syn_name (expansion', ())))
             ) >>= \case
                 Just syn_key -> pure ([], [], [syn_key])
                 Nothing -> pure ([], [], [])
@@ -157,14 +157,20 @@ convert_decls bv_parent decl_parent decls =
         convert_variant adt_id (AST.DataVariant'Anon variant_name fields) =
             let variant_id = ID.ADTVariantID adt_id (unlocate variant_name)
             in Type.ADTVariant'Anon variant_name variant_id
-                <$> zipWithM (\ field_idx ty_ast -> (ID.ADTFieldID variant_id (show (field_idx :: Int)),) <$> lift (convert_type ty_ast)) [0..] fields
+                <$> zipWithM
+                    (\ field_idx ty_ast ->
+                        lift (convert_type ty_ast) >>= \ ty ->
+                        pure (ID.ADTFieldID variant_id (show (field_idx :: Int)), (ty, ())))
+                    [0..]
+                    fields
         convert_variant adt_id (AST.DataVariant'Named variant_name fields) =
             let variant_id = ID.ADTVariantID adt_id (unlocate variant_name)
             in Type.ADTVariant'Named variant_name variant_id
             -- TODO: check no duplicate field names
                 <$> mapM
                     (\ (field_name, ty_ast) ->
-                        (ID.ADTFieldID variant_id (unlocate field_name), unlocate field_name,) <$> lift (convert_type ty_ast))
+                        lift (convert_type ty_ast) >>= \ ty ->
+                        pure (ID.ADTFieldID variant_id (unlocate field_name), unlocate field_name, (ty, ())))
                     fields
 
 convert_type :: AST.Type -> MakeIRState TypeExpr
@@ -229,7 +235,7 @@ convert_expr cur_id (AST.Expr'BinaryOps sp first ops) =
             (\ ind (op, right) ->
                 convert_expr (ID.ExprID'BinaryOperand cur_id ind) right >>= \ right' ->
                 convert_path_or_single_iden (unlocate op) >>= \ op_split_iden ->
-                pure (op_split_iden, (), right'))
+                pure (just_span op, op_split_iden, (), right'))
             [1..]
             ops
 

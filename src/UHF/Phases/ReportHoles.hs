@@ -22,8 +22,8 @@ type Type = Type.Type Void
 
 -- TODO: remove all of these aliases
 type SIR stage = SIR.SIR stage
-type ADT stage = Type.ADT (TypeExpr stage)
-type TypeSynonym stage = Type.TypeSynonym (TypeExpr stage)
+type ADT stage = Type.ADT (TypeExpr stage, SIR.TypeExprEvaledAsType stage)
+type TypeSynonym stage = Type.TypeSynonym (TypeExpr stage, SIR.TypeExprEvaledAsType stage)
 type Binding stage = SIR.Binding stage
 type Expr stage = SIR.Expr stage
 type Pattern stage = SIR.Pattern stage
@@ -51,11 +51,11 @@ module_ key =
 adt :: (SIR.TypeInfo stage ~ Maybe Type) => Type.ADTKey -> ReaderT (SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
 adt key = ask >>= \ (SIR.SIR _ _ adts _ _ _ _) -> let (Type.ADT _ _ _ variants) = Arena.get adts key in mapM_ variant variants
     where
-        variant (Type.ADTVariant'Named _ _ fields) = mapM_ (\ (_, _, ty) -> type_expr ty) fields
-        variant (Type.ADTVariant'Anon _ _ fields) = mapM_ (\ (_, ty) -> type_expr ty) fields
+        variant (Type.ADTVariant'Named _ _ fields) = mapM_ (\ (_, _, (ty, _)) -> type_expr ty) fields
+        variant (Type.ADTVariant'Anon _ _ fields) = mapM_ (\ (_, (ty, _)) -> type_expr ty) fields
 
 type_synonym :: (SIR.TypeInfo stage ~ Maybe Type) => Type.TypeSynonymKey -> ReaderT (SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
-type_synonym key = ask >>= \ (SIR.SIR _ _ _ type_synonyms _ _ _) -> let (Type.TypeSynonym _ _ expansion) = Arena.get type_synonyms key in type_expr expansion
+type_synonym key = ask >>= \ (SIR.SIR _ _ _ type_synonyms _ _ _) -> let (Type.TypeSynonym _ _ (expansion, _)) = Arena.get type_synonyms key in type_expr expansion
 
 binding :: (SIR.TypeInfo stage ~ Maybe Type) => Binding stage -> ReaderT (SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
 binding (SIR.Binding p _ e) = pattern p >> expr e

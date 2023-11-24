@@ -104,8 +104,8 @@ type_expr unks (SIR.TypeExpr'Apply evaled sp applied_to args) = SIR.TypeExpr'App
 type_expr _ (SIR.TypeExpr'Wild evaled sp) = SIR.TypeExpr'Wild evaled sp
 type_expr _ (SIR.TypeExpr'Poison evaled sp) = SIR.TypeExpr'Poison evaled sp
 
-type_expr_and_type :: Arena.Arena (Maybe Type) TypeUnknownKey -> (TypedWithUnkTypeExpr, Maybe Type) -> (TypedTypeExpr, Maybe Type)
-type_expr_and_type unks (te, t) = (type_expr unks te, t)
+type_expr_and_type :: Arena.Arena (Maybe Type) TypeUnknownKey -> (TypedWithUnkTypeExpr, TypeWithUnk) -> (TypedTypeExpr, Maybe Type)
+type_expr_and_type unks (te, t) = (type_expr unks te, type_ unks t)
 
 split_identifier :: Arena.Arena (Maybe Type) TypeUnknownKey -> SIR.SplitIdentifier TypedWithUnk start -> SIR.SplitIdentifier Typed start
 split_identifier unks (SIR.SplitIdentifier'Get texpr next) = SIR.SplitIdentifier'Get (type_expr unks texpr) next

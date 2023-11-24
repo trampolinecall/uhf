@@ -43,7 +43,7 @@ pp_type = PP.Precedence.pp_precedence levels PP.Precedence.parenthesize
 pp_expr :: AST.Expr -> PP.Token
 pp_expr = PP.Precedence.pp_precedence levels PP.Precedence.parenthesize
     where
-        levels (AST.Expr'BinaryOps _ first ops) = (0, \ _ next -> PP.List [next first, PP.indented_block $ map (\ (op, rhs) -> PP.List [pp_iden op, " ", next rhs]) ops])
+        levels (AST.Expr'BinaryOps _ first ops) = (0, \ _ next -> PP.List [next first, PP.indented_block $ map (\ (op, rhs) -> PP.List [pp_path_or_single_iden $ unlocate op, " ", next rhs]) ops])
 
         levels (AST.Expr'Call _ callee args) = (1, \ cur _ -> PP.List [cur callee, PP.parenthesized_comma_list PP.Inconsistent $ map pp_expr args])
         levels (AST.Expr'TypeApply _ e tys) = (1, \ cur _ -> PP.List [cur e, "#", PP.parenthesized_comma_list PP.Inconsistent $ map pp_type tys])

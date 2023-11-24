@@ -57,7 +57,7 @@ data Expr
     | Expr'Let Span [Decl] Expr
     | Expr'LetRec Span [Decl] Expr
 
-    | Expr'BinaryOps Span Expr [(Identifier, Expr)]
+    | Expr'BinaryOps Span Expr [(Located PathOrSingleIden, Expr)]
 
     | Expr'Call Span Expr [Expr]
 

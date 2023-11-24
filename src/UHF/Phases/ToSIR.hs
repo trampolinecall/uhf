@@ -287,7 +287,7 @@ convert_expr cur_id (AST.Expr'TypeApply sp e args) =
     snd <$> foldlM
         (\ (apply_id, e) arg ->
             convert_type arg >>= \ arg ->
-            pure (ID.ExprID'TypeApplyOn apply_id, SIR.Expr'TypeApply apply_id () sp e arg))
+            pure (ID.ExprID'TypeApplyOn apply_id, SIR.Expr'TypeApply apply_id () sp e (arg, ())))
         (ID.ExprID'TypeApplyOn cur_id, e)
         args -- TODO: fix span for this
 convert_expr cur_id (AST.Expr'Hole sp hid) = pure (SIR.Expr'Hole cur_id () sp hid)

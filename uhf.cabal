@@ -28,7 +28,6 @@ library
       UHF.Data.IR.RIR.PP
       UHF.Data.IR.SIR
       UHF.Data.IR.SIR.PP
-      UHF.Data.IR.SIR.SplitIdentifiers
       UHF.Data.IR.SIR.Stage
       UHF.Data.IR.Type
       UHF.Data.IR.Type.PP

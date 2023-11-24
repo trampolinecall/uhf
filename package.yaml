@@ -20,6 +20,7 @@ default-extensions:
   - TemplateHaskell
   - OverloadedStrings
   - NoImplicitPrelude
+  - TypeFamilies
 # TODO: split tests from library, but somehow still allow access to test private functions and things
 
 library:

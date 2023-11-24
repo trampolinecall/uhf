@@ -151,9 +151,9 @@ binding (SIR.Binding p eq_sp e) =
     pure (SIR.Binding p eq_sp e)
 binding (SIR.Binding'ADTVariant sp bvk vars variant) = pure $ SIR.Binding'ADTVariant sp bvk vars variant
 
-loc_pat_type :: SIR.Pattern p_iden type_info -> Located type_info
+loc_pat_type :: SIR.Pattern stage -> Located (SIR.TypeInfo stage)
 loc_pat_type pattern = Located (SIR.pattern_span pattern) (SIR.pattern_type pattern)
-loc_expr_type :: SIR.Expr d_iden v_iden p_iden type_info binary_ops_allowed -> Located type_info
+loc_expr_type :: SIR.Expr stage -> Located (SIR.TypeInfo stage)
 loc_expr_type expr = Located (SIR.expr_span expr) (SIR.expr_type expr)
 
 pattern :: UntypedPattern -> ContextReader decls TypedWithUnkBoundValueArena TypedWithUnkADTArena TypedWithUnkPattern

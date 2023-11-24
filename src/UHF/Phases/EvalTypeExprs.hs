@@ -316,7 +316,7 @@ type_expr (SIR.TypeExpr'Apply () sp ty arg) =
     pure (SIR.TypeExpr'Apply result_ty sp ty arg)
 -}
 resolve_in_type_expr nc_stack (SIR.TypeExpr'Apply () sp ty args) =
-    SIR.TypeExpr'Apply _ sp <$> resolve_in_type_expr nc_stack ty <*> resolve_in_type_expr nc_stack args
+    SIR.TypeExpr'Apply todo sp <$> resolve_in_type_expr nc_stack ty <*> resolve_in_type_expr nc_stack args
 resolve_in_type_expr _ (SIR.TypeExpr'Wild () sp) = pure $ SIR.TypeExpr'Wild Nothing sp -- TODO: make this an unknown to be inferred and not a Nothing
 resolve_in_type_expr _ (SIR.TypeExpr'Poison () sp) = pure $ SIR.TypeExpr'Poison Nothing sp
 

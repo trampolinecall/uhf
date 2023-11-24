@@ -36,6 +36,7 @@ data TypeUnknownForWhat
     | TypeHole Span
     | UnresolvedADTVariantPattern Span
     | ImplicitTyParam Span
+    | SomeError Span -- TODO: remove this
 data TypeUnknownState = Fresh | Substituted (Type.Type TypeUnknownKey)
 
 type_unk_for_what_sp :: TypeUnknownForWhat -> Span
@@ -52,6 +53,7 @@ type_unk_for_what_sp (TypeApplyExpr sp) = sp
 type_unk_for_what_sp (TypeHole sp) = sp
 type_unk_for_what_sp (UnresolvedADTVariantPattern sp) = sp
 type_unk_for_what_sp (ImplicitTyParam sp) = sp
+type_unk_for_what_sp (SomeError sp) = sp
 
 type_unk_for_what_name :: TypeUnknownForWhat -> Text
 type_unk_for_what_name (BoundValue _) = "binding"
@@ -67,3 +69,4 @@ type_unk_for_what_name (TypeApplyExpr _) = "type application expression"
 type_unk_for_what_name (TypeHole _) = "type hole"
 type_unk_for_what_name (UnresolvedADTVariantPattern _) = "ADT variant pattern"
 type_unk_for_what_name (ImplicitTyParam _) = "implicit type parameter" -- TODO: better message
+type_unk_for_what_name (SomeError _) = "some error" -- TODO: remove this

@@ -41,7 +41,7 @@ instance Diagnostic.ToWarning (NotUseful stage) where
     to_warning (NotUseful pat) = Diagnostic.Warning Diagnostic.Codes.useless_pattern (Just $ SIR.pattern_span pat) "useless pattern" [] []
 
 type Type = Maybe (Type.Type Void)
-type CorrectStage s = (SIR.TypeInfo s ~ Type, SIR.PIden s ~ (Maybe Type.ADTVariantIndex))
+type CorrectStage s = (SIR.TypeInfo s ~ Type, SIR.PIdenResolved s ~ (Maybe Type.ADTVariantIndex))
 
 data MatchValue
     = Any
@@ -90,7 +90,7 @@ check adt_arena type_synonym_arena patterns = mapAccumL check_one_pattern [Any] 
                     let (uncovered_field_combos, covered_field_combos) = check_fields [field_a_pat, field_b_pat] [uncovered_a, uncovered_b]
                     in (map make_into_tuple uncovered_field_combos, map make_into_tuple covered_field_combos) -- make_into_tuple will not error because the field combos must be 2 fields long
 
-        check_against_one_uncovered_value (SIR.Pattern'AnonADTVariant (Just ty) _ (Just pat_variant) _ pat_fields) uncovered_value =
+        check_against_one_uncovered_value (SIR.Pattern'AnonADTVariant (Just ty) _ _ (Just pat_variant) _ pat_fields) uncovered_value =
             case uncovered_value of
                 Any ->
                     let (still_uncovered, covered) = enumerate_adt_ctors_and_fields ty & map (uncurry go) & unzip
@@ -130,10 +130,10 @@ check adt_arena type_synonym_arena patterns = mapAccumL check_one_pattern [Any] 
                         let (uncovered_field_combos, covered_field_combos) = check_fields pat_fields uncovered_fields
                         in (map (AnonADT uncovered_variant) uncovered_field_combos, map (AnonADT uncovered_variant) covered_field_combos)
                     | otherwise = ([AnonADT uncovered_variant uncovered_fields], []) -- if the constructors do not match, the pattern will cover nothing
-        check_against_one_uncovered_value (SIR.Pattern'AnonADTVariant _ _ _ _ _) uncovered_value = ([uncovered_value], []) -- a variant pattern with an unknown variant or an unknown type does not cover anything
+        check_against_one_uncovered_value (SIR.Pattern'AnonADTVariant _ _ _ _ _ _) uncovered_value = ([uncovered_value], []) -- a variant pattern with an unknown variant or an unknown type does not cover anything
 
-        check_against_one_uncovered_value (SIR.Pattern'NamedADTVariant (Just ty) _ (Just variant) _ fields) uncovered_value = todo
-        check_against_one_uncovered_value (SIR.Pattern'NamedADTVariant _ _ _ _ _) uncovered_value = ([uncovered_value], []) -- same as above: a variant pattern with an unknown variant or an unknown type does not cover anything
+        check_against_one_uncovered_value (SIR.Pattern'NamedADTVariant (Just ty) _ _ (Just variant) _ fields) uncovered_value = todo
+        check_against_one_uncovered_value (SIR.Pattern'NamedADTVariant _ _ _ _ _ _) uncovered_value = ([uncovered_value], []) -- same as above: a variant pattern with an unknown variant or an unknown type does not cover anything
 
         check_against_one_uncovered_value (SIR.Pattern'Poison _ _) uncovered_value = ([uncovered_value], []) -- poison pattern behaves as if it doesnt cover anything
 

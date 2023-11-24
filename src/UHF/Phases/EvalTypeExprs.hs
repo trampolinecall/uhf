@@ -326,8 +326,8 @@ resolve_in_expr (SIR.Expr'BinaryOps id allowed type_info sp first ops) =
     SIR.Expr'BinaryOps id allowed type_info sp
         <$> resolve_in_expr first
         <*> mapM
-            (\ (iden, (), rhs) ->
-                (,(),)
+            (\ (sp, iden, (), rhs) ->
+                (sp,,(),)
                     <$> resolve_split_iden iden
                     <*> resolve_in_expr rhs)
             ops

@@ -38,8 +38,8 @@ type ResolvedPIden = Maybe Type.ADTVariantIndex
 
 type Unresolved = (DIden, DIden, Maybe (Type.Type Void), ResolvedVIden, (), ResolvedPIden, (), (), ())
 
-type UnresolvedADT = Type.ADT (SIR.TypeExpr Unresolved)
-type UnresolvedTypeSynonym = Type.TypeSynonym (SIR.TypeExpr Unresolved)
+type UnresolvedADT = Type.ADT (SIR.TypeExpr Unresolved, Maybe (Type.Type Void))
+type UnresolvedTypeSynonym = Type.TypeSynonym (SIR.TypeExpr Unresolved, Maybe (Type.Type Void))
 
 type UnresolvedModuleArena = Arena.Arena (SIR.Module Unresolved) SIR.ModuleKey
 type UnresolvedADTArena = Arena.Arena UnresolvedADT Type.ADTKey
@@ -48,8 +48,8 @@ type UnresolvedBoundValueArena = Arena.Arena (SIR.BoundValue Unresolved) SIR.Bou
 
 type Resolved = (DIden, DIden, Maybe (Type.Type Void), ResolvedVIden, ResolvedVIden, ResolvedPIden, ResolvedPIden, (), ())
 
-type ResolvedADT = Type.ADT (SIR.TypeExpr Resolved)
-type ResolvedTypeSynonym = Type.TypeSynonym (SIR.TypeExpr Resolved)
+type ResolvedADT = Type.ADT (SIR.TypeExpr Resolved, Maybe (Type.Type Void))
+type ResolvedTypeSynonym = Type.TypeSynonym (SIR.TypeExpr Resolved, Maybe (Type.Type Void))
 
 type ResolvedModuleArena = Arena.Arena (SIR.Module Resolved) SIR.ModuleKey
 type ResolvedADTArena = Arena.Arena ResolvedADT Type.ADTKey
@@ -227,11 +227,11 @@ resolve_in_module (SIR.Module id bindings adts type_synonyms) = SIR.Module id <$
 resolve_in_adt :: UnresolvedADT -> (NRReader adt_arena bv_arena ModuleChildMaps (MakeDeclState CollectingErrors)) ResolvedADT
 resolve_in_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM resolve_in_variant variants
     where
-        resolve_in_variant (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id <$> mapM (\ (id, name, ty) -> (id, name, ) <$> resolve_in_type_expr ty) fields
-        resolve_in_variant (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id <$> mapM (\ (id, ty) -> (id,) <$> resolve_in_type_expr ty) fields
+        resolve_in_variant (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id <$> mapM (\ (id, name, (ty, teat)) -> resolve_in_type_expr ty >>= \ ty -> pure (id, name, (ty, teat))) fields -- 'teat' short for 'type evaluated as type'
+        resolve_in_variant (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id <$> mapM (\ (id, (ty, teat)) -> resolve_in_type_expr ty >>= \ ty -> pure (id, (ty, teat))) fields
 
 resolve_in_type_synonym :: UnresolvedTypeSynonym -> (NRReader adt_arena bv_arena ModuleChildMaps (MakeDeclState CollectingErrors)) ResolvedTypeSynonym
-resolve_in_type_synonym (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name <$> resolve_in_type_expr expansion
+resolve_in_type_synonym (Type.TypeSynonym id name (expansion, expeat)) = resolve_in_type_expr expansion >>= \ expansion -> pure (Type.TypeSynonym id name (expansion, expeat))
 
 resolve_in_binding :: (SIR.Binding Unresolved) -> (NRReader UnresolvedADTArena UnresolvedBoundValueArena ModuleChildMaps (MakeDeclState CollectingErrors)) (SIR.Binding Resolved)
 resolve_in_binding (SIR.Binding target eq_sp expr) = SIR.Binding <$> resolve_in_pat target <*> pure eq_sp <*> resolve_in_expr expr
@@ -280,8 +280,8 @@ resolve_in_expr (SIR.Expr'BinaryOps id allowed type_info sp first ops) =
     SIR.Expr'BinaryOps id allowed type_info sp
         <$> resolve_in_expr first
         <*> mapM
-            (\ (iden, (), rhs) ->
-                (,,)
+            (\ (sp, iden, (), rhs) ->
+                (sp,,,)
                     <$> resolve_split_iden iden
                     <*> resolve_iden_in_monad resolve_expr_iden iden
                     <*> resolve_in_expr rhs)

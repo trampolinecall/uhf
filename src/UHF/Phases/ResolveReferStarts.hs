@@ -31,8 +31,8 @@ type UnresolvedIdenStart = Located Text
 
 type Unresolved = (UnresolvedIdenStart, (), (), UnresolvedIdenStart, (), UnresolvedIdenStart, (), (), ())
 
-type UnresolvedADT = Type.ADT (SIR.TypeExpr Unresolved)
-type UnresolvedTypeSynonym = Type.TypeSynonym (SIR.TypeExpr Unresolved)
+type UnresolvedADT = Type.ADT (SIR.TypeExpr Unresolved, ())
+type UnresolvedTypeSynonym = Type.TypeSynonym (SIR.TypeExpr Unresolved, ())
 
 type UnresolvedModuleArena = Arena.Arena (SIR.Module Unresolved) SIR.ModuleKey
 type UnresolvedADTArena = Arena.Arena UnresolvedADT Type.ADTKey
@@ -45,8 +45,8 @@ type ResolvedPIdenStart = Maybe Type.ADTVariantIndex
 
 type Resolved = (ResolvedDIdenStart, (), (), ResolvedVIdenStart, (), ResolvedPIdenStart, (), (), ())
 
-type ResolvedADT = Type.ADT (SIR.TypeExpr Resolved)
-type ResolvedTypeSynonym = Type.TypeSynonym (SIR.TypeExpr Resolved)
+type ResolvedADT = Type.ADT (SIR.TypeExpr Resolved, ())
+type ResolvedTypeSynonym = Type.TypeSynonym (SIR.TypeExpr Resolved, ())
 
 type ResolvedModuleArena = Arena.Arena (SIR.Module Resolved) SIR.ModuleKey
 type ResolvedADTArena = Arena.Arena ResolvedADT Type.ADTKey
@@ -241,13 +241,14 @@ resolve_in_adt adt_parent_child_maps adt_key (Type.ADT id name type_vars variant
     lift (lift $ make_child_maps type_vars' [] []) >>= \ new_nc ->
     Type.ADT id name type_vars <$> mapM (resolve_in_variant (ChildMapStack new_nc (Just $ ChildMapStack parent Nothing))) variants
     where
-        resolve_in_variant nc_stack (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id <$> mapM (\ (id, name, ty) -> (id, name, ) <$> resolve_in_type_expr nc_stack ty) fields
-        resolve_in_variant nc_stack (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id <$> mapM (\ (id, ty) -> (id,) <$> resolve_in_type_expr nc_stack ty) fields
+        resolve_in_variant nc_stack (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id <$> mapM (\ (id, name, (ty, ())) -> resolve_in_type_expr nc_stack ty >>= \ ty -> pure (id, name, (ty, ()))) fields
+        resolve_in_variant nc_stack (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id <$> mapM (\ (id, (ty, ())) -> resolve_in_type_expr nc_stack ty >>= \ ty -> pure (id, (ty, ()))) fields
 
 resolve_in_type_synonym :: Map.Map Type.TypeSynonymKey ChildMaps -> Type.TypeSynonymKey -> UnresolvedTypeSynonym -> (ResolveReader adt_arena bv_arena TypeVarArena ModuleChildMaps (MakeDeclState CollectingErrors)) ResolvedTypeSynonym
-resolve_in_type_synonym parent_maps synonym_key (Type.TypeSynonym id name expansion) =
+resolve_in_type_synonym parent_maps synonym_key (Type.TypeSynonym id name (expansion, ())) =
     let parent = parent_maps Map.! synonym_key
-    in Type.TypeSynonym id name <$> resolve_in_type_expr (ChildMapStack parent Nothing) expansion
+    in resolve_in_type_expr (ChildMapStack parent Nothing) expansion >>= \ expansion ->
+    pure (Type.TypeSynonym id name (expansion, ()))
 
 resolve_in_binding :: ChildMapStack -> (SIR.Binding Unresolved) -> (ResolveReader UnresolvedADTArena UnresolvedBoundValueArena TypeVarArena ModuleChildMaps (MakeDeclState CollectingErrors)) (SIR.Binding Resolved)
 resolve_in_binding nc_stack (SIR.Binding target eq_sp expr) = SIR.Binding <$> resolve_in_pat nc_stack target <*> pure eq_sp <*> resolve_in_expr nc_stack expr
@@ -314,8 +315,8 @@ resolve_in_expr nc_stack (SIR.Expr'BinaryOps id allowed type_info sp first ops) 
     SIR.Expr'BinaryOps id allowed type_info sp
         <$> resolve_in_expr nc_stack first
         <*> mapM
-            (\ (iden, (), rhs) ->
-                (,(),)
+            (\ (sp, iden, (), rhs) ->
+                (sp,,(),)
                     <$> resolve_split_iden resolve_expr_iden nc_stack iden
                     <*> resolve_in_expr nc_stack rhs)
             ops

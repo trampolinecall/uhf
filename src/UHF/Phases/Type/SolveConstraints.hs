@@ -237,7 +237,7 @@ occurs_check u (Type.Type'Synonym syn_key) =
     -- TODO: reconsider if this is correct
     ask >>= \ (_, type_synonyms, _) ->
     let Type.TypeSynonym _ _ (_, other_expansion) = Arena.get type_synonyms syn_key
-    in occurs_check u (other_expansion)
+    in occurs_check u other_expansion
 
 occurs_check _ Type.Type'Int = pure False
 occurs_check _ Type.Type'Float = pure False

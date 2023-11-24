@@ -24,9 +24,9 @@ type IRReader stage = Reader (SIR.SIR stage)
 dump_main_module :: (DumpableIdentifier (SIR.DIdenStart stage), DumpableIdentifier (SIR.SplitIdentifier stage (SIR.VIdenStart stage), SIR.VIdenResolved stage), DumpableIdentifier (SIR.SplitIdentifier stage (SIR.PIdenStart stage), SIR.PIdenResolved stage)) => SIR.SIR stage -> Text
 dump_main_module ir@(SIR.SIR _ modules _ _ _ _ mod) = PP.render $ runReader (define_module $ Arena.get modules mod) ir
 
-get_adt_arena :: IRReader stage (Arena.Arena (Type.ADT (SIR.TypeExpr stage)) Type.ADTKey)
+get_adt_arena :: IRReader stage (Arena.Arena (Type.ADT (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage)) Type.ADTKey)
 get_adt_arena = reader (\ (SIR.SIR _ _ adts _ _ _ _) -> adts)
-get_type_synonym_arena :: IRReader stage (Arena.Arena (Type.TypeSynonym (SIR.TypeExpr stage)) Type.TypeSynonymKey)
+get_type_synonym_arena :: IRReader stage (Arena.Arena (Type.TypeSynonym (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage)) Type.TypeSynonymKey)
 get_type_synonym_arena = reader (\ (SIR.SIR _ _ _ syns _ _ _) -> syns)
 get_type_var_arena :: IRReader stage (Arena.Arena Type.Var Type.TypeVarKey)
 get_type_var_arena = reader (\ (SIR.SIR _ _ _ _ vars _ _) -> vars)
@@ -37,9 +37,9 @@ get_decl :: SIR.DeclKey -> IRReader stage SIR.Decl
 get_decl k = reader (\ (SIR.SIR decls _ _ _ _ _ _) -> Arena.get decls k)
 get_module :: SIR.ModuleKey -> IRReader stage (SIR.Module stage)
 get_module k = reader (\ (SIR.SIR _ modules _ _ _ _ _) -> Arena.get modules k)
-get_adt :: Type.ADTKey -> IRReader stage (Type.ADT (SIR.TypeExpr stage))
+get_adt :: Type.ADTKey -> IRReader stage (Type.ADT (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage))
 get_adt k = reader (\ (SIR.SIR _ _ adts _ _ _ _) -> Arena.get adts k)
-get_type_syn :: Type.TypeSynonymKey -> IRReader stage (Type.TypeSynonym (SIR.TypeExpr stage))
+get_type_syn :: Type.TypeSynonymKey -> IRReader stage (Type.TypeSynonym (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage))
 get_type_syn k = reader (\ (SIR.SIR _ _ _ syns _ _ _) -> Arena.get syns k)
 get_type_var :: Type.TypeVarKey -> IRReader stage Type.Var
 get_type_var k = reader (\ (SIR.SIR _ _ _ _ type_vars _ _) -> Arena.get type_vars k)
@@ -48,7 +48,7 @@ define_module :: (DumpableIdentifier (SIR.DIdenStart stage), DumpableIdentifier 
 define_module (SIR.Module _ bindings adts type_synonyms) =
     ask >>= \ sir ->
     mapM (\ k -> get_adt k >>= \ adt -> pure (Type.PP.define_adt adt)) adts >>= \ adts_defined ->
-    mapM (\ k -> get_type_syn k >>= \ ts -> pure (Type.PP.define_type_synonym (\ ty -> runReader (type_expr ty) sir) ts)) type_synonyms >>= \ type_synonyms_defined ->
+    mapM (\ k -> get_type_syn k >>= \ ts -> pure (Type.PP.define_type_synonym (\ (ty, _) -> runReader (type_expr ty) sir) ts)) type_synonyms >>= \ type_synonyms_defined ->
     mapM define_binding bindings >>= \ bindings_defined ->
     pure (PP.flat_block $ adts_defined <> type_synonyms_defined <> bindings_defined)
 

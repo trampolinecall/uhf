@@ -24,7 +24,7 @@ module UHF.Data.IR.SIR
     , pattern_type
     , expr_span
     , pattern_span
-    , type_expr_type_info
+    , type_expr_evaled
 
     ) where
 
@@ -74,19 +74,19 @@ deriving instance Stage.AllShowable stage => Show (Binding stage)
 type HoleIdentifier = Located [Located Text] -- TODO: disallow paths in holes?
 
 data TypeExpr stage
-    = TypeExpr'Refer (Stage.TypeExprTypeInfo stage) Span (Stage.DIden stage)
-    | TypeExpr'Get (Stage.TypeExprTypeInfo stage) Span (TypeExpr stage) (Located Text)
-    | TypeExpr'Tuple (Stage.TypeExprTypeInfo stage) (TypeExpr stage) (TypeExpr stage)
-    | TypeExpr'Hole (Stage.TypeExprTypeInfo stage) Span HoleIdentifier
-    | TypeExpr'Function (Stage.TypeExprTypeInfo stage) Span (TypeExpr stage) (TypeExpr stage)
-    | TypeExpr'Forall (Stage.TypeExprTypeInfo stage) (NonEmpty TypeVarKey) (TypeExpr stage)
-    | TypeExpr'Apply (Stage.TypeExprTypeInfo stage) Span (TypeExpr stage) (TypeExpr stage)
-    | TypeExpr'Wild (Stage.TypeExprTypeInfo stage) Span
-    | TypeExpr'Poison (Stage.TypeExprTypeInfo stage) Span
+    = TypeExpr'Refer (Stage.TypeExprEvaled stage) Span (Stage.DIden stage)
+    | TypeExpr'Get (Stage.TypeExprEvaled stage) Span (TypeExpr stage) (Located Text)
+    | TypeExpr'Tuple (Stage.TypeExprEvaled stage) (TypeExpr stage) (TypeExpr stage)
+    | TypeExpr'Hole (Stage.TypeExprEvaled stage) (Stage.TypeInfo stage) Span HoleIdentifier -- TODO: using a Stage.TypeInfo field here seems a little inelegant
+    | TypeExpr'Function (Stage.TypeExprEvaled stage) Span (TypeExpr stage) (TypeExpr stage)
+    | TypeExpr'Forall (Stage.TypeExprEvaled stage) (NonEmpty TypeVarKey) (TypeExpr stage)
+    | TypeExpr'Apply (Stage.TypeExprEvaled stage) Span (TypeExpr stage) (TypeExpr stage)
+    | TypeExpr'Wild (Stage.TypeExprEvaled stage) Span
+    | TypeExpr'Poison (Stage.TypeExprEvaled stage) Span
 deriving instance Stage.AllShowable stage => Show (TypeExpr stage)
 
 data Expr stage
-    = Expr'Identifier ID.ExprID (Stage.TypeInfo stage) Span (Stage.VIden stage) -- TODO: (paths-as-gets) split this into Refer and Get
+    = Expr'Identifier ID.ExprID (Stage.TypeInfo stage) Span (Stage.VIden stage)
     | Expr'Char ID.ExprID (Stage.TypeInfo stage) Span Char
     | Expr'String ID.ExprID (Stage.TypeInfo stage) Span Text
     | Expr'Int ID.ExprID (Stage.TypeInfo stage) Span Integer
@@ -108,9 +108,9 @@ data Expr stage
     | Expr'Match ID.ExprID (Stage.TypeInfo stage) Span Span (Expr stage) [(Pattern stage, Expr stage)]
 
     | Expr'Forall ID.ExprID (Stage.TypeInfo stage) Span (NonEmpty TypeVarKey) (Expr stage)
-    | Expr'TypeApply ID.ExprID (Stage.TypeInfo stage) Span (Expr stage) (TypeExpr stage)
+    | Expr'TypeApply ID.ExprID (Stage.TypeInfo stage) Span (Expr stage) (TypeExpr stage, Stage.TypeExprEvaledAsType stage)
 
-    | Expr'TypeAnnotation ID.ExprID (Stage.TypeInfo stage) Span (TypeExpr stage) (Expr stage)
+    | Expr'TypeAnnotation ID.ExprID (Stage.TypeInfo stage) Span (TypeExpr stage, Stage.TypeExprEvaledAsType stage) (Expr stage)
 
     | Expr'Hole ID.ExprID (Stage.TypeInfo stage) Span HoleIdentifier
 
@@ -118,7 +118,7 @@ data Expr stage
 deriving instance Stage.AllShowable stage => Show (Expr stage)
 
 data Pattern stage
-    = Pattern'Identifier (Stage.TypeInfo stage) Span BoundValueKey -- TODO: (paths-as-gets) split this into Refer and Get
+    = Pattern'Identifier (Stage.TypeInfo stage) Span BoundValueKey
     | Pattern'Wildcard (Stage.TypeInfo stage) Span
     | Pattern'Tuple (Stage.TypeInfo stage) Span (Pattern stage) (Pattern stage)
     | Pattern'Named (Stage.TypeInfo stage) Span Span (Located BoundValueKey) (Pattern stage)
@@ -128,16 +128,16 @@ data Pattern stage
     | Pattern'Poison (Stage.TypeInfo stage) Span
 deriving instance Stage.AllShowable stage => Show (Pattern stage)
 
-type_expr_type_info :: TypeExpr stage -> (Stage.TypeExprTypeInfo stage)
-type_expr_type_info (TypeExpr'Refer type_info _ _) = type_info
-type_expr_type_info (TypeExpr'Get type_info _ _ _) = type_info
-type_expr_type_info (TypeExpr'Tuple type_info _ _) = type_info
-type_expr_type_info (TypeExpr'Hole type_info _ _) = type_info
-type_expr_type_info (TypeExpr'Function type_info _ _ _) = type_info
-type_expr_type_info (TypeExpr'Forall type_info _ _) = type_info
-type_expr_type_info (TypeExpr'Apply type_info _ _ _) = type_info
-type_expr_type_info (TypeExpr'Wild type_info _) = type_info
-type_expr_type_info (TypeExpr'Poison type_info _) = type_info
+type_expr_evaled :: TypeExpr stage -> (Stage.TypeExprEvaled stage)
+type_expr_evaled (TypeExpr'Refer evaled _ _) = evaled
+type_expr_evaled (TypeExpr'Get evaled _ _ _) = evaled
+type_expr_evaled (TypeExpr'Tuple evaled _ _) = evaled
+type_expr_evaled (TypeExpr'Hole evaled _ _ _) = evaled
+type_expr_evaled (TypeExpr'Function evaled _ _ _) = evaled
+type_expr_evaled (TypeExpr'Forall evaled _ _) = evaled
+type_expr_evaled (TypeExpr'Apply evaled _ _ _) = evaled
+type_expr_evaled (TypeExpr'Wild evaled _) = evaled
+type_expr_evaled (TypeExpr'Poison evaled _) = evaled
 
 expr_type :: Expr stage -> (Stage.TypeInfo stage)
 expr_type (Expr'Identifier _ type_info _ _) = type_info

@@ -35,7 +35,7 @@ type DIden = Maybe SIR.DeclKey
 type UnresolvedVIden = Located (Maybe (Either () SIR.DeclKey), Located Text)
 type UnresolvedPIden = (Maybe (Either () SIR.DeclKey), Located Text)
 
-type Unresolved = (DIden, UnresolvedVIden, UnresolvedPIden, Maybe (Type.Type Void), (), ())
+type Unresolved = (DIden, UnresolvedVIden, UnresolvedPIden, Maybe (Type.Type Void), (), (), ())
 
 type UnresolvedADT = Type.ADT (SIR.TypeExpr Unresolved)
 type UnresolvedTypeSynonym = Type.TypeSynonym (SIR.TypeExpr Unresolved)
@@ -48,7 +48,7 @@ type UnresolvedBoundValueArena = Arena.Arena (SIR.BoundValue Unresolved) SIR.Bou
 type ResolvedVIden = Located (Maybe SIR.BoundValueKey)
 type ResolvedPIden = Maybe Type.ADTVariantIndex
 
-type Resolved = (DIden, ResolvedVIden, ResolvedPIden, Maybe (Type.Type Void), (), ())
+type Resolved = (DIden, ResolvedVIden, ResolvedPIden, Maybe (Type.Type Void), (), (), ())
 
 type ResolvedADT = Type.ADT (SIR.TypeExpr Resolved)
 type ResolvedTypeSynonym = Type.TypeSynonym (SIR.TypeExpr Resolved)
@@ -261,12 +261,12 @@ resolve_in_binding nc_stack (SIR.Binding target eq_sp expr) = SIR.Binding <$> re
 resolve_in_binding _ (SIR.Binding'ADTVariant bvk variant vars sp) = pure $ SIR.Binding'ADTVariant bvk variant vars sp
 
 resolve_in_type_expr :: ChildMapStack -> (SIR.TypeExpr Unresolved) -> (NRReader adt_arena bv_arena TypeVarArena ModuleChildMaps (MakeDeclState CollectingErrors)) (SIR.TypeExpr Resolved)
-resolve_in_type_expr nc_stack (SIR.TypeExpr'Refer type_info sp id) = SIR.TypeExpr'Refer type_info sp <$> resolve_iden_in_monad resolve_type_iden nc_stack id
-resolve_in_type_expr nc_stack (SIR.TypeExpr'Get type_info sp parent name) = SIR.TypeExpr'Get type_info sp <$> resolve_in_type_expr nc_stack parent <*> pure name
-resolve_in_type_expr nc_stack (SIR.TypeExpr'Tuple type_info a b) = SIR.TypeExpr'Tuple type_info <$> resolve_in_type_expr nc_stack a <*> resolve_in_type_expr nc_stack b
-resolve_in_type_expr _ (SIR.TypeExpr'Hole type_info sp hid) = pure $ SIR.TypeExpr'Hole type_info sp hid
-resolve_in_type_expr nc_stack (SIR.TypeExpr'Function type_info sp arg res) = SIR.TypeExpr'Function type_info sp <$> resolve_in_type_expr nc_stack arg <*> resolve_in_type_expr nc_stack res
-resolve_in_type_expr nc_stack (SIR.TypeExpr'Forall type_info vars ty) =
+resolve_in_type_expr nc_stack (SIR.TypeExpr'Refer evaled sp id) = SIR.TypeExpr'Refer evaled sp <$> resolve_iden_in_monad resolve_type_iden nc_stack id
+resolve_in_type_expr nc_stack (SIR.TypeExpr'Get evaled sp parent name) = SIR.TypeExpr'Get evaled sp <$> resolve_in_type_expr nc_stack parent <*> pure name
+resolve_in_type_expr nc_stack (SIR.TypeExpr'Tuple evaled a b) = SIR.TypeExpr'Tuple evaled <$> resolve_in_type_expr nc_stack a <*> resolve_in_type_expr nc_stack b
+resolve_in_type_expr _ (SIR.TypeExpr'Hole evaled type_info sp hid) = pure $ SIR.TypeExpr'Hole evaled type_info sp hid
+resolve_in_type_expr nc_stack (SIR.TypeExpr'Function evaled sp arg res) = SIR.TypeExpr'Function evaled sp <$> resolve_in_type_expr nc_stack arg <*> resolve_in_type_expr nc_stack res
+resolve_in_type_expr nc_stack (SIR.TypeExpr'Forall evaled vars ty) =
     mapM
         (\ var ->
             ask_type_var_arena >>= \ type_var_arena ->
@@ -275,10 +275,10 @@ resolve_in_type_expr nc_stack (SIR.TypeExpr'Forall type_info vars ty) =
             pure (name, DeclAt name_sp, var_decl))
         (toList vars) >>= \ vars' ->
     lift (lift $ make_child_maps vars' [] []) >>= \ new_nc ->
-    SIR.TypeExpr'Forall type_info vars <$> resolve_in_type_expr (ChildMapStack new_nc (Just nc_stack)) ty
-resolve_in_type_expr nc_stack (SIR.TypeExpr'Apply type_info sp ty args) = SIR.TypeExpr'Apply type_info sp <$> resolve_in_type_expr nc_stack ty <*> resolve_in_type_expr nc_stack args
-resolve_in_type_expr _ (SIR.TypeExpr'Wild type_info sp) = pure $ SIR.TypeExpr'Wild type_info sp
-resolve_in_type_expr _ (SIR.TypeExpr'Poison type_info sp) = pure $ SIR.TypeExpr'Poison type_info sp
+    SIR.TypeExpr'Forall evaled vars <$> resolve_in_type_expr (ChildMapStack new_nc (Just nc_stack)) ty
+resolve_in_type_expr nc_stack (SIR.TypeExpr'Apply evaled sp ty args) = SIR.TypeExpr'Apply evaled sp <$> resolve_in_type_expr nc_stack ty <*> resolve_in_type_expr nc_stack args
+resolve_in_type_expr _ (SIR.TypeExpr'Wild evaled sp) = pure $ SIR.TypeExpr'Wild evaled sp
+resolve_in_type_expr _ (SIR.TypeExpr'Poison evaled sp) = pure $ SIR.TypeExpr'Poison evaled sp
 
 resolve_in_pat :: ChildMapStack -> (SIR.Pattern Unresolved) -> (NRReader adt_arena bv_arena type_var_arena ModuleChildMaps (MakeDeclState CollectingErrors)) (SIR.Pattern Resolved)
 resolve_in_pat _ (SIR.Pattern'Identifier type_info sp bnk) = pure $ SIR.Pattern'Identifier type_info sp bnk
@@ -334,7 +334,7 @@ resolve_in_expr nc_stack (SIR.Expr'Match id type_info sp match_tok_sp e arms) =
                 )
                 arms
 
-resolve_in_expr nc_stack (SIR.Expr'TypeAnnotation id type_info sp ty e) = SIR.Expr'TypeAnnotation id type_info sp <$> resolve_in_type_expr nc_stack ty <*> resolve_in_expr nc_stack e
+resolve_in_expr nc_stack (SIR.Expr'TypeAnnotation id type_info sp (ty, tye_ty) e) = SIR.Expr'TypeAnnotation id type_info sp <$> ((,tye_ty) <$> resolve_in_type_expr nc_stack ty) <*> resolve_in_expr nc_stack e
 
 resolve_in_expr nc_stack (SIR.Expr'Forall id type_info sp vars e) =
     mapM

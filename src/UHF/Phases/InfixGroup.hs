@@ -18,7 +18,7 @@ type VIden = Located (Maybe SIR.BoundValueKey)
 
 type IsUngrouped s = (SIR.VIden s ~ VIden, SIR.TypeInfo s ~ (), SIR.BinaryOpsAllowed s ~ ())
 type IsGrouped s = (SIR.VIden s ~ VIden, SIR.TypeInfo s ~ (), SIR.BinaryOpsAllowed s ~ Void)
-type Convertible ungrouped grouped = (IsUngrouped ungrouped, IsGrouped grouped, SIR.DIden ungrouped ~ SIR.DIden grouped, SIR.PIden ungrouped ~ SIR.PIden grouped, SIR.TypeExprTypeInfo ungrouped ~ SIR.TypeExprTypeInfo grouped)
+type Convertible ungrouped grouped = (IsUngrouped ungrouped, IsGrouped grouped, SIR.DIden ungrouped ~ SIR.DIden grouped, SIR.PIden ungrouped ~ SIR.PIden grouped, SIR.TypeExprEvaled ungrouped ~ SIR.TypeExprEvaled grouped, SIR.TypeExprEvaledAsType ungrouped ~ SIR.TypeExprEvaledAsType grouped)
 
 group :: Convertible ungrouped grouped => SIR.SIR ungrouped -> SIR.SIR grouped
 group (SIR.SIR decls modules adts type_synonyms type_vars bound_values mod) =
@@ -105,16 +105,19 @@ group_expr (SIR.Expr'Forall id () sp names e) = SIR.Expr'Forall id () sp names <
 group_expr (SIR.Expr'TypeApply id () sp e args) = SIR.Expr'TypeApply id () sp <$> group_expr e <*> pure (convert_type_expr args)
 
 -- TODO: automate functions like this?
+convert_type_expr :: Convertible ungrouped grouped => (SIR.TypeExpr ungrouped, SIR.TypeExprEvaledAsType ungrouped) -> (SIR.TypeExpr grouped, SIR.TypeExprEvaledAsType grouped)
+convert_type_expr_and_ty (tye, ty) = (convert_type_expr tye, ty)
+
 convert_type_expr :: Convertible ungrouped grouped => SIR.TypeExpr ungrouped -> SIR.TypeExpr grouped
-convert_type_expr (SIR.TypeExpr'Refer tyinfo sp bvk) = SIR.TypeExpr'Refer tyinfo sp bvk
-convert_type_expr (SIR.TypeExpr'Get tyinfo sp parent name) = SIR.TypeExpr'Get tyinfo sp (convert_type_expr parent) name
-convert_type_expr (SIR.TypeExpr'Tuple tyinfo a b) = SIR.TypeExpr'Tuple tyinfo (convert_type_expr a) (convert_type_expr b)
-convert_type_expr (SIR.TypeExpr'Hole tyinfo sp hiden) = SIR.TypeExpr'Hole tyinfo sp hiden
-convert_type_expr (SIR.TypeExpr'Function tyinfo sp a b) = SIR.TypeExpr'Function tyinfo sp (convert_type_expr a) (convert_type_expr b)
-convert_type_expr (SIR.TypeExpr'Forall tyinfo tyvars res) = SIR.TypeExpr'Forall tyinfo tyvars (convert_type_expr res)
-convert_type_expr (SIR.TypeExpr'Apply tyinfo sp c a) = SIR.TypeExpr'Apply tyinfo sp (convert_type_expr c) (convert_type_expr a)
-convert_type_expr (SIR.TypeExpr'Wild tyinfo sp) = SIR.TypeExpr'Wild tyinfo sp
-convert_type_expr (SIR.TypeExpr'Poison tyinfo sp) = SIR.TypeExpr'Poison tyinfo sp
+convert_type_expr (SIR.TypeExpr'Refer evaled sp bvk) = SIR.TypeExpr'Refer evaled sp bvk
+convert_type_expr (SIR.TypeExpr'Get evaled sp parent name) = SIR.TypeExpr'Get evaled sp (convert_type_expr parent) name
+convert_type_expr (SIR.TypeExpr'Tuple evaled a b) = SIR.TypeExpr'Tuple evaled (convert_type_expr a) (convert_type_expr b)
+convert_type_expr (SIR.TypeExpr'Hole evaled type_info sp hiden) = SIR.TypeExpr'Hole evaled type_info sp hiden
+convert_type_expr (SIR.TypeExpr'Function evaled sp a b) = SIR.TypeExpr'Function evaled sp (convert_type_expr a) (convert_type_expr b)
+convert_type_expr (SIR.TypeExpr'Forall evaled tyvars res) = SIR.TypeExpr'Forall evaled tyvars (convert_type_expr res)
+convert_type_expr (SIR.TypeExpr'Apply evaled sp c a) = SIR.TypeExpr'Apply evaled sp (convert_type_expr c) (convert_type_expr a)
+convert_type_expr (SIR.TypeExpr'Wild evaled sp) = SIR.TypeExpr'Wild evaled sp
+convert_type_expr (SIR.TypeExpr'Poison evaled sp) = SIR.TypeExpr'Poison evaled sp
 
 convert_pattern :: Convertible ungrouped grouped => SIR.Pattern ungrouped -> SIR.Pattern grouped
 convert_pattern (SIR.Pattern'Identifier tyinfo sp bvk) = SIR.Pattern'Identifier tyinfo sp bvk

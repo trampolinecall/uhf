@@ -41,7 +41,7 @@ instance Diagnostic.ToError Error where
 
 type SplitIdentifier = (Maybe [Located Text], Located Text)
 
-type SIRStage = (Located Text, Located SplitIdentifier, SplitIdentifier, (), (), ())
+type SIRStage = (Located Text, Located SplitIdentifier, SplitIdentifier, (), (), (), ())
 
 type SIR = SIR.SIR SIRStage
 
@@ -196,7 +196,7 @@ convert_type (AST.Type'Tuple sp items) = mapM convert_type items >>= group_items
         group_items (a:b:more) = SIR.TypeExpr'Tuple () a <$> group_items (b:more)
         group_items [_] = tell_error (Tuple1 sp) >> pure (SIR.TypeExpr'Poison () sp)
         group_items [] = tell_error (Tuple0 sp) >> pure (SIR.TypeExpr'Poison () sp)
-convert_type (AST.Type'Hole sp id) = pure $ SIR.TypeExpr'Hole () sp id
+convert_type (AST.Type'Hole sp id) = pure $ SIR.TypeExpr'Hole () () sp id
 convert_type (AST.Type'Function sp arg res) = SIR.TypeExpr'Function () sp <$> convert_type arg <*> convert_type res
 convert_type (AST.Type'Forall _ tys ty) =
     catMaybes <$> mapM (make_iden1_with_err PathInTypeName) tys >>= \ tys ->
@@ -275,7 +275,7 @@ convert_expr cur_id (AST.Expr'Match sp match_tok_sp e arms) =
         >>= \ arms ->
     pure (SIR.Expr'Match cur_id () sp match_tok_sp e arms)
 
-convert_expr cur_id (AST.Expr'TypeAnnotation sp ty e) = SIR.Expr'TypeAnnotation cur_id () sp <$> convert_type ty <*> convert_expr (ID.ExprID'TypeAnnotationSubject cur_id) e
+convert_expr cur_id (AST.Expr'TypeAnnotation sp ty e) = SIR.Expr'TypeAnnotation cur_id () sp <$> ((,()) <$> convert_type ty) <*> convert_expr (ID.ExprID'TypeAnnotationSubject cur_id) e
 convert_expr cur_id (AST.Expr'Forall sp tys e) =
     catMaybes <$> mapM (make_iden1_with_err PathInTypeName) tys >>= \ tys ->
     mapM new_type_var tys >>= \case

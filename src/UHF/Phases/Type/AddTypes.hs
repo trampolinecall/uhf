@@ -70,7 +70,7 @@ bound_value (SIR.BoundValue'ADTVariant id variant_index@(Type.ADTVariantIndex ad
             Type.ADTVariant'Named _ _ _ -> error "bound value should not be made for a named adt variant" -- TODO: statically make sure this cant happen?
             Type.ADTVariant'Anon _ _ fields ->
                 let change_type_params ty = foldl' (\ ty (adt_typaram, bv_typaram) -> substitute unk_arena adt_typaram (Type.Type'Variable bv_typaram) ty) ty (zip adt_type_params bv_type_params)
-                    arg_tys = map (change_type_params . SIR.type_expr_type_info . snd) fields
+                    arg_tys = map (change_type_params . snd . snd) fields
                     wrap_in_forall = case bv_type_params of
                         [] -> identity
                         param:more -> Type.Type'Forall (param :| more)
@@ -83,8 +83,9 @@ module_ (SIR.Module id bindings adts type_synonyms) = SIR.Module id <$> mapM bin
 adt :: UntypedADT -> ContextReader UntypedDeclArena bvs adts TypedWithUnkADT
 adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM convert_variant variants
     where
-        convert_variant (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id <$> mapM (\ (id, name, ty) -> (id, name,) <$> type_expr ty) fields
-        convert_variant (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id <$> mapM (\ (id, ty) -> (id,) <$> type_expr ty) fields
+        convert_variant :: (Type.ADTVariant (_, Maybe Type)) -> _ _ _ (Type.ADTVariant (_, TypeWithUnk))
+        convert_variant (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id <$> mapM (\ (id, name, (ty_expr, ty)) -> type_expr ty_expr >>= \ ty_expr -> pure (id, name, (ty_expr, void_unk_to_key ty))) fields
+        convert_variant (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id <$> mapM (\ (id, (ty_expr, ty)) -> type_expr ty_expr >>= \ ty_expr -> pure (id, (ty_expr, void_unk_to_key ty))) fields
 
 type_synonym :: UntypedTypeSynonym -> ContextReader UntypedDeclArena bvs adts TypedWithUnkTypeSynonym
 type_synonym (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name <$> type_expr expansion
@@ -164,7 +165,7 @@ pattern (SIR.Pattern'AnonADTVariant () sp (Just variant_index@(Type.ADTVariantIn
 
     in case variant of
          Type.ADTVariant'Anon _ _ variant_fields ->
-            let variant_field_tys_substituted = map (substitute_adt_params . SIR.type_expr_type_info . snd) variant_fields
+            let variant_field_tys_substituted = map (substitute_adt_params . snd . snd) variant_fields
             in if length pattern_fields /= length variant_field_tys_substituted
                 then error "wrong number of fields in anonymous variant pattern" -- TODO: report proper error
                 else
@@ -269,11 +270,11 @@ expr (SIR.Expr'Forall id () sp vars e) =
 expr (SIR.Expr'TypeApply id () sp e arg) =
     expr e >>= \ e ->
     type_expr arg >>= \ arg ->
-    apply_type (TypeApplyExpr sp) sp (SIR.expr_type e) (SIR.type_expr_type_info arg) >>= \ result_ty ->
+    apply_type (TypeApplyExpr sp) sp (SIR.expr_type e) (snd arg) >>= \ result_ty ->
     pure (SIR.Expr'TypeApply id result_ty sp e arg)
 
-expr (SIR.Expr'TypeAnnotation id () sp annotation e) =
+expr (SIR.Expr'TypeAnnotation id () sp (annotation, annotation_ty) e) =
     type_expr annotation >>= \ annotation ->
     expr e >>= \ e ->
-    lift (tell [Expect InTypeAnnotation (loc_expr_type e) (SIR.type_expr_type_info annotation)]) >> -- TODO: use annotation span
-    pure (SIR.Expr'TypeAnnotation id (SIR.type_expr_type_info annotation) sp annotation e)
+    lift (tell [Expect InTypeAnnotation (loc_expr_type e) annotation_ty]) >> -- TODO: use annotation span
+    pure (SIR.Expr'TypeAnnotation id annotation_ty sp (annotation, annotation_ty) e)

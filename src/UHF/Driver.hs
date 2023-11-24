@@ -51,10 +51,10 @@ import qualified UHF.Phases.TSBackend as TSBackend
 
 type Tokens = ([Token.LToken], Token.LToken)
 type AST = [AST.Decl]
-type FirstSIR = SIR.SIR [Located Text] [Located Text] [Located Text] () ()
-type NRSIR = SIR.SIR (Maybe IR.Keys.DeclKey) (Located (Maybe IR.Keys.BoundValueKey)) (Maybe IR.Type.ADTVariantIndex) () ()
-type InfixGroupedSIR = SIR.SIR (Maybe IR.Keys.DeclKey) (Located (Maybe IR.Keys.BoundValueKey)) (Maybe IR.Type.ADTVariantIndex) () Void
-type TypedSIR = SIR.SIR (Maybe IR.Keys.DeclKey) (Located (Maybe IR.Keys.BoundValueKey)) (Maybe IR.Type.ADTVariantIndex) (Maybe (IR.Type.Type Void)) Void
+type FirstSIR = SIR.SIR ([Located Text], [Located Text], [Located Text], (), ())
+type NRSIR = SIR.SIR ((Maybe IR.Keys.DeclKey), (Located (Maybe IR.Keys.BoundValueKey)), (Maybe IR.Type.ADTVariantIndex), (), ())
+type InfixGroupedSIR = SIR.SIR ((Maybe IR.Keys.DeclKey), (Located (Maybe IR.Keys.BoundValueKey)), (Maybe IR.Type.ADTVariantIndex), (), Void)
+type TypedSIR = SIR.SIR ((Maybe IR.Keys.DeclKey), (Located (Maybe IR.Keys.BoundValueKey)), (Maybe IR.Type.ADTVariantIndex), (Maybe (IR.Type.Type Void)), Void)
 type RIR = RIR.RIR
 type ANFIR = ANFIR.ANFIR
 type BackendIR = BackendIR.BackendIR (Maybe (IR.Type.Type Void)) ()

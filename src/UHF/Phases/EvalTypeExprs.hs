@@ -38,8 +38,8 @@ type Unevaled = (EvaledDIden, (), (), VIdenStart, (), PIdenStart, (), (), ())
 -- TODO: remove these type aliases
 type UnevaledSIR = SIR.SIR Unevaled
 type UnevaledModule = SIR.Module Unevaled
-type UnevaledADT = Type.ADT UnevaledTypeExpr
-type UnevaledTypeSynonym = Type.TypeSynonym UnevaledTypeExpr
+type UnevaledADT = Type.ADT (UnevaledTypeExpr, ())
+type UnevaledTypeSynonym = Type.TypeSynonym (UnevaledTypeExpr, ())
 type UnevaledTypeExpr = SIR.TypeExpr Unevaled
 type UnevaledBinding = SIR.Binding Unevaled
 type UnevaledExpr = SIR.Expr Unevaled
@@ -54,8 +54,8 @@ type Evaled = (EvaledDIden, EvaledDIden, Maybe (Type.Type Void), VIdenStart, (),
 
 type EvaledSIR = SIR.SIR Evaled
 type EvaledModule = SIR.Module Evaled
-type EvaledADT = Type.ADT EvaledTypeExpr
-type EvaledTypeSynonym = Type.TypeSynonym EvaledTypeExpr
+type EvaledADT = Type.ADT (EvaledTypeExpr, Maybe (Type.Type Void))
+type EvaledTypeSynonym = Type.TypeSynonym (EvaledTypeExpr, Maybe (Type.Type Void))
 type EvaledTypeExpr = SIR.TypeExpr Evaled
 type EvaledBinding = SIR.Binding Evaled
 type EvaledExpr = SIR.Expr Evaled
@@ -242,11 +242,14 @@ resolve_in_module (SIR.Module id bindings adts type_synonyms) = SIR.Module id <$
 resolve_in_adt :: UnevaledADT -> (EvalReader adt_arena bv_arena ModuleDeclMaps (MakeDeclState CollectingErrors)) EvaledADT
 resolve_in_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM resolve_in_variant variants
     where
-        resolve_in_variant (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id <$> mapM (\ (id, name, ty) -> (id, name, ) <$> resolve_in_type_expr ty) fields
-        resolve_in_variant (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id <$> mapM (\ (id, ty) -> (id,) <$> resolve_in_type_expr ty) fields
+        resolve_in_variant (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id <$> mapM (\ (id, name, (ty, ())) -> resolve_in_type_expr ty >>= \ ty -> lift (evaled_as_type ty) >>= \ ty_as_type -> pure (id, name, (ty, ty_as_type))) fields
+        resolve_in_variant (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id <$> mapM (\ (id, (ty, ())) -> resolve_in_type_expr ty >>= \ ty -> lift (evaled_as_type ty) >>= \ ty_as_type -> pure (id, (ty, ty_as_type))) fields
 
 resolve_in_type_synonym :: UnevaledTypeSynonym -> (EvalReader adt_arena bv_arena ModuleDeclMaps (MakeDeclState CollectingErrors)) EvaledTypeSynonym
-resolve_in_type_synonym (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name <$> resolve_in_type_expr expansion
+resolve_in_type_synonym (Type.TypeSynonym id name (expansion, ())) =
+    resolve_in_type_expr expansion >>= \ expansion ->
+    lift (evaled_as_type expansion) >>= \ expansion_as_type ->
+    pure (Type.TypeSynonym id name (expansion, expansion_as_type))
 
 resolve_in_binding :: UnevaledBinding -> (EvalReader UnevaledADTArena UnevaledBoundValueArena ModuleDeclMaps (MakeDeclState CollectingErrors)) EvaledBinding
 resolve_in_binding (SIR.Binding target eq_sp expr) = SIR.Binding <$> resolve_in_pat target <*> pure eq_sp <*> resolve_in_expr expr

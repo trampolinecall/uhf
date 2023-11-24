@@ -42,9 +42,9 @@ group (SIR.SIR decls modules adts type_synonyms type_vars bound_values mod) =
         -- TODO: automate these functions too?
         convert_adt (Type.ADT did name tyvars variants) = Type.ADT did name tyvars (map convert_variant variants)
             where
-                convert_variant (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id (map (\ (i, t) -> (i, convert_type_expr t)) fields)
-                convert_variant (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id (map (\ (i, n, t) -> (i, n, convert_type_expr t)) fields)
-        convert_type_synonym (Type.TypeSynonym did name exp) = Type.TypeSynonym did name (convert_type_expr exp)
+                convert_variant (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id (map (\ (i, (t, teat)) -> (i, (convert_type_expr t, teat))) fields) -- 'teat' is short for 'type evaluated as type'
+                convert_variant (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id (map (\ (i, n, (t, teat)) -> (i, n, (convert_type_expr t, teat))) fields)
+        convert_type_synonym (Type.TypeSynonym did name (exp, expeat)) = Type.TypeSynonym did name (convert_type_expr exp, expeat)
         convert_bound_value (SIR.BoundValue bvid tyinfo n) = SIR.BoundValue bvid tyinfo n
         convert_bound_value (SIR.BoundValue'ADTVariant bvid id tyvars tyinfo sp) = SIR.BoundValue'ADTVariant bvid id tyvars tyinfo sp
 

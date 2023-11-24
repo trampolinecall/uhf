@@ -39,7 +39,7 @@ instance Diagnostic.ToError Error where
     to_error (Tuple1 sp) = Diagnostic.Error Codes.tuple1 (Just sp) "tuple of 1 element" [] []
     to_error (Tuple0 sp) = Diagnostic.Error Codes.tuple0 (Just sp) "tuple of 0 elements" [] []
 
-type SIRStage = (Identifier, Located SplitIdentifier, SplitIdentifier, (), ())
+type SIRStage = (Identifier, Located SplitIdentifier, SplitIdentifier, (), (), ())
 
 type SIR = SIR.SIR SIRStage
 

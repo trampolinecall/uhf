@@ -33,7 +33,7 @@ type UnevaledDIden = [Located Text]
 type UnevaledVIden = Located (Maybe [Located Text], Located Text)
 type UnevaledPIden = (Maybe [Located Text], Located Text)
 
-type Unevaled = (UnevaledDIden, UnevaledVIden, UnevaledPIden, (), ())
+type Unevaled = (UnevaledDIden, UnevaledVIden, UnevaledPIden, (), (), ())
 
 -- TODO: remove these type aliases
 type UnevaledSIR = SIR.SIR Unevaled
@@ -54,7 +54,7 @@ type EvaledDIden = Maybe SIR.DeclKey
 type EvaledVIden = Located (Maybe (Either () SIR.DeclKey), Located Text)
 type EvaledPIden = (Maybe (Either () SIR.DeclKey), Located Text)
 
-type Evaled = (EvaledDIden, EvaledVIden, EvaledPIden, (), ())
+type Evaled = (EvaledDIden, EvaledVIden, EvaledPIden, Type.Type Void, (), ())
 
 type EvaledSIR = SIR.SIR Evaled
 type EvaledModule = SIR.Module Evaled

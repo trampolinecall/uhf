@@ -107,51 +107,6 @@ type_expr (SIR.TypeExpr'Forall ty names t) = SIR.TypeExpr'Forall ty names <$> ty
 type_expr (SIR.TypeExpr'Apply ty sp t arg) = SIR.TypeExpr'Apply ty sp <$> type_expr t <*> type_expr arg
 type_expr (SIR.TypeExpr'Wild ty sp) = pure (SIR.TypeExpr'Wild ty sp)
 type_expr (SIR.TypeExpr'Poison ty sp) = pure (SIR.TypeExpr'Poison ty sp)
-{- TODO (split-nr): REMOVE
-type_expr (SIR.TypeExpr'Identifier () sp iden) = do
-    (decls, _, _) <- ask
-    ty <- case iden of -- TODO: make poison type variable
-        Just i -> case Arena.get decls i of
-            SIR.Decl'Module _ -> lift (lift (lift (Compiler.tell_error $ NotAType sp "a module"))) >> Type.Type'Unknown <$> lift (lift $ new_type_unknown (TypeExpr sp))
-            SIR.Decl'Type ty -> pure $ void_var_to_key ty
-        Nothing -> Type.Type'Unknown <$> lift (lift $ new_type_unknown (TypeExpr sp))
-    pure (SIR.TypeExpr'Identifier ty sp iden)
-    where
-        -- basically useless function for converting Type Void to Type TypeUnknownKey
-        void_var_to_key (Type.Type'ADT k params) = Type.Type'ADT k (map void_var_to_key params)
-        void_var_to_key (Type.Type'Synonym k) = Type.Type'Synonym k
-        void_var_to_key Type.Type'Int = Type.Type'Int
-        void_var_to_key Type.Type'Float = Type.Type'Float
-        void_var_to_key Type.Type'Char = Type.Type'Char
-        void_var_to_key Type.Type'String = Type.Type'String
-        void_var_to_key Type.Type'Bool = Type.Type'Bool
-        void_var_to_key (Type.Type'Function a r) = Type.Type'Function (void_var_to_key a) (void_var_to_key r)
-        void_var_to_key (Type.Type'Tuple a b) = Type.Type'Tuple (void_var_to_key a) (void_var_to_key b)
-        void_var_to_key (Type.Type'Unknown void) = absurd void
-        void_var_to_key (Type.Type'Variable v) = Type.Type'Variable v
-        void_var_to_key (Type.Type'Forall vars ty) = Type.Type'Forall vars (void_var_to_key ty)
-
-type_expr (SIR.TypeExpr'Tuple () a b) =
-    type_expr a >>= \ a_conv ->
-    type_expr b >>= \ b_conv ->
-    pure (SIR.TypeExpr'Tuple (Type.Type'Tuple (SIR.type_expr_type_info a_conv) (SIR.type_expr_type_info b_conv)) a_conv b_conv)
-
-type_expr (SIR.TypeExpr'Hole () sp hid) = SIR.TypeExpr'Hole <$> (Type.Type'Unknown <$> lift (lift $ new_type_unknown (TypeHole sp))) <*> pure sp <*> pure hid
-type_expr (SIR.TypeExpr'Function () sp arg res) =
-    type_expr arg >>= \ arg ->
-    type_expr res >>= \ res ->
-    pure (SIR.TypeExpr'Function (Type.Type'Function (SIR.type_expr_type_info arg) (SIR.type_expr_type_info res)) sp arg res)
-type_expr (SIR.TypeExpr'Forall () names ty) =
-    type_expr ty >>= \ ty ->
-    pure (SIR.TypeExpr'Forall (Type.Type'Forall names (SIR.type_expr_type_info ty)) names ty)
-type_expr (SIR.TypeExpr'Apply () sp ty arg) =
-    type_expr ty >>= \ ty ->
-    type_expr arg >>= \ arg ->
-    apply_type (TypeExpr sp) sp (SIR.type_expr_type_info ty) (SIR.type_expr_type_info arg) >>= \ result_ty ->
-    pure (SIR.TypeExpr'Apply result_ty sp ty arg)
-type_expr (SIR.TypeExpr'Wild () sp) = Type.Type'Unknown <$> lift (lift $ new_type_unknown (TypeExpr sp)) >>= \ ty -> pure (SIR.TypeExpr'Wild ty sp)
-type_expr (SIR.TypeExpr'Poison () sp) = Type.Type'Unknown <$> lift (lift $ new_type_unknown (TypeExpr sp)) >>= \ ty -> pure (SIR.TypeExpr'Poison ty sp)
--}
 
 binding :: UntypedBinding -> ContextReader UntypedDeclArena TypedWithUnkBoundValueArena TypedWithUnkADTArena TypedWithUnkBinding
 binding (SIR.Binding p eq_sp e) =

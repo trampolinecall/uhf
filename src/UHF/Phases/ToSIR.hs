@@ -117,14 +117,10 @@ convert_decls bv_parent decl_parent decls =
             convert_pattern bv_parent target >>= \ target' ->
             pure ([SIR.Binding target' eq_sp expr'], [], [])
 
-        convert_decl _ (AST.Decl'Data name type_params variants) =
+        convert_decl _ (AST.Decl'Data l_data_name@(Located _ data_name) type_params variants) =
             runMaybeT (
-                let ty_param_names = type_params -- TODO: REMOVE
-                in
-                mapM (lift . new_type_var) ty_param_names >>= \ ty_param_vars ->
+                mapM (lift . new_type_var) type_params >>= \ ty_param_vars ->
 
-                let l_data_name@(Located _ data_name) = name -- TODO: REMOVE
-                in
                 let adt_id = ID.DeclID decl_parent data_name
                 in mapM (convert_variant adt_id) variants >>= \ variants_converted ->
                 let adt = Type.ADT adt_id l_data_name ty_param_vars variants_converted
@@ -136,7 +132,7 @@ convert_decls bv_parent decl_parent decls =
                 (catMaybes <$> mapM
                     (\ case
                         (Type.ADTVariant'Anon (Located name_sp name) _ _, index) ->
-                            mapM (lift . new_type_var) ty_param_names >>= \ ty_param_vars_for_constructor ->
+                            mapM (lift . new_type_var) type_params >>= \ ty_param_vars_for_constructor ->
                             let variant_index = Type.ADTVariantIndex adt_key index
                             in lift (new_bound_value (SIR.BoundValue'ADTVariant (ID.BoundValueID bv_parent name) variant_index ty_param_vars_for_constructor () name_sp)) >>= \ bv_key ->
                             pure (Just (SIR.Binding'ADTVariant name_sp bv_key ty_param_vars_for_constructor variant_index))
@@ -158,14 +154,12 @@ convert_decls bv_parent decl_parent decls =
                 Just syn_key -> pure ([], [], [syn_key])
                 Nothing -> pure ([], [], [])
 
-        convert_variant adt_id (AST.DataVariant'Anon name fields) =
-            let variant_name = name -- TODO: REMOVE
-                variant_id = ID.ADTVariantID adt_id (unlocate variant_name)
+        convert_variant adt_id (AST.DataVariant'Anon variant_name fields) =
+            let variant_id = ID.ADTVariantID adt_id (unlocate variant_name)
             in Type.ADTVariant'Anon variant_name variant_id
                 <$> zipWithM (\ field_idx ty_ast -> (ID.ADTFieldID variant_id (show (field_idx :: Int)),) <$> lift (convert_type ty_ast)) [0..] fields
-        convert_variant adt_id (AST.DataVariant'Named name fields) =
-            let variant_name = name -- TODO: REMOVE
-                variant_id = ID.ADTVariantID adt_id (unlocate variant_name)
+        convert_variant adt_id (AST.DataVariant'Named variant_name fields) =
+            let variant_id = ID.ADTVariantID adt_id (unlocate variant_name)
             in Type.ADTVariant'Named variant_name variant_id
             -- TODO: check no duplicate field names
                 <$> mapM
@@ -186,7 +180,7 @@ convert_type (AST.Type'Hole sp id) = pure $ SIR.TypeExpr'Hole () () sp id
 convert_type (AST.Type'Function sp arg res) = SIR.TypeExpr'Function () sp <$> convert_type arg <*> convert_type res
 convert_type (AST.Type'Forall _ tys ty) =
     mapM new_type_var tys >>= \case
-        [] -> convert_type ty -- can happen if there are errors in all the type names or if the user passed none
+        [] -> convert_type ty -- can happen if the user passed none
         tyv1:tyv_more -> SIR.TypeExpr'Forall () (tyv1 :| tyv_more) <$> convert_type ty
 
 convert_type (AST.Type'Apply sp ty args) =

@@ -83,7 +83,6 @@ module_ (SIR.Module id bindings adts type_synonyms) = SIR.Module id <$> mapM bin
 adt :: UntypedADT -> ContextReader UntypedDeclArena bvs adts TypedWithUnkADT
 adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM convert_variant variants
     where
-        convert_variant :: (Type.ADTVariant (_, Maybe Type)) -> _ _ _ (Type.ADTVariant (_, TypeWithUnk))
         convert_variant (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id <$> mapM (\ (id, name, (ty_expr, ty)) -> type_expr ty_expr >>= \ ty_expr -> pure (id, name, (ty_expr, void_unk_to_key ty))) fields
         convert_variant (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id <$> mapM (\ (id, (ty_expr, ty)) -> type_expr ty_expr >>= \ ty_expr -> pure (id, (ty_expr, void_unk_to_key ty))) fields
 

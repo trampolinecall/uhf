@@ -21,7 +21,7 @@ import qualified Data.Text as Text
 
 type IRReader stage = Reader (SIR.SIR stage)
 
-dump_main_module :: (DumpableIdentifier (SIR.DIden stage), DumpableIdentifier (SIR.VIden stage), DumpableIdentifier (SIR.PIden stage)) => SIR.SIR stage -> Text
+dump_main_module :: (DumpableIdentifier (SIR.DIdenStart stage), DumpableIdentifier (SIR.SplitIdentifier stage (SIR.VIdenStart stage), SIR.VIdenResolved stage), DumpableIdentifier (SIR.SplitIdentifier stage (SIR.PIdenStart stage), SIR.PIdenResolved stage)) => SIR.SIR stage -> Text
 dump_main_module ir@(SIR.SIR _ modules _ _ _ _ mod) = PP.render $ runReader (define_module $ Arena.get modules mod) ir
 
 get_adt_arena :: IRReader stage (Arena.Arena (Type.ADT (SIR.TypeExpr stage)) Type.ADTKey)
@@ -44,7 +44,7 @@ get_type_syn k = reader (\ (SIR.SIR _ _ _ syns _ _ _) -> Arena.get syns k)
 get_type_var :: Type.TypeVarKey -> IRReader stage Type.Var
 get_type_var k = reader (\ (SIR.SIR _ _ _ _ type_vars _ _) -> Arena.get type_vars k)
 
-define_module :: (DumpableIdentifier (SIR.DIden stage), DumpableIdentifier (SIR.VIden stage), DumpableIdentifier (SIR.PIden stage)) => SIR.Module stage -> IRReader stage PP.Token
+define_module :: (DumpableIdentifier (SIR.DIdenStart stage), DumpableIdentifier (SIR.SplitIdentifier stage (SIR.VIdenStart stage), SIR.VIdenResolved stage), DumpableIdentifier (SIR.SplitIdentifier stage (SIR.PIdenStart stage), SIR.PIdenResolved stage)) => SIR.Module stage -> IRReader stage PP.Token
 define_module (SIR.Module _ bindings adts type_synonyms) =
     ask >>= \ sir ->
     mapM (\ k -> get_adt k >>= \ adt -> pure (Type.PP.define_adt adt)) adts >>= \ adts_defined ->
@@ -52,7 +52,7 @@ define_module (SIR.Module _ bindings adts type_synonyms) =
     mapM define_binding bindings >>= \ bindings_defined ->
     pure (PP.flat_block $ adts_defined <> type_synonyms_defined <> bindings_defined)
 
-define_binding :: (DumpableIdentifier (SIR.DIden stage), DumpableIdentifier (SIR.VIden stage), DumpableIdentifier (SIR.PIden stage)) => SIR.Binding stage -> IRReader stage PP.Token
+define_binding :: (DumpableIdentifier (SIR.DIdenStart stage), DumpableIdentifier (SIR.SplitIdentifier stage (SIR.VIdenStart stage), SIR.VIdenResolved stage), DumpableIdentifier (SIR.SplitIdentifier stage (SIR.PIdenStart stage), SIR.PIdenResolved stage)) => SIR.Binding stage -> IRReader stage PP.Token
 define_binding (SIR.Binding pat _ init) = pattern pat >>= \ pat -> expr init >>= \ init -> pure $ PP.List [pat, " = ", init, ";"]
 define_binding (SIR.Binding'ADTVariant _ bvk _ variant_index@(Type.ADTVariantIndex adt_key _)) =
     Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
@@ -117,7 +117,7 @@ instance DumpableIdentifier (Maybe Type.ADTVariantIndex) where -- TODO: remove t
 type_var :: Type.TypeVarKey -> IRReader stage PP.Token
 type_var k = get_type_var k >>= \ (Type.Var (Located _ name)) -> pure $ PP.String name
 
-type_expr :: DumpableIdentifier (SIR.DIden stage) => SIR.TypeExpr stage -> IRReader stage PP.Token
+type_expr :: DumpableIdentifier (SIR.DIdenStart stage) => SIR.TypeExpr stage -> IRReader stage PP.Token
 type_expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
     where
         levels (SIR.TypeExpr'Forall _ vars ty) = (1, \ cur _ -> mapM type_var vars >>= \ vars -> cur ty >>= \ ty -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList vars, " ", ty]))
@@ -126,20 +126,29 @@ type_expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
         levels (SIR.TypeExpr'Get _ _ parent name) = (3, \ cur _ -> cur parent >>= \ parent -> pure (PP.List [parent, "::", PP.String $ unlocate name]))
         levels (SIR.TypeExpr'Refer _ _ iden) = (4, \ _ _ -> refer_iden iden)
         levels (SIR.TypeExpr'Tuple _ a b) = (4, \ _ _ -> type_expr a >>= \ a -> type_expr b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b]))
-        levels (SIR.TypeExpr'Hole _ _ _ hid) = (4, \ _ _ -> put_iden_list_of_text (unlocate hid) >>= \ hid -> pure (PP.List ["?", hid]))
+        levels (SIR.TypeExpr'Hole _ _ _ hid) = (4, \ _ _ -> pure $ PP.List ["?", PP.String $ unlocate hid])
         levels (SIR.TypeExpr'Wild _ _) = (4, \ _ _ -> pure $ PP.String "_")
         levels (SIR.TypeExpr'Poison _ _) = (4, \ _ _ -> pure $ PP.String "poison")
 
-expr :: (DumpableIdentifier (SIR.DIden stage), DumpableIdentifier (SIR.VIden stage), DumpableIdentifier (SIR.PIden stage)) => SIR.Expr stage -> IRReader stage PP.Token
+expr :: (DumpableIdentifier (SIR.DIdenStart stage), DumpableIdentifier (SIR.SplitIdentifier stage (SIR.VIdenStart stage), SIR.VIdenResolved stage), DumpableIdentifier (SIR.SplitIdentifier stage (SIR.PIdenStart stage), SIR.PIdenResolved stage)) => SIR.Expr stage -> IRReader stage PP.Token
 expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
     where
-        levels (SIR.Expr'BinaryOps _ _ _ _ first ops) = (0, \ _ next -> next first >>= \ first -> mapM (\ (op, rhs) -> refer_iden op >>= \ op -> next rhs >>= \ rhs -> pure (PP.List [op, " ", rhs])) ops >>= \ ops -> pure (PP.List ["(", first, PP.Block PP.Inconsistent Nothing (Just " ") Nothing ops, ")"]))
+        levels (SIR.Expr'BinaryOps _ _ _ _ first ops) =
+            (0, \ _ next ->
+                next first >>= \ first ->
+                mapM
+                    (\ (op_split_iden, op_resolved, rhs) ->
+                        refer_iden (op_split_iden, op_resolved) >>= \ op ->
+                        next rhs >>= \ rhs ->
+                        pure (PP.List [op, " ", rhs]))
+                    ops >>= \ ops ->
+                pure (PP.List ["(", first, PP.Block PP.Inconsistent Nothing (Just " ") Nothing ops, ")"]))
 
         levels (SIR.Expr'Call _ _ _ callee arg) = (1, \ cur _ -> cur callee >>= \ callee -> expr arg >>= \ arg -> pure (PP.FirstOnLineIfMultiline $ PP.List [callee, "(", arg, ")"]))
         levels (SIR.Expr'TypeApply _ _ _ e (arg, _)) = (1, \ cur _ -> cur e >>= \ e -> type_expr arg >>= \ arg -> pure (PP.List [e, "#(", arg, ")"]))
 
-        levels (SIR.Expr'Identifier _ _ _ i) = (2, \ _ _ -> PP.FirstOnLineIfMultiline <$> refer_iden i)
-        levels (SIR.Expr'Hole _ _ _ hid) = (2, \ _ _ -> put_iden_list_of_text (unlocate hid) >>= \ hid -> pure (PP.List ["?", hid]))
+        levels (SIR.Expr'Identifier _ _ _ split resolved) = (2, \ _ _ -> PP.FirstOnLineIfMultiline <$> refer_iden (split, resolved))
+        levels (SIR.Expr'Hole _ _ _ hid) = (2, \ _ _ -> pure $ PP.List ["?", PP.String $ unlocate hid])
         levels (SIR.Expr'Poison _ _ _) = (2, \ _ _ -> pure $ PP.String "poison")
         levels (SIR.Expr'Char _ _ _ c) = (2, \ _ _ -> pure $ PP.FirstOnLineIfMultiline $ PP.String $ show c)
         levels (SIR.Expr'String _ _ _ s) = (2, \ _ _ -> pure $ PP.FirstOnLineIfMultiline $ PP.String $ show s)
@@ -155,19 +164,19 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
         levels (SIR.Expr'If _ _ _ _ cond t f) = (2, \ _ _ -> expr cond >>= \ cond -> expr t >>= \ t -> expr f >>= \ f -> pure (PP.FirstOnLineIfMultiline $ PP.List ["if ", cond, " then ", t, " else ", f]))
         levels (SIR.Expr'Match _ _ _ _ e arms) = (2, \ _ _ -> expr e >>= \ e -> mapM (\ (p, e) -> pattern p >>= \ p -> expr e >>= \ e -> pure (PP.List [p, " -> ", e, ";"])) arms >>= \ arms -> pure (PP.List ["match ", e, " ", PP.braced_block arms]))
 
-        levels (SIR.Expr'TypeAnnotation _ _ _ ty e) = (2, \ _ _ -> type_expr ty >>= \ ty -> expr e >>= \ e -> pure (PP.List [":", ty, ": ", e]))
+        levels (SIR.Expr'TypeAnnotation _ _ _ (ty, _) e) = (2, \ _ _ -> type_expr ty >>= \ ty -> expr e >>= \ e -> pure (PP.List [":", ty, ": ", e]))
 
         levels (SIR.Expr'Forall _ _ _ tys e) = (2, \ _ _ -> mapM type_var tys >>= \ tys -> expr e >>= \ e -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList tys, " ", e]))
 
-pp_let :: (DumpableIdentifier (SIR.DIden stage), DumpableIdentifier (SIR.VIden stage), DumpableIdentifier (SIR.PIden stage)) => Text -> [SIR.Binding stage] -> SIR.Expr stage -> IRReader stage PP.Token
+pp_let :: (DumpableIdentifier (SIR.DIdenStart stage), DumpableIdentifier (SIR.SplitIdentifier stage (SIR.VIdenStart stage), SIR.VIdenResolved stage), DumpableIdentifier (SIR.SplitIdentifier stage (SIR.PIdenStart stage), SIR.PIdenResolved stage)) => Text -> [SIR.Binding stage] -> SIR.Expr stage -> IRReader stage PP.Token
 pp_let let_kw [binding] body = define_binding binding >>= \ binding -> expr body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List [PP.String let_kw, " ", binding, "\n", body])
 pp_let let_kw bindings body = mapM define_binding bindings >>= \ bindings -> expr body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List [PP.String let_kw, " ", PP.braced_block bindings, "\n", body])
 
-pattern :: DumpableIdentifier (SIR.PIden stage) => SIR.Pattern stage -> IRReader stage PP.Token
+pattern :: DumpableIdentifier (SIR.SplitIdentifier stage (SIR.PIdenStart stage), SIR.PIdenResolved stage) => SIR.Pattern stage -> IRReader stage PP.Token
 pattern (SIR.Pattern'Identifier _ _ bvk) = refer_iden bvk
 pattern (SIR.Pattern'Wildcard _ _) = pure $ PP.String "_"
 pattern (SIR.Pattern'Tuple _ _ a b) = pattern a >>= \ a -> pattern b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b])
 pattern (SIR.Pattern'Named _ _ _ bvk subpat) = refer_iden (unlocate bvk) >>= \ bvk -> pattern subpat >>= \ subpat -> pure (PP.List ["@", bvk, " ", subpat])
-pattern (SIR.Pattern'AnonADTVariant _ _ variant _ fields) = refer_iden variant >>= \ variant -> mapM pattern fields >>= \ fields -> pure (PP.List [variant, PP.parenthesized_comma_list PP.Inconsistent fields])
-pattern (SIR.Pattern'NamedADTVariant _ _ variant _ fields) = refer_iden variant >>= \ variant -> mapM (\ (field_name, field_pat) -> pattern field_pat >>= \ field_pat -> pure (PP.List [PP.String $ unlocate field_name, " = ", field_pat, ";"])) fields >>= \ fields -> pure (PP.List [variant, PP.braced_block fields])
+pattern (SIR.Pattern'AnonADTVariant _ _ variant_split_iden variant_resolved_iden _ fields) = refer_iden (variant_split_iden, variant_resolved_iden) >>= \ variant -> mapM pattern fields >>= \ fields -> pure (PP.List [variant, PP.parenthesized_comma_list PP.Inconsistent fields])
+pattern (SIR.Pattern'NamedADTVariant _ _ variant_split_iden variant_resolved_iden _ fields) = refer_iden (variant_split_iden, variant_resolved_iden) >>= \ variant -> mapM (\ (field_name, field_pat) -> pattern field_pat >>= \ field_pat -> pure (PP.List [PP.String $ unlocate field_name, " = ", field_pat, ";"])) fields >>= \ fields -> pure (PP.List [variant, PP.braced_block fields])
 pattern (SIR.Pattern'Poison _ _) = pure $ PP.String "poison"

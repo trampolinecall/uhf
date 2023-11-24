@@ -6,7 +6,6 @@ import qualified Arena
 
 import qualified UHF.Data.AST as AST
 import qualified UHF.Data.IR.SIR as SIR
-import qualified UHF.Data.IR.SIR.SplitIdentifiers as SplitIdentifiers
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.ID as ID
 
@@ -18,7 +17,7 @@ import qualified UHF.Diagnostic.Codes as Codes
 
 import qualified UHF.Compiler as Compiler
 
-import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
+import Control.Monad.Trans.Maybe (runMaybeT)
 
 data Error
     = PathInPattern (Located [Located Text]) -- TODO: make this less repetitive
@@ -40,7 +39,7 @@ instance Diagnostic.ToError Error where
     to_error (Tuple1 sp) = Diagnostic.Error Codes.tuple1 (Just sp) "tuple of 1 element" [] []
     to_error (Tuple0 sp) = Diagnostic.Error Codes.tuple0 (Just sp) "tuple of 0 elements" [] []
 
-type SIRStage = (Located Text, SplitIdentifiers.SplitVIdentifier TypeExpr (Located Text), SplitIdentifiers.SplitPIdentifier TypeExpr (Located Text), (), (), (), ())
+type SIRStage = (Located Text, (), (), Located Text, (), Located Text, (), (), ())
 
 type SIR = SIR.SIR SIRStage
 
@@ -195,17 +194,8 @@ convert_type (AST.Type'Apply sp ty args) =
     foldlM (\ ty arg -> SIR.TypeExpr'Apply () sp ty <$> convert_type arg) ty args -- TODO: fix spans
 convert_type (AST.Type'Wild sp) = pure $ SIR.TypeExpr'Wild () sp
 
-path_to_type_expr :: [Located Text] -> TypeExpr
-path_to_type_expr [] = error "empty path"
-path_to_type_expr [id] = SIR.TypeExpr'Refer () (just_span id) id
-path_to_type_expr path =
-    let i = init path
-        l = last path
-        f = head path
-    in SIR.TypeExpr'Get () (just_span f <> just_span l) (path_to_type_expr i) l -- TODO: do not do span <> here (handle in the parser / ast)
-
 convert_expr :: ID.ExprID -> AST.Expr -> MakeIRState Expr
-convert_expr cur_id (AST.Expr'Identifier sp iden) = pure (SIR.Expr'Identifier cur_id () sp (convert_path_or_single_iden iden))
+convert_expr cur_id (AST.Expr'Identifier sp iden) = SIR.Expr'Identifier cur_id () sp <$> convert_path_or_single_iden iden <*> pure ()
 convert_expr cur_id (AST.Expr'Char sp c) = pure (SIR.Expr'Char cur_id () sp c)
 convert_expr cur_id (AST.Expr'String sp s) = pure (SIR.Expr'String cur_id () sp s)
 convert_expr cur_id (AST.Expr'Int sp i) = pure (SIR.Expr'Int cur_id () sp i)
@@ -237,7 +227,16 @@ convert_expr cur_id (AST.Expr'LetRec sp decls subexpr) =
     convert_decls (ID.BVParent'Let cur_id) (ID.DeclParent'Let cur_id) decls >>= \ (bindings, _, _) -> -- TODO: put adts and type synonyms
     SIR.Expr'LetRec cur_id () sp bindings <$> convert_expr (ID.ExprID'LetResultOf cur_id) subexpr
 
-convert_expr cur_id (AST.Expr'BinaryOps sp first ops) = SIR.Expr'BinaryOps cur_id () () sp <$> convert_expr (ID.ExprID'BinaryOperand cur_id 0) first <*> zipWithM (\ ind (op, right) -> convert_expr (ID.ExprID'BinaryOperand cur_id ind) right >>= \ right' -> pure (convert_path_or_single_iden $ unlocate op, right')) [1..] ops
+convert_expr cur_id (AST.Expr'BinaryOps sp first ops) =
+    SIR.Expr'BinaryOps cur_id () () sp
+        <$> convert_expr (ID.ExprID'BinaryOperand cur_id 0) first
+        <*> zipWithM
+            (\ ind (op, right) ->
+                convert_expr (ID.ExprID'BinaryOperand cur_id ind) right >>= \ right' ->
+                convert_path_or_single_iden (unlocate op) >>= \ op_split_iden ->
+                pure (op_split_iden, (), right'))
+            [1..]
+            ops
 
 convert_expr cur_id (AST.Expr'Call sp callee args) =
     convert_expr (ID.ExprID'CallCalleeIn cur_id) callee >>= \ callee ->
@@ -297,23 +296,16 @@ convert_pattern parent (AST.Pattern'Named sp located_name@(Located name_sp name)
     pure (SIR.Pattern'Named () sp at_sp (Located name_sp bn) subpat')
 convert_pattern parent (AST.Pattern'AnonADTVariant sp variant fields) =
     mapM (convert_pattern parent) fields >>= \ fields ->
-    pure (SIR.Pattern'AnonADTVariant () sp (convert_path_or_single_iden variant) [] fields)
+    convert_path_or_single_iden variant >>= \ variant_split_iden ->
+    pure (SIR.Pattern'AnonADTVariant () sp variant_split_iden () [] fields)
 convert_pattern parent (AST.Pattern'NamedADTVariant sp variant fields) =
     mapM (\ (field_name, field_pat) ->
             convert_pattern parent field_pat >>= \ field_pat ->
             pure (field_name, field_pat)
         ) fields >>= \ fields ->
-    pure (SIR.Pattern'NamedADTVariant () sp (convert_path_or_single_iden variant) [] fields)
+    convert_path_or_single_iden variant >>= \ variant_split_iden ->
+    pure (SIR.Pattern'NamedADTVariant () sp variant_split_iden () [] fields)
 
--- TODO: deduplicate these?
-make_split_v_iden :: AST.PathOrSingleIden -> MakeIRState SplitIdentifiers.SplitVIdentifier
-make_split_v_iden (AST.PathOrSingleIden'Single i) = pure $ SplitIdentifiers.VSingle i
-make_split_v_iden (AST.PathOrSingleIden'Path ty i) = convert_type ty >>= \ ty -> pure (SplitIdentifiers.VPath ty i)
-make_split_p_iden :: AST.PathOrSingleIden -> MakeIRState SplitIdentifiers.SplitPIdentifier
-make_split_p_iden (AST.PathOrSingleIden'Single i) = pure $ SplitIdentifiers.PSingle i
-make_split_p_iden (AST.PathOrSingleIden'Path ty i) = convert_type ty >>= \ ty -> pure (SplitIdentifiers.PPath ty i)
-
-split_identifier :: [Located Text] -> (Maybe [Located Text], Located Text)
-split_identifier [] = error "empty identifier"
-split_identifier [x] = (Nothing, x)
-split_identifier x = (Just $ init x, last x)
+convert_path_or_single_iden :: AST.PathOrSingleIden -> MakeIRState (SIR.SplitIdentifier SIRStage (Located Text))
+convert_path_or_single_iden (AST.PathOrSingleIden'Single i) = pure $ SIR.SplitIdentifier'Single i
+convert_path_or_single_iden (AST.PathOrSingleIden'Path ty i) = convert_type ty >>= \ ty -> pure (SIR.SplitIdentifier'Get ty i)

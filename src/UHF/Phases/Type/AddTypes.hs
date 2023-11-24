@@ -98,8 +98,16 @@ apply_type for_what sp ty arg =
     lift (tell [UnkIsApplyResult sp tyu ty arg]) >>
     pure (Type.Type'Unknown tyu)
 
--- TODO: (split-nr) this function is not necessary anymore
 type_expr :: UntypedTypeExpr -> ContextReader UntypedDeclArena bvs adts TypedWithUnkTypeExpr
+type_expr (SIR.TypeExpr'Identifier ty sp iden) = pure (SIR.TypeExpr'Identifier ty sp iden)
+type_expr (SIR.TypeExpr'Tuple ty a b) = SIR.TypeExpr'Tuple ty <$> type_expr a <*> type_expr b
+type_expr (SIR.TypeExpr'Hole ty sp hid) = pure (SIR.TypeExpr'Hole ty sp hid)
+type_expr (SIR.TypeExpr'Function ty sp arg res) = SIR.TypeExpr'Function ty sp <$> type_expr arg <*> type_expr res
+type_expr (SIR.TypeExpr'Forall ty names t) = SIR.TypeExpr'Forall ty names <$> type_expr t
+type_expr (SIR.TypeExpr'Apply ty sp t arg) = SIR.TypeExpr'Apply ty sp <$> type_expr t <*> type_expr arg
+type_expr (SIR.TypeExpr'Wild ty sp) = pure (SIR.TypeExpr'Wild ty sp)
+type_expr (SIR.TypeExpr'Poison ty sp) = pure (SIR.TypeExpr'Poison ty sp)
+{- TODO (split-nr): REMOVE
 type_expr (SIR.TypeExpr'Identifier () sp iden) = do
     (decls, _, _) <- ask
     ty <- case iden of -- TODO: make poison type variable
@@ -143,6 +151,7 @@ type_expr (SIR.TypeExpr'Apply () sp ty arg) =
     pure (SIR.TypeExpr'Apply result_ty sp ty arg)
 type_expr (SIR.TypeExpr'Wild () sp) = Type.Type'Unknown <$> lift (lift $ new_type_unknown (TypeExpr sp)) >>= \ ty -> pure (SIR.TypeExpr'Wild ty sp)
 type_expr (SIR.TypeExpr'Poison () sp) = Type.Type'Unknown <$> lift (lift $ new_type_unknown (TypeExpr sp)) >>= \ ty -> pure (SIR.TypeExpr'Poison ty sp)
+-}
 
 binding :: UntypedBinding -> ContextReader UntypedDeclArena TypedWithUnkBoundValueArena TypedWithUnkADTArena TypedWithUnkBinding
 binding (SIR.Binding p eq_sp e) =

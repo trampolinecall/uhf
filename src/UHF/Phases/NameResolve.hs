@@ -238,7 +238,7 @@ resolve_in_binding (SIR.Binding target eq_sp expr) = SIR.Binding <$> resolve_in_
 resolve_in_binding (SIR.Binding'ADTVariant bvk variant vars sp) = pure $ SIR.Binding'ADTVariant bvk variant vars sp
 
 resolve_in_type_expr :: (SIR.TypeExpr Unresolved) -> (NRReader adt_arena bv_arena ModuleChildMaps (MakeDeclState CollectingErrors)) (SIR.TypeExpr Resolved)
-resolve_in_type_expr (SIR.TypeExpr'Refer evaled sp id) = SIR.TypeExpr'Refer evaled sp <$> resolve_iden_in_monad resolve_type_iden id
+resolve_in_type_expr (SIR.TypeExpr'Refer evaled sp id) = pure $ SIR.TypeExpr'Refer evaled sp id
 resolve_in_type_expr (SIR.TypeExpr'Get evaled sp parent name) = SIR.TypeExpr'Get evaled sp <$> resolve_in_type_expr parent <*> pure name
 resolve_in_type_expr (SIR.TypeExpr'Tuple evaled sp a b) = SIR.TypeExpr'Tuple evaled sp <$> resolve_in_type_expr a <*> resolve_in_type_expr b
 resolve_in_type_expr (SIR.TypeExpr'Hole evaled type_info sp hid) = pure $ SIR.TypeExpr'Hole evaled type_info sp hid
@@ -321,9 +321,6 @@ resolve_iden_in_monad f iden =
     lift get >>= \ decls ->
     ask_module_child_maps >>= \ mods ->
     lift (lift $ f decls mods iden)
-
-resolve_type_iden :: DeclArena -> ModuleChildMaps -> DIden -> CollectingErrors (Maybe SIR.DeclKey)
-resolve_type_iden _ _ diden = pure diden -- TODO: REMOVE
 
 -- TODO: factor out repeated code?
 resolve_expr_iden :: DeclArena -> ModuleChildMaps -> UnresolvedVIden -> CollectingErrors ResolvedVIden

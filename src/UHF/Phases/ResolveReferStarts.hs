@@ -20,6 +20,8 @@ import qualified UHF.Data.IR.Type as Type
 import qualified Data.Map as Map
 import qualified Data.List as List
 
+-- TODO: figure out what adt_parents and type_synonym_parents are
+
 type TypeVarArena = Arena.Arena Type.Var Type.TypeVarKey
 type ModuleChildMaps = Arena.Arena ChildMaps SIR.ModuleKey
 -- TODO: instead of decl arena, just have a data Decl = ADT ADTKey | TS TypeSynonymKey or something?, remove SIR.Decl?

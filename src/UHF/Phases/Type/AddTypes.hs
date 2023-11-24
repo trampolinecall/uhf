@@ -14,9 +14,6 @@ import UHF.Phases.Type.Aliases
 import UHF.Phases.Type.Constraint
 import UHF.Phases.Type.StateWithUnk
 import UHF.Phases.Type.Utils
-import UHF.Phases.Type.Error
-
-import qualified UHF.Compiler as Compiler
 
 type ContextReader decls bvs adts = ReaderT (decls, bvs, adts) (WriterT [Constraint] StateWithUnk)
 
@@ -73,7 +70,7 @@ bound_value (SIR.BoundValue'ADTVariant id variant_index@(Type.ADTVariantIndex ad
             Type.ADTVariant'Named _ _ _ -> error "bound value should not be made for a named adt variant" -- TODO: statically make sure this cant happen?
             Type.ADTVariant'Anon _ _ fields ->
                 let change_type_params ty = foldl' (\ ty (adt_typaram, bv_typaram) -> substitute unk_arena adt_typaram (Type.Type'Variable bv_typaram) ty) ty (zip adt_type_params bv_type_params)
-                    arg_tys = map (change_type_params . SIR.type_expr_type_info . snd) fields
+                    arg_tys = map (change_type_params . void_unk_to_key . SIR.type_expr_type_info . snd) fields
                     wrap_in_forall = case bv_type_params of
                         [] -> identity
                         param:more -> Type.Type'Forall (param :| more)
@@ -161,7 +158,7 @@ pattern (SIR.Pattern'AnonADTVariant () sp (Just variant_index@(Type.ADTVariantIn
 
     in case variant of
          Type.ADTVariant'Anon _ _ variant_fields ->
-            let variant_field_tys_substituted = map (substitute_adt_params . SIR.type_expr_type_info . snd) variant_fields
+            let variant_field_tys_substituted = map (substitute_adt_params . void_unk_to_key . SIR.type_expr_type_info . snd) variant_fields
             in if length pattern_fields /= length variant_field_tys_substituted
                 then error "wrong number of fields in anonymous variant pattern" -- TODO: report proper error
                 else
@@ -266,11 +263,11 @@ expr (SIR.Expr'Forall id () sp vars e) =
 expr (SIR.Expr'TypeApply id () sp e arg) =
     expr e >>= \ e ->
     type_expr arg >>= \ arg ->
-    apply_type (TypeApplyExpr sp) sp (SIR.expr_type e) (SIR.type_expr_type_info arg) >>= \ result_ty ->
+    apply_type (TypeApplyExpr sp) sp (SIR.expr_type e) (void_unk_to_key $ SIR.type_expr_type_info arg) >>= \ result_ty ->
     pure (SIR.Expr'TypeApply id result_ty sp e arg)
 
 expr (SIR.Expr'TypeAnnotation id () sp annotation e) =
     type_expr annotation >>= \ annotation ->
     expr e >>= \ e ->
-    lift (tell [Expect InTypeAnnotation (loc_expr_type e) (SIR.type_expr_type_info annotation)]) >> -- TODO: use annotation span
-    pure (SIR.Expr'TypeAnnotation id (SIR.type_expr_type_info annotation) sp annotation e)
+    lift (tell [Expect InTypeAnnotation (loc_expr_type e) (void_unk_to_key $ SIR.type_expr_type_info annotation)]) >> -- TODO: use annotation span
+    pure (SIR.Expr'TypeAnnotation id (void_unk_to_key $ SIR.type_expr_type_info annotation) sp annotation e)

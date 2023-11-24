@@ -3,7 +3,6 @@ module UHF.Phases.Type.SolveConstraints (solve) where
 import UHF.Util.Prelude
 
 import qualified Arena
-import qualified UHF.Data.IR.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
 
 import qualified UHF.Compiler as Compiler
@@ -148,12 +147,12 @@ unify (Type.Type'ADT a_adt_key a_params, a_var_map) (Type.Type'ADT b_adt_key b_p
 unify (Type.Type'Synonym a_syn_key, a_var_map) b =
     lift (lift ask) >>= \ (_, type_synonyms, _) ->
     case Arena.get type_synonyms a_syn_key of
-        Type.TypeSynonym _ _ a_expansion -> unify (SIR.type_expr_type_info a_expansion, a_var_map) b
+        Type.TypeSynonym _ _ (_, a_expansion) -> unify (a_expansion, a_var_map) b
 
 unify a (Type.Type'Synonym b_syn_key, b_var_map) =
     lift (lift ask) >>= \ (_, type_synonyms, _) ->
     case Arena.get type_synonyms b_syn_key of
-        Type.TypeSynonym _ _ b_expansion -> unify a (SIR.type_expr_type_info b_expansion, b_var_map)
+        Type.TypeSynonym _ _ (_, b_expansion) -> unify a (b_expansion, b_var_map)
 
 unify (Type.Type'Int, _) (Type.Type'Int, _) = pure ()
 unify (Type.Type'Float, _) (Type.Type'Float, _) = pure ()
@@ -235,9 +234,10 @@ occurs_check u (Type.Type'Unknown other_v) =
 occurs_check u (Type.Type'ADT _ params) = or <$> mapM (occurs_check u) params
 
 occurs_check u (Type.Type'Synonym syn_key) =
+    -- TODO: reconsider if this is correct
     ask >>= \ (_, type_synonyms, _) ->
-    let Type.TypeSynonym _ _ other_expansion = Arena.get type_synonyms syn_key
-    in occurs_check u (SIR.type_expr_type_info other_expansion)
+    let Type.TypeSynonym _ _ (_, other_expansion) = Arena.get type_synonyms syn_key
+    in occurs_check u (other_expansion)
 
 occurs_check _ Type.Type'Int = pure False
 occurs_check _ Type.Type'Float = pure False

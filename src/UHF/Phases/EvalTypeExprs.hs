@@ -54,7 +54,7 @@ type EvaledDIden = Maybe SIR.DeclKey
 type EvaledVIden = Located (Maybe (Either () SIR.DeclKey), Located Text)
 type EvaledPIden = (Maybe (Either () SIR.DeclKey), Located Text)
 
-type Evaled = (EvaledDIden, EvaledVIden, EvaledPIden, Maybe (Type.Type Void), (), ())
+type Evaled = (EvaledDIden, EvaledVIden, EvaledPIden, EvaledDIden, (), ())
 
 type EvaledSIR = SIR.SIR Evaled
 type EvaledModule = SIR.Module Evaled

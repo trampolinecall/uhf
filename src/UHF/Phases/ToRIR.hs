@@ -68,11 +68,11 @@ assemble_cu modules mod =
 convert_adt :: Type.ADT SIRTypeExpr -> Type.ADT Type
 convert_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars (map convert_variant variants)
     where
-        convert_variant (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id (map (\ (id, name, ty) -> (id, name, SIR.type_expr_type_info ty)) fields)
-        convert_variant (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id (map (\ (id, ty) -> (id, SIR.type_expr_type_info ty)) fields)
+        convert_variant (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id (map (\ (id, name, ty) -> (id, name, SIR.type_expr_evaled ty)) fields)
+        convert_variant (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id (map (\ (id, ty) -> (id, SIR.type_expr_evaled ty)) fields)
 
 convert_type_synonym :: Type.TypeSynonym SIRTypeExpr -> Type.TypeSynonym Type
-convert_type_synonym (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name (SIR.type_expr_type_info expansion)
+convert_type_synonym (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name (SIR.type_expr_evaled expansion)
 
 convert_binding :: SIRBinding -> ConvertState [RIRBinding]
 convert_binding (SIR.Binding pat eq_sp expr) = convert_expr expr >>= assign_pattern eq_sp pat
@@ -223,7 +223,7 @@ convert_expr (SIR.Expr'Poison id ty sp) = pure $ RIR.Expr'Poison id ty sp
 convert_expr (SIR.Expr'Hole id ty sp _) = pure $ RIR.Expr'Poison id ty sp
 convert_expr (SIR.Expr'TypeAnnotation _ _ _ _ other) = convert_expr other
 convert_expr (SIR.Expr'Forall id ty sp vars e) = RIR.Expr'Forall id sp vars <$> convert_expr e
-convert_expr (SIR.Expr'TypeApply id ty sp e arg) = RIR.Expr'TypeApply id ty sp <$> convert_expr e <*> pure (SIR.type_expr_type_info arg)
+convert_expr (SIR.Expr'TypeApply id ty sp e (arg, arg_ty)) = RIR.Expr'TypeApply id ty sp <$> convert_expr e <*> pure arg_ty
 
 assign_pattern :: Span -> SIRPattern -> RIRExpr -> ConvertState [RIRBinding]
 assign_pattern incomplete_err_sp pat expr = do

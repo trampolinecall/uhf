@@ -1,5 +1,8 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module UHF.Data.IR.SIR.PP (dump_main_module) where
 
@@ -17,11 +20,17 @@ import qualified UHF.Data.IR.ID as ID
 
 import UHF.IO.Located (Located (Located, unlocate))
 
-import qualified Data.Text as Text
-
 type IRReader stage = Reader (SIR.SIR stage)
 
-dump_main_module :: (DumpableIdentifier (SIR.DIdenStart stage), DumpableIdentifier (SIR.SplitIdentifier stage (SIR.VIdenStart stage), SIR.VIdenResolved stage), DumpableIdentifier (SIR.SplitIdentifier stage (SIR.PIdenStart stage), SIR.PIdenResolved stage)) => SIR.SIR stage -> Text
+type DumpableConstraints stage =
+    ( DumpableIdentifier stage (SIR.DIdenStart stage)
+    , DumpableIdentifier stage (SIR.VIdenStart stage)
+    , DumpableIdentifier stage (SIR.PIdenStart stage)
+    , DumpableIdentifier stage (SIR.SplitIdentifier stage (SIR.VIdenStart stage), SIR.VIdenResolved stage)
+    , DumpableIdentifier stage (SIR.SplitIdentifier stage (SIR.PIdenStart stage), SIR.PIdenResolved stage)
+    )
+
+dump_main_module :: DumpableConstraints stage => SIR.SIR stage -> Text
 dump_main_module ir@(SIR.SIR _ modules _ _ _ _ mod) = PP.render $ runReader (define_module $ Arena.get modules mod) ir
 
 get_adt_arena :: IRReader stage (Arena.Arena (Type.ADT (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage)) Type.ADTKey)
@@ -44,7 +53,7 @@ get_type_syn k = reader (\ (SIR.SIR _ _ _ syns _ _ _) -> Arena.get syns k)
 get_type_var :: Type.TypeVarKey -> IRReader stage Type.Var
 get_type_var k = reader (\ (SIR.SIR _ _ _ _ type_vars _ _) -> Arena.get type_vars k)
 
-define_module :: (DumpableIdentifier (SIR.DIdenStart stage), DumpableIdentifier (SIR.SplitIdentifier stage (SIR.VIdenStart stage), SIR.VIdenResolved stage), DumpableIdentifier (SIR.SplitIdentifier stage (SIR.PIdenStart stage), SIR.PIdenResolved stage)) => SIR.Module stage -> IRReader stage PP.Token
+define_module :: DumpableConstraints stage => SIR.Module stage -> IRReader stage PP.Token
 define_module (SIR.Module _ bindings adts type_synonyms) =
     ask >>= \ sir ->
     mapM (\ k -> get_adt k >>= \ adt -> pure (Type.PP.define_adt adt)) adts >>= \ adts_defined ->
@@ -52,7 +61,7 @@ define_module (SIR.Module _ bindings adts type_synonyms) =
     mapM define_binding bindings >>= \ bindings_defined ->
     pure (PP.flat_block $ adts_defined <> type_synonyms_defined <> bindings_defined)
 
-define_binding :: (DumpableIdentifier (SIR.DIdenStart stage), DumpableIdentifier (SIR.SplitIdentifier stage (SIR.VIdenStart stage), SIR.VIdenResolved stage), DumpableIdentifier (SIR.SplitIdentifier stage (SIR.PIdenStart stage), SIR.PIdenResolved stage)) => SIR.Binding stage -> IRReader stage PP.Token
+define_binding :: DumpableConstraints stage => SIR.Binding stage -> IRReader stage PP.Token
 define_binding (SIR.Binding pat _ init) = pattern pat >>= \ pat -> expr init >>= \ init -> pure $ PP.List [pat, " = ", init, ";"]
 define_binding (SIR.Binding'ADTVariant _ bvk _ variant_index@(Type.ADTVariantIndex adt_key _)) =
     Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
@@ -61,7 +70,7 @@ define_binding (SIR.Binding'ADTVariant _ bvk _ variant_index@(Type.ADTVariantInd
     in refer_bv bvk >>= \ bvk ->
     pure $ PP.List [bvk, " = <constructor for ", adt_refer, " ", PP.String variant_name, ">;"]
 
-class DumpableIdentifier i where
+class DumpableIdentifier stage i where
     refer_iden :: i -> IRReader stage PP.Token
 
 refer_bv :: SIR.BoundValueKey -> IRReader stage PP.Token
@@ -80,44 +89,39 @@ refer_decl k = get_decl k >>= \case
         get_type_var_arena >>= \ type_var_arena ->
         pure (Type.PP.refer_type absurd adt_arena type_synonym_arena type_var_arena ty)
 
-put_iden_list_of_text :: [Located Text] -> IRReader stage PP.Token
-put_iden_list_of_text = pure . PP.String . Text.intercalate "::" . map unlocate
-
-instance DumpableIdentifier a => DumpableIdentifier (Located a) where
+instance DumpableIdentifier stage a => DumpableIdentifier stage (Located a) where
     refer_iden = refer_iden . unlocate
-
-instance DumpableIdentifier [Located Text] where
-    refer_iden = put_iden_list_of_text
-instance DumpableIdentifier (Maybe [Located Text], Located Text) where
-    refer_iden (Nothing, i) = pure $ PP.String $ unlocate i
-    refer_iden (Just t, i) = refer_iden t >>= \ t -> pure (PP.List [t, "::", PP.String $ unlocate i])
-
-instance DumpableIdentifier (Maybe (Either () SIR.DeclKey), Located Text) where
-    refer_iden (Nothing, i) = pure $ PP.String $ unlocate i
-    refer_iden (Just d, i) = refer_iden (either (const Nothing) (Just) d) >>= \ d -> pure (PP.List [d, "::", PP.String $ unlocate i])
-
-instance DumpableIdentifier (Maybe SIR.DeclKey) where -- TODO: remove this
-    refer_iden (Just k) = refer_decl k
+instance DumpableIdentifier stage t => DumpableIdentifier stage (Maybe t) where -- TODO: remove this
+    refer_iden (Just t) = refer_iden t
     refer_iden Nothing = pure $ PP.String "<name resolution error>"
-instance DumpableIdentifier (Maybe SIR.BoundValueKey) where -- TODO: remove this
-    refer_iden k = maybe (pure $ PP.String "<name resolution error>") refer_iden k
-instance DumpableIdentifier SIR.BoundValueKey where
-    refer_iden = refer_bv
 
-instance DumpableIdentifier (Maybe Type.ADTVariantIndex) where -- TODO: remove this
-    refer_iden (Just variant_index@(Type.ADTVariantIndex adt_key _)) =
+instance (DumpableConstraints stage, DumpableIdentifier stage start) => DumpableIdentifier stage (SIR.SplitIdentifier stage start) where
+    refer_iden (SIR.SplitIdentifier'Get texpr next) = type_expr texpr >>= \ texpr -> pure (PP.List [texpr, "::", PP.String $ unlocate next])
+    refer_iden (SIR.SplitIdentifier'Single start) = refer_iden start
+
+instance (DumpableConstraints stage, DumpableIdentifier stage start) => DumpableIdentifier stage (SIR.SplitIdentifier stage start, resolved) where
+    refer_iden (a, _) = refer_iden a -- TODO: figure out how to use resolved but only if it is not ()
+
+instance DumpableIdentifier stage Text where
+    refer_iden = pure . PP.String
+
+instance DumpableIdentifier stage SIR.DeclKey where
+    refer_iden = refer_decl
+instance DumpableIdentifier stage SIR.BoundValueKey where
+    refer_iden = refer_bv
+instance DumpableIdentifier stage Type.ADTVariantIndex where
+    refer_iden variant_index@(Type.ADTVariantIndex adt_key _) =
         Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_referred ->
         Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
         let variant_name = unlocate $ Type.variant_name variant
         in pure $ PP.List [adt_referred, "::", PP.String variant_name]
-    refer_iden Nothing = pure $ PP.String "<name resolution error>"
 
 -- TODO: dump type info too
 
 type_var :: Type.TypeVarKey -> IRReader stage PP.Token
 type_var k = get_type_var k >>= \ (Type.Var (Located _ name)) -> pure $ PP.String name
 
-type_expr :: DumpableIdentifier (SIR.DIdenStart stage) => SIR.TypeExpr stage -> IRReader stage PP.Token
+type_expr :: DumpableConstraints stage => SIR.TypeExpr stage -> IRReader stage PP.Token
 type_expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
     where
         levels (SIR.TypeExpr'Forall _ _ vars ty) = (1, \ cur _ -> mapM type_var vars >>= \ vars -> cur ty >>= \ ty -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList vars, " ", ty]))
@@ -130,7 +134,7 @@ type_expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
         levels (SIR.TypeExpr'Wild _ _) = (4, \ _ _ -> pure $ PP.String "_")
         levels (SIR.TypeExpr'Poison _ _) = (4, \ _ _ -> pure $ PP.String "poison")
 
-expr :: (DumpableIdentifier (SIR.DIdenStart stage), DumpableIdentifier (SIR.SplitIdentifier stage (SIR.VIdenStart stage), SIR.VIdenResolved stage), DumpableIdentifier (SIR.SplitIdentifier stage (SIR.PIdenStart stage), SIR.PIdenResolved stage)) => SIR.Expr stage -> IRReader stage PP.Token
+expr :: DumpableConstraints stage => SIR.Expr stage -> IRReader stage PP.Token
 expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
     where
         levels (SIR.Expr'BinaryOps _ _ _ _ first ops) =
@@ -168,11 +172,11 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
 
         levels (SIR.Expr'Forall _ _ _ tys e) = (2, \ _ _ -> mapM type_var tys >>= \ tys -> expr e >>= \ e -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList tys, " ", e]))
 
-pp_let :: (DumpableIdentifier (SIR.DIdenStart stage), DumpableIdentifier (SIR.SplitIdentifier stage (SIR.VIdenStart stage), SIR.VIdenResolved stage), DumpableIdentifier (SIR.SplitIdentifier stage (SIR.PIdenStart stage), SIR.PIdenResolved stage)) => Text -> [SIR.Binding stage] -> SIR.Expr stage -> IRReader stage PP.Token
+pp_let :: DumpableConstraints stage => Text -> [SIR.Binding stage] -> SIR.Expr stage -> IRReader stage PP.Token
 pp_let let_kw [binding] body = define_binding binding >>= \ binding -> expr body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List [PP.String let_kw, " ", binding, "\n", body])
 pp_let let_kw bindings body = mapM define_binding bindings >>= \ bindings -> expr body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List [PP.String let_kw, " ", PP.braced_block bindings, "\n", body])
 
-pattern :: DumpableIdentifier (SIR.SplitIdentifier stage (SIR.PIdenStart stage), SIR.PIdenResolved stage) => SIR.Pattern stage -> IRReader stage PP.Token
+pattern :: DumpableConstraints stage => SIR.Pattern stage -> IRReader stage PP.Token
 pattern (SIR.Pattern'Identifier _ _ bvk) = refer_iden bvk
 pattern (SIR.Pattern'Wildcard _ _) = pure $ PP.String "_"
 pattern (SIR.Pattern'Tuple _ _ a b) = pattern a >>= \ a -> pattern b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b])

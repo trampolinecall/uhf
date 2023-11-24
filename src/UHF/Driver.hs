@@ -38,6 +38,7 @@ import qualified UHF.Data.IR.BackendIR.PP as BackendIR.PP
 import qualified UHF.Phases.Lexer as Lexer
 import qualified UHF.Phases.Parser as Parser
 import qualified UHF.Phases.ToSIR as ToSIR
+import qualified UHF.Phases.ResolveReferStarts as ResolveReferStarts
 import qualified UHF.Phases.EvalTypeExprs as EvalTypeExprs
 import qualified UHF.Phases.NameResolve as NameResolve
 import qualified UHF.Phases.InfixGroup as InfixGroup

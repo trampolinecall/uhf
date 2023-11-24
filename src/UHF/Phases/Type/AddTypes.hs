@@ -83,11 +83,11 @@ module_ (SIR.Module id bindings adts type_synonyms) = SIR.Module id <$> mapM bin
 adt :: UntypedADT -> ContextReader UntypedDeclArena bvs adts TypedWithUnkADT
 adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM convert_variant variants
     where
-        convert_variant (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id <$> mapM (\ (id, name, (ty_expr, ty)) -> type_expr ty_expr >>= \ ty_expr -> pure (id, name, (ty_expr, void_unk_to_key ty))) fields
-        convert_variant (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id <$> mapM (\ (id, (ty_expr, ty)) -> type_expr ty_expr >>= \ ty_expr -> pure (id, (ty_expr, void_unk_to_key ty))) fields
+        convert_variant (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id <$> mapM (\ (id, name, (ty_expr, ty)) -> type_expr ty_expr >>= \ ty_expr -> nothing_to_unk (TypeExpr $ SIR.type_expr_span ty_expr) ty >>= \ ty -> pure (id, name, (ty_expr, ty))) fields
+        convert_variant (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id <$> mapM (\ (id, (ty_expr, ty)) -> type_expr ty_expr >>= \ ty_expr -> nothing_to_unk (TypeExpr $ SIR.type_expr_span ty_expr) ty >>= \ ty -> pure (id, (ty_expr, ty))) fields
 
 type_synonym :: UntypedTypeSynonym -> ContextReader UntypedDeclArena bvs adts TypedWithUnkTypeSynonym
-type_synonym (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name <$> type_expr expansion
+type_synonym (Type.TypeSynonym id name (expansion, exp_as_type)) = type_expr expansion >>= \ expansion -> nothing_to_unk (TypeExpr $ SIR.type_expr_span expansion) exp_as_type >>= \ exp_as_type -> pure (Type.TypeSynonym id name (expansion, exp_as_type))
 
 apply_type :: TypeUnknownForWhat -> Span -> TypeWithUnk -> TypeWithUnk -> ContextReader decls bvs adts TypeWithUnk
 apply_type for_what sp ty arg =
@@ -97,16 +97,17 @@ apply_type for_what sp ty arg =
 
 type_expr :: UntypedTypeExpr -> ContextReader decls bvs adts TypedWithUnkTypeExpr
 -- TODO: do these ForWhats better
-type_expr (SIR.TypeExpr'Refer ty sp iden) = nothing_to_unk (TypeExpr sp) ty >>= \ ty -> pure (SIR.TypeExpr'Refer ty sp iden)
-type_expr (SIR.TypeExpr'Get ty sp parent name) = nothing_to_unk (SomeError todo) ty >>= \ ty -> SIR.TypeExpr'Get ty sp <$> type_expr parent <*> pure name
-type_expr (SIR.TypeExpr'Tuple ty a b) = nothing_to_unk (SomeError todo) ty >>= \ ty -> SIR.TypeExpr'Tuple ty <$> type_expr a <*> type_expr b
-type_expr (SIR.TypeExpr'Hole ty sp hid) = nothing_to_unk (TypeHole sp) ty >>= \ ty -> pure (SIR.TypeExpr'Hole ty sp hid)
-type_expr (SIR.TypeExpr'Function ty sp arg res) = nothing_to_unk (SomeError todo) ty >>= \ ty -> SIR.TypeExpr'Function ty sp <$> type_expr arg <*> type_expr res
-type_expr (SIR.TypeExpr'Forall ty names t) = nothing_to_unk (SomeError todo) ty >>= \ ty -> SIR.TypeExpr'Forall ty names <$> type_expr t
-type_expr (SIR.TypeExpr'Apply ty sp t arg) = nothing_to_unk (SomeError todo) ty >>= \ ty -> SIR.TypeExpr'Apply ty sp <$> type_expr t <*> type_expr arg
-type_expr (SIR.TypeExpr'Wild ty sp) = nothing_to_unk (TypeExpr sp) ty >>= \ ty -> pure (SIR.TypeExpr'Wild ty sp)
-type_expr (SIR.TypeExpr'Poison ty sp) = nothing_to_unk (TypeExpr sp) ty >>= \ ty -> pure (SIR.TypeExpr'Poison ty sp)
+type_expr (SIR.TypeExpr'Refer evaled sp iden) = pure (SIR.TypeExpr'Refer evaled sp iden)
+type_expr (SIR.TypeExpr'Get evaled sp parent name) = SIR.TypeExpr'Get evaled sp <$> type_expr parent <*> pure name
+type_expr (SIR.TypeExpr'Tuple evaled sp a b) = SIR.TypeExpr'Tuple evaled sp <$> type_expr a <*> type_expr b
+type_expr (SIR.TypeExpr'Hole evaled ty sp hid) = nothing_to_unk (TypeHole sp) ty >>= \ ty -> pure (SIR.TypeExpr'Hole evaled ty sp hid)
+type_expr (SIR.TypeExpr'Function evaled sp arg res) = SIR.TypeExpr'Function evaled sp <$> type_expr arg <*> type_expr res
+type_expr (SIR.TypeExpr'Forall evaled sp names t) = SIR.TypeExpr'Forall evaled sp names <$> type_expr t
+type_expr (SIR.TypeExpr'Apply evaled sp t arg) = SIR.TypeExpr'Apply evaled sp <$> type_expr t <*> type_expr arg
+type_expr (SIR.TypeExpr'Wild evaled sp) = pure (SIR.TypeExpr'Wild evaled sp)
+type_expr (SIR.TypeExpr'Poison evaled sp) = pure (SIR.TypeExpr'Poison evaled sp)
 
+-- TODO: remove this
 nothing_to_unk :: TypeUnknownForWhat -> Maybe (Type.Type Void) -> ContextReader decls bvs adts TypeWithUnk
 nothing_to_unk for_what Nothing = Type.Type'Unknown <$> lift (lift $ new_type_unknown for_what)
 nothing_to_unk _ (Just t) = pure $ void_unk_to_key t
@@ -124,7 +125,7 @@ loc_pat_type pattern = Located (SIR.pattern_span pattern) (SIR.pattern_type patt
 loc_expr_type :: SIR.Expr stage -> Located (SIR.TypeInfo stage)
 loc_expr_type expr = Located (SIR.expr_span expr) (SIR.expr_type expr)
 
-pattern :: UntypedPattern -> ContextReader decls TypedWithUnkBoundValueArena TypedWithUnkADTArena TypedWithUnkPattern
+pattern :: UntypedPattern -> ContextReader UntypedDeclArena TypedWithUnkBoundValueArena TypedWithUnkADTArena TypedWithUnkPattern
 pattern (SIR.Pattern'Identifier () sp bv) =
     get_bv_type bv >>= \ ty ->
     pure (SIR.Pattern'Identifier ty sp bv)
@@ -144,11 +145,12 @@ pattern (SIR.Pattern'Named () sp at_sp bvk subpat) =
     lift (tell [Eq InNamedPattern at_sp (Located (just_span bvk) bv_ty) (loc_pat_type subpat)]) >>
     pure (SIR.Pattern'Named bv_ty sp at_sp bvk subpat)
 
-pattern (SIR.Pattern'AnonADTVariant () sp Nothing _ fields) =
+pattern (SIR.Pattern'AnonADTVariant () sp variant_iden Nothing _ fields) =
     mapM pattern fields >>= \ fields ->
     Type.Type'Unknown <$> lift (lift $ new_type_unknown (UnresolvedADTVariantPattern sp)) >>= \ ty ->
-    pure (SIR.Pattern'AnonADTVariant ty sp Nothing [] fields)
-pattern (SIR.Pattern'AnonADTVariant () sp (Just variant_index@(Type.ADTVariantIndex adt_key _)) _ fields) =
+    split_iden variant_iden >>= \ variant_iden ->
+    pure (SIR.Pattern'AnonADTVariant ty sp variant_iden Nothing [] fields)
+pattern (SIR.Pattern'AnonADTVariant () sp variant_iden (Just variant_index@(Type.ADTVariantIndex adt_key _)) _ fields) =
     mapM pattern fields >>= \ pattern_fields ->
 
     ask >>= \ (_, _, adts) ->
@@ -176,13 +178,15 @@ pattern (SIR.Pattern'AnonADTVariant () sp (Just variant_index@(Type.ADTVariantIn
          Type.ADTVariant'Named _ _ _ -> error "named variant pattern used with anonymous variant" -- TODO: also report proper error
         >>
 
-    pure (SIR.Pattern'AnonADTVariant whole_pat_type sp (Just variant_index) type_param_unks pattern_fields)
+    split_iden variant_iden >>= \ variant_iden ->
+    pure (SIR.Pattern'AnonADTVariant whole_pat_type sp variant_iden (Just variant_index) type_param_unks pattern_fields)
 
-pattern (SIR.Pattern'NamedADTVariant () sp Nothing _ fields) =
+pattern (SIR.Pattern'NamedADTVariant () sp variant_iden Nothing _ fields) =
     mapM (\ (field_name, field_pat) -> (field_name,) <$> pattern field_pat) fields >>= \ fields ->
     Type.Type'Unknown <$> lift (lift $ new_type_unknown (UnresolvedADTVariantPattern sp)) >>= \ ty ->
-    pure (SIR.Pattern'NamedADTVariant ty sp Nothing [] fields)
-pattern (SIR.Pattern'NamedADTVariant () _ (Just _) _ _) = todo
+    split_iden variant_iden >>= \ variant_iden ->
+    pure (SIR.Pattern'NamedADTVariant ty sp variant_iden Nothing [] fields)
+pattern (SIR.Pattern'NamedADTVariant () _ _ (Just _) _ _) = todo
 -- 4 things:
 --     - check variant is named variant
 --     - check field names are correct
@@ -192,12 +196,14 @@ pattern (SIR.Pattern'NamedADTVariant () _ (Just _) _ _) = todo
 pattern (SIR.Pattern'Poison () sp) = SIR.Pattern'Poison <$> (Type.Type'Unknown <$> lift (lift $ new_type_unknown $ PoisonPattern sp)) <*> pure sp
 
 expr :: UntypedExpr -> ContextReader UntypedDeclArena TypedWithUnkBoundValueArena TypedWithUnkADTArena TypedWithUnkExpr
-expr (SIR.Expr'Identifier id () sp bv) =
+expr (SIR.Expr'Identifier id () sp iden bv) =
     (case unlocate bv of
         Just bv -> get_bv_type bv
         Nothing -> Type.Type'Unknown <$> lift (lift $ new_type_unknown (UnresolvedIdenExpr sp))) >>= \ ty ->
 
-    pure (SIR.Expr'Identifier id ty sp bv)
+    split_iden iden >>= \ iden ->
+
+    pure (SIR.Expr'Identifier id ty sp iden bv)
 
 expr (SIR.Expr'Char id () sp c) = pure (SIR.Expr'Char id Type.Type'Char sp c)
 expr (SIR.Expr'String id () sp t) = pure (SIR.Expr'String id Type.Type'String sp t)
@@ -266,14 +272,20 @@ expr (SIR.Expr'Hole id () sp hid) = SIR.Expr'Hole id <$> (Type.Type'Unknown <$> 
 expr (SIR.Expr'Forall id () sp vars e) =
     expr e >>= \ e ->
     pure (SIR.Expr'Forall id (Type.Type'Forall vars (SIR.expr_type e)) sp vars e)
-expr (SIR.Expr'TypeApply id () sp e arg) =
+expr (SIR.Expr'TypeApply id () sp e (arg, arg_ty)) =
     expr e >>= \ e ->
     type_expr arg >>= \ arg ->
-    apply_type (TypeApplyExpr sp) sp (SIR.expr_type e) (snd arg) >>= \ result_ty ->
-    pure (SIR.Expr'TypeApply id result_ty sp e arg)
+    nothing_to_unk (TypeExpr $ SIR.type_expr_span arg) arg_ty >>= \ arg_ty ->
+    apply_type (TypeApplyExpr sp) sp (SIR.expr_type e) arg_ty >>= \ result_ty ->
+    pure (SIR.Expr'TypeApply id result_ty sp e (arg, arg_ty))
 
 expr (SIR.Expr'TypeAnnotation id () sp (annotation, annotation_ty) e) =
     type_expr annotation >>= \ annotation ->
     expr e >>= \ e ->
-    lift (tell [Expect InTypeAnnotation (loc_expr_type e) annotation_ty]) >> -- TODO: use annotation span
+    nothing_to_unk (TypeExpr $ SIR.type_expr_span annotation) annotation_ty >>= \ annotation_ty ->
+    lift (tell [Expect InTypeAnnotation (Located (SIR.type_expr_span annotation) (SIR.expr_type e)) annotation_ty]) >>
     pure (SIR.Expr'TypeAnnotation id annotation_ty sp (annotation, annotation_ty) e)
+
+split_iden :: SIR.SplitIdentifier Untyped start -> ContextReader UntypedDeclArena TypedWithUnkBoundValueArena TypedWithUnkADTArena (SIR.SplitIdentifier TypedWithUnk start)
+split_iden (SIR.SplitIdentifier'Get texpr name) = type_expr texpr >>= \ texpr -> pure (SIR.SplitIdentifier'Get texpr name)
+split_iden (SIR.SplitIdentifier'Single start) = pure $ SIR.SplitIdentifier'Single start

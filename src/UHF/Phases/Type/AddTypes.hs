@@ -70,7 +70,7 @@ bound_value (SIR.BoundValue'ADTVariant id variant_index@(Type.ADTVariantIndex ad
             Type.ADTVariant'Named _ _ _ -> error "bound value should not be made for a named adt variant" -- TODO: statically make sure this cant happen?
             Type.ADTVariant'Anon _ _ fields ->
                 let change_type_params ty = foldl' (\ ty (adt_typaram, bv_typaram) -> substitute unk_arena adt_typaram (Type.Type'Variable bv_typaram) ty) ty (zip adt_type_params bv_type_params)
-                    arg_tys = map (change_type_params . void_unk_to_key . SIR.type_expr_type_info . snd) fields
+                    arg_tys = map (change_type_params . SIR.type_expr_type_info . snd) fields
                     wrap_in_forall = case bv_type_params of
                         [] -> identity
                         param:more -> Type.Type'Forall (param :| more)
@@ -95,15 +95,20 @@ apply_type for_what sp ty arg =
     lift (tell [UnkIsApplyResult sp tyu ty arg]) >>
     pure (Type.Type'Unknown tyu)
 
-type_expr :: UntypedTypeExpr -> ContextReader UntypedDeclArena bvs adts TypedWithUnkTypeExpr
-type_expr (SIR.TypeExpr'Identifier ty sp iden) = pure (SIR.TypeExpr'Identifier ty sp iden)
-type_expr (SIR.TypeExpr'Tuple ty a b) = SIR.TypeExpr'Tuple ty <$> type_expr a <*> type_expr b
-type_expr (SIR.TypeExpr'Hole ty sp hid) = pure (SIR.TypeExpr'Hole ty sp hid)
-type_expr (SIR.TypeExpr'Function ty sp arg res) = SIR.TypeExpr'Function ty sp <$> type_expr arg <*> type_expr res
-type_expr (SIR.TypeExpr'Forall ty names t) = SIR.TypeExpr'Forall ty names <$> type_expr t
-type_expr (SIR.TypeExpr'Apply ty sp t arg) = SIR.TypeExpr'Apply ty sp <$> type_expr t <*> type_expr arg
-type_expr (SIR.TypeExpr'Wild ty sp) = pure (SIR.TypeExpr'Wild ty sp)
-type_expr (SIR.TypeExpr'Poison ty sp) = pure (SIR.TypeExpr'Poison ty sp)
+type_expr :: UntypedTypeExpr -> ContextReader decls bvs adts TypedWithUnkTypeExpr
+-- TODO: do these ForWhats better
+type_expr (SIR.TypeExpr'Identifier ty sp iden) = nothing_to_unk (TypeExpr sp) ty >>= \ ty -> pure (SIR.TypeExpr'Identifier ty sp iden)
+type_expr (SIR.TypeExpr'Tuple ty a b) = nothing_to_unk (SomeError todo) ty >>= \ ty -> SIR.TypeExpr'Tuple ty <$> type_expr a <*> type_expr b
+type_expr (SIR.TypeExpr'Hole ty sp hid) = nothing_to_unk (TypeHole sp) ty >>= \ ty -> pure (SIR.TypeExpr'Hole ty sp hid)
+type_expr (SIR.TypeExpr'Function ty sp arg res) = nothing_to_unk (SomeError todo) ty >>= \ ty -> SIR.TypeExpr'Function ty sp <$> type_expr arg <*> type_expr res
+type_expr (SIR.TypeExpr'Forall ty names t) = nothing_to_unk (SomeError todo) ty >>= \ ty -> SIR.TypeExpr'Forall ty names <$> type_expr t
+type_expr (SIR.TypeExpr'Apply ty sp t arg) = nothing_to_unk (SomeError todo) ty >>= \ ty -> SIR.TypeExpr'Apply ty sp <$> type_expr t <*> type_expr arg
+type_expr (SIR.TypeExpr'Wild ty sp) = nothing_to_unk (TypeExpr sp) ty >>= \ ty -> pure (SIR.TypeExpr'Wild ty sp)
+type_expr (SIR.TypeExpr'Poison ty sp) = nothing_to_unk (TypeExpr sp) ty >>= \ ty -> pure (SIR.TypeExpr'Poison ty sp)
+
+nothing_to_unk :: TypeUnknownForWhat -> Maybe (Type.Type Void) -> ContextReader decls bvs adts TypeWithUnk
+nothing_to_unk for_what Nothing = Type.Type'Unknown <$> lift (lift $ new_type_unknown for_what)
+nothing_to_unk _ (Just t) = pure $ void_unk_to_key t
 
 binding :: UntypedBinding -> ContextReader UntypedDeclArena TypedWithUnkBoundValueArena TypedWithUnkADTArena TypedWithUnkBinding
 binding (SIR.Binding p eq_sp e) =
@@ -158,7 +163,7 @@ pattern (SIR.Pattern'AnonADTVariant () sp (Just variant_index@(Type.ADTVariantIn
 
     in case variant of
          Type.ADTVariant'Anon _ _ variant_fields ->
-            let variant_field_tys_substituted = map (substitute_adt_params . void_unk_to_key . SIR.type_expr_type_info . snd) variant_fields
+            let variant_field_tys_substituted = map (substitute_adt_params . SIR.type_expr_type_info . snd) variant_fields
             in if length pattern_fields /= length variant_field_tys_substituted
                 then error "wrong number of fields in anonymous variant pattern" -- TODO: report proper error
                 else
@@ -263,11 +268,11 @@ expr (SIR.Expr'Forall id () sp vars e) =
 expr (SIR.Expr'TypeApply id () sp e arg) =
     expr e >>= \ e ->
     type_expr arg >>= \ arg ->
-    apply_type (TypeApplyExpr sp) sp (SIR.expr_type e) (void_unk_to_key $ SIR.type_expr_type_info arg) >>= \ result_ty ->
+    apply_type (TypeApplyExpr sp) sp (SIR.expr_type e) (SIR.type_expr_type_info arg) >>= \ result_ty ->
     pure (SIR.Expr'TypeApply id result_ty sp e arg)
 
 expr (SIR.Expr'TypeAnnotation id () sp annotation e) =
     type_expr annotation >>= \ annotation ->
     expr e >>= \ e ->
-    lift (tell [Expect InTypeAnnotation (loc_expr_type e) (void_unk_to_key $ SIR.type_expr_type_info annotation)]) >> -- TODO: use annotation span
-    pure (SIR.Expr'TypeAnnotation id (void_unk_to_key $ SIR.type_expr_type_info annotation) sp annotation e)
+    lift (tell [Expect InTypeAnnotation (loc_expr_type e) (SIR.type_expr_type_info annotation)]) >> -- TODO: use annotation span
+    pure (SIR.Expr'TypeAnnotation id (SIR.type_expr_type_info annotation) sp annotation e)

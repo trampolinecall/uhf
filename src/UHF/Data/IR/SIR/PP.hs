@@ -120,12 +120,12 @@ type_var k = get_type_var k >>= \ (Type.Var (Located _ name)) -> pure $ PP.Strin
 type_expr :: DumpableIdentifier (SIR.DIdenStart stage) => SIR.TypeExpr stage -> IRReader stage PP.Token
 type_expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
     where
-        levels (SIR.TypeExpr'Forall _ vars ty) = (1, \ cur _ -> mapM type_var vars >>= \ vars -> cur ty >>= \ ty -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList vars, " ", ty]))
+        levels (SIR.TypeExpr'Forall _ _ vars ty) = (1, \ cur _ -> mapM type_var vars >>= \ vars -> cur ty >>= \ ty -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList vars, " ", ty]))
         levels (SIR.TypeExpr'Function _ _ arg res) = (2, \ cur next -> next arg >>= \ arg -> cur res >>= \ res -> pure (PP.List [arg, " -> ", res]))
         levels (SIR.TypeExpr'Apply _ _ ty arg) = (3, \ cur _ -> cur ty >>= \ ty -> type_expr arg >>= \ arg -> pure (PP.List [ty, "#(", arg, ")"]))
         levels (SIR.TypeExpr'Get _ _ parent name) = (3, \ cur _ -> cur parent >>= \ parent -> pure (PP.List [parent, "::", PP.String $ unlocate name]))
         levels (SIR.TypeExpr'Refer _ _ iden) = (4, \ _ _ -> refer_iden iden)
-        levels (SIR.TypeExpr'Tuple _ a b) = (4, \ _ _ -> type_expr a >>= \ a -> type_expr b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b]))
+        levels (SIR.TypeExpr'Tuple _ _ a b) = (4, \ _ _ -> type_expr a >>= \ a -> type_expr b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b]))
         levels (SIR.TypeExpr'Hole _ _ _ hid) = (4, \ _ _ -> pure $ PP.List ["?", PP.String $ unlocate hid])
         levels (SIR.TypeExpr'Wild _ _) = (4, \ _ _ -> pure $ PP.String "_")
         levels (SIR.TypeExpr'Poison _ _) = (4, \ _ _ -> pure $ PP.String "poison")
@@ -137,7 +137,7 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
             (0, \ _ next ->
                 next first >>= \ first ->
                 mapM
-                    (\ (op_split_iden, op_resolved, rhs) ->
+                    (\ (_, op_split_iden, op_resolved, rhs) ->
                         refer_iden (op_split_iden, op_resolved) >>= \ op ->
                         next rhs >>= \ rhs ->
                         pure (PP.List [op, " ", rhs]))

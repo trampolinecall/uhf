@@ -48,8 +48,8 @@ data SIR stage
     = SIR
         (Arena.Arena Decl DeclKey)
         (Arena.Arena (Module stage) ModuleKey)
-        (Arena.Arena (Type.ADT (TypeExpr stage)) ADTKey)
-        (Arena.Arena (Type.TypeSynonym (TypeExpr stage)) TypeSynonymKey)
+        (Arena.Arena (Type.ADT (TypeExpr stage, Stage.TypeExprEvaledAsType stage)) ADTKey)
+        (Arena.Arena (Type.TypeSynonym (TypeExpr stage, Stage.TypeExprEvaledAsType stage)) TypeSynonymKey)
         (Arena.Arena Type.Var TypeVarKey)
         (Arena.Arena (BoundValue stage) BoundValueKey)
         ModuleKey
@@ -108,7 +108,7 @@ data Expr stage
     | Expr'Let ID.ExprID (Stage.TypeInfo stage) Span [Binding stage] (Expr stage)
     | Expr'LetRec ID.ExprID (Stage.TypeInfo stage) Span [Binding stage] (Expr stage)
 
-    | Expr'BinaryOps ID.ExprID (Stage.BinaryOpsAllowed stage) (Stage.TypeInfo stage) Span (Expr stage) [(SplitIdentifier stage (Stage.VIdenStart stage), Stage.VIdenResolved stage, Expr stage)]
+    | Expr'BinaryOps ID.ExprID (Stage.BinaryOpsAllowed stage) (Stage.TypeInfo stage) Span (Expr stage) [(Span, SplitIdentifier stage (Stage.VIdenStart stage), Stage.VIdenResolved stage, Expr stage)]
 
     | Expr'Call ID.ExprID (Stage.TypeInfo stage) Span (Expr stage) (Expr stage)
 

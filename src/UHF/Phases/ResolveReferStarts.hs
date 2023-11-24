@@ -256,10 +256,10 @@ resolve_in_binding _ (SIR.Binding'ADTVariant bvk variant vars sp) = pure $ SIR.B
 resolve_in_type_expr :: ChildMapStack -> (SIR.TypeExpr Unresolved) -> (ResolveReader adt_arena bv_arena TypeVarArena ModuleChildMaps (MakeDeclState CollectingErrors)) (SIR.TypeExpr Resolved)
 resolve_in_type_expr nc_stack (SIR.TypeExpr'Refer resolved sp id) = SIR.TypeExpr'Refer resolved sp <$> lift (lift $ resolve_type_iden nc_stack id)
 resolve_in_type_expr nc_stack (SIR.TypeExpr'Get resolved sp parent name) = SIR.TypeExpr'Get resolved sp <$> resolve_in_type_expr nc_stack parent <*> pure name
-resolve_in_type_expr nc_stack (SIR.TypeExpr'Tuple resolved a b) = SIR.TypeExpr'Tuple resolved <$> resolve_in_type_expr nc_stack a <*> resolve_in_type_expr nc_stack b
+resolve_in_type_expr nc_stack (SIR.TypeExpr'Tuple resolved sp a b) = SIR.TypeExpr'Tuple resolved sp <$> resolve_in_type_expr nc_stack a <*> resolve_in_type_expr nc_stack b
 resolve_in_type_expr _ (SIR.TypeExpr'Hole resolved type_info sp hid) = pure $ SIR.TypeExpr'Hole resolved type_info sp hid
 resolve_in_type_expr nc_stack (SIR.TypeExpr'Function resolved sp arg res) = SIR.TypeExpr'Function resolved sp <$> resolve_in_type_expr nc_stack arg <*> resolve_in_type_expr nc_stack res
-resolve_in_type_expr nc_stack (SIR.TypeExpr'Forall resolved vars ty) =
+resolve_in_type_expr nc_stack (SIR.TypeExpr'Forall resolved sp vars ty) =
     mapM
         (\ var ->
             ask_type_var_arena >>= \ type_var_arena ->
@@ -268,7 +268,7 @@ resolve_in_type_expr nc_stack (SIR.TypeExpr'Forall resolved vars ty) =
             pure (name, DeclAt name_sp, var_decl))
         (toList vars) >>= \ vars' ->
     lift (lift $ make_child_maps vars' [] []) >>= \ new_nc ->
-    SIR.TypeExpr'Forall resolved vars <$> resolve_in_type_expr (ChildMapStack new_nc (Just nc_stack)) ty
+    SIR.TypeExpr'Forall resolved sp vars <$> resolve_in_type_expr (ChildMapStack new_nc (Just nc_stack)) ty
 resolve_in_type_expr nc_stack (SIR.TypeExpr'Apply resolved sp ty args) = SIR.TypeExpr'Apply resolved sp <$> resolve_in_type_expr nc_stack ty <*> resolve_in_type_expr nc_stack args
 resolve_in_type_expr _ (SIR.TypeExpr'Wild resolved sp) = pure $ SIR.TypeExpr'Wild resolved sp
 resolve_in_type_expr _ (SIR.TypeExpr'Poison resolved sp) = pure $ SIR.TypeExpr'Poison resolved sp

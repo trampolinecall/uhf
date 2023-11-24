@@ -1,5 +1,10 @@
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE UndecidableInstances #-}
+
 module UHF.Data.IR.SIR
     ( SIR (..)
+    , Stage.Stage(..)
 
     , DeclKey
     , Decl(..)
@@ -20,6 +25,7 @@ module UHF.Data.IR.SIR
     , expr_span
     , pattern_span
     , type_expr_type_info
+
     ) where
 
 import UHF.Util.Prelude
@@ -30,18 +36,20 @@ import UHF.Data.IR.Keys
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.ID as ID
 
+import qualified UHF.Data.IR.SIR.Stage as Stage
+
 import UHF.IO.Span (Span)
 import UHF.IO.Located (Located)
 
 -- "syntax based ir"
-data SIR d_iden v_iden p_iden type_info binary_ops_allowed
+data SIR stage
     = SIR
         (Arena.Arena Decl DeclKey)
-        (Arena.Arena (Module d_iden v_iden p_iden type_info binary_ops_allowed) ModuleKey)
-        (Arena.Arena (Type.ADT (TypeExpr d_iden type_info)) ADTKey)
-        (Arena.Arena (Type.TypeSynonym (TypeExpr d_iden type_info)) TypeSynonymKey)
+        (Arena.Arena (Module stage) ModuleKey)
+        (Arena.Arena (Type.ADT (TypeExpr stage)) ADTKey)
+        (Arena.Arena (Type.TypeSynonym (TypeExpr stage)) TypeSynonymKey)
         (Arena.Arena Type.Var TypeVarKey)
-        (Arena.Arena (BoundValue type_info) BoundValueKey)
+        (Arena.Arena (BoundValue stage) BoundValueKey)
         ModuleKey
 
 data Decl
@@ -49,77 +57,77 @@ data Decl
     | Decl'Type (Type.Type Void)
     deriving Show
 
-data Module d_iden v_iden p_iden type_info binary_ops_allowed
-    = Module ID.ModuleID [Binding d_iden v_iden p_iden type_info binary_ops_allowed] [ADTKey] [TypeSynonymKey]
-    deriving Show
+data Module stage
+    = Module ID.ModuleID [Binding stage] [ADTKey] [TypeSynonymKey]
+deriving instance Stage.AllShowable stage => Show (Module stage)
 
-data BoundValue type_info
-    = BoundValue ID.BoundValueID type_info (Located Text)
-    | BoundValue'ADTVariant ID.BoundValueID Type.ADTVariantIndex [Type.TypeVarKey] type_info Span
-    deriving Show
+data BoundValue stage
+    = BoundValue ID.BoundValueID (Stage.TypeInfo stage) (Located Text)
+    | BoundValue'ADTVariant ID.BoundValueID Type.ADTVariantIndex [Type.TypeVarKey] (Stage.TypeInfo stage) Span
+deriving instance Stage.AllShowable stage => Show (BoundValue stage)
 
-data Binding d_iden v_iden p_iden type_info binary_ops_allowed
-    = Binding (Pattern p_iden type_info) Span (Expr d_iden v_iden p_iden type_info binary_ops_allowed)
+data Binding stage
+    = Binding (Pattern stage) Span (Expr stage)
     | Binding'ADTVariant Span BoundValueKey [Type.TypeVarKey] Type.ADTVariantIndex
-    deriving Show
+deriving instance Stage.AllShowable stage => Show (Binding stage)
 
 type HoleIdentifier = Located [Located Text] -- TODO: disallow paths in holes?
 
-data TypeExpr d_iden type_info
-    = TypeExpr'Identifier type_info Span d_iden
-    | TypeExpr'Tuple type_info (TypeExpr d_iden type_info) (TypeExpr d_iden type_info)
-    | TypeExpr'Hole type_info Span HoleIdentifier
-    | TypeExpr'Function type_info Span (TypeExpr d_iden type_info) (TypeExpr d_iden type_info)
-    | TypeExpr'Forall type_info (NonEmpty TypeVarKey) (TypeExpr d_iden type_info)
-    | TypeExpr'Apply type_info Span (TypeExpr d_iden type_info) (TypeExpr d_iden type_info)
-    | TypeExpr'Wild type_info Span
-    | TypeExpr'Poison type_info Span
-    deriving Show
+data TypeExpr stage
+    = TypeExpr'Identifier (Stage.TypeInfo stage) Span (Stage.DIden stage)
+    | TypeExpr'Tuple (Stage.TypeInfo stage) (TypeExpr stage) (TypeExpr stage)
+    | TypeExpr'Hole (Stage.TypeInfo stage) Span HoleIdentifier
+    | TypeExpr'Function (Stage.TypeInfo stage) Span (TypeExpr stage) (TypeExpr stage)
+    | TypeExpr'Forall (Stage.TypeInfo stage) (NonEmpty TypeVarKey) (TypeExpr stage)
+    | TypeExpr'Apply (Stage.TypeInfo stage) Span (TypeExpr stage) (TypeExpr stage)
+    | TypeExpr'Wild (Stage.TypeInfo stage) Span
+    | TypeExpr'Poison (Stage.TypeInfo stage) Span
+deriving instance Stage.AllShowable stage => Show (TypeExpr stage)
 
-data Expr d_iden v_iden p_iden type_info binary_ops_allowed
-    = Expr'Identifier ID.ExprID type_info Span v_iden
-    | Expr'Char ID.ExprID type_info Span Char
-    | Expr'String ID.ExprID type_info Span Text
-    | Expr'Int ID.ExprID type_info Span Integer
-    | Expr'Float ID.ExprID type_info Span Rational
-    | Expr'Bool ID.ExprID type_info Span Bool -- TODO: replace with identifier exprs
+data Expr stage
+    = Expr'Identifier ID.ExprID (Stage.TypeInfo stage) Span (Stage.VIden stage)
+    | Expr'Char ID.ExprID (Stage.TypeInfo stage) Span Char
+    | Expr'String ID.ExprID (Stage.TypeInfo stage) Span Text
+    | Expr'Int ID.ExprID (Stage.TypeInfo stage) Span Integer
+    | Expr'Float ID.ExprID (Stage.TypeInfo stage) Span Rational
+    | Expr'Bool ID.ExprID (Stage.TypeInfo stage) Span Bool -- TODO: replace with identifier exprs
 
-    | Expr'Tuple ID.ExprID type_info Span (Expr d_iden v_iden p_iden type_info binary_ops_allowed) (Expr d_iden v_iden p_iden type_info binary_ops_allowed)
+    | Expr'Tuple ID.ExprID (Stage.TypeInfo stage) Span (Expr stage) (Expr stage)
 
-    | Expr'Lambda ID.ExprID type_info Span (Pattern p_iden type_info) (Expr d_iden v_iden p_iden type_info binary_ops_allowed)
+    | Expr'Lambda ID.ExprID (Stage.TypeInfo stage) Span (Pattern stage) (Expr stage)
 
-    | Expr'Let ID.ExprID type_info Span [Binding d_iden v_iden p_iden type_info binary_ops_allowed] (Expr d_iden v_iden p_iden type_info binary_ops_allowed)
-    | Expr'LetRec ID.ExprID type_info Span [Binding d_iden v_iden p_iden type_info binary_ops_allowed] (Expr d_iden v_iden p_iden type_info binary_ops_allowed)
+    | Expr'Let ID.ExprID (Stage.TypeInfo stage) Span [Binding stage] (Expr stage)
+    | Expr'LetRec ID.ExprID (Stage.TypeInfo stage) Span [Binding stage] (Expr stage)
 
-    | Expr'BinaryOps ID.ExprID binary_ops_allowed type_info Span (Expr d_iden v_iden p_iden type_info binary_ops_allowed) [(v_iden, Expr d_iden v_iden p_iden type_info binary_ops_allowed)]
+    | Expr'BinaryOps ID.ExprID (Stage.BinaryOpsAllowed stage) (Stage.TypeInfo stage) Span (Expr stage) [((Stage.VIden stage), Expr stage)]
 
-    | Expr'Call ID.ExprID type_info Span (Expr d_iden v_iden p_iden type_info binary_ops_allowed) (Expr d_iden v_iden p_iden type_info binary_ops_allowed)
+    | Expr'Call ID.ExprID (Stage.TypeInfo stage) Span (Expr stage) (Expr stage)
 
-    | Expr'If ID.ExprID type_info Span Span (Expr d_iden v_iden p_iden type_info binary_ops_allowed) (Expr d_iden v_iden p_iden type_info binary_ops_allowed) (Expr d_iden v_iden p_iden type_info binary_ops_allowed)
-    | Expr'Match ID.ExprID type_info Span Span (Expr d_iden v_iden p_iden type_info binary_ops_allowed) [(Pattern p_iden type_info, Expr d_iden v_iden p_iden type_info binary_ops_allowed)]
+    | Expr'If ID.ExprID (Stage.TypeInfo stage) Span Span (Expr stage) (Expr stage) (Expr stage)
+    | Expr'Match ID.ExprID (Stage.TypeInfo stage) Span Span (Expr stage) [(Pattern stage, Expr stage)]
 
-    | Expr'Forall ID.ExprID type_info Span (NonEmpty TypeVarKey) (Expr d_iden v_iden p_iden type_info binary_ops_allowed)
-    | Expr'TypeApply ID.ExprID type_info Span (Expr d_iden v_iden p_iden type_info binary_ops_allowed) (TypeExpr d_iden type_info)
+    | Expr'Forall ID.ExprID (Stage.TypeInfo stage) Span (NonEmpty TypeVarKey) (Expr stage)
+    | Expr'TypeApply ID.ExprID (Stage.TypeInfo stage) Span (Expr stage) (TypeExpr stage)
 
-    | Expr'TypeAnnotation ID.ExprID type_info Span (TypeExpr d_iden type_info) (Expr d_iden v_iden p_iden type_info binary_ops_allowed)
+    | Expr'TypeAnnotation ID.ExprID (Stage.TypeInfo stage) Span (TypeExpr stage) (Expr stage)
 
-    | Expr'Hole ID.ExprID type_info Span HoleIdentifier
+    | Expr'Hole ID.ExprID (Stage.TypeInfo stage) Span HoleIdentifier
 
-    | Expr'Poison ID.ExprID type_info Span
-    deriving Show
+    | Expr'Poison ID.ExprID (Stage.TypeInfo stage) Span
+deriving instance Stage.AllShowable stage => Show (Expr stage)
 
-data Pattern p_iden type_info
-    = Pattern'Identifier type_info Span BoundValueKey
-    | Pattern'Wildcard type_info Span
-    | Pattern'Tuple type_info Span (Pattern p_iden type_info) (Pattern p_iden type_info)
-    | Pattern'Named type_info Span Span (Located BoundValueKey) (Pattern p_iden type_info)
-    | Pattern'AnonADTVariant type_info Span p_iden [type_info] [Pattern p_iden type_info]
-    | Pattern'NamedADTVariant type_info Span p_iden [type_info] [(Located Text, Pattern p_iden type_info)]
+data Pattern stage
+    = Pattern'Identifier (Stage.TypeInfo stage) Span BoundValueKey
+    | Pattern'Wildcard (Stage.TypeInfo stage) Span
+    | Pattern'Tuple (Stage.TypeInfo stage) Span (Pattern stage) (Pattern stage)
+    | Pattern'Named (Stage.TypeInfo stage) Span Span (Located BoundValueKey) (Pattern stage)
+    | Pattern'AnonADTVariant (Stage.TypeInfo stage) Span (Stage.PIden stage) [(Stage.TypeInfo stage)] [Pattern stage]
+    | Pattern'NamedADTVariant (Stage.TypeInfo stage) Span (Stage.PIden stage) [(Stage.TypeInfo stage)] [(Located Text, Pattern stage)]
 
-    | Pattern'Poison type_info Span
-    deriving Show
+    | Pattern'Poison (Stage.TypeInfo stage) Span
+deriving instance Stage.AllShowable stage => Show (Pattern stage)
 
-type_expr_type_info :: TypeExpr d_iden type_info -> type_info
+type_expr_type_info :: TypeExpr stage -> (Stage.TypeInfo stage)
 type_expr_type_info (TypeExpr'Identifier type_info _ _) = type_info
 type_expr_type_info (TypeExpr'Tuple type_info _ _) = type_info
 type_expr_type_info (TypeExpr'Hole type_info _ _) = type_info
@@ -129,7 +137,7 @@ type_expr_type_info (TypeExpr'Apply type_info _ _ _) = type_info
 type_expr_type_info (TypeExpr'Wild type_info _) = type_info
 type_expr_type_info (TypeExpr'Poison type_info _) = type_info
 
-expr_type :: Expr d_iden v_iden p_iden type_info binary_ops_allowed -> type_info
+expr_type :: Expr stage -> (Stage.TypeInfo stage)
 expr_type (Expr'Identifier _ type_info _ _) = type_info
 expr_type (Expr'Char _ type_info _ _) = type_info
 expr_type (Expr'String _ type_info _ _) = type_info
@@ -150,7 +158,7 @@ expr_type (Expr'Forall _ type_info _ _ _) = type_info
 expr_type (Expr'TypeApply _ type_info _ _ _) = type_info
 expr_type (Expr'TypeAnnotation _ type_info _ _ _) = type_info
 
-expr_span :: Expr d_iden v_iden p_iden type_info binary_ops_allowed -> Span
+expr_span :: Expr stage -> Span
 expr_span (Expr'Identifier _ _ sp _) = sp
 expr_span (Expr'Char _ _ sp _) = sp
 expr_span (Expr'String _ _ sp _) = sp
@@ -171,7 +179,7 @@ expr_span (Expr'Forall _ _ sp _ _) = sp
 expr_span (Expr'TypeApply _ _ sp _ _) = sp
 expr_span (Expr'TypeAnnotation _ _ sp _ _) = sp
 
-pattern_type :: Pattern p_iden type_info -> type_info
+pattern_type :: Pattern stage -> (Stage.TypeInfo stage)
 pattern_type (Pattern'Identifier type_info _ _) = type_info
 pattern_type (Pattern'Wildcard type_info _) = type_info
 pattern_type (Pattern'Tuple type_info _ _ _) = type_info
@@ -180,7 +188,7 @@ pattern_type (Pattern'Poison type_info _) = type_info
 pattern_type (Pattern'AnonADTVariant type_info _ _ _ _) = type_info
 pattern_type (Pattern'NamedADTVariant type_info _ _ _ _) = type_info
 
-pattern_span :: Pattern p_iden type_info -> Span
+pattern_span :: Pattern stage -> Span
 pattern_span (Pattern'Identifier _ sp _) = sp
 pattern_span (Pattern'Wildcard _ sp) = sp
 pattern_span (Pattern'Tuple _ sp _ _) = sp

@@ -39,18 +39,20 @@ instance Diagnostic.ToError Error where
     to_error (Tuple1 sp) = Diagnostic.Error Codes.tuple1 (Just sp) "tuple of 1 element" [] []
     to_error (Tuple0 sp) = Diagnostic.Error Codes.tuple0 (Just sp) "tuple of 0 elements" [] []
 
-type SIR = SIR.SIR Identifier Identifier Identifier () ()
+type SIRStage = (Identifier, Identifier, Identifier, (), ())
+
+type SIR = SIR.SIR SIRStage
 
 type Identifier = [Located Text]
 type Decl = SIR.Decl
-type Module = SIR.Module Identifier Identifier Identifier () ()
-type Binding = SIR.Binding Identifier Identifier Identifier () ()
+type Module = SIR.Module SIRStage
+type Binding = SIR.Binding SIRStage
 type ADT = Type.ADT TypeExpr
 type TypeSynonym = Type.TypeSynonym TypeExpr
-type TypeExpr = SIR.TypeExpr Identifier ()
-type Expr = SIR.Expr Identifier Identifier Identifier () ()
-type Pattern = SIR.Pattern Identifier ()
-type BoundValue = SIR.BoundValue ()
+type TypeExpr = SIR.TypeExpr SIRStage
+type Expr = SIR.Expr SIRStage
+type Pattern = SIR.Pattern SIRStage
+type BoundValue = SIR.BoundValue SIRStage
 
 type DeclArena = Arena.Arena Decl SIR.DeclKey
 type ModuleArena = Arena.Arena Module SIR.ModuleKey

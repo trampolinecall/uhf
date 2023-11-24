@@ -341,9 +341,9 @@ type_apply = type_primary >>= m_applys
             PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ (Located cp_sp _) ->
             m_applys (AST.Type'Apply (AST.type_span base <> cp_sp) base tys)
         get base =
-            PEG.consume' "'::'" (Token.SingleTypeToken Token.Colon) >>= \ _ ->
+            PEG.consume' "'::'" (Token.SingleTypeToken Token.DoubleColon) >>= \ _ ->
             PEG.consume' "identifier" (Token.AlphaIdentifier ()) >>= \ (Located next_sp (Token.AlphaIdentifier next)) ->
-            pure (AST.Type'Get (AST.type_span base <> next_sp) base (Located next_sp next))
+            m_applys (AST.Type'Get (AST.type_span base <> next_sp) base (Located next_sp next))
 
 type_primary :: PEG.Parser AST.Type
 type_primary = PEG.choice [type_parenthesized, type_refer, type_wild, type_hole, type_tuple]
@@ -432,7 +432,7 @@ path_or_single_iden = PEG.choice [path, single_iden]
     where
         path =
             type_ >>= \ ty ->
-            PEG.consume' "'::'" (Token.SingleTypeToken Token.Colon) >>= \ _ ->
+            PEG.consume' "'::'" (Token.SingleTypeToken Token.DoubleColon) >>= \ _ ->
             PEG.consume' "identifier" (Token.AlphaIdentifier ()) >>= \ (Located next_sp (Token.AlphaIdentifier next)) ->
             pure (Located (AST.type_span ty <> next_sp) (AST.PathOrSingleIden'Path ty (Located next_sp next)))
         single_iden =
@@ -444,7 +444,7 @@ path_or_single_symbol_iden = PEG.choice [path, single_iden]
     where
         path =
             type_ >>= \ ty ->
-            PEG.consume' "'::'" (Token.SingleTypeToken Token.Colon) >>= \ _ ->
+            PEG.consume' "'::'" (Token.SingleTypeToken Token.DoubleColon) >>= \ _ ->
             PEG.consume' "symbol identifier" (Token.SymbolIdentifier ()) >>= \ (Located next_sp (Token.SymbolIdentifier next)) ->
             pure (Located (AST.type_span ty <> next_sp) (AST.PathOrSingleIden'Path ty (Located next_sp next)))
         single_iden =

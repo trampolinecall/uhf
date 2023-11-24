@@ -18,11 +18,8 @@ module UHF.Data.Token
 
 import UHF.Util.Prelude
 
-import qualified UHF.IO.Located as Located
 import UHF.IO.Located (Located)
 import UHF.IO.EqIgnoringSpans
-
-import qualified Data.Text as Text
 
 data IntBase
     = Dec
@@ -34,8 +31,8 @@ data IntBase
 type LToken = Located Token
 type LInternalToken = Located InternalToken
 
-type InternalToken = BaseToken (Located Text) Void Char Text IntBase Integer Rational Bool
-type Token = BaseToken [Located Text] () Char Text IntBase Integer Rational Bool
+type InternalToken = BaseToken Text Void Char Text IntBase Integer Rational Bool
+type Token = BaseToken Text () Char Text IntBase Integer Rational Bool
 type TokenType = BaseToken () () () () () () () ()
 
 data SingleTypeToken
@@ -140,8 +137,8 @@ instance Format Token where
     format (Float f) = "'" <> show f <> "'"
     format (Bool b) = "'" <> if b then "true" else "false" <> "'"
 
-    format (SymbolIdentifier parts) = convert_str $ "symbol identifier '" <> Text.intercalate "::" (map Located.unlocate parts) <> "'"
-    format (AlphaIdentifier parts) = convert_str $ "alphabetic identifier '" <> Text.intercalate "::" (map Located.unlocate parts) <> "'"
+    format (SymbolIdentifier i) = convert_str $ "symbol identifier '" <> i <> "'"
+    format (AlphaIdentifier i) = convert_str $ "alphabetic identifier '" <> i <> "'"
 
     format (EOF ()) = "end of file"
 

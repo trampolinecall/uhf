@@ -54,9 +54,7 @@ library
       UHF.Phases.EvalTypeExprs
       UHF.Phases.InfixGroup
       UHF.Phases.Lexer
-      UHF.Phases.Lexer.IdentifierGrouper
       UHF.Phases.Lexer.LexError
-      UHF.Phases.Lexer.MainLexer
       UHF.Phases.NameResolve
       UHF.Phases.OptimizeANFIR
       UHF.Phases.OptimizeANFIR.RemoveRefers

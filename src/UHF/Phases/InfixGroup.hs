@@ -18,7 +18,7 @@ type VIden = Located (Maybe SIR.BoundValueKey)
 
 type IsUngrouped s = (SIR.VIden s ~ VIden, SIR.TypeInfo s ~ (), SIR.BinaryOpsAllowed s ~ ())
 type IsGrouped s = (SIR.VIden s ~ VIden, SIR.TypeInfo s ~ (), SIR.BinaryOpsAllowed s ~ Void)
-type Convertible ungrouped grouped = (IsUngrouped ungrouped, IsGrouped grouped, SIR.DIden ungrouped ~ SIR.DIden grouped, SIR.PIden ungrouped ~ SIR.PIden grouped)
+type Convertible ungrouped grouped = (IsUngrouped ungrouped, IsGrouped grouped, SIR.DIden ungrouped ~ SIR.DIden grouped, SIR.PIden ungrouped ~ SIR.PIden grouped, SIR.TypeExprTypeInfo ungrouped ~ SIR.TypeExprTypeInfo grouped)
 
 group :: Convertible ungrouped grouped => SIR.SIR ungrouped -> SIR.SIR grouped
 group (SIR.SIR decls modules adts type_synonyms type_vars bound_values mod) =

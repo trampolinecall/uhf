@@ -74,14 +74,14 @@ deriving instance Stage.AllShowable stage => Show (Binding stage)
 type HoleIdentifier = Located [Located Text] -- TODO: disallow paths in holes?
 
 data TypeExpr stage
-    = TypeExpr'Identifier (Stage.TypeInfo stage) Span (Stage.DIden stage)
-    | TypeExpr'Tuple (Stage.TypeInfo stage) (TypeExpr stage) (TypeExpr stage)
-    | TypeExpr'Hole (Stage.TypeInfo stage) Span HoleIdentifier
-    | TypeExpr'Function (Stage.TypeInfo stage) Span (TypeExpr stage) (TypeExpr stage)
-    | TypeExpr'Forall (Stage.TypeInfo stage) (NonEmpty TypeVarKey) (TypeExpr stage)
-    | TypeExpr'Apply (Stage.TypeInfo stage) Span (TypeExpr stage) (TypeExpr stage)
-    | TypeExpr'Wild (Stage.TypeInfo stage) Span
-    | TypeExpr'Poison (Stage.TypeInfo stage) Span
+    = TypeExpr'Identifier (Stage.TypeExprTypeInfo stage) Span (Stage.DIden stage)
+    | TypeExpr'Tuple (Stage.TypeExprTypeInfo stage) (TypeExpr stage) (TypeExpr stage)
+    | TypeExpr'Hole (Stage.TypeExprTypeInfo stage) Span HoleIdentifier
+    | TypeExpr'Function (Stage.TypeExprTypeInfo stage) Span (TypeExpr stage) (TypeExpr stage)
+    | TypeExpr'Forall (Stage.TypeExprTypeInfo stage) (NonEmpty TypeVarKey) (TypeExpr stage)
+    | TypeExpr'Apply (Stage.TypeExprTypeInfo stage) Span (TypeExpr stage) (TypeExpr stage)
+    | TypeExpr'Wild (Stage.TypeExprTypeInfo stage) Span
+    | TypeExpr'Poison (Stage.TypeExprTypeInfo stage) Span
 deriving instance Stage.AllShowable stage => Show (TypeExpr stage)
 
 data Expr stage
@@ -127,7 +127,7 @@ data Pattern stage
     | Pattern'Poison (Stage.TypeInfo stage) Span
 deriving instance Stage.AllShowable stage => Show (Pattern stage)
 
-type_expr_type_info :: TypeExpr stage -> (Stage.TypeInfo stage)
+type_expr_type_info :: TypeExpr stage -> (Stage.TypeExprTypeInfo stage)
 type_expr_type_info (TypeExpr'Identifier type_info _ _) = type_info
 type_expr_type_info (TypeExpr'Tuple type_info _ _) = type_info
 type_expr_type_info (TypeExpr'Hole type_info _ _) = type_info

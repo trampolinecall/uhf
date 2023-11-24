@@ -26,7 +26,6 @@ type DeclMap = Map.Map Text SIR.DeclKey
 data DeclMapStack = DeclMapStack DeclMap (Maybe DeclMapStack)
 
 type TypeVarArena = Arena.Arena Type.Var Type.TypeVarKey
-type BoundValueArena = Arena.Arena (SIR.BoundValue ()) SIR.BoundValueKey
 type ModuleDeclMap = Arena.Arena DeclMap SIR.ModuleKey
 type DeclArena = Arena.Arena SIR.Decl SIR.DeclKey
 
@@ -34,31 +33,37 @@ type UnevaledDIden = [Located Text]
 type UnevaledVIden = Located (Maybe [Located Text], Located Text)
 type UnevaledPIden = (Maybe [Located Text], Located Text)
 
-type UnevaledSIR = SIR.SIR UnevaledDIden UnevaledVIden UnevaledPIden () ()
-type UnevaledModule = SIR.Module UnevaledDIden UnevaledVIden UnevaledPIden () ()
+type Unevaled = (UnevaledDIden, UnevaledVIden, UnevaledPIden, (), ())
+
+-- TODO: remove these type aliases
+type UnevaledSIR = SIR.SIR Unevaled
+type UnevaledModule = SIR.Module Unevaled
 type UnevaledADT = Type.ADT UnevaledTypeExpr
 type UnevaledTypeSynonym = Type.TypeSynonym UnevaledTypeExpr
-type UnevaledTypeExpr = SIR.TypeExpr UnevaledDIden ()
-type UnevaledBinding = SIR.Binding UnevaledDIden UnevaledVIden UnevaledPIden () ()
-type UnevaledExpr = SIR.Expr UnevaledDIden UnevaledVIden UnevaledPIden () ()
-type UnevaledPattern = SIR.Pattern UnevaledPIden ()
+type UnevaledTypeExpr = SIR.TypeExpr Unevaled
+type UnevaledBinding = SIR.Binding Unevaled
+type UnevaledExpr = SIR.Expr Unevaled
+type UnevaledPattern = SIR.Pattern Unevaled
 
 type UnevaledModuleArena = Arena.Arena UnevaledModule SIR.ModuleKey
 type UnevaledADTArena = Arena.Arena UnevaledADT Type.ADTKey
 type UnevaledTypeSynonymArena = Arena.Arena UnevaledTypeSynonym Type.TypeSynonymKey
+type UnevaledBoundValueArena = Arena.Arena (SIR.BoundValue Unevaled) SIR.BoundValueKey
 
 type EvaledDIden = Maybe SIR.DeclKey
 type EvaledVIden = Located (Maybe (Either () SIR.DeclKey), Located Text)
 type EvaledPIden = (Maybe (Either () SIR.DeclKey), Located Text)
 
-type EvaledSIR = SIR.SIR EvaledDIden EvaledVIden EvaledPIden () ()
-type EvaledModule = SIR.Module EvaledDIden EvaledVIden EvaledPIden () ()
+type Evaled = (EvaledDIden, EvaledVIden, EvaledPIden, (), ())
+
+type EvaledSIR = SIR.SIR Evaled
+type EvaledModule = SIR.Module Evaled
 type EvaledADT = Type.ADT EvaledTypeExpr
 type EvaledTypeSynonym = Type.TypeSynonym EvaledTypeExpr
-type EvaledTypeExpr = SIR.TypeExpr EvaledDIden ()
-type EvaledBinding = SIR.Binding EvaledDIden EvaledVIden EvaledPIden () ()
-type EvaledExpr = SIR.Expr EvaledDIden EvaledVIden EvaledPIden () ()
-type EvaledPattern = SIR.Pattern EvaledPIden ()
+type EvaledTypeExpr = SIR.TypeExpr Evaled
+type EvaledBinding = SIR.Binding Evaled
+type EvaledExpr = SIR.Expr Evaled
+type EvaledPattern = SIR.Pattern Evaled
 
 type EvaledModuleArena = Arena.Arena EvaledModule SIR.ModuleKey
 type EvaledADTArena = Arena.Arena EvaledADT Type.ADTKey
@@ -106,7 +111,10 @@ eval (SIR.SIR decls mods adts type_synonyms type_vars bound_values mod) =
             pure (mods, adts, synonyms)
         )
         decls >>= \ ((mods, adts, synonyms), decls) ->
-    pure (SIR.SIR decls mods adts synonyms type_vars bound_values mod)
+    pure (SIR.SIR decls mods adts synonyms type_vars (Arena.transform change_bound_value bound_values) mod)
+    where
+        change_bound_value (SIR.BoundValue bvid tyinfo n) = SIR.BoundValue bvid tyinfo n
+        change_bound_value (SIR.BoundValue'ADTVariant bvid id tyvars tyinfo sp) = SIR.BoundValue'ADTVariant bvid id tyvars tyinfo sp
 
 new_decl :: Monad under => SIR.Decl -> MakeDeclState under SIR.DeclKey
 new_decl d = StateT (\ arena -> pure $ Arena.put d arena)
@@ -128,11 +136,11 @@ type DeclChildrenList = [(Text, DeclAt, SIR.DeclKey)]
 type BoundValueList = [(Text, DeclAt, SIR.BoundValueKey)]
 type ADTVariantList = [(Text, DeclAt, Type.ADTVariantIndex)]
 
-binding_children :: Monad under => UnevaledBinding -> NRReader UnevaledADTArena BoundValueArena type_var_arena module_child_maps under (DeclChildrenList, BoundValueList, ADTVariantList)
+binding_children :: Monad under => UnevaledBinding -> NRReader UnevaledADTArena UnevaledBoundValueArena type_var_arena module_child_maps under (DeclChildrenList, BoundValueList, ADTVariantList)
 binding_children (SIR.Binding pat _ _) = ([],, []) <$> pattern_bvs pat
 binding_children (SIR.Binding'ADTVariant sp bvk _ variant_index) = bv_name bvk >>= \ name -> pure ([], [(name, DeclAt sp, bvk)], [(name, DeclAt sp, variant_index)]) -- TODO: move variants to inside their types, also dont handle adt variants here
 
-pattern_bvs :: Monad under => UnevaledPattern -> NRReader UnevaledADTArena BoundValueArena type_var_arena module_child_maps under BoundValueList
+pattern_bvs :: Monad under => UnevaledPattern -> NRReader UnevaledADTArena UnevaledBoundValueArena type_var_arena module_child_maps under BoundValueList
 pattern_bvs (SIR.Pattern'Identifier _ sp bvk) = bv_name bvk >>= \ name -> pure [(name, DeclAt sp, bvk)]
 pattern_bvs (SIR.Pattern'Wildcard _ _) = pure []
 pattern_bvs (SIR.Pattern'Tuple _ _ a b) = pattern_bvs a >>= \ a -> pattern_bvs b >>= \ b -> pure (a ++ b)
@@ -141,7 +149,7 @@ pattern_bvs (SIR.Pattern'AnonADTVariant _ _ _ _ fields) = concat <$> mapM patter
 pattern_bvs (SIR.Pattern'NamedADTVariant _ _ _ _ fields) = concat <$> mapM (pattern_bvs . snd) fields
 pattern_bvs (SIR.Pattern'Poison _ _) = pure []
 
-bv_name :: Monad under => SIR.BoundValueKey -> NRReader UnevaledADTArena BoundValueArena type_var_arena module_child_maps under Text
+bv_name :: Monad under => SIR.BoundValueKey -> NRReader UnevaledADTArena UnevaledBoundValueArena type_var_arena module_child_maps under Text
 bv_name bvk =
     ask_bv_arena >>= \ bv_arena ->
     case Arena.get bv_arena bvk of
@@ -176,7 +184,7 @@ make_child_maps decls bound_values adt_variants =
             where
                 get_decl_at (_, d, _) = d
 
-collect_child_maps :: UnevaledModuleArena -> UnevaledTypeSynonymArena -> (NRReader UnevaledADTArena BoundValueArena type_var_arena module_child_maps (MakeDeclState CollectingErrors)) (Arena.Arena DeclMap SIR.ModuleKey)
+collect_child_maps :: UnevaledModuleArena -> UnevaledTypeSynonymArena -> (NRReader UnevaledADTArena UnevaledBoundValueArena type_var_arena module_child_maps (MakeDeclState CollectingErrors)) (Arena.Arena DeclMap SIR.ModuleKey)
 collect_child_maps mod_arena type_synonym_arena = Arena.transformM go mod_arena
     where
         primitive_decls =
@@ -220,7 +228,7 @@ collect_child_maps mod_arena type_synonym_arena = Arena.transformM go mod_arena
                 (concat $ primitive_bvs : binding_bv_entries ++ adt_bv_entries ++ type_synonym_bv_entries)
                 (concat $ binding_variant_entries ++ adt_variant_entries ++ type_synonym_variant_entries))
 
-resolve_in_mods :: UnevaledModuleArena -> (NRReader UnevaledADTArena BoundValueArena TypeVarArena ModuleDeclMap (MakeDeclState CollectingErrors)) (EvaledModuleArena, Map.Map Type.ADTKey DeclMap, Map.Map Type.TypeSynonymKey DeclMap)
+resolve_in_mods :: UnevaledModuleArena -> (NRReader UnevaledADTArena UnevaledBoundValueArena TypeVarArena ModuleDeclMap (MakeDeclState CollectingErrors)) (EvaledModuleArena, Map.Map Type.ADTKey DeclMap, Map.Map Type.TypeSynonymKey DeclMap)
 resolve_in_mods module_arena =
     runWriterT (runWriterT $ Arena.transform_with_keyM resolve_in_module module_arena) >>= \ ((module_arena, adt_parents), type_synonym_parents) ->
     pure (module_arena, adt_parents, type_synonym_parents)
@@ -231,7 +239,7 @@ resolve_in_adts adt_parent_child_maps adt_arena = Arena.transform_with_keyM (res
 resolve_in_type_synonyms :: Map.Map Type.TypeSynonymKey DeclMap -> UnevaledTypeSynonymArena -> (NRReader adt_arena bv_arena TypeVarArena ModuleDeclMap (MakeDeclState CollectingErrors)) EvaledTypeSynonymArena
 resolve_in_type_synonyms synonym_parent_child_maps type_synonym_arena = Arena.transform_with_keyM (resolve_in_type_synonym synonym_parent_child_maps) type_synonym_arena
 
-resolve_in_module :: SIR.ModuleKey -> UnevaledModule -> WriterT (Map Type.ADTKey DeclMap) (WriterT (Map Type.TypeSynonymKey DeclMap) (NRReader UnevaledADTArena BoundValueArena TypeVarArena ModuleDeclMap (MakeDeclState CollectingErrors))) EvaledModule
+resolve_in_module :: SIR.ModuleKey -> UnevaledModule -> WriterT (Map Type.ADTKey DeclMap) (WriterT (Map Type.TypeSynonymKey DeclMap) (NRReader UnevaledADTArena UnevaledBoundValueArena TypeVarArena ModuleDeclMap (MakeDeclState CollectingErrors))) EvaledModule
 resolve_in_module mod_key (SIR.Module id bindings adts type_synonyms) =
     lift (lift ask_module_child_maps) >>= \ module_child_maps ->
     let cur_map = Arena.get module_child_maps mod_key
@@ -260,7 +268,7 @@ resolve_in_type_synonym parent_maps synonym_key (Type.TypeSynonym id name expans
     let parent = parent_maps Map.! synonym_key
     in Type.TypeSynonym id name <$> resolve_in_type_expr (DeclMapStack parent Nothing) expansion
 
-resolve_in_binding :: DeclMapStack -> UnevaledBinding -> (NRReader UnevaledADTArena BoundValueArena TypeVarArena ModuleDeclMap (MakeDeclState CollectingErrors)) EvaledBinding
+resolve_in_binding :: DeclMapStack -> UnevaledBinding -> (NRReader UnevaledADTArena UnevaledBoundValueArena TypeVarArena ModuleDeclMap (MakeDeclState CollectingErrors)) EvaledBinding
 resolve_in_binding nc_stack (SIR.Binding target eq_sp expr) = SIR.Binding <$> resolve_in_pat nc_stack target <*> pure eq_sp <*> resolve_in_expr nc_stack expr
 resolve_in_binding _ (SIR.Binding'ADTVariant bvk variant vars sp) = pure $ SIR.Binding'ADTVariant bvk variant vars sp
 
@@ -292,7 +300,7 @@ resolve_in_pat nc_stack (SIR.Pattern'AnonADTVariant type_info sp variant tyargs 
 resolve_in_pat nc_stack (SIR.Pattern'NamedADTVariant type_info sp variant tyargs subpat) = SIR.Pattern'NamedADTVariant type_info sp <$> resolve_iden_in_monad resolve_pat_iden nc_stack variant <*> pure tyargs <*> mapM (\ (field_name, field_pat) -> (field_name,) <$> resolve_in_pat nc_stack field_pat) subpat
 resolve_in_pat _ (SIR.Pattern'Poison type_info sp) = pure $ SIR.Pattern'Poison type_info sp
 
-resolve_in_expr :: DeclMapStack -> UnevaledExpr -> (NRReader UnevaledADTArena BoundValueArena TypeVarArena ModuleDeclMap (MakeDeclState CollectingErrors)) EvaledExpr
+resolve_in_expr :: DeclMapStack -> UnevaledExpr -> (NRReader UnevaledADTArena UnevaledBoundValueArena TypeVarArena ModuleDeclMap (MakeDeclState CollectingErrors)) EvaledExpr
 resolve_in_expr nc_stack (SIR.Expr'Identifier id type_info sp i) = SIR.Expr'Identifier id type_info sp <$> resolve_iden_in_monad resolve_expr_iden nc_stack i
 resolve_in_expr _ (SIR.Expr'Char id type_info sp c) = pure $ SIR.Expr'Char id type_info sp c
 resolve_in_expr _ (SIR.Expr'String id type_info sp s) = pure $ SIR.Expr'String id type_info sp s

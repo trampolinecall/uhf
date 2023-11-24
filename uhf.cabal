@@ -65,6 +65,7 @@ library
       UHF.Phases.Parser.Test
       UHF.Phases.RemovePoison
       UHF.Phases.ReportHoles
+      UHF.Phases.ResolveReferStarts
       UHF.Phases.ToANFIR
       UHF.Phases.ToBackendIR
       UHF.Phases.ToRIR

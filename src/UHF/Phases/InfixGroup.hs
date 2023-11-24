@@ -99,13 +99,13 @@ group_expr (SIR.Expr'Poison id () sp) = pure $ SIR.Expr'Poison id () sp
 
 group_expr (SIR.Expr'Hole id () sp hid) = pure $ SIR.Expr'Hole id () sp hid
 
-group_expr (SIR.Expr'TypeAnnotation id () sp annotation e) = SIR.Expr'TypeAnnotation id () sp (convert_type_expr annotation) <$> group_expr e
+group_expr (SIR.Expr'TypeAnnotation id () sp annotation e) = SIR.Expr'TypeAnnotation id () sp (convert_type_expr_and_ty annotation) <$> group_expr e
 
 group_expr (SIR.Expr'Forall id () sp names e) = SIR.Expr'Forall id () sp names <$> group_expr e
-group_expr (SIR.Expr'TypeApply id () sp e args) = SIR.Expr'TypeApply id () sp <$> group_expr e <*> pure (convert_type_expr args)
+group_expr (SIR.Expr'TypeApply id () sp e args) = SIR.Expr'TypeApply id () sp <$> group_expr e <*> pure (convert_type_expr_and_ty args)
 
 -- TODO: automate functions like this?
-convert_type_expr :: Convertible ungrouped grouped => (SIR.TypeExpr ungrouped, SIR.TypeExprEvaledAsType ungrouped) -> (SIR.TypeExpr grouped, SIR.TypeExprEvaledAsType grouped)
+convert_type_expr_and_ty :: Convertible ungrouped grouped => (SIR.TypeExpr ungrouped, SIR.TypeExprEvaledAsType ungrouped) -> (SIR.TypeExpr grouped, SIR.TypeExprEvaledAsType grouped)
 convert_type_expr_and_ty (tye, ty) = (convert_type_expr tye, ty)
 
 convert_type_expr :: Convertible ungrouped grouped => SIR.TypeExpr ungrouped -> SIR.TypeExpr grouped

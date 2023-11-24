@@ -346,7 +346,7 @@ resolve_in_expr nc_stack (SIR.Expr'Forall id type_info sp vars e) =
         (toList vars) >>= \ vars' ->
     lift (lift $ make_child_maps vars' [] []) >>= \ new_nc ->
     SIR.Expr'Forall id type_info sp vars <$> resolve_in_expr (ChildMapStack new_nc (Just nc_stack)) e
-resolve_in_expr nc_stack (SIR.Expr'TypeApply id type_info sp e args) = SIR.Expr'TypeApply id type_info sp <$> resolve_in_expr nc_stack e <*> resolve_in_type_expr nc_stack args
+resolve_in_expr nc_stack (SIR.Expr'TypeApply id type_info sp e (arg, arg_ty)) = SIR.Expr'TypeApply id type_info sp <$> resolve_in_expr nc_stack e <*> ((, arg_ty) <$> resolve_in_type_expr nc_stack arg)
 
 resolve_in_expr _ (SIR.Expr'Hole id type_info sp hid) = pure $ SIR.Expr'Hole id type_info sp hid
 

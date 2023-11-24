@@ -23,26 +23,30 @@ type Type = Maybe (Type.Type Void)
 type DIden = Maybe SIR.DeclKey
 type VIden = Located (Maybe SIR.BoundValueKey)
 type PIden = Maybe Type.ADTVariantIndex
-type SIR = SIR.SIR DIden VIden PIden Type Void
-type SIRModule = SIR.Module DIden VIden PIden Type Void
-type SIRExpr = SIR.Expr DIden VIden PIden Type Void
-type SIRTypeExpr = SIR.TypeExpr DIden Type
-type SIRPattern = SIR.Pattern PIden Type
-type SIRBinding = SIR.Binding DIden VIden PIden Type Void
+
+type LastSIR = (DIden, VIden, PIden, Type, Void)
+
+-- TODO: remove these type aliases
+type SIR = SIR.SIR LastSIR
+type SIRModule = SIR.Module LastSIR
+type SIRExpr = SIR.Expr LastSIR
+type SIRTypeExpr = SIR.TypeExpr LastSIR
+type SIRPattern = SIR.Pattern LastSIR
+type SIRBinding = SIR.Binding LastSIR
 
 type RIRExpr = RIR.Expr
 type RIRBinding = RIR.Binding
 
 type BoundValueArena = Arena.Arena RIR.BoundValue RIR.BoundValueKey
 
-type ConvertState = ReaderT (Arena.Arena (Type.ADT Type) Type.ADTKey, Arena.Arena (Type.TypeSynonym Type) Type.TypeSynonymKey) (StateT BoundValueArena (IDGen.IDGenT ID.BoundValueID (IDGen.IDGenT ID.ExprID (Compiler.WithDiagnostics PatternCheck.CompletenessError PatternCheck.NotUseful))))
+type ConvertState = ReaderT (Arena.Arena (Type.ADT Type) Type.ADTKey, Arena.Arena (Type.TypeSynonym Type) Type.TypeSynonymKey) (StateT BoundValueArena (IDGen.IDGenT ID.BoundValueID (IDGen.IDGenT ID.ExprID (Compiler.WithDiagnostics (PatternCheck.CompletenessError LastSIR) (PatternCheck.NotUseful LastSIR)))))
 
 new_made_up_expr_id :: (ID.ExprID -> a) -> ConvertState a
 new_made_up_expr_id make =
     lift (lift $ lift IDGen.gen_id) >>= \ id ->
     pure (make id)
 
-convert :: SIR -> Compiler.WithDiagnostics PatternCheck.CompletenessError PatternCheck.NotUseful RIR.RIR
+convert :: SIR -> Compiler.WithDiagnostics (PatternCheck.CompletenessError LastSIR) (PatternCheck.NotUseful LastSIR) RIR.RIR
 convert (SIR.SIR _ modules adts type_synonyms type_vars bvs mod) = do
     let adts_converted = Arena.transform convert_adt adts
     let type_synonyms_converted = Arena.transform convert_type_synonym type_synonyms

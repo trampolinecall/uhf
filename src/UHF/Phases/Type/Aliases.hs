@@ -38,13 +38,13 @@ type UntypedBoundValueArena = Arena.Arena UntypedBoundValue SIR.BoundValueKey
 type UntypedDeclArena = Arena.Arena UntypedDecl SIR.DeclKey
 type UntypedModuleArena = Arena.Arena UntypedModule SIR.ModuleKey
 
-type TypedWithUnk = (DIden, DIden, Maybe Type, VIden, VIden, PIden, PIden, TypeWithUnk, Void)
+type TypedWithUnk = (DIden, DIden, TypeWithUnk, VIden, VIden, PIden, PIden, TypeWithUnk, Void)
 
 type TypedWithUnkSIR = SIR.SIR TypedWithUnk
 type TypedWithUnkDecl = SIR.Decl
 type TypedWithUnkModule = SIR.Module TypedWithUnk
-type TypedWithUnkADT = Type.ADT (TypedWithUnkTypeExpr, Maybe Type)
-type TypedWithUnkTypeSynonym = Type.TypeSynonym (TypedWithUnkTypeExpr, Maybe Type)
+type TypedWithUnkADT = Type.ADT (TypedWithUnkTypeExpr, TypeWithUnk)
+type TypedWithUnkTypeSynonym = Type.TypeSynonym (TypedWithUnkTypeExpr, TypeWithUnk)
 type TypedWithUnkBinding = SIR.Binding TypedWithUnk
 type TypedWithUnkExpr = SIR.Expr TypedWithUnk
 type TypedWithUnkPattern = SIR.Pattern TypedWithUnk

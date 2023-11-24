@@ -24,13 +24,13 @@ $(error_code 0205 "tuple0")
 $(error_code 0206 "tuple1")
 
 $(error_code 0300 "undef_name")
+$(error_code 0301 "not_a_type")
 
-$(error_code 0400 "not_a_type")
-$(error_code 0401 "type_mismatch")
-$(error_code 0402 "occurs_check")
-$(error_code 0403 "ambiguous_type")
-$(error_code 0404 "does_not_take_type_argument")
-$(error_code 0405 "wrong_type_argument")
+$(error_code 0400 "type_mismatch")
+$(error_code 0401 "occurs_check")
+$(error_code 0402 "ambiguous_type")
+$(error_code 0403 "does_not_take_type_argument")
+$(error_code 0404 "wrong_type_argument")
 
 $(error_code 0500 "hole")
 

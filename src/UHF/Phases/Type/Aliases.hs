@@ -38,7 +38,7 @@ type UntypedBoundValueArena = Arena.Arena UntypedBoundValue SIR.BoundValueKey
 type UntypedDeclArena = Arena.Arena UntypedDecl SIR.DeclKey
 type UntypedModuleArena = Arena.Arena UntypedModule SIR.ModuleKey
 
-type TypedWithUnk = (DIden, VIden, PIden, Type, TypeWithUnk, Void)
+type TypedWithUnk = (DIden, VIden, PIden, Type, TypeWithUnk, Void) -- TODO: make this use TypeWithUnk as the TypeExprTypeInfo instead of Type
 
 type TypedWithUnkSIR = SIR.SIR TypedWithUnk
 type TypedWithUnkDecl = SIR.Decl

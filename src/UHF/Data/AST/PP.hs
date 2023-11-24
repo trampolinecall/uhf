@@ -8,8 +8,6 @@ import qualified UHF.Data.AST as AST
 
 import UHF.IO.Located (Located (..))
 
-import qualified Data.Text as Text
-
 pp_decls :: [AST.Decl] -> Text
 pp_decls = PP.render . pp_decls'
 
@@ -36,7 +34,8 @@ pp_type = PP.Precedence.pp_precedence levels PP.Precedence.parenthesize
         levels (AST.Type'Forall _ names subty) = (1, \ cur _ -> PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ map pp_iden names, " ", cur subty])
         levels (AST.Type'Function _ arg res) = (2, \ cur next -> PP.List [next arg, " -> ", cur res])
         levels (AST.Type'Apply _ callee args) = (3, \ cur _ -> PP.List [cur callee, "#", PP.parenthesized_comma_list PP.Inconsistent $ map pp_type args])
-        levels (AST.Type'Identifier iden) = (4, \ _ _ -> pp_iden iden)
+        levels (AST.Type'Get _ prev next) = (3, \ cur _ -> PP.List [cur prev, "::", PP.String $ unlocate next])
+        levels (AST.Type'Refer iden) = (4, \ _ _ -> pp_iden iden)
         levels (AST.Type'Tuple _ items) = (4, \ _ _ -> PP.parenthesized_comma_list PP.Inconsistent $ map pp_type items)
         levels (AST.Type'Hole _ name) = (4, \ _ _ -> PP.List ["?", pp_iden name])
         levels (AST.Type'Wild _) = (4, \ _ _ -> PP.List ["_"])
@@ -49,7 +48,7 @@ pp_expr = PP.Precedence.pp_precedence levels PP.Precedence.parenthesize
         levels (AST.Expr'Call _ callee args) = (1, \ cur _ -> PP.List [cur callee, PP.parenthesized_comma_list PP.Inconsistent $ map pp_expr args])
         levels (AST.Expr'TypeApply _ e tys) = (1, \ cur _ -> PP.List [cur e, "#", PP.parenthesized_comma_list PP.Inconsistent $ map pp_type tys])
 
-        levels (AST.Expr'Identifier iden) = (2, \ _ _ -> PP.FirstOnLineIfMultiline $ pp_iden iden)
+        levels (AST.Expr'Identifier _ path_or_single_iden) = (2, \ _ _ -> PP.FirstOnLineIfMultiline $ pp_path_or_single_iden path_or_single_iden)
         levels (AST.Expr'Hole _ name) = (2, \ _ _ -> PP.FirstOnLineIfMultiline $ PP.List ["?", pp_iden name])
         levels (AST.Expr'Char _ c) = (2, \ _ _ -> PP.FirstOnLineIfMultiline $ PP.String $ show c)
         levels (AST.Expr'String _ s) = (2, \ _ _ -> PP.FirstOnLineIfMultiline $ PP.String $ show s) -- TODO: deal with escapes properly / print token?
@@ -74,13 +73,17 @@ pp_let :: Text -> [AST.Decl] -> AST.Expr -> PP.Token
 pp_let let_str [decl] res = PP.FirstOnLineIfMultiline $ PP.List [PP.String let_str, " ", pp_decl decl, "\n", pp_expr res]
 pp_let let_str decls res = PP.FirstOnLineIfMultiline $ PP.List [PP.String let_str, " ", PP.braced_block $ map pp_decl decls, "\n", pp_expr res]
 
+pp_path_or_single_iden :: AST.PathOrSingleIden -> PP.Token
+pp_path_or_single_iden (AST.PathOrSingleIden'Single i) = PP.String $ unlocate i
+pp_path_or_single_iden (AST.PathOrSingleIden'Path ty i) = PP.List [pp_type ty, "::", PP.String $ unlocate i]
+
 pp_pattern :: AST.Pattern -> PP.Token
 pp_pattern (AST.Pattern'Identifier i) = PP.List [pp_iden i]
 pp_pattern (AST.Pattern'Wildcard _) = PP.List ["_"]
 pp_pattern (AST.Pattern'Tuple _ items) = PP.parenthesized_comma_list PP.Inconsistent $ map pp_pattern items
 pp_pattern (AST.Pattern'Named _ name _ subpat) = PP.List [pp_iden name, "@", pp_pattern subpat]
-pp_pattern (AST.Pattern'AnonADTVariant _ variant fields) = PP.List [pp_iden variant, PP.parenthesized_comma_list PP.Inconsistent (map pp_pattern fields)]
-pp_pattern (AST.Pattern'NamedADTVariant _ variant fields) = PP.List [pp_iden variant, PP.braced_block $ map (\ (field_name, field_pat) -> PP.List [pp_iden field_name, " = ", pp_pattern field_pat, ";"]) fields]
+pp_pattern (AST.Pattern'AnonADTVariant _ variant fields) = PP.List [pp_path_or_single_iden variant, PP.parenthesized_comma_list PP.Inconsistent (map pp_pattern fields)]
+pp_pattern (AST.Pattern'NamedADTVariant _ variant fields) = PP.List [pp_path_or_single_iden variant, PP.braced_block $ map (\ (field_name, field_pat) -> PP.List [pp_iden field_name, " = ", pp_pattern field_pat, ";"]) fields]
 
-pp_iden :: Located [Located Text] -> PP.Token
-pp_iden (Located _ items) = PP.List [PP.String $ Text.intercalate "::" (map unlocate items)]
+pp_iden :: Located Text -> PP.Token
+pp_iden (Located _ i) = PP.String i

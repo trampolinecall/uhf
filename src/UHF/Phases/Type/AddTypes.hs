@@ -97,7 +97,8 @@ apply_type for_what sp ty arg =
 
 type_expr :: UntypedTypeExpr -> ContextReader decls bvs adts TypedWithUnkTypeExpr
 -- TODO: do these ForWhats better
-type_expr (SIR.TypeExpr'Identifier ty sp iden) = nothing_to_unk (TypeExpr sp) ty >>= \ ty -> pure (SIR.TypeExpr'Identifier ty sp iden)
+type_expr (SIR.TypeExpr'Refer ty sp iden) = nothing_to_unk (TypeExpr sp) ty >>= \ ty -> pure (SIR.TypeExpr'Refer ty sp iden)
+type_expr (SIR.TypeExpr'Get ty sp parent name) = nothing_to_unk (SomeError todo) ty >>= \ ty -> SIR.TypeExpr'Get ty sp <$> type_expr parent <*> pure name
 type_expr (SIR.TypeExpr'Tuple ty a b) = nothing_to_unk (SomeError todo) ty >>= \ ty -> SIR.TypeExpr'Tuple ty <$> type_expr a <*> type_expr b
 type_expr (SIR.TypeExpr'Hole ty sp hid) = nothing_to_unk (TypeHole sp) ty >>= \ ty -> pure (SIR.TypeExpr'Hole ty sp hid)
 type_expr (SIR.TypeExpr'Function ty sp arg res) = nothing_to_unk (SomeError todo) ty >>= \ ty -> SIR.TypeExpr'Function ty sp <$> type_expr arg <*> type_expr res

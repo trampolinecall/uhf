@@ -103,7 +103,8 @@ expr (SIR.Expr'Hole _ type_info sp hid) =
 expr (SIR.Expr'Poison _ _ _) = pure ()
 
 type_expr :: (SIR.TypeInfo stage ~ Maybe Type, SIR.TypeExprTypeInfo stage ~ Maybe Type) => TypeExpr stage -> ReaderT (SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
-type_expr (SIR.TypeExpr'Identifier _ _ _) = pure ()
+type_expr (SIR.TypeExpr'Refer _ _ _) = pure ()
+type_expr (SIR.TypeExpr'Get _ _ inside _) = type_expr inside
 type_expr (SIR.TypeExpr'Tuple _ a b) = type_expr a >> type_expr b
 type_expr (SIR.TypeExpr'Hole type_info sp hid) =
     case type_info of

@@ -35,7 +35,7 @@ type DIden = Maybe SIR.DeclKey
 type UnresolvedVIden = Located (Maybe (Either () SIR.DeclKey), Located Text)
 type UnresolvedPIden = (Maybe (Either () SIR.DeclKey), Located Text)
 
-type Unresolved = (DIden, UnresolvedVIden, UnresolvedPIden, Type.Type Void, (), ())
+type Unresolved = (DIden, UnresolvedVIden, UnresolvedPIden, Maybe (Type.Type Void), (), ())
 
 type UnresolvedADT = Type.ADT (SIR.TypeExpr Unresolved)
 type UnresolvedTypeSynonym = Type.TypeSynonym (SIR.TypeExpr Unresolved)
@@ -48,7 +48,7 @@ type UnresolvedBoundValueArena = Arena.Arena (SIR.BoundValue Unresolved) SIR.Bou
 type ResolvedVIden = Located (Maybe SIR.BoundValueKey)
 type ResolvedPIden = Maybe Type.ADTVariantIndex
 
-type Resolved = (DIden, ResolvedVIden, ResolvedPIden, Type.Type Void, (), ())
+type Resolved = (DIden, ResolvedVIden, ResolvedPIden, Maybe (Type.Type Void), (), ())
 
 type ResolvedADT = Type.ADT (SIR.TypeExpr Resolved)
 type ResolvedTypeSynonym = Type.TypeSynonym (SIR.TypeExpr Resolved)

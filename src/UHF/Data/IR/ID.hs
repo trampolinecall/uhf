@@ -20,7 +20,7 @@ import qualified Data.Text as Text
 import qualified Data.Char as Char
 import qualified Numeric
 
-newtype ModuleID = ModuleID [Text] deriving Show
+data ModuleID = ModuleID [Text] | ModuleID'Root deriving Show
 
 data DeclID = DeclID DeclParent Text deriving Show
 data DeclParent = DeclParent'Module ModuleID | DeclParent'Let ExprID deriving Show
@@ -82,7 +82,7 @@ instance ID ADTFieldID where
 stringify :: ID i => i -> Text
 stringify = stringify' . to_general_id
     where
-        stringify' (GM (ModuleID [])) = "root"
+        stringify' (GM ModuleID'Root) = "root"
         stringify' (GM (ModuleID segments)) = Text.intercalate "::" segments
         stringify' (GD (DeclID parent name)) = stringify_decl_parent parent <> "::" <> name
         stringify' (GE e) = "expr_" <> stringify_expr_id e
@@ -135,7 +135,8 @@ instance Mangle GeneralID where
     mangle' (GADTF adtf) = "f" <> mangle' adtf
 
 instance Mangle ModuleID where
-    mangle' (ModuleID path) = mangle' path
+    mangle' ModuleID'Root = "r"
+    mangle' (ModuleID path) = "m" <> mangle' path
 
 instance Mangle DeclID where
     mangle' (DeclID parent name) = mangle' parent <> mangle' name

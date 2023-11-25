@@ -110,7 +110,7 @@ convert :: [AST.Decl] -> Compiler.WithDiagnostics Error Void SIR
 convert decls =
     runStateT
         (
-            let module_id = ID.ModuleID [] -- TODO: figure out how the module system is going to work
+            let module_id = ID.ModuleID'Root
             in convert_decls (ID.BVParent'Module module_id) (ID.DeclParent'Module module_id) decls >>= \ (bindings, adts, type_synonyms) ->
             new_module (SIR.Module module_id bindings adts type_synonyms)
         )

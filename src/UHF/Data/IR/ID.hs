@@ -184,17 +184,18 @@ instance Mangle ADTFieldID where
     mangle' (ADTFieldID variant field_name) = mangle' variant <> mangle' field_name
 
 instance Mangle a => Mangle [a] where
-    mangle' things = show (length things) <> "_" <> Text.concat (map mangle' things)
+    mangle' things = mangle' (length things) <> Text.concat (map mangle' things)
 
 instance Mangle Text where
-    mangle' t = show (Text.length t) <> "_" <> Text.concatMap encode_char t
-        where
-            encode_char '_' = "__"
-            encode_char c
-                | Char.isAscii c = Text.singleton c
-                | otherwise =
-                    let code = Text.pack $ Numeric.showHex (Char.ord c) ""
-                    in "_" <> Text.replicate (4 - Text.length code) "0" <> code
+    mangle' t = mangle' (Text.length t) <> Text.concatMap mangle' t
+
+instance Mangle Char where
+    mangle' '_' = "__"
+    mangle' c
+        | Char.isAscii c = Text.singleton c
+        | otherwise =
+            let code = Text.pack $ Numeric.showHex (Char.ord c) ""
+            in "_" <> Text.replicate (4 - Text.length code) "0" <> code
 
 instance Mangle Int where
     mangle' i = show i <> "_"

@@ -17,7 +17,7 @@ import qualified UHF.Data.IR.Type as Type
 
 import qualified Data.Map as Map
 
--- TODO: figure out what adt_parents and type_synonym_parents are
+-- TODO: figure out a better solution than to have adt_parents and type_synonym_parents
 
 type TypeVarArena = Arena.Arena Type.Var Type.TypeVarKey
 

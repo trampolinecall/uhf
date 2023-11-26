@@ -41,7 +41,7 @@ type ResolvedADTArena = Arena.Arena ResolvedADT Type.ADTKey
 type ResolvedTypeSynonymArena = Arena.Arena ResolvedTypeSynonym Type.TypeSynonymKey
 
 -- resolve entry point {{{1
-resolve :: (SIR.SIR Unresolved) -> Utils.CollectingErrors (SIR.SIR Resolved)
+resolve :: SIR.SIR Unresolved -> Utils.CollectingErrors (SIR.SIR Resolved)
 resolve (SIR.SIR decls mods adts type_synonyms type_vars bound_values mod) =
     runStateT
         (
@@ -62,13 +62,13 @@ resolve_in_mods :: UnresolvedModuleArena -> (Utils.NRReader UnresolvedADTArena U
 resolve_in_mods = Arena.transformM resolve_in_module
 
 resolve_in_adts :: UnresolvedADTArena -> (Utils.NRReader adt_arena bv_arena type_var_arena Utils.ModuleChildMaps (Utils.MakeDeclState Utils.CollectingErrors)) ResolvedADTArena
-resolve_in_adts adt_arena = Arena.transformM resolve_in_adt adt_arena
+resolve_in_adts = Arena.transformM resolve_in_adt
 
 resolve_in_type_synonyms :: UnresolvedTypeSynonymArena -> (Utils.NRReader adt_arena bv_arena type_var_arena Utils.ModuleChildMaps (Utils.MakeDeclState Utils.CollectingErrors)) ResolvedTypeSynonymArena
-resolve_in_type_synonyms type_synonym_arena = Arena.transformM resolve_in_type_synonym type_synonym_arena
+resolve_in_type_synonyms = Arena.transformM resolve_in_type_synonym
 
-resolve_in_module :: (SIR.Module Unresolved) -> Utils.NRReader UnresolvedADTArena UnresolvedBoundValueArena type_var_arena Utils.ModuleChildMaps (Utils.MakeDeclState Utils.CollectingErrors) (SIR.Module Resolved)
-resolve_in_module (SIR.Module id bindings adts type_synonyms) = SIR.Module id <$> mapM (resolve_in_binding) bindings <*> pure adts <*> pure type_synonyms
+resolve_in_module :: SIR.Module Unresolved -> Utils.NRReader UnresolvedADTArena UnresolvedBoundValueArena type_var_arena Utils.ModuleChildMaps (Utils.MakeDeclState Utils.CollectingErrors) (SIR.Module Resolved)
+resolve_in_module (SIR.Module id bindings adts type_synonyms) = SIR.Module id <$> mapM resolve_in_binding bindings <*> pure adts <*> pure type_synonyms
 
 resolve_in_adt :: UnresolvedADT -> (Utils.NRReader adt_arena bv_arena type_var_arena Utils.ModuleChildMaps (Utils.MakeDeclState Utils.CollectingErrors)) ResolvedADT
 resolve_in_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM resolve_in_variant variants
@@ -79,11 +79,11 @@ resolve_in_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_var
 resolve_in_type_synonym :: UnresolvedTypeSynonym -> (Utils.NRReader adt_arena bv_arena type_var_arena Utils.ModuleChildMaps (Utils.MakeDeclState Utils.CollectingErrors)) ResolvedTypeSynonym
 resolve_in_type_synonym (Type.TypeSynonym id name (expansion, expeat)) = resolve_in_type_expr expansion >>= \ expansion -> pure (Type.TypeSynonym id name (expansion, expeat))
 
-resolve_in_binding :: (SIR.Binding Unresolved) -> (Utils.NRReader UnresolvedADTArena UnresolvedBoundValueArena type_var_arena Utils.ModuleChildMaps (Utils.MakeDeclState Utils.CollectingErrors)) (SIR.Binding Resolved)
+resolve_in_binding :: SIR.Binding Unresolved -> (Utils.NRReader UnresolvedADTArena UnresolvedBoundValueArena type_var_arena Utils.ModuleChildMaps (Utils.MakeDeclState Utils.CollectingErrors)) (SIR.Binding Resolved)
 resolve_in_binding (SIR.Binding target eq_sp expr) = SIR.Binding <$> resolve_in_pat target <*> pure eq_sp <*> resolve_in_expr expr
 resolve_in_binding (SIR.Binding'ADTVariant bvk variant vars sp) = pure $ SIR.Binding'ADTVariant bvk variant vars sp
 
-resolve_in_type_expr :: (SIR.TypeExpr Unresolved) -> (Utils.NRReader adt_arena bv_arena type_var_arena Utils.ModuleChildMaps (Utils.MakeDeclState Utils.CollectingErrors)) (SIR.TypeExpr Resolved)
+resolve_in_type_expr :: SIR.TypeExpr Unresolved -> (Utils.NRReader adt_arena bv_arena type_var_arena Utils.ModuleChildMaps (Utils.MakeDeclState Utils.CollectingErrors)) (SIR.TypeExpr Resolved)
 resolve_in_type_expr (SIR.TypeExpr'Refer evaled sp id) = pure $ SIR.TypeExpr'Refer evaled sp id
 resolve_in_type_expr (SIR.TypeExpr'Get evaled sp parent name) = SIR.TypeExpr'Get evaled sp <$> resolve_in_type_expr parent <*> pure name
 resolve_in_type_expr (SIR.TypeExpr'Tuple evaled sp a b) = SIR.TypeExpr'Tuple evaled sp <$> resolve_in_type_expr a <*> resolve_in_type_expr b
@@ -94,7 +94,7 @@ resolve_in_type_expr (SIR.TypeExpr'Apply evaled sp ty args) = SIR.TypeExpr'Apply
 resolve_in_type_expr (SIR.TypeExpr'Wild evaled sp) = pure $ SIR.TypeExpr'Wild evaled sp
 resolve_in_type_expr (SIR.TypeExpr'Poison evaled sp) = pure $ SIR.TypeExpr'Poison evaled sp
 
-resolve_in_pat :: (SIR.Pattern Unresolved) -> (Utils.NRReader adt_arena bv_arena type_var_arena Utils.ModuleChildMaps (Utils.MakeDeclState Utils.CollectingErrors)) (SIR.Pattern Resolved)
+resolve_in_pat :: SIR.Pattern Unresolved -> (Utils.NRReader adt_arena bv_arena type_var_arena Utils.ModuleChildMaps (Utils.MakeDeclState Utils.CollectingErrors)) (SIR.Pattern Resolved)
 resolve_in_pat (SIR.Pattern'Identifier type_info sp bnk) = pure $ SIR.Pattern'Identifier type_info sp bnk
 resolve_in_pat (SIR.Pattern'Wildcard type_info sp) = pure $ SIR.Pattern'Wildcard type_info sp
 resolve_in_pat (SIR.Pattern'Tuple type_info sp a b) = SIR.Pattern'Tuple type_info sp <$> resolve_in_pat a <*> resolve_in_pat b
@@ -103,7 +103,7 @@ resolve_in_pat (SIR.Pattern'AnonADTVariant type_info sp variant_iden () tyargs s
 resolve_in_pat (SIR.Pattern'NamedADTVariant type_info sp variant_iden () tyargs subpat) = SIR.Pattern'NamedADTVariant type_info sp <$> resolve_split_iden variant_iden <*> resolve_iden_in_monad resolve_pat_iden variant_iden <*> pure tyargs <*> mapM (\ (field_name, field_pat) -> (field_name,) <$> resolve_in_pat field_pat) subpat
 resolve_in_pat (SIR.Pattern'Poison type_info sp) = pure $ SIR.Pattern'Poison type_info sp
 
-resolve_in_expr :: (SIR.Expr Unresolved) -> (Utils.NRReader UnresolvedADTArena UnresolvedBoundValueArena type_var_arena Utils.ModuleChildMaps (Utils.MakeDeclState Utils.CollectingErrors)) (SIR.Expr Resolved)
+resolve_in_expr :: SIR.Expr Unresolved -> (Utils.NRReader UnresolvedADTArena UnresolvedBoundValueArena type_var_arena Utils.ModuleChildMaps (Utils.MakeDeclState Utils.CollectingErrors)) (SIR.Expr Resolved)
 resolve_in_expr (SIR.Expr'Identifier id type_info sp split_iden ()) = SIR.Expr'Identifier id type_info sp <$> resolve_split_iden split_iden <*> resolve_iden_in_monad resolve_expr_iden split_iden
 resolve_in_expr (SIR.Expr'Char id type_info sp c) = pure $ SIR.Expr'Char id type_info sp c
 resolve_in_expr (SIR.Expr'String id type_info sp s) = pure $ SIR.Expr'String id type_info sp s
@@ -179,7 +179,7 @@ resolve_expr_iden _ _ (SIR.SplitIdentifier'Single iden) = pure iden
 
 resolve_pat_iden :: Utils.DeclArena -> Utils.ModuleChildMaps -> UnresolvedPIden -> Utils.CollectingErrors ResolvedPIden
 resolve_pat_iden decls mods (SIR.SplitIdentifier'Get type_part name) =
-    case Utils.get_variant_child decls mods <$> (SIR.type_expr_evaled type_part) <*> pure name of
+    case Utils.get_variant_child decls mods <$> SIR.type_expr_evaled type_part <*> pure name of
         Just (Right v) -> pure $ Just v
         Just (Left e) -> Compiler.tell_error e >> pure Nothing
         Nothing -> pure Nothing

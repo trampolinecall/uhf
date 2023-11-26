@@ -25,7 +25,7 @@ import qualified UHF.Data.IR.Type as Type
 import qualified Data.List as List
 import qualified Data.Text as Text
 
-data CompletenessError stage = CompletenessError (Arena.Arena (Type.ADT Type) Type.ADTKey) Span [(SIR.Pattern stage)] [MatchValue]
+data CompletenessError stage = CompletenessError (Arena.Arena (Type.ADT Type) Type.ADTKey) Span [SIR.Pattern stage] [MatchValue]
 data NotUseful stage = NotUseful (SIR.Pattern stage)
 
 instance Diagnostic.ToError (CompletenessError stage) where
@@ -40,7 +40,7 @@ instance Diagnostic.ToWarning (NotUseful stage) where
     to_warning (NotUseful pat) = Diagnostic.Warning (Just $ SIR.pattern_span pat) "useless pattern" [] []
 
 type Type = Maybe (Type.Type Void)
-type CorrectStage s = (SIR.TypeInfo s ~ Type, SIR.PIdenResolved s ~ (Maybe Type.ADTVariantIndex))
+type CorrectStage s = (SIR.TypeInfo s ~ Type, SIR.PIdenResolved s ~ Maybe Type.ADTVariantIndex)
 
 data MatchValue
     = Any
@@ -56,10 +56,10 @@ show_match_value adt_arena (Tuple a b) = "(" <> show_match_value adt_arena a <> 
 
 -- TODO: clean this up
 -- TODO: use actual type of expression being matched against, not types of patterns
-check :: forall stage. CorrectStage stage => Arena.Arena (Type.ADT Type) Type.ADTKey -> Arena.Arena (Type.TypeSynonym Type) Type.TypeSynonymKey -> [(SIR.Pattern stage)] -> ([MatchValue], [((SIR.Pattern stage), [MatchValue])])
-check adt_arena type_synonym_arena patterns = mapAccumL check_one_pattern [Any] patterns
+check :: forall stage. CorrectStage stage => Arena.Arena (Type.ADT Type) Type.ADTKey -> Arena.Arena (Type.TypeSynonym Type) Type.TypeSynonymKey -> [SIR.Pattern stage] -> ([MatchValue], [(SIR.Pattern stage, [MatchValue])])
+check adt_arena type_synonym_arena = mapAccumL check_one_pattern [Any]
     where
-        check_one_pattern :: [MatchValue] -> (SIR.Pattern stage) -> ([MatchValue], ((SIR.Pattern stage), [MatchValue]))
+        check_one_pattern :: [MatchValue] -> SIR.Pattern stage -> ([MatchValue], (SIR.Pattern stage, [MatchValue]))
         check_one_pattern uncovered cur_pattern =
             let (still_uncovered, covered) = unzip $ map (check_against_one_uncovered_value cur_pattern) uncovered
             -- TODO: filter duplicates, also almost duplicates where _ and constructors are included (as of 2023-11-21, i am not sure what this todo is talking about)
@@ -67,7 +67,7 @@ check adt_arena type_synonym_arena patterns = mapAccumL check_one_pattern [Any] 
 
         -- first list of tuple is all of the unmatched values
         -- second list of tuple is all of the matched values
-        check_against_one_uncovered_value :: (SIR.Pattern stage) -> MatchValue -> ([MatchValue], [MatchValue])
+        check_against_one_uncovered_value :: SIR.Pattern stage -> MatchValue -> ([MatchValue], [MatchValue])
         check_against_one_uncovered_value (SIR.Pattern'Identifier ty _ _) uncovered_value = check_wild ty uncovered_value
         check_against_one_uncovered_value (SIR.Pattern'Wildcard ty _) uncovered_value = check_wild ty uncovered_value
 
@@ -108,9 +108,7 @@ check adt_arena type_synonym_arena patterns = mapAccumL check_one_pattern [Any] 
                         )
                 enumerate_adt_ctors_and_fields (Type.Type'Synonym ts_key) =
                     let (Type.TypeSynonym _ _ expansion) = Arena.get type_synonym_arena ts_key
-                    in case expansion of
-                         Just expansion -> enumerate_adt_ctors_and_fields expansion
-                         Nothing -> [] -- type error; treat it like it has no constructors / like an uninhabited type
+                    in maybe [] enumerate_adt_ctors_and_fields expansion -- in the case that the type synonym had a type error and is Nothing, treat it like it has no constructors / like an uninhabited type
                 enumerate_adt_ctors_and_fields Type.Type'Int = error_for_enumerate_adt_ctors_and_fields "Type'Int"
                 enumerate_adt_ctors_and_fields Type.Type'Float = error_for_enumerate_adt_ctors_and_fields "Type'Float"
                 enumerate_adt_ctors_and_fields Type.Type'Char = error_for_enumerate_adt_ctors_and_fields "Type'Char"
@@ -174,14 +172,14 @@ check adt_arena type_synonym_arena patterns = mapAccumL check_one_pattern [Any] 
 
         is_valid_match_value mv = True -- TODO: not (has_uninhabited_values mv)
 
-check_complete :: CorrectStage stage => Arena.Arena (Type.ADT Type) Type.ADTKey -> Arena.Arena (Type.TypeSynonym Type) Type.TypeSynonymKey -> Span -> [(SIR.Pattern stage)] -> Either (CompletenessError stage) ()
+check_complete :: CorrectStage stage => Arena.Arena (Type.ADT Type) Type.ADTKey -> Arena.Arena (Type.TypeSynonym Type) Type.TypeSynonymKey -> Span -> [SIR.Pattern stage] -> Either (CompletenessError stage) ()
 check_complete adt_arena type_synonym_arena err_sp patterns =
     let (left_over, _) = check adt_arena type_synonym_arena patterns
     in if null left_over
         then Right ()
         else Left $ CompletenessError adt_arena err_sp patterns left_over
 
-check_useful :: CorrectStage stage => Arena.Arena (Type.ADT Type) Type.ADTKey -> Arena.Arena (Type.TypeSynonym Type) Type.TypeSynonymKey -> [(SIR.Pattern stage)] -> Either [NotUseful stage] ()
+check_useful :: CorrectStage stage => Arena.Arena (Type.ADT Type) Type.ADTKey -> Arena.Arena (Type.TypeSynonym Type) Type.TypeSynonymKey -> [SIR.Pattern stage] -> Either [NotUseful stage] ()
 check_useful adt_arena type_synonym_arena patterns =
     let (_, patterns') = check adt_arena type_synonym_arena patterns
         warns = mapMaybe (\ (pat, covers) -> if null covers then Just (NotUseful pat) else Nothing) patterns'

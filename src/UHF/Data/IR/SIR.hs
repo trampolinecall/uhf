@@ -130,13 +130,13 @@ data Pattern stage
     | Pattern'Wildcard (Stage.TypeInfo stage) Span
     | Pattern'Tuple (Stage.TypeInfo stage) Span (Pattern stage) (Pattern stage)
     | Pattern'Named (Stage.TypeInfo stage) Span Span (Located BoundValueKey) (Pattern stage)
-    | Pattern'AnonADTVariant (Stage.TypeInfo stage) Span (SplitIdentifier stage (Stage.PIdenStart stage)) (Stage.PIdenResolved stage) [(Stage.TypeInfo stage)] [Pattern stage]
-    | Pattern'NamedADTVariant (Stage.TypeInfo stage) Span (SplitIdentifier stage (Stage.PIdenStart stage)) (Stage.PIdenResolved stage) [(Stage.TypeInfo stage)] [(Located Text, Pattern stage)]
+    | Pattern'AnonADTVariant (Stage.TypeInfo stage) Span (SplitIdentifier stage (Stage.PIdenStart stage)) (Stage.PIdenResolved stage) [Stage.TypeInfo stage] [Pattern stage]
+    | Pattern'NamedADTVariant (Stage.TypeInfo stage) Span (SplitIdentifier stage (Stage.PIdenStart stage)) (Stage.PIdenResolved stage) [Stage.TypeInfo stage] [(Located Text, Pattern stage)]
 
     | Pattern'Poison (Stage.TypeInfo stage) Span
 deriving instance Stage.AllShowable stage => Show (Pattern stage)
 
-type_expr_evaled :: TypeExpr stage -> (Stage.TypeExprEvaled stage)
+type_expr_evaled :: TypeExpr stage -> Stage.TypeExprEvaled stage
 type_expr_evaled (TypeExpr'Refer evaled _ _) = evaled
 type_expr_evaled (TypeExpr'Get evaled _ _ _) = evaled
 type_expr_evaled (TypeExpr'Tuple evaled _ _ _) = evaled
@@ -158,7 +158,7 @@ type_expr_span (TypeExpr'Apply _ span _ _) = span
 type_expr_span (TypeExpr'Wild _ span) = span
 type_expr_span (TypeExpr'Poison _ span) = span
 
-expr_type :: Expr stage -> (Stage.TypeInfo stage)
+expr_type :: Expr stage -> Stage.TypeInfo stage
 expr_type (Expr'Identifier _ type_info _ _ _) = type_info
 expr_type (Expr'Char _ type_info _ _) = type_info
 expr_type (Expr'String _ type_info _ _) = type_info
@@ -200,7 +200,7 @@ expr_span (Expr'Forall _ _ sp _ _) = sp
 expr_span (Expr'TypeApply _ _ sp _ _) = sp
 expr_span (Expr'TypeAnnotation _ _ sp _ _) = sp
 
-pattern_type :: Pattern stage -> (Stage.TypeInfo stage)
+pattern_type :: Pattern stage -> Stage.TypeInfo stage
 pattern_type (Pattern'Identifier type_info _ _) = type_info
 pattern_type (Pattern'Wildcard type_info _) = type_info
 pattern_type (Pattern'Tuple type_info _ _ _) = type_info

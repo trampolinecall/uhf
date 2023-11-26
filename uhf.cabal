@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.2.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -33,9 +33,6 @@ library
       UHF.Data.IR.Type.PP
       UHF.Data.Token
       UHF.Diagnostic
-      UHF.Diagnostic.Codes
-      UHF.Diagnostic.Codes.Code
-      UHF.Diagnostic.Codes.CodeTH
       UHF.Diagnostic.Diagnostic
       UHF.Diagnostic.Report
       UHF.Diagnostic.Report.Line

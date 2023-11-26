@@ -14,7 +14,6 @@ import UHF.IO.Span (Span)
 import UHF.IO.Located (Located (..))
 
 import qualified UHF.Diagnostic as Diagnostic
-import qualified UHF.Diagnostic.Codes as Diagnostic.Codes
 
 import UHF.Phases.Type.Unknown
 import UHF.Phases.Type.Aliases
@@ -96,7 +95,7 @@ instance Diagnostic.ToError Error where
                     print_type False context (unlocate a_whole) >>= \ a_whole_printed ->
                     print_type False context (unlocate b_whole) >>= \ b_whole_printed ->
                     pure (PP.render a_part_printed, PP.render b_part_printed, PP.render a_whole_printed, PP.render b_whole_printed)
-        in Diagnostic.Error Diagnostic.Codes.type_mismatch
+        in Diagnostic.Error
             (Just span)
             ("conflicting types in " <> what <> ": '" <> a_part_printed <> "' vs '" <> b_part_printed <> "'")
             (just_span a_whole `Diagnostic.msg_note_at` convert_str a_whole_printed
@@ -122,7 +121,7 @@ instance Diagnostic.ToError Error where
                     print_type False context (unlocate got_whole) >>= \ got_whole_printed ->
                     pure (PP.render expect_part_printed, PP.render got_part_printed, PP.render expect_whole_printed, PP.render got_whole_printed)
 
-        in Diagnostic.Error Diagnostic.Codes.type_mismatch
+        in Diagnostic.Error
             (Just sp)
             ("conflicting types in " <> what <> ": '" <> expect_part_printed <> "' vs '" <> got_part_printed <> "'")
             ((sp `Diagnostic.msg_note_at` convert_str ("expected '" <> expect_whole_printed <> "', got '" <> got_whole_printed <> "'")) : make_unk_name_messages unks var_names)
@@ -136,7 +135,7 @@ instance Diagnostic.ToError Error where
                     print_type True context ty >>= \ ty_printed ->
                     print_type True context var_as_type >>= \ var_printed ->
                     pure (PP.render ty_printed, PP.render var_printed)
-        in Diagnostic.Error Diagnostic.Codes.occurs_check
+        in Diagnostic.Error
             (Just span)
             ("occurs check failure: infinite cyclic type arising from constraint '" <> var_printed <> " = " <> ty_printed <> "'")
             (make_unk_name_messages unks var_names)
@@ -145,7 +144,7 @@ instance Diagnostic.ToError Error where
     to_error (AmbiguousType for_what) =
         let sp = type_unk_for_what_sp for_what
             name = type_unk_for_what_name for_what
-        in Diagnostic.Error Diagnostic.Codes.ambiguous_type
+        in Diagnostic.Error
                 (Just sp)
                 ("ambiguous type: could not infer the type of this " <> name)
                 []
@@ -156,7 +155,7 @@ instance Diagnostic.ToError Error where
                 run_unk_namer $
                     print_type False context ty >>= \ ty_printed ->
                     pure (PP.render ty_printed)
-        in Diagnostic.Error Diagnostic.Codes.does_not_take_type_argument
+        in Diagnostic.Error
             (Just sp)
             -- TODO: type '' of kind does not take a type argument
             ("type '" <> ty_printed <> "' does not accept a type argument")
@@ -169,7 +168,7 @@ instance Diagnostic.ToError Error where
                     print_type False context ty >>= \ ty_printed ->
                     print_type False context arg >>= \ arg_printed ->
                     pure (PP.render ty_printed, PP.render arg_printed)
-        in Diagnostic.Error Diagnostic.Codes.wrong_type_argument
+        in Diagnostic.Error
             (Just sp)
             -- TODO: type '' of kind '' expects type argument of kind '', but got argument of kind ''
             ("type '" <> ty_printed <> "' does not accept a type argument '" <> arg_printed <> "'")

@@ -16,7 +16,6 @@ import qualified Arena
 import UHF.IO.Span (Span)
 
 import qualified UHF.Diagnostic as Diagnostic
-import qualified UHF.Diagnostic.Codes as Diagnostic.Codes
 
 import qualified UHF.Data.IR.ID as ID
 
@@ -31,14 +30,14 @@ data NotUseful stage = NotUseful (SIR.Pattern stage)
 
 instance Diagnostic.ToError (CompletenessError stage) where
     to_error (CompletenessError adt_arena sp pats left_over) =
-        Diagnostic.Error Diagnostic.Codes.incomplete_patterns (Just sp) "incomplete patterns"
+        Diagnostic.Error (Just sp) "incomplete patterns"
             ( (Just sp, Diagnostic.MsgError, Just $ "values not matched: " <> Text.intercalate ", " (map (show_match_value adt_arena) left_over)) :
                  map (\ pat -> (Just $ SIR.pattern_span pat, Diagnostic.MsgNote, Nothing)) pats
             )
             []
 
 instance Diagnostic.ToWarning (NotUseful stage) where
-    to_warning (NotUseful pat) = Diagnostic.Warning Diagnostic.Codes.useless_pattern (Just $ SIR.pattern_span pat) "useless pattern" [] []
+    to_warning (NotUseful pat) = Diagnostic.Warning (Just $ SIR.pattern_span pat) "useless pattern" [] []
 
 type Type = Maybe (Type.Type Void)
 type CorrectStage s = (SIR.TypeInfo s ~ Type, SIR.PIdenResolved s ~ (Maybe Type.ADTVariantIndex))

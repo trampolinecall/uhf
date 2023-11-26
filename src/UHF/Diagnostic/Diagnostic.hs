@@ -20,12 +20,10 @@ module UHF.Diagnostic.Diagnostic
 
 import UHF.Util.Prelude
 
-import qualified UHF.Diagnostic.Codes.Code as Code
-
 import UHF.IO.Span (Span)
 
-data Error = Error Code.Error (Maybe Span) Text MessagesSection [OtherSection]
-data Warning = Warning Code.Warning (Maybe Span) Text MessagesSection [OtherSection]
+data Error = Error (Maybe Span) Text MessagesSection [OtherSection]
+data Warning = Warning (Maybe Span) Text MessagesSection [OtherSection]
 data DebugMessage = DebugMessage (Maybe Span) Text MessagesSection [OtherSection]
 data InternalError = InternalError (Maybe Span) Text MessagesSection [OtherSection]
 

@@ -44,7 +44,6 @@ import qualified UHF.Compiler as Compiler
 import UHF.IO.Span (Span)
 import UHF.IO.Located (Located (Located, unlocate))
 import qualified UHF.Diagnostic as Diagnostic
-import qualified UHF.Diagnostic.Codes as Diagnostic.Codes
 
 import qualified UHF.Data.IR.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
@@ -63,19 +62,18 @@ data Error
     | Error'NotAType Span Text
 
 instance Diagnostic.ToError Error where
-    to_error (Error'CouldNotFind (Located sp name)) = Diagnostic.Error Diagnostic.Codes.undef_name (Just sp) ("could not find name '" <> name <> "'") [] []
+    to_error (Error'CouldNotFind (Located sp name)) = Diagnostic.Error (Just sp) ("could not find name '" <> name <> "'") [] []
     to_error (Error'CouldNotFindIn prev (Located sp name)) =
         let message =
                 "could not find name '" <> name <> "'"
                     <> case prev of
                         Just (Located _ prev_name) -> "in '" <> prev_name <> "'"
                         Nothing -> ""
-        in Diagnostic.Error Diagnostic.Codes.undef_name (Just sp) message [] []
+        in Diagnostic.Error (Just sp) message [] []
 
     to_error (Error'MultipleDecls name decl_ats) =
         let span = headMay $ mapMaybe decl_at_span decl_ats -- take the first span of the decl_ats; if there are no decl_ats with a span, then this will be Ntohing
         in Diagnostic.Error
-            Diagnostic.Codes.multiple_decls
             span
             (show (length decl_ats) <> " declarations of '" <> convert_str name <> "'")
             (map (\ at -> (decl_at_span at, Diagnostic.MsgError, decl_at_message name at)) decl_ats)
@@ -87,7 +85,7 @@ instance Diagnostic.ToError Error where
             decl_at_message n ImplicitPrim = Just $ "'" <> convert_str n <> "' is implicitly declared as a primitive" -- TODO: reword this message (ideally when it is declared through the prelude import the message would be something like 'implicitly declared by prelude')
 
     to_error (Error'NotAType sp instead) =
-        Diagnostic.Error Diagnostic.Codes.not_a_type (Just sp) ("not a type: got " <> instead) [] []
+        Diagnostic.Error (Just sp) ("not a type: got " <> instead) [] []
 
 -- child maps {{{1
 data ChildMaps = ChildMaps (Map.Map Text SIR.DeclKey) (Map.Map Text SIR.BoundValueKey) (Map.Map Text Type.ADTVariantIndex) deriving Show

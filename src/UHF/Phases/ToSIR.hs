@@ -13,7 +13,6 @@ import UHF.IO.Span (Span)
 import UHF.IO.Located (Located (..))
 
 import qualified UHF.Diagnostic as Diagnostic
-import qualified UHF.Diagnostic.Codes as Codes
 
 import qualified UHF.Compiler as Compiler
 
@@ -31,13 +30,13 @@ data Error
 data DeclAt = DeclAt Span | ImplicitPrim deriving Show
 
 instance Diagnostic.ToError Error where
-    to_error (PathInPattern (Located sp _)) = Diagnostic.Error Codes.binding_lhs_path (Just sp) "path in pattern" [] []
-    to_error (PathInTypeName (Located sp _)) = Diagnostic.Error Codes.path_in_type_name (Just sp) "path in type name" [] []
-    to_error (PathInVariantName (Located sp _)) = Diagnostic.Error Codes.path_in_variant_name (Just sp) "path in 'data' variant name" [] []
-    to_error (PathInFieldName (Located sp _)) = Diagnostic.Error Codes.path_in_field_name (Just sp) "path in field name" [] []
+    to_error (PathInPattern (Located sp _)) = Diagnostic.Error (Just sp) "path in pattern" [] []
+    to_error (PathInTypeName (Located sp _)) = Diagnostic.Error (Just sp) "path in type name" [] []
+    to_error (PathInVariantName (Located sp _)) = Diagnostic.Error (Just sp) "path in 'data' variant name" [] []
+    to_error (PathInFieldName (Located sp _)) = Diagnostic.Error (Just sp) "path in field name" [] []
 
-    to_error (Tuple1 sp) = Diagnostic.Error Codes.tuple1 (Just sp) "tuple of 1 element" [] []
-    to_error (Tuple0 sp) = Diagnostic.Error Codes.tuple0 (Just sp) "tuple of 0 elements" [] []
+    to_error (Tuple1 sp) = Diagnostic.Error (Just sp) "tuple of 1 element" [] []
+    to_error (Tuple0 sp) = Diagnostic.Error (Just sp) "tuple of 0 elements" [] []
 
 type SIRStage = (Located Text, (), (), Located Text, (), Located Text, (), (), ())
 

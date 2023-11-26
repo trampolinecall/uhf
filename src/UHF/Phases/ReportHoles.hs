@@ -12,7 +12,6 @@ import UHF.IO.Located (Located (unlocate))
 import UHF.IO.Span (Span)
 
 import qualified UHF.Diagnostic as Diagnostic
-import qualified UHF.Diagnostic.Codes as Diagnostic.Codes
 
 import qualified UHF.Data.IR.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
@@ -37,7 +36,7 @@ data Error stage = Error (ADTArena stage) (TypeSynonymArena stage) TypeVarArena 
 instance Diagnostic.ToError (Error stage) where
     to_error (Error adts type_synonyms vars sp name ty) =
         let message = "hole: '?" <> unlocate name <> "' of type '" <> PP.render (Type.PP.refer_type absurd adts type_synonyms vars ty) <> "'"
-        in Diagnostic.Error Diagnostic.Codes.hole (Just sp) message [] []
+        in Diagnostic.Error (Just sp) message [] []
 
 report_holes :: (SIR.TypeInfo stage ~ Maybe Type, SIR.TypeExprEvaledAsType stage ~ Maybe Type) => SIR stage -> Compiler.WithDiagnostics (Error stage) Void ()
 report_holes sir@(SIR.SIR _ _ _ _ _ _ mod) = runReaderT (module_ mod) sir

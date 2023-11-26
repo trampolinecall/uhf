@@ -10,7 +10,6 @@ import UHF.Util.Prelude
 import qualified UHF.Data.Token as Token
 
 import qualified UHF.Diagnostic as Diagnostic
-import qualified UHF.Diagnostic.Codes as Codes
 import qualified UHF.IO.Located as Located
 import UHF.IO.Located (Located (Located))
 import UHF.IO.EqIgnoringSpans
@@ -23,7 +22,6 @@ data Error
 instance Diagnostic.ToError (Located [Error]) where
     to_error (Located sp bits) =
         Diagnostic.Error
-            Codes.parse_error
             (Just sp)
             "parse error" -- TODO
             (map

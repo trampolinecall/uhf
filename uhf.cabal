@@ -51,12 +51,12 @@ library
       UHF.IO.Location
       UHF.IO.Location.SpanHelper
       UHF.IO.Span
+      UHF.Phases.EvalTypeExprs
       UHF.Phases.InfixGroup
       UHF.Phases.Lexer
-      UHF.Phases.Lexer.IdentifierGrouper
       UHF.Phases.Lexer.LexError
-      UHF.Phases.Lexer.MainLexer
       UHF.Phases.NameResolve
+      UHF.Phases.NameResolve.Utils
       UHF.Phases.OptimizeANFIR
       UHF.Phases.OptimizeANFIR.RemoveRefers
       UHF.Phases.OptimizeANFIR.Utils
@@ -66,6 +66,7 @@ library
       UHF.Phases.Parser.Test
       UHF.Phases.RemovePoison
       UHF.Phases.ReportHoles
+      UHF.Phases.ResolveReferStarts
       UHF.Phases.ToANFIR
       UHF.Phases.ToBackendIR
       UHF.Phases.ToRIR

@@ -57,6 +57,11 @@ instance EqIgnoringSpans a => EqIgnoringSpans (Maybe a) where
     Nothing `eqis` Nothing = True
     _ `eqis` _ = False
 
+instance (EqIgnoringSpans a, EqIgnoringSpans b) => EqIgnoringSpans (Either a b) where
+    (Left a1) `eqis` (Left a2) = a1 `eqis` a2
+    (Right b1) `eqis` (Right b2) = b1 `eqis` b2
+    _ `eqis` _ = False
+
 instance EqIgnoringSpans () where a `eqis` b = a == b
 instance EqIgnoringSpans Int where a `eqis` b = a == b
 instance EqIgnoringSpans Integer where a `eqis` b = a == b

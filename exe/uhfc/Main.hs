@@ -41,6 +41,8 @@ argparser =
                                 [ ("ast", Driver.AST)
                                 , ("ast-dump", Driver.ASTDump)
                                 , ("sir", Driver.SIR)
+                                , ("name-resolved-starts", Driver.NRStartsSIR)
+                                , ("type-expressions-evaluated", Driver.TEESIR)
                                 , ("name-resolved", Driver.NRSIR)
                                 , ("infix-grouped", Driver.InfixGroupedSIR)
                                 , ("typed-sir", Driver.TypedSIR)

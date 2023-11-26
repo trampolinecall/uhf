@@ -53,11 +53,11 @@ bound_value unks (SIR.BoundValue'ADTVariant id index tparams ty sp) = SIR.BoundV
 adt :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkADT -> TypedADT
 adt unks (Type.ADT id name type_var variants) = Type.ADT id name type_var (map variant variants)
     where
-        variant (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id (map (\ (name, id, ty) -> (name, id, type_expr unks ty)) fields)
-        variant (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id (map (\ (id, ty) -> (id, type_expr unks ty)) fields)
+        variant (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id (map (\ (name, id, ty) -> (name, id, type_expr_and_type unks ty)) fields)
+        variant (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id (map (\ (id, ty) -> (id, type_expr_and_type unks ty)) fields)
 
 type_synonym :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkTypeSynonym -> TypedTypeSynonym
-type_synonym unks (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name (type_expr unks expansion)
+type_synonym unks (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name (type_expr_and_type unks expansion)
 
 binding :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkBinding -> TypedBinding
 binding unks (SIR.Binding p eq_sp e) = SIR.Binding (pattern unks p) eq_sp (expr unks e)
@@ -68,12 +68,12 @@ pattern unks (SIR.Pattern'Identifier ty sp bn) = SIR.Pattern'Identifier (type_ u
 pattern unks (SIR.Pattern'Wildcard ty sp) = SIR.Pattern'Wildcard (type_ unks ty) sp
 pattern unks (SIR.Pattern'Tuple ty sp l r) = SIR.Pattern'Tuple (type_ unks ty) sp (pattern unks l) (pattern unks r)
 pattern unks (SIR.Pattern'Named ty sp at_sp bnk subpat) = SIR.Pattern'Named (type_ unks ty) sp at_sp bnk (pattern unks subpat)
-pattern unks (SIR.Pattern'AnonADTVariant ty sp variant tyargs fields) = SIR.Pattern'AnonADTVariant (type_ unks ty) sp variant (map (type_ unks) tyargs) (map (pattern unks) fields)
-pattern unks (SIR.Pattern'NamedADTVariant ty sp variant tyargs fields) = SIR.Pattern'NamedADTVariant (type_ unks ty) sp variant (map (type_ unks) tyargs) (map (\ (field_name, field_pat) -> (field_name, pattern unks field_pat)) fields)
+pattern unks (SIR.Pattern'AnonADTVariant ty sp variant_iden variant_resolved tyargs fields) = SIR.Pattern'AnonADTVariant (type_ unks ty) sp (split_identifier unks variant_iden) variant_resolved (map (type_ unks) tyargs) (map (pattern unks) fields)
+pattern unks (SIR.Pattern'NamedADTVariant ty sp variant_iden variant_resolved tyargs fields) = SIR.Pattern'NamedADTVariant (type_ unks ty) sp (split_identifier unks variant_iden) variant_resolved (map (type_ unks) tyargs) (map (\ (field_name, field_pat) -> (field_name, pattern unks field_pat)) fields)
 pattern unks (SIR.Pattern'Poison ty sp) = SIR.Pattern'Poison (type_ unks ty) sp
 
 expr :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkExpr -> TypedExpr
-expr unks (SIR.Expr'Identifier id ty sp bn) = SIR.Expr'Identifier id (type_ unks ty) sp bn
+expr unks (SIR.Expr'Identifier id ty sp iden_split iden_resolved) = SIR.Expr'Identifier id (type_ unks ty) sp (split_identifier unks iden_split) iden_resolved
 expr unks (SIR.Expr'Char id ty sp c) = SIR.Expr'Char id (type_ unks ty) sp c
 expr unks (SIR.Expr'String id ty sp t) = SIR.Expr'String id (type_ unks ty) sp t
 expr unks (SIR.Expr'Int id ty sp i) = SIR.Expr'Int id (type_ unks ty) sp i
@@ -87,21 +87,29 @@ expr _ (SIR.Expr'BinaryOps _ void _ _ _ _) = absurd void
 expr unks (SIR.Expr'Call id ty sp callee arg) = SIR.Expr'Call id (type_ unks ty) sp (expr unks callee) (expr unks arg)
 expr unks (SIR.Expr'If id ty sp if_sp cond true false) = SIR.Expr'If id (type_ unks ty) sp if_sp (expr unks cond) (expr unks true) (expr unks false)
 expr unks (SIR.Expr'Match id ty sp match_tok_sp testing arms) = SIR.Expr'Match id (type_ unks ty) sp match_tok_sp (expr unks testing) (map (\ (p, e) -> (pattern unks p, expr unks e)) arms)
-expr unks (SIR.Expr'TypeAnnotation id ty sp annotation e) = SIR.Expr'TypeAnnotation id (type_ unks ty) sp (type_expr unks annotation) (expr unks e)
+expr unks (SIR.Expr'TypeAnnotation id ty sp annotation e) = SIR.Expr'TypeAnnotation id (type_ unks ty) sp (type_expr_and_type unks annotation) (expr unks e)
 expr unks (SIR.Expr'Forall id ty sp names e) = SIR.Expr'Forall id (type_ unks ty) sp (NonEmpty.map identity names) (expr unks e)
-expr unks (SIR.Expr'TypeApply id ty sp e args) = SIR.Expr'TypeApply id (type_ unks ty) sp (expr unks e) (type_expr unks args)
+expr unks (SIR.Expr'TypeApply id ty sp e args) = SIR.Expr'TypeApply id (type_ unks ty) sp (expr unks e) (type_expr_and_type unks args)
 expr unks (SIR.Expr'Hole id ty sp hid) = SIR.Expr'Hole id (type_ unks ty) sp hid
 expr unks (SIR.Expr'Poison id ty sp) = SIR.Expr'Poison id (type_ unks ty) sp
 
 type_expr :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkTypeExpr -> TypedTypeExpr
-type_expr unks (SIR.TypeExpr'Identifier ty sp iden) = SIR.TypeExpr'Identifier (type_ unks ty) sp iden
-type_expr unks (SIR.TypeExpr'Tuple ty a b) = SIR.TypeExpr'Tuple (type_ unks ty) (type_expr unks a) (type_expr unks b)
-type_expr unks (SIR.TypeExpr'Hole ty sp hid) = SIR.TypeExpr'Hole (type_ unks ty) sp hid
-type_expr unks (SIR.TypeExpr'Function ty sp arg res) = SIR.TypeExpr'Function (type_ unks ty) sp (type_expr unks arg) (type_expr unks res)
-type_expr unks (SIR.TypeExpr'Forall ty names sub) = SIR.TypeExpr'Forall (type_ unks ty) names (type_expr unks sub)
-type_expr unks (SIR.TypeExpr'Apply ty sp applied_to args) = SIR.TypeExpr'Apply (type_ unks ty) sp (type_expr unks applied_to) (type_expr unks args)
-type_expr unks (SIR.TypeExpr'Wild ty sp) = SIR.TypeExpr'Wild (type_ unks ty) sp
-type_expr unks (SIR.TypeExpr'Poison ty sp) = SIR.TypeExpr'Poison (type_ unks ty) sp
+type_expr _ (SIR.TypeExpr'Refer evaled sp iden) = SIR.TypeExpr'Refer evaled sp iden
+type_expr unks (SIR.TypeExpr'Get evaled sp parent name) = SIR.TypeExpr'Get evaled sp (type_expr unks parent) name
+type_expr unks (SIR.TypeExpr'Tuple evaled sp a b) = SIR.TypeExpr'Tuple evaled sp (type_expr unks a) (type_expr unks b)
+type_expr unks (SIR.TypeExpr'Hole evaled tyinfo sp hid) = SIR.TypeExpr'Hole evaled (type_ unks tyinfo) sp hid
+type_expr unks (SIR.TypeExpr'Function evaled sp arg res) = SIR.TypeExpr'Function evaled sp (type_expr unks arg) (type_expr unks res)
+type_expr unks (SIR.TypeExpr'Forall evaled sp names sub) = SIR.TypeExpr'Forall evaled sp names (type_expr unks sub)
+type_expr unks (SIR.TypeExpr'Apply evaled sp applied_to args) = SIR.TypeExpr'Apply evaled sp (type_expr unks applied_to) (type_expr unks args)
+type_expr _ (SIR.TypeExpr'Wild evaled sp) = SIR.TypeExpr'Wild evaled sp
+type_expr _ (SIR.TypeExpr'Poison evaled sp) = SIR.TypeExpr'Poison evaled sp
+
+type_expr_and_type :: Arena.Arena (Maybe Type) TypeUnknownKey -> (TypedWithUnkTypeExpr, TypeWithUnk) -> (TypedTypeExpr, Maybe Type)
+type_expr_and_type unks (te, t) = (type_expr unks te, type_ unks t)
+
+split_identifier :: Arena.Arena (Maybe Type) TypeUnknownKey -> SIR.SplitIdentifier TypedWithUnk start -> SIR.SplitIdentifier Typed start
+split_identifier unks (SIR.SplitIdentifier'Get texpr next) = SIR.SplitIdentifier'Get (type_expr unks texpr) next
+split_identifier _ (SIR.SplitIdentifier'Single name) = SIR.SplitIdentifier'Single name
 
 type_ :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypeWithUnk -> Maybe Type
 type_ unks = r

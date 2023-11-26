@@ -127,9 +127,9 @@ expr_binary_ops :: PEG.Parser AST.Expr
 expr_binary_ops =
     expr_call >>= \ first ->
     PEG.star (
-        PEG.consume' "operator" (Token.SymbolIdentifier ()) >>= \ (Located op_sp (Token.SymbolIdentifier op)) ->
+        path_or_single_symbol_iden >>= \ op ->
         expr_call >>= \ second ->
-        pure (Located op_sp op, second)
+        pure (op, second)
     ) >>= \ ops ->
     if null ops
         then pure first
@@ -182,8 +182,8 @@ expr_primary =
 
 expr_identifier :: PEG.Parser AST.Expr
 expr_identifier =
-    PEG.consume' "identifier" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
-    pure (AST.Expr'Identifier (Located iden_sp iden))
+    path_or_single_iden >>= \ (Located sp pi) ->
+    pure (AST.Expr'Identifier sp pi)
 
 expr_hole :: PEG.Parser AST.Expr
 expr_hole =
@@ -333,21 +333,25 @@ type_function = type_apply >>= m_function
 type_apply :: PEG.Parser AST.Type
 type_apply = type_primary >>= m_applys
     where
-        m_applys base = PEG.choice [applys base, pure base]
+        m_applys base = PEG.choice [applys base, get base, pure base]
         applys base =
             PEG.consume' "'#'" (Token.SingleTypeToken Token.Hash) >>
             PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>
             PEG.delim_star type_ (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ tys ->
             PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ (Located cp_sp _) ->
             m_applys (AST.Type'Apply (AST.type_span base <> cp_sp) base tys)
+        get base =
+            PEG.consume' "'::'" (Token.SingleTypeToken Token.DoubleColon) >>= \ _ ->
+            PEG.consume' "identifier" (Token.AlphaIdentifier ()) >>= \ (Located next_sp (Token.AlphaIdentifier next)) ->
+            m_applys (AST.Type'Get (AST.type_span base <> next_sp) base (Located next_sp next))
 
 type_primary :: PEG.Parser AST.Type
-type_primary = PEG.choice [type_parenthesized, type_iden, type_wild, type_hole, type_tuple]
+type_primary = PEG.choice [type_parenthesized, type_refer, type_wild, type_hole, type_tuple]
 
-type_iden :: PEG.Parser AST.Type
-type_iden =
+type_refer :: PEG.Parser AST.Type
+type_refer =
     PEG.consume' "type" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
-    pure (AST.Type'Identifier (Located iden_sp iden))
+    pure (AST.Type'Refer (Located iden_sp iden))
 
 type_wild :: PEG.Parser AST.Type
 type_wild =
@@ -384,15 +388,15 @@ pattern_iden =
 
 pattern_anon_variant :: PEG.Parser AST.Pattern
 pattern_anon_variant =
-    PEG.consume' "pattern" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
+    path_or_single_iden >>= \ (Located variant_sp variant) ->
     PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>
     PEG.delim_star pattern (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ fields ->
     PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ (Located cp_sp _) ->
-    pure (AST.Pattern'AnonADTVariant (iden_sp <> cp_sp) (Located iden_sp iden) fields)
+    pure (AST.Pattern'AnonADTVariant (variant_sp <> cp_sp) variant fields)
 
 pattern_named_variant :: PEG.Parser AST.Pattern
 pattern_named_variant =
-    PEG.consume' "pattern" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
+    path_or_single_iden >>= \ (Located variant_sp variant) ->
     PEG.consume' "'{'" (Token.SingleTypeToken Token.OBrace) >>
     PEG.star (
         PEG.consume' "field name" (Token.AlphaIdentifier ()) >>= \ (Located field_name_sp (Token.AlphaIdentifier field_name)) ->
@@ -402,7 +406,7 @@ pattern_named_variant =
         pure (Located field_name_sp field_name, field_ty)
     ) >>= \ fields ->
     PEG.consume' "'}'" (Token.SingleTypeToken Token.CBrace) >>= \ (Located cp_sp _) ->
-    pure (AST.Pattern'NamedADTVariant (iden_sp <> cp_sp) (Located iden_sp iden) fields)
+    pure (AST.Pattern'NamedADTVariant (variant_sp <> cp_sp) variant fields)
 
 pattern_wild :: PEG.Parser AST.Pattern
 pattern_wild =
@@ -422,6 +426,31 @@ pattern_named =
     PEG.consume' "'@'" (Token.SingleTypeToken Token.At) >>= \ (Located at_sp _) ->
     pattern >>= \ more ->
     pure (AST.Pattern'Named (iden_sp <> AST.pattern_span more) (Located iden_sp iden) at_sp more)
+-- utilities {{{1
+path_or_single_iden :: PEG.Parser (Located AST.PathOrSingleIden)
+path_or_single_iden = PEG.choice [path, single_iden]
+    where
+        path =
+            type_ >>= \ ty ->
+            PEG.consume' "'::'" (Token.SingleTypeToken Token.DoubleColon) >>= \ _ ->
+            PEG.consume' "identifier" (Token.AlphaIdentifier ()) >>= \ (Located next_sp (Token.AlphaIdentifier next)) ->
+            pure (Located (AST.type_span ty <> next_sp) (AST.PathOrSingleIden'Path ty (Located next_sp next)))
+        single_iden =
+            PEG.consume' "identifier" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
+            pure (Located iden_sp (AST.PathOrSingleIden'Single (Located iden_sp iden)))
+
+path_or_single_symbol_iden :: PEG.Parser (Located AST.PathOrSingleIden)
+path_or_single_symbol_iden = PEG.choice [path, single_iden]
+    where
+        path =
+            type_ >>= \ ty ->
+            PEG.consume' "'::'" (Token.SingleTypeToken Token.DoubleColon) >>= \ _ ->
+            PEG.consume' "symbol identifier" (Token.SymbolIdentifier ()) >>= \ (Located next_sp (Token.SymbolIdentifier next)) ->
+            pure (Located (AST.type_span ty <> next_sp) (AST.PathOrSingleIden'Path ty (Located next_sp next)))
+        single_iden =
+            PEG.consume' "operator" (Token.SymbolIdentifier ()) >>= \ (Located iden_sp (Token.SymbolIdentifier iden)) ->
+            pure (Located iden_sp (AST.PathOrSingleIden'Single (Located iden_sp iden)))
+
 -- tests {{{1
 {- TODO
 -- test_decls :: [TestTree]

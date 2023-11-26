@@ -10,7 +10,7 @@ import UHF.IO.Span (Span)
 import UHF.IO.Located (Located (..))
 import UHF.IO.EqIgnoringSpans
 
-type Identifier = Located [Located Text]
+type Identifier = Located Text
 
 -- TODO: make all asts store spans (some do right now based on where they are needed in the later phases, but all of them should have one just for consistency)
 
@@ -27,7 +27,8 @@ data DataVariant
     deriving (Generic, EqIgnoringSpans, Show)
 
 data Type
-    = Type'Identifier Identifier
+    = Type'Refer Identifier
+    | Type'Get Span Type Identifier
     | Type'Tuple Span [Type] -- TODO: anonymous named products? (ie field names, but no datatype name)
     | Type'Hole Span Identifier
     | Type'Function Span Type Type
@@ -36,8 +37,13 @@ data Type
     | Type'Wild Span -- TODO: come up with better name for this
     deriving (Generic, EqIgnoringSpans, Show)
 
+data PathOrSingleIden
+    = PathOrSingleIden'Path Type Identifier
+    | PathOrSingleIden'Single Identifier
+    deriving (Generic, EqIgnoringSpans, Show)
+
 data Expr
-    = Expr'Identifier Identifier
+    = Expr'Identifier Span PathOrSingleIden
     | Expr'Char Span Char
     | Expr'String Span Text
     | Expr'Int Span Integer
@@ -51,7 +57,7 @@ data Expr
     | Expr'Let Span [Decl] Expr
     | Expr'LetRec Span [Decl] Expr
 
-    | Expr'BinaryOps Span Expr [(Identifier, Expr)]
+    | Expr'BinaryOps Span Expr [(Located PathOrSingleIden, Expr)]
 
     | Expr'Call Span Expr [Expr]
 
@@ -70,13 +76,14 @@ data Pattern
     = Pattern'Identifier Identifier
     | Pattern'Wildcard Span
     | Pattern'Tuple Span [Pattern]
-    | Pattern'Named Span Identifier Span Pattern -- TODO: merge with Identifier?
-    | Pattern'AnonADTVariant Span Identifier [Pattern]
-    | Pattern'NamedADTVariant Span Identifier [(Identifier, Pattern)]
+    | Pattern'Named Span Identifier Span Pattern
+    | Pattern'AnonADTVariant Span PathOrSingleIden [Pattern]
+    | Pattern'NamedADTVariant Span PathOrSingleIden [(Identifier, Pattern)]
     deriving (Generic, EqIgnoringSpans, Show)
 
 type_span :: Type -> Span
-type_span (Type'Identifier iden) = just_span iden
+type_span (Type'Refer iden) = just_span iden
+type_span (Type'Get sp _ _) = sp
 type_span (Type'Tuple sp _) = sp
 type_span (Type'Hole sp _) = sp
 type_span (Type'Function sp _ _) = sp
@@ -85,7 +92,7 @@ type_span (Type'Apply sp _ _) = sp
 type_span (Type'Wild sp) = sp
 
 expr_span :: Expr -> Span
-expr_span (Expr'Identifier iden) = just_span iden
+expr_span (Expr'Identifier sp _) = sp
 expr_span (Expr'Char sp _) = sp
 expr_span (Expr'String sp _) = sp
 expr_span (Expr'Int sp _) = sp

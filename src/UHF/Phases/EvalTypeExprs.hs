@@ -71,13 +71,13 @@ eval (SIR.SIR decls mods adts type_synonyms type_vars bound_values mod) =
 
 -- resolving through sir {{{1
 resolve_in_mods :: UnevaledModuleArena -> (Utils.NRReader UnevaledADTArena UnevaledBoundValueArena type_var_arena Utils.ModuleChildMaps (Utils.MakeDeclState Utils.CollectingErrors)) EvaledModuleArena
-resolve_in_mods module_arena = Arena.transformM resolve_in_module module_arena
+resolve_in_mods = Arena.transformM resolve_in_module
 
 resolve_in_adts :: UnevaledADTArena -> (Utils.NRReader adt_arena bv_arena type_var_arena Utils.ModuleChildMaps (Utils.MakeDeclState Utils.CollectingErrors)) EvaledADTArena
-resolve_in_adts adt_arena = Arena.transformM resolve_in_adt adt_arena
+resolve_in_adts = Arena.transformM resolve_in_adt
 
 resolve_in_type_synonyms :: UnevaledTypeSynonymArena -> (Utils.NRReader adt_arena bv_arena type_var_arena Utils.ModuleChildMaps (Utils.MakeDeclState Utils.CollectingErrors)) EvaledTypeSynonymArena
-resolve_in_type_synonyms type_synonym_arena = Arena.transformM resolve_in_type_synonym type_synonym_arena
+resolve_in_type_synonyms = Arena.transformM resolve_in_type_synonym
 
 resolve_in_module :: UnevaledModule -> Utils.NRReader UnevaledADTArena UnevaledBoundValueArena type_var_arena Utils.ModuleChildMaps (Utils.MakeDeclState Utils.CollectingErrors) EvaledModule
 resolve_in_module (SIR.Module id bindings adts type_synonyms) = SIR.Module id <$> mapM resolve_in_binding bindings <*> pure adts <*> pure type_synonyms

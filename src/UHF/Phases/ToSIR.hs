@@ -19,22 +19,12 @@ import qualified UHF.Compiler as Compiler
 import Control.Monad.Trans.Maybe (runMaybeT)
 
 data Error
-    = PathInPattern (Located [Located Text]) -- TODO: make this less repetitive
-    | PathInTypeName (Located [Located Text])
-    | PathInVariantName (Located [Located Text])
-    | PathInFieldName (Located [Located Text])
-
-    | Tuple1 Span
+    = Tuple1 Span
     | Tuple0 Span
 
 data DeclAt = DeclAt Span | ImplicitPrim deriving Show
 
 instance Diagnostic.ToError Error where
-    to_error (PathInPattern (Located sp _)) = Diagnostic.Error (Just sp) "path in pattern" [] []
-    to_error (PathInTypeName (Located sp _)) = Diagnostic.Error (Just sp) "path in type name" [] []
-    to_error (PathInVariantName (Located sp _)) = Diagnostic.Error (Just sp) "path in 'data' variant name" [] []
-    to_error (PathInFieldName (Located sp _)) = Diagnostic.Error (Just sp) "path in field name" [] []
-
     to_error (Tuple1 sp) = Diagnostic.Error (Just sp) "tuple of 1 element" [] []
     to_error (Tuple0 sp) = Diagnostic.Error (Just sp) "tuple of 0 elements" [] []
 

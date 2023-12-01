@@ -87,19 +87,6 @@ lex_comment =
                 ]
     in choice [singleline, multiline]
 
-lex_id_or_kw :: (Char -> Bool) -> (Char -> Bool) -> Map Text Token.Token -> (Located Text -> Token.Token) -> MiniLexer [Either LexError.Error Token.LToken]
-lex_id_or_kw is_valid_start is_valid_char kws def =
-    get_loc >>= \ start_loc ->
-    consume is_valid_start >>= \ first_char ->
-    choice [one_or_more $ consume is_valid_char, pure []] >>= \ more ->
-    let full = Located.unlocate $
-            let chars = first_char : more
-                sp = Located.just_span (head chars) <> Located.just_span (last chars)
-            in Located sp (Text.pack $ Located.unlocate <$> chars)
-        tok = fromMaybe (def full) (Map.lookup full kws)
-    in get_loc >>= \ end_loc ->
-    pure [Right $ Located (new_span_start_and_end start_loc end_loc) tok]
-
 lex_delimiter :: MiniLexer [Either LexError.Error Token.LToken]
 lex_delimiter =
     choice
@@ -113,6 +100,19 @@ lex_delimiter =
         , consume (==';') >>= \ ch -> pure [Right $ Token.SingleTypeToken Token.Semicolon <$ ch]
         , consume (==',') >>= \ ch -> pure [Right $ Token.SingleTypeToken Token.Comma <$ ch]
         ]
+
+lex_id_or_kw :: (Char -> Bool) -> (Char -> Bool) -> Map Text Token.Token -> (Text -> Token.Token) -> MiniLexer [Either LexError.Error Token.LToken]
+lex_id_or_kw is_valid_start is_valid_char kws def =
+    get_loc >>= \ start_loc ->
+    consume is_valid_start >>= \ first_char ->
+    choice [one_or_more $ consume is_valid_char, pure []] >>= \ more ->
+    let full = Located.unlocate $
+            let chars = first_char : more
+                sp = Located.just_span (head chars) <> Located.just_span (last chars)
+            in Located sp (Text.pack $ Located.unlocate <$> chars)
+        tok = fromMaybe (def full) (Map.lookup full kws)
+    in get_loc >>= \ end_loc ->
+    pure [Right $ Located (new_span_start_and_end start_loc end_loc) tok]
 
 lex_alpha_identifier :: MiniLexer [Either LexError.Error Token.LToken]
 lex_alpha_identifier =
@@ -265,7 +265,7 @@ case_lex =
     let src = "abc *&* ( \"adji\n"
     in File.new "a" src >>= \ f ->
     case runWriter $ Pipes.Prelude.toListM' $ lex f of
-        (([Located _ (Token.AlphaIdentifier (Located _ "abc")), Located _ (Token.SymbolIdentifier (Located _ "*&*")), Located _ (Token.SingleTypeToken Token.OParen)], _), Compiler.Diagnostics [LexError.UnclosedStrLit _] []) -> pure ()
+        (([Located _ (Token.AlphaIdentifier "abc"), Located _ (Token.SymbolIdentifier "*&*"), Located _ (Token.SingleTypeToken Token.OParen)], _), Compiler.Diagnostics [LexError.UnclosedStrLit _] []) -> pure ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
 case_lex_empty :: Assertion
@@ -285,7 +285,7 @@ minilex_test_fail fn_name res = assertFailure $ "'" ++ fn_name ++ "' lexed incor
 case_lex_one_token :: Assertion
 case_lex_one_token =
     minilex_test (runWriter . Pipes.Prelude.toListM' . runStateT lex_one_token) "abc" $ \case
-        (([Located _ (Token.AlphaIdentifier (Located _ "abc"))], ((), l)), Compiler.Diagnostics [] [])
+        (([Located _ (Token.AlphaIdentifier "abc")], ((), l)), Compiler.Diagnostics [] [])
             | remaining l == "" -> pure ()
 
         x -> minilex_test_fail "lex_one_token" x
@@ -329,38 +329,38 @@ case_lex_comment_not_comment =
 case_lex_alpha_identifier :: Assertion
 case_lex_alpha_identifier =
     minilex_test' lex_alpha_identifier "a" $ \case
-        Just (l, [Right (Located _ (Token.AlphaIdentifier (Located _ "a")))])
+        Just (l, [Right (Located _ (Token.AlphaIdentifier "a"))])
             | remaining l == "" -> pure ()
         x -> minilex_test_fail "lex_alpha_identifier" x
 case_lex_alpha_identifier_with_numbers :: Assertion
 case_lex_alpha_identifier_with_numbers =
     minilex_test' lex_alpha_identifier "a12" $ \case
-        Just (l, [Right (Located _ (Token.AlphaIdentifier (Located _ "a12")))])
+        Just (l, [Right (Located _ (Token.AlphaIdentifier "a12"))])
             | remaining l == "" -> pure ()
         x -> minilex_test_fail "lex_alpha_identifier" x
 case_lex_alpha_identifier_apostrophes :: Assertion
 case_lex_alpha_identifier_apostrophes =
     minilex_test' lex_alpha_identifier "a''" $ \case
-        Just (l, [Right (Located _ (Token.AlphaIdentifier (Located _ "a''")))])
+        Just (l, [Right (Located _ (Token.AlphaIdentifier "a''"))])
             | remaining l == "" -> pure ()
         x -> minilex_test_fail "lex_alpha_identifier" x
 case_lex_alpha_identifier_underscore :: Assertion
 case_lex_alpha_identifier_underscore =
     minilex_test' lex_alpha_identifier "_a" $ \case
-        Just (l, [Right (Located _ (Token.AlphaIdentifier (Located _ "_a")))])
+        Just (l, [Right (Located _ (Token.AlphaIdentifier "_a"))])
             | remaining l == "" -> pure ()
         x -> minilex_test_fail "lex_alpha_identifier" x
 
 case_lex_symbol_identifier :: Assertion
 case_lex_symbol_identifier =
     minilex_test' lex_symbol_identifier "*" $ \case
-        Just (l, [Right (Located _ (Token.SymbolIdentifier (Located _ "*")))])
+        Just (l, [Right (Located _ (Token.SymbolIdentifier "*"))])
             | remaining l == "" -> pure ()
         x -> minilex_test_fail "lex_symbol_identifier" x
 case_lex_symbol_identifier_multiple :: Assertion
 case_lex_symbol_identifier_multiple =
     minilex_test' lex_symbol_identifier "*^&*&" $ \case
-        Just (l, [Right (Located _ (Token.SymbolIdentifier (Located _ "*^&*&")))])
+        Just (l, [Right (Located _ (Token.SymbolIdentifier "*^&*&"))])
             | remaining l == "" -> pure ()
         x -> minilex_test_fail "lex_symbol_identifier" x
 case_lex_symbol_identifier_kw :: Assertion

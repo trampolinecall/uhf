@@ -9,7 +9,7 @@ module UHF.Data.IR.IDGen
     )
     where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
 import qualified Control.Monad.Fix as Fix
 import qualified Control.Monad.Trans.Class as Trans

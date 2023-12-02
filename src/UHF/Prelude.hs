@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module UHF.Util.Prelude
+module UHF.Prelude
     ( module X
 
     , Prelude.seq
@@ -41,7 +41,7 @@ import qualified Data.Text
 import qualified Data.Text.IO
 import qualified Debug.Trace
 import qualified System.IO
-import qualified UHF.IO.FormattedString
+import qualified UHF.Source.FormattedString
 import Control.Monad.IO.Class (MonadIO, liftIO)
 
 import GHC.IO as X (IO)
@@ -173,14 +173,14 @@ class ConvertString a b where
 
 instance ConvertString Prelude.String Prelude.String where convert_str = identity
 instance ConvertString Prelude.String Data.Text.Text where convert_str = Data.Text.pack
-instance ConvertString Prelude.String UHF.IO.FormattedString.FormattedString where convert_str = UHF.IO.FormattedString.Literal . Data.Text.pack
+instance ConvertString Prelude.String UHF.Source.FormattedString.FormattedString where convert_str = UHF.Source.FormattedString.Literal . Data.Text.pack
 
 instance ConvertString Data.Text.Text Prelude.String where convert_str = Data.Text.unpack
 instance ConvertString Data.Text.Text Data.Text.Text where convert_str = identity
-instance ConvertString Data.Text.Text UHF.IO.FormattedString.FormattedString where convert_str = UHF.IO.FormattedString.Literal
+instance ConvertString Data.Text.Text UHF.Source.FormattedString.FormattedString where convert_str = UHF.Source.FormattedString.Literal
 
 -- cannot convert to other 2 string types without losing sgr information
-instance ConvertString UHF.IO.FormattedString.FormattedString UHF.IO.FormattedString.FormattedString where convert_str = identity
+instance ConvertString UHF.Source.FormattedString.FormattedString UHF.Source.FormattedString.FormattedString where convert_str = identity
 
 class Format a where
     format :: a -> Text

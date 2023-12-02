@@ -1,9 +1,9 @@
 module UHF.Phases.Type.Utils where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
 import UHF.Phases.Type.Unknown
-import qualified Arena
+import qualified UHF.Util.Arena as Arena
 import qualified UHF.Data.IR.Type as Type
 
 substitute :: TypeUnknownArena -> Type.TypeVarKey -> Type.Type TypeUnknownKey -> Type.Type TypeUnknownKey -> Type.Type TypeUnknownKey

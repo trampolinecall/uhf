@@ -3,17 +3,17 @@
 
 module UHF.Phases.ToANFIR (convert) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-import qualified Arena
-import qualified UHF.Data.IR.ANFIR as ANFIR
+import qualified UHF.Util.Arena as Arena
+import qualified UHF.Data.ANFIR as ANFIR
 import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.IDGen as IDGen
-import qualified UHF.Data.IR.RIR as RIR
+import qualified UHF.Data.RIR as RIR
 import qualified UHF.Data.IR.Type as Type
 
 type RIRExpr = RIR.Expr

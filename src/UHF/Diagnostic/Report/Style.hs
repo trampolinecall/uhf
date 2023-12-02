@@ -6,11 +6,11 @@ module UHF.Diagnostic.Report.Style
     , unicode_style
     ) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
 import System.Console.ANSI
 
-import qualified UHF.IO.FormattedString as FormattedString
+import qualified UHF.Source.FormattedString as FormattedString
 
 data Style
     = Style

@@ -1,11 +1,11 @@
-module UHF.Data.IR.RIR.PP (dump_cu) where
+module UHF.Data.RIR.PP (dump_cu) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
-import UHF.IO.Located (Located (Located, unlocate))
-import qualified Arena
+import UHF.Source.Located (Located (Located, unlocate))
+import qualified UHF.Util.Arena as Arena
 import qualified UHF.Data.IR.ID as ID
-import qualified UHF.Data.IR.RIR as RIR
+import qualified UHF.Data.RIR as RIR
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.PP as Type.PP
 import qualified UHF.PP as PP

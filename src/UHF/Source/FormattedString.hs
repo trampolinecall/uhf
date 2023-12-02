@@ -1,4 +1,4 @@
-module UHF.IO.FormattedString
+module UHF.Source.FormattedString
     ( FormattedString(..)
     , ColorsNeeded(..)
     , color_text

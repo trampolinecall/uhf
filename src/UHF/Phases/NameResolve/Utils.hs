@@ -35,16 +35,16 @@ module UHF.Phases.NameResolve.Utils
 
 -- TODO: clean up this and the 3 modules too
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
 import qualified Data.List as List
 import qualified Data.Map as Map
 
-import UHF.IO.Located (Located (Located, unlocate))
-import UHF.IO.Span (Span)
-import qualified Arena
+import UHF.Source.Located (Located (Located, unlocate))
+import UHF.Source.Span (Span)
+import qualified UHF.Util.Arena as Arena
 import qualified UHF.Compiler as Compiler
-import qualified UHF.Data.IR.SIR as SIR
+import qualified UHF.Data.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Diagnostic as Diagnostic
 

@@ -1,6 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module Unique
+module UHF.Util.Unique
     ( Unique
     , UniqueMaker
     , UniqueMakerT
@@ -11,7 +11,7 @@ module Unique
     )
     where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
 import qualified Control.Monad.Trans.Class as Trans
 import qualified Data.Functor.Identity as Identity

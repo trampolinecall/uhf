@@ -9,15 +9,15 @@ module UHF.Phases.ToRIR.PatternCheck
     , check_useful
     ) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
 import qualified Data.List as List
 import qualified Data.Text as Text
 
-import UHF.IO.Span (Span)
-import qualified Arena
+import UHF.Source.Span (Span)
+import qualified UHF.Util.Arena as Arena
 import qualified UHF.Data.IR.ID as ID
-import qualified UHF.Data.IR.SIR as SIR
+import qualified UHF.Data.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Diagnostic as Diagnostic
 

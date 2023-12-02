@@ -1,10 +1,10 @@
 module UHF.Phases.ToBackendIR (convert) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
-import qualified Arena
-import qualified UHF.Data.IR.ANFIR as ANFIR
-import qualified UHF.Data.IR.BackendIR as BackendIR
+import qualified UHF.Util.Arena as Arena
+import qualified UHF.Data.ANFIR as ANFIR
+import qualified UHF.Data.BackendIR as BackendIR
 import qualified UHF.Data.IR.Type as Type
 
 type Type = Maybe (Type.Type Void)

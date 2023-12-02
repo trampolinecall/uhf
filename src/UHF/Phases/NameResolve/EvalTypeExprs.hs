@@ -1,12 +1,14 @@
-module UHF.Phases.EvalTypeExprs
+module UHF.Phases.NameResolve.EvalTypeExprs
     ( eval
+    , Unevaled
+    , Evaled
     ) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
-import qualified Arena
+import qualified UHF.Util.Arena as Arena
 import qualified UHF.Compiler as Compiler
-import qualified UHF.Data.IR.SIR as SIR
+import qualified UHF.Data.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Phases.NameResolve.Utils as Utils
 

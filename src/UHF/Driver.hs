@@ -4,33 +4,32 @@ module UHF.Driver
     , compile
     ) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
 import qualified Data.Text.IO as Text.IO
 import qualified System.FilePath as FilePath
 
-import UHF.IO.File (File)
-import UHF.IO.Located (Located)
+import UHF.Source.File (File)
+import UHF.Source.Located (Located)
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.AST as AST
 import qualified UHF.Data.AST.Dump as AST.Dump
 import qualified UHF.Data.AST.PP as AST.PP
-import qualified UHF.Data.IR.ANFIR as ANFIR
-import qualified UHF.Data.IR.ANFIR.PP as ANFIR.PP
-import qualified UHF.Data.IR.BackendIR as BackendIR
-import qualified UHF.Data.IR.BackendIR.PP as BackendIR.PP
+import qualified UHF.Data.ANFIR as ANFIR
+import qualified UHF.Data.ANFIR.PP as ANFIR.PP
+import qualified UHF.Data.BackendIR as BackendIR
+import qualified UHF.Data.BackendIR.PP as BackendIR.PP
 import qualified UHF.Data.IR.Keys as IR.Keys
-import qualified UHF.Data.IR.RIR as RIR
-import qualified UHF.Data.IR.RIR.PP as RIR.PP
-import qualified UHF.Data.IR.SIR as SIR
-import qualified UHF.Data.IR.SIR.PP as SIR.PP
+import qualified UHF.Data.RIR as RIR
+import qualified UHF.Data.RIR.PP as RIR.PP
+import qualified UHF.Data.SIR as SIR
+import qualified UHF.Data.SIR.PP as SIR.PP
 import qualified UHF.Data.IR.Type as IR.Type
 import qualified UHF.Data.Token as Token
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Settings as DiagnosticSettings
-import qualified UHF.IO.File as File
-import qualified UHF.IO.FormattedString as FormattedString
-import qualified UHF.Phases.EvalTypeExprs as EvalTypeExprs
+import qualified UHF.Source.File as File
+import qualified UHF.Source.FormattedString as FormattedString
 import qualified UHF.Phases.InfixGroup as InfixGroup
 import qualified UHF.Phases.Lexer as Lexer
 import qualified UHF.Phases.NameResolve as NameResolve
@@ -38,7 +37,6 @@ import qualified UHF.Phases.OptimizeANFIR as OptimizeANFIR
 import qualified UHF.Phases.Parser as Parser
 import qualified UHF.Phases.RemovePoison as RemovePoison
 import qualified UHF.Phases.ReportHoles as ReportHoles
-import qualified UHF.Phases.ResolveReferStarts as ResolveReferStarts
 import qualified UHF.Phases.TSBackend as TSBackend
 import qualified UHF.Phases.ToANFIR as ToANFIR
 import qualified UHF.Phases.ToBackendIR as ToBackendIR
@@ -49,8 +47,6 @@ import qualified UHF.Phases.Type as Type
 type Tokens = ([Token.LToken], Token.LToken)
 type AST = [AST.Decl]
 type FirstSIR = SIR.SIR (Located Text, (), (), Located Text, (), Located Text, (), (), ())
-type NRStartsSIR = SIR.SIR (Maybe IR.Keys.DeclKey, (), (), Maybe IR.Keys.BoundValueKey, (), Maybe IR.Type.ADTVariantIndex, (), (), ())
-type TEESIR = SIR.SIR (Maybe IR.Keys.DeclKey, Maybe IR.Keys.DeclKey, Maybe (IR.Type.Type Void), Maybe IR.Keys.BoundValueKey, (), Maybe IR.Type.ADTVariantIndex, (), (), ())
 type NRSIR = SIR.SIR (Maybe IR.Keys.DeclKey, Maybe IR.Keys.DeclKey, Maybe (IR.Type.Type Void), Maybe IR.Keys.BoundValueKey, Maybe IR.Keys.BoundValueKey, Maybe IR.Type.ADTVariantIndex, Maybe IR.Type.ADTVariantIndex, (), ())
 type InfixGroupedSIR = SIR.SIR (Maybe IR.Keys.DeclKey, Maybe IR.Keys.DeclKey, Maybe (IR.Type.Type Void), Maybe IR.Keys.BoundValueKey, Maybe IR.Keys.BoundValueKey, Maybe IR.Type.ADTVariantIndex, Maybe IR.Type.ADTVariantIndex, (), Void)
 type TypedSIR = SIR.SIR (Maybe IR.Keys.DeclKey, Maybe IR.Keys.DeclKey, Maybe (IR.Type.Type Void), Maybe IR.Keys.BoundValueKey, Maybe IR.Keys.BoundValueKey, Maybe IR.Type.ADTVariantIndex, Maybe IR.Type.ADTVariantIndex, Maybe (IR.Type.Type Void), Void)
@@ -69,8 +65,6 @@ data PhaseResultsCache
         , _get_tokens :: Maybe (Tokens, Outputable)
         , _get_ast :: Maybe (AST, Outputable)
         , _get_first_sir :: Maybe (FirstSIR, Outputable)
-        , _get_nr_starts_sir :: Maybe (NRStartsSIR, Outputable)
-        , _get_teesir :: Maybe (TEESIR, Outputable)
         , _get_nrsir :: Maybe (NRSIR, Outputable)
         , _get_infix_grouped :: Maybe (InfixGroupedSIR, Outputable)
         , _get_typed_sir :: Maybe (TypedSIR, Outputable)
@@ -83,7 +77,7 @@ data PhaseResultsCache
         }
 type PhaseResultsState = StateT PhaseResultsCache WithDiagnosticsIO
 
-data OutputFormat = AST | ASTDump | SIR | NRStartsSIR | TEESIR | NRSIR | InfixGroupedSIR | TypedSIR | RIR | ANFIR | OptimizedANFIR | BackendIR | TS
+data OutputFormat = AST | ASTDump | SIR | NRSIR | InfixGroupedSIR | TypedSIR | RIR | ANFIR | OptimizedANFIR | BackendIR | TS
 data CompileOptions
     = CompileOptions
         { input_file :: FilePath
@@ -99,13 +93,11 @@ compile c_needed diagnostic_settings compile_options =
     pure (if Compiler.had_errors diagnostics then Left () else Right ())
 
 print_outputs :: CompileOptions -> File -> WithDiagnosticsIO ()
-print_outputs compile_options file = evalStateT (mapM_ print_output_format (output_formats compile_options)) (PhaseResultsCache file Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing)
+print_outputs compile_options file = evalStateT (mapM_ print_output_format (output_formats compile_options)) (PhaseResultsCache file Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing)
     where
         print_output_format AST = get_ast >>= output_if_outputable (\ ast -> lift (lift (putTextLn $ AST.PP.pp_decls ast)))
         print_output_format ASTDump = get_ast >>= output_if_outputable (\ ast -> lift (lift (putTextLn $ AST.Dump.dump ast)))
         print_output_format SIR = get_first_sir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_sir" (SIR.PP.dump_main_module ir))))
-        print_output_format NRStartsSIR = get_nr_starts_sir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_nr_starts_sir" (SIR.PP.dump_main_module ir))))
-        print_output_format TEESIR = get_teesir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_teesir" (SIR.PP.dump_main_module ir))))
         print_output_format NRSIR = get_nrsir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_nrsir" (SIR.PP.dump_main_module ir))))
         print_output_format InfixGroupedSIR = get_infix_grouped >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_infix_grouped" (SIR.PP.dump_main_module ir))))
         print_output_format TypedSIR = get_typed_sir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_typed_sir" (SIR.PP.dump_main_module ir))))
@@ -174,20 +166,10 @@ get_first_sir = get_or_calculate _get_first_sir (\ cache first_sir -> cache { _g
     where
         to_sir = get_ast >>= run_stage_on_previous_stage_output (convert_errors . ToSIR.convert)
 
-get_nr_starts_sir :: PhaseResultsState (NRStartsSIR, Outputable)
-get_nr_starts_sir = get_or_calculate _get_nr_starts_sir (\ cache nr_starts_sir -> cache { _get_nr_starts_sir = nr_starts_sir }) nr_starts
-    where
-        nr_starts = get_first_sir >>= run_stage_on_previous_stage_output (convert_errors . ResolveReferStarts.resolve)
-
-get_teesir :: PhaseResultsState (TEESIR, Outputable)
-get_teesir = get_or_calculate _get_teesir (\ cache teesir -> cache { _get_teesir = teesir }) eval_type_exprs
-    where
-        eval_type_exprs = get_nr_starts_sir >>= run_stage_on_previous_stage_output (convert_errors . EvalTypeExprs.eval)
-
 get_nrsir :: PhaseResultsState (NRSIR, Outputable)
 get_nrsir = get_or_calculate _get_nrsir (\ cache nrsir -> cache { _get_nrsir = nrsir }) name_resolve
     where
-        name_resolve = get_teesir >>= run_stage_on_previous_stage_output (convert_errors . NameResolve.resolve) -- TODO: make this operate on teesir
+        name_resolve = get_first_sir >>= run_stage_on_previous_stage_output (convert_errors . NameResolve.resolve) -- TODO: make this operate on teesir
 
 get_infix_grouped :: PhaseResultsState (InfixGroupedSIR, Outputable)
 get_infix_grouped = get_or_calculate _get_infix_grouped (\ cache infix_grouped -> cache { _get_infix_grouped = infix_grouped }) group_infix

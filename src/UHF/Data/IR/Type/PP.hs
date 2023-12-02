@@ -7,12 +7,12 @@ module UHF.Data.IR.Type.PP
     , refer_type_m
     ) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
 import Data.Functor.Identity (runIdentity)
 
-import UHF.IO.Located (Located (Located))
-import qualified Arena
+import UHF.Source.Located (Located (Located))
+import qualified UHF.Util.Arena as Arena
 import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.PP as PP

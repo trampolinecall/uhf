@@ -16,10 +16,10 @@ module UHF.Data.Token
     , to_token_type
     ) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
-import UHF.IO.EqIgnoringSpans
-import UHF.IO.Located (Located)
+import UHF.Source.EqIgnoringSpans
+import UHF.Source.Located (Located)
 
 data IntBase
     = Dec

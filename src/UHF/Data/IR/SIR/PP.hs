@@ -146,7 +146,7 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
                         next rhs >>= \ rhs ->
                         pure (PP.List [op, " ", rhs]))
                     ops >>= \ ops ->
-                pure (PP.List ["(", first, PP.Block PP.Inconsistent Nothing (Just " ") Nothing ops, ")"]))
+                pure (PP.List [first, PP.Block PP.Inconsistent Nothing (Just " ") Nothing ops]))
 
         levels (SIR.Expr'Call _ _ _ callee arg) = (1, \ cur _ -> cur callee >>= \ callee -> expr arg >>= \ arg -> pure (PP.FirstOnLineIfMultiline $ PP.List [callee, "(", arg, ")"]))
         levels (SIR.Expr'TypeApply _ _ _ e (arg, _)) = (1, \ cur _ -> cur e >>= \ e -> type_expr arg >>= \ arg -> pure (PP.List [e, "#(", arg, ")"]))

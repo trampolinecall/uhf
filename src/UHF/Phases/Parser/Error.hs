@@ -7,12 +7,11 @@ module UHF.Phases.Parser.Error
 
 import UHF.Util.Prelude
 
+import UHF.IO.EqIgnoringSpans
+import UHF.IO.Located (Located (Located))
 import qualified UHF.Data.Token as Token
-
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.IO.Located as Located
-import UHF.IO.Located (Located (Located))
-import UHF.IO.EqIgnoringSpans
 
 data Error
     = BadToken Int Token.LToken Token.TokenType Text

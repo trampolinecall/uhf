@@ -2,22 +2,18 @@ module UHF.Phases.Type.Error (Error(..), ErrorTypeContext(..)) where
 
 import UHF.Util.Prelude
 
+import qualified Data.Map as Map
+
+import UHF.IO.Located (Located (..))
+import UHF.IO.Span (Span)
+import UHF.Phases.Type.Aliases
+import UHF.Phases.Type.Constraint
+import UHF.Phases.Type.Unknown
 import qualified Arena
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.PP as Type.PP
-
-import qualified UHF.PP as PP
-
-import qualified Data.Map as Map
-
-import UHF.IO.Span (Span)
-import UHF.IO.Located (Located (..))
-
 import qualified UHF.Diagnostic as Diagnostic
-
-import UHF.Phases.Type.Unknown
-import UHF.Phases.Type.Aliases
-import UHF.Phases.Type.Constraint
+import qualified UHF.PP as PP
 
 type UnkNamer = State (Int, Map TypeUnknownKey Text)
 run_unk_namer :: UnkNamer a -> (a, Map TypeUnknownKey Text)

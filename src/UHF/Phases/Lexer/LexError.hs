@@ -5,9 +5,8 @@ module UHF.Phases.Lexer.LexError
 import UHF.Util.Prelude
 
 import UHF.IO.Span (Span)
-import qualified UHF.Diagnostic as Diagnostic
-
 import qualified Data.Text as Text
+import qualified UHF.Diagnostic as Diagnostic
 
 data Error
     = BadChar Char Span

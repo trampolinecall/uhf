@@ -3,7 +3,6 @@ module UHF.Phases.ToBackendIR (convert) where
 import UHF.Util.Prelude
 
 import qualified Arena
-
 import qualified UHF.Data.IR.ANFIR as ANFIR
 import qualified UHF.Data.IR.BackendIR as BackendIR
 import qualified UHF.Data.IR.Type as Type

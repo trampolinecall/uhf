@@ -17,7 +17,6 @@ module Arena
     , tests
     ) where
 
-import Test.Tasty
 import UHF.Util.Prelude
 
 import qualified Data.Sequence as Sequence

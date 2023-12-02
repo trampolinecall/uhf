@@ -9,16 +9,13 @@ module UHF.Data.IR.Type.PP
 
 import UHF.Util.Prelude
 
-import qualified Arena
-
-import qualified UHF.PP as PP
-
-import qualified UHF.Data.IR.Type as Type
-import qualified UHF.Data.IR.ID as ID
+import Data.Functor.Identity (runIdentity)
 
 import UHF.IO.Located (Located (Located))
-
-import Data.Functor.Identity (runIdentity)
+import qualified Arena
+import qualified UHF.Data.IR.ID as ID
+import qualified UHF.Data.IR.Type as Type
+import qualified UHF.PP as PP
 
 define_adt :: Type.ADT ty -> PP.Token
 define_adt (Type.ADT _ (Located _ name) _ _) = PP.List ["data ", PP.String name, ";"] -- TODO: variants and type vars

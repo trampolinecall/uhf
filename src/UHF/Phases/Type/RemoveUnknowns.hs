@@ -2,17 +2,15 @@ module UHF.Phases.Type.RemoveUnknowns (remove) where
 
 import UHF.Util.Prelude
 
-import qualified Arena
-import qualified UHF.Data.IR.SIR as SIR
-import qualified UHF.Data.IR.Type as Type
+import qualified Data.List.NonEmpty as NonEmpty
 
-import qualified UHF.Compiler as Compiler
-
-import UHF.Phases.Type.Unknown
 import UHF.Phases.Type.Aliases
 import UHF.Phases.Type.Error
-
-import qualified Data.List.NonEmpty as NonEmpty
+import UHF.Phases.Type.Unknown
+import qualified Arena
+import qualified UHF.Compiler as Compiler
+import qualified UHF.Data.IR.SIR as SIR
+import qualified UHF.Data.IR.Type as Type
 
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Control.Monad.Fix (mfix)

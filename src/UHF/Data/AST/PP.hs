@@ -2,11 +2,10 @@ module UHF.Data.AST.PP (pp_decls) where
 
 import UHF.Util.Prelude
 
+import UHF.IO.Located (Located (..))
+import qualified UHF.Data.AST as AST
 import qualified UHF.PP as PP
 import qualified UHF.PP.Precedence as PP.Precedence
-import qualified UHF.Data.AST as AST
-
-import UHF.IO.Located (Located (..))
 
 pp_decls :: [AST.Decl] -> Text
 pp_decls = PP.render . pp_decls'

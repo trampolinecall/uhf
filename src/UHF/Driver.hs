@@ -7,49 +7,44 @@ module UHF.Driver
 import UHF.Util.Prelude
 
 import qualified Data.Text.IO as Text.IO
-
 import qualified System.FilePath as FilePath
 
 import UHF.IO.File (File)
-import qualified UHF.IO.File as File
 import UHF.IO.Located (Located)
-
-import qualified UHF.IO.FormattedString as FormattedString
+import qualified UHF.Compiler as Compiler
+import qualified UHF.Data.AST as AST
+import qualified UHF.Data.AST.Dump as AST.Dump
+import qualified UHF.Data.AST.PP as AST.PP
+import qualified UHF.Data.IR.ANFIR as ANFIR
+import qualified UHF.Data.IR.ANFIR.PP as ANFIR.PP
+import qualified UHF.Data.IR.BackendIR as BackendIR
+import qualified UHF.Data.IR.BackendIR.PP as BackendIR.PP
+import qualified UHF.Data.IR.Keys as IR.Keys
+import qualified UHF.Data.IR.RIR as RIR
+import qualified UHF.Data.IR.RIR.PP as RIR.PP
+import qualified UHF.Data.IR.SIR as SIR
+import qualified UHF.Data.IR.SIR.PP as SIR.PP
+import qualified UHF.Data.IR.Type as IR.Type
+import qualified UHF.Data.Token as Token
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Settings as DiagnosticSettings
-
-import qualified UHF.Compiler as Compiler
-
-import qualified UHF.Data.Token as Token
-import qualified UHF.Data.AST as AST
-import qualified UHF.Data.IR.SIR as SIR
-import qualified UHF.Data.IR.RIR as RIR
-import qualified UHF.Data.IR.ANFIR as ANFIR
-import qualified UHF.Data.IR.BackendIR as BackendIR
-import qualified UHF.Data.IR.Keys as IR.Keys
-import qualified UHF.Data.IR.Type as IR.Type
-import qualified UHF.Data.AST.PP as AST.PP
-import qualified UHF.Data.AST.Dump as AST.Dump
-import qualified UHF.Data.IR.SIR.PP as SIR.PP
-import qualified UHF.Data.IR.RIR.PP as RIR.PP
-import qualified UHF.Data.IR.ANFIR.PP as ANFIR.PP
-import qualified UHF.Data.IR.BackendIR.PP as BackendIR.PP
-
-import qualified UHF.Phases.Lexer as Lexer
-import qualified UHF.Phases.Parser as Parser
-import qualified UHF.Phases.ToSIR as ToSIR
-import qualified UHF.Phases.ResolveReferStarts as ResolveReferStarts
+import qualified UHF.IO.File as File
+import qualified UHF.IO.FormattedString as FormattedString
 import qualified UHF.Phases.EvalTypeExprs as EvalTypeExprs
-import qualified UHF.Phases.NameResolve as NameResolve
 import qualified UHF.Phases.InfixGroup as InfixGroup
-import qualified UHF.Phases.Type as Type
-import qualified UHF.Phases.ReportHoles as ReportHoles
-import qualified UHF.Phases.ToRIR as ToRIR
-import qualified UHF.Phases.ToANFIR as ToANFIR
+import qualified UHF.Phases.Lexer as Lexer
+import qualified UHF.Phases.NameResolve as NameResolve
 import qualified UHF.Phases.OptimizeANFIR as OptimizeANFIR
-import qualified UHF.Phases.ToBackendIR as ToBackendIR
+import qualified UHF.Phases.Parser as Parser
 import qualified UHF.Phases.RemovePoison as RemovePoison
+import qualified UHF.Phases.ReportHoles as ReportHoles
+import qualified UHF.Phases.ResolveReferStarts as ResolveReferStarts
 import qualified UHF.Phases.TSBackend as TSBackend
+import qualified UHF.Phases.ToANFIR as ToANFIR
+import qualified UHF.Phases.ToBackendIR as ToBackendIR
+import qualified UHF.Phases.ToRIR as ToRIR
+import qualified UHF.Phases.ToSIR as ToSIR
+import qualified UHF.Phases.Type as Type
 
 type Tokens = ([Token.LToken], Token.LToken)
 type AST = [AST.Decl]

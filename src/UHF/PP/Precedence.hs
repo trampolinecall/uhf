@@ -15,9 +15,9 @@ module UHF.PP.Precedence
 
 import UHF.Util.Prelude
 
-import qualified UHF.PP as PP
-
 import Data.Functor.Identity (Identity(..), runIdentity)
+
+import qualified UHF.PP as PP
 
 type PPGivenCurrentAndNextLevels thing = (thing -> PP.Token) -> (thing -> PP.Token) -> PP.Token
 type PPGivenCurrentAndNextLevelsM m thing = (thing -> m PP.Token) -> (thing -> m PP.Token) -> m PP.Token

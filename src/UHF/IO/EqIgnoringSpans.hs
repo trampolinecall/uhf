@@ -7,9 +7,9 @@ module UHF.IO.EqIgnoringSpans (EqIgnoringSpans (..), expected_assert_eqis, asser
 
 import UHF.Util.Prelude
 
-import qualified UHF.IO.Span as Span
-
 import qualified GHC.Generics as Generics
+
+import qualified UHF.IO.Span as Span
 
 -- 'is' is short for 'ignoring spans'
 class EqIgnoringSpans a where

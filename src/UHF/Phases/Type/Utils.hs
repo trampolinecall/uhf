@@ -2,10 +2,9 @@ module UHF.Phases.Type.Utils where
 
 import UHF.Util.Prelude
 
+import UHF.Phases.Type.Unknown
 import qualified Arena
 import qualified UHF.Data.IR.Type as Type
-
-import UHF.Phases.Type.Unknown
 
 substitute :: TypeUnknownArena -> Type.TypeVarKey -> Type.Type TypeUnknownKey -> Type.Type TypeUnknownKey -> Type.Type TypeUnknownKey
 substitute unk_arena looking_for replacement ty@(Type.Type'Unknown unk) =

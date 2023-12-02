@@ -4,13 +4,11 @@ module UHF.Phases.Parser.Test (ParsingTest(..), make_token_stream, run_test) whe
 
 import UHF.Util.Prelude
 
-import qualified UHF.Phases.Parser.PEG as PEG
-
-import qualified UHF.IO.Located as Located
+import qualified Data.InfList as InfList
 
 import qualified UHF.Data.Token as Token
-
-import qualified Data.InfList as InfList
+import qualified UHF.IO.Located as Located
+import qualified UHF.Phases.Parser.PEG as PEG
 
 data ParsingTest = forall r. (Show r, Eq r) => ParsingTest [Char] (IO PEG.TokenStream) r [([Char], PEG.Parser r)]
 

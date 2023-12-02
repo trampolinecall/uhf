@@ -15,10 +15,10 @@ module UHF.IO.Span
 
 import UHF.Util.Prelude
 
-import qualified UHF.IO.File as File
 import UHF.IO.File (File)
-import qualified UHF.IO.Location as Location
 import UHF.IO.Location (Location)
+import qualified UHF.IO.File as File
+import qualified UHF.IO.Location as Location
 
 data Span = Span Location.Location Location.Location Location.Location deriving (Show, Eq)
 

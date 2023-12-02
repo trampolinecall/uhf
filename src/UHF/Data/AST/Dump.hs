@@ -2,10 +2,9 @@ module UHF.Data.AST.Dump (dump) where
 
 import UHF.Util.Prelude
 
-import qualified UHF.PP as PP
-import qualified UHF.Data.AST as AST
-
 import UHF.IO.Located (Located (..))
+import qualified UHF.Data.AST as AST
+import qualified UHF.PP as PP
 
 -- TODO: figure out how to automate this?
 -- TODO: automate this for every type?

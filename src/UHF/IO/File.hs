@@ -10,14 +10,13 @@ module UHF.IO.File
 
 import UHF.Util.Prelude hiding (show)
 
+import Data.Unique
 import GHC.Show (show)
 
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text.IO
 
-import Data.Unique
-
-data File = File { uniq :: Unique, path :: FilePath, contents :: Text, length :: Int}
+data File = File { uniq :: Unique, path :: FilePath, contents :: Text, length :: Int }
 
 instance Show File where
     show (File _ path _ _) = "File { path = " <> path <> ", ... }"

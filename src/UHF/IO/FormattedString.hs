@@ -10,9 +10,9 @@ module UHF.IO.FormattedString
 import Prelude -- use normal prelude because UHF.Prelude reexports this
 
 import Data.String (IsString(..))
-import qualified System.Console.ANSI as ANSI
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text.IO
+import qualified System.Console.ANSI as ANSI
 import qualified System.IO as IO
 
 data ColorsNeeded = Colors | NoColors | AutoDetect

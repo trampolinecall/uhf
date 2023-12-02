@@ -1,13 +1,13 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module UHF.Data.IR.SIR.Stage
+module UHF.Data.SIR.Stage
     ( Stage (..)
     , AllHaveInstance
     , AllShowable
     ) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
 import Data.Kind (Type, Constraint)
 

@@ -1,4 +1,4 @@
-module UHF.IO.Span
+module UHF.Source.Span
     ( Span
 
     , file, start, before_end, end
@@ -13,12 +13,12 @@ module UHF.IO.Span
     , is_single_line
     ) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
-import UHF.IO.File (File)
-import UHF.IO.Location (Location)
-import qualified UHF.IO.File as File
-import qualified UHF.IO.Location as Location
+import UHF.Source.File (File)
+import UHF.Source.Location (Location)
+import qualified UHF.Source.File as File
+import qualified UHF.Source.Location as Location
 
 data Span = Span Location.Location Location.Location Location.Location deriving (Show, Eq)
 

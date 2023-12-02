@@ -4,14 +4,14 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module UHF.Data.IR.SIR.PP (dump_main_module) where
+module UHF.Data.SIR.PP (dump_main_module) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
-import UHF.IO.Located (Located (Located, unlocate))
-import qualified Arena
+import UHF.Source.Located (Located (Located, unlocate))
+import qualified UHF.Util.Arena as Arena
 import qualified UHF.Data.IR.ID as ID
-import qualified UHF.Data.IR.SIR as SIR
+import qualified UHF.Data.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.PP as Type.PP
 import qualified UHF.PP as PP

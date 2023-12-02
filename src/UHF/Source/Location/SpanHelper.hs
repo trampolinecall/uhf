@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module UHF.IO.Location.SpanHelper
+module UHF.Source.Location.SpanHelper
     ( make_spans
     , make_spans'
     , make_spans_with_items
@@ -8,16 +8,16 @@ module UHF.IO.Location.SpanHelper
     , make_spans_with_show_items'
     ) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
 import qualified Data.Text as Text
 
-import UHF.IO.File (File)
-import UHF.IO.Located (Located (..))
-import UHF.IO.Span (Span)
-import qualified UHF.IO.File as File
-import qualified UHF.IO.Location as Location
-import qualified UHF.IO.Span as Span
+import UHF.Source.File (File)
+import UHF.Source.Located (Located (..))
+import UHF.Source.Span (Span)
+import qualified UHF.Source.File as File
+import qualified UHF.Source.Location as Location
+import qualified UHF.Source.Span as Span
 
 make_spans :: [Text] -> IO (File, [Span])
 make_spans = make_spans' "" " "

@@ -18,9 +18,9 @@ module UHF.Diagnostic.Diagnostic
     , OtherSection(..)
     ) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
-import UHF.IO.Span (Span)
+import UHF.Source.Span (Span)
 
 data Error = Error (Maybe Span) Text MessagesSection [OtherSection]
 data Warning = Warning (Maybe Span) Text MessagesSection [OtherSection]

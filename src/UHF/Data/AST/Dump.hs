@@ -1,8 +1,8 @@
 module UHF.Data.AST.Dump (dump) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
-import UHF.IO.Located (Located (..))
+import UHF.Source.Located (Located (..))
 import qualified UHF.Data.AST as AST
 import qualified UHF.PP as PP
 

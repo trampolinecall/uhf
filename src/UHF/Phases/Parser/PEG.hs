@@ -23,13 +23,13 @@ module UHF.Phases.Parser.PEG
     , tests
     ) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
 import qualified Data.InfList as InfList
 
-import UHF.IO.EqIgnoringSpans (eqis, expected_assert_eqis)
+import UHF.Source.EqIgnoringSpans (eqis, expected_assert_eqis)
 import qualified UHF.Data.Token as Token
-import qualified UHF.IO.Located as Located
+import qualified UHF.Source.Located as Located
 import qualified UHF.Phases.Parser.Error as Error
 
 type TokenStream = InfList.InfList (Int, Token.LToken)

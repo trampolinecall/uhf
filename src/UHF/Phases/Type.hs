@@ -1,12 +1,12 @@
 module UHF.Phases.Type (typecheck) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
 import UHF.Phases.Type.Aliases
 import UHF.Phases.Type.Error
-import qualified Arena
+import qualified UHF.Util.Arena as Arena
 import qualified UHF.Compiler as Compiler
-import qualified UHF.Data.IR.SIR as SIR
+import qualified UHF.Data.SIR as SIR
 import qualified UHF.Phases.Type.AddTypes as AddTypes
 import qualified UHF.Phases.Type.RemoveUnknowns as RemoveUnknowns
 import qualified UHF.Phases.Type.SolveConstraints as SolveConstraints

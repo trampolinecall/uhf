@@ -3,14 +3,14 @@
 
 module Main where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
 import Options.Applicative
 import qualified Data.Map as Map
 
 import qualified UHF.Diagnostic.Settings as DiagnosticSettings
 import qualified UHF.Driver as Driver
-import qualified UHF.IO.FormattedString as FormattedString
+import qualified UHF.Source.FormattedString as FormattedString
 
 data Args = Args Driver.CompileOptions FormattedString.ColorsNeeded DiagnosticSettings.Settings
 
@@ -39,8 +39,6 @@ argparser =
                                 [ ("ast", Driver.AST)
                                 , ("ast-dump", Driver.ASTDump)
                                 , ("sir", Driver.SIR)
-                                , ("name-resolved-starts", Driver.NRStartsSIR)
-                                , ("type-expressions-evaluated", Driver.TEESIR)
                                 , ("name-resolved", Driver.NRSIR)
                                 , ("infix-grouped", Driver.InfixGroupedSIR)
                                 , ("typed-sir", Driver.TypedSIR)

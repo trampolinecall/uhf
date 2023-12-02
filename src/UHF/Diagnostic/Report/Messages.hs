@@ -6,7 +6,7 @@ module UHF.Diagnostic.Report.Messages
     , tests
     ) where
 
-import UHF.Util.Prelude hiding (error)
+import UHF.Prelude hiding (error)
 
 import qualified Data.Either as Either
 import qualified Data.Function as Function
@@ -16,16 +16,16 @@ import qualified Data.Maybe as Maybe
 import qualified Data.Text as Text
 import qualified System.Console.ANSI as ANSI
 
-import UHF.IO.File (File)
-import UHF.IO.Location.SpanHelper
-import UHF.IO.Span (Span)
+import UHF.Source.File (File)
+import UHF.Source.Location.SpanHelper
+import UHF.Source.Span (Span)
 import qualified UHF.Diagnostic.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Report.Line as Line
 import qualified UHF.Diagnostic.Report.Style as Style
 import qualified UHF.Diagnostic.Report.Utils as Utils
-import qualified UHF.IO.FormattedString as FormattedString
-import qualified UHF.IO.Location as Location
-import qualified UHF.IO.Span as Span
+import qualified UHF.Source.FormattedString as FormattedString
+import qualified UHF.Source.Location as Location
+import qualified UHF.Source.Span as Span
 
 -- TODO: fix errors on eof where messages arent shown
 -- TODO: fix column counting that doesnt work with unicode

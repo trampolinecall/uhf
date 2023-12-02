@@ -1,8 +1,8 @@
 module UHF.Data.AST.PP (pp_decls) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
-import UHF.IO.Located (Located (..))
+import UHF.Source.Located (Located (..))
 import qualified UHF.Data.AST as AST
 import qualified UHF.PP as PP
 import qualified UHF.PP.Precedence as PP.Precedence

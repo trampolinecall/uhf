@@ -1,15 +1,15 @@
 {-# LANGUAGE DeriveAnyClass #-}
 
-module UHF.IO.Located
+module UHF.Source.Located
     ( Located(..)
     , dummy_locate -- TODO: use conditional compilation? to make sure this only compiles in tests
     ) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
-import UHF.IO.EqIgnoringSpans
-import UHF.IO.Span (Span)
-import qualified UHF.IO.Span as Span
+import UHF.Source.EqIgnoringSpans
+import UHF.Source.Span (Span)
+import qualified UHF.Source.Span as Span
 
 data Located a = Located { just_span :: Span, unlocate :: a } deriving (Show, Generic, Eq, EqIgnoringSpans)
 

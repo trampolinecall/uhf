@@ -1,9 +1,9 @@
 module UHF.Phases.RemovePoison (remove_poison) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
-import qualified Arena
-import qualified UHF.Data.IR.BackendIR as BackendIR
+import qualified UHF.Util.Arena as Arena
+import qualified UHF.Data.BackendIR as BackendIR
 import qualified UHF.Data.IR.Type as Type
 
 type PoisonedBackendIR = BackendIR.BackendIR PoisonedType ()

@@ -1,4 +1,4 @@
-module UHF.Data.IR.RIR
+module UHF.Data.RIR
     ( RIR (..)
     , CU (..)
 
@@ -17,11 +17,11 @@ module UHF.Data.IR.RIR
     , expr_span
     ) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
 import UHF.Data.IR.Keys
-import UHF.IO.Span (Span)
-import qualified Arena
+import UHF.Source.Span (Span)
+import qualified UHF.Util.Arena as Arena
 import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.Type as Type
 

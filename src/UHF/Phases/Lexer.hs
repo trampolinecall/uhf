@@ -7,22 +7,22 @@ module UHF.Phases.Lexer
     , tests
     ) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
 import Data.Char (isAlpha, isDigit, isOctDigit, isHexDigit, isSpace, digitToInt)
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 
-import UHF.IO.File (File)
-import UHF.IO.Located (Located (Located))
-import UHF.IO.Location (Location)
-import UHF.IO.Span (Span)
+import UHF.Source.File (File)
+import UHF.Source.Located (Located (Located))
+import UHF.Source.Location (Location)
+import UHF.Source.Span (Span)
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.Token as Token
-import qualified UHF.IO.File as File
-import qualified UHF.IO.Located as Located
-import qualified UHF.IO.Location as Location
-import qualified UHF.IO.Span as Span
+import qualified UHF.Source.File as File
+import qualified UHF.Source.Located as Located
+import qualified UHF.Source.Location as Location
+import qualified UHF.Source.Span as Span
 import qualified UHF.Phases.Lexer.LexError as LexError
 
 -- lexing {{{1

@@ -1,7 +1,7 @@
 module UHF.Phases.Type.Constraint where
 
-import UHF.IO.Located (Located)
-import UHF.IO.Span (Span)
+import UHF.Source.Located (Located)
+import UHF.Source.Span (Span)
 import UHF.Phases.Type.Aliases
 import UHF.Phases.Type.Unknown
 

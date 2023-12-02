@@ -12,25 +12,24 @@ build-type:     Simple
 
 library
   exposed-modules:
-      Arena
       UHF.Compiler
+      UHF.Data.ANFIR
+      UHF.Data.ANFIR.PP
       UHF.Data.AST
       UHF.Data.AST.Dump
       UHF.Data.AST.PP
-      UHF.Data.IR.ANFIR
-      UHF.Data.IR.ANFIR.PP
-      UHF.Data.IR.BackendIR
-      UHF.Data.IR.BackendIR.PP
+      UHF.Data.BackendIR
+      UHF.Data.BackendIR.PP
       UHF.Data.IR.ID
       UHF.Data.IR.IDGen
       UHF.Data.IR.Keys
-      UHF.Data.IR.RIR
-      UHF.Data.IR.RIR.PP
-      UHF.Data.IR.SIR
-      UHF.Data.IR.SIR.PP
-      UHF.Data.IR.SIR.Stage
       UHF.Data.IR.Type
       UHF.Data.IR.Type.PP
+      UHF.Data.RIR
+      UHF.Data.RIR.PP
+      UHF.Data.SIR
+      UHF.Data.SIR.PP
+      UHF.Data.SIR.Stage
       UHF.Data.Token
       UHF.Diagnostic
       UHF.Diagnostic.Diagnostic
@@ -41,18 +40,13 @@ library
       UHF.Diagnostic.Report.Utils
       UHF.Diagnostic.Settings
       UHF.Driver
-      UHF.IO.EqIgnoringSpans
-      UHF.IO.File
-      UHF.IO.FormattedString
-      UHF.IO.Located
-      UHF.IO.Location
-      UHF.IO.Location.SpanHelper
-      UHF.IO.Span
-      UHF.Phases.EvalTypeExprs
       UHF.Phases.InfixGroup
       UHF.Phases.Lexer
       UHF.Phases.Lexer.LexError
       UHF.Phases.NameResolve
+      UHF.Phases.NameResolve.EvalTypeExprs
+      UHF.Phases.NameResolve.ResolveReferStarts
+      UHF.Phases.NameResolve.ResolveVPIdens
       UHF.Phases.NameResolve.Utils
       UHF.Phases.OptimizeANFIR
       UHF.Phases.OptimizeANFIR.RemoveRefers
@@ -63,7 +57,6 @@ library
       UHF.Phases.Parser.Test
       UHF.Phases.RemovePoison
       UHF.Phases.ReportHoles
-      UHF.Phases.ResolveReferStarts
       UHF.Phases.ToANFIR
       UHF.Phases.ToBackendIR
       UHF.Phases.ToRIR
@@ -85,8 +78,16 @@ library
       UHF.PP
       UHF.PP.IndentationMonad
       UHF.PP.Precedence
-      UHF.Util.Prelude
-      Unique
+      UHF.Prelude
+      UHF.Source.EqIgnoringSpans
+      UHF.Source.File
+      UHF.Source.FormattedString
+      UHF.Source.Located
+      UHF.Source.Location
+      UHF.Source.Location.SpanHelper
+      UHF.Source.Span
+      UHF.Util.Arena
+      UHF.Util.Unique
   other-modules:
       Paths_uhf
   hs-source-dirs:

@@ -2,9 +2,9 @@ module UHF.Phases.Lexer.LexError
     ( Error(..)
     ) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
-import UHF.IO.Span (Span)
+import UHF.Source.Span (Span)
 import qualified Data.Text as Text
 import qualified UHF.Diagnostic as Diagnostic
 

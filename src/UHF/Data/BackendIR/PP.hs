@@ -1,14 +1,14 @@
 {-# LANGUAGE FlexibleInstances #-}
 
-module UHF.Data.IR.BackendIR.PP (dump_cu) where
+module UHF.Data.BackendIR.PP (dump_cu) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
 import qualified Data.Set as Set
 
-import UHF.IO.Located (Located (Located, unlocate))
-import qualified Arena
-import qualified UHF.Data.IR.BackendIR as BackendIR
+import UHF.Source.Located (Located (Located, unlocate))
+import qualified UHF.Util.Arena as Arena
+import qualified UHF.Data.BackendIR as BackendIR
 import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.PP as Type.PP

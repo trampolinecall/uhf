@@ -9,9 +9,9 @@ module UHF.Data.IR.Keys
     , ParamKey
     ) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
-import qualified Arena
+import qualified UHF.Util.Arena as Arena
 
 -- TODO: remove any Ord
 

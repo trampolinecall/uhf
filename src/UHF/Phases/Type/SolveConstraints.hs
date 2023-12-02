@@ -1,18 +1,18 @@
 module UHF.Phases.Type.SolveConstraints (solve) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
 import qualified Data.Map as Map
 
-import UHF.IO.Located (Located (..))
-import UHF.IO.Span (Span)
+import UHF.Source.Located (Located (..))
+import UHF.Source.Span (Span)
 import UHF.Phases.Type.Aliases
 import UHF.Phases.Type.Constraint
 import UHF.Phases.Type.Error
 import UHF.Phases.Type.StateWithUnk
 import UHF.Phases.Type.Unknown
 import UHF.Phases.Type.Utils
-import qualified Arena
+import qualified UHF.Util.Arena as Arena
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type as Type
 

@@ -1,8 +1,8 @@
 module UHF.Phases.OptimizeANFIR (optimize) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
-import qualified UHF.Data.IR.ANFIR as ANFIR
+import qualified UHF.Data.ANFIR as ANFIR
 import qualified UHF.Phases.OptimizeANFIR.RemoveRefers as RemoveRefers
 
 optimize :: ANFIR.ANFIR -> ANFIR.ANFIR

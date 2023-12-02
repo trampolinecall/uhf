@@ -8,15 +8,15 @@ module UHF.Phases.Parser
     , tests
    ) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
 import qualified Data.InfList as InfList
 
-import UHF.IO.Located (Located (Located))
+import UHF.Source.Located (Located (Located))
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.AST as AST
 import qualified UHF.Data.Token as Token
-import qualified UHF.IO.Located as Located
+import qualified UHF.Source.Located as Located
 import qualified UHF.Phases.Parser.Error as Error
 import qualified UHF.Phases.Parser.PEG as PEG
 -- import qualified UHF.Phases.Parser.Test as Test

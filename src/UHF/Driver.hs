@@ -8,7 +8,11 @@ import UHF.Prelude
 
 import qualified Data.Text.IO as Text.IO
 import qualified System.FilePath as FilePath
+import qualified Pipes
+import Control.Monad (forever)
 
+import UHF.IO.File (File)
+import UHF.IO.Located (Located)
 import UHF.Source.File (File)
 import UHF.Source.Located (Located)
 import qualified UHF.Compiler as Compiler
@@ -28,6 +32,8 @@ import qualified UHF.Data.SIR.PP as SIR.PP
 import qualified UHF.Data.Token as Token
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Settings as DiagnosticSettings
+import qualified UHF.IO.File as File
+import qualified UHF.IO.FormattedString as FormattedString
 import qualified UHF.Parts.TypeSolver as TypeSolver
 import qualified UHF.Phases.InfixGroup as InfixGroup
 import qualified UHF.Phases.Lexer as Lexer
@@ -63,7 +69,6 @@ type WithDiagnosticsIO = Compiler.WithDiagnosticsT Diagnostic.Error Diagnostic.W
 data PhaseResultsCache
     = PhaseResultsCache
         { _get_file :: File
-        , _get_tokens :: Maybe (Tokens, Outputable)
         , _get_ast :: Maybe (AST, Outputable)
         , _get_first_sir :: Maybe (FirstSIR, Outputable)
         , _get_nrsir :: Maybe (NRSIR, Outputable)
@@ -152,15 +157,16 @@ on_tuple_first f (a, b) = (f a, b)
 
 --- TODO: use template haskell for this?
 -- all of these functions return the result of a phase either by calculating it or retrieving it from the cache
-get_tokens :: PhaseResultsState (Tokens, Outputable)
-get_tokens = get_or_calculate _get_tokens (\ cache tokens -> cache { _get_tokens = tokens }) lex
-    where
-        lex = _get_file <$> get >>= \ file -> convert_errors (Lexer.lex file)
-
 get_ast :: PhaseResultsState (AST, Outputable)
 get_ast = get_or_calculate _get_ast (\ cache ast -> cache { _get_ast = ast }) parse_phase
     where
-        parse_phase = get_tokens >>= run_stage_on_previous_stage_output (\ (tokens, eof) -> convert_errors $ Parser.parse tokens eof)
+        parse_phase =
+            _get_file <$> get >>= \ file ->
+            let (eof_token, tokens_no_eof) = Lexer.lex file
+                token_stream = tokens_no_eof >> forever Pipes.yield eof_token
+            in
+            convert_errors $ Pipes.runEffect $ token_stream Pipes.>-> Parser.parse
+            -- run_stage_on_previous_stage_output (\ (tokens, eof) -> convert_errors $ Parser.parse tokens eof)
 
 get_first_sir :: PhaseResultsState (FirstSIR, Outputable)
 get_first_sir = get_or_calculate _get_first_sir (\ cache first_sir -> cache { _get_first_sir = first_sir }) to_sir

@@ -29,11 +29,12 @@ import qualified Pipes
 import qualified Pipes.Prelude
 
 -- lexing {{{1
-lex :: File -> Pipes.Producer Token.LToken (Compiler.WithDiagnostics LexError.Error Void) Token.LToken
+lex :: File -> (Token.LToken, Pipes.Producer Token.LToken (Compiler.WithDiagnostics LexError.Error Void) ())
 lex f =
     let eof = Located (Span.end_of_file f) (Token.EOF ())
-    in runStateT run (Location.new f) >> pure (eof)
+    in (eof, evalStateT run (Location.new f))
     where
+        run :: StateT Location (Pipes.Producer Token.LToken (Compiler.WithDiagnostics LexError.Error Void)) ()
         run =
             get >>= \ l ->
             if at_end l
@@ -264,15 +265,15 @@ case_lex :: Assertion
 case_lex =
     let src = "abc *&* ( \"adji\n"
     in File.new "a" src >>= \ f ->
-    case runWriter $ Pipes.Prelude.toListM' $ lex f of
-        (([Located _ (Token.AlphaIdentifier "abc"), Located _ (Token.SymbolIdentifier "*&*"), Located _ (Token.SingleTypeToken Token.OParen)], _), Compiler.Diagnostics [LexError.UnclosedStrLit _] []) -> pure ()
+    case runWriter $ Pipes.Prelude.toListM $ snd $ lex f of
+        ([Located _ (Token.AlphaIdentifier "abc"), Located _ (Token.SymbolIdentifier "*&*"), Located _ (Token.SingleTypeToken Token.OParen)], Compiler.Diagnostics [LexError.UnclosedStrLit _] []) -> pure ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
 case_lex_empty :: Assertion
 case_lex_empty =
     File.new "a" "" >>= \ f ->
-    case runWriter $ Pipes.Prelude.toListM' $ lex f of
-        (([], _), Compiler.Diagnostics [] []) -> pure ()
+    case runWriter $ Pipes.Prelude.toListM $ snd $ lex f of
+        ([], Compiler.Diagnostics [] []) -> pure ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
 minilex_test :: (Location -> r) -> Text -> (r -> IO ()) -> IO ()

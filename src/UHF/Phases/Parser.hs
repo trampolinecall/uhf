@@ -21,12 +21,18 @@ import qualified UHF.Phases.Parser.Error as Error
 import qualified UHF.Phases.Parser.PEG as PEG
 -- import qualified UHF.Phases.Parser.Test as Test
 
+import qualified Pipes
+import qualified Pipes.Prelude
+
 -- TODO: write tests
 -- TODO: improve parser errors
 
 -- parse {{{1
-parse :: [Token.LToken] -> Token.LToken -> Compiler.WithDiagnostics (Located [Error.Error]) Void [AST.Decl]
-parse toks eof_tok =
+parse :: Pipes.Consumer Token.LToken (Compiler.WithDiagnostics (Located [Error.Error]) Void) [AST.Decl]
+parse = todo
+
+parse_non_pipes :: [Token.LToken] -> Token.LToken -> Compiler.WithDiagnostics (Located [Error.Error]) Void [AST.Decl]
+parse_non_pipes toks eof_tok =
     case PEG.run_parser parse' (InfList.zip (InfList.iterate (1+) 0) (toks InfList.+++ InfList.repeat eof_tok)) of
         (_, Just (res, _)) -> pure res
         (bt_errors, _) ->

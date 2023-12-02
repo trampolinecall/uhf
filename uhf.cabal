@@ -120,7 +120,6 @@ library
     , containers
     , file-embed
     , filepath
-    , inflist
     , json
     , mtl >2.3
     , pipes

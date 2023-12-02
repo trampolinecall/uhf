@@ -34,7 +34,6 @@ library:
     - mtl > 2.3
     - transformers
     - template-haskell
-    - inflist
     - file-embed
     - json
     - filepath

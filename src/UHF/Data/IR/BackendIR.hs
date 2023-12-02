@@ -28,13 +28,12 @@ module UHF.Data.IR.BackendIR
 
 import UHF.Util.Prelude
 
-import qualified Arena
-
 import qualified Data.Set as Set
 
 import UHF.Data.IR.Keys
-import qualified UHF.Data.IR.Type as Type
+import qualified Arena
 import qualified UHF.Data.IR.ID as ID
+import qualified UHF.Data.IR.Type as Type
 
 data BackendIR ty poison_allowed
     = BackendIR

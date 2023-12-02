@@ -16,8 +16,8 @@ module UHF.Data.IR.ID
 
 import UHF.Util.Prelude
 
-import qualified Data.Text as Text
 import qualified Data.Char as Char
+import qualified Data.Text as Text
 import qualified Numeric
 
 data ModuleID = ModuleID [Text] | ModuleID'Root deriving Show

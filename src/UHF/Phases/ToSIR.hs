@@ -2,21 +2,17 @@ module UHF.Phases.ToSIR (convert) where
 
 import UHF.Util.Prelude
 
-import qualified Arena
+import Control.Monad.Trans.Maybe (runMaybeT)
 
+import UHF.IO.Located (Located (..))
+import UHF.IO.Span (Span)
+import qualified Arena
+import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.AST as AST
+import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
-import qualified UHF.Data.IR.ID as ID
-
-import UHF.IO.Span (Span)
-import UHF.IO.Located (Located (..))
-
 import qualified UHF.Diagnostic as Diagnostic
-
-import qualified UHF.Compiler as Compiler
-
-import Control.Monad.Trans.Maybe (runMaybeT)
 
 data Error
     = Tuple1 Span

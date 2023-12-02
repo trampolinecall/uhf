@@ -10,19 +10,16 @@ module UHF.Phases.Parser
 
 import UHF.Util.Prelude
 
-import qualified UHF.Phases.Parser.PEG as PEG
-import qualified UHF.Phases.Parser.Error as Error
--- import qualified UHF.Phases.Parser.Test as Test
-
-import qualified UHF.Data.Token as Token
-import qualified UHF.Data.AST as AST
-
 import qualified Data.InfList as InfList
 
-import qualified UHF.IO.Located as Located
 import UHF.IO.Located (Located (Located))
-
 import qualified UHF.Compiler as Compiler
+import qualified UHF.Data.AST as AST
+import qualified UHF.Data.Token as Token
+import qualified UHF.IO.Located as Located
+import qualified UHF.Phases.Parser.Error as Error
+import qualified UHF.Phases.Parser.PEG as PEG
+-- import qualified UHF.Phases.Parser.Test as Test
 
 -- TODO: write tests
 -- TODO: improve parser errors

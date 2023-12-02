@@ -5,7 +5,6 @@ import UHF.Util.Prelude
 import qualified Arena
 import qualified UHF.Data.IR.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
-
 import qualified UHF.Phases.Type.Unknown as Unknown
 
 type TypeWithUnk = Type.Type Unknown.TypeUnknownKey

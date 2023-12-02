@@ -4,7 +4,6 @@ import UHF.Util.Prelude
 
 import qualified UHF.PP as PP
 import qualified UHF.PP.Precedence as PP.Precedence
-
 import qualified UHF.Phases.TSBackend.TS as TS
 
 stmts :: [TS.Stmt] -> Text

@@ -32,16 +32,13 @@ module UHF.Data.IR.SIR
 
 import UHF.Util.Prelude
 
-import qualified Arena
-
 import UHF.Data.IR.Keys
-import qualified UHF.Data.IR.Type as Type
-import qualified UHF.Data.IR.ID as ID
-
-import qualified UHF.Data.IR.SIR.Stage as Stage
-
-import UHF.IO.Span (Span)
 import UHF.IO.Located (Located)
+import UHF.IO.Span (Span)
+import qualified Arena
+import qualified UHF.Data.IR.ID as ID
+import qualified UHF.Data.IR.SIR.Stage as Stage
+import qualified UHF.Data.IR.Type as Type
 
 -- "syntax based ir"
 data SIR stage

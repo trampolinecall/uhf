@@ -8,26 +8,24 @@ module UHF.Diagnostic.Report.Messages
 
 import UHF.Util.Prelude hiding (error)
 
-import UHF.IO.Location.SpanHelper
-
-import qualified UHF.Diagnostic.Diagnostic as Diagnostic
-import qualified UHF.Diagnostic.Report.Line as Line
-import qualified UHF.Diagnostic.Report.Utils as Utils
-import qualified UHF.Diagnostic.Report.Style as Style
-
-import qualified UHF.IO.FormattedString as FormattedString
-import UHF.IO.File (File)
-import qualified UHF.IO.Location as Location
-import UHF.IO.Span (Span)
-import qualified UHF.IO.Span as Span
-
-import qualified Data.Text as Text
-import qualified Data.Maybe as Maybe
 import qualified Data.Either as Either
 import qualified Data.Function as Function
 import qualified Data.List as List
 import qualified Data.Map as Map
+import qualified Data.Maybe as Maybe
+import qualified Data.Text as Text
 import qualified System.Console.ANSI as ANSI
+
+import UHF.IO.File (File)
+import UHF.IO.Location.SpanHelper
+import UHF.IO.Span (Span)
+import qualified UHF.Diagnostic.Diagnostic as Diagnostic
+import qualified UHF.Diagnostic.Report.Line as Line
+import qualified UHF.Diagnostic.Report.Style as Style
+import qualified UHF.Diagnostic.Report.Utils as Utils
+import qualified UHF.IO.FormattedString as FormattedString
+import qualified UHF.IO.Location as Location
+import qualified UHF.IO.Span as Span
 
 -- TODO: fix errors on eof where messages arent shown
 -- TODO: fix column counting that doesnt work with unicode

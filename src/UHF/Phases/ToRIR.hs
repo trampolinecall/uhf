@@ -2,21 +2,18 @@ module UHF.Phases.ToRIR (PatternCheck.CompletenessError, PatternCheck.NotUseful,
 
 import UHF.Util.Prelude
 
-import qualified Arena
+import qualified Data.List as List
 
-import qualified UHF.Compiler as Compiler
-
-import UHF.IO.Span (Span)
 import UHF.IO.Located (Located (Located, unlocate))
-
-import qualified UHF.Data.IR.SIR as SIR
-import qualified UHF.Data.IR.RIR as RIR
-import qualified UHF.Data.IR.Type as Type
+import UHF.IO.Span (Span)
+import qualified Arena
+import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.IDGen as IDGen
+import qualified UHF.Data.IR.RIR as RIR
+import qualified UHF.Data.IR.SIR as SIR
+import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Phases.ToRIR.PatternCheck as PatternCheck
-
-import qualified Data.List as List
 
 type Type = Maybe (Type.Type Void)
 

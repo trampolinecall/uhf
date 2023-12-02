@@ -5,13 +5,10 @@ module UHF.Phases.NameResolve
 import UHF.Util.Prelude
 
 import qualified Arena
-
 import qualified UHF.Compiler as Compiler
-
-import qualified UHF.Phases.NameResolve.Utils as Utils
-
 import qualified UHF.Data.IR.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Phases.NameResolve.Utils as Utils
 
 type DIden = Maybe SIR.DeclKey
 

@@ -19,13 +19,11 @@ module UHF.Data.IR.RIR
 
 import UHF.Util.Prelude
 
-import qualified Arena
-
 import UHF.Data.IR.Keys
-import qualified UHF.Data.IR.Type as Type
-import qualified UHF.Data.IR.ID as ID
-
 import UHF.IO.Span (Span)
+import qualified Arena
+import qualified UHF.Data.IR.ID as ID
+import qualified UHF.Data.IR.Type as Type
 
 -- "reduced ir"
 -- not used a lot; serves mostly as a intermediary step where a lot of things get desugared to make the transition to anfir easier

@@ -2,19 +2,17 @@ module UHF.Diagnostic.Report.Utils where
 
 import UHF.Util.Prelude
 
-import UHF.IO.Location.SpanHelper
-
-import qualified UHF.Diagnostic.Report.Line as Line
-import qualified UHF.Diagnostic.Report.Style as Style
-
-import qualified UHF.IO.File as File
-import UHF.IO.File (File)
-import qualified UHF.IO.Span as Span
-import UHF.IO.Span (Span)
-
-import qualified Data.Text as Text
 import qualified Data.List as List
 import qualified Data.Map as Map
+import qualified Data.Text as Text
+
+import UHF.IO.File (File)
+import UHF.IO.Location.SpanHelper
+import UHF.IO.Span (Span)
+import qualified UHF.Diagnostic.Report.Line as Line
+import qualified UHF.Diagnostic.Report.Style as Style
+import qualified UHF.IO.File as File
+import qualified UHF.IO.Span as Span
 
 newtype FileCmpByPath = FileCmpByPath { un_fcbp :: File } deriving (Show)
 instance Ord FileCmpByPath where

@@ -24,14 +24,12 @@ module UHF.Data.IR.Type
 
 import UHF.Util.Prelude
 
-import qualified Arena
+import qualified Data.List as List
 
 import UHF.Data.IR.Keys
-import qualified UHF.Data.IR.ID as ID
-
 import UHF.IO.Located (Located)
-
-import qualified Data.List as List
+import qualified Arena
+import qualified UHF.Data.IR.ID as ID
 
 data Type unk
     = Type'ADT ADTKey [Type unk]

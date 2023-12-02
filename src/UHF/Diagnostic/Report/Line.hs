@@ -15,13 +15,12 @@ module UHF.Diagnostic.Report.Line
 
 import UHF.Util.Prelude
 
-import qualified UHF.Diagnostic.Report.Style as Style
-import qualified UHF.IO.FormattedString as FormattedString
-
-import qualified UHF.IO.File as File
-import UHF.IO.File (File)
-
 import qualified Data.Text as Text
+
+import UHF.IO.File (File)
+import qualified UHF.Diagnostic.Report.Style as Style
+import qualified UHF.IO.File as File
+import qualified UHF.IO.FormattedString as FormattedString
 
 data Line = Line { prefix :: Text, separ :: Char, contents :: FormattedString.FormattedString } deriving (Show, Eq)
 

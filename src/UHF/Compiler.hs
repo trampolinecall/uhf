@@ -17,15 +17,12 @@ module UHF.Compiler
 import UHF.Util.Prelude
 
 import Data.Functor.Identity
-
-import qualified System.IO as IO
-
 import qualified Data.Sequence as Sequence
-
-import qualified UHF.IO.FormattedString as FormattedString
+import qualified System.IO as IO
 
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Settings as DiagnosticSettings
+import qualified UHF.IO.FormattedString as FormattedString
 
 type WithDiagnosticsT e w = WriterT (Diagnostics e w)
 type WithDiagnostics e w = WithDiagnosticsT e w Identity

@@ -8,9 +8,9 @@ module UHF.Diagnostic.Report.Style
 
 import UHF.Util.Prelude
 
-import qualified UHF.IO.FormattedString as FormattedString
-
 import System.Console.ANSI
+
+import qualified UHF.IO.FormattedString as FormattedString
 
 data Style
     = Style

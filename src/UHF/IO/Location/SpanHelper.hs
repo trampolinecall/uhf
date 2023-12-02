@@ -10,14 +10,14 @@ module UHF.IO.Location.SpanHelper
 
 import UHF.Util.Prelude
 
-import qualified UHF.IO.File as File
+import qualified Data.Text as Text
+
 import UHF.IO.File (File)
+import UHF.IO.Located (Located (..))
+import UHF.IO.Span (Span)
+import qualified UHF.IO.File as File
 import qualified UHF.IO.Location as Location
 import qualified UHF.IO.Span as Span
-import UHF.IO.Span (Span)
-import UHF.IO.Located (Located (..))
-
-import qualified Data.Text as Text
 
 make_spans :: [Text] -> IO (File, [Span])
 make_spans = make_spans' "" " "

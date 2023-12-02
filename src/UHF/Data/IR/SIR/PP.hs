@@ -8,17 +8,14 @@ module UHF.Data.IR.SIR.PP (dump_main_module) where
 
 import UHF.Util.Prelude
 
+import UHF.IO.Located (Located (Located, unlocate))
 import qualified Arena
-
-import qualified UHF.PP as PP
-import qualified UHF.PP.Precedence as PP.Precedence
-
+import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.PP as Type.PP
-import qualified UHF.Data.IR.ID as ID
-
-import UHF.IO.Located (Located (Located, unlocate))
+import qualified UHF.PP as PP
+import qualified UHF.PP.Precedence as PP.Precedence
 
 type IRReader stage = Reader (SIR.SIR stage)
 

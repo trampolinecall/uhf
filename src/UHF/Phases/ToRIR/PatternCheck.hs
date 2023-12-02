@@ -11,19 +11,15 @@ module UHF.Phases.ToRIR.PatternCheck
 
 import UHF.Util.Prelude
 
-import qualified Arena
-
-import UHF.IO.Span (Span)
-
-import qualified UHF.Diagnostic as Diagnostic
-
-import qualified UHF.Data.IR.ID as ID
-
-import qualified UHF.Data.IR.SIR as SIR
-import qualified UHF.Data.IR.Type as Type
-
 import qualified Data.List as List
 import qualified Data.Text as Text
+
+import UHF.IO.Span (Span)
+import qualified Arena
+import qualified UHF.Data.IR.ID as ID
+import qualified UHF.Data.IR.SIR as SIR
+import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Diagnostic as Diagnostic
 
 data CompletenessError stage = CompletenessError (Arena.Arena (Type.ADT Type) Type.ADTKey) Span [SIR.Pattern stage] [MatchValue]
 data NotUseful stage = NotUseful (SIR.Pattern stage)

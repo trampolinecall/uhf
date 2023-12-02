@@ -37,19 +37,16 @@ module UHF.Phases.NameResolve.Utils
 
 import UHF.Util.Prelude
 
-import qualified Arena
+import qualified Data.List as List
+import qualified Data.Map as Map
 
-import qualified UHF.Compiler as Compiler
-
-import UHF.IO.Span (Span)
 import UHF.IO.Located (Located (Located, unlocate))
-import qualified UHF.Diagnostic as Diagnostic
-
+import UHF.IO.Span (Span)
+import qualified Arena
+import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
-
-import qualified Data.Map as Map
-import qualified Data.List as List
+import qualified UHF.Diagnostic as Diagnostic
 
 -- utilities for name resolution / phases that somewhat do name resolution
 -- it is under the NameResolve module but is used by ResolveReferStarts, EvalTypeExprs, and NameResolve

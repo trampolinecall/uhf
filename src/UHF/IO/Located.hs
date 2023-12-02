@@ -7,9 +7,9 @@ module UHF.IO.Located
 
 import UHF.Util.Prelude
 
-import qualified UHF.IO.Span as Span
-import UHF.IO.Span (Span)
 import UHF.IO.EqIgnoringSpans
+import UHF.IO.Span (Span)
+import qualified UHF.IO.Span as Span
 
 data Located a = Located { just_span :: Span, unlocate :: a } deriving (Show, Generic, Eq, EqIgnoringSpans)
 

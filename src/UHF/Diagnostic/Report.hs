@@ -2,18 +2,16 @@ module UHF.Diagnostic.Report (report) where
 
 import UHF.Util.Prelude
 
-import qualified UHF.Diagnostic.Report.Style as Style
-import qualified UHF.Diagnostic.Report.Line as Line
+import qualified Data.Text as Text
+
+import UHF.IO.Span (Span)
 import qualified UHF.Diagnostic.Diagnostic as Diagnostic
+import qualified UHF.Diagnostic.Report.Line as Line
 import qualified UHF.Diagnostic.Report.Messages as Messages
-
+import qualified UHF.Diagnostic.Report.Style as Style
 import qualified UHF.Diagnostic.Settings as Settings
-
 import qualified UHF.IO.FormattedString as FormattedString
 import qualified UHF.IO.Span as Span
-import UHF.IO.Span (Span)
-
-import qualified Data.Text as Text
 
 class ToDiagnostic d where
     to_diagnostic :: Style.Style -> d -> (FormattedString.FormattedString, Diagnostic.MessageType, Maybe Span, Text, Diagnostic.MessagesSection, [Diagnostic.OtherSection])

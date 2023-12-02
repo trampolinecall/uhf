@@ -6,9 +6,9 @@ module UHF.Data.AST where
 
 import UHF.Util.Prelude
 
-import UHF.IO.Span (Span)
-import UHF.IO.Located (Located (..))
 import UHF.IO.EqIgnoringSpans
+import UHF.IO.Located (Located (..))
+import UHF.IO.Span (Span)
 
 type Identifier = Located Text
 

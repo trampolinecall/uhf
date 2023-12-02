@@ -11,9 +11,9 @@ module UHF.Data.IR.IDGen
 
 import UHF.Util.Prelude
 
-import qualified Data.Functor.Identity as Identity
-import qualified Control.Monad.Trans.Class as Trans
 import qualified Control.Monad.Fix as Fix
+import qualified Control.Monad.Trans.Class as Trans
+import qualified Data.Functor.Identity as Identity
 
 newtype Unique = Unique Int deriving (Show, Eq, Ord)
 newtype IDGenT id m r = IDGenT (StateT (Int, Int -> id) m r) deriving (Functor, Applicative, Monad, Trans.MonadTrans, Fix.MonadFix)

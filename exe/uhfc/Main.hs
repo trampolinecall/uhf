@@ -6,13 +6,11 @@ module Main where
 import UHF.Util.Prelude
 
 import Options.Applicative
-
 import qualified Data.Map as Map
 
-import qualified UHF.Driver as Driver
-
-import qualified UHF.IO.FormattedString as FormattedString
 import qualified UHF.Diagnostic.Settings as DiagnosticSettings
+import qualified UHF.Driver as Driver
+import qualified UHF.IO.FormattedString as FormattedString
 
 data Args = Args Driver.CompileOptions FormattedString.ColorsNeeded DiagnosticSettings.Settings
 

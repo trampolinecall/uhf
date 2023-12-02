@@ -4,14 +4,12 @@ module UHF.Phases.InfixGroup (group) where
 
 import UHF.Util.Prelude
 
-import qualified Arena
-
 import UHF.IO.Span (Span)
-
+import qualified Arena
+import qualified UHF.Data.IR.ID as ID
+import qualified UHF.Data.IR.IDGen as IDGen
 import qualified UHF.Data.IR.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
-import qualified UHF.Data.IR.IDGen as IDGen
-import qualified UHF.Data.IR.ID as ID
 
 type VIden = Maybe SIR.BoundValueKey
 

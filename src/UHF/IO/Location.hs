@@ -16,10 +16,10 @@ module UHF.IO.Location
 
 import UHF.Util.Prelude
 
-import qualified UHF.IO.File as File
-import UHF.IO.File (File)
-
 import qualified Data.Text as Text
+
+import UHF.IO.File (File)
+import qualified UHF.IO.File as File
 
 -- TODO: test this entire module
 

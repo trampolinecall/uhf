@@ -14,10 +14,10 @@ module UHF.PP
 
 import UHF.Util.Prelude
 
-import qualified UHF.PP.IndentationMonad as IndentationMonad
-
-import qualified Data.Text as Text
 import Data.String (IsString (..))
+import qualified Data.Text as Text
+
+import qualified UHF.PP.IndentationMonad as IndentationMonad
 
 -- inspired by concepts from oppen's pretty printer
 -- the paper: https://www.cs.tufts.edu/~nr/cs257/archive/derek-oppen/prettyprinting.pdf

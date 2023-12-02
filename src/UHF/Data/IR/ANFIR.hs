@@ -28,13 +28,12 @@ module UHF.Data.IR.ANFIR
 
 import UHF.Util.Prelude
 
-import qualified Arena
-
 import qualified Data.Set as Set
 
 import UHF.Data.IR.Keys
-import qualified UHF.Data.IR.Type as Type
+import qualified Arena
 import qualified UHF.Data.IR.ID as ID
+import qualified UHF.Data.IR.Type as Type
 
 -- "a-normal form ir" even though this isnt actually a-normal form but it is the same idea
 data ANFIR

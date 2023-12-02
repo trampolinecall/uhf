@@ -2,20 +2,15 @@ module UHF.Phases.ReportHoles (report_holes) where
 
 import UHF.Util.Prelude
 
-import qualified Arena
-
-import qualified UHF.Compiler as Compiler
-
-import qualified UHF.PP as PP
-
 import UHF.IO.Located (Located (unlocate))
 import UHF.IO.Span (Span)
-
-import qualified UHF.Diagnostic as Diagnostic
-
+import qualified Arena
+import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.PP as Type.PP
+import qualified UHF.Diagnostic as Diagnostic
+import qualified UHF.PP as PP
 
 type Type = Type.Type Void
 

@@ -18,8 +18,8 @@ module UHF.Data.Token
 
 import UHF.Util.Prelude
 
-import UHF.IO.Located (Located)
 import UHF.IO.EqIgnoringSpans
+import UHF.IO.Located (Located)
 
 data IntBase
     = Dec

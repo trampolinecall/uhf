@@ -1,14 +1,14 @@
-module UHF.IO.File
+module UHF.Source.File
     ( File
     , path
     , contents
-    , UHF.IO.File.length
+    , UHF.Source.File.length
 
     , new
     , open
     ) where
 
-import UHF.Util.Prelude hiding (show)
+import UHF.Prelude hiding (show)
 
 import Data.Unique
 import GHC.Show (show)

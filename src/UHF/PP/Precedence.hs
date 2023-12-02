@@ -13,7 +13,7 @@ module UHF.PP.Precedence
     , tests
     ) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
 import Data.Functor.Identity (Identity(..), runIdentity)
 

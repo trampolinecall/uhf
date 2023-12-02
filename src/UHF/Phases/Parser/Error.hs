@@ -5,13 +5,13 @@ module UHF.Phases.Parser.Error
     ( Error(..)
     ) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
-import UHF.IO.EqIgnoringSpans
-import UHF.IO.Located (Located (Located))
+import UHF.Source.EqIgnoringSpans
+import UHF.Source.Located (Located (Located))
 import qualified UHF.Data.Token as Token
 import qualified UHF.Diagnostic as Diagnostic
-import qualified UHF.IO.Located as Located
+import qualified UHF.Source.Located as Located
 
 data Error
     = BadToken Int Token.LToken Token.TokenType Text

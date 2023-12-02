@@ -1,16 +1,16 @@
 {-# LANGUAGE FlexibleInstances #-}
 
-module UHF.Data.IR.ANFIR.PP (dump_cu) where
+module UHF.Data.ANFIR.PP (dump_cu) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
-import UHF.IO.Located (Located (Located, unlocate))
-import qualified Arena
-import qualified UHF.Data.IR.ANFIR as ANFIR
+import UHF.Source.Located (Located (Located, unlocate))
+import qualified UHF.Data.ANFIR as ANFIR
 import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.PP as Type.PP
 import qualified UHF.PP as PP
+import qualified UHF.Util.Arena as Arena
 
 -- TODO: dump types too
 

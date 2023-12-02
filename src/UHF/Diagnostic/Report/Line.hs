@@ -13,14 +13,14 @@ module UHF.Diagnostic.Report.Line
     , compare_lines
     ) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
 import qualified Data.Text as Text
 
-import UHF.IO.File (File)
+import UHF.Source.File (File)
 import qualified UHF.Diagnostic.Report.Style as Style
-import qualified UHF.IO.File as File
-import qualified UHF.IO.FormattedString as FormattedString
+import qualified UHF.Source.File as File
+import qualified UHF.Source.FormattedString as FormattedString
 
 data Line = Line { prefix :: Text, separ :: Char, contents :: FormattedString.FormattedString } deriving (Show, Eq)
 

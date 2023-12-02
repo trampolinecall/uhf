@@ -1,16 +1,16 @@
 module UHF.Phases.Type.AddTypes (add) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
-import UHF.IO.Located (Located (..))
-import UHF.IO.Span (Span)
+import UHF.Source.Located (Located (..))
+import UHF.Source.Span (Span)
 import UHF.Phases.Type.Aliases
 import UHF.Phases.Type.Constraint
 import UHF.Phases.Type.StateWithUnk
 import UHF.Phases.Type.Unknown
 import UHF.Phases.Type.Utils
-import qualified Arena
-import qualified UHF.Data.IR.SIR as SIR
+import qualified UHF.Util.Arena as Arena
+import qualified UHF.Data.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
 
 type ContextReader decls bvs adts = ReaderT (decls, bvs, adts) (WriterT [Constraint] StateWithUnk)

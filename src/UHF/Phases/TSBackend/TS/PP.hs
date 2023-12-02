@@ -1,6 +1,6 @@
 module UHF.Phases.TSBackend.TS.PP (stmts) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
 import qualified UHF.PP as PP
 import qualified UHF.PP.Precedence as PP.Precedence

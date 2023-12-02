@@ -1,6 +1,6 @@
 module UHF.Phases.TSBackend.TS (Stmt (..), Expr (..), Type (..), TypeReference (..), ClassMember (..), Parameter (..), Accessibility (..)) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
 -- the subset of typescript syntax that is actually used by the backend
 -- TODO: reorganize and reorder module

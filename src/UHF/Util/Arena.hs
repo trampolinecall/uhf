@@ -1,12 +1,12 @@
 {-# LANGUAGE OverloadedLists #-}
 
-module Arena
+module UHF.Util.Arena
     ( Arena
     , Key(..)
     , new
-    , Arena.put
-    , Arena.get
-    , Arena.modify
+    , put
+    , get
+    , modify
     , modifyM
 
     , transform
@@ -17,7 +17,7 @@ module Arena
     , tests
     ) where
 
-import UHF.Util.Prelude
+import UHF.Prelude hiding (put, get, modify)
 
 import qualified Data.Sequence as Sequence
 
@@ -69,29 +69,29 @@ instance Key TestKey where
 
 case_put :: Assertion
 case_put =
-    Arena.put (0 :: Int) new @?= (TestKey 0, Arena [0])
+    put (0 :: Int) new @?= (TestKey 0, Arena [0])
 
 case_put_more :: Assertion
 case_put_more =
-    Arena.put (1 :: Int) (Arena [0]) @?= (TestKey 1, Arena [0, 1])
+    put (1 :: Int) (Arena [0]) @?= (TestKey 1, Arena [0, 1])
 
 case_get :: Assertion
 case_get =
     let a1 :: Arena Int TestKey
-        (k0, a1) = Arena.put 0 new
-        (k1, a2) = Arena.put 1 a1
-    in (Arena.get a2 k0 @?= 0) >> (Arena.get a2 k1 @?= 1)
+        (k0, a1) = put 0 new
+        (k1, a2) = put 1 a1
+    in (get a2 k0 @?= 0) >> (get a2 k1 @?= 1)
 
 case_modify :: Assertion
 case_modify =
     let a1 :: Arena Int TestKey
-        (k0, a0) = Arena.put 0 new
-        (k1, a1) = Arena.put 1 a0
-        (k2, a2) = Arena.put 2 a1
+        (k0, a0) = put 0 new
+        (k1, a1) = put 1 a0
+        (k2, a2) = put 2 a1
     in
-        (Arena.modify a2 k0 (const 100) @?= Arena [100, 1, 2]) >>
-        (Arena.modify a2 k1 (const 100) @?= Arena [0, 100, 2]) >>
-        (Arena.modify a2 k2 (const 100) @?= Arena [0, 1, 100])
+        (modify a2 k0 (const 100) @?= Arena [100, 1, 2]) >>
+        (modify a2 k1 (const 100) @?= Arena [0, 100, 2]) >>
+        (modify a2 k2 (const 100) @?= Arena [0, 1, 100])
 
 case_transform :: Assertion
 case_transform =

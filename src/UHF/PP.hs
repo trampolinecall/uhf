@@ -12,7 +12,7 @@ module UHF.PP
     , comma_separated
     ) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
 import Data.String (IsString (..))
 import qualified Data.Text as Text

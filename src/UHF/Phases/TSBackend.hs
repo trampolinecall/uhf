@@ -2,13 +2,13 @@
 
 module UHF.Phases.TSBackend (lower) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
 import qualified Data.FileEmbed as FileEmbed
 import qualified Data.Set as Set
 
-import qualified Arena
-import qualified UHF.Data.IR.BackendIR as BackendIR
+import qualified UHF.Util.Arena as Arena
+import qualified UHF.Data.BackendIR as BackendIR
 import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Phases.TSBackend.TS as TS

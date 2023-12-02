@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module UHF.Data.IR.SIR
+module UHF.Data.SIR
     ( SIR (..)
     , Stage.Stage(..)
 
@@ -30,14 +30,14 @@ module UHF.Data.IR.SIR
 
     ) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
 import UHF.Data.IR.Keys
-import UHF.IO.Located (Located)
-import UHF.IO.Span (Span)
-import qualified Arena
+import UHF.Source.Located (Located)
+import UHF.Source.Span (Span)
+import qualified UHF.Util.Arena as Arena
 import qualified UHF.Data.IR.ID as ID
-import qualified UHF.Data.IR.SIR.Stage as Stage
+import qualified UHF.Data.SIR.Stage as Stage
 import qualified UHF.Data.IR.Type as Type
 
 -- "syntax based ir"

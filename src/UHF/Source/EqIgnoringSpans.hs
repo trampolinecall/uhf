@@ -3,13 +3,13 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module UHF.IO.EqIgnoringSpans (EqIgnoringSpans (..), expected_assert_eqis, assert_eqis_expected) where
+module UHF.Source.EqIgnoringSpans (EqIgnoringSpans (..), expected_assert_eqis, assert_eqis_expected) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
 import qualified GHC.Generics as Generics
 
-import qualified UHF.IO.Span as Span
+import qualified UHF.Source.Span as Span
 
 -- 'is' is short for 'ignoring spans'
 class EqIgnoringSpans a where

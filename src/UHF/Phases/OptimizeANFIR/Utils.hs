@@ -1,9 +1,9 @@
 module UHF.Phases.OptimizeANFIR.Utils (iterate_over_all_subexpressions) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
-import qualified Arena
-import qualified UHF.Data.IR.ANFIR as ANFIR
+import qualified UHF.Util.Arena as Arena
+import qualified UHF.Data.ANFIR as ANFIR
 
 iterate_over_bindings :: Monad m => (ANFIR.Binding -> m ANFIR.Binding) -> ANFIR.ANFIR -> m ANFIR.ANFIR
 iterate_over_bindings change (ANFIR.ANFIR adts type_synonyms vars bindings params cu) =

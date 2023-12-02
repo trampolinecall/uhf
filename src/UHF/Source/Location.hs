@@ -1,4 +1,4 @@
-module UHF.IO.Location
+module UHF.Source.Location
     ( LineCol
     , Location
 
@@ -14,12 +14,12 @@ module UHF.IO.Location
     , tests
     ) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
 import qualified Data.Text as Text
 
-import UHF.IO.File (File)
-import qualified UHF.IO.File as File
+import UHF.Source.File (File)
+import qualified UHF.Source.File as File
 
 -- TODO: test this entire module
 

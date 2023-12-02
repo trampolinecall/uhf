@@ -22,14 +22,14 @@ module UHF.Data.IR.Type
     , Var(..)
     ) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
 import qualified Data.List as List
 
 import UHF.Data.IR.Keys
-import UHF.IO.Located (Located)
-import qualified Arena
+import UHF.Source.Located (Located)
 import qualified UHF.Data.IR.ID as ID
+import qualified UHF.Util.Arena as Arena
 
 data Type unk
     = Type'ADT ADTKey [Type unk]

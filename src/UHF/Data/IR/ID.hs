@@ -14,7 +14,7 @@ module UHF.Data.IR.ID
     , mangle
     ) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
 import qualified Data.Char as Char
 import qualified Data.Text as Text

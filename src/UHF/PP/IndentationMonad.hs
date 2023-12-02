@@ -12,7 +12,7 @@ module UHF.PP.IndentationMonad
 
 -- TODO: write tests
 
-import UHF.Util.Prelude hiding (StateT, runStateT, evalStateT, get, modify, Writer, runWriter, tell, execWriter)
+import UHF.Prelude hiding (StateT, runStateT, evalStateT, get, modify, Writer, runWriter, tell, execWriter)
 
 import Control.Monad.Trans.State.Strict
 import Control.Monad.Trans.Writer.CPS

@@ -4,11 +4,11 @@ module UHF.Data.AST where
 
 -- TODO: rename this to literal ast and make it literally store tokens
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
-import UHF.IO.EqIgnoringSpans
-import UHF.IO.Located (Located (..))
-import UHF.IO.Span (Span)
+import UHF.Source.EqIgnoringSpans
+import UHF.Source.Located (Located (..))
+import UHF.Source.Span (Span)
 
 type Identifier = Located Text
 

@@ -1,10 +1,10 @@
 module UHF.Phases.OptimizeANFIR.RemoveRefers (optimize) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
 import UHF.Phases.OptimizeANFIR.Utils
-import qualified Arena
-import qualified UHF.Data.IR.ANFIR as ANFIR
+import qualified UHF.Util.Arena as Arena
+import qualified UHF.Data.ANFIR as ANFIR
 
 optimize :: ANFIR.ANFIR -> ANFIR.ANFIR
 optimize anfir = runReader (iterate_over_all_subexpressions trace_passthrough anfir) anfir

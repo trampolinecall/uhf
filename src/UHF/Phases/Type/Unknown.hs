@@ -8,12 +8,12 @@ module UHF.Phases.Type.Unknown
     , type_unk_for_what_name
     ) where
 
-import UHF.Util.Prelude
+import UHF.Prelude
 
-import qualified Arena
+import qualified UHF.Util.Arena as Arena
 import qualified UHF.Data.IR.Type as Type
 
-import UHF.IO.Span (Span)
+import UHF.Source.Span (Span)
 
 newtype TypeUnknownKey = TypeUnknownKey Int deriving (Show, Eq, Ord)
 instance Arena.Key TypeUnknownKey where

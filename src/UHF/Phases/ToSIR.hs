@@ -35,45 +35,45 @@ type TypeSynonym = Type.TypeSynonym (TypeExpr, ())
 type TypeExpr = SIR.TypeExpr SIRStage
 type Expr = SIR.Expr SIRStage
 type Pattern = SIR.Pattern SIRStage
-type BoundValue = SIR.BoundValue SIRStage
+type Variable = SIR.Variable SIRStage
 
 type ModuleArena = Arena.Arena Module SIR.ModuleKey
 type ADTArena = Arena.Arena ADT Type.ADTKey
 type TypeSynonymArena = Arena.Arena TypeSynonym Type.TypeSynonymKey
-type BoundValueArena = Arena.Arena BoundValue SIR.BoundValueKey
+type VariableArena = Arena.Arena Variable SIR.VariableKey
 type TypeVarArena = Arena.Arena Type.Var Type.TypeVarKey
 
-type MakeIRState = StateT (ModuleArena, ADTArena, TypeSynonymArena, TypeVarArena, BoundValueArena) (Compiler.WithDiagnostics Error Void)
+type MakeIRState = StateT (ModuleArena, ADTArena, TypeSynonymArena, TypeVarArena, VariableArena) (Compiler.WithDiagnostics Error Void)
 
 new_module :: Module -> MakeIRState SIR.ModuleKey
 new_module m =
-    state $ \ (mods, adts, type_synonyms, type_vars, bound_values) ->
+    state $ \ (mods, adts, type_synonyms, type_vars, variables) ->
         let (key, mods') = Arena.put m mods
-        in (key, (mods', adts, type_synonyms, type_vars, bound_values))
+        in (key, (mods', adts, type_synonyms, type_vars, variables))
 
 new_adt :: ADT -> MakeIRState Type.ADTKey
 new_adt adt =
-    state $ \ (mods, adts, type_synonyms, type_vars, bound_values) ->
+    state $ \ (mods, adts, type_synonyms, type_vars, variables) ->
         let (key, adts') = Arena.put adt adts
-        in (key, (mods, adts', type_synonyms, type_vars, bound_values))
+        in (key, (mods, adts', type_synonyms, type_vars, variables))
 
 new_type_synonym :: TypeSynonym -> MakeIRState Type.TypeSynonymKey
 new_type_synonym ts =
-    state $ \ (mods, adts, type_synonyms, type_vars, bound_values) ->
+    state $ \ (mods, adts, type_synonyms, type_vars, variables) ->
         let (key, type_synonyms') = Arena.put ts type_synonyms
-        in (key, (mods, adts, type_synonyms', type_vars, bound_values))
+        in (key, (mods, adts, type_synonyms', type_vars, variables))
 
 new_type_var :: Located Text -> MakeIRState Type.TypeVarKey
 new_type_var name =
-    state $ \ (mods, adts, type_synonyms, type_vars, bound_values) ->
+    state $ \ (mods, adts, type_synonyms, type_vars, variables) ->
         let (key, type_vars') = Arena.put (Type.Var name) type_vars
-        in (key, (mods, adts, type_synonyms, type_vars', bound_values))
+        in (key, (mods, adts, type_synonyms, type_vars', variables))
 
-new_bound_value :: BoundValue -> MakeIRState SIR.BoundValueKey
-new_bound_value bv =
-    state $ \ (mods, adts, type_synonyms, type_vars, bound_values) ->
-        let (key, bound_values') = Arena.put bv bound_values
-        in (key, (mods, adts, type_synonyms, type_vars, bound_values'))
+new_variable :: Variable -> MakeIRState SIR.VariableKey
+new_variable var =
+    state $ \ (mods, adts, type_synonyms, type_vars, variables) ->
+        let (key, variables') = Arena.put var variables
+        in (key, (mods, adts, type_synonyms, type_vars, variables'))
 
 tell_error :: Error -> MakeIRState ()
 tell_error = lift . Compiler.tell_error
@@ -83,21 +83,21 @@ convert decls =
     runStateT
         (
             let module_id = ID.ModuleID'Root
-            in convert_decls (ID.BVParent'Module module_id) (ID.DeclParent'Module module_id) decls >>= \ (bindings, adts, type_synonyms) ->
+            in convert_decls (ID.VarParent'Module module_id) (ID.DeclParent'Module module_id) decls >>= \ (bindings, adts, type_synonyms) ->
             new_module (SIR.Module module_id bindings adts type_synonyms)
         )
-        (Arena.new, Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (mod, (mods, adts, type_synonyms, type_vars, bound_values)) ->
-    pure (SIR.SIR mods adts type_synonyms type_vars bound_values mod)
+        (Arena.new, Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (mod, (mods, adts, type_synonyms, type_vars, variables)) ->
+    pure (SIR.SIR mods adts type_synonyms type_vars variables mod)
 
-convert_decls :: ID.BoundValueParent -> ID.DeclParent -> [AST.Decl] -> MakeIRState ([Binding], [Type.ADTKey], [Type.TypeSynonymKey])
-convert_decls bv_parent decl_parent decls =
+convert_decls :: ID.VariableParent -> ID.DeclParent -> [AST.Decl] -> MakeIRState ([Binding], [Type.ADTKey], [Type.TypeSynonymKey])
+convert_decls var_parent decl_parent decls =
     unzip3 <$> zipWithM convert_decl [0..] decls >>= \ (bindings, adts, type_synonyms) ->
     pure (concat bindings, concat adts, concat type_synonyms)
     where
         convert_decl :: Int -> AST.Decl -> MakeIRState ([Binding], [Type.ADTKey], [Type.TypeSynonymKey])
         convert_decl ind (AST.Decl'Value target eq_sp expr) =
             convert_expr (ID.ExprID'InitializerOf decl_parent ind) expr >>= \ expr' ->
-            convert_pattern bv_parent target >>= \ target' ->
+            convert_pattern var_parent target >>= \ target' ->
             pure ([SIR.Binding target' eq_sp expr'], [], [])
 
         convert_decl _ (AST.Decl'Data l_data_name@(Located _ data_name) type_params variants) =
@@ -117,8 +117,8 @@ convert_decls bv_parent decl_parent decls =
                         (Type.ADTVariant'Anon (Located name_sp name) _ _, index) ->
                             mapM (lift . new_type_var) type_params >>= \ ty_param_vars_for_constructor ->
                             let variant_index = Type.ADTVariantIndex adt_key index
-                            in lift (new_bound_value (SIR.BoundValue'ADTVariant (ID.BoundValueID bv_parent name) variant_index ty_param_vars_for_constructor () name_sp)) >>= \ bv_key ->
-                            pure (Just (SIR.Binding'ADTVariant name_sp bv_key ty_param_vars_for_constructor variant_index))
+                            in lift (new_variable (SIR.Variable'ADTVariant (ID.VariableID var_parent name) variant_index ty_param_vars_for_constructor () name_sp)) >>= \ var_key ->
+                            pure (Just (SIR.Binding'ADTVariant name_sp var_key ty_param_vars_for_constructor variant_index))
                         (Type.ADTVariant'Named _ _ _, _) -> pure Nothing
                     )
                     (zip variants_converted [0..])) >>= \ constructor_bindings ->
@@ -196,7 +196,7 @@ convert_expr cur_id (AST.Expr'Tuple sp items) = group_items cur_id items
 convert_expr cur_id (AST.Expr'Lambda sp params body) = convert_lambda cur_id params body
     where
         convert_lambda cur_id (param:more) body =
-            convert_pattern (ID.BVParent'LambdaParam cur_id) param >>= \ param ->
+            convert_pattern (ID.VarParent'LambdaParam cur_id) param >>= \ param ->
             SIR.Expr'Lambda cur_id () sp param <$> convert_lambda (ID.ExprID'LambdaBodyOf cur_id) more body -- TODO: properly do spans of parts because this also just takes the whole span
 
         convert_lambda cur_id [] body = convert_expr cur_id body
@@ -205,10 +205,10 @@ convert_expr cur_id (AST.Expr'Let sp decls subexpr) = go cur_id decls
     where
         go cur_id [] = convert_expr cur_id subexpr
         go cur_id (first:more) =
-            convert_decls (ID.BVParent'Let cur_id) (ID.DeclParent'Let cur_id) [first] >>= \ (bindings, _, _) -> -- TODO: put adts and type synonyms
+            convert_decls (ID.VarParent'Let cur_id) (ID.DeclParent'Let cur_id) [first] >>= \ (bindings, _, _) -> -- TODO: put adts and type synonyms
             SIR.Expr'Let cur_id () sp bindings <$> go (ID.ExprID'LetResultOf cur_id) more
 convert_expr cur_id (AST.Expr'LetRec sp decls subexpr) =
-    convert_decls (ID.BVParent'Let cur_id) (ID.DeclParent'Let cur_id) decls >>= \ (bindings, _, _) -> -- TODO: put adts and type synonyms
+    convert_decls (ID.VarParent'Let cur_id) (ID.DeclParent'Let cur_id) decls >>= \ (bindings, _, _) -> -- TODO: put adts and type synonyms
     SIR.Expr'LetRec cur_id () sp bindings <$> convert_expr (ID.ExprID'LetResultOf cur_id) subexpr
 
 convert_expr cur_id (AST.Expr'BinaryOps sp first ops) =
@@ -236,7 +236,7 @@ convert_expr cur_id (AST.Expr'Match sp match_tok_sp e arms) =
     convert_expr (ID.ExprID'MatchScrutinee cur_id) e >>= \ e ->
     zipWithM
         (\ ind (pat, choice) ->
-            convert_pattern (ID.BVParent'MatchArm cur_id ind) pat >>= \ pat ->
+            convert_pattern (ID.VarParent'MatchArm cur_id ind) pat >>= \ pat ->
             convert_expr (ID.ExprID'MatchArm cur_id ind) choice >>= \ choice ->
             pure (pat, choice))
         [0..]
@@ -260,9 +260,9 @@ convert_expr cur_id (AST.Expr'TypeApply sp e args) =
         args -- TODO: fix span for this
 convert_expr cur_id (AST.Expr'Hole sp hid) = pure (SIR.Expr'Hole cur_id () sp hid)
 
-convert_pattern :: ID.BoundValueParent -> AST.Pattern -> MakeIRState Pattern
+convert_pattern :: ID.VariableParent -> AST.Pattern -> MakeIRState Pattern
 convert_pattern parent (AST.Pattern'Identifier located_name@(Located name_sp name)) =
-    new_bound_value (SIR.BoundValue (ID.BoundValueID parent name) () located_name) >>= \ bn ->
+    new_variable (SIR.Variable (ID.VariableID parent name) () located_name) >>= \ bn ->
     pure (SIR.Pattern'Identifier () name_sp bn)
 convert_pattern _ (AST.Pattern'Wildcard sp) = pure (SIR.Pattern'Wildcard () sp)
 convert_pattern parent (AST.Pattern'Tuple sp subpats) =
@@ -276,7 +276,7 @@ convert_pattern parent (AST.Pattern'Tuple sp subpats) =
         go [] = tell_error (Tuple0 sp) >> pure (SIR.Pattern'Poison () sp)
 convert_pattern parent (AST.Pattern'Named sp located_name@(Located name_sp name) at_sp subpat) =
     convert_pattern parent subpat >>= \ subpat' ->
-    new_bound_value (SIR.BoundValue (ID.BoundValueID parent name) () located_name) >>= \ bn ->
+    new_variable (SIR.Variable (ID.VariableID parent name) () located_name) >>= \ bn ->
     pure (SIR.Pattern'Named () sp at_sp (Located name_sp bn) subpat')
 convert_pattern parent (AST.Pattern'AnonADTVariant sp variant fields) =
     mapM (convert_pattern parent) fields >>= \ fields ->

@@ -4,8 +4,8 @@ module UHF.Data.RIR
 
     , Binding (..)
 
-    , BoundValueKey
-    , BoundValue (..)
+    , VariableKey
+    , Variable (..)
 
     , Type
     , Expr (..)
@@ -32,12 +32,12 @@ data RIR
         (Arena.Arena (Type.ADT (Maybe (Type.Type Void))) ADTKey)
         (Arena.Arena (Type.TypeSynonym (Maybe (Type.Type Void))) TypeSynonymKey)
         (Arena.Arena Type.Var Type.TypeVarKey)
-        (Arena.Arena BoundValue BoundValueKey)
+        (Arena.Arena Variable VariableKey)
         CU
 
-data BoundValue
-    = BoundValue
-        { bv_id :: ID.BoundValueID
+data Variable
+    = Variable
+        { bv_id :: ID.VariableID
         , bv_ty :: Maybe (Type.Type Void)
         , bv_sp :: Span
         }
@@ -46,13 +46,13 @@ data BoundValue
 -- "compilation unit"
 data CU = CU [Binding] [ADTKey] [TypeSynonymKey]
 
-data Binding = Binding BoundValueKey Expr deriving Show
+data Binding = Binding VariableKey Expr deriving Show
 
 type Type = Type.Type Void
 
 data Expr
     -- identifiers need explicit types in case there the identifiers form loops
-    = Expr'Identifier ID.ExprID (Maybe Type) Span (Maybe BoundValueKey)
+    = Expr'Identifier ID.ExprID (Maybe Type) Span (Maybe VariableKey)
     | Expr'Char ID.ExprID Span Char
     | Expr'String ID.ExprID Span Text
     | Expr'Int ID.ExprID Span Integer
@@ -61,7 +61,7 @@ data Expr
 
     | Expr'Tuple ID.ExprID Span Expr Expr
 
-    | Expr'Lambda ID.ExprID Span BoundValueKey Expr
+    | Expr'Lambda ID.ExprID Span VariableKey Expr
 
     | Expr'Let ID.ExprID Span [Binding] Expr
 
@@ -83,8 +83,8 @@ data MatchTree
     = MatchTree [([MatchClause], Either MatchTree Expr)]
     deriving Show
 data MatchClause
-    = MatchClause'Match BoundValueKey MatchMatcher
-    | MatchClause'Assign BoundValueKey MatchAssignRHS
+    = MatchClause'Match VariableKey MatchMatcher
+    | MatchClause'Assign VariableKey MatchAssignRHS
     -- eventually bool predicates will be added here
     deriving Show
 data MatchMatcher
@@ -93,13 +93,13 @@ data MatchMatcher
     | Match'AnonADTVariant (Maybe Type.ADTVariantIndex)
     deriving Show
 data MatchAssignRHS
-    = MatchAssignRHS'OtherBVK BoundValueKey
-    | MatchAssignRHS'TupleDestructure1 (Maybe Type) BoundValueKey
-    | MatchAssignRHS'TupleDestructure2 (Maybe Type) BoundValueKey
-    | MatchAssignRHS'AnonADTVariantField (Maybe Type) BoundValueKey (Maybe Type.ADTFieldIndex)
+    = MatchAssignRHS'OtherVar VariableKey
+    | MatchAssignRHS'TupleDestructure1 (Maybe Type) VariableKey
+    | MatchAssignRHS'TupleDestructure2 (Maybe Type) VariableKey
+    | MatchAssignRHS'AnonADTVariantField (Maybe Type) VariableKey (Maybe Type.ADTFieldIndex)
     deriving Show
 
-expr_type :: Arena.Arena BoundValue BoundValueKey -> Expr -> Maybe Type
+expr_type :: Arena.Arena Variable VariableKey -> Expr -> Maybe Type
 expr_type _ (Expr'Identifier _ ty _ _) = ty
 expr_type _ (Expr'Char _ _ _) = Just Type.Type'Char
 expr_type _ (Expr'String _ _ _) = Just Type.Type'String

@@ -15,10 +15,10 @@ import qualified UHF.Data.IR.Type as Type
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Control.Monad.Fix (mfix)
 
-remove :: TypeUnknownArena -> TypedWithUnkModuleArena -> TypedWithUnkADTArena -> TypedWithUnkTypeSynonymArena -> TypedWithUnkBoundValueArena -> Compiler.WithDiagnostics Error Void (TypedModuleArena, TypedADTArena, TypedTypeSynonymArena, TypedBoundValueArena)
-remove unks mods adts type_synonyms bvs =
+remove :: TypeUnknownArena -> TypedWithUnkModuleArena -> TypedWithUnkADTArena -> TypedWithUnkTypeSynonymArena -> TypedWithUnkVariableArena -> Compiler.WithDiagnostics Error Void (TypedModuleArena, TypedADTArena, TypedTypeSynonymArena, TypedVariableArena)
+remove unks mods adts type_synonyms vars =
     convert_vars unks >>= \ unks ->
-    pure (Arena.transform (module_ unks) mods, Arena.transform (adt unks) adts, Arena.transform (type_synonym unks) type_synonyms, Arena.transform (bound_value unks) bvs)
+    pure (Arena.transform (module_ unks) mods, Arena.transform (adt unks) adts, Arena.transform (type_synonym unks) type_synonyms, Arena.transform (variable unks) vars)
 
 convert_vars :: TypeUnknownArena -> Compiler.WithDiagnostics Error Void (Arena.Arena (Maybe Type) TypeUnknownKey)
 convert_vars unks =
@@ -44,9 +44,9 @@ convert_vars unks =
 module_ :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkModule -> TypedModule
 module_ unks (SIR.Module id bindings adts type_synonyms) = SIR.Module id (map (binding unks) bindings) adts type_synonyms
 
-bound_value :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkBoundValue -> TypedBoundValue
-bound_value unks (SIR.BoundValue id ty name) = SIR.BoundValue id (type_ unks ty) name
-bound_value unks (SIR.BoundValue'ADTVariant id index tparams ty sp) = SIR.BoundValue'ADTVariant id index tparams (type_ unks ty) sp
+variable :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkVariable -> TypedVariable
+variable unks (SIR.Variable id ty name) = SIR.Variable id (type_ unks ty) name
+variable unks (SIR.Variable'ADTVariant id index tparams ty sp) = SIR.Variable'ADTVariant id index tparams (type_ unks ty) sp
 
 adt :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkADT -> TypedADT
 adt unks (Type.ADT id name type_var variants) = Type.ADT id name type_var (map variant variants)
@@ -59,7 +59,7 @@ type_synonym unks (Type.TypeSynonym id name expansion) = Type.TypeSynonym id nam
 
 binding :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkBinding -> TypedBinding
 binding unks (SIR.Binding p eq_sp e) = SIR.Binding (pattern unks p) eq_sp (expr unks e)
-binding _ (SIR.Binding'ADTVariant sp bvk vars variant) = SIR.Binding'ADTVariant sp bvk vars variant
+binding _ (SIR.Binding'ADTVariant sp var_key vars variant) = SIR.Binding'ADTVariant sp var_key vars variant
 
 pattern :: Arena.Arena (Maybe Type) TypeUnknownKey -> TypedWithUnkPattern -> TypedPattern
 pattern unks (SIR.Pattern'Identifier ty sp bn) = SIR.Pattern'Identifier (type_ unks ty) sp bn

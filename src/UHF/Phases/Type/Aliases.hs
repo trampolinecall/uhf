@@ -11,7 +11,7 @@ type TypeWithUnk = Type.Type Unknown.TypeUnknownKey
 type Type = Type.Type Void
 
 type DIden = Maybe SIR.Decl
-type VIden = Maybe SIR.BoundValueKey
+type VIden = Maybe SIR.VariableKey
 type PIden = Maybe Type.ADTVariantIndex
 
 type TypeVarArena = Arena.Arena Type.Var Type.TypeVarKey
@@ -25,12 +25,12 @@ type UntypedTypeSynonym = Type.TypeSynonym (UntypedTypeExpr, Maybe Type)
 type UntypedBinding = SIR.Binding Untyped
 type UntypedExpr = SIR.Expr Untyped
 type UntypedPattern = SIR.Pattern Untyped
-type UntypedBoundValue = SIR.BoundValue Untyped
+type UntypedVariable = SIR.Variable Untyped
 type UntypedTypeExpr = SIR.TypeExpr Untyped
 
 type UntypedADTArena = Arena.Arena UntypedADT Type.ADTKey
 type UntypedTypeSynonymArena = Arena.Arena UntypedTypeSynonym Type.TypeSynonymKey
-type UntypedBoundValueArena = Arena.Arena UntypedBoundValue SIR.BoundValueKey
+type UntypedVariableArena = Arena.Arena UntypedVariable SIR.VariableKey
 type UntypedModuleArena = Arena.Arena UntypedModule SIR.ModuleKey
 
 type TypedWithUnk = (DIden, DIden, TypeWithUnk, VIden, VIden, PIden, PIden, TypeWithUnk, Void)
@@ -42,12 +42,12 @@ type TypedWithUnkTypeSynonym = Type.TypeSynonym (TypedWithUnkTypeExpr, TypeWithU
 type TypedWithUnkBinding = SIR.Binding TypedWithUnk
 type TypedWithUnkExpr = SIR.Expr TypedWithUnk
 type TypedWithUnkPattern = SIR.Pattern TypedWithUnk
-type TypedWithUnkBoundValue = SIR.BoundValue TypedWithUnk
+type TypedWithUnkVariable = SIR.Variable TypedWithUnk
 type TypedWithUnkTypeExpr = SIR.TypeExpr TypedWithUnk
 
 type TypedWithUnkADTArena = Arena.Arena TypedWithUnkADT Type.ADTKey
 type TypedWithUnkTypeSynonymArena = Arena.Arena TypedWithUnkTypeSynonym Type.TypeSynonymKey
-type TypedWithUnkBoundValueArena = Arena.Arena TypedWithUnkBoundValue SIR.BoundValueKey
+type TypedWithUnkVariableArena = Arena.Arena TypedWithUnkVariable SIR.VariableKey
 type TypedWithUnkModuleArena = Arena.Arena TypedWithUnkModule SIR.ModuleKey
 
 type Typed = (DIden, DIden, Maybe Type, VIden, VIden, PIden, PIden, Maybe Type, Void)
@@ -59,10 +59,10 @@ type TypedTypeSynonym = Type.TypeSynonym (TypedTypeExpr, Maybe Type)
 type TypedBinding = SIR.Binding Typed
 type TypedExpr = SIR.Expr Typed
 type TypedPattern = SIR.Pattern Typed
-type TypedBoundValue = SIR.BoundValue Typed
+type TypedVariable = SIR.Variable Typed
 type TypedTypeExpr = SIR.TypeExpr Typed
 
 type TypedADTArena = Arena.Arena TypedADT Type.ADTKey
 type TypedTypeSynonymArena = Arena.Arena TypedTypeSynonym Type.TypeSynonymKey
-type TypedBoundValueArena = Arena.Arena TypedBoundValue SIR.BoundValueKey
+type TypedVariableArena = Arena.Arena TypedVariable SIR.VariableKey
 type TypedModuleArena = Arena.Arena TypedModule SIR.ModuleKey

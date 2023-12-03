@@ -3,7 +3,7 @@ module UHF.Data.IR.Keys
     , TypeSynonymKey
     , ModuleKey
     , TypeVarKey
-    , BoundValueKey
+    , VariableKey
     , BindingKey
     , ParamKey
     ) where
@@ -34,10 +34,10 @@ instance Arena.Key TypeVarKey where
     make_key = TypeVarKey
     unmake_key (TypeVarKey i) = i
 
-newtype BoundValueKey = BoundValueKey Int deriving (Show, Eq, Ord) -- TODO: remove Eq and Ord when BoundValues store their graph nodes
-instance Arena.Key BoundValueKey where
-    make_key = BoundValueKey
-    unmake_key (BoundValueKey i) = i
+newtype VariableKey = VariableKey Int deriving (Show, Eq, Ord) -- TODO: remove Eq and Ord when Variables store their graph nodes
+instance Arena.Key VariableKey where
+    make_key = VariableKey
+    unmake_key (VariableKey i) = i
 
 newtype BindingKey = BindingKey Int deriving (Show, Eq, Ord) -- TODO: figure out better solution in ts backend than to use ord instance
 instance Arena.Key BindingKey where

@@ -38,6 +38,7 @@ import qualified UHF.Util.Arena as Arena
 import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.SIR.Stage as Stage
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.Type.ADT as Type.ADT
 
 -- "syntax based ir"
 data SIR stage
@@ -45,7 +46,7 @@ data SIR stage
         (Arena.Arena (Module stage) ModuleKey)
         (Arena.Arena (Type.ADT (TypeExpr stage, Stage.TypeExprEvaledAsType stage)) ADTKey)
         (Arena.Arena (Type.TypeSynonym (TypeExpr stage, Stage.TypeExprEvaledAsType stage)) TypeSynonymKey)
-        (Arena.Arena Type.Var TypeVarKey)
+        (Arena.Arena Type.QuantVar QuantVarKey)
         (Arena.Arena (Variable stage) VariableKey)
         ModuleKey
 
@@ -60,12 +61,12 @@ deriving instance Stage.AllShowable stage => Show (Module stage)
 
 data Variable stage
     = Variable ID.VariableID (Stage.TypeInfo stage) (Located Text)
-    | Variable'ADTVariant ID.VariableID Type.ADTVariantIndex [Type.TypeVarKey] (Stage.TypeInfo stage) Span
+    | Variable'ADTVariant ID.VariableID Type.ADT.VariantIndex [Type.QuantVarKey] (Stage.TypeInfo stage) Span
 deriving instance Stage.AllShowable stage => Show (Variable stage)
 
 data Binding stage
     = Binding (Pattern stage) Span (Expr stage)
-    | Binding'ADTVariant Span VariableKey [Type.TypeVarKey] Type.ADTVariantIndex
+    | Binding'ADTVariant Span VariableKey [Type.QuantVarKey] Type.ADT.VariantIndex
 deriving instance Stage.AllShowable stage => Show (Binding stage)
 
 type HoleIdentifier = Located Text
@@ -76,7 +77,7 @@ data TypeExpr stage
     | TypeExpr'Tuple (Stage.TypeExprEvaled stage) Span (TypeExpr stage) (TypeExpr stage)
     | TypeExpr'Hole (Stage.TypeExprEvaled stage) (Stage.TypeExprEvaledAsType stage) Span HoleIdentifier -- TODO: using a TypeInfo field here seems a little inelegant
     | TypeExpr'Function (Stage.TypeExprEvaled stage) Span (TypeExpr stage) (TypeExpr stage)
-    | TypeExpr'Forall (Stage.TypeExprEvaled stage) Span (NonEmpty TypeVarKey) (TypeExpr stage)
+    | TypeExpr'Forall (Stage.TypeExprEvaled stage) Span (NonEmpty QuantVarKey) (TypeExpr stage)
     | TypeExpr'Apply (Stage.TypeExprEvaled stage) Span (TypeExpr stage) (TypeExpr stage)
     | TypeExpr'Wild (Stage.TypeExprEvaled stage) Span
     | TypeExpr'Poison (Stage.TypeExprEvaled stage) Span
@@ -110,7 +111,7 @@ data Expr stage
     | Expr'If ID.ExprID (Stage.TypeInfo stage) Span Span (Expr stage) (Expr stage) (Expr stage)
     | Expr'Match ID.ExprID (Stage.TypeInfo stage) Span Span (Expr stage) [(Pattern stage, Expr stage)]
 
-    | Expr'Forall ID.ExprID (Stage.TypeInfo stage) Span (NonEmpty TypeVarKey) (Expr stage)
+    | Expr'Forall ID.ExprID (Stage.TypeInfo stage) Span (NonEmpty QuantVarKey) (Expr stage)
     | Expr'TypeApply ID.ExprID (Stage.TypeInfo stage) Span (Expr stage) (TypeExpr stage, Stage.TypeExprEvaledAsType stage)
 
     | Expr'TypeAnnotation ID.ExprID (Stage.TypeInfo stage) Span (TypeExpr stage, Stage.TypeExprEvaledAsType stage) (Expr stage)

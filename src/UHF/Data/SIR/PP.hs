@@ -9,13 +9,14 @@ module UHF.Data.SIR.PP (dump_main_module) where
 import UHF.Prelude
 
 import UHF.Source.Located (Located (Located, unlocate))
-import qualified UHF.Util.Arena as Arena
 import qualified UHF.Data.IR.ID as ID
-import qualified UHF.Data.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.Type.PP as Type.PP
+import qualified UHF.Data.SIR as SIR
 import qualified UHF.PP as PP
 import qualified UHF.PP.Precedence as PP.Precedence
+import qualified UHF.Util.Arena as Arena
 
 type IRReader stage = Reader (SIR.SIR stage)
 
@@ -34,8 +35,8 @@ get_adt_arena :: IRReader stage (Arena.Arena (Type.ADT (SIR.TypeExpr stage, SIR.
 get_adt_arena = reader (\ (SIR.SIR _ adts _ _ _ _) -> adts)
 get_type_synonym_arena :: IRReader stage (Arena.Arena (Type.TypeSynonym (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage)) Type.TypeSynonymKey)
 get_type_synonym_arena = reader (\ (SIR.SIR _ _ syns _ _ _) -> syns)
-get_type_var_arena :: IRReader stage (Arena.Arena Type.Var Type.TypeVarKey)
-get_type_var_arena = reader (\ (SIR.SIR _ _ _ vars _ _) -> vars)
+get_quant_var_arena :: IRReader stage (Arena.Arena Type.QuantVar Type.QuantVarKey)
+get_quant_var_arena = reader (\ (SIR.SIR _ _ _ vars _ _) -> vars)
 
 get_var :: SIR.VariableKey -> IRReader stage (SIR.Variable stage)
 get_var k = reader (\ (SIR.SIR _ _ _ _ vars _) -> Arena.get vars k)
@@ -45,8 +46,8 @@ get_adt :: Type.ADTKey -> IRReader stage (Type.ADT (SIR.TypeExpr stage, SIR.Type
 get_adt k = reader (\ (SIR.SIR _ adts _ _ _ _) -> Arena.get adts k)
 get_type_syn :: Type.TypeSynonymKey -> IRReader stage (Type.TypeSynonym (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage))
 get_type_syn k = reader (\ (SIR.SIR _ _ syns _ _ _) -> Arena.get syns k)
-get_type_var :: Type.TypeVarKey -> IRReader stage Type.Var
-get_type_var k = reader (\ (SIR.SIR _ _ _ type_vars _ _) -> Arena.get type_vars k)
+get_quant_var :: Type.QuantVarKey -> IRReader stage Type.QuantVar
+get_quant_var k = reader (\ (SIR.SIR _ _ _ quant_vars _ _) -> Arena.get quant_vars k)
 
 define_module :: DumpableConstraints stage => SIR.Module stage -> IRReader stage PP.Token
 define_module (SIR.Module _ bindings adts type_synonyms) =
@@ -58,10 +59,10 @@ define_module (SIR.Module _ bindings adts type_synonyms) =
 
 define_binding :: DumpableConstraints stage => SIR.Binding stage -> IRReader stage PP.Token
 define_binding (SIR.Binding pat _ init) = pattern pat >>= \ pat -> expr init >>= \ init -> pure $ PP.List [pat, " = ", init, ";"]
-define_binding (SIR.Binding'ADTVariant _ var_key _ variant_index@(Type.ADTVariantIndex adt_key _)) =
+define_binding (SIR.Binding'ADTVariant _ var_key _ variant_index@(Type.ADT.VariantIndex adt_key _)) =
     Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
-    Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
-    let variant_name = unlocate $ Type.variant_name variant
+    Type.ADT.get_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
+    let variant_name = unlocate $ Type.ADT.variant_name variant
     in refer_var var_key >>= \ var_key ->
     pure $ PP.List [var_key, " = <constructor for ", adt_refer, " ", PP.String variant_name, ">;"]
 
@@ -81,8 +82,8 @@ refer_decl d = case d of
     SIR.Decl'Type ty ->
         get_adt_arena >>= \ adt_arena ->
         get_type_synonym_arena >>= \ type_synonym_arena ->
-        get_type_var_arena >>= \ type_var_arena ->
-        pure (Type.PP.refer_type absurd adt_arena type_synonym_arena type_var_arena ty)
+        get_quant_var_arena >>= \ quant_var_arena ->
+        pure (Type.PP.refer_type absurd adt_arena type_synonym_arena quant_var_arena ty)
 
 instance DumpableIdentifier stage a => DumpableIdentifier stage (Located a) where
     refer_iden = refer_iden . unlocate
@@ -104,22 +105,22 @@ instance DumpableIdentifier stage SIR.Decl where
     refer_iden = refer_decl
 instance DumpableIdentifier stage SIR.VariableKey where
     refer_iden = refer_var
-instance DumpableIdentifier stage Type.ADTVariantIndex where
-    refer_iden variant_index@(Type.ADTVariantIndex adt_key _) =
+instance DumpableIdentifier stage Type.ADT.VariantIndex where
+    refer_iden variant_index@(Type.ADT.VariantIndex adt_key _) =
         Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_referred ->
-        Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
-        let variant_name = unlocate $ Type.variant_name variant
+        Type.ADT.get_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
+        let variant_name = unlocate $ Type.ADT.variant_name variant
         in pure $ PP.List [adt_referred, "::", PP.String variant_name]
 
 -- TODO: dump type info too
 
-type_var :: Type.TypeVarKey -> IRReader stage PP.Token
-type_var k = get_type_var k >>= \ (Type.Var (Located _ name)) -> pure $ PP.String name
+quant_var :: Type.QuantVarKey -> IRReader stage PP.Token
+quant_var k = get_quant_var k >>= \ (Type.QuantVar (Located _ name)) -> pure $ PP.String name
 
 type_expr :: DumpableConstraints stage => SIR.TypeExpr stage -> IRReader stage PP.Token
 type_expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
     where
-        levels (SIR.TypeExpr'Forall _ _ vars ty) = (1, \ cur _ -> mapM type_var vars >>= \ vars -> cur ty >>= \ ty -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList vars, " ", ty]))
+        levels (SIR.TypeExpr'Forall _ _ vars ty) = (1, \ cur _ -> mapM quant_var vars >>= \ vars -> cur ty >>= \ ty -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList vars, " ", ty]))
         levels (SIR.TypeExpr'Function _ _ arg res) = (2, \ cur next -> next arg >>= \ arg -> cur res >>= \ res -> pure (PP.List [arg, " -> ", res]))
         levels (SIR.TypeExpr'Apply _ _ ty arg) = (3, \ cur _ -> cur ty >>= \ ty -> type_expr arg >>= \ arg -> pure (PP.List [ty, "#(", arg, ")"]))
         levels (SIR.TypeExpr'Get _ _ parent name) = (3, \ cur _ -> cur parent >>= \ parent -> pure (PP.List [parent, "::", PP.String $ unlocate name]))
@@ -165,7 +166,7 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
 
         levels (SIR.Expr'TypeAnnotation _ _ _ (ty, _) e) = (2, \ _ _ -> type_expr ty >>= \ ty -> expr e >>= \ e -> pure (PP.List [":", ty, ": ", e]))
 
-        levels (SIR.Expr'Forall _ _ _ tys e) = (2, \ _ _ -> mapM type_var tys >>= \ tys -> expr e >>= \ e -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList tys, " ", e]))
+        levels (SIR.Expr'Forall _ _ _ tys e) = (2, \ _ _ -> mapM quant_var tys >>= \ tys -> expr e >>= \ e -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList tys, " ", e]))
 
 pp_let :: DumpableConstraints stage => Text -> [SIR.Binding stage] -> SIR.Expr stage -> IRReader stage PP.Token
 pp_let let_kw [binding] body = define_binding binding >>= \ binding -> expr body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List [PP.String let_kw, " ", binding, "\n", body])

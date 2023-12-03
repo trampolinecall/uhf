@@ -31,16 +31,17 @@ import UHF.Prelude
 import qualified Data.Set as Set
 
 import UHF.Data.IR.Keys
-import qualified UHF.Util.Arena as Arena
 import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.Type.ADT as Type.ADT
+import qualified UHF.Util.Arena as Arena
 
 -- "a-normal form ir" even though this isnt actually a-normal form but it is the same idea
 data ANFIR
     = ANFIR
         (Arena.Arena (Type.ADT (Maybe (Type.Type Void))) ADTKey)
         (Arena.Arena (Type.TypeSynonym (Maybe (Type.Type Void))) TypeSynonymKey)
-        (Arena.Arena Type.Var Type.TypeVarKey)
+        (Arena.Arena Type.QuantVar Type.QuantVarKey)
         (Arena.Arena Binding BindingKey)
         (Arena.Arena Param ParamKey)
         CU
@@ -76,7 +77,7 @@ data Expr
     | Expr'Char ID (Maybe (Type.Type Void)) Char
     | Expr'String ID (Maybe (Type.Type Void)) Text
     | Expr'Tuple ID (Maybe (Type.Type Void)) BindingKey BindingKey
-    | Expr'MakeADT ID (Maybe (Type.Type Void)) Type.ADTVariantIndex [Maybe (Type.Type Void)] [BindingKey]
+    | Expr'MakeADT ID (Maybe (Type.Type Void)) Type.ADT.VariantIndex [Maybe (Type.Type Void)] [BindingKey]
 
     | Expr'Lambda ID (Maybe (Type.Type Void)) ParamKey (Set.Set BindingKey) BindingGroup BindingKey -- TODO: dont use BindingKey Ord for order of captures
     | Expr'Param ID (Maybe (Type.Type Void)) ParamKey
@@ -87,9 +88,9 @@ data Expr
 
     | Expr'TupleDestructure1 ID (Maybe (Type.Type Void)) BindingKey
     | Expr'TupleDestructure2 ID (Maybe (Type.Type Void)) BindingKey
-    | Expr'ADTDestructure ID (Maybe (Type.Type Void)) BindingKey (Maybe Type.ADTFieldIndex)
+    | Expr'ADTDestructure ID (Maybe (Type.Type Void)) BindingKey (Maybe Type.ADT.FieldIndex)
 
-    | Expr'Forall ID (Maybe (Type.Type Void)) (NonEmpty TypeVarKey) BindingGroup BindingKey
+    | Expr'Forall ID (Maybe (Type.Type Void)) (NonEmpty QuantVarKey) BindingGroup BindingKey
     | Expr'TypeApply ID (Maybe (Type.Type Void)) BindingKey (Maybe (Type.Type Void))
 
     | Expr'Poison ID (Maybe (Type.Type Void))
@@ -106,7 +107,7 @@ data MatchClause
 data MatchMatcher
     = Match'BoolLiteral Bool
     | Match'Tuple
-    | Match'AnonADTVariant (Maybe Type.ADTVariantIndex)
+    | Match'AnonADTVariant (Maybe Type.ADT.VariantIndex)
     deriving Show
 
 expr_type :: Expr -> Maybe (Type.Type Void)

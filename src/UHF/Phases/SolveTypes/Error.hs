@@ -47,7 +47,7 @@ name_unk var = state $
         to_characters n = chr $ 65 + n
     -}
 
-data ErrorTypeContext = ErrorTypeContext TypedWithInferVarsADTArena TypedWithInferVarsTypeSynonymArena TypeVarArena InferVarArena
+data ErrorTypeContext = ErrorTypeContext TypedWithInferVarsADTArena TypedWithInferVarsTypeSynonymArena QuantVarArena InferVarArena
 
 data Error
     = EqError

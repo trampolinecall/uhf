@@ -6,11 +6,12 @@ module UHF.Phases.NameResolve.ResolveVPIdens
 
 import UHF.Prelude
 
-import qualified UHF.Util.Arena as Arena
 import qualified UHF.Compiler as Compiler
-import qualified UHF.Data.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.Type.ADT as Type.ADT
+import qualified UHF.Data.SIR as SIR
 import qualified UHF.Phases.NameResolve.Utils as Utils
+import qualified UHF.Util.Arena as Arena
 
 type DIden = Maybe SIR.Decl
 
@@ -18,7 +19,7 @@ type UnresolvedVIden = SIR.SplitIdentifier Unresolved ResolvedVIden
 type UnresolvedPIden = SIR.SplitIdentifier Unresolved ResolvedPIden
 
 type ResolvedVIden = Maybe SIR.VariableKey
-type ResolvedPIden = Maybe Type.ADTVariantIndex
+type ResolvedPIden = Maybe Type.ADT.VariantIndex
 
 type Unresolved = (DIden, DIden, Maybe (Type.Type Void), ResolvedVIden, (), ResolvedPIden, (), (), ())
 
@@ -66,8 +67,8 @@ resolve_in_module (SIR.Module id bindings adts type_synonyms) = SIR.Module id <$
 resolve_in_adt :: UnresolvedADT -> (Utils.NRReader adt_arena var_arena type_var_arena Utils.SIRChildMaps Utils.WithErrors) ResolvedADT
 resolve_in_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM resolve_in_variant variants
     where
-        resolve_in_variant (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id <$> mapM (\ (id, name, (ty, teat)) -> resolve_in_type_expr ty >>= \ ty -> pure (id, name, (ty, teat))) fields -- 'teat' short for 'type evaluated as type'
-        resolve_in_variant (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id <$> mapM (\ (id, (ty, teat)) -> resolve_in_type_expr ty >>= \ ty -> pure (id, (ty, teat))) fields
+        resolve_in_variant (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id <$> mapM (\ (id, name, (ty, teat)) -> resolve_in_type_expr ty >>= \ ty -> pure (id, name, (ty, teat))) fields -- 'teat' short for 'type evaluated as type'
+        resolve_in_variant (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id <$> mapM (\ (id, (ty, teat)) -> resolve_in_type_expr ty >>= \ ty -> pure (id, (ty, teat))) fields
 
 resolve_in_type_synonym :: UnresolvedTypeSynonym -> (Utils.NRReader adt_arena var_arena type_var_arena Utils.SIRChildMaps Utils.WithErrors) ResolvedTypeSynonym
 resolve_in_type_synonym (Type.TypeSynonym id name (expansion, expeat)) = resolve_in_type_expr expansion >>= \ expansion -> pure (Type.TypeSynonym id name (expansion, expeat))

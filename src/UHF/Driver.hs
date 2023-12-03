@@ -21,6 +21,7 @@ import qualified UHF.Data.BackendIR as BackendIR
 import qualified UHF.Data.BackendIR.PP as BackendIR.PP
 import qualified UHF.Data.IR.Keys as IR.Keys
 import qualified UHF.Data.IR.Type as IR.Type
+import qualified UHF.Data.IR.Type.ADT as IR.Type.ADT
 import qualified UHF.Data.RIR as RIR
 import qualified UHF.Data.RIR.PP as RIR.PP
 import qualified UHF.Data.SIR as SIR
@@ -47,9 +48,9 @@ import qualified UHF.Source.FormattedString as FormattedString
 type Tokens = ([Token.LToken], Token.LToken)
 type AST = [AST.Decl]
 type FirstSIR = SIR.SIR (Located Text, (), (), Located Text, (), Located Text, (), (), ())
-type NRSIR = SIR.SIR (Maybe SIR.Decl, Maybe SIR.Decl, Maybe (IR.Type.Type Void), Maybe IR.Keys.VariableKey, Maybe IR.Keys.VariableKey, Maybe IR.Type.ADTVariantIndex, Maybe IR.Type.ADTVariantIndex, (), ())
-type InfixGroupedSIR = SIR.SIR (Maybe SIR.Decl, Maybe SIR.Decl, Maybe (IR.Type.Type Void), Maybe IR.Keys.VariableKey, Maybe IR.Keys.VariableKey, Maybe IR.Type.ADTVariantIndex, Maybe IR.Type.ADTVariantIndex, (), Void)
-type TypedSIR = SIR.SIR (Maybe SIR.Decl, Maybe SIR.Decl, Maybe (IR.Type.Type Void), Maybe IR.Keys.VariableKey, Maybe IR.Keys.VariableKey, Maybe IR.Type.ADTVariantIndex, Maybe IR.Type.ADTVariantIndex, Maybe (IR.Type.Type Void), Void)
+type NRSIR = SIR.SIR (Maybe SIR.Decl, Maybe SIR.Decl, Maybe (IR.Type.Type Void), Maybe IR.Keys.VariableKey, Maybe IR.Keys.VariableKey, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, (), ())
+type InfixGroupedSIR = SIR.SIR (Maybe SIR.Decl, Maybe SIR.Decl, Maybe (IR.Type.Type Void), Maybe IR.Keys.VariableKey, Maybe IR.Keys.VariableKey, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, (), Void)
+type TypedSIR = SIR.SIR (Maybe SIR.Decl, Maybe SIR.Decl, Maybe (IR.Type.Type Void), Maybe IR.Keys.VariableKey, Maybe IR.Keys.VariableKey, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, Maybe (IR.Type.Type Void), Void)
 type RIR = RIR.RIR
 type ANFIR = ANFIR.ANFIR
 type BackendIR = BackendIR.BackendIR (Maybe (IR.Type.Type Void)) ()

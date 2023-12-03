@@ -2,19 +2,20 @@ module UHF.Phases.SolveTypes.Aliases where
 
 import UHF.Prelude
 
-import qualified UHF.Util.Arena as Arena
-import qualified UHF.Data.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.Type.ADT as Type.ADT
+import qualified UHF.Data.SIR as SIR
 import qualified UHF.Phases.SolveTypes.Solver.InferVar as InferVar
+import qualified UHF.Util.Arena as Arena
 
 type TypeWithInferVars = Type.Type InferVar.InferVarKey
 type Type = Type.Type Void
 
 type DIden = Maybe SIR.Decl
 type VIden = Maybe SIR.VariableKey
-type PIden = Maybe Type.ADTVariantIndex
+type PIden = Maybe Type.ADT.VariantIndex
 
-type TypeVarArena = Arena.Arena Type.Var Type.TypeVarKey
+type QuantVarArena = Arena.Arena Type.QuantVar Type.QuantVarKey
 
 type Untyped = (DIden, DIden, Maybe Type, VIden, VIden, PIden, PIden, (), Void)
 

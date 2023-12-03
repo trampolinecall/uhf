@@ -31,10 +31,10 @@ refer_type_synonym (Type.TypeSynonym id _ _) = PP.String $ ID.stringify id
 
 -- TODO: construct an ast and print it
 -- TODO: precedence for this
-refer_type :: (tyunk -> PP.Token) -> Arena.Arena (Type.ADT ty) Type.ADTKey -> Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey -> Arena.Arena Type.Var Type.TypeVarKey -> Type.Type tyunk -> PP.Token
+refer_type :: (tyunk -> PP.Token) -> Arena.Arena (Type.ADT ty) Type.ADTKey -> Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey -> Arena.Arena Type.QuantVar Type.QuantVarKey -> Type.Type tyunk -> PP.Token
 refer_type show_tyunk adts type_synonyms vars ty = runIdentity $ refer_type_m (pure . show_tyunk) adts type_synonyms vars ty
 
-refer_type_m :: Monad m => (tyunk -> m PP.Token) -> Arena.Arena (Type.ADT ty) Type.ADTKey -> Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey -> Arena.Arena Type.Var Type.TypeVarKey -> Type.Type tyunk -> m PP.Token
+refer_type_m :: Monad m => (tyunk -> m PP.Token) -> Arena.Arena (Type.ADT ty) Type.ADTKey -> Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey -> Arena.Arena Type.QuantVar Type.QuantVarKey -> Type.Type tyunk -> m PP.Token
 refer_type_m show_tyunk adts type_synonyms vars (Type.Type'ADT k params) =
     mapM (refer_type_m show_tyunk adts type_synonyms vars) params >>= \ params ->
     let params'
@@ -56,9 +56,9 @@ refer_type_m show_tyunk adts type_synonyms vars (Type.Type'Tuple a b) = do
     b_shown <- refer_type_m show_tyunk adts type_synonyms vars b
     pure (PP.parenthesized_comma_list PP.Inconsistent [a_shown, b_shown])
 refer_type_m show_tyunk _ _ _ (Type.Type'InferVar unk) = show_tyunk unk
-refer_type_m _ _ _ vars (Type.Type'Variable var) =
-    let (Type.Var (Located _ name)) = Arena.get vars var
+refer_type_m _ _ _ vars (Type.Type'QuantVar var) =
+    let (Type.QuantVar (Located _ name)) = Arena.get vars var
     in pure $ PP.String name -- TODO: write id
 refer_type_m show_tyunk adts type_synonyms vars (Type.Type'Forall new_vars ty) = do
     ty <- refer_type_m show_tyunk adts type_synonyms vars ty
-    pure $ PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent (map (\ vk -> let (Type.Var (Located _ name)) = Arena.get vars vk in PP.String name) (toList new_vars)), " ", ty]
+    pure $ PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent (map (\ vk -> let (Type.QuantVar (Located _ name)) = Arena.get vars vk in PP.String name) (toList new_vars)), " ", ty]

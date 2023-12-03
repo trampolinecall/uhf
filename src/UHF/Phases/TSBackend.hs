@@ -7,12 +7,13 @@ import UHF.Prelude
 import qualified Data.FileEmbed as FileEmbed
 import qualified Data.Set as Set
 
-import qualified UHF.Util.Arena as Arena
 import qualified UHF.Data.BackendIR as BackendIR
 import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Phases.TSBackend.TS as TS
 import qualified UHF.Phases.TSBackend.TS.PP as TS.PP
+import qualified UHF.Util.Arena as Arena
 
 type CU = BackendIR.CU
 type Type = Type.Type Void
@@ -92,10 +93,10 @@ convert_ts_adt (TSADT key) =
                     pure (foldl' TS.Type'Union first more)
 
         convert_variant variant =
-            let name_field = ("discriminant", Just $ TS.Type'StrLit $ ID.mangle $ Type.variant_id variant)
+            let name_field = ("discriminant", Just $ TS.Type'StrLit $ ID.mangle $ Type.ADT.variant_id variant)
             in (case variant of
-                    Type.ADTVariant'Named _ _ fields -> mapM (\ (id, _, f) -> (ID.mangle id,) <$> (Just <$> refer_type f)) fields
-                    Type.ADTVariant'Anon _ _ fields -> mapM (\ (id, f) -> (ID.mangle id,) <$> (Just <$> refer_type f)) fields) >>= \ fields ->
+                    Type.ADT.Variant'Named _ _ fields -> mapM (\ (id, _, f) -> (ID.mangle id,) <$> (Just <$> refer_type f)) fields
+                    Type.ADT.Variant'Anon _ _ fields -> mapM (\ (id, f) -> (ID.mangle id,) <$> (Just <$> refer_type f)) fields) >>= \ fields ->
             pure (TS.Type'Object $ name_field : fields)
 
 convert_ts_lambda :: TSLambda -> IRReader TS.Stmt
@@ -152,7 +153,7 @@ refer_type_raw Type.Type'Bool = pure $ TS.Type'Reference $ TS.TypeReference "Boo
 refer_type_raw (Type.Type'Function a r) = refer_type_raw a >>= \ a -> refer_type_raw r >>= \ r -> pure (TS.Type'Reference $ TS.TypeReference "Lambda" [a, r])
 refer_type_raw (Type.Type'Tuple a b) = refer_type_raw a >>= \ a -> refer_type_raw b >>= \ b -> pure (TS.Type'Reference $ TS.TypeReference "Tuple" [a, b])
 refer_type_raw (Type.Type'InferVar void) = absurd void
-refer_type_raw (Type.Type'Variable _) = pure $ TS.Type'Reference $ TS.TypeReference "any" [] -- best approximation
+refer_type_raw (Type.Type'QuantVar _) = pure $ TS.Type'Reference $ TS.TypeReference "any" [] -- best approximation
 refer_type_raw (Type.Type'Forall _ t) = refer_type_raw t
 
 refer_type :: Type.Type Void -> IRReader TS.Type
@@ -221,11 +222,11 @@ lower_binding (BackendIR.Binding init) = l init
         l (BackendIR.Expr'String id _ s) = let_current id (TS.Expr'New (TS.Expr'Identifier "UHFString") [TS.Expr'String s]) >>= \ let_stmt -> pure ([let_stmt], [])
 
         l (BackendIR.Expr'Tuple id _ a b) = mangle_binding_as_var a >>= \ a -> mangle_binding_as_var b >>= \ b -> let_current id (TS.Expr'New (TS.Expr'Identifier "Tuple") [TS.Expr'Identifier a, TS.Expr'Identifier b]) >>= \ let_stmt -> pure ([let_stmt], [])
-        l (BackendIR.Expr'MakeADT id _ variant_index@(Type.ADTVariantIndex adt_key _) _ args) =
+        l (BackendIR.Expr'MakeADT id _ variant_index@(Type.ADT.VariantIndex adt_key _) _ args) =
             mangle_adt adt_key >>= \ adt_mangled ->
-            Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
-            let variant_id = Type.variant_id variant
-            in zipWithM (\ field_id arg -> mangle_binding_as_var arg >>= \ arg -> pure (ID.mangle field_id, Just $ TS.Expr'Identifier arg)) (Type.variant_field_ids variant) args >>= \ object_fields ->
+            Type.ADT.get_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
+            let variant_id = Type.ADT.variant_id variant
+            in zipWithM (\ field_id arg -> mangle_binding_as_var arg >>= \ arg -> pure (ID.mangle field_id, Just $ TS.Expr'Identifier arg)) (Type.ADT.variant_field_ids variant) args >>= \ object_fields ->
             let_current id (TS.Expr'New (TS.Expr'Identifier adt_mangled) [TS.Expr'Object $ ("discriminant", Just $ TS.Expr'StrLit $ ID.mangle variant_id) : object_fields]) >>= \ let_stmt ->
                 pure ([let_stmt], [])
 
@@ -282,7 +283,7 @@ lower_binding (BackendIR.Binding init) = l init
                 convert_matcher _ BackendIR.Match'Tuple = pure $ TS.Expr'Bool True -- tuple always matches because there is only 1 constructor
                 -- TODO: clean this up
                 convert_matcher checking (BackendIR.Match'AnonADTVariant (Right variant_index)) =
-                    Type.variant_id <$> (Type.get_adt_variant <$> get_adt_arena <*> pure variant_index) >>= \ variant_id ->
+                    Type.ADT.variant_id <$> (Type.ADT.get_variant <$> get_adt_arena <*> pure variant_index) >>= \ variant_id ->
                     pure (TS.Expr'Eq (TS.Expr'Get (TS.Expr'Get checking "data") "discriminant") (TS.Expr'String $ ID.mangle variant_id))
                 convert_matcher _ (BackendIR.Match'AnonADTVariant (Left void)) = absurd void
 
@@ -290,7 +291,7 @@ lower_binding (BackendIR.Binding init) = l init
         l (BackendIR.Expr'TupleDestructure2 id _ tup) = mangle_binding_as_var tup >>= \ tup -> let_current id (TS.Expr'Get (TS.Expr'Identifier tup) "second") >>= \ let_stmt -> pure ([let_stmt], [])
         l (BackendIR.Expr'ADTDestructure id _ b (Right field_idx)) =
             mangle_binding_as_var b >>= \ b ->
-            Type.get_adt_field_id <$> get_adt_arena <*> pure field_idx >>= \ field_id ->
+            Type.ADT.get_field_id <$> get_adt_arena <*> pure field_idx >>= \ field_id ->
             let_current id (TS.Expr'Get (TS.Expr'Get (TS.Expr'Identifier b) "data") (ID.mangle field_id)) >>= \ let_stmt ->
             pure ([let_stmt], [])
         l (BackendIR.Expr'ADTDestructure _ _ _ (Left void)) = absurd void

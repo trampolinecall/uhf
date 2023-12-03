@@ -6,16 +6,17 @@ module UHF.Phases.NameResolve.EvalTypeExprs
 
 import UHF.Prelude
 
-import qualified UHF.Util.Arena as Arena
 import qualified UHF.Compiler as Compiler
-import qualified UHF.Data.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.Type.ADT as Type.ADT
+import qualified UHF.Data.SIR as SIR
 import qualified UHF.Phases.NameResolve.Utils as Utils
+import qualified UHF.Util.Arena as Arena
 
 -- TODO: change errors, clean up this whole module
 
 type VIdenStart = Maybe SIR.VariableKey
-type PIdenStart = Maybe Type.ADTVariantIndex
+type PIdenStart = Maybe Type.ADT.VariantIndex
 
 type EvaledDIden = Maybe SIR.Decl
 
@@ -78,8 +79,8 @@ eval_in_module (SIR.Module id bindings adts type_synonyms) = SIR.Module id <$> m
 eval_in_adt :: UnevaledADT -> (Utils.NRReader adt_arena var_arena type_var_arena Utils.SIRChildMaps Utils.WithErrors) EvaledADT
 eval_in_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM eval_in_variant variants
     where
-        eval_in_variant (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id <$> mapM (\ (id, name, (ty, ())) -> eval_in_type_expr ty >>= \ ty -> lift (evaled_as_type ty) >>= \ ty_as_type -> pure (id, name, (ty, ty_as_type))) fields
-        eval_in_variant (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id <$> mapM (\ (id, (ty, ())) -> eval_in_type_expr ty >>= \ ty -> lift (evaled_as_type ty) >>= \ ty_as_type -> pure (id, (ty, ty_as_type))) fields
+        eval_in_variant (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id <$> mapM (\ (id, name, (ty, ())) -> eval_in_type_expr ty >>= \ ty -> lift (evaled_as_type ty) >>= \ ty_as_type -> pure (id, name, (ty, ty_as_type))) fields
+        eval_in_variant (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id <$> mapM (\ (id, (ty, ())) -> eval_in_type_expr ty >>= \ ty -> lift (evaled_as_type ty) >>= \ ty_as_type -> pure (id, (ty, ty_as_type))) fields
 
 eval_in_type_synonym :: UnevaledTypeSynonym -> (Utils.NRReader adt_arena var_arena type_var_arena Utils.SIRChildMaps Utils.WithErrors) EvaledTypeSynonym
 eval_in_type_synonym (Type.TypeSynonym id name (expansion, ())) =

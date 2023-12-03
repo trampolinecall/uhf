@@ -9,6 +9,7 @@ import UHF.Phases.SolveTypes.Error
 import UHF.Phases.SolveTypes.Solver.InferVar
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Util.Arena as Arena
 
@@ -35,7 +36,7 @@ convert_vars unks =
         r unks_converted (Type.Type'Function arg res) = Type.Type'Function <$> r unks_converted arg <*> r unks_converted res
         r unks_converted (Type.Type'Tuple a b) = Type.Type'Tuple <$> r unks_converted a <*> r unks_converted b
         r unks_converted (Type.Type'InferVar v) = MaybeT $ pure $ Arena.get unks_converted v
-        r _ (Type.Type'Variable v) = pure $ Type.Type'Variable v
+        r _ (Type.Type'QuantVar v) = pure $ Type.Type'QuantVar v
         r unks_converted (Type.Type'Forall vars ty) = Type.Type'Forall vars <$> r unks_converted ty
 
         convert_var unks_converted (InferVar _ (Substituted s)) = r unks_converted s
@@ -49,10 +50,10 @@ variable unks (SIR.Variable id ty name) = SIR.Variable id (type_ unks ty) name
 variable unks (SIR.Variable'ADTVariant id index tparams ty sp) = SIR.Variable'ADTVariant id index tparams (type_ unks ty) sp
 
 adt :: Arena.Arena (Maybe Type) InferVarKey -> TypedWithInferVarsADT -> TypedADT
-adt unks (Type.ADT id name type_var variants) = Type.ADT id name type_var (map variant variants)
+adt unks (Type.ADT id name quant_var variants) = Type.ADT id name quant_var (map variant variants)
     where
-        variant (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id (map (\ (name, id, ty) -> (name, id, type_expr_and_type unks ty)) fields)
-        variant (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id (map (\ (id, ty) -> (id, type_expr_and_type unks ty)) fields)
+        variant (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id (map (\ (name, id, ty) -> (name, id, type_expr_and_type unks ty)) fields)
+        variant (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id (map (\ (id, ty) -> (id, type_expr_and_type unks ty)) fields)
 
 type_synonym :: Arena.Arena (Maybe Type) InferVarKey -> TypedWithInferVarsTypeSynonym -> TypedTypeSynonym
 type_synonym unks (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name (type_expr_and_type unks expansion)
@@ -122,5 +123,5 @@ type_ unks = r
         r (Type.Type'Function arg res) = Type.Type'Function <$> r arg <*> r res
         r (Type.Type'Tuple a b) = Type.Type'Tuple <$> r a <*> r b
         r (Type.Type'InferVar u) = Arena.get unks u
-        r (Type.Type'Variable v) = Just $ Type.Type'Variable v
+        r (Type.Type'QuantVar v) = Just $ Type.Type'QuantVar v
         r (Type.Type'Forall vars ty) = Type.Type'Forall vars <$> r ty

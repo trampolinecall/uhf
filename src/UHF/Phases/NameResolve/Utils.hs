@@ -45,6 +45,7 @@ import UHF.Source.Located (Located (Located, unlocate))
 import UHF.Source.Span (Span)
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Util.Arena as Arena
@@ -86,8 +87,8 @@ instance Diagnostic.ToError Error where
 -- child/name maps {{{1
 -- these are very similar datatypes; the difference between them is conceptual: ChildMaps is a map that tells what the children of a certain entity are, whereas a NameMap just stores what names are currently in scope (and is only used for resolving roots)
 -- this is also why there is a NameMapStack but not a ChildMapStack
-data ChildMaps = ChildMaps (Map.Map Text SIR.Decl) (Map.Map Text SIR.VariableKey) (Map.Map Text Type.ADTVariantIndex) deriving Show
-data NameMaps = NameMaps (Map.Map Text SIR.Decl) (Map.Map Text SIR.VariableKey) (Map.Map Text Type.ADTVariantIndex) deriving Show
+data ChildMaps = ChildMaps (Map.Map Text SIR.Decl) (Map.Map Text SIR.VariableKey) (Map.Map Text Type.ADT.VariantIndex) deriving Show
+data NameMaps = NameMaps (Map.Map Text SIR.Decl) (Map.Map Text SIR.VariableKey) (Map.Map Text Type.ADT.VariantIndex) deriving Show
 data NameMapStack = NameMapStack NameMaps (Maybe NameMapStack)
 
 -- TODO: do not export this
@@ -96,7 +97,7 @@ data DeclAt = DeclAt Span | ImplicitPrim deriving Show
 -- TODO: do not export these
 type DeclChildrenList = [(Text, DeclAt, SIR.Decl)]
 type VariableList = [(Text, DeclAt, SIR.VariableKey)]
-type ADTVariantList = [(Text, DeclAt, Type.ADTVariantIndex)]
+type ADTVariantList = [(Text, DeclAt, Type.ADT.VariantIndex)]
 
 -- SIRChildMaps {{{2
 data SIRChildMaps = SIRChildMaps (Arena.Arena ChildMaps SIR.ModuleKey)
@@ -222,8 +223,8 @@ var_name var_key =
         SIR.Variable _ _ (Located _ name) -> pure name
         SIR.Variable'ADTVariant _ variant_index _ _ _ ->
             ask_adt_arena >>= \ adt_arena ->
-            let variant = Type.get_adt_variant adt_arena variant_index
-            in pure $ unlocate $ Type.variant_name variant
+            let variant = Type.ADT.get_variant adt_arena variant_index
+            in pure $ unlocate $ Type.ADT.variant_name variant
 
 -- getting from child maps {{{2
 -- TODO: remove duplication from these
@@ -251,7 +252,7 @@ get_value_child sir_child_maps decl name =
         Just res -> Right res
         Nothing -> Left $ Error'CouldNotFindIn Nothing name -- TODO: put previous
 
-get_variant_child :: SIRChildMaps -> SIR.Decl -> Located Text -> Either Error Type.ADTVariantIndex
+get_variant_child :: SIRChildMaps -> SIR.Decl -> Located Text -> Either Error Type.ADT.VariantIndex
 get_variant_child sir_child_maps decl name =
     let res = case decl of
             SIR.Decl'Module m ->

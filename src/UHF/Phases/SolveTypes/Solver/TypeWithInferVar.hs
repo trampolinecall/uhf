@@ -87,5 +87,3 @@ infer_var_for_what_name (TypeHole _) = "type hole"
 infer_var_for_what_name (UnresolvedADTVariantPattern _) = "ADT variant pattern"
 infer_var_for_what_name (ImplicitTyParam _) = "implicit type parameter" -- TODO: better message
 infer_var_for_what_name (SomeError _) = "some error" -- TODO: remove this
-
-

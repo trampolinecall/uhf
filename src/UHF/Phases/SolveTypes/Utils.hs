@@ -1,8 +1,8 @@
-module UHF.Phases.Type.Utils where
+module UHF.Phases.SolveTypes.Utils where
 
 import UHF.Prelude
 
-import UHF.Phases.Type.Unknown
+import UHF.Phases.SolveTypes.Solver.Unknown
 import qualified UHF.Util.Arena as Arena
 import qualified UHF.Data.IR.Type as Type
 

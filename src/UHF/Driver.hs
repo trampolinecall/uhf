@@ -12,24 +12,22 @@ import qualified System.FilePath as FilePath
 import UHF.Source.File (File)
 import UHF.Source.Located (Located)
 import qualified UHF.Compiler as Compiler
+import qualified UHF.Data.ANFIR as ANFIR
+import qualified UHF.Data.ANFIR.PP as ANFIR.PP
 import qualified UHF.Data.AST as AST
 import qualified UHF.Data.AST.Dump as AST.Dump
 import qualified UHF.Data.AST.PP as AST.PP
-import qualified UHF.Data.ANFIR as ANFIR
-import qualified UHF.Data.ANFIR.PP as ANFIR.PP
 import qualified UHF.Data.BackendIR as BackendIR
 import qualified UHF.Data.BackendIR.PP as BackendIR.PP
 import qualified UHF.Data.IR.Keys as IR.Keys
+import qualified UHF.Data.IR.Type as IR.Type
 import qualified UHF.Data.RIR as RIR
 import qualified UHF.Data.RIR.PP as RIR.PP
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Data.SIR.PP as SIR.PP
-import qualified UHF.Data.IR.Type as IR.Type
 import qualified UHF.Data.Token as Token
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Settings as DiagnosticSettings
-import qualified UHF.Source.File as File
-import qualified UHF.Source.FormattedString as FormattedString
 import qualified UHF.Phases.InfixGroup as InfixGroup
 import qualified UHF.Phases.Lexer as Lexer
 import qualified UHF.Phases.NameResolve as NameResolve
@@ -37,12 +35,14 @@ import qualified UHF.Phases.OptimizeANFIR as OptimizeANFIR
 import qualified UHF.Phases.Parser as Parser
 import qualified UHF.Phases.RemovePoison as RemovePoison
 import qualified UHF.Phases.ReportHoles as ReportHoles
+import qualified UHF.Phases.SolveTypes as SolveTypes
 import qualified UHF.Phases.TSBackend as TSBackend
 import qualified UHF.Phases.ToANFIR as ToANFIR
 import qualified UHF.Phases.ToBackendIR as ToBackendIR
 import qualified UHF.Phases.ToRIR as ToRIR
 import qualified UHF.Phases.ToSIR as ToSIR
-import qualified UHF.Phases.Type as Type
+import qualified UHF.Source.File as File
+import qualified UHF.Source.FormattedString as FormattedString
 
 type Tokens = ([Token.LToken], Token.LToken)
 type AST = [AST.Decl]
@@ -181,7 +181,7 @@ get_typed_sir = get_or_calculate _get_typed_sir (\ cache typed_sir -> cache { _g
     where
         type_ =
             get_infix_grouped >>=
-            run_stage_on_previous_stage_output (convert_errors . Type.typecheck) >>= \ typed_ir ->
+            run_stage_on_previous_stage_output (convert_errors . SolveTypes.solve) >>= \ typed_ir ->
             run_stage_on_previous_stage_output (convert_errors . ReportHoles.report_holes) typed_ir >>
             pure typed_ir
 

@@ -1,9 +1,9 @@
-module UHF.Phases.Type.Constraint where
+module UHF.Phases.SolveTypes.Solver.Constraint where
 
 import UHF.Source.Located (Located)
 import UHF.Source.Span (Span)
-import UHF.Phases.Type.Aliases
-import UHF.Phases.Type.Unknown
+import UHF.Phases.SolveTypes.Aliases
+import UHF.Phases.SolveTypes.Solver.Unknown
 
 data EqInWhat = InAssignment | InNamedPattern | InIfBranches | InMatchPatterns | InMatchArms
 data ExpectInWhat = InTypeAnnotation | InCallExpr | InIfCondition | InTypeApplication | InADTVariantPatternField

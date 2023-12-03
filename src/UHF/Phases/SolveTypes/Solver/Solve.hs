@@ -1,20 +1,20 @@
-module UHF.Phases.Type.SolveConstraints (solve) where
+module UHF.Phases.SolveTypes.Solver.Solve (solve) where
 
 import UHF.Prelude
 
 import qualified Data.Map as Map
 
+import UHF.Phases.SolveTypes.Aliases
+import UHF.Phases.SolveTypes.Error
+import UHF.Phases.SolveTypes.Solver.Constraint
+import UHF.Phases.SolveTypes.Solver.Unknown
+import UHF.Phases.SolveTypes.StateWithUnk
+import UHF.Phases.SolveTypes.Utils
 import UHF.Source.Located (Located (..))
 import UHF.Source.Span (Span)
-import UHF.Phases.Type.Aliases
-import UHF.Phases.Type.Constraint
-import UHF.Phases.Type.Error
-import UHF.Phases.Type.StateWithUnk
-import UHF.Phases.Type.Unknown
-import UHF.Phases.Type.Utils
-import qualified UHF.Util.Arena as Arena
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Util.Arena as Arena
 
 type TypeContextReader = ReaderT (TypedWithUnkADTArena, TypedWithUnkTypeSynonymArena, TypeVarArena)
 

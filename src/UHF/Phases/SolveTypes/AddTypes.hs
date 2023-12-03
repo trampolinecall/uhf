@@ -1,17 +1,17 @@
-module UHF.Phases.Type.AddTypes (add) where
+module UHF.Phases.SolveTypes.AddTypes (add) where
 
 import UHF.Prelude
 
+import UHF.Phases.SolveTypes.Aliases
+import UHF.Phases.SolveTypes.Solver.Constraint
+import UHF.Phases.SolveTypes.Solver.Unknown
+import UHF.Phases.SolveTypes.StateWithUnk
+import UHF.Phases.SolveTypes.Utils
 import UHF.Source.Located (Located (..))
 import UHF.Source.Span (Span)
-import UHF.Phases.Type.Aliases
-import UHF.Phases.Type.Constraint
-import UHF.Phases.Type.StateWithUnk
-import UHF.Phases.Type.Unknown
-import UHF.Phases.Type.Utils
-import qualified UHF.Util.Arena as Arena
-import qualified UHF.Data.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.SIR as SIR
+import qualified UHF.Util.Arena as Arena
 
 type ContextReader vars adts = ReaderT (vars, adts) (WriterT [Constraint] StateWithUnk)
 

@@ -28,27 +28,25 @@ type DumpableConstraints stage =
     )
 
 dump_main_module :: DumpableConstraints stage => SIR.SIR stage -> Text
-dump_main_module ir@(SIR.SIR _ modules _ _ _ _ mod) = PP.render $ runReader (define_module $ Arena.get modules mod) ir
+dump_main_module ir@(SIR.SIR modules _ _ _ _ mod) = PP.render $ runReader (define_module $ Arena.get modules mod) ir
 
 get_adt_arena :: IRReader stage (Arena.Arena (Type.ADT (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage)) Type.ADTKey)
-get_adt_arena = reader (\ (SIR.SIR _ _ adts _ _ _ _) -> adts)
+get_adt_arena = reader (\ (SIR.SIR _ adts _ _ _ _) -> adts)
 get_type_synonym_arena :: IRReader stage (Arena.Arena (Type.TypeSynonym (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage)) Type.TypeSynonymKey)
-get_type_synonym_arena = reader (\ (SIR.SIR _ _ _ syns _ _ _) -> syns)
+get_type_synonym_arena = reader (\ (SIR.SIR _ _ syns _ _ _) -> syns)
 get_type_var_arena :: IRReader stage (Arena.Arena Type.Var Type.TypeVarKey)
-get_type_var_arena = reader (\ (SIR.SIR _ _ _ _ vars _ _) -> vars)
+get_type_var_arena = reader (\ (SIR.SIR _ _ _ vars _ _) -> vars)
 
 get_bv :: SIR.BoundValueKey -> IRReader stage (SIR.BoundValue stage)
-get_bv k = reader (\ (SIR.SIR _ _ _ _ _ bvs _) -> Arena.get bvs k)
-get_decl :: SIR.DeclKey -> IRReader stage SIR.Decl
-get_decl k = reader (\ (SIR.SIR decls _ _ _ _ _ _) -> Arena.get decls k)
+get_bv k = reader (\ (SIR.SIR _ _ _ _ bvs _) -> Arena.get bvs k)
 get_module :: SIR.ModuleKey -> IRReader stage (SIR.Module stage)
-get_module k = reader (\ (SIR.SIR _ modules _ _ _ _ _) -> Arena.get modules k)
+get_module k = reader (\ (SIR.SIR modules _ _ _ _ _) -> Arena.get modules k)
 get_adt :: Type.ADTKey -> IRReader stage (Type.ADT (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage))
-get_adt k = reader (\ (SIR.SIR _ _ adts _ _ _ _) -> Arena.get adts k)
+get_adt k = reader (\ (SIR.SIR _ adts _ _ _ _) -> Arena.get adts k)
 get_type_syn :: Type.TypeSynonymKey -> IRReader stage (Type.TypeSynonym (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage))
-get_type_syn k = reader (\ (SIR.SIR _ _ _ syns _ _ _) -> Arena.get syns k)
+get_type_syn k = reader (\ (SIR.SIR _ _ syns _ _ _) -> Arena.get syns k)
 get_type_var :: Type.TypeVarKey -> IRReader stage Type.Var
-get_type_var k = reader (\ (SIR.SIR _ _ _ _ type_vars _ _) -> Arena.get type_vars k)
+get_type_var k = reader (\ (SIR.SIR _ _ _ type_vars _ _) -> Arena.get type_vars k)
 
 define_module :: DumpableConstraints stage => SIR.Module stage -> IRReader stage PP.Token
 define_module (SIR.Module _ bindings adts type_synonyms) =
@@ -75,8 +73,8 @@ refer_bv k = get_bv k >>= \case
     SIR.BoundValue id _ _ -> pure $ PP.String (ID.stringify id)
     SIR.BoundValue'ADTVariant id _ _ _ _ -> pure $ PP.String (ID.stringify id)
 
-refer_decl :: SIR.DeclKey -> IRReader stage PP.Token
-refer_decl k = get_decl k >>= \case
+refer_decl :: SIR.Decl -> IRReader stage PP.Token
+refer_decl d = case d of
     SIR.Decl'Module m ->
         get_module m >>= \ (SIR.Module id _ _ _) ->
         pure (PP.String $ ID.stringify id)
@@ -102,7 +100,7 @@ instance (DumpableConstraints stage, DumpableIdentifier stage start) => Dumpable
 instance DumpableIdentifier stage Text where
     refer_iden = pure . PP.String
 
-instance DumpableIdentifier stage SIR.DeclKey where
+instance DumpableIdentifier stage SIR.Decl where
     refer_iden = refer_decl
 instance DumpableIdentifier stage SIR.BoundValueKey where
     refer_iden = refer_bv

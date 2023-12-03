@@ -17,7 +17,7 @@ import qualified UHF.Phases.ToRIR.PatternCheck as PatternCheck
 
 type Type = Maybe (Type.Type Void)
 
-type DIden = Maybe SIR.DeclKey
+type DIden = Maybe SIR.Decl
 type VIden = Maybe SIR.BoundValueKey
 type PIden = Maybe Type.ADTVariantIndex
 
@@ -47,7 +47,7 @@ new_made_up_expr_id make =
     pure (make id)
 
 convert :: SIR -> Compiler.WithDiagnostics (PatternCheck.CompletenessError LastSIR) (PatternCheck.NotUseful LastSIR) RIR.RIR
-convert (SIR.SIR _ modules adts type_synonyms type_vars bvs mod) = do
+convert (SIR.SIR modules adts type_synonyms type_vars bvs mod) = do
     let adts_converted = Arena.transform convert_adt adts
     let type_synonyms_converted = Arena.transform convert_type_synonym type_synonyms
     let bvs_converted =

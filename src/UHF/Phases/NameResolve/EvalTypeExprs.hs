@@ -17,7 +17,7 @@ import qualified UHF.Phases.NameResolve.Utils as Utils
 type VIdenStart = Maybe SIR.BoundValueKey
 type PIdenStart = Maybe Type.ADTVariantIndex
 
-type EvaledDIden = Maybe SIR.DeclKey
+type EvaledDIden = Maybe SIR.Decl
 
 type Unevaled = (EvaledDIden, (), (), VIdenStart, (), PIdenStart, (), (), ())
 
@@ -53,60 +53,54 @@ type EvaledTypeSynonymArena = Arena.Arena EvaledTypeSynonym Type.TypeSynonymKey
 
 -- eval entry point {{{1
 eval :: Utils.SIRChildMaps -> UnevaledSIR -> Compiler.WithDiagnostics Utils.Error Void EvaledSIR
-eval sir_child_maps (SIR.SIR decls mods adts type_synonyms type_vars bound_values mod) =
-    runStateT
-        (
-            runReaderT (eval_in_mods mods) (adts, bound_values, (), sir_child_maps) >>= \ mods ->
-            runReaderT (eval_in_adts adts) ((), (), (), sir_child_maps) >>= \ adts ->
-            runReaderT (eval_in_type_synonyms type_synonyms) (decls, (), (), sir_child_maps) >>= \ synonyms ->
-            pure (mods, adts, synonyms)
-        )
-        decls >>= \ ((mods, adts, synonyms), decls) ->
-    pure (SIR.SIR decls mods adts synonyms type_vars (Arena.transform change_bound_value bound_values) mod)
+eval sir_child_maps (SIR.SIR mods adts type_synonyms type_vars bound_values mod) =
+    runReaderT (eval_in_mods mods) (adts, bound_values, (), sir_child_maps) >>= \ mods ->
+    runReaderT (eval_in_adts adts) ((), (), (), sir_child_maps) >>= \ adts ->
+    runReaderT (eval_in_type_synonyms type_synonyms) ((), (), (), sir_child_maps) >>= \ synonyms ->
+    pure (SIR.SIR mods adts synonyms type_vars (Arena.transform change_bound_value bound_values) mod)
     where
         change_bound_value (SIR.BoundValue bvid tyinfo n) = SIR.BoundValue bvid tyinfo n
         change_bound_value (SIR.BoundValue'ADTVariant bvid id tyvars tyinfo sp) = SIR.BoundValue'ADTVariant bvid id tyvars tyinfo sp
 
 -- resolving through sir {{{1
-eval_in_mods :: UnevaledModuleArena -> (Utils.NRReader UnevaledADTArena UnevaledBoundValueArena type_var_arena Utils.SIRChildMaps (Utils.MakeDeclState Utils.WithErrors)) EvaledModuleArena
+eval_in_mods :: UnevaledModuleArena -> (Utils.NRReader UnevaledADTArena UnevaledBoundValueArena type_var_arena Utils.SIRChildMaps Utils.WithErrors) EvaledModuleArena
 eval_in_mods = Arena.transformM eval_in_module
 
-eval_in_adts :: UnevaledADTArena -> (Utils.NRReader adt_arena bv_arena type_var_arena Utils.SIRChildMaps (Utils.MakeDeclState Utils.WithErrors)) EvaledADTArena
+eval_in_adts :: UnevaledADTArena -> (Utils.NRReader adt_arena bv_arena type_var_arena Utils.SIRChildMaps Utils.WithErrors) EvaledADTArena
 eval_in_adts = Arena.transformM eval_in_adt
 
-eval_in_type_synonyms :: UnevaledTypeSynonymArena -> (Utils.NRReader adt_arena bv_arena type_var_arena Utils.SIRChildMaps (Utils.MakeDeclState Utils.WithErrors)) EvaledTypeSynonymArena
+eval_in_type_synonyms :: UnevaledTypeSynonymArena -> (Utils.NRReader adt_arena bv_arena type_var_arena Utils.SIRChildMaps Utils.WithErrors) EvaledTypeSynonymArena
 eval_in_type_synonyms = Arena.transformM eval_in_type_synonym
 
-eval_in_module :: UnevaledModule -> Utils.NRReader UnevaledADTArena UnevaledBoundValueArena type_var_arena Utils.SIRChildMaps (Utils.MakeDeclState Utils.WithErrors) EvaledModule
+eval_in_module :: UnevaledModule -> Utils.NRReader UnevaledADTArena UnevaledBoundValueArena type_var_arena Utils.SIRChildMaps Utils.WithErrors EvaledModule
 eval_in_module (SIR.Module id bindings adts type_synonyms) = SIR.Module id <$> mapM eval_in_binding bindings <*> pure adts <*> pure type_synonyms
 
-eval_in_adt :: UnevaledADT -> (Utils.NRReader adt_arena bv_arena type_var_arena Utils.SIRChildMaps (Utils.MakeDeclState Utils.WithErrors)) EvaledADT
+eval_in_adt :: UnevaledADT -> (Utils.NRReader adt_arena bv_arena type_var_arena Utils.SIRChildMaps Utils.WithErrors) EvaledADT
 eval_in_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM eval_in_variant variants
     where
         eval_in_variant (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id <$> mapM (\ (id, name, (ty, ())) -> eval_in_type_expr ty >>= \ ty -> lift (evaled_as_type ty) >>= \ ty_as_type -> pure (id, name, (ty, ty_as_type))) fields
         eval_in_variant (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id <$> mapM (\ (id, (ty, ())) -> eval_in_type_expr ty >>= \ ty -> lift (evaled_as_type ty) >>= \ ty_as_type -> pure (id, (ty, ty_as_type))) fields
 
-eval_in_type_synonym :: UnevaledTypeSynonym -> (Utils.NRReader adt_arena bv_arena type_var_arena Utils.SIRChildMaps (Utils.MakeDeclState Utils.WithErrors)) EvaledTypeSynonym
+eval_in_type_synonym :: UnevaledTypeSynonym -> (Utils.NRReader adt_arena bv_arena type_var_arena Utils.SIRChildMaps Utils.WithErrors) EvaledTypeSynonym
 eval_in_type_synonym (Type.TypeSynonym id name (expansion, ())) =
     eval_in_type_expr expansion >>= \ expansion ->
     lift (evaled_as_type expansion) >>= \ expansion_as_type ->
     pure (Type.TypeSynonym id name (expansion, expansion_as_type))
 
-eval_in_binding :: UnevaledBinding -> (Utils.NRReader UnevaledADTArena UnevaledBoundValueArena type_var_arena Utils.SIRChildMaps (Utils.MakeDeclState Utils.WithErrors)) EvaledBinding
+eval_in_binding :: UnevaledBinding -> (Utils.NRReader UnevaledADTArena UnevaledBoundValueArena type_var_arena Utils.SIRChildMaps Utils.WithErrors) EvaledBinding
 eval_in_binding (SIR.Binding target eq_sp expr) = SIR.Binding <$> eval_in_pat target <*> pure eq_sp <*> eval_in_expr expr
 eval_in_binding (SIR.Binding'ADTVariant bvk variant vars sp) = pure $ SIR.Binding'ADTVariant bvk variant vars sp
 
 -- TODO: all of the todos here will be fixed when types get rewritten
-eval_in_type_expr :: UnevaledTypeExpr -> (Utils.NRReader adt_arena bv_arena type_var_arena Utils.SIRChildMaps (Utils.MakeDeclState Utils.WithErrors)) EvaledTypeExpr
+eval_in_type_expr :: UnevaledTypeExpr -> (Utils.NRReader adt_arena bv_arena type_var_arena Utils.SIRChildMaps Utils.WithErrors) EvaledTypeExpr
 eval_in_type_expr (SIR.TypeExpr'Refer () sp iden) = pure (SIR.TypeExpr'Refer iden sp iden)
 eval_in_type_expr (SIR.TypeExpr'Get () sp parent name) = do
-    decls <- lift Utils.ask_decl_arena
-    mods <- Utils.ask_sir_child_maps
+    sir_child_maps <- Utils.ask_sir_child_maps
     parent <- eval_in_type_expr parent
     result <- case SIR.type_expr_evaled parent of
-        Just parent -> case Utils.get_decl_child decls mods parent name of
+        Just parent -> case Utils.get_decl_child sir_child_maps parent name of
             Right r -> pure $ Just r
-            Left e -> lift (lift $ Compiler.tell_error e) >> pure Nothing
+            Left e -> lift (Compiler.tell_error e) >> pure Nothing
         Nothing -> pure Nothing
 
     pure (SIR.TypeExpr'Get result sp parent name)
@@ -138,7 +132,7 @@ eval_in_type_expr (SIR.TypeExpr'Apply () sp ty args) = SIR.TypeExpr'Apply todo s
 eval_in_type_expr (SIR.TypeExpr'Wild () sp) = pure $ SIR.TypeExpr'Wild Nothing sp -- TODO: make this an unknown to be inferred and not a Nothing
 eval_in_type_expr (SIR.TypeExpr'Poison () sp) = pure $ SIR.TypeExpr'Poison Nothing sp
 
-eval_in_pat :: UnevaledPattern -> (Utils.NRReader adt_arena bv_arena type_var_arena Utils.SIRChildMaps (Utils.MakeDeclState Utils.WithErrors)) EvaledPattern
+eval_in_pat :: UnevaledPattern -> (Utils.NRReader adt_arena bv_arena type_var_arena Utils.SIRChildMaps Utils.WithErrors) EvaledPattern
 eval_in_pat (SIR.Pattern'Identifier type_info sp bnk) = pure $ SIR.Pattern'Identifier type_info sp bnk
 eval_in_pat (SIR.Pattern'Wildcard type_info sp) = pure $ SIR.Pattern'Wildcard type_info sp
 eval_in_pat (SIR.Pattern'Tuple type_info sp a b) = SIR.Pattern'Tuple type_info sp <$> eval_in_pat a <*> eval_in_pat b
@@ -147,7 +141,7 @@ eval_in_pat (SIR.Pattern'AnonADTVariant type_info sp variant_split_iden () tyarg
 eval_in_pat (SIR.Pattern'NamedADTVariant type_info sp variant_split_iden () tyargs subpat) = SIR.Pattern'NamedADTVariant type_info sp <$> eval_split_iden variant_split_iden <*> pure () <*> pure tyargs <*> mapM (\ (field_name, field_pat) -> (field_name,) <$> eval_in_pat field_pat) subpat
 eval_in_pat (SIR.Pattern'Poison type_info sp) = pure $ SIR.Pattern'Poison type_info sp
 
-eval_in_expr :: UnevaledExpr -> (Utils.NRReader UnevaledADTArena UnevaledBoundValueArena type_var_arena Utils.SIRChildMaps (Utils.MakeDeclState Utils.WithErrors)) EvaledExpr
+eval_in_expr :: UnevaledExpr -> (Utils.NRReader UnevaledADTArena UnevaledBoundValueArena type_var_arena Utils.SIRChildMaps Utils.WithErrors) EvaledExpr
 eval_in_expr (SIR.Expr'Identifier id type_info sp iden_split ()) = SIR.Expr'Identifier id type_info sp <$> eval_split_iden iden_split <*> pure ()
 eval_in_expr (SIR.Expr'Char id type_info sp c) = pure $ SIR.Expr'Char id type_info sp c
 eval_in_expr (SIR.Expr'String id type_info sp s) = pure $ SIR.Expr'String id type_info sp s
@@ -190,16 +184,15 @@ eval_in_expr (SIR.Expr'Hole id type_info sp hid) = pure $ SIR.Expr'Hole id type_
 eval_in_expr (SIR.Expr'Poison id type_info sp) = pure $ SIR.Expr'Poison id type_info sp
 
 -- resolving identifiers {{{1
-eval_split_iden :: SIR.SplitIdentifier Unevaled start -> Utils.NRReader adt_arena bv_arena type_var_arena Utils.SIRChildMaps (Utils.MakeDeclState Utils.WithErrors) (SIR.SplitIdentifier Evaled start)
+eval_split_iden :: SIR.SplitIdentifier Unevaled start -> Utils.NRReader adt_arena bv_arena type_var_arena Utils.SIRChildMaps Utils.WithErrors (SIR.SplitIdentifier Evaled start)
 eval_split_iden (SIR.SplitIdentifier'Get texpr next) = eval_in_type_expr texpr >>= \ texpr -> pure (SIR.SplitIdentifier'Get texpr next)
 eval_split_iden (SIR.SplitIdentifier'Single start) = pure (SIR.SplitIdentifier'Single start)
 
-evaled_as_type :: EvaledTypeExpr -> Utils.MakeDeclState Utils.WithErrors (Maybe (Type.Type Void))
+evaled_as_type :: EvaledTypeExpr -> Utils.WithErrors (Maybe (Type.Type Void))
 evaled_as_type texpr =
     case SIR.type_expr_evaled texpr of
         Just evaled ->
-            get >>= \ decls ->
-            case Arena.get decls evaled of
-                SIR.Decl'Module _ -> lift (Compiler.tell_error (Utils.Error'NotAType (SIR.type_expr_span texpr) "a module")) >> pure Nothing
+            case evaled of
+                SIR.Decl'Module _ -> Compiler.tell_error (Utils.Error'NotAType (SIR.type_expr_span texpr) "a module") >> pure Nothing
                 SIR.Decl'Type ty -> pure $ Just ty
         Nothing -> pure Nothing

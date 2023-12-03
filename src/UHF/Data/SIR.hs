@@ -6,7 +6,6 @@ module UHF.Data.SIR
     ( SIR (..)
     , Stage.Stage(..)
 
-    , DeclKey
     , Decl(..)
 
     , ModuleKey
@@ -43,7 +42,6 @@ import qualified UHF.Data.IR.Type as Type
 -- "syntax based ir"
 data SIR stage
     = SIR
-        (Arena.Arena Decl DeclKey)
         (Arena.Arena (Module stage) ModuleKey)
         (Arena.Arena (Type.ADT (TypeExpr stage, Stage.TypeExprEvaledAsType stage)) ADTKey)
         (Arena.Arena (Type.TypeSynonym (TypeExpr stage, Stage.TypeExprEvaledAsType stage)) TypeSynonymKey)

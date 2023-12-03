@@ -37,6 +37,7 @@ import qualified UHF.Phases.Parser as Parser
 import qualified UHF.Phases.RemovePoison as RemovePoison
 import qualified UHF.Phases.ReportHoles as ReportHoles
 import qualified UHF.Phases.SolveTypes as SolveTypes
+import qualified UHF.Phases.SolveTypes.Solver as SolveTypes.Solver
 import qualified UHF.Phases.TSBackend as TSBackend
 import qualified UHF.Phases.ToANFIR as ToANFIR
 import qualified UHF.Phases.ToBackendIR as ToBackendIR
@@ -48,9 +49,9 @@ import qualified UHF.Source.FormattedString as FormattedString
 type Tokens = ([Token.LToken], Token.LToken)
 type AST = [AST.Decl]
 type FirstSIR = SIR.SIR (Located Text, (), (), Located Text, (), Located Text, (), (), ())
-type NRSIR = SIR.SIR (Maybe SIR.Decl, Maybe SIR.Decl, Maybe IR.Type.Type, Maybe IR.Keys.VariableKey, Maybe IR.Keys.VariableKey, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, (), ())
-type InfixGroupedSIR = SIR.SIR (Maybe SIR.Decl, Maybe SIR.Decl, Maybe IR.Type.Type, Maybe IR.Keys.VariableKey, Maybe IR.Keys.VariableKey, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, (), Void)
-type TypedSIR = SIR.SIR (Maybe SIR.Decl, Maybe SIR.Decl, Maybe IR.Type.Type, Maybe IR.Keys.VariableKey, Maybe IR.Keys.VariableKey, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.Type, Void)
+type NRSIR = (SIR.SIR (Maybe (SIR.Decl SolveTypes.Solver.TypeWithInferVar), Maybe (SIR.Decl SolveTypes.Solver.TypeWithInferVar), SolveTypes.Solver.TypeWithInferVar, Maybe IR.Keys.VariableKey, Maybe IR.Keys.VariableKey, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, (), ()), SolveTypes.Solver.InferVarArena, [SolveTypes.Solver.Constraint]) -- TODO: figure out a better solution that doesnt involve this returning a tuple
+type InfixGroupedSIR = SIR.SIR (Maybe (SIR.Decl SolveTypes.Solver.TypeWithInferVar), Maybe (SIR.Decl SolveTypes.Solver.TypeWithInferVar), SolveTypes.Solver.TypeWithInferVar, Maybe IR.Keys.VariableKey, Maybe IR.Keys.VariableKey, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, (), Void)
+type TypedSIR = SIR.SIR (Maybe (SIR.Decl IR.Type.Type), Maybe (SIR.Decl IR.Type.Type), Maybe IR.Type.Type, Maybe IR.Keys.VariableKey, Maybe IR.Keys.VariableKey, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.Type, Void)
 type RIR = RIR.RIR
 type ANFIR = ANFIR.ANFIR
 type BackendIR = BackendIR.BackendIR (Maybe IR.Type.Type) ()
@@ -99,7 +100,7 @@ print_outputs compile_options file = evalStateT (mapM_ print_output_format (outp
         print_output_format AST = get_ast >>= output_if_outputable (\ ast -> lift (lift (putTextLn $ AST.PP.pp_decls ast)))
         print_output_format ASTDump = get_ast >>= output_if_outputable (\ ast -> lift (lift (putTextLn $ AST.Dump.dump ast)))
         print_output_format SIR = get_first_sir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_sir" (SIR.PP.dump_main_module ir))))
-        print_output_format NRSIR = get_nrsir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_nrsir" (SIR.PP.dump_main_module ir))))
+        print_output_format NRSIR = get_nrsir >>= output_if_outputable (\ (ir, _, _) -> lift (lift (write_output_file "uhf_nrsir" (SIR.PP.dump_main_module ir))))
         print_output_format InfixGroupedSIR = get_infix_grouped >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_infix_grouped" (SIR.PP.dump_main_module ir))))
         print_output_format TypedSIR = get_typed_sir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_typed_sir" (SIR.PP.dump_main_module ir))))
         print_output_format RIR = get_rir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_rir" (RIR.PP.dump_cu ir))))
@@ -175,14 +176,15 @@ get_nrsir = get_or_calculate _get_nrsir (\ cache nrsir -> cache { _get_nrsir = n
 get_infix_grouped :: PhaseResultsState (InfixGroupedSIR, Outputable)
 get_infix_grouped = get_or_calculate _get_infix_grouped (\ cache infix_grouped -> cache { _get_infix_grouped = infix_grouped }) group_infix
     where
-        group_infix = on_tuple_first InfixGroup.group <$> get_nrsir
+        group_infix = get_nrsir >>= \ ((nrsir, _, _), outputable) -> pure (on_tuple_first InfixGroup.group (nrsir, outputable))
 
 get_typed_sir :: PhaseResultsState (TypedSIR, Outputable)
 get_typed_sir = get_or_calculate _get_typed_sir (\ cache typed_sir -> cache { _get_typed_sir = typed_sir }) type_
     where
         type_ =
-            get_infix_grouped >>=
-            run_stage_on_previous_stage_output (convert_errors . SolveTypes.solve) >>= \ typed_ir ->
+            get_nrsir >>= \ ((_, infer_vars, constraints), _) ->
+            get_infix_grouped >>= \ infix_grouped ->
+            run_stage_on_previous_stage_output (convert_errors . SolveTypes.solve infer_vars constraints) infix_grouped >>= \ typed_ir ->
             run_stage_on_previous_stage_output (convert_errors . ReportHoles.report_holes) typed_ir >>
             pure typed_ir
 

@@ -13,6 +13,7 @@ import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Phases.NameResolve.Utils as Utils
+import qualified UHF.Phases.SolveTypes.Solver.TypeWithInferVar as TypeWithInferVar -- TODO: organize these modules better
 import qualified UHF.Util.Arena as Arena
 
 -- TODO: figure out a better solution than to have adt_parents and type_synonym_parents
@@ -21,7 +22,7 @@ type QuantVarArena = Arena.Arena Type.QuantVar Type.QuantVarKey
 
 type UnresolvedIdenStart = Located Text
 
-type ResolvedDIdenStart = Maybe SIR.Decl
+type ResolvedDIdenStart = Maybe (SIR.Decl TypeWithInferVar.Type)
 type ResolvedVIdenStart = Maybe SIR.VariableKey
 type ResolvedPIdenStart = Maybe Type.ADT.VariantIndex
 
@@ -83,7 +84,7 @@ resolve_in_adt adt_parent_name_maps adt_key (Type.ADT id name type_vars variants
         (\ var ->
             Utils.ask_type_var_arena >>= \ type_var_arena ->
             let (Type.QuantVar (Located name_sp name)) = Arena.get type_var_arena var
-            in pure (name, Utils.DeclAt name_sp, SIR.Decl'Type $ Type.Type'QuantVar var))
+            in pure (name, Utils.DeclAt name_sp, SIR.Decl'Type $ TypeWithInferVar.Type'QuantVar var))
         type_vars >>= \ type_vars' ->
     lift (Utils.make_name_maps type_vars' [] []) >>= \ new_nc ->
     Type.ADT id name type_vars <$> mapM (resolve_in_variant (Utils.NameMapStack new_nc (Just parent))) variants
@@ -112,7 +113,7 @@ resolve_in_type_expr nc_stack (SIR.TypeExpr'Forall resolved sp vars ty) =
         (\ var ->
             Utils.ask_type_var_arena >>= \ type_var_arena ->
             let (Type.QuantVar (Located name_sp name)) = Arena.get type_var_arena var
-            in pure (name, Utils.DeclAt name_sp, SIR.Decl'Type $ Type.Type'QuantVar var))
+            in pure (name, Utils.DeclAt name_sp, SIR.Decl'Type $ TypeWithInferVar.Type'QuantVar var))
         (toList vars) >>= \ vars' ->
     lift (Utils.make_name_maps vars' [] []) >>= \ new_nc ->
     SIR.TypeExpr'Forall resolved sp vars <$> resolve_in_type_expr (Utils.NameMapStack new_nc (Just nc_stack)) ty
@@ -187,7 +188,7 @@ resolve_in_expr nc_stack (SIR.Expr'Forall id type_info sp vars e) =
         (\ var ->
             Utils.ask_type_var_arena >>= \ type_var_arena ->
             let (Type.QuantVar (Located name_sp name)) = Arena.get type_var_arena var
-            in pure (name, Utils.DeclAt name_sp, SIR.Decl'Type $ Type.Type'QuantVar var))
+            in pure (name, Utils.DeclAt name_sp, SIR.Decl'Type $ TypeWithInferVar.Type'QuantVar var))
         (toList vars) >>= \ vars' ->
     lift (Utils.make_name_maps vars' [] []) >>= \ new_nc ->
     SIR.Expr'Forall id type_info sp vars <$> resolve_in_expr (Utils.NameMapStack new_nc (Just nc_stack)) e

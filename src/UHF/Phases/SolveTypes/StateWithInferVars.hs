@@ -9,8 +9,7 @@ import qualified UHF.Util.Arena as Arena
 
 type StateWithInferVars = StateT InferVarArena (Compiler.WithDiagnostics Error Void)
 
-new_type_unknown :: InferVarForWhat -> StateWithInferVars InferVarKey
+new_type_unknown :: Monad under => InferVarForWhat -> StateT InferVarArena under InferVarKey
 new_type_unknown for_what =
     state $ \ type_vars ->
         Arena.put (InferVar for_what Fresh) type_vars
-

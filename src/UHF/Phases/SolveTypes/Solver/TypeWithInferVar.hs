@@ -12,10 +12,9 @@ module UHF.Phases.SolveTypes.Solver.TypeWithInferVar
 
 import UHF.Prelude
 
-import qualified UHF.Util.Arena as Arena
-import qualified UHF.Data.IR.Type as Type
-
 import UHF.Source.Span (Span)
+import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Util.Arena as Arena
 
 data Type
     = Type'ADT Type.ADTKey [Type]

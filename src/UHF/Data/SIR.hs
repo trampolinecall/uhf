@@ -50,9 +50,9 @@ data SIR stage
         (Arena.Arena (Variable stage) VariableKey)
         ModuleKey
 
-data Decl
+data Decl ty
     = Decl'Module ModuleKey
-    | Decl'Type Type.Type
+    | Decl'Type ty
     deriving Show
 
 data Module stage

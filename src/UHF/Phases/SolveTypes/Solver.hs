@@ -3,6 +3,7 @@ module UHF.Phases.SolveTypes.Solver
 
     , TypeWithInferVar
 
+    , InferVarArena
     , InferVarKey
     , InferVar (..)
     , InferVarForWhat (..)

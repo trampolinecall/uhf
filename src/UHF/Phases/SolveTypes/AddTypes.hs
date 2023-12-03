@@ -8,8 +8,8 @@ import UHF.Phases.SolveTypes.Solver.TypeWithInferVar hiding (Type)
 import qualified UHF.Phases.SolveTypes.Solver.TypeWithInferVar as TypeWithInferVar (Type (..))
 import UHF.Phases.SolveTypes.StateWithInferVars
 import UHF.Phases.SolveTypes.Utils
+import UHF.Phases.SolveTypes.Solver.Utils -- TODO: organize these modules better
 import UHF.Source.Located (Located (..))
-import UHF.Source.Span (Span)
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
@@ -83,34 +83,23 @@ module_ (SIR.Module id bindings adts type_synonyms) = SIR.Module id <$> mapM bin
 adt :: UntypedADT -> ContextReader vars adts TypedWithInferVarsADT
 adt (Type.ADT id name quant_vars variants) = Type.ADT id name quant_vars <$> mapM convert_variant variants
     where
-        convert_variant (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id <$> mapM (\ (id, name, (ty_expr, ty)) -> type_expr ty_expr >>= \ ty_expr -> nothing_to_unk (TypeExpr $ SIR.type_expr_span ty_expr) ty >>= \ ty -> pure (id, name, (ty_expr, ty))) fields
-        convert_variant (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id <$> mapM (\ (id, (ty_expr, ty)) -> type_expr ty_expr >>= \ ty_expr -> nothing_to_unk (TypeExpr $ SIR.type_expr_span ty_expr) ty >>= \ ty -> pure (id, (ty_expr, ty))) fields
+        convert_variant (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id <$> mapM (\ (id, name, (ty_expr, ty)) -> type_expr ty_expr >>= \ ty_expr -> pure (id, name, (ty_expr, ty))) fields
+        convert_variant (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id <$> mapM (\ (id, (ty_expr, ty)) -> type_expr ty_expr >>= \ ty_expr -> pure (id, (ty_expr, ty))) fields
 
 type_synonym :: UntypedTypeSynonym -> ContextReader vars adts TypedWithInferVarsTypeSynonym
-type_synonym (Type.TypeSynonym id name (expansion, exp_as_type)) = type_expr expansion >>= \ expansion -> nothing_to_unk (TypeExpr $ SIR.type_expr_span expansion) exp_as_type >>= \ exp_as_type -> pure (Type.TypeSynonym id name (expansion, exp_as_type))
-
-apply_type :: InferVarForWhat -> Span -> TypeWithInferVars -> TypeWithInferVars -> ContextReader vars adts TypeWithInferVars
-apply_type for_what sp ty arg =
-    lift (lift $ new_type_unknown for_what) >>= \ tyu ->
-    lift (tell [UnkIsApplyResult sp tyu ty arg]) >>
-    pure (TypeWithInferVar.Type'InferVar tyu)
+type_synonym (Type.TypeSynonym id name (expansion, exp_as_type)) = type_expr expansion >>= \ expansion -> pure (Type.TypeSynonym id name (expansion, exp_as_type))
 
 type_expr :: UntypedTypeExpr -> ContextReader vars adts TypedWithInferVarsTypeExpr
 -- TODO: do these ForWhats better
 type_expr (SIR.TypeExpr'Refer evaled sp iden) = pure (SIR.TypeExpr'Refer evaled sp iden)
 type_expr (SIR.TypeExpr'Get evaled sp parent name) = SIR.TypeExpr'Get evaled sp <$> type_expr parent <*> pure name
 type_expr (SIR.TypeExpr'Tuple evaled sp a b) = SIR.TypeExpr'Tuple evaled sp <$> type_expr a <*> type_expr b
-type_expr (SIR.TypeExpr'Hole evaled ty sp hid) = nothing_to_unk (TypeHole sp) ty >>= \ ty -> pure (SIR.TypeExpr'Hole evaled ty sp hid)
+type_expr (SIR.TypeExpr'Hole evaled ty sp hid) = pure (SIR.TypeExpr'Hole evaled ty sp hid)
 type_expr (SIR.TypeExpr'Function evaled sp arg res) = SIR.TypeExpr'Function evaled sp <$> type_expr arg <*> type_expr res
 type_expr (SIR.TypeExpr'Forall evaled sp names t) = SIR.TypeExpr'Forall evaled sp names <$> type_expr t
 type_expr (SIR.TypeExpr'Apply evaled sp t arg) = SIR.TypeExpr'Apply evaled sp <$> type_expr t <*> type_expr arg
 type_expr (SIR.TypeExpr'Wild evaled sp) = pure (SIR.TypeExpr'Wild evaled sp)
 type_expr (SIR.TypeExpr'Poison evaled sp) = pure (SIR.TypeExpr'Poison evaled sp)
-
--- TODO: remove this
-nothing_to_unk :: InferVarForWhat -> Maybe Type.Type -> ContextReader vars adts TypeWithInferVars
-nothing_to_unk for_what Nothing = TypeWithInferVar.Type'InferVar <$> lift (lift $ new_type_unknown for_what)
-nothing_to_unk _ (Just t) = pure $ void_unk_to_key t
 
 binding :: UntypedBinding -> ContextReader TypedWithInferVarsVariableArena TypedWithInferVarsADTArena TypedWithInferVarsBinding
 binding (SIR.Binding p eq_sp e) =
@@ -275,14 +264,13 @@ expr (SIR.Expr'Forall id () sp vars e) =
 expr (SIR.Expr'TypeApply id () sp e (arg, arg_ty)) =
     expr e >>= \ e ->
     type_expr arg >>= \ arg ->
-    nothing_to_unk (TypeExpr $ SIR.type_expr_span arg) arg_ty >>= \ arg_ty ->
-    apply_type (TypeApplyExpr sp) sp (SIR.expr_type e) arg_ty >>= \ result_ty ->
+    lift (lift $ apply_type (TypeApplyExpr sp) sp (SIR.expr_type e) arg_ty) >>= \ (constraint, result_ty) ->
+    lift (tell [constraint]) >>
     pure (SIR.Expr'TypeApply id result_ty sp e (arg, arg_ty))
 
 expr (SIR.Expr'TypeAnnotation id () sp (annotation, annotation_ty) e) =
     type_expr annotation >>= \ annotation ->
     expr e >>= \ e ->
-    nothing_to_unk (TypeExpr $ SIR.type_expr_span annotation) annotation_ty >>= \ annotation_ty ->
     lift (tell [Expect InTypeAnnotation (Located (SIR.type_expr_span annotation) (SIR.expr_type e)) annotation_ty]) >>
     pure (SIR.Expr'TypeAnnotation id annotation_ty sp (annotation, annotation_ty) e)
 

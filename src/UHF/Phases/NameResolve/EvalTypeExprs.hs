@@ -53,14 +53,14 @@ type EvaledTypeSynonymArena = Arena.Arena EvaledTypeSynonym Type.TypeSynonymKey
 
 -- eval entry point {{{1
 eval :: Utils.SIRChildMaps -> UnevaledSIR -> Compiler.WithDiagnostics Utils.Error Void EvaledSIR
-eval sir_child_maps (SIR.SIR mods adts type_synonyms type_vars bound_values mod) =
-    runReaderT (eval_in_mods mods) (adts, bound_values, (), sir_child_maps) >>= \ mods ->
+eval sir_child_maps (SIR.SIR mods adts type_synonyms type_vars variables mod) =
+    runReaderT (eval_in_mods mods) (adts, variables, (), sir_child_maps) >>= \ mods ->
     runReaderT (eval_in_adts adts) ((), (), (), sir_child_maps) >>= \ adts ->
     runReaderT (eval_in_type_synonyms type_synonyms) ((), (), (), sir_child_maps) >>= \ synonyms ->
-    pure (SIR.SIR mods adts synonyms type_vars (Arena.transform change_bound_value bound_values) mod)
+    pure (SIR.SIR mods adts synonyms type_vars (Arena.transform change_variable variables) mod)
     where
-        change_bound_value (SIR.Variable bvid tyinfo n) = SIR.Variable bvid tyinfo n
-        change_bound_value (SIR.Variable'ADTVariant bvid id tyvars tyinfo sp) = SIR.Variable'ADTVariant bvid id tyvars tyinfo sp
+        change_variable (SIR.Variable bvid tyinfo n) = SIR.Variable bvid tyinfo n
+        change_variable (SIR.Variable'ADTVariant bvid id tyvars tyinfo sp) = SIR.Variable'ADTVariant bvid id tyvars tyinfo sp
 
 -- resolving through sir {{{1
 eval_in_mods :: UnevaledModuleArena -> (Utils.NRReader UnevaledADTArena UnevaledVariableArena type_var_arena Utils.SIRChildMaps Utils.WithErrors) EvaledModuleArena

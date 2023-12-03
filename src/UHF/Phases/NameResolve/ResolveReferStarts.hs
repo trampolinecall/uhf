@@ -45,14 +45,14 @@ type ResolvedTypeSynonymArena = Arena.Arena ResolvedTypeSynonym Type.TypeSynonym
 
 -- resolve entry point {{{1
 resolve :: Utils.SIRChildMaps -> SIR.SIR Unresolved -> Utils.WithErrors (SIR.SIR Resolved)
-resolve sir_child_maps (SIR.SIR mods adts type_synonyms type_vars bound_values mod) =
-    runReaderT (resolve_in_mods mods) (adts, bound_values, type_vars, sir_child_maps) >>= \ (mods, adt_parents, type_synonym_parents) ->
+resolve sir_child_maps (SIR.SIR mods adts type_synonyms type_vars variables mod) =
+    runReaderT (resolve_in_mods mods) (adts, variables, type_vars, sir_child_maps) >>= \ (mods, adt_parents, type_synonym_parents) ->
     runReaderT (resolve_in_adts adt_parents adts) ((), (), type_vars, sir_child_maps) >>= \ adts ->
     runReaderT (resolve_in_type_synonyms type_synonym_parents type_synonyms) ((), (), type_vars, sir_child_maps) >>= \ synonyms ->
-    pure (SIR.SIR mods adts synonyms type_vars (Arena.transform change_bound_value bound_values) mod)
+    pure (SIR.SIR mods adts synonyms type_vars (Arena.transform change_variable variables) mod)
     where
-        change_bound_value (SIR.Variable bvid tyinfo n) = SIR.Variable bvid tyinfo n
-        change_bound_value (SIR.Variable'ADTVariant bvid id tyvars tyinfo sp) = SIR.Variable'ADTVariant bvid id tyvars tyinfo sp
+        change_variable (SIR.Variable bvid tyinfo n) = SIR.Variable bvid tyinfo n
+        change_variable (SIR.Variable'ADTVariant bvid id tyvars tyinfo sp) = SIR.Variable'ADTVariant bvid id tyvars tyinfo sp
 
 -- resolving through sir {{{1
 resolve_in_mods :: UnresolvedModuleArena -> (Utils.NRReader UnresolvedADTArena UnresolvedVariableArena TypeVarArena Utils.SIRChildMaps Utils.WithErrors) (ResolvedModuleArena, Map.Map Type.ADTKey Utils.NameMapStack, Map.Map Type.TypeSynonymKey Utils.NameMapStack)

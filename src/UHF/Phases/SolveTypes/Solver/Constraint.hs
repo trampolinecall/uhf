@@ -12,4 +12,4 @@ data ExpectInWhat = InTypeAnnotation | InCallExpr | InIfCondition | InTypeApplic
 data Constraint
     = Eq EqInWhat Span (Located TypeWithInferVars) (Located TypeWithInferVars)
     | Expect ExpectInWhat (Located TypeWithInferVars) TypeWithInferVars
-    | UnkIsApplyResult Span TypeInferVarKey TypeWithInferVars TypeWithInferVars
+    | UnkIsApplyResult Span InferVarKey TypeWithInferVars TypeWithInferVars

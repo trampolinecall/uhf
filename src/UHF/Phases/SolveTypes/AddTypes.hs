@@ -87,7 +87,7 @@ adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM 
 type_synonym :: UntypedTypeSynonym -> ContextReader vars adts TypedWithInferVarsTypeSynonym
 type_synonym (Type.TypeSynonym id name (expansion, exp_as_type)) = type_expr expansion >>= \ expansion -> nothing_to_unk (TypeExpr $ SIR.type_expr_span expansion) exp_as_type >>= \ exp_as_type -> pure (Type.TypeSynonym id name (expansion, exp_as_type))
 
-apply_type :: TypeInferVarForWhat -> Span -> TypeWithInferVars -> TypeWithInferVars -> ContextReader vars adts TypeWithInferVars
+apply_type :: InferVarForWhat -> Span -> TypeWithInferVars -> TypeWithInferVars -> ContextReader vars adts TypeWithInferVars
 apply_type for_what sp ty arg =
     lift (lift $ new_type_unknown for_what) >>= \ tyu ->
     lift (tell [UnkIsApplyResult sp tyu ty arg]) >>
@@ -106,7 +106,7 @@ type_expr (SIR.TypeExpr'Wild evaled sp) = pure (SIR.TypeExpr'Wild evaled sp)
 type_expr (SIR.TypeExpr'Poison evaled sp) = pure (SIR.TypeExpr'Poison evaled sp)
 
 -- TODO: remove this
-nothing_to_unk :: TypeInferVarForWhat -> Maybe (Type.Type Void) -> ContextReader vars adts TypeWithInferVars
+nothing_to_unk :: InferVarForWhat -> Maybe (Type.Type Void) -> ContextReader vars adts TypeWithInferVars
 nothing_to_unk for_what Nothing = Type.Type'InferVar <$> lift (lift $ new_type_unknown for_what)
 nothing_to_unk _ (Just t) = pure $ void_unk_to_key t
 

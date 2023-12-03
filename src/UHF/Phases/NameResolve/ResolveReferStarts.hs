@@ -22,7 +22,7 @@ import qualified UHF.Util.Arena as Arena
 type UnresolvedIdenStart = (NameMaps.NameMapStack, Located Text)
 
 type ResolvedDIdenStart = Maybe (SIR.Decl TypeSolver.Type)
-type ResolvedVIdenStart = Maybe SIR.VariableKey
+type ResolvedVIdenStart = Maybe SIR.BoundValue
 type ResolvedPIdenStart = Maybe Type.ADT.VariantIndex
 
 type Unresolved = (UnresolvedIdenStart, (), (), UnresolvedIdenStart, (), UnresolvedIdenStart, (), (), ())
@@ -52,7 +52,6 @@ resolve (SIR.SIR mods adts type_synonyms type_vars variables mod) =
     pure (SIR.SIR mods adts synonyms type_vars (Arena.transform change_variable variables) mod)
     where
         change_variable (SIR.Variable varid tyinfo n) = SIR.Variable varid tyinfo n
-        change_variable (SIR.Variable'ADTVariant varid id tyvars tyinfo sp) = SIR.Variable'ADTVariant varid id tyvars tyinfo sp
 
 -- resolving through sir {{{1
 resolve_in_mods :: UnresolvedModuleArena -> Error.WithErrors ResolvedModuleArena
@@ -80,7 +79,6 @@ resolve_in_type_synonym (Type.TypeSynonym id name (expansion, ())) =
 
 resolve_in_binding :: SIR.Binding Unresolved -> Error.WithErrors (SIR.Binding Resolved)
 resolve_in_binding (SIR.Binding target eq_sp expr) = SIR.Binding <$> resolve_in_pat target <*> pure eq_sp <*> resolve_in_expr expr
-resolve_in_binding (SIR.Binding'ADTVariant var_key variant vars sp) = pure $ SIR.Binding'ADTVariant var_key variant vars sp
 
 resolve_in_type_expr :: SIR.TypeExpr Unresolved -> Error.WithErrors (SIR.TypeExpr Resolved)
 resolve_in_type_expr (SIR.TypeExpr'Refer resolved sp id) = SIR.TypeExpr'Refer resolved sp <$> resolve_type_iden id

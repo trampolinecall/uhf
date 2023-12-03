@@ -47,7 +47,7 @@ module_ infer_vars (SIR.Module id bindings adts type_synonyms) = SIR.Module id (
 
 variable :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> TypedWithInferVarsVariable -> TypedVariable
 variable infer_vars (SIR.Variable id ty name) = SIR.Variable id (type_ infer_vars ty) name
-variable infer_vars (SIR.Variable'ADTVariant id index tparams ty sp) = SIR.Variable'ADTVariant id index tparams (type_ infer_vars ty) sp
+-- TODO: REMOVE variable infer_vars (SIR.Variable'ADTVariant id index tparams ty sp) = SIR.Variable'ADTVariant id index tparams (type_ infer_vars ty) sp
 
 adt :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> TypedWithInferVarsADT -> TypedADT
 adt infer_vars (Type.ADT id name quant_var variants) = Type.ADT id name quant_var (map variant variants)
@@ -60,7 +60,7 @@ type_synonym infer_vars (Type.TypeSynonym id name expansion) = Type.TypeSynonym 
 
 binding :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> TypedWithInferVarsBinding -> TypedBinding
 binding infer_vars (SIR.Binding p eq_sp e) = SIR.Binding (pattern infer_vars p) eq_sp (expr infer_vars e)
-binding _ (SIR.Binding'ADTVariant sp var_key vars variant) = SIR.Binding'ADTVariant sp var_key vars variant
+-- TODO: REMOVE binding _ (SIR.Binding'ADTVariant sp var_key vars variant) = SIR.Binding'ADTVariant sp var_key vars variant
 
 pattern :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> TypedWithInferVarsPattern -> TypedPattern
 pattern infer_vars (SIR.Pattern'Identifier ty sp bn) = SIR.Pattern'Identifier (type_ infer_vars ty) sp bn

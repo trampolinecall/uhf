@@ -20,7 +20,7 @@ import qualified UHF.Util.Arena as Arena
 -- TODO: change errors, clean up this whole module
 
 type EvaledDIden = Maybe (SIR.Decl TypeSolver.Type)
-type VIdenStart = Maybe SIR.VariableKey
+type VIdenStart = Maybe SIR.BoundValue
 type PIdenStart = Maybe Type.ADT.VariantIndex
 
 type Unevaled = (EvaledDIden, (), (), VIdenStart, (), PIdenStart, (), (), ())
@@ -117,7 +117,6 @@ extract (SIR.SIR mods adts type_synonyms quant_vars variables mod) =
     in (SIR.SIR mods' adts' type_synonyms' quant_vars (Arena.transform change_variable variables) mod, d_iden_arena)
     where
         change_variable (SIR.Variable varid tyinfo n) = SIR.Variable varid tyinfo n
-        change_variable (SIR.Variable'ADTVariant varid id tyvars tyinfo sp) = SIR.Variable'ADTVariant varid id tyvars tyinfo sp
 
 extract_in_mods :: UnevaledModuleArena -> ExtractMonad ExtractedModuleArena
 extract_in_mods = Arena.transformM extract_in_module
@@ -144,7 +143,7 @@ extract_in_type_synonym (Type.TypeSynonym id name (expansion, ())) =
 
 extract_in_binding :: UnevaledBinding -> ExtractMonad ExtractedBinding
 extract_in_binding (SIR.Binding target eq_sp expr) = SIR.Binding <$> extract_in_pat target <*> pure eq_sp <*> extract_in_expr expr
-extract_in_binding (SIR.Binding'ADTVariant var_key variant vars sp) = pure $ SIR.Binding'ADTVariant var_key variant vars sp
+-- TODO: REMOVE extract_in_binding (SIR.Binding'ADTVariant var_key variant vars sp) = pure $ SIR.Binding'ADTVariant var_key variant vars sp
 
 extract_in_type_expr :: UnevaledTypeExpr -> ExtractMonad (TypeExprKey, ExtractedTypeExpr)
 extract_in_type_expr (SIR.TypeExpr'Refer () sp iden) = do
@@ -252,7 +251,7 @@ put_back sir_child_maps type_expr_arena (SIR.SIR mods adts type_synonyms quant_v
     ) (adts, type_synonyms, quant_vars, sir_child_maps)
     where
         change_variable (SIR.Variable varid tyinfo n) = SIR.Variable varid tyinfo n
-        change_variable (SIR.Variable'ADTVariant varid id tyvars tyinfo sp) = SIR.Variable'ADTVariant varid id tyvars tyinfo sp
+        -- TODO: REMOVE change_variable (SIR.Variable'ADTVariant varid id tyvars tyinfo sp) = SIR.Variable'ADTVariant varid id tyvars tyinfo sp
 
 put_back_in_mods :: ExtractedModuleArena -> EvalMonad (Arena.Arena ExtractedADT Type.ADTKey) (Arena.Arena ExtractedTypeSynonym Type.TypeSynonymKey) QuantVarArena EvaledModuleArena
 put_back_in_mods = Arena.transformM put_back_in_module
@@ -280,7 +279,6 @@ put_back_in_type_synonym (Type.TypeSynonym id name (expansion, ())) =
 
 put_back_in_binding :: ExtractedBinding -> EvalMonad (Arena.Arena ExtractedADT Type.ADTKey) (Arena.Arena ExtractedTypeSynonym Type.TypeSynonymKey) QuantVarArena EvaledBinding
 put_back_in_binding (SIR.Binding target eq_sp expr) = SIR.Binding <$> put_back_in_pat target <*> pure eq_sp <*> put_back_in_expr expr
-put_back_in_binding (SIR.Binding'ADTVariant var_key variant vars sp) = pure $ SIR.Binding'ADTVariant var_key variant vars sp
 
 put_back_in_type_expr :: ExtractedTypeExpr -> EvalMonad (Arena.Arena ExtractedADT Type.ADTKey) (Arena.Arena ExtractedTypeSynonym Type.TypeSynonymKey) QuantVarArena EvaledTypeExpr
 put_back_in_type_expr te = case te of

@@ -19,7 +19,6 @@ import qualified UHF.Data.AST.Dump as AST.Dump
 import qualified UHF.Data.AST.PP as AST.PP
 import qualified UHF.Data.BackendIR as BackendIR
 import qualified UHF.Data.BackendIR.PP as BackendIR.PP
-import qualified UHF.Data.IR.Keys as IR.Keys
 import qualified UHF.Data.IR.Type as IR.Type
 import qualified UHF.Data.IR.Type.ADT as IR.Type.ADT
 import qualified UHF.Data.RIR as RIR
@@ -49,9 +48,9 @@ import qualified UHF.Source.FormattedString as FormattedString
 type Tokens = ([Token.LToken], Token.LToken)
 type AST = [AST.Decl]
 type FirstSIR = SIR.SIR (Located Text, (), (), Located Text, (), Located Text, (), (), ())
-type NRSIR = (SIR.SIR (Maybe (SIR.Decl TypeSolver.Type), Maybe (SIR.Decl TypeSolver.Type), TypeSolver.Type, Maybe IR.Keys.VariableKey, Maybe IR.Keys.VariableKey, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, (), ()), TypeSolver.SolverState)
-type InfixGroupedSIR = SIR.SIR (Maybe (SIR.Decl TypeSolver.Type), Maybe (SIR.Decl TypeSolver.Type), TypeSolver.Type, Maybe IR.Keys.VariableKey, Maybe IR.Keys.VariableKey, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, (), Void)
-type TypedSIR = SIR.SIR (Maybe (SIR.Decl IR.Type.Type), Maybe (SIR.Decl IR.Type.Type), Maybe IR.Type.Type, Maybe IR.Keys.VariableKey, Maybe IR.Keys.VariableKey, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.Type, Void)
+type NRSIR = (SIR.SIR (Maybe (SIR.Decl TypeSolver.Type), Maybe (SIR.Decl TypeSolver.Type), TypeSolver.Type, Maybe SIR.BoundValue, Maybe SIR.BoundValue, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, (), ()), TypeSolver.SolverState)
+type InfixGroupedSIR = SIR.SIR (Maybe (SIR.Decl TypeSolver.Type), Maybe (SIR.Decl TypeSolver.Type), TypeSolver.Type, Maybe SIR.BoundValue, Maybe SIR.BoundValue, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, (), Void)
+type TypedSIR = SIR.SIR (Maybe (SIR.Decl IR.Type.Type), Maybe (SIR.Decl IR.Type.Type), Maybe IR.Type.Type, Maybe SIR.BoundValue, Maybe SIR.BoundValue, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.Type, Void)
 type RIR = RIR.RIR
 type ANFIR = ANFIR.ANFIR
 type BackendIR = BackendIR.BackendIR (Maybe IR.Type.Type) ()
@@ -179,9 +178,9 @@ get_infix_grouped = get_or_calculate _get_infix_grouped (\ cache infix_grouped -
         group_infix = get_nrsir >>= \ ((nrsir, _), outputable) -> pure (on_tuple_first InfixGroup.group (nrsir, outputable))
 
 get_typed_sir :: PhaseResultsState (TypedSIR, Outputable)
-get_typed_sir = get_or_calculate _get_typed_sir (\ cache typed_sir -> cache { _get_typed_sir = typed_sir }) type_
+get_typed_sir = get_or_calculate _get_typed_sir (\ cache typed_sir -> cache { _get_typed_sir = typed_sir }) solve_types
     where
-        type_ =
+        solve_types =
             get_nrsir >>= \ ((_, solver_state), _) ->
             get_infix_grouped >>= \ infix_grouped ->
             run_stage_on_previous_stage_output (convert_errors . SolveTypes.solve solver_state) infix_grouped >>= \ typed_ir ->

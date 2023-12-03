@@ -6,7 +6,7 @@ import qualified Data.Map as Map
 
 import UHF.Phases.SolveTypes.Aliases
 import UHF.Phases.SolveTypes.Solver.Constraint
-import UHF.Phases.SolveTypes.Solver.Unknown
+import UHF.Phases.SolveTypes.Solver.InferVar
 import UHF.Source.Located (Located (..))
 import UHF.Source.Span (Span)
 import qualified UHF.Data.IR.Type as Type
@@ -15,19 +15,19 @@ import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.PP as PP
 import qualified UHF.Util.Arena as Arena
 
-type UnkNamer = State (Int, Map TypeUnknownKey Text)
-run_unk_namer :: UnkNamer a -> (a, Map TypeUnknownKey Text)
+type UnkNamer = State (Int, Map TypeInferVarKey Text)
+run_unk_namer :: UnkNamer a -> (a, Map TypeInferVarKey Text)
 run_unk_namer s = let (r, (_, n)) = runState s (1, Map.empty) in (r, n)
-make_unk_name_messages :: TypeUnknownArena -> Map TypeUnknownKey Text -> [Diagnostic.Message]
+make_unk_name_messages :: TypeInferVarArena -> Map TypeInferVarKey Text -> [Diagnostic.Message]
 make_unk_name_messages unks names =
     map
         (\ (key, name) ->
-            let (TypeUnknown unk_for_what _) = Arena.get unks key
-                var_sp = type_unk_for_what_sp unk_for_what
-                var_name = type_unk_for_what_name unk_for_what
+            let (TypeInferVar infer_var_for_what _) = Arena.get unks key
+                var_sp = type_infer_var_for_what_sp infer_var_for_what
+                var_name = type_infer_var_for_what_name infer_var_for_what
              in var_sp `Diagnostic.msg_note_at` convert_str ("where '" <> name <> "' is the type of this " <> var_name))
         (Map.toList names)
-name_unk :: TypeUnknownKey -> UnkNamer Text
+name_unk :: TypeInferVarKey -> UnkNamer Text
 name_unk var = state $
     \ (cur_n, cache) ->
         case Map.lookup var cache of
@@ -47,33 +47,33 @@ name_unk var = state $
         to_characters n = chr $ 65 + n
     -}
 
-data ErrorTypeContext = ErrorTypeContext TypedWithUnkADTArena TypedWithUnkTypeSynonymArena TypeVarArena TypeUnknownArena
+data ErrorTypeContext = ErrorTypeContext TypedWithInferVarsADTArena TypedWithInferVarsTypeSynonymArena TypeVarArena TypeInferVarArena
 
 data Error
     = EqError
         { eq_error_context :: ErrorTypeContext
         , eq_error_in_what :: EqInWhat
         , eq_error_span :: Span
-        , eq_error_a_whole :: Located TypeWithUnk
-        , eq_error_b_whole :: Located TypeWithUnk
-        , eq_error_a_part :: TypeWithUnk
-        , eq_error_b_part :: TypeWithUnk
+        , eq_error_a_whole :: Located TypeWithInferVars
+        , eq_error_b_whole :: Located TypeWithInferVars
+        , eq_error_a_part :: TypeWithInferVars
+        , eq_error_b_part :: TypeWithInferVars
         }
     | ExpectError
         { expect_error_context :: ErrorTypeContext
         , expect_error_in_what :: ExpectInWhat
-        , expect_error_got_whole :: Located TypeWithUnk
-        , expect_error_expect_whole :: TypeWithUnk
-        , expect_error_got_part :: TypeWithUnk
-        , expect_error_expect_part :: TypeWithUnk
+        , expect_error_got_whole :: Located TypeWithInferVars
+        , expect_error_expect_whole :: TypeWithInferVars
+        , expect_error_got_part :: TypeWithInferVars
+        , expect_error_expect_part :: TypeWithInferVars
         }
 
-    | OccursCheckError ErrorTypeContext Span TypeUnknownKey TypeWithUnk
+    | OccursCheckError ErrorTypeContext Span TypeInferVarKey TypeWithInferVars
 
-    | AmbiguousType TypeUnknownForWhat
+    | AmbiguousType TypeInferVarForWhat
 
-    | DoesNotTakeTypeArgument ErrorTypeContext Span TypeWithUnk
-    | WrongTypeArgument ErrorTypeContext Span TypeWithUnk TypeWithUnk
+    | DoesNotTakeTypeArgument ErrorTypeContext Span TypeWithInferVars
+    | WrongTypeArgument ErrorTypeContext Span TypeWithInferVars TypeWithInferVars
 
 instance Diagnostic.ToError Error where
     to_error (EqError context@(ErrorTypeContext _ _ _ unks) in_what span a_whole b_whole a_part b_part) =
@@ -124,7 +124,7 @@ instance Diagnostic.ToError Error where
             []
 
     to_error (OccursCheckError context@(ErrorTypeContext _ _ _ unks) span var_key ty) =
-        let var_as_type = Type.Type'Unknown var_key
+        let var_as_type = Type.Type'InferVar var_key
 
             ((ty_printed, var_printed), var_names) =
                 run_unk_namer $
@@ -138,8 +138,8 @@ instance Diagnostic.ToError Error where
             []
 
     to_error (AmbiguousType for_what) =
-        let sp = type_unk_for_what_sp for_what
-            name = type_unk_for_what_name for_what
+        let sp = type_infer_var_for_what_sp for_what
+            name = type_infer_var_for_what_name for_what
         in Diagnostic.Error
                 (Just sp)
                 ("ambiguous type: could not infer the type of this " <> name)
@@ -171,13 +171,13 @@ instance Diagnostic.ToError Error where
             (make_unk_name_messages unks var_names)
             []
 
-print_type :: Bool -> ErrorTypeContext -> TypeWithUnk -> UnkNamer PP.Token -- TODO: since this already a monad, put the arenas and things into a reader monad?
+print_type :: Bool -> ErrorTypeContext -> TypeWithInferVars -> UnkNamer PP.Token -- TODO: since this already a monad, put the arenas and things into a reader monad?
 print_type unks_show_index context@(ErrorTypeContext adts type_synonyms vars unks) = Type.PP.refer_type_m show_unk adts type_synonyms vars
     where
         show_unk unk =
             case Arena.get unks unk of
-                TypeUnknown _ Fresh
+                TypeInferVar _ TFresh
                     | unks_show_index -> PP.String <$> name_unk unk
                     | otherwise -> pure "_"
-                TypeUnknown _ (Substituted other) -> print_type unks_show_index context other
+                TypeInferVar _ (TSubstituted other) -> print_type unks_show_index context other
 

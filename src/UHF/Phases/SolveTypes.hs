@@ -8,7 +8,7 @@ import qualified UHF.Util.Arena as Arena
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Phases.SolveTypes.AddTypes as AddTypes
-import qualified UHF.Phases.SolveTypes.RemoveUnknowns as RemoveUnknowns
+import qualified UHF.Phases.SolveTypes.RemoveInferVars as RemoveInferVars
 import qualified UHF.Phases.SolveTypes.Solver as Solver
 
 -- this does both type inference and type checking
@@ -22,5 +22,5 @@ solve (SIR.SIR mods adts type_synonyms type_vars variables mod) = -- TODO: do no
         )
         Arena.new >>= \ ((mods, adts, type_synonyms, variables), vars) ->
 
-    RemoveUnknowns.remove vars mods adts type_synonyms variables >>= \ (mods, adts, type_synonyms, variables) ->
+    RemoveInferVars.remove vars mods adts type_synonyms variables >>= \ (mods, adts, type_synonyms, variables) ->
     pure (SIR.SIR mods adts type_synonyms type_vars variables mod)

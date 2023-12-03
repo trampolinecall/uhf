@@ -41,7 +41,7 @@ data Type unk
     | Type'Bool
     | Type'Function (Type unk) (Type unk)
     | Type'Tuple (Type unk) (Type unk)
-    | Type'Unknown unk
+    | Type'InferVar unk
     | Type'Variable TypeVarKey
     | Type'Forall (NonEmpty TypeVarKey) (Type unk)
     deriving Show

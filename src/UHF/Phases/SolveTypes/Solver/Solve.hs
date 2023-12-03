@@ -7,8 +7,8 @@ import qualified Data.Map as Map
 import UHF.Phases.SolveTypes.Aliases
 import UHF.Phases.SolveTypes.Error
 import UHF.Phases.SolveTypes.Solver.Constraint
-import UHF.Phases.SolveTypes.Solver.Unknown
-import UHF.Phases.SolveTypes.StateWithUnk
+import UHF.Phases.SolveTypes.Solver.InferVar
+import UHF.Phases.SolveTypes.StateWithInferVars
 import UHF.Phases.SolveTypes.Utils
 import UHF.Source.Located (Located (..))
 import UHF.Source.Span (Span)
@@ -16,17 +16,17 @@ import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Util.Arena as Arena
 
-type TypeContextReader = ReaderT (TypedWithUnkADTArena, TypedWithUnkTypeSynonymArena, TypeVarArena)
+type TypeContextReader = ReaderT (TypedWithInferVarsADTArena, TypedWithInferVarsTypeSynonymArena, TypeVarArena)
 
-get_error_type_context :: TypeContextReader StateWithUnk ErrorTypeContext
+get_error_type_context :: TypeContextReader StateWithInferVars ErrorTypeContext
 get_error_type_context =
-    lift get >>= \ unks ->
+    lift get >>= \ infer_vars ->
     ask >>= \ (adts, type_synonyms, vars) ->
-    pure (ErrorTypeContext adts type_synonyms vars unks)
+    pure (ErrorTypeContext adts type_synonyms vars infer_vars)
 
 data UnifyError
-    = Mismatch TypeWithUnk TypeWithUnk
-    | OccursCheck TypeUnknownKey TypeWithUnk
+    = Mismatch TypeWithInferVars TypeWithInferVars
+    | OccursCheck TypeInferVarKey TypeWithInferVars
 
 data Solve1Result
     = Ok
@@ -41,24 +41,28 @@ generate_var_sub = StateT $ \ cur_var@(VarSub cur_num) -> pure (cur_var, VarSub 
 run_var_sub_generator :: Monad m => VarSubGenerator m r -> m r
 run_var_sub_generator s = evalStateT s (VarSub 0)
 
-solve :: TypedWithUnkADTArena -> TypedWithUnkTypeSynonymArena -> TypeVarArena -> [Constraint] -> StateWithUnk ()
+solve :: TypedWithInferVarsADTArena -> TypedWithInferVarsTypeSynonymArena -> TypeVarArena -> [Constraint] -> StateWithInferVars [Constraint]
 solve adts type_synonyms vars constraints = runReaderT (solve' constraints) (adts, type_synonyms, vars)
     where
-        solve' constraints =
-            mapM (\ cons -> (cons,) <$> solve1 cons) constraints >>= \ results ->
-            catMaybes <$> mapM
-                (\ (cons, res) -> case res of
+        solve' constraints = do
+            next_constraints <- constraints
+                -- try to solve each constraint and save each one that couldn't be solved in this round
+                & mapM (\ constraint ->
+                    solve1 constraint >>= \case
                         Ok -> pure Nothing
-                        Error err -> lift (lift $ Compiler.tell_error err) >> pure Nothing
-                        Defer -> pure (Just cons)
+                        Error err -> do
+                            lift $ lift $ Compiler.tell_error err
+                            pure Nothing
+                        Defer -> pure (Just constraint)
                 )
-                results >>= \ next_constraints ->
+                & fmap catMaybes
+
             if length constraints == length next_constraints
-                then pure () -- deferred all constraints, removing unknowns phase will report all the ambiguous types
+                then pure next_constraints -- all constraints were deferred, so no more solving can be done; return these unsolvable constraints
                 else solve' next_constraints
 
--- TODO: figure out how to gracefully handle errors because the unknowns become ambiguous if they cant be unified
-solve1 :: Constraint -> TypeContextReader StateWithUnk Solve1Result
+-- TODO: figure out how to gracefully handle errors because the infer_varnowns become ambiguous if they cant be unified
+solve1 :: Constraint -> TypeContextReader StateWithInferVars Solve1Result
 solve1 (Eq in_what sp a b) =
     run_var_sub_generator (runExceptT (unify (unlocate a, Map.empty) (unlocate b, Map.empty))) >>= \case
         Right () -> pure Ok
@@ -67,9 +71,9 @@ solve1 (Eq in_what sp a b) =
             get_error_type_context >>= \ context ->
             pure (Error $ EqError { eq_error_context = context, eq_error_in_what = in_what, eq_error_span = sp, eq_error_a_whole = a, eq_error_b_whole = b, eq_error_a_part = a_part, eq_error_b_part = b_part })
 
-        Left (OccursCheck unk ty) ->
+        Left (OccursCheck infer_var ty) ->
             get_error_type_context >>= \ context ->
-            pure (Error $ OccursCheckError context sp unk ty)
+            pure (Error $ OccursCheckError context sp infer_var ty)
 
 solve1 (Expect in_what got expect) =
     run_var_sub_generator (runExceptT (unify (unlocate got, Map.empty) (expect, Map.empty))) >>= \case
@@ -79,32 +83,32 @@ solve1 (Expect in_what got expect) =
             get_error_type_context >>= \ context ->
             pure (Error $ ExpectError { expect_error_context = context, expect_error_in_what = in_what, expect_error_got_whole = got, expect_error_expect_whole = expect, expect_error_got_part = got_part, expect_error_expect_part = expect_part })
 
-        Left (OccursCheck unk ty) ->
+        Left (OccursCheck infer_var ty) ->
             get_error_type_context >>= \ context ->
-            pure (Error $ OccursCheckError context (just_span got) unk ty)
+            pure (Error $ OccursCheckError context (just_span got) infer_var ty)
 
-solve1 (UnkIsApplyResult sp unk ty arg) =
+solve1 (UnkIsApplyResult sp infer_var ty arg) =
     apply_ty sp ty arg >>= \case
         Just (Right applied) ->
-            run_var_sub_generator (runExceptT (unify_unk (unk, Map.empty) (applied, Map.empty) False)) >>= \case
+            run_var_sub_generator (runExceptT (unify_infer_var (infer_var, Map.empty) (applied, Map.empty) False)) >>= \case
                 Right () -> pure Ok
 
-                Left (Mismatch unk_part applied_part) ->
+                Left (Mismatch infer_var_part applied_part) ->
                     get_error_type_context >>= \ context ->
-                    pure (Error $ ExpectError { expect_error_context = context, expect_error_in_what = InTypeApplication, expect_error_got_whole = Located sp applied, expect_error_expect_whole = Type.Type'Unknown unk, expect_error_got_part = applied_part, expect_error_expect_part = unk_part })
+                    pure (Error $ ExpectError { expect_error_context = context, expect_error_in_what = InTypeApplication, expect_error_got_whole = Located sp applied, expect_error_expect_whole = Type.Type'InferVar infer_var, expect_error_got_part = applied_part, expect_error_expect_part = infer_var_part })
 
-                Left (OccursCheck unk ty) ->
+                Left (OccursCheck infer_var ty) ->
                     get_error_type_context >>= \ context ->
-                    pure (Error $ OccursCheckError context sp unk ty)
+                    pure (Error $ OccursCheckError context sp infer_var ty)
 
         Just (Left e) -> pure (Error e)
         Nothing -> pure Defer
 
-apply_ty :: Span -> TypeWithUnk -> TypeWithUnk -> TypeContextReader StateWithUnk (Maybe (Either Error TypeWithUnk))
-apply_ty sp (Type.Type'Unknown unk) arg =
-    Arena.get <$> lift get <*> pure unk >>= \case
-        TypeUnknown _ (Substituted sub) -> apply_ty sp sub arg
-        TypeUnknown _ Fresh -> pure Nothing
+apply_ty :: Span -> TypeWithInferVars -> TypeWithInferVars -> TypeContextReader StateWithInferVars (Maybe (Either Error TypeWithInferVars))
+apply_ty sp (Type.Type'InferVar infer_var) arg =
+    Arena.get <$> lift get <*> pure infer_var >>= \case
+        TypeInferVar _ (TSubstituted sub) -> apply_ty sp sub arg
+        TypeInferVar _ TFresh -> pure Nothing
 apply_ty sp ty@(Type.Type'ADT adt params_already_applied) arg = do
     (adts, _, _) <- ask
     let (Type.ADT _ _ type_params _) = Arena.get adts adt
@@ -124,15 +128,15 @@ apply_ty _ (Type.Type'Forall (first_var :| more_vars) ty) arg =
     -- TODO: check kind of first_var when higher kinded variables are implemented
     case more_vars of
         [] ->
-            lift get >>= \ unks ->
-            pure (Just $ Right $ substitute unks first_var arg ty)
+            lift get >>= \ infer_vars ->
+            pure (Just $ Right $ substitute infer_vars first_var arg ty)
         more_1:more_more ->
-            lift get >>= \ unks ->
-            pure (Just $ Right $ Type.Type'Forall (more_1 :| more_more) (substitute unks first_var arg ty))
+            lift get >>= \ infer_vars ->
+            pure (Just $ Right $ Type.Type'Forall (more_1 :| more_more) (substitute infer_vars first_var arg ty))
 
-unify :: (TypeWithUnk, VarSubMap) -> (TypeWithUnk, VarSubMap) -> ExceptT UnifyError (VarSubGenerator (TypeContextReader StateWithUnk)) ()
-unify (Type.Type'Unknown a, a_var_map) b = unify_unk (a, a_var_map) b False
-unify a (Type.Type'Unknown b, b_var_map) = unify_unk (b, b_var_map) a True
+unify :: (TypeWithInferVars, VarSubMap) -> (TypeWithInferVars, VarSubMap) -> ExceptT UnifyError (VarSubGenerator (TypeContextReader StateWithInferVars)) ()
+unify (Type.Type'InferVar a, a_var_map) b = unify_infer_var (a, a_var_map) b False
+unify a (Type.Type'InferVar b, b_var_map) = unify_infer_var (b, b_var_map) a True
 
 unify (Type.Type'ADT a_adt_key a_params, a_var_map) (Type.Type'ADT b_adt_key b_params, b_var_map)
     | a_adt_key == b_adt_key
@@ -176,7 +180,7 @@ unify (Type.Type'Forall vars1 t1, var_map_1) (Type.Type'Forall vars2 t2, var_map
     where
         go (var1:vars1) t1 map1 (var2:vars2) t2 map2 =
             lift generate_var_sub >>= \ new_var_sub ->
-            -- this will error if the smae type variable appears twice in nested foralls
+            -- this will error if the same type variable appears twice in nested foralls
             -- i.e. something like #(T) T -> #(T) T -> T
             -- because variables are constructed to be unique to each forall, this should never error in practice
             let map1' = Map.insertWith (\ _ _ -> error "variable substitution already in map") var1 new_var_sub map1
@@ -189,44 +193,44 @@ unify (Type.Type'Forall vars1 t1, var_map_1) (Type.Type'Forall vars2 t2, var_map
         remake_forall_ty (v1:vmore) t1 = Type.Type'Forall (v1 :| vmore) t1
 unify (a, _) (b, _) = ExceptT (pure $ Left $ Mismatch a b)
 
-set_type_unk_state :: TypeUnknownKey -> TypeUnknownState -> TypeContextReader StateWithUnk ()
-set_type_unk_state unk new_state = lift $ modify $ \ ty_arena -> Arena.modify ty_arena unk (\ (TypeUnknown for _) -> TypeUnknown for new_state)
+set_type_infer_var_status :: TypeInferVarKey -> TypeInferVarStatus -> TypeContextReader StateWithInferVars ()
+set_type_infer_var_status infer_var new_status = lift $ modify $ \ ty_arena -> Arena.modify ty_arena infer_var (\ (TypeInferVar for _) -> TypeInferVar for new_status)
 
-unify_unk :: (TypeUnknownKey, VarSubMap) -> (TypeWithUnk, VarSubMap) -> Bool -> ExceptT UnifyError (VarSubGenerator (TypeContextReader StateWithUnk)) ()
-unify_unk (unk, unk_var_map) (other, other_var_map) unk_on_right = Arena.get <$> lift (lift $ lift get) <*> pure unk >>= \case
-    -- if this unknown can be expanded, unify its expansion
-    TypeUnknown _ (Substituted unk_sub) ->
-        if unk_on_right
-            then unify (other, other_var_map) (unk_sub, unk_var_map)
-            else unify (unk_sub, unk_var_map) (other, other_var_map)
+unify_infer_var :: (TypeInferVarKey, VarSubMap) -> (TypeWithInferVars, VarSubMap) -> Bool -> ExceptT UnifyError (VarSubGenerator (TypeContextReader StateWithInferVars)) ()
+unify_infer_var (infer_var, infer_var_var_map) (other, other_var_map) infer_var_on_right = Arena.get <$> lift (lift $ lift get) <*> pure infer_var >>= \case
+    -- if this infer_varnown can be expanded, unify its expansion
+    TypeInferVar _ (TSubstituted infer_var_sub) ->
+        if infer_var_on_right
+            then unify (other, other_var_map) (infer_var_sub, infer_var_var_map)
+            else unify (infer_var_sub, infer_var_var_map) (other, other_var_map)
 
-    -- if this unknown has no substitution, what happens depends on the other type
-    TypeUnknown _ Fresh ->
+    -- if this infer_varnown has no substitution, what happens depends on the other type
+    TypeInferVar _ TFresh ->
         case other of
-            Type.Type'Unknown other_unk ->
-                Arena.get <$> lift (lift $ lift get) <*> pure other_unk >>= \case
-                    -- if the other type is a substituted unknown, unify this unknown with the other's expansion
-                    TypeUnknown _ (Substituted other_unk_sub) -> unify_unk (unk, unk_var_map) (other_unk_sub, other_var_map) unk_on_right
+            Type.Type'InferVar other_infer_var ->
+                Arena.get <$> lift (lift $ lift get) <*> pure other_infer_var >>= \case
+                    -- if the other type is a substituted infer_varnown, unify this infer_varnown with the other's expansion
+                    TypeInferVar _ (TSubstituted other_infer_var_sub) -> unify_infer_var (infer_var, infer_var_var_map) (other_infer_var_sub, other_var_map) infer_var_on_right
 
-                    -- if the other type is a fresh unknown, both of them are fresh unknowns and the only thing that can be done is to unify them
-                    TypeUnknown _ Fresh ->
-                        when (unk /= other_unk) $
-                            lift (lift $ set_type_unk_state unk (Substituted other))
+                    -- if the other type is a fresh infer_varnown, both of them are fresh infer_varnowns and the only thing that can be done is to unify them
+                    TypeInferVar _ TFresh ->
+                        when (infer_var /= other_infer_var) $
+                            lift (lift $ set_type_infer_var_status infer_var (TSubstituted other))
 
-            -- if the other type is a type and not an unknown
-            _ -> lift (lift $ occurs_check unk other) >>= \case
-                True -> ExceptT (pure $ Left $ OccursCheck unk other)
-                False -> lift (lift $ set_type_unk_state unk (Substituted other))
+            -- if the other type is a type and not an infer_varnown
+            _ -> lift (lift $ occurs_check infer_var other) >>= \case
+                True -> ExceptT (pure $ Left $ OccursCheck infer_var other)
+                False -> lift (lift $ set_type_infer_var_status infer_var (TSubstituted other))
 
-occurs_check :: TypeUnknownKey -> TypeWithUnk -> TypeContextReader StateWithUnk Bool
--- does the unknown u occur anywhere in the type ty?
-occurs_check u (Type.Type'Unknown other_v) =
+occurs_check :: TypeInferVarKey -> TypeWithInferVars -> TypeContextReader StateWithInferVars Bool
+-- does the infer_varnown u occur anywhere in the type ty?
+occurs_check u (Type.Type'InferVar other_v) =
     if u == other_v
         then pure True
         else
             Arena.get <$> lift get <*> pure other_v >>= \case
-                TypeUnknown _ (Substituted other_sub) -> occurs_check u other_sub
-                TypeUnknown _ Fresh -> pure False
+                TypeInferVar _ (TSubstituted other_sub) -> occurs_check u other_sub
+                TypeInferVar _ TFresh -> pure False
 
 occurs_check u (Type.Type'ADT _ params) = or <$> mapM (occurs_check u) params
 

@@ -55,7 +55,7 @@ refer_type_m show_tyunk adts type_synonyms vars (Type.Type'Tuple a b) = do
     a_shown <- refer_type_m show_tyunk adts type_synonyms vars a
     b_shown <- refer_type_m show_tyunk adts type_synonyms vars b
     pure (PP.parenthesized_comma_list PP.Inconsistent [a_shown, b_shown])
-refer_type_m show_tyunk _ _ _ (Type.Type'Unknown unk) = show_tyunk unk
+refer_type_m show_tyunk _ _ _ (Type.Type'InferVar unk) = show_tyunk unk
 refer_type_m _ _ _ vars (Type.Type'Variable var) =
     let (Type.Var (Located _ name)) = Arena.get vars var
     in pure $ PP.String name -- TODO: write id

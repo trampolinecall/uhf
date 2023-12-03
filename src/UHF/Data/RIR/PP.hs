@@ -26,8 +26,8 @@ get_adt :: Type.ADTKey -> IRReader (Type.ADT (Maybe (Type.Type Void)))
 get_adt k = reader (\ (RIR.RIR adts _ _ _ _) -> Arena.get adts k)
 get_type_synonym :: Type.TypeSynonymKey -> IRReader (Type.TypeSynonym (Maybe (Type.Type Void)))
 get_type_synonym k = reader (\ (RIR.RIR _ type_synonyms _ _ _) -> Arena.get type_synonyms k)
-get_bv :: RIR.VariableKey -> IRReader RIR.Variable
-get_bv k = reader (\ (RIR.RIR _ _ _ bvs _) -> Arena.get bvs k)
+get_var :: RIR.VariableKey -> IRReader RIR.Variable
+get_var k = reader (\ (RIR.RIR _ _ _ vars _) -> Arena.get vars k)
 get_type_var :: Type.TypeVarKey -> IRReader Type.Var
 get_type_var k = reader (\ (RIR.RIR _ _ type_vars _ _) -> Arena.get type_vars k)
 
@@ -51,13 +51,13 @@ refer_m_type (Just ty) =
 refer_m_type Nothing = pure "<type error>"
 
 define_binding :: RIR.Binding -> IRReader PP.Token
-define_binding (RIR.Binding bvk e) =
-    refer_bv bvk >>= \ bvk ->
+define_binding (RIR.Binding var_key e) =
+    refer_var var_key >>= \ var_key ->
     expr e >>= \ e ->
-    pure (PP.List [bvk, " = ", e, ";"])
+    pure (PP.List [var_key, " = ", e, ";"])
 
-refer_bv :: RIR.VariableKey -> IRReader PP.Token
-refer_bv bvk = get_bv bvk >>= \ (RIR.Variable id _ _) -> pure (PP.String (ID.stringify id))
+refer_var :: RIR.VariableKey -> IRReader PP.Token
+refer_var var_key = get_var var_key >>= \ (RIR.Variable id _ _) -> pure (PP.String (ID.stringify id))
 
 type_var :: Type.TypeVarKey -> IRReader PP.Token
 type_var k = get_type_var k >>= \ (Type.Var (Located _ name)) -> pure (PP.String name)
@@ -68,7 +68,7 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
         levels (RIR.Expr'Call _ _ callee arg) = (0, \ cur _ -> cur callee >>= \ callee -> expr arg >>= \ arg -> pure $ PP.List [callee, "(", arg, ")"])
         levels (RIR.Expr'TypeApply _ _ _ e arg) = (0, \ cur _ -> cur e >>= \ e -> refer_m_type arg >>= \ arg -> pure (PP.List [e, "#(", arg, ")"]))
 
-        levels (RIR.Expr'Identifier _ _ _ (Just bvk)) = (1, \ _ _ -> refer_bv bvk)
+        levels (RIR.Expr'Identifier _ _ _ (Just var_key)) = (1, \ _ _ -> refer_var var_key)
         levels (RIR.Expr'Identifier _ _ _ Nothing) = (1, \ _ _ -> pure $ PP.List ["<name resolution error>"])
         levels (RIR.Expr'Poison _ _ _) = (1, \ _ _ -> pure $ PP.List ["poison"])
         levels (RIR.Expr'Char _ _ c) = (1, \ _ _ -> pure $ PP.FirstOnLineIfMultiline $ PP.String $ show c)
@@ -89,7 +89,7 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
                 in pure $ PP.FirstOnLineIfMultiline $ PP.List ["adt ", adt_refer, " ", PP.String $ unlocate variant_name, "#", PP.parenthesized_comma_list PP.Inconsistent tyargs, PP.bracketed_comma_list PP.Inconsistent args]
             )
 
-        levels (RIR.Expr'Lambda _ _ param body) = (1, \ _ _ -> refer_bv param >>= \ param -> expr body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, " -> ", body]))
+        levels (RIR.Expr'Lambda _ _ param body) = (1, \ _ _ -> refer_var param >>= \ param -> expr body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, " -> ", body]))
         levels (RIR.Expr'Let _ _ [binding] res) = (1, \ _ _ -> define_binding binding >>= \ binding -> expr res >>= \ res -> pure (PP.FirstOnLineIfMultiline $ PP.List ["let ", binding, "\n", res]))
         levels (RIR.Expr'Let _ _ bindings res) = (1, \ _ _ -> expr res >>= \ res -> mapM define_binding bindings >>= \ bindings -> pure (PP.FirstOnLineIfMultiline $ PP.List ["let ", PP.braced_block bindings, "\n", res]))
 
@@ -106,8 +106,8 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
                         Left subtree -> pp_match_tree subtree) >>= \ result ->
                     pure (PP.List [PP.bracketed_comma_list PP.Inconsistent clauses, " -> ", result, ";"])
 
-                pp_clause (RIR.MatchClause'Match bv matcher) = refer_bv bv >>= \ bv -> pp_matcher matcher >>= \ matcher -> pure (PP.List [bv, " -> ", matcher])
-                pp_clause (RIR.MatchClause'Assign target rhs) = refer_bv target >>= \ target -> pp_assign_rhs rhs >>= \ rhs -> pure (PP.List [target, " = ", rhs])
+                pp_clause (RIR.MatchClause'Match var matcher) = refer_var var >>= \ var -> pp_matcher matcher >>= \ matcher -> pure (PP.List [var, " -> ", matcher])
+                pp_clause (RIR.MatchClause'Assign target rhs) = refer_var target >>= \ target -> pp_assign_rhs rhs >>= \ rhs -> pure (PP.List [target, " = ", rhs])
 
                 pp_matcher (RIR.Match'BoolLiteral b) = pure $ if b then "true" else "false"
                 pp_matcher RIR.Match'Tuple = pure "(,)"
@@ -122,11 +122,11 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
                         )
                         m_variant
 
-                pp_assign_rhs (RIR.MatchAssignRHS'OtherVar other) = refer_bv other
-                pp_assign_rhs (RIR.MatchAssignRHS'TupleDestructure1 _ tup) = refer_bv tup >>= \ tup -> pure (PP.List [tup, ".tuple_l"])
-                pp_assign_rhs (RIR.MatchAssignRHS'TupleDestructure2 _ tup) = refer_bv tup >>= \ tup -> pure (PP.List [tup, ".tuple_r"])
+                pp_assign_rhs (RIR.MatchAssignRHS'OtherVar other) = refer_var other
+                pp_assign_rhs (RIR.MatchAssignRHS'TupleDestructure1 _ tup) = refer_var tup >>= \ tup -> pure (PP.List [tup, ".tuple_l"])
+                pp_assign_rhs (RIR.MatchAssignRHS'TupleDestructure2 _ tup) = refer_var tup >>= \ tup -> pure (PP.List [tup, ".tuple_r"])
                 pp_assign_rhs (RIR.MatchAssignRHS'AnonADTVariantField _ base m_field) =
-                    refer_bv base >>= \ base ->
+                    refer_var base >>= \ base ->
                     -- TODO: unduplicate this?
                     maybe
                         (pure ("<error>", "<error>"))

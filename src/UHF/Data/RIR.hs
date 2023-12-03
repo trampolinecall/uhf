@@ -37,9 +37,9 @@ data RIR
 
 data Variable
     = Variable
-        { bv_id :: ID.VariableID
-        , bv_ty :: Maybe (Type.Type Void)
-        , bv_sp :: Span
+        { var_id :: ID.VariableID
+        , var_ty :: Maybe (Type.Type Void)
+        , var_sp :: Span
         }
     deriving Show
 
@@ -106,16 +106,16 @@ expr_type _ (Expr'String _ _ _) = Just Type.Type'String
 expr_type _ (Expr'Int _ _ _) = Just Type.Type'Int
 expr_type _ (Expr'Float _ _ _) = Just Type.Type'Float
 expr_type _ (Expr'Bool _ _ _) = Just Type.Type'Bool
-expr_type bv_arena (Expr'Tuple _ _ a b) = Type.Type'Tuple <$> expr_type bv_arena a <*> expr_type bv_arena b
-expr_type bv_arena (Expr'Lambda _ _ param_bv body) = Type.Type'Function <$> bv_ty (Arena.get bv_arena param_bv) <*> expr_type bv_arena body
-expr_type bv_arena (Expr'Let _ _ _ res) = expr_type bv_arena res
-expr_type bv_arena (Expr'Call _ _ callee _) =
-    let callee_ty = expr_type bv_arena callee
+expr_type var_arena (Expr'Tuple _ _ a b) = Type.Type'Tuple <$> expr_type var_arena a <*> expr_type var_arena b
+expr_type var_arena (Expr'Lambda _ _ param_var body) = Type.Type'Function <$> var_ty (Arena.get var_arena param_var) <*> expr_type var_arena body
+expr_type var_arena (Expr'Let _ _ _ res) = expr_type var_arena res
+expr_type var_arena (Expr'Call _ _ callee _) =
+    let callee_ty = expr_type var_arena callee
     in callee_ty <&> \case
         Type.Type'Function _ res -> res
         _ -> error $ "rir call expression created with callee of type " <> show callee_ty
 expr_type _ (Expr'Match _ ty _ _) = ty
-expr_type bv_arena (Expr'Forall _ _ tyvars res) = Type.Type'Forall tyvars <$> expr_type bv_arena res
+expr_type var_arena (Expr'Forall _ _ tyvars res) = Type.Type'Forall tyvars <$> expr_type var_arena res
 expr_type _ (Expr'TypeApply _ ty _ _ _) = ty
 expr_type _ (Expr'MakeADT _ _ (Type.ADTVariantIndex adt_key _) vars _) = Type.Type'ADT adt_key <$> sequence vars
 expr_type _ (Expr'Poison _ ty _) = ty

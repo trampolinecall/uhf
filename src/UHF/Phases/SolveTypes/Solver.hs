@@ -1,13 +1,9 @@
 module UHF.Phases.SolveTypes.Solver
     ( Constraint (..)
 
-    , TypeInferVarKey
-    , TypeInferVar (..)
-    , TypeInferVarForWhat (..)
-
-    , KindInferVarKey
-    , KindInferVar (..)
-    , KindInferVarForWhat (..)
+    , InferVarKey
+    , InferVar (..)
+    , InferVarForWhat (..)
 
     , solve
     ) where

@@ -26,7 +26,7 @@ get_error_type_context =
 
 data UnifyError
     = Mismatch TypeWithInferVars TypeWithInferVars
-    | OccursCheck TypeInferVarKey TypeWithInferVars
+    | OccursCheck InferVarKey TypeWithInferVars
 
 data Solve1Result
     = Ok
@@ -107,8 +107,8 @@ solve1 (UnkIsApplyResult sp infer_var ty arg) =
 apply_ty :: Span -> TypeWithInferVars -> TypeWithInferVars -> TypeContextReader StateWithInferVars (Maybe (Either Error TypeWithInferVars))
 apply_ty sp (Type.Type'InferVar infer_var) arg =
     Arena.get <$> lift get <*> pure infer_var >>= \case
-        TypeInferVar _ (TSubstituted sub) -> apply_ty sp sub arg
-        TypeInferVar _ TFresh -> pure Nothing
+        InferVar _ (Substituted sub) -> apply_ty sp sub arg
+        InferVar _ Fresh -> pure Nothing
 apply_ty sp ty@(Type.Type'ADT adt params_already_applied) arg = do
     (adts, _, _) <- ask
     let (Type.ADT _ _ type_params _) = Arena.get adts adt
@@ -193,44 +193,44 @@ unify (Type.Type'Forall vars1 t1, var_map_1) (Type.Type'Forall vars2 t2, var_map
         remake_forall_ty (v1:vmore) t1 = Type.Type'Forall (v1 :| vmore) t1
 unify (a, _) (b, _) = ExceptT (pure $ Left $ Mismatch a b)
 
-set_type_infer_var_status :: TypeInferVarKey -> TypeInferVarStatus -> TypeContextReader StateWithInferVars ()
-set_type_infer_var_status infer_var new_status = lift $ modify $ \ ty_arena -> Arena.modify ty_arena infer_var (\ (TypeInferVar for _) -> TypeInferVar for new_status)
+set_infer_var_status :: InferVarKey -> InferVarStatus -> TypeContextReader StateWithInferVars ()
+set_infer_var_status infer_var new_status = lift $ modify $ \ ty_arena -> Arena.modify ty_arena infer_var (\ (InferVar for _) -> InferVar for new_status)
 
-unify_infer_var :: (TypeInferVarKey, VarSubMap) -> (TypeWithInferVars, VarSubMap) -> Bool -> ExceptT UnifyError (VarSubGenerator (TypeContextReader StateWithInferVars)) ()
+unify_infer_var :: (InferVarKey, VarSubMap) -> (TypeWithInferVars, VarSubMap) -> Bool -> ExceptT UnifyError (VarSubGenerator (TypeContextReader StateWithInferVars)) ()
 unify_infer_var (infer_var, infer_var_var_map) (other, other_var_map) infer_var_on_right = Arena.get <$> lift (lift $ lift get) <*> pure infer_var >>= \case
     -- if this infer_varnown can be expanded, unify its expansion
-    TypeInferVar _ (TSubstituted infer_var_sub) ->
+    InferVar _ (Substituted infer_var_sub) ->
         if infer_var_on_right
             then unify (other, other_var_map) (infer_var_sub, infer_var_var_map)
             else unify (infer_var_sub, infer_var_var_map) (other, other_var_map)
 
     -- if this infer_varnown has no substitution, what happens depends on the other type
-    TypeInferVar _ TFresh ->
+    InferVar _ Fresh ->
         case other of
             Type.Type'InferVar other_infer_var ->
                 Arena.get <$> lift (lift $ lift get) <*> pure other_infer_var >>= \case
                     -- if the other type is a substituted infer_varnown, unify this infer_varnown with the other's expansion
-                    TypeInferVar _ (TSubstituted other_infer_var_sub) -> unify_infer_var (infer_var, infer_var_var_map) (other_infer_var_sub, other_var_map) infer_var_on_right
+                    InferVar _ (Substituted other_infer_var_sub) -> unify_infer_var (infer_var, infer_var_var_map) (other_infer_var_sub, other_var_map) infer_var_on_right
 
                     -- if the other type is a fresh infer_varnown, both of them are fresh infer_varnowns and the only thing that can be done is to unify them
-                    TypeInferVar _ TFresh ->
+                    InferVar _ Fresh ->
                         when (infer_var /= other_infer_var) $
-                            lift (lift $ set_type_infer_var_status infer_var (TSubstituted other))
+                            lift (lift $ set_infer_var_status infer_var (Substituted other))
 
             -- if the other type is a type and not an infer_varnown
             _ -> lift (lift $ occurs_check infer_var other) >>= \case
                 True -> ExceptT (pure $ Left $ OccursCheck infer_var other)
-                False -> lift (lift $ set_type_infer_var_status infer_var (TSubstituted other))
+                False -> lift (lift $ set_infer_var_status infer_var (Substituted other))
 
-occurs_check :: TypeInferVarKey -> TypeWithInferVars -> TypeContextReader StateWithInferVars Bool
+occurs_check :: InferVarKey -> TypeWithInferVars -> TypeContextReader StateWithInferVars Bool
 -- does the infer_varnown u occur anywhere in the type ty?
 occurs_check u (Type.Type'InferVar other_v) =
     if u == other_v
         then pure True
         else
             Arena.get <$> lift get <*> pure other_v >>= \case
-                TypeInferVar _ (TSubstituted other_sub) -> occurs_check u other_sub
-                TypeInferVar _ TFresh -> pure False
+                InferVar _ (Substituted other_sub) -> occurs_check u other_sub
+                InferVar _ Fresh -> pure False
 
 occurs_check u (Type.Type'ADT _ params) = or <$> mapM (occurs_check u) params
 

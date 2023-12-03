@@ -7,7 +7,7 @@ import qualified UHF.Data.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Phases.SolveTypes.Solver.InferVar as InferVar
 
-type TypeWithInferVars = Type.Type InferVar.TypeInferVarKey
+type TypeWithInferVars = Type.Type InferVar.InferVarKey
 type Type = Type.Type Void
 
 type DIden = Maybe SIR.Decl

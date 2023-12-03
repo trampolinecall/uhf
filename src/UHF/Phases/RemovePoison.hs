@@ -8,7 +8,7 @@ import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Util.Arena as Arena
 
 type PoisonedBackendIR = BackendIR.BackendIR PoisonedType ()
-type PoisonedType = Maybe (Type.Type Void)
+type PoisonedType = Maybe Type.Type
 type PoisonedADT = Type.ADT PoisonedType
 type PoisonedTypeSynonym = Type.TypeSynonym PoisonedType
 type PoisonedExpr = BackendIR.Expr PoisonedType ()
@@ -16,7 +16,7 @@ type PoisonedBinding = BackendIR.Binding PoisonedType ()
 type PoisonedParam = BackendIR.Param PoisonedType
 
 type NoPoisonBackendIR = BackendIR.BackendIR NoPoisonType Void
-type NoPoisonType = Type.Type Void
+type NoPoisonType = Type.Type
 type NoPoisonADT = Type.ADT NoPoisonType
 type NoPoisonTypeSynonym = Type.TypeSynonym NoPoisonType
 type NoPoisonExpr = BackendIR.Expr NoPoisonType Void

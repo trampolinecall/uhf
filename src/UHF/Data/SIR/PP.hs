@@ -83,7 +83,7 @@ refer_decl d = case d of
         get_adt_arena >>= \ adt_arena ->
         get_type_synonym_arena >>= \ type_synonym_arena ->
         get_quant_var_arena >>= \ quant_var_arena ->
-        pure (Type.PP.refer_type absurd adt_arena type_synonym_arena quant_var_arena ty)
+        pure (Type.PP.refer_type adt_arena type_synonym_arena quant_var_arena ty)
 
 instance DumpableIdentifier stage a => DumpableIdentifier stage (Located a) where
     refer_iden = refer_iden . unlocate

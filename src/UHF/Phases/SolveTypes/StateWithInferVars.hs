@@ -3,7 +3,7 @@ module UHF.Phases.SolveTypes.StateWithInferVars (StateWithInferVars, new_type_un
 import UHF.Prelude
 
 import UHF.Phases.SolveTypes.Error
-import UHF.Phases.SolveTypes.Solver.InferVar
+import UHF.Phases.SolveTypes.Solver.TypeWithInferVar
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Util.Arena as Arena
 

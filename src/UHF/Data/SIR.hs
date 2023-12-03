@@ -52,7 +52,7 @@ data SIR stage
 
 data Decl
     = Decl'Module ModuleKey
-    | Decl'Type (Type.Type Void)
+    | Decl'Type Type.Type
     deriving Show
 
 data Module stage

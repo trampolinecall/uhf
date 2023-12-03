@@ -16,7 +16,7 @@ import qualified UHF.Phases.TSBackend.TS.PP as TS.PP
 import qualified UHF.Util.Arena as Arena
 
 type CU = BackendIR.CU
-type Type = Type.Type Void
+type Type = Type.Type
 type ADT = Type.ADT Type
 type TypeSynonym = Type.TypeSynonym Type
 type Binding = BackendIR.Binding Type Void
@@ -137,7 +137,7 @@ convert_ts_lambda (TSLambda key captures group@(BackendIR.BindingGroup _) arg_ty
         )
 
 -- referring to types {{{2
-refer_type_raw :: Type.Type Void -> IRReader TS.Type
+refer_type_raw :: Type.Type -> IRReader TS.Type
 refer_type_raw (Type.Type'ADT ak _) = -- type parameters erased
     mangle_adt ak >>= \ ak_mangled ->
     pure (TS.Type'Reference (TS.TypeReference ak_mangled []))
@@ -152,11 +152,10 @@ refer_type_raw Type.Type'String = pure $ TS.Type'Reference $ TS.TypeReference "U
 refer_type_raw Type.Type'Bool = pure $ TS.Type'Reference $ TS.TypeReference "Bool" []
 refer_type_raw (Type.Type'Function a r) = refer_type_raw a >>= \ a -> refer_type_raw r >>= \ r -> pure (TS.Type'Reference $ TS.TypeReference "Lambda" [a, r])
 refer_type_raw (Type.Type'Tuple a b) = refer_type_raw a >>= \ a -> refer_type_raw b >>= \ b -> pure (TS.Type'Reference $ TS.TypeReference "Tuple" [a, b])
-refer_type_raw (Type.Type'InferVar void) = absurd void
 refer_type_raw (Type.Type'QuantVar _) = pure $ TS.Type'Reference $ TS.TypeReference "any" [] -- best approximation
 refer_type_raw (Type.Type'Forall _ t) = refer_type_raw t
 
-refer_type :: Type.Type Void -> IRReader TS.Type
+refer_type :: Type.Type -> IRReader TS.Type
 refer_type = refer_type_raw -- may not always be the case
 -- lowering {{{1
 lower :: BackendIR -> Text

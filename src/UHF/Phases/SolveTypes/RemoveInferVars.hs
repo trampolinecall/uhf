@@ -6,7 +6,8 @@ import qualified Data.List.NonEmpty as NonEmpty
 
 import UHF.Phases.SolveTypes.Aliases
 import UHF.Phases.SolveTypes.Error
-import UHF.Phases.SolveTypes.Solver.InferVar
+import UHF.Phases.SolveTypes.Solver.TypeWithInferVar hiding (Type)
+import qualified UHF.Phases.SolveTypes.Solver.TypeWithInferVar as TypeWithInferVar (Type (..))
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
@@ -26,18 +27,18 @@ convert_vars unks =
     -- infinite recursion is not possible because occurs check prevents loops in substitution
     mfix (\ unks_converted -> Arena.transformM (runMaybeT . convert_var unks_converted) unks)
     where
-        r _ Type.Type'Int = pure Type.Type'Int
-        r _ Type.Type'Float = pure Type.Type'Float
-        r _ Type.Type'Char = pure Type.Type'Char
-        r _ Type.Type'String = pure Type.Type'String
-        r _ Type.Type'Bool = pure Type.Type'Bool
-        r unks_converted (Type.Type'ADT a params) = Type.Type'ADT a <$> mapM (r unks_converted) params
-        r _ (Type.Type'Synonym s) = pure $ Type.Type'Synonym s
-        r unks_converted (Type.Type'Function arg res) = Type.Type'Function <$> r unks_converted arg <*> r unks_converted res
-        r unks_converted (Type.Type'Tuple a b) = Type.Type'Tuple <$> r unks_converted a <*> r unks_converted b
-        r unks_converted (Type.Type'InferVar v) = MaybeT $ pure $ Arena.get unks_converted v
-        r _ (Type.Type'QuantVar v) = pure $ Type.Type'QuantVar v
-        r unks_converted (Type.Type'Forall vars ty) = Type.Type'Forall vars <$> r unks_converted ty
+        r _ TypeWithInferVar.Type'Int = pure Type.Type'Int
+        r _ TypeWithInferVar.Type'Float = pure Type.Type'Float
+        r _ TypeWithInferVar.Type'Char = pure Type.Type'Char
+        r _ TypeWithInferVar.Type'String = pure Type.Type'String
+        r _ TypeWithInferVar.Type'Bool = pure Type.Type'Bool
+        r unks_converted (TypeWithInferVar.Type'ADT a params) = Type.Type'ADT a <$> mapM (r unks_converted) params
+        r _ (TypeWithInferVar.Type'Synonym s) = pure $ Type.Type'Synonym s
+        r unks_converted (TypeWithInferVar.Type'Function arg res) = Type.Type'Function <$> r unks_converted arg <*> r unks_converted res
+        r unks_converted (TypeWithInferVar.Type'Tuple a b) = Type.Type'Tuple <$> r unks_converted a <*> r unks_converted b
+        r unks_converted (TypeWithInferVar.Type'InferVar v) = MaybeT $ pure $ Arena.get unks_converted v
+        r _ (TypeWithInferVar.Type'QuantVar v) = pure $ Type.Type'QuantVar v
+        r unks_converted (TypeWithInferVar.Type'Forall vars ty) = Type.Type'Forall vars <$> r unks_converted ty
 
         convert_var unks_converted (InferVar _ (Substituted s)) = r unks_converted s
         convert_var _ (InferVar for_what Fresh) = lift (Compiler.tell_error $ AmbiguousType for_what) >> MaybeT (pure Nothing)
@@ -113,15 +114,15 @@ split_identifier _ (SIR.SplitIdentifier'Single name) = SIR.SplitIdentifier'Singl
 type_ :: Arena.Arena (Maybe Type) InferVarKey -> TypeWithInferVars -> Maybe Type
 type_ unks = r
     where
-        r Type.Type'Int = pure Type.Type'Int
-        r Type.Type'Float = pure Type.Type'Float
-        r Type.Type'Char = pure Type.Type'Char
-        r Type.Type'String = pure Type.Type'String
-        r Type.Type'Bool = pure Type.Type'Bool
-        r (Type.Type'ADT a params) = Type.Type'ADT a <$> mapM r params
-        r (Type.Type'Synonym s) = pure $ Type.Type'Synonym s
-        r (Type.Type'Function arg res) = Type.Type'Function <$> r arg <*> r res
-        r (Type.Type'Tuple a b) = Type.Type'Tuple <$> r a <*> r b
-        r (Type.Type'InferVar u) = Arena.get unks u
-        r (Type.Type'QuantVar v) = Just $ Type.Type'QuantVar v
-        r (Type.Type'Forall vars ty) = Type.Type'Forall vars <$> r ty
+        r TypeWithInferVar.Type'Int = pure Type.Type'Int
+        r TypeWithInferVar.Type'Float = pure Type.Type'Float
+        r TypeWithInferVar.Type'Char = pure Type.Type'Char
+        r TypeWithInferVar.Type'String = pure Type.Type'String
+        r TypeWithInferVar.Type'Bool = pure Type.Type'Bool
+        r (TypeWithInferVar.Type'ADT a params) = Type.Type'ADT a <$> mapM r params
+        r (TypeWithInferVar.Type'Synonym s) = pure $ Type.Type'Synonym s
+        r (TypeWithInferVar.Type'Function arg res) = Type.Type'Function <$> r arg <*> r res
+        r (TypeWithInferVar.Type'Tuple a b) = Type.Type'Tuple <$> r a <*> r b
+        r (TypeWithInferVar.Type'InferVar u) = Arena.get unks u
+        r (TypeWithInferVar.Type'QuantVar v) = Just $ Type.Type'QuantVar v
+        r (TypeWithInferVar.Type'Forall vars ty) = Type.Type'Forall vars <$> r ty

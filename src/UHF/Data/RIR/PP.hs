@@ -16,16 +16,16 @@ import qualified UHF.Util.Arena as Arena
 
 type IRReader = Reader RIR.RIR
 
-get_adt_arena :: IRReader (Arena.Arena (Type.ADT (Maybe (Type.Type Void))) Type.ADTKey)
+get_adt_arena :: IRReader (Arena.Arena (Type.ADT (Maybe Type.Type)) Type.ADTKey)
 get_adt_arena = reader (\ (RIR.RIR adts _ _ _ _) -> adts)
-get_type_synonym_arena :: IRReader (Arena.Arena (Type.TypeSynonym (Maybe (Type.Type Void))) Type.TypeSynonymKey)
+get_type_synonym_arena :: IRReader (Arena.Arena (Type.TypeSynonym (Maybe Type.Type)) Type.TypeSynonymKey)
 get_type_synonym_arena = reader (\ (RIR.RIR _ syns _ _ _) -> syns)
 get_type_var_arena :: IRReader (Arena.Arena Type.QuantVar Type.QuantVarKey)
 get_type_var_arena = reader (\ (RIR.RIR _ _ vars _ _) -> vars)
 
-get_adt :: Type.ADTKey -> IRReader (Type.ADT (Maybe (Type.Type Void)))
+get_adt :: Type.ADTKey -> IRReader (Type.ADT (Maybe Type.Type))
 get_adt k = reader (\ (RIR.RIR adts _ _ _ _) -> Arena.get adts k)
-get_type_synonym :: Type.TypeSynonymKey -> IRReader (Type.TypeSynonym (Maybe (Type.Type Void)))
+get_type_synonym :: Type.TypeSynonymKey -> IRReader (Type.TypeSynonym (Maybe Type.Type))
 get_type_synonym k = reader (\ (RIR.RIR _ type_synonyms _ _ _) -> Arena.get type_synonyms k)
 get_var :: RIR.VariableKey -> IRReader RIR.Variable
 get_var k = reader (\ (RIR.RIR _ _ _ vars _) -> Arena.get vars k)
@@ -43,12 +43,12 @@ define_cu (RIR.CU bindings adts type_synonyms) =
     mapM define_binding bindings >>= \ bindings ->
     pure (PP.flat_block $ adts <> type_synonyms <> bindings)
 
-refer_m_type :: Maybe (Type.Type Void) -> IRReader PP.Token -- TODO: remove
+refer_m_type :: Maybe Type.Type -> IRReader PP.Token -- TODO: remove
 refer_m_type (Just ty) =
     get_adt_arena >>= \ adt_arena ->
     get_type_synonym_arena >>= \ type_synonym_arena ->
     get_type_var_arena >>= \ type_var_arena ->
-    pure (Type.PP.refer_type absurd adt_arena type_synonym_arena type_var_arena ty)
+    pure (Type.PP.refer_type adt_arena type_synonym_arena type_var_arena ty)
 refer_m_type Nothing = pure "<type error>"
 
 define_binding :: RIR.Binding -> IRReader PP.Token

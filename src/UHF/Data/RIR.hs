@@ -7,7 +7,6 @@ module UHF.Data.RIR
     , VariableKey
     , Variable (..)
 
-    , Type
     , Expr (..)
     , MatchTree (..)
     , MatchClause (..)
@@ -30,8 +29,8 @@ import qualified UHF.Util.Arena as Arena
 -- not used a lot; serves mostly as a intermediary step where a lot of things get desugared to make the transition to anfir easier
 data RIR
     = RIR
-        (Arena.Arena (Type.ADT (Maybe (Type.Type Void))) ADTKey)
-        (Arena.Arena (Type.TypeSynonym (Maybe (Type.Type Void))) TypeSynonymKey)
+        (Arena.Arena (Type.ADT (Maybe Type.Type)) ADTKey)
+        (Arena.Arena (Type.TypeSynonym (Maybe Type.Type)) TypeSynonymKey)
         (Arena.Arena Type.QuantVar Type.QuantVarKey)
         (Arena.Arena Variable VariableKey)
         CU
@@ -39,7 +38,7 @@ data RIR
 data Variable
     = Variable
         { var_id :: ID.VariableID
-        , var_ty :: Maybe (Type.Type Void)
+        , var_ty :: Maybe Type.Type
         , var_sp :: Span
         }
     deriving Show
@@ -49,11 +48,9 @@ data CU = CU [Binding] [ADTKey] [TypeSynonymKey]
 
 data Binding = Binding VariableKey Expr deriving Show
 
-type Type = Type.Type Void
-
 data Expr
     -- identifiers need explicit types in case there the identifiers form loops
-    = Expr'Identifier ID.ExprID (Maybe Type) Span (Maybe VariableKey)
+    = Expr'Identifier ID.ExprID (Maybe Type.Type) Span (Maybe VariableKey)
     | Expr'Char ID.ExprID Span Char
     | Expr'String ID.ExprID Span Text
     | Expr'Int ID.ExprID Span Integer
@@ -69,14 +66,14 @@ data Expr
     | Expr'Call ID.ExprID Span Expr Expr
 
     -- match needs to know its type in case its match tree has no arms
-    | Expr'Match ID.ExprID (Maybe Type) Span MatchTree
+    | Expr'Match ID.ExprID (Maybe Type.Type) Span MatchTree
 
     | Expr'Forall ID.ExprID Span (NonEmpty QuantVarKey) Expr
-    | Expr'TypeApply ID.ExprID (Maybe Type) Span Expr (Maybe Type) -- TODO: remove type from this
+    | Expr'TypeApply ID.ExprID (Maybe Type.Type) Span Expr (Maybe Type.Type) -- TODO: remove type from this
 
-    | Expr'MakeADT ID.ExprID Span Type.ADT.VariantIndex [Maybe Type] [Expr]
+    | Expr'MakeADT ID.ExprID Span Type.ADT.VariantIndex [Maybe Type.Type] [Expr]
 
-    | Expr'Poison ID.ExprID (Maybe Type) Span
+    | Expr'Poison ID.ExprID (Maybe Type.Type) Span
     deriving Show
 
 -- TODO: split match things into separate module?
@@ -95,12 +92,12 @@ data MatchMatcher
     deriving Show
 data MatchAssignRHS
     = MatchAssignRHS'OtherVar VariableKey
-    | MatchAssignRHS'TupleDestructure1 (Maybe Type) VariableKey
-    | MatchAssignRHS'TupleDestructure2 (Maybe Type) VariableKey
-    | MatchAssignRHS'AnonADTVariantField (Maybe Type) VariableKey (Maybe Type.ADT.FieldIndex)
+    | MatchAssignRHS'TupleDestructure1 (Maybe Type.Type) VariableKey
+    | MatchAssignRHS'TupleDestructure2 (Maybe Type.Type) VariableKey
+    | MatchAssignRHS'AnonADTVariantField (Maybe Type.Type) VariableKey (Maybe Type.ADT.FieldIndex)
     deriving Show
 
-expr_type :: Arena.Arena Variable VariableKey -> Expr -> Maybe Type
+expr_type :: Arena.Arena Variable VariableKey -> Expr -> Maybe Type.Type
 expr_type _ (Expr'Identifier _ ty _ _) = ty
 expr_type _ (Expr'Char _ _ _) = Just Type.Type'Char
 expr_type _ (Expr'String _ _ _) = Just Type.Type'String

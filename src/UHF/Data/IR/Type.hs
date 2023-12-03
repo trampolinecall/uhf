@@ -19,20 +19,16 @@ import UHF.Data.IR.Type.ADT
 import UHF.Data.IR.Type.Synonym
 import UHF.Data.IR.Type.QuantVar
 
--- TODO: remove infer_var from this
-data Type infer_var
-    = Type'ADT ADTKey [Type infer_var]
+data Type
+    = Type'ADT ADTKey [Type]
     | Type'Synonym TypeSynonymKey
     | Type'Int
     | Type'Float
     | Type'Char
     | Type'String
     | Type'Bool
-    | Type'Function (Type infer_var) (Type infer_var)
-    | Type'Tuple (Type infer_var) (Type infer_var)
-    | Type'InferVar infer_var
+    | Type'Function Type Type
+    | Type'Tuple Type Type
     | Type'QuantVar QuantVarKey
-    | Type'Forall (NonEmpty QuantVarKey) (Type infer_var)
+    | Type'Forall (NonEmpty QuantVarKey) Type
     deriving Show
-
-

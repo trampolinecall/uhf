@@ -36,7 +36,7 @@ instance Diagnostic.ToError (CompletenessError stage) where
 instance Diagnostic.ToWarning (NotUseful stage) where
     to_warning (NotUseful pat) = Diagnostic.Warning (Just $ SIR.pattern_span pat) "useless pattern" [] []
 
-type Type = Maybe (Type.Type Void)
+type Type = Maybe Type.Type
 type CorrectStage s = (SIR.TypeInfo s ~ Type, SIR.PIdenResolved s ~ Maybe Type.ADT.VariantIndex)
 
 data MatchValue
@@ -113,7 +113,6 @@ check adt_arena type_synonym_arena = mapAccumL check_one_pattern [Any]
                 enumerate_adt_ctors_and_fields Type.Type'Bool = error_for_enumerate_adt_ctors_and_fields "Type'Bool"
                 enumerate_adt_ctors_and_fields (Type.Type'Function _ _) = error_for_enumerate_adt_ctors_and_fields "Type'Function"
                 enumerate_adt_ctors_and_fields (Type.Type'Tuple _ _) = error_for_enumerate_adt_ctors_and_fields "Type'Tuple"
-                enumerate_adt_ctors_and_fields (Type.Type'InferVar v) = absurd v
                 enumerate_adt_ctors_and_fields (Type.Type'QuantVar _) = error_for_enumerate_adt_ctors_and_fields "Type'QuantVar"
                 enumerate_adt_ctors_and_fields (Type.Type'Forall _ _) = error_for_enumerate_adt_ctors_and_fields "Type'Forall"
 

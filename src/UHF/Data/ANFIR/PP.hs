@@ -8,6 +8,7 @@ import UHF.Source.Located (Located (Located, unlocate))
 import qualified UHF.Data.ANFIR as ANFIR
 import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.Type.PP as Type.PP
 import qualified UHF.PP as PP
 import qualified UHF.Util.Arena as Arena
@@ -20,7 +21,7 @@ get_adt_arena :: IRReader (Arena.Arena (Type.ADT (Maybe (Type.Type Void))) Type.
 get_adt_arena = reader (\ (ANFIR.ANFIR adts _ _ _ _ _) -> adts)
 get_type_synonym_arena :: IRReader (Arena.Arena (Type.TypeSynonym (Maybe (Type.Type Void))) Type.TypeSynonymKey)
 get_type_synonym_arena = reader (\ (ANFIR.ANFIR _ syns _ _ _ _) -> syns)
-get_type_var_arena :: IRReader (Arena.Arena Type.Var Type.TypeVarKey)
+get_type_var_arena :: IRReader (Arena.Arena Type.QuantVar Type.QuantVarKey)
 get_type_var_arena = reader (\ (ANFIR.ANFIR _ _ vars _ _ _) -> vars)
 
 get_binding :: ANFIR.BindingKey -> IRReader ANFIR.Binding
@@ -31,7 +32,7 @@ get_adt :: Type.ADTKey -> IRReader (Type.ADT (Maybe (Type.Type Void)))
 get_adt k = reader (\ (ANFIR.ANFIR adts _ _ _ _ _) -> Arena.get adts k)
 get_type_synonym :: Type.TypeSynonymKey -> IRReader (Type.TypeSynonym (Maybe (Type.Type Void)))
 get_type_synonym k = reader (\ (ANFIR.ANFIR _ type_synonyms _ _ _ _) -> Arena.get type_synonyms k)
-get_type_var :: Type.TypeVarKey -> IRReader Type.Var
+get_type_var :: Type.QuantVarKey -> IRReader Type.QuantVar
 get_type_var k = reader (\ (ANFIR.ANFIR _ _ type_vars _ _ _) -> Arena.get type_vars k)
 
 dump_cu :: ANFIR.ANFIR -> Text
@@ -76,8 +77,8 @@ refer_type (Just ty) =
     pure (Type.PP.refer_type absurd adt_arena type_synonym_arena type_var_arena ty)
 refer_type Nothing = pure $ PP.String "<type error>"
 
-type_var :: Type.TypeVarKey -> IRReader PP.Token
-type_var k = get_type_var k >>= \ (Type.Var (Located _ name)) -> pure (PP.String name)
+quant_var :: Type.QuantVarKey -> IRReader PP.Token
+quant_var k = get_type_var k >>= \ (Type.QuantVar (Located _ name)) -> pure (PP.String name)
 
 expr :: ANFIR.Expr -> IRReader PP.Token
 expr (ANFIR.Expr'Refer _ _ bk) = refer_binding bk
@@ -111,10 +112,10 @@ expr (ANFIR.Expr'Match _ _ t) = tree t >>= \ t -> pure (PP.List ["match ", t])
         matcher (ANFIR.Match'AnonADTVariant m_variant) =
             maybe
                 (pure "<name resolution error>")
-                (\ variant_index@(Type.ADTVariantIndex adt_key _) ->
+                (\ variant_index@(Type.ADT.VariantIndex adt_key _) ->
                     Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
-                    Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
-                    let variant_name = Type.variant_name variant
+                    Type.ADT.get_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
+                    let variant_name = Type.ADT.variant_name variant
                     in pure $ PP.List [adt_refer, " ", PP.String $ unlocate variant_name]
                 )
                 m_variant
@@ -125,21 +126,21 @@ expr (ANFIR.Expr'ADTDestructure _ _ base m_field_idx) =
     refer_binding base >>= \ base ->
     maybe
         (pure ("<error>", "<error>"))
-        (\ (Type.ADTFieldIndex variant_idx@(Type.ADTVariantIndex adt_key _) field_idx) ->
+        (\ (Type.ADT.FieldIndex variant_idx@(Type.ADT.VariantIndex adt_key _) field_idx) ->
             Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_referred ->
-            Type.get_adt_variant <$> get_adt_arena <*> pure variant_idx >>= \ variant ->
-            let variant_name = Type.variant_name variant
+            Type.ADT.get_variant <$> get_adt_arena <*> pure variant_idx >>= \ variant ->
+            let variant_name = Type.ADT.variant_name variant
             in pure (PP.List [adt_referred, " ", PP.String $ unlocate variant_name], PP.String $ show field_idx)
         )
         m_field_idx >>= \ (variant_referred, field) ->
     pure (PP.List ["(", base, " as ", variant_referred, ").", field])
-expr (ANFIR.Expr'Forall _ _ vars group e) = mapM type_var vars >>= \ vars -> define_binding_group group >>= \ group -> refer_binding e >>= \ e -> pure (PP.FirstOnLineIfMultiline $ PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList vars, " ", PP.indented_block [group, e]])
+expr (ANFIR.Expr'Forall _ _ vars group e) = mapM quant_var vars >>= \ vars -> define_binding_group group >>= \ group -> refer_binding e >>= \ e -> pure (PP.FirstOnLineIfMultiline $ PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList vars, " ", PP.indented_block [group, e]])
 expr (ANFIR.Expr'TypeApply _ _ e arg) = refer_binding e >>= \ e -> refer_type arg >>= \ arg -> pure (PP.List [e, "#(", arg, ")"])
-expr (ANFIR.Expr'MakeADT _ _ variant_index@(Type.ADTVariantIndex adt_key _) tyargs args) =
+expr (ANFIR.Expr'MakeADT _ _ variant_index@(Type.ADT.VariantIndex adt_key _) tyargs args) =
     Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_referred ->
-    Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
+    Type.ADT.get_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
     mapM refer_binding args >>= \ args ->
     mapM refer_type tyargs >>= \ tyargs ->
-    let variant_name = Type.variant_name variant
+    let variant_name = Type.ADT.variant_name variant
     in pure $ PP.List ["adt ", adt_referred, " ", PP.String $ unlocate variant_name, "#", PP.parenthesized_comma_list PP.Inconsistent tyargs, PP.bracketed_comma_list PP.Inconsistent args]
 expr (ANFIR.Expr'Poison _ _) = pure $ PP.String "poison"

@@ -6,13 +6,14 @@ import Control.Monad.Trans.Maybe (runMaybeT)
 
 import UHF.Source.Located (Located (..))
 import UHF.Source.Span (Span)
-import qualified UHF.Util.Arena as Arena
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.AST as AST
 import qualified UHF.Data.IR.ID as ID
-import qualified UHF.Data.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.Type.ADT as Type.ADT
+import qualified UHF.Data.SIR as SIR
 import qualified UHF.Diagnostic as Diagnostic
+import qualified UHF.Util.Arena as Arena
 
 data Error
     = Tuple1 Span
@@ -41,9 +42,9 @@ type ModuleArena = Arena.Arena Module SIR.ModuleKey
 type ADTArena = Arena.Arena ADT Type.ADTKey
 type TypeSynonymArena = Arena.Arena TypeSynonym Type.TypeSynonymKey
 type VariableArena = Arena.Arena Variable SIR.VariableKey
-type TypeVarArena = Arena.Arena Type.Var Type.TypeVarKey
+type QuantVarArena = Arena.Arena Type.QuantVar Type.QuantVarKey
 
-type MakeIRState = StateT (ModuleArena, ADTArena, TypeSynonymArena, TypeVarArena, VariableArena) (Compiler.WithDiagnostics Error Void)
+type MakeIRState = StateT (ModuleArena, ADTArena, TypeSynonymArena, QuantVarArena, VariableArena) (Compiler.WithDiagnostics Error Void)
 
 new_module :: Module -> MakeIRState SIR.ModuleKey
 new_module m =
@@ -63,10 +64,10 @@ new_type_synonym ts =
         let (key, type_synonyms') = Arena.put ts type_synonyms
         in (key, (mods, adts, type_synonyms', type_vars, variables))
 
-new_type_var :: Located Text -> MakeIRState Type.TypeVarKey
+new_type_var :: Located Text -> MakeIRState Type.QuantVarKey
 new_type_var name =
     state $ \ (mods, adts, type_synonyms, type_vars, variables) ->
-        let (key, type_vars') = Arena.put (Type.Var name) type_vars
+        let (key, type_vars') = Arena.put (Type.QuantVar name) type_vars
         in (key, (mods, adts, type_synonyms, type_vars', variables))
 
 new_variable :: Variable -> MakeIRState SIR.VariableKey
@@ -114,12 +115,12 @@ convert_decls var_parent decl_parent decls =
                 -- TODO: use Type.adt_variant_idxs?
                 (catMaybes <$> mapM
                     (\ case
-                        (Type.ADTVariant'Anon (Located name_sp name) _ _, index) ->
+                        (Type.ADT.Variant'Anon (Located name_sp name) _ _, index) ->
                             mapM (lift . new_type_var) type_params >>= \ ty_param_vars_for_constructor ->
-                            let variant_index = Type.ADTVariantIndex adt_key index
+                            let variant_index = Type.ADT.VariantIndex adt_key index
                             in lift (new_variable (SIR.Variable'ADTVariant (ID.VariableID var_parent name) variant_index ty_param_vars_for_constructor () name_sp)) >>= \ var_key ->
                             pure (Just (SIR.Binding'ADTVariant name_sp var_key ty_param_vars_for_constructor variant_index))
-                        (Type.ADTVariant'Named _ _ _, _) -> pure Nothing
+                        (Type.ADT.Variant'Named _ _ _, _) -> pure Nothing
                     )
                     (zip variants_converted [0..])) >>= \ constructor_bindings ->
 
@@ -139,7 +140,7 @@ convert_decls var_parent decl_parent decls =
 
         convert_variant adt_id (AST.DataVariant'Anon variant_name fields) =
             let variant_id = ID.ADTVariantID adt_id (unlocate variant_name)
-            in Type.ADTVariant'Anon variant_name variant_id
+            in Type.ADT.Variant'Anon variant_name variant_id
                 <$> zipWithM
                     (\ field_idx ty_ast ->
                         lift (convert_type ty_ast) >>= \ ty ->
@@ -148,7 +149,7 @@ convert_decls var_parent decl_parent decls =
                     fields
         convert_variant adt_id (AST.DataVariant'Named variant_name fields) =
             let variant_id = ID.ADTVariantID adt_id (unlocate variant_name)
-            in Type.ADTVariant'Named variant_name variant_id
+            in Type.ADT.Variant'Named variant_name variant_id
             -- TODO: check no duplicate field names
                 <$> mapM
                     (\ (field_name, ty_ast) ->

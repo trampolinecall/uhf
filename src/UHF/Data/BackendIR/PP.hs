@@ -7,12 +7,13 @@ import UHF.Prelude
 import qualified Data.Set as Set
 
 import UHF.Source.Located (Located (Located, unlocate))
-import qualified UHF.Util.Arena as Arena
 import qualified UHF.Data.BackendIR as BackendIR
 import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.Type.PP as Type.PP
 import qualified UHF.PP as PP
+import qualified UHF.Util.Arena as Arena
 
 -- TODO: dump types too
 
@@ -22,7 +23,7 @@ get_adt_arena :: IRReader ty poison_allowed (Arena.Arena (Type.ADT ty) Type.ADTK
 get_adt_arena = reader (\ (BackendIR.BackendIR adts _ _ _ _ _) -> adts)
 get_type_synonym_arena :: IRReader ty poison_allowed (Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey)
 get_type_synonym_arena = reader (\ (BackendIR.BackendIR _ syns _ _ _ _) -> syns)
-get_type_var_arena :: IRReader ty poison_allowed (Arena.Arena Type.Var Type.TypeVarKey)
+get_type_var_arena :: IRReader ty poison_allowed (Arena.Arena Type.QuantVar Type.QuantVarKey)
 get_type_var_arena = reader (\ (BackendIR.BackendIR _ _ vars _ _ _) -> vars)
 
 get_binding :: BackendIR.BindingKey -> IRReader ty poison_allowed (BackendIR.Binding ty poison_allowed)
@@ -33,7 +34,7 @@ get_adt :: Type.ADTKey -> IRReader ty poison_allowed (Type.ADT ty)
 get_adt k = reader (\ (BackendIR.BackendIR adts _ _ _ _ _) -> Arena.get adts k)
 get_type_synonym :: Type.TypeSynonymKey -> IRReader ty poison_allowed (Type.TypeSynonym ty)
 get_type_synonym k = reader (\ (BackendIR.BackendIR _ type_synonyms _ _ _ _) -> Arena.get type_synonyms k)
-get_type_var :: Type.TypeVarKey -> IRReader ty poison_allowed Type.Var
+get_type_var :: Type.QuantVarKey -> IRReader ty poison_allowed Type.QuantVar
 get_type_var k = reader (\ (BackendIR.BackendIR _ _ type_vars _ _ _) -> Arena.get type_vars k)
 
 dump_cu :: (DumpableType ty) => BackendIR.BackendIR ty poison_allowed -> Text
@@ -86,8 +87,8 @@ instance DumpableType (Type.Type Void) where
         get_type_var_arena >>= \ type_var_arena ->
         pure (Type.PP.refer_type absurd adt_arena type_synonym_arena type_var_arena ty)
 
-type_var :: Type.TypeVarKey -> IRReader ty poison_allowed PP.Token
-type_var k = get_type_var k >>= \ (Type.Var (Located _ name)) -> pure (PP.String name)
+type_var :: Type.QuantVarKey -> IRReader ty poison_allowed PP.Token
+type_var k = get_type_var k >>= \ (Type.QuantVar (Located _ name)) -> pure (PP.String name)
 
 expr :: (DumpableType ty) => BackendIR.Expr ty poison_allowed -> IRReader ty poison_allowed PP.Token
 expr (BackendIR.Expr'Refer _ _ bk) = refer_binding bk
@@ -121,10 +122,10 @@ expr (BackendIR.Expr'Match _ _ t) = tree t >>= \ t -> pure (PP.List ["match ", t
         matcher (BackendIR.Match'AnonADTVariant m_variant) =
             either
                 (\ _ -> pure "<name resolution error>")
-                (\ variant_index@(Type.ADTVariantIndex adt_key _) ->
+                (\ variant_index@(Type.ADT.VariantIndex adt_key _) ->
                     Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
-                    Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
-                    let variant_name = Type.variant_name variant
+                    Type.ADT.get_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
+                    let variant_name = Type.ADT.variant_name variant
                     in pure $ PP.List [adt_refer, " ", PP.String $ unlocate variant_name]
                 )
                 m_variant
@@ -135,21 +136,21 @@ expr (BackendIR.Expr'ADTDestructure _ _ base m_field_idx) =
     refer_binding base >>= \ base ->
     either
         (\ _ -> pure ("<error>", "<error>"))
-        (\ (Type.ADTFieldIndex variant_idx@(Type.ADTVariantIndex adt_key _) field_idx) ->
+        (\ (Type.ADT.FieldIndex variant_idx@(Type.ADT.VariantIndex adt_key _) field_idx) ->
             Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_referred ->
-            Type.get_adt_variant <$> get_adt_arena <*> pure variant_idx >>= \ variant ->
-            let variant_name = Type.variant_name variant
+            Type.ADT.get_variant <$> get_adt_arena <*> pure variant_idx >>= \ variant ->
+            let variant_name = Type.ADT.variant_name variant
             in pure (PP.List [adt_referred, " ", PP.String $ unlocate variant_name], PP.String $ show field_idx)
         )
         m_field_idx >>= \ (variant_referred, field) ->
     pure (PP.List ["(", base, " as ", variant_referred, ").", field])
 expr (BackendIR.Expr'Forall _ _ vars group e) = mapM type_var vars >>= \ vars -> define_binding_group group >>= \ group -> refer_binding e >>= \ e -> pure (PP.FirstOnLineIfMultiline $ PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList vars, " ", PP.indented_block [group, e]])
 expr (BackendIR.Expr'TypeApply _ _ e arg) = refer_binding e >>= \ e -> refer_type arg >>= \ arg -> pure (PP.List [e, "#(", arg, ")"])
-expr (BackendIR.Expr'MakeADT _ _ variant_index@(Type.ADTVariantIndex adt_key _) tyargs args) =
+expr (BackendIR.Expr'MakeADT _ _ variant_index@(Type.ADT.VariantIndex adt_key _) tyargs args) =
     Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_referred ->
-    Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
+    Type.ADT.get_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
     mapM refer_binding args >>= \ args ->
     mapM refer_type tyargs >>= \ tyargs ->
-    let variant_name = unlocate $ Type.variant_name variant
+    let variant_name = unlocate $ Type.ADT.variant_name variant
     in pure $ PP.List ["adt ", adt_referred, " ", PP.String variant_name, "#", PP.parenthesized_comma_list PP.Inconsistent tyargs, PP.bracketed_comma_list PP.Inconsistent args]
 expr (BackendIR.Expr'Poison _ _ _) = pure $ PP.String "poison"

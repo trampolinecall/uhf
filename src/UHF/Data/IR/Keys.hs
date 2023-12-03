@@ -2,7 +2,7 @@ module UHF.Data.IR.Keys
     ( ADTKey
     , TypeSynonymKey
     , ModuleKey
-    , TypeVarKey
+    , QuantVarKey
     , VariableKey
     , BindingKey
     , ParamKey
@@ -29,10 +29,10 @@ instance Arena.Key ModuleKey where
     make_key = ModuleKey
     unmake_key (ModuleKey i) = i
 
-newtype TypeVarKey = TypeVarKey Int deriving (Show, Eq, Ord)
-instance Arena.Key TypeVarKey where
-    make_key = TypeVarKey
-    unmake_key (TypeVarKey i) = i
+newtype QuantVarKey = QuantVarKey Int deriving (Show, Eq, Ord)
+instance Arena.Key QuantVarKey where
+    make_key = QuantVarKey
+    unmake_key (QuantVarKey i) = i
 
 newtype VariableKey = VariableKey Int deriving (Show, Eq, Ord) -- TODO: remove Eq and Ord when Variables store their graph nodes
 instance Arena.Key VariableKey where

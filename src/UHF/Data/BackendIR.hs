@@ -31,15 +31,16 @@ import UHF.Prelude
 import qualified Data.Set as Set
 
 import UHF.Data.IR.Keys
-import qualified UHF.Util.Arena as Arena
 import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.Type.ADT as Type.ADT
+import qualified UHF.Util.Arena as Arena
 
 data BackendIR ty poison_allowed
     = BackendIR
         (Arena.Arena (Type.ADT ty) ADTKey)
         (Arena.Arena (Type.TypeSynonym ty) TypeSynonymKey)
-        (Arena.Arena Type.Var Type.TypeVarKey)
+        (Arena.Arena Type.QuantVar Type.QuantVarKey)
         (Arena.Arena (Binding ty poison_allowed) BindingKey)
         (Arena.Arena (Param ty) ParamKey)
         CU
@@ -76,7 +77,7 @@ data Expr ty poison_allowed
     | Expr'Char ID ty Char
     | Expr'String ID ty Text
     | Expr'Tuple ID ty BindingKey BindingKey
-    | Expr'MakeADT ID ty Type.ADTVariantIndex [ty] [BindingKey]
+    | Expr'MakeADT ID ty Type.ADT.VariantIndex [ty] [BindingKey]
 
     | Expr'Lambda ID ty ParamKey (Set.Set BindingKey) BindingGroup BindingKey
     | Expr'Param ID ty ParamKey
@@ -87,9 +88,9 @@ data Expr ty poison_allowed
 
     | Expr'TupleDestructure1 ID ty BindingKey
     | Expr'TupleDestructure2 ID ty BindingKey
-    | Expr'ADTDestructure ID ty BindingKey (Either poison_allowed Type.ADTFieldIndex)
+    | Expr'ADTDestructure ID ty BindingKey (Either poison_allowed Type.ADT.FieldIndex)
 
-    | Expr'Forall ID ty (NonEmpty TypeVarKey) BindingGroup BindingKey
+    | Expr'Forall ID ty (NonEmpty QuantVarKey) BindingGroup BindingKey
     | Expr'TypeApply ID ty BindingKey ty
 
     | Expr'Poison ID ty poison_allowed
@@ -105,7 +106,7 @@ data MatchClause poison_allowed
 data MatchMatcher poison_allowed
     = Match'BoolLiteral Bool
     | Match'Tuple
-    | Match'AnonADTVariant (Either poison_allowed Type.ADTVariantIndex)
+    | Match'AnonADTVariant (Either poison_allowed Type.ADT.VariantIndex)
     deriving Show
 
 expr_type :: Expr ty poison_allowed -> ty

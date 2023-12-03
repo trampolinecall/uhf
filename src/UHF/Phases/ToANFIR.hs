@@ -9,12 +9,13 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-import qualified UHF.Util.Arena as Arena
 import qualified UHF.Data.ANFIR as ANFIR
 import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.IDGen as IDGen
-import qualified UHF.Data.RIR as RIR
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.Type.ADT as Type.ADT
+import qualified UHF.Data.RIR as RIR
+import qualified UHF.Util.Arena as Arena
 
 type RIRExpr = RIR.Expr
 type RIRBinding = RIR.Binding
@@ -47,7 +48,7 @@ data AlmostExpr
     | AlmostExpr'Char ANFIR.ID (Maybe (Type.Type Void)) Char
     | AlmostExpr'String ANFIR.ID (Maybe (Type.Type Void)) Text
     | AlmostExpr'Tuple ANFIR.ID (Maybe (Type.Type Void)) ANFIR.BindingKey ANFIR.BindingKey
-    | AlmostExpr'MakeADT ANFIR.ID (Maybe (Type.Type Void)) Type.ADTVariantIndex [Maybe (Type.Type Void)] [ANFIR.BindingKey]
+    | AlmostExpr'MakeADT ANFIR.ID (Maybe (Type.Type Void)) Type.ADT.VariantIndex [Maybe (Type.Type Void)] [ANFIR.BindingKey]
 
     | AlmostExpr'Lambda ANFIR.ID (Maybe (Type.Type Void)) ANFIR.ParamKey [ANFIR.BindingKey] ANFIR.BindingKey
     | AlmostExpr'Param ANFIR.ID (Maybe (Type.Type Void)) ANFIR.ParamKey
@@ -58,9 +59,9 @@ data AlmostExpr
 
     | AlmostExpr'TupleDestructure1 ANFIR.ID (Maybe (Type.Type Void)) ANFIR.BindingKey
     | AlmostExpr'TupleDestructure2 ANFIR.ID (Maybe (Type.Type Void)) ANFIR.BindingKey
-    | AlmostExpr'ADTDestructure ANFIR.ID (Maybe (Type.Type Void)) ANFIR.BindingKey (Maybe Type.ADTFieldIndex)
+    | AlmostExpr'ADTDestructure ANFIR.ID (Maybe (Type.Type Void)) ANFIR.BindingKey (Maybe Type.ADT.FieldIndex)
 
-    | AlmostExpr'Forall ANFIR.ID (Maybe (Type.Type Void)) (NonEmpty Type.TypeVarKey) [ANFIR.BindingKey] ANFIR.BindingKey
+    | AlmostExpr'Forall ANFIR.ID (Maybe (Type.Type Void)) (NonEmpty Type.QuantVarKey) [ANFIR.BindingKey] ANFIR.BindingKey
     | AlmostExpr'TypeApply ANFIR.ID (Maybe (Type.Type Void)) ANFIR.BindingKey (Maybe (Type.Type Void))
 
     | AlmostExpr'Poison ANFIR.ID (Maybe (Type.Type Void))

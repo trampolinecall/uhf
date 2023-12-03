@@ -5,11 +5,12 @@ module UHF.Phases.InfixGroup (group) where
 import UHF.Prelude
 
 import UHF.Source.Span (Span)
-import qualified UHF.Util.Arena as Arena
 import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.IDGen as IDGen
-import qualified UHF.Data.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.Type.ADT as Type.ADT
+import qualified UHF.Data.SIR as SIR
+import qualified UHF.Util.Arena as Arena
 
 type VIden = Maybe SIR.VariableKey
 
@@ -39,8 +40,8 @@ group (SIR.SIR modules adts type_synonyms type_vars variables mod) =
         -- TODO: automate these functions too?
         convert_adt (Type.ADT did name tyvars variants) = Type.ADT did name tyvars (map convert_variant variants)
             where
-                convert_variant (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id (map (\ (i, (t, teat)) -> (i, (convert_type_expr t, teat))) fields) -- 'teat' is short for 'type evaluated as type'
-                convert_variant (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id (map (\ (i, n, (t, teat)) -> (i, n, (convert_type_expr t, teat))) fields)
+                convert_variant (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id (map (\ (i, (t, teat)) -> (i, (convert_type_expr t, teat))) fields) -- 'teat' is short for 'type evaluated as type'
+                convert_variant (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id (map (\ (i, n, (t, teat)) -> (i, n, (convert_type_expr t, teat))) fields)
         convert_type_synonym (Type.TypeSynonym did name (exp, expeat)) = Type.TypeSynonym did name (convert_type_expr exp, expeat)
         convert_variable (SIR.Variable varid tyinfo n) = SIR.Variable varid tyinfo n
         convert_variable (SIR.Variable'ADTVariant varid id tyvars tyinfo sp) = SIR.Variable'ADTVariant varid id tyvars tyinfo sp

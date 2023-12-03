@@ -6,11 +6,9 @@ import qualified Data.Map as Map
 
 import UHF.Phases.SolveTypes.Aliases
 import UHF.Phases.SolveTypes.Solver.Constraint
-import UHF.Phases.SolveTypes.Solver.InferVar
+import UHF.Phases.SolveTypes.Solver.TypeWithInferVar
 import UHF.Source.Located (Located (..))
 import UHF.Source.Span (Span)
-import qualified UHF.Data.IR.Type as Type
-import qualified UHF.Data.IR.Type.PP as Type.PP
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.PP as PP
 import qualified UHF.Util.Arena as Arena
@@ -124,7 +122,7 @@ instance Diagnostic.ToError Error where
             []
 
     to_error (OccursCheckError context@(ErrorTypeContext _ _ _ unks) span var_key ty) =
-        let var_as_type = Type.Type'InferVar var_key
+        let var_as_type = Type'InferVar var_key
 
             ((ty_printed, var_printed), var_names) =
                 run_unk_namer $
@@ -172,7 +170,7 @@ instance Diagnostic.ToError Error where
             []
 
 print_type :: Bool -> ErrorTypeContext -> TypeWithInferVars -> UnkNamer PP.Token -- TODO: since this already a monad, put the arenas and things into a reader monad?
-print_type unks_show_index context@(ErrorTypeContext adts type_synonyms vars unks) = Type.PP.refer_type_m show_unk adts type_synonyms vars
+print_type unks_show_index context@(ErrorTypeContext adts type_synonyms vars unks) = todo -- TODO: Type.PP.refer_type_m show_unk adts type_synonyms vars
     where
         show_unk unk =
             case Arena.get unks unk of

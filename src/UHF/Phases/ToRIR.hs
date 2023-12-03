@@ -16,7 +16,7 @@ import qualified UHF.Data.SIR as SIR
 import qualified UHF.Phases.ToRIR.PatternCheck as PatternCheck
 import qualified UHF.Util.Arena as Arena
 
-type Type = Maybe (Type.Type Void)
+type Type = Maybe Type.Type
 
 type DIden = Maybe SIR.Decl
 type VIden = Maybe SIR.VariableKey

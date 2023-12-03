@@ -28,7 +28,6 @@ type SIRStage = (Located Text, (), (), Located Text, (), Located Text, (), (), (
 
 type SIR = SIR.SIR SIRStage
 
-type Decl = SIR.Decl
 type Module = SIR.Module SIRStage
 type Binding = SIR.Binding SIRStage
 type ADT = Type.ADT (TypeExpr, ())
@@ -38,44 +37,43 @@ type Expr = SIR.Expr SIRStage
 type Pattern = SIR.Pattern SIRStage
 type BoundValue = SIR.BoundValue SIRStage
 
-type DeclArena = Arena.Arena Decl SIR.DeclKey
 type ModuleArena = Arena.Arena Module SIR.ModuleKey
 type ADTArena = Arena.Arena ADT Type.ADTKey
 type TypeSynonymArena = Arena.Arena TypeSynonym Type.TypeSynonymKey
 type BoundValueArena = Arena.Arena BoundValue SIR.BoundValueKey
 type TypeVarArena = Arena.Arena Type.Var Type.TypeVarKey
 
-type MakeIRState = StateT (DeclArena, ModuleArena, ADTArena, TypeSynonymArena, TypeVarArena, BoundValueArena) (Compiler.WithDiagnostics Error Void)
+type MakeIRState = StateT (ModuleArena, ADTArena, TypeSynonymArena, TypeVarArena, BoundValueArena) (Compiler.WithDiagnostics Error Void)
 
 new_module :: Module -> MakeIRState SIR.ModuleKey
 new_module m =
-    state $ \ (decls, mods, adts, type_synonyms, type_vars, bound_values) ->
+    state $ \ (mods, adts, type_synonyms, type_vars, bound_values) ->
         let (key, mods') = Arena.put m mods
-        in (key, (decls, mods', adts, type_synonyms, type_vars, bound_values))
+        in (key, (mods', adts, type_synonyms, type_vars, bound_values))
 
 new_adt :: ADT -> MakeIRState Type.ADTKey
 new_adt adt =
-    state $ \ (decls, mods, adts, type_synonyms, type_vars, bound_values) ->
+    state $ \ (mods, adts, type_synonyms, type_vars, bound_values) ->
         let (key, adts') = Arena.put adt adts
-        in (key, (decls, mods, adts', type_synonyms, type_vars, bound_values))
+        in (key, (mods, adts', type_synonyms, type_vars, bound_values))
 
 new_type_synonym :: TypeSynonym -> MakeIRState Type.TypeSynonymKey
 new_type_synonym ts =
-    state $ \ (decls, mods, adts, type_synonyms, type_vars, bound_values) ->
+    state $ \ (mods, adts, type_synonyms, type_vars, bound_values) ->
         let (key, type_synonyms') = Arena.put ts type_synonyms
-        in (key, (decls, mods, adts, type_synonyms', type_vars, bound_values))
+        in (key, (mods, adts, type_synonyms', type_vars, bound_values))
 
 new_type_var :: Located Text -> MakeIRState Type.TypeVarKey
 new_type_var name =
-    state $ \ (decls, mods, adts, type_synonyms, type_vars, bound_values) ->
+    state $ \ (mods, adts, type_synonyms, type_vars, bound_values) ->
         let (key, type_vars') = Arena.put (Type.Var name) type_vars
-        in (key, (decls, mods, adts, type_synonyms, type_vars', bound_values))
+        in (key, (mods, adts, type_synonyms, type_vars', bound_values))
 
 new_bound_value :: BoundValue -> MakeIRState SIR.BoundValueKey
 new_bound_value bv =
-    state $ \ (decls, mods, adts, type_synonyms, type_vars, bound_values) ->
+    state $ \ (mods, adts, type_synonyms, type_vars, bound_values) ->
         let (key, bound_values') = Arena.put bv bound_values
-        in (key, (decls, mods, adts, type_synonyms, type_vars, bound_values'))
+        in (key, (mods, adts, type_synonyms, type_vars, bound_values'))
 
 tell_error :: Error -> MakeIRState ()
 tell_error = lift . Compiler.tell_error
@@ -88,8 +86,8 @@ convert decls =
             in convert_decls (ID.BVParent'Module module_id) (ID.DeclParent'Module module_id) decls >>= \ (bindings, adts, type_synonyms) ->
             new_module (SIR.Module module_id bindings adts type_synonyms)
         )
-        (Arena.new, Arena.new, Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (mod, (decls, mods, adts, type_synonyms, type_vars, bound_values)) ->
-    pure (SIR.SIR decls mods adts type_synonyms type_vars bound_values mod)
+        (Arena.new, Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (mod, (mods, adts, type_synonyms, type_vars, bound_values)) ->
+    pure (SIR.SIR mods adts type_synonyms type_vars bound_values mod)
 
 convert_decls :: ID.BoundValueParent -> ID.DeclParent -> [AST.Decl] -> MakeIRState ([Binding], [Type.ADTKey], [Type.TypeSynonymKey])
 convert_decls bv_parent decl_parent decls =

@@ -1,6 +1,5 @@
 module UHF.Data.IR.Keys
-    ( DeclKey
-    , ADTKey
+    ( ADTKey
     , TypeSynonymKey
     , ModuleKey
     , TypeVarKey
@@ -14,11 +13,6 @@ import UHF.Prelude
 import qualified UHF.Util.Arena as Arena
 
 -- TODO: remove any Ord
-
-newtype DeclKey = DeclKey Int deriving Show
-instance Arena.Key DeclKey where
-    make_key = DeclKey
-    unmake_key (DeclKey i) = i
 
 newtype ADTKey = ADTKey Int deriving (Show, Eq, Ord)
 instance Arena.Key ADTKey where

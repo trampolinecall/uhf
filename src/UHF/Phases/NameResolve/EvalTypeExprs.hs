@@ -37,12 +37,12 @@ type UnevaledADTArena = Arena.Arena UnevaledADT Type.ADTKey
 type UnevaledTypeSynonymArena = Arena.Arena UnevaledTypeSynonym Type.TypeSynonymKey
 type UnevaledVariableArena = Arena.Arena (SIR.Variable Unevaled) SIR.VariableKey
 
-type Evaled = (EvaledDIden, EvaledDIden, Maybe (Type.Type Void), VIdenStart, (), PIdenStart, (), (), ())
+type Evaled = (EvaledDIden, EvaledDIden, Maybe Type.Type, VIdenStart, (), PIdenStart, (), (), ())
 
 type EvaledSIR = SIR.SIR Evaled
 type EvaledModule = SIR.Module Evaled
-type EvaledADT = Type.ADT (EvaledTypeExpr, Maybe (Type.Type Void))
-type EvaledTypeSynonym = Type.TypeSynonym (EvaledTypeExpr, Maybe (Type.Type Void))
+type EvaledADT = Type.ADT (EvaledTypeExpr, Maybe Type.Type)
+type EvaledTypeSynonym = Type.TypeSynonym (EvaledTypeExpr, Maybe Type.Type)
 type EvaledTypeExpr = SIR.TypeExpr Evaled
 type EvaledBinding = SIR.Binding Evaled
 type EvaledExpr = SIR.Expr Evaled
@@ -189,7 +189,7 @@ eval_split_iden :: SIR.SplitIdentifier Unevaled start -> Utils.NRReader adt_aren
 eval_split_iden (SIR.SplitIdentifier'Get texpr next) = eval_in_type_expr texpr >>= \ texpr -> pure (SIR.SplitIdentifier'Get texpr next)
 eval_split_iden (SIR.SplitIdentifier'Single start) = pure (SIR.SplitIdentifier'Single start)
 
-evaled_as_type :: EvaledTypeExpr -> Utils.WithErrors (Maybe (Type.Type Void))
+evaled_as_type :: EvaledTypeExpr -> Utils.WithErrors (Maybe Type.Type)
 evaled_as_type texpr =
     case SIR.type_expr_evaled texpr of
         Just evaled ->

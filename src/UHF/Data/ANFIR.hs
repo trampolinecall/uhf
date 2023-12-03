@@ -39,8 +39,8 @@ import qualified UHF.Util.Arena as Arena
 -- "a-normal form ir" even though this isnt actually a-normal form but it is the same idea
 data ANFIR
     = ANFIR
-        (Arena.Arena (Type.ADT (Maybe (Type.Type Void))) ADTKey)
-        (Arena.Arena (Type.TypeSynonym (Maybe (Type.Type Void))) TypeSynonymKey)
+        (Arena.Arena (Type.ADT (Maybe Type.Type)) ADTKey)
+        (Arena.Arena (Type.TypeSynonym (Maybe Type.Type)) TypeSynonymKey)
         (Arena.Arena Type.QuantVar Type.QuantVarKey)
         (Arena.Arena Binding BindingKey)
         (Arena.Arena Param ParamKey)
@@ -49,7 +49,7 @@ data ANFIR
 -- "compilation unit"
 data CU = CU BindingGroup [ADTKey] [TypeSynonymKey]
 
-data Param = Param ID.VariableID (Maybe (Type.Type Void)) deriving Show
+data Param = Param ID.VariableID (Maybe Type.Type) deriving Show
 
 data BindingChunk
     = SingleBinding BindingKey
@@ -69,31 +69,31 @@ stringify_id (ExprID id) = ID.stringify id
 stringify_id (VarID id) = ID.stringify id
 
 data Expr
-    = Expr'Refer ID (Maybe (Type.Type Void)) BindingKey
+    = Expr'Refer ID (Maybe Type.Type) BindingKey
 
-    | Expr'Int ID (Maybe (Type.Type Void)) Integer
-    | Expr'Float ID (Maybe (Type.Type Void)) Rational
-    | Expr'Bool ID (Maybe (Type.Type Void)) Bool
-    | Expr'Char ID (Maybe (Type.Type Void)) Char
-    | Expr'String ID (Maybe (Type.Type Void)) Text
-    | Expr'Tuple ID (Maybe (Type.Type Void)) BindingKey BindingKey
-    | Expr'MakeADT ID (Maybe (Type.Type Void)) Type.ADT.VariantIndex [Maybe (Type.Type Void)] [BindingKey]
+    | Expr'Int ID (Maybe Type.Type) Integer
+    | Expr'Float ID (Maybe Type.Type) Rational
+    | Expr'Bool ID (Maybe Type.Type) Bool
+    | Expr'Char ID (Maybe Type.Type) Char
+    | Expr'String ID (Maybe Type.Type) Text
+    | Expr'Tuple ID (Maybe Type.Type) BindingKey BindingKey
+    | Expr'MakeADT ID (Maybe Type.Type) Type.ADT.VariantIndex [Maybe Type.Type] [BindingKey]
 
-    | Expr'Lambda ID (Maybe (Type.Type Void)) ParamKey (Set.Set BindingKey) BindingGroup BindingKey -- TODO: dont use BindingKey Ord for order of captures
-    | Expr'Param ID (Maybe (Type.Type Void)) ParamKey
+    | Expr'Lambda ID (Maybe Type.Type) ParamKey (Set.Set BindingKey) BindingGroup BindingKey -- TODO: dont use BindingKey Ord for order of captures
+    | Expr'Param ID (Maybe Type.Type) ParamKey
 
-    | Expr'Call ID (Maybe (Type.Type Void)) BindingKey BindingKey
+    | Expr'Call ID (Maybe Type.Type) BindingKey BindingKey
 
-    | Expr'Match ID (Maybe (Type.Type Void)) MatchTree
+    | Expr'Match ID (Maybe Type.Type) MatchTree
 
-    | Expr'TupleDestructure1 ID (Maybe (Type.Type Void)) BindingKey
-    | Expr'TupleDestructure2 ID (Maybe (Type.Type Void)) BindingKey
-    | Expr'ADTDestructure ID (Maybe (Type.Type Void)) BindingKey (Maybe Type.ADT.FieldIndex)
+    | Expr'TupleDestructure1 ID (Maybe Type.Type) BindingKey
+    | Expr'TupleDestructure2 ID (Maybe Type.Type) BindingKey
+    | Expr'ADTDestructure ID (Maybe Type.Type) BindingKey (Maybe Type.ADT.FieldIndex)
 
-    | Expr'Forall ID (Maybe (Type.Type Void)) (NonEmpty QuantVarKey) BindingGroup BindingKey
-    | Expr'TypeApply ID (Maybe (Type.Type Void)) BindingKey (Maybe (Type.Type Void))
+    | Expr'Forall ID (Maybe Type.Type) (NonEmpty QuantVarKey) BindingGroup BindingKey
+    | Expr'TypeApply ID (Maybe Type.Type) BindingKey (Maybe Type.Type)
 
-    | Expr'Poison ID (Maybe (Type.Type Void))
+    | Expr'Poison ID (Maybe Type.Type)
     deriving Show
 
 -- TODO: split match things into separate module?
@@ -110,7 +110,7 @@ data MatchMatcher
     | Match'AnonADTVariant (Maybe Type.ADT.VariantIndex)
     deriving Show
 
-expr_type :: Expr -> Maybe (Type.Type Void)
+expr_type :: Expr -> Maybe Type.Type
 expr_type (Expr'Refer _ ty _) = ty
 expr_type (Expr'Int _ ty _) = ty
 expr_type (Expr'Float _ ty _) = ty
@@ -150,7 +150,7 @@ expr_id (Expr'TypeApply id _ _ _) = id
 expr_id (Expr'MakeADT id _ _ _ _) = id
 expr_id (Expr'Poison id _) = id
 
-binding_type :: Binding -> Maybe (Type.Type Void)
+binding_type :: Binding -> Maybe Type.Type
 binding_type = expr_type . binding_initializer
 binding_id :: Binding -> ID
 binding_id = expr_id . binding_initializer

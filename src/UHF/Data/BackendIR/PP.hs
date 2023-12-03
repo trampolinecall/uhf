@@ -76,16 +76,16 @@ define_binding key =
 class DumpableType t where
     refer_type :: t -> IRReader ty poison_allowed PP.Token
 
-instance DumpableType (Maybe (Type.Type Void)) where -- TODO: remove this
+instance DumpableType (Maybe Type.Type) where -- TODO: remove this
     refer_type (Just ty) = refer_type ty
     refer_type Nothing = pure $ PP.String "<type error>"
 
-instance DumpableType (Type.Type Void) where
+instance DumpableType Type.Type where
     refer_type ty =
         get_adt_arena >>= \ adt_arena ->
         get_type_synonym_arena >>= \ type_synonym_arena ->
         get_type_var_arena >>= \ type_var_arena ->
-        pure (Type.PP.refer_type absurd adt_arena type_synonym_arena type_var_arena ty)
+        pure (Type.PP.refer_type adt_arena type_synonym_arena type_var_arena ty)
 
 type_var :: Type.QuantVarKey -> IRReader ty poison_allowed PP.Token
 type_var k = get_type_var k >>= \ (Type.QuantVar (Located _ name)) -> pure (PP.String name)

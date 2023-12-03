@@ -4,7 +4,8 @@ import UHF.Prelude
 
 import UHF.Phases.SolveTypes.Aliases
 import UHF.Phases.SolveTypes.Solver.Constraint
-import UHF.Phases.SolveTypes.Solver.InferVar
+import UHF.Phases.SolveTypes.Solver.TypeWithInferVar hiding (Type)
+import qualified UHF.Phases.SolveTypes.Solver.TypeWithInferVar as TypeWithInferVar (Type (..))
 import UHF.Phases.SolveTypes.StateWithInferVars
 import UHF.Phases.SolveTypes.Utils
 import UHF.Source.Located (Located (..))
@@ -59,7 +60,7 @@ add mods adts type_synonyms variables =
     ) (variables, adts)
 
 variable :: UntypedVariable -> ContextReader vars TypedWithInferVarsADTArena TypedWithInferVarsVariable
-variable (SIR.Variable id () name@(Located def_span _)) = SIR.Variable id <$> lift (lift $ Type.Type'InferVar <$> new_type_unknown (Variable def_span)) <*> pure name
+variable (SIR.Variable id () name@(Located def_span _)) = SIR.Variable id <$> lift (lift $ TypeWithInferVar.Type'InferVar <$> new_type_unknown (Variable def_span)) <*> pure name
 variable (SIR.Variable'ADTVariant id variant_index@(Type.ADT.VariantIndex adt_key _) var_type_params () def_span) = do
     (_, adts) <- ask
     unk_arena <- lift (lift get)
@@ -68,12 +69,12 @@ variable (SIR.Variable'ADTVariant id variant_index@(Type.ADT.VariantIndex adt_ke
     let ty = case variant of
             Type.ADT.Variant'Named _ _ _ -> error "bound value should not be made for a named adt variant" -- TODO: statically make sure this cant happen?
             Type.ADT.Variant'Anon _ _ fields ->
-                let change_type_params ty = foldl' (\ ty (adt_typaram, var_typaram) -> substitute unk_arena adt_typaram (Type.Type'QuantVar var_typaram) ty) ty (zip adt_type_params var_type_params)
+                let change_type_params ty = foldl' (\ ty (adt_typaram, var_typaram) -> substitute unk_arena adt_typaram (TypeWithInferVar.Type'QuantVar var_typaram) ty) ty (zip adt_type_params var_type_params)
                     arg_tys = map (change_type_params . snd . snd) fields
                     wrap_in_forall = case var_type_params of
                         [] -> identity
-                        param:more -> Type.Type'Forall (param :| more)
-                 in wrap_in_forall $ foldr Type.Type'Function (Type.Type'ADT adt_key (map Type.Type'QuantVar var_type_params)) arg_tys -- function type that takes all the field types and then results in the adt type
+                        param:more -> TypeWithInferVar.Type'Forall (param :| more)
+                 in wrap_in_forall $ foldr TypeWithInferVar.Type'Function (TypeWithInferVar.Type'ADT adt_key (map TypeWithInferVar.Type'QuantVar var_type_params)) arg_tys -- function type that takes all the field types and then results in the adt type
     pure $ SIR.Variable'ADTVariant id variant_index var_type_params ty def_span
 
 module_ :: UntypedModule -> ContextReader TypedWithInferVarsVariableArena TypedWithInferVarsADTArena TypedWithInferVarsModule
@@ -92,7 +93,7 @@ apply_type :: InferVarForWhat -> Span -> TypeWithInferVars -> TypeWithInferVars 
 apply_type for_what sp ty arg =
     lift (lift $ new_type_unknown for_what) >>= \ tyu ->
     lift (tell [UnkIsApplyResult sp tyu ty arg]) >>
-    pure (Type.Type'InferVar tyu)
+    pure (TypeWithInferVar.Type'InferVar tyu)
 
 type_expr :: UntypedTypeExpr -> ContextReader vars adts TypedWithInferVarsTypeExpr
 -- TODO: do these ForWhats better
@@ -107,8 +108,8 @@ type_expr (SIR.TypeExpr'Wild evaled sp) = pure (SIR.TypeExpr'Wild evaled sp)
 type_expr (SIR.TypeExpr'Poison evaled sp) = pure (SIR.TypeExpr'Poison evaled sp)
 
 -- TODO: remove this
-nothing_to_unk :: InferVarForWhat -> Maybe (Type.Type Void) -> ContextReader vars adts TypeWithInferVars
-nothing_to_unk for_what Nothing = Type.Type'InferVar <$> lift (lift $ new_type_unknown for_what)
+nothing_to_unk :: InferVarForWhat -> Maybe Type.Type -> ContextReader vars adts TypeWithInferVars
+nothing_to_unk for_what Nothing = TypeWithInferVar.Type'InferVar <$> lift (lift $ new_type_unknown for_what)
 nothing_to_unk _ (Just t) = pure $ void_unk_to_key t
 
 binding :: UntypedBinding -> ContextReader TypedWithInferVarsVariableArena TypedWithInferVarsADTArena TypedWithInferVarsBinding
@@ -130,13 +131,13 @@ pattern (SIR.Pattern'Identifier () sp var) =
     pure (SIR.Pattern'Identifier ty sp var)
 
 pattern (SIR.Pattern'Wildcard () sp) =
-    Type.Type'InferVar <$> lift (lift $ new_type_unknown (WildcardPattern sp)) >>= \ ty ->
+    TypeWithInferVar.Type'InferVar <$> lift (lift $ new_type_unknown (WildcardPattern sp)) >>= \ ty ->
     pure (SIR.Pattern'Wildcard ty sp)
 
 pattern (SIR.Pattern'Tuple () sp l r) =
     pattern l >>= \ l ->
     pattern r >>= \ r ->
-    pure (SIR.Pattern'Tuple (Type.Type'Tuple (SIR.pattern_type l) (SIR.pattern_type r)) sp l r)
+    pure (SIR.Pattern'Tuple (TypeWithInferVar.Type'Tuple (SIR.pattern_type l) (SIR.pattern_type r)) sp l r)
 
 pattern (SIR.Pattern'Named () sp at_sp var_key subpat) =
     pattern subpat >>= \ subpat ->
@@ -146,7 +147,7 @@ pattern (SIR.Pattern'Named () sp at_sp var_key subpat) =
 
 pattern (SIR.Pattern'AnonADTVariant () sp variant_iden Nothing _ fields) =
     mapM pattern fields >>= \ fields ->
-    Type.Type'InferVar <$> lift (lift $ new_type_unknown (UnresolvedADTVariantPattern sp)) >>= \ ty ->
+    TypeWithInferVar.Type'InferVar <$> lift (lift $ new_type_unknown (UnresolvedADTVariantPattern sp)) >>= \ ty ->
     split_iden variant_iden >>= \ variant_iden ->
     pure (SIR.Pattern'AnonADTVariant ty sp variant_iden Nothing [] fields)
 pattern (SIR.Pattern'AnonADTVariant () sp variant_iden (Just variant_index@(Type.ADT.VariantIndex adt_key _)) _ fields) =
@@ -157,11 +158,11 @@ pattern (SIR.Pattern'AnonADTVariant () sp variant_iden (Just variant_index@(Type
         variant = Type.ADT.get_variant adts variant_index
     in
 
-    mapM (\ var -> Type.Type'InferVar <$> lift (lift $ new_type_unknown $ ImplicitTyParam sp {- var TODO -})) type_params >>= \ type_param_unks -> -- TODO: declared span
+    mapM (\ var -> TypeWithInferVar.Type'InferVar <$> lift (lift $ new_type_unknown $ ImplicitTyParam sp {- var TODO -})) type_params >>= \ type_param_unks -> -- TODO: declared span
 
     lift (lift get) >>= \ unk_arena ->
     let substitute_adt_params = foldr (.) identity (zipWith (substitute unk_arena) type_params type_param_unks)
-        whole_pat_type = Type.Type'ADT adt_key type_param_unks
+        whole_pat_type = TypeWithInferVar.Type'ADT adt_key type_param_unks
 
     in case variant of
          Type.ADT.Variant'Anon _ _ variant_fields ->
@@ -182,7 +183,7 @@ pattern (SIR.Pattern'AnonADTVariant () sp variant_iden (Just variant_index@(Type
 
 pattern (SIR.Pattern'NamedADTVariant () sp variant_iden Nothing _ fields) =
     mapM (\ (field_name, field_pat) -> (field_name,) <$> pattern field_pat) fields >>= \ fields ->
-    Type.Type'InferVar <$> lift (lift $ new_type_unknown (UnresolvedADTVariantPattern sp)) >>= \ ty ->
+    TypeWithInferVar.Type'InferVar <$> lift (lift $ new_type_unknown (UnresolvedADTVariantPattern sp)) >>= \ ty ->
     split_iden variant_iden >>= \ variant_iden ->
     pure (SIR.Pattern'NamedADTVariant ty sp variant_iden Nothing [] fields)
 pattern (SIR.Pattern'NamedADTVariant () _ _ (Just _) _ _) = todo
@@ -192,30 +193,30 @@ pattern (SIR.Pattern'NamedADTVariant () _ _ (Just _) _ _) = todo
 --     - check all fields are covered
 --     - put type constraints on all fields
 
-pattern (SIR.Pattern'Poison () sp) = SIR.Pattern'Poison <$> (Type.Type'InferVar <$> lift (lift $ new_type_unknown $ PoisonPattern sp)) <*> pure sp
+pattern (SIR.Pattern'Poison () sp) = SIR.Pattern'Poison <$> (TypeWithInferVar.Type'InferVar <$> lift (lift $ new_type_unknown $ PoisonPattern sp)) <*> pure sp
 
 expr :: UntypedExpr -> ContextReader TypedWithInferVarsVariableArena TypedWithInferVarsADTArena TypedWithInferVarsExpr
 expr (SIR.Expr'Identifier id () sp iden var) =
     (case var of
         Just var -> get_var_type var
-        Nothing -> Type.Type'InferVar <$> lift (lift $ new_type_unknown (UnresolvedIdenExpr sp))) >>= \ ty ->
+        Nothing -> TypeWithInferVar.Type'InferVar <$> lift (lift $ new_type_unknown (UnresolvedIdenExpr sp))) >>= \ ty ->
 
     split_iden iden >>= \ iden ->
 
     pure (SIR.Expr'Identifier id ty sp iden var)
 
-expr (SIR.Expr'Char id () sp c) = pure (SIR.Expr'Char id Type.Type'Char sp c)
-expr (SIR.Expr'String id () sp t) = pure (SIR.Expr'String id Type.Type'String sp t)
-expr (SIR.Expr'Int id () sp i) = pure (SIR.Expr'Int id Type.Type'Int sp i)
-expr (SIR.Expr'Float id () sp r) = pure (SIR.Expr'Float id Type.Type'Float sp r)
-expr (SIR.Expr'Bool id () sp b) = pure (SIR.Expr'Bool id Type.Type'Bool sp b)
+expr (SIR.Expr'Char id () sp c) = pure (SIR.Expr'Char id TypeWithInferVar.Type'Char sp c)
+expr (SIR.Expr'String id () sp t) = pure (SIR.Expr'String id TypeWithInferVar.Type'String sp t)
+expr (SIR.Expr'Int id () sp i) = pure (SIR.Expr'Int id TypeWithInferVar.Type'Int sp i)
+expr (SIR.Expr'Float id () sp r) = pure (SIR.Expr'Float id TypeWithInferVar.Type'Float sp r)
+expr (SIR.Expr'Bool id () sp b) = pure (SIR.Expr'Bool id TypeWithInferVar.Type'Bool sp b)
 
-expr (SIR.Expr'Tuple id () sp l r) = expr l >>= \ l -> expr r >>= \ r -> pure (SIR.Expr'Tuple id (Type.Type'Tuple (SIR.expr_type l) (SIR.expr_type r)) sp l r)
+expr (SIR.Expr'Tuple id () sp l r) = expr l >>= \ l -> expr r >>= \ r -> pure (SIR.Expr'Tuple id (TypeWithInferVar.Type'Tuple (SIR.expr_type l) (SIR.expr_type r)) sp l r)
 
 expr (SIR.Expr'Lambda id () sp param body) =
     pattern param >>= \ param ->
     expr body >>= \ body ->
-    pure (SIR.Expr'Lambda id (Type.Type'Function (SIR.pattern_type param) (SIR.expr_type body)) sp param body)
+    pure (SIR.Expr'Lambda id (TypeWithInferVar.Type'Function (SIR.pattern_type param) (SIR.expr_type body)) sp param body)
 
 expr (SIR.Expr'Let id () sp bindings result) =
     mapM binding bindings >>= \ bindings ->
@@ -234,9 +235,9 @@ expr (SIR.Expr'Call id () sp callee arg) =
     expr arg >>= \ arg ->
     lift (lift $ new_type_unknown (CallExpr sp)) >>= \ res_ty_var ->
 
-    lift (tell [Expect InCallExpr (loc_expr_type callee) (Type.Type'Function (SIR.expr_type arg) (Type.Type'InferVar res_ty_var))]) >>
+    lift (tell [Expect InCallExpr (loc_expr_type callee) (TypeWithInferVar.Type'Function (SIR.expr_type arg) (TypeWithInferVar.Type'InferVar res_ty_var))]) >>
 
-    pure (SIR.Expr'Call id (Type.Type'InferVar res_ty_var) sp callee arg)
+    pure (SIR.Expr'Call id (TypeWithInferVar.Type'InferVar res_ty_var) sp callee arg)
 
 expr (SIR.Expr'If id () sp if_sp cond true false) =
     expr cond >>= \ cond ->
@@ -244,7 +245,7 @@ expr (SIR.Expr'If id () sp if_sp cond true false) =
     expr false >>= \ false ->
 
     lift (tell
-        [ Expect InIfCondition (loc_expr_type cond) Type.Type'Bool
+        [ Expect InIfCondition (loc_expr_type cond) TypeWithInferVar.Type'Bool
         , Eq InIfBranches if_sp (loc_expr_type true) (loc_expr_type false)
         ]) >>
 
@@ -261,16 +262,16 @@ expr (SIR.Expr'Match id () sp match_tok_sp testing arms) =
 
     (case headMay arms of
         Just (_, first_arm_result) -> pure $ SIR.expr_type first_arm_result
-        Nothing -> Type.Type'InferVar <$> lift (lift $ new_type_unknown $ MatchExpr sp)) >>= \ result_ty ->
+        Nothing -> TypeWithInferVar.Type'InferVar <$> lift (lift $ new_type_unknown $ MatchExpr sp)) >>= \ result_ty ->
 
     pure (SIR.Expr'Match id result_ty sp match_tok_sp testing arms)
 
-expr (SIR.Expr'Poison id () sp) = SIR.Expr'Poison id <$> (Type.Type'InferVar <$> lift (lift $ new_type_unknown $ PoisonExpr sp)) <*> pure sp
-expr (SIR.Expr'Hole id () sp hid) = SIR.Expr'Hole id <$> (Type.Type'InferVar <$> lift (lift $ new_type_unknown $ HoleExpr sp)) <*> pure sp <*> pure hid
+expr (SIR.Expr'Poison id () sp) = SIR.Expr'Poison id <$> (TypeWithInferVar.Type'InferVar <$> lift (lift $ new_type_unknown $ PoisonExpr sp)) <*> pure sp
+expr (SIR.Expr'Hole id () sp hid) = SIR.Expr'Hole id <$> (TypeWithInferVar.Type'InferVar <$> lift (lift $ new_type_unknown $ HoleExpr sp)) <*> pure sp <*> pure hid
 
 expr (SIR.Expr'Forall id () sp vars e) =
     expr e >>= \ e ->
-    pure (SIR.Expr'Forall id (Type.Type'Forall vars (SIR.expr_type e)) sp vars e)
+    pure (SIR.Expr'Forall id (TypeWithInferVar.Type'Forall vars (SIR.expr_type e)) sp vars e)
 expr (SIR.Expr'TypeApply id () sp e (arg, arg_ty)) =
     expr e >>= \ e ->
     type_expr arg >>= \ arg ->

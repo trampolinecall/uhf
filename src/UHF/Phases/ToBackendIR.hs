@@ -7,7 +7,7 @@ import qualified UHF.Data.ANFIR as ANFIR
 import qualified UHF.Data.BackendIR as BackendIR
 import qualified UHF.Data.IR.Type as Type
 
-type Type = Maybe (Type.Type Void)
+type Type = Maybe Type.Type
 
 type ANFIR = ANFIR.ANFIR
 type ANFIRExpr = ANFIR.Expr

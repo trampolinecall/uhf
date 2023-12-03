@@ -3,7 +3,7 @@ module UHF.Phases.SolveTypes.Solver.Constraint where
 import UHF.Source.Located (Located)
 import UHF.Source.Span (Span)
 import UHF.Phases.SolveTypes.Aliases
-import UHF.Phases.SolveTypes.Solver.InferVar
+import UHF.Phases.SolveTypes.Solver.TypeWithInferVar
 
 -- TODO: maybe dont have InWhat
 data EqInWhat = InAssignment | InNamedPattern | InIfBranches | InMatchPatterns | InMatchArms

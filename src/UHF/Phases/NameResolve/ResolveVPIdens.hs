@@ -21,20 +21,20 @@ type UnresolvedPIden = SIR.SplitIdentifier Unresolved ResolvedPIden
 type ResolvedVIden = Maybe SIR.VariableKey
 type ResolvedPIden = Maybe Type.ADT.VariantIndex
 
-type Unresolved = (DIden, DIden, Maybe (Type.Type Void), ResolvedVIden, (), ResolvedPIden, (), (), ())
+type Unresolved = (DIden, DIden, Maybe Type.Type, ResolvedVIden, (), ResolvedPIden, (), (), ())
 
-type UnresolvedADT = Type.ADT (SIR.TypeExpr Unresolved, Maybe (Type.Type Void))
-type UnresolvedTypeSynonym = Type.TypeSynonym (SIR.TypeExpr Unresolved, Maybe (Type.Type Void))
+type UnresolvedADT = Type.ADT (SIR.TypeExpr Unresolved, Maybe Type.Type)
+type UnresolvedTypeSynonym = Type.TypeSynonym (SIR.TypeExpr Unresolved, Maybe Type.Type)
 
 type UnresolvedModuleArena = Arena.Arena (SIR.Module Unresolved) SIR.ModuleKey
 type UnresolvedADTArena = Arena.Arena UnresolvedADT Type.ADTKey
 type UnresolvedTypeSynonymArena = Arena.Arena UnresolvedTypeSynonym Type.TypeSynonymKey
 type UnresolvedVariableArena = Arena.Arena (SIR.Variable Unresolved) SIR.VariableKey
 
-type Resolved = (DIden, DIden, Maybe (Type.Type Void), ResolvedVIden, ResolvedVIden, ResolvedPIden, ResolvedPIden, (), ())
+type Resolved = (DIden, DIden, Maybe Type.Type, ResolvedVIden, ResolvedVIden, ResolvedPIden, ResolvedPIden, (), ())
 
-type ResolvedADT = Type.ADT (SIR.TypeExpr Resolved, Maybe (Type.Type Void))
-type ResolvedTypeSynonym = Type.TypeSynonym (SIR.TypeExpr Resolved, Maybe (Type.Type Void))
+type ResolvedADT = Type.ADT (SIR.TypeExpr Resolved, Maybe Type.Type)
+type ResolvedTypeSynonym = Type.TypeSynonym (SIR.TypeExpr Resolved, Maybe Type.Type)
 
 type ResolvedModuleArena = Arena.Arena (SIR.Module Resolved) SIR.ModuleKey
 type ResolvedADTArena = Arena.Arena ResolvedADT Type.ADTKey

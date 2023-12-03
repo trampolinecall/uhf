@@ -17,9 +17,9 @@ import qualified UHF.Util.Arena as Arena
 
 type IRReader = Reader ANFIR.ANFIR
 
-get_adt_arena :: IRReader (Arena.Arena (Type.ADT (Maybe (Type.Type Void))) Type.ADTKey)
+get_adt_arena :: IRReader (Arena.Arena (Type.ADT (Maybe Type.Type)) Type.ADTKey)
 get_adt_arena = reader (\ (ANFIR.ANFIR adts _ _ _ _ _) -> adts)
-get_type_synonym_arena :: IRReader (Arena.Arena (Type.TypeSynonym (Maybe (Type.Type Void))) Type.TypeSynonymKey)
+get_type_synonym_arena :: IRReader (Arena.Arena (Type.TypeSynonym (Maybe Type.Type)) Type.TypeSynonymKey)
 get_type_synonym_arena = reader (\ (ANFIR.ANFIR _ syns _ _ _ _) -> syns)
 get_type_var_arena :: IRReader (Arena.Arena Type.QuantVar Type.QuantVarKey)
 get_type_var_arena = reader (\ (ANFIR.ANFIR _ _ vars _ _ _) -> vars)
@@ -28,9 +28,9 @@ get_binding :: ANFIR.BindingKey -> IRReader ANFIR.Binding
 get_binding k = reader (\ (ANFIR.ANFIR _ _ _ bindings _ _) -> Arena.get bindings k)
 get_param :: ANFIR.ParamKey -> IRReader ANFIR.Param
 get_param k = reader (\ (ANFIR.ANFIR _ _ _ _ params _) -> Arena.get params k)
-get_adt :: Type.ADTKey -> IRReader (Type.ADT (Maybe (Type.Type Void)))
+get_adt :: Type.ADTKey -> IRReader (Type.ADT (Maybe Type.Type))
 get_adt k = reader (\ (ANFIR.ANFIR adts _ _ _ _ _) -> Arena.get adts k)
-get_type_synonym :: Type.TypeSynonymKey -> IRReader (Type.TypeSynonym (Maybe (Type.Type Void)))
+get_type_synonym :: Type.TypeSynonymKey -> IRReader (Type.TypeSynonym (Maybe Type.Type))
 get_type_synonym k = reader (\ (ANFIR.ANFIR _ type_synonyms _ _ _ _) -> Arena.get type_synonyms k)
 get_type_var :: Type.QuantVarKey -> IRReader Type.QuantVar
 get_type_var k = reader (\ (ANFIR.ANFIR _ _ type_vars _ _ _) -> Arena.get type_vars k)
@@ -69,12 +69,12 @@ define_binding key =
     pure (PP.List [key, " = ", e, ";"])
 
 -- TODO: remove this
-refer_type :: Maybe (Type.Type Void) -> IRReader PP.Token
+refer_type :: Maybe Type.Type -> IRReader PP.Token
 refer_type (Just ty) =
     get_adt_arena >>= \ adt_arena ->
     get_type_synonym_arena >>= \ type_synonym_arena ->
     get_type_var_arena >>= \ type_var_arena ->
-    pure (Type.PP.refer_type absurd adt_arena type_synonym_arena type_var_arena ty)
+    pure (Type.PP.refer_type adt_arena type_synonym_arena type_var_arena ty)
 refer_type Nothing = pure $ PP.String "<type error>"
 
 quant_var :: Type.QuantVarKey -> IRReader PP.Token

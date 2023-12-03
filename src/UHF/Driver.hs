@@ -48,13 +48,13 @@ import qualified UHF.Source.FormattedString as FormattedString
 type Tokens = ([Token.LToken], Token.LToken)
 type AST = [AST.Decl]
 type FirstSIR = SIR.SIR (Located Text, (), (), Located Text, (), Located Text, (), (), ())
-type NRSIR = SIR.SIR (Maybe SIR.Decl, Maybe SIR.Decl, Maybe (IR.Type.Type Void), Maybe IR.Keys.VariableKey, Maybe IR.Keys.VariableKey, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, (), ())
-type InfixGroupedSIR = SIR.SIR (Maybe SIR.Decl, Maybe SIR.Decl, Maybe (IR.Type.Type Void), Maybe IR.Keys.VariableKey, Maybe IR.Keys.VariableKey, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, (), Void)
-type TypedSIR = SIR.SIR (Maybe SIR.Decl, Maybe SIR.Decl, Maybe (IR.Type.Type Void), Maybe IR.Keys.VariableKey, Maybe IR.Keys.VariableKey, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, Maybe (IR.Type.Type Void), Void)
+type NRSIR = SIR.SIR (Maybe SIR.Decl, Maybe SIR.Decl, Maybe IR.Type.Type, Maybe IR.Keys.VariableKey, Maybe IR.Keys.VariableKey, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, (), ())
+type InfixGroupedSIR = SIR.SIR (Maybe SIR.Decl, Maybe SIR.Decl, Maybe IR.Type.Type, Maybe IR.Keys.VariableKey, Maybe IR.Keys.VariableKey, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, (), Void)
+type TypedSIR = SIR.SIR (Maybe SIR.Decl, Maybe SIR.Decl, Maybe IR.Type.Type, Maybe IR.Keys.VariableKey, Maybe IR.Keys.VariableKey, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.Type, Void)
 type RIR = RIR.RIR
 type ANFIR = ANFIR.ANFIR
-type BackendIR = BackendIR.BackendIR (Maybe (IR.Type.Type Void)) ()
-type NoPoisonIR = BackendIR.BackendIR (IR.Type.Type Void) Void
+type BackendIR = BackendIR.BackendIR (Maybe IR.Type.Type) ()
+type NoPoisonIR = BackendIR.BackendIR IR.Type.Type Void
 type TS = Text
 
 type WithDiagnosticsIO = Compiler.WithDiagnosticsT Diagnostic.Error Diagnostic.Warning IO

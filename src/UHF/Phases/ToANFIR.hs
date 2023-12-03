@@ -40,31 +40,31 @@ type MakeGraphState binding = WriterT VariableMap (StateT (BindingArena binding,
 
 -- the same thing as ANFIR.Expr except lambdas dont have captures and all the binding groups are actually just [BindingKey]
 data AlmostExpr
-    = AlmostExpr'Refer ANFIR.ID (Maybe (Type.Type Void)) ANFIR.BindingKey
+    = AlmostExpr'Refer ANFIR.ID (Maybe Type.Type) ANFIR.BindingKey
 
-    | AlmostExpr'Int ANFIR.ID (Maybe (Type.Type Void)) Integer
-    | AlmostExpr'Float ANFIR.ID (Maybe (Type.Type Void)) Rational
-    | AlmostExpr'Bool ANFIR.ID (Maybe (Type.Type Void)) Bool
-    | AlmostExpr'Char ANFIR.ID (Maybe (Type.Type Void)) Char
-    | AlmostExpr'String ANFIR.ID (Maybe (Type.Type Void)) Text
-    | AlmostExpr'Tuple ANFIR.ID (Maybe (Type.Type Void)) ANFIR.BindingKey ANFIR.BindingKey
-    | AlmostExpr'MakeADT ANFIR.ID (Maybe (Type.Type Void)) Type.ADT.VariantIndex [Maybe (Type.Type Void)] [ANFIR.BindingKey]
+    | AlmostExpr'Int ANFIR.ID (Maybe Type.Type) Integer
+    | AlmostExpr'Float ANFIR.ID (Maybe Type.Type) Rational
+    | AlmostExpr'Bool ANFIR.ID (Maybe Type.Type) Bool
+    | AlmostExpr'Char ANFIR.ID (Maybe Type.Type) Char
+    | AlmostExpr'String ANFIR.ID (Maybe Type.Type) Text
+    | AlmostExpr'Tuple ANFIR.ID (Maybe Type.Type) ANFIR.BindingKey ANFIR.BindingKey
+    | AlmostExpr'MakeADT ANFIR.ID (Maybe Type.Type) Type.ADT.VariantIndex [Maybe Type.Type] [ANFIR.BindingKey]
 
-    | AlmostExpr'Lambda ANFIR.ID (Maybe (Type.Type Void)) ANFIR.ParamKey [ANFIR.BindingKey] ANFIR.BindingKey
-    | AlmostExpr'Param ANFIR.ID (Maybe (Type.Type Void)) ANFIR.ParamKey
+    | AlmostExpr'Lambda ANFIR.ID (Maybe Type.Type) ANFIR.ParamKey [ANFIR.BindingKey] ANFIR.BindingKey
+    | AlmostExpr'Param ANFIR.ID (Maybe Type.Type) ANFIR.ParamKey
 
-    | AlmostExpr'Call ANFIR.ID (Maybe (Type.Type Void)) ANFIR.BindingKey ANFIR.BindingKey
+    | AlmostExpr'Call ANFIR.ID (Maybe Type.Type) ANFIR.BindingKey ANFIR.BindingKey
 
-    | AlmostExpr'Match ANFIR.ID (Maybe (Type.Type Void)) AlmostMatchTree
+    | AlmostExpr'Match ANFIR.ID (Maybe Type.Type) AlmostMatchTree
 
-    | AlmostExpr'TupleDestructure1 ANFIR.ID (Maybe (Type.Type Void)) ANFIR.BindingKey
-    | AlmostExpr'TupleDestructure2 ANFIR.ID (Maybe (Type.Type Void)) ANFIR.BindingKey
-    | AlmostExpr'ADTDestructure ANFIR.ID (Maybe (Type.Type Void)) ANFIR.BindingKey (Maybe Type.ADT.FieldIndex)
+    | AlmostExpr'TupleDestructure1 ANFIR.ID (Maybe Type.Type) ANFIR.BindingKey
+    | AlmostExpr'TupleDestructure2 ANFIR.ID (Maybe Type.Type) ANFIR.BindingKey
+    | AlmostExpr'ADTDestructure ANFIR.ID (Maybe Type.Type) ANFIR.BindingKey (Maybe Type.ADT.FieldIndex)
 
-    | AlmostExpr'Forall ANFIR.ID (Maybe (Type.Type Void)) (NonEmpty Type.QuantVarKey) [ANFIR.BindingKey] ANFIR.BindingKey
-    | AlmostExpr'TypeApply ANFIR.ID (Maybe (Type.Type Void)) ANFIR.BindingKey (Maybe (Type.Type Void))
+    | AlmostExpr'Forall ANFIR.ID (Maybe Type.Type) (NonEmpty Type.QuantVarKey) [ANFIR.BindingKey] ANFIR.BindingKey
+    | AlmostExpr'TypeApply ANFIR.ID (Maybe Type.Type) ANFIR.BindingKey (Maybe Type.Type)
 
-    | AlmostExpr'Poison ANFIR.ID (Maybe (Type.Type Void))
+    | AlmostExpr'Poison ANFIR.ID (Maybe Type.Type)
 
 data AlmostMatchTree
     = AlmostMatchTree [([ANFIR.MatchClause], Either AlmostMatchTree ([ANFIR.BindingKey], ANFIR.BindingKey))]

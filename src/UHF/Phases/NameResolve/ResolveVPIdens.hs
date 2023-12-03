@@ -21,7 +21,7 @@ type DIden = Maybe (SIR.Decl TypeSolver.Type)
 type UnresolvedVIden = SIR.SplitIdentifier Unresolved ResolvedVIden
 type UnresolvedPIden = SIR.SplitIdentifier Unresolved ResolvedPIden
 
-type ResolvedVIden = Maybe SIR.VariableKey
+type ResolvedVIden = Maybe SIR.BoundValue
 type ResolvedPIden = Maybe Type.ADT.VariantIndex
 
 type Unresolved = (DIden, DIden, TypeSolver.Type, ResolvedVIden, (), ResolvedPIden, (), (), ())
@@ -52,7 +52,6 @@ resolve sir_child_maps (SIR.SIR mods adts type_synonyms type_vars variables mod)
     pure (SIR.SIR mods adts synonyms type_vars (Arena.transform change_variable variables) mod)
     where
         change_variable (SIR.Variable varid tyinfo n) = SIR.Variable varid tyinfo n
-        change_variable (SIR.Variable'ADTVariant varid id tyvars tyinfo sp) = SIR.Variable'ADTVariant varid id tyvars tyinfo sp
 
 -- resolving through sir {{{1
 resolve_in_mods :: UnresolvedModuleArena -> (NRReader.NRReader UnresolvedADTArena UnresolvedVariableArena type_var_arena NameMaps.SIRChildMaps Error.WithErrors) ResolvedModuleArena
@@ -78,7 +77,6 @@ resolve_in_type_synonym (Type.TypeSynonym id name (expansion, expeat)) = resolve
 
 resolve_in_binding :: SIR.Binding Unresolved -> (NRReader.NRReader UnresolvedADTArena UnresolvedVariableArena type_var_arena NameMaps.SIRChildMaps Error.WithErrors) (SIR.Binding Resolved)
 resolve_in_binding (SIR.Binding target eq_sp expr) = SIR.Binding <$> resolve_in_pat target <*> pure eq_sp <*> resolve_in_expr expr
-resolve_in_binding (SIR.Binding'ADTVariant var_key variant vars sp) = pure $ SIR.Binding'ADTVariant var_key variant vars sp
 
 resolve_in_type_expr :: SIR.TypeExpr Unresolved -> (NRReader.NRReader adt_arena var_arena type_var_arena NameMaps.SIRChildMaps Error.WithErrors) (SIR.TypeExpr Resolved)
 resolve_in_type_expr (SIR.TypeExpr'Refer evaled sp id) = pure $ SIR.TypeExpr'Refer evaled sp id

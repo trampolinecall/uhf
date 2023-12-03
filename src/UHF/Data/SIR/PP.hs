@@ -59,17 +59,21 @@ define_module (SIR.Module _ bindings adts type_synonyms) =
 
 define_binding :: DumpableConstraints stage => SIR.Binding stage -> IRReader stage PP.Token
 define_binding (SIR.Binding pat _ init) = pattern pat >>= \ pat -> expr init >>= \ init -> pure $ PP.List [pat, " = ", init, ";"]
-define_binding (SIR.Binding'ADTVariant _ var_key _ variant_index@(Type.ADT.VariantIndex adt_key _)) =
-    Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
-    Type.ADT.get_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
-    let variant_name = unlocate $ Type.ADT.variant_name variant
-    in refer_var var_key >>= \ var_key ->
-    pure $ PP.List [var_key, " = <constructor for ", adt_refer, " ", PP.String variant_name, ">;"]
+-- TODO: REMOVE
+-- define_binding (SIR.Binding'ADTVariant _ var_key _ variant_index@(Type.ADT.VariantIndex adt_key _)) =
+--     Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
+--     Type.ADT.get_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
+--     let variant_name = unlocate $ Type.ADT.variant_name variant
+--     in refer_var var_key >>= \ var_key ->
+--     pure $ PP.List [var_key, " = <constructor for ", adt_refer, " ", PP.String variant_name, ">;"]
 
 refer_var :: SIR.VariableKey -> IRReader stage PP.Token
 refer_var k = get_var k >>= \case
     SIR.Variable id _ _ -> pure $ PP.String (ID.stringify id)
-    SIR.Variable'ADTVariant id _ _ _ _ -> pure $ PP.String (ID.stringify id)
+
+refer_bv :: SIR.BoundValue -> IRReader stage PP.Token
+refer_bv (SIR.BoundValue'Variable v) = refer_var v
+refer_bv (SIR.BoundValue'ADTVariant var) = refer_iden var
 
 refer_decl :: SIR.Decl t -> IRReader stage PP.Token
 refer_decl d = case d of
@@ -81,6 +85,13 @@ refer_decl d = case d of
         -- get_type_synonym_arena >>= \ type_synonym_arena ->
         -- get_quant_var_arena >>= \ quant_var_arena ->
         -- pure (Type.PP.refer_type adt_arena type_synonym_arena quant_var_arena ty)
+
+refer_adt_variant :: Type.ADT.VariantIndex -> IRReader stage PP.Token
+refer_adt_variant variant_index@(Type.ADT.VariantIndex adt_key _) =
+    Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_referred ->
+    Type.ADT.get_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
+    let variant_name = unlocate $ Type.ADT.variant_name variant
+    in pure $ PP.List [adt_referred, "::", PP.String variant_name]
 
 class DumpableIdentifier stage i where
     refer_iden :: i -> IRReader stage PP.Token
@@ -103,14 +114,10 @@ instance DumpableIdentifier stage Text where
 
 instance DumpableIdentifier stage (SIR.Decl t) where
     refer_iden = refer_decl
-instance DumpableIdentifier stage SIR.VariableKey where
-    refer_iden = refer_var
+instance DumpableIdentifier stage SIR.BoundValue where
+    refer_iden = refer_bv
 instance DumpableIdentifier stage Type.ADT.VariantIndex where
-    refer_iden variant_index@(Type.ADT.VariantIndex adt_key _) =
-        Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_referred ->
-        Type.ADT.get_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
-        let variant_name = unlocate $ Type.ADT.variant_name variant
-        in pure $ PP.List [adt_referred, "::", PP.String variant_name]
+    refer_iden = refer_adt_variant
 
 -- TODO: dump type info too
 
@@ -173,10 +180,10 @@ pp_let let_kw [binding] body = define_binding binding >>= \ binding -> expr body
 pp_let let_kw bindings body = mapM define_binding bindings >>= \ bindings -> expr body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List [PP.String let_kw, " ", PP.braced_block bindings, "\n", body])
 
 pattern :: DumpableConstraints stage => SIR.Pattern stage -> IRReader stage PP.Token
-pattern (SIR.Pattern'Identifier _ _ var_key) = refer_iden var_key
+pattern (SIR.Pattern'Identifier _ _ var_key) = refer_var var_key
 pattern (SIR.Pattern'Wildcard _ _) = pure $ PP.String "_"
 pattern (SIR.Pattern'Tuple _ _ a b) = pattern a >>= \ a -> pattern b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b])
-pattern (SIR.Pattern'Named _ _ _ var_key subpat) = refer_iden (unlocate var_key) >>= \ var_key -> pattern subpat >>= \ subpat -> pure (PP.List ["@", var_key, " ", subpat])
+pattern (SIR.Pattern'Named _ _ _ var_key subpat) = refer_var (unlocate var_key) >>= \ var_key -> pattern subpat >>= \ subpat -> pure (PP.List ["@", var_key, " ", subpat])
 pattern (SIR.Pattern'AnonADTVariant _ _ variant_split_iden variant_resolved_iden _ fields) = refer_iden (variant_split_iden, variant_resolved_iden) >>= \ variant -> mapM pattern fields >>= \ fields -> pure (PP.List [variant, PP.parenthesized_comma_list PP.Inconsistent fields])
 pattern (SIR.Pattern'NamedADTVariant _ _ variant_split_iden variant_resolved_iden _ fields) = refer_iden (variant_split_iden, variant_resolved_iden) >>= \ variant -> mapM (\ (field_name, field_pat) -> pattern field_pat >>= \ field_pat -> pure (PP.List [PP.String $ unlocate field_name, " = ", field_pat, ";"])) fields >>= \ fields -> pure (PP.List [variant, PP.braced_block fields])
 pattern (SIR.Pattern'Poison _ _) = pure $ PP.String "poison"

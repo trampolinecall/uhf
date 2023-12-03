@@ -4,24 +4,26 @@
 
 module UHF.Data.SIR
     ( SIR (..)
-    , Stage.Stage(..)
+    , Stage.Stage (..)
 
-    , Decl(..)
+    , Decl (..)
 
     , ModuleKey
-    , Module(..)
+    , Module (..)
+
+    , BoundValue (..)
 
     , VariableKey
-    , Variable(..)
+    , Variable (..)
 
     , Binding (..)
 
     , HoleIdentifier
 
-    , TypeExpr(..)
+    , TypeExpr (..)
     , SplitIdentifier (..)
-    , Expr(..)
-    , Pattern(..)
+    , Expr (..)
+    , Pattern (..)
     , expr_type
     , pattern_type
     , type_expr_evaled
@@ -63,12 +65,15 @@ deriving instance Stage.AllShowable stage => Show (Module stage)
 
 data Variable stage
     = Variable ID.VariableID (Stage.TypeInfo stage) (Located Text)
-    | Variable'ADTVariant ID.VariableID Type.ADT.VariantIndex [Type.QuantVarKey] (Stage.TypeInfo stage) Span
 deriving instance Stage.AllShowable stage => Show (Variable stage)
+
+data BoundValue
+    = BoundValue'Variable VariableKey
+    | BoundValue'ADTVariant Type.ADT.VariantIndex
+    deriving Show
 
 data Binding stage
     = Binding (Pattern stage) Span (Expr stage)
-    | Binding'ADTVariant Span VariableKey [Type.QuantVarKey] Type.ADT.VariantIndex
 deriving instance Stage.AllShowable stage => Show (Binding stage)
 
 type HoleIdentifier = Located Text

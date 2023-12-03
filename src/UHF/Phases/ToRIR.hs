@@ -19,7 +19,7 @@ import qualified UHF.Util.Arena as Arena
 type Type = Maybe Type.Type
 
 type DIden = Maybe (SIR.Decl Type.Type)
-type VIden = Maybe SIR.VariableKey
+type VIden = Maybe SIR.BoundValue
 type PIden = Maybe Type.ADT.VariantIndex
 
 type LastSIR = (DIden, DIden, Type, VIden, VIden, PIden, PIden, Type, Void)
@@ -55,7 +55,6 @@ convert (SIR.SIR modules adts type_synonyms quant_vars vars mod) = do
             Arena.transform
                 (\case
                     SIR.Variable id ty (Located sp _) -> RIR.Variable id ty sp
-                    SIR.Variable'ADTVariant id _ _ ty sp -> RIR.Variable id ty sp
                 )
                 vars
     (cu, vars_with_new) <- IDGen.run_id_gen_t ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.VariableID'RIRMadeUp $ runStateT (runReaderT (assemble_cu modules mod) (adts_converted, type_synonyms_converted)) vars_converted
@@ -77,27 +76,28 @@ convert_type_synonym (Type.TypeSynonym id name (_, expansion)) = Type.TypeSynony
 
 convert_binding :: SIRBinding -> ConvertState [RIRBinding]
 convert_binding (SIR.Binding pat eq_sp expr) = convert_expr expr >>= assign_pattern eq_sp pat
-convert_binding (SIR.Binding'ADTVariant name_sp var_key type_params variant_index) =
-    ask >>= \ (adts, _) ->
-    let variant = Type.ADT.get_variant adts variant_index
-
-        wrap_in_forall = case type_params of
-            [] -> pure
-            param:more -> \ lambda -> new_made_up_expr_id (\ id -> RIR.Expr'Forall id name_sp (param :| more) lambda)
-    in
-    make_lambdas type_params variant_index [] (Type.ADT.variant_field_types variant) >>= wrap_in_forall >>= \ lambdas ->
-    pure [RIR.Binding var_key lambdas]
-    where
-        make_lambdas type_params variant_index refer_to_params [] =
-            let ty_params_as_tys = map Type.Type'QuantVar type_params
-            in new_made_up_expr_id $ \ id -> RIR.Expr'MakeADT id name_sp variant_index (map Just ty_params_as_tys) refer_to_params
-
-        make_lambdas type_params variant_index refer_to_params (cur_field_ty:more_field_tys) =
-            new_variable cur_field_ty name_sp >>= \ param_var_key ->
-            new_made_up_expr_id (\ id -> RIR.Expr'Identifier id cur_field_ty name_sp (Just param_var_key)) >>= \ refer_expr ->
-
-            make_lambdas type_params variant_index (refer_to_params <> [refer_expr]) more_field_tys >>= \ lambda_result ->
-            new_made_up_expr_id (\ id -> RIR.Expr'Lambda id name_sp param_var_key lambda_result)
+-- TODO: REMOVE
+-- convert_binding (SIR.Binding'ADTVariant name_sp var_key type_params variant_index) =
+--     ask >>= \ (adts, _) ->
+--     let variant = Type.get_adt_variant adts variant_index
+--
+--         wrap_in_forall = case type_params of
+--             [] -> pure
+--             param:more -> \ lambda -> new_made_up_expr_id (\ id -> RIR.Expr'Forall id name_sp (param :| more) lambda)
+--     in
+--     make_lambdas type_params variant_index [] (Type.variant_field_types variant) >>= wrap_in_forall >>= \ lambdas ->
+--     pure [RIR.Binding var_key lambdas]
+--     where
+--         make_lambdas type_params variant_index refer_to_params [] =
+--             let ty_params_as_tys = map Type.Type'Variable type_params
+--             in new_made_up_expr_id $ \ id -> RIR.Expr'MakeADT id name_sp variant_index (map Just ty_params_as_tys) refer_to_params
+--
+--         make_lambdas type_params variant_index refer_to_params (cur_field_ty:more_field_tys) =
+--             new_variable cur_field_ty name_sp >>= \ param_var_key ->
+--             new_made_up_expr_id (\ id -> RIR.Expr'Identifier id cur_field_ty name_sp (Just param_var_key)) >>= \ refer_expr ->
+--
+--             make_lambdas type_params variant_index (refer_to_params <> [refer_expr]) more_field_tys >>= \ lambda_result ->
+--             new_made_up_expr_id (\ id -> RIR.Expr'Lambda id name_sp param_var_key lambda_result)
 
 new_made_up_var_id :: ConvertState ID.VariableID
 new_made_up_var_id = lift $ lift IDGen.gen_id
@@ -107,7 +107,7 @@ new_variable ty sp =
     lift (state $ Arena.put (RIR.Variable id ty sp))
 
 convert_expr :: SIRExpr -> ConvertState RIRExpr
-convert_expr (SIR.Expr'Identifier id ty sp _ var) = pure $ RIR.Expr'Identifier id ty sp var
+convert_expr (SIR.Expr'Identifier id ty sp _ var) = pure $ RIR.Expr'Identifier id ty sp (todo var) -- TODO
 convert_expr (SIR.Expr'Char id ty sp c) = pure $ RIR.Expr'Char id sp c
 convert_expr (SIR.Expr'String id ty sp s) = pure $ RIR.Expr'String id sp s
 convert_expr (SIR.Expr'Int id ty sp i) = pure $ RIR.Expr'Int id sp i

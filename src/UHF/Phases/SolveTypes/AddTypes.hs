@@ -18,12 +18,18 @@ type ContextReader adts type_synonyms quant_vars vars = ReaderT (adts, type_syno
 
 -- TODO: make helper functions to not use lift
 
+get_bv_type :: SIR.BoundValue -> ContextReader adts type_synonyms quant_vars TypedWithInferVarsVariableArena TypeWithInferVars
+get_bv_type bv =
+    case bv of
+        SIR.BoundValue'Variable var -> get_var_type var
+        SIR.BoundValue'ADTVariant _ -> todo
+
 get_var_type :: SIR.VariableKey -> ContextReader adts type_synonyms quant_vars TypedWithInferVarsVariableArena TypeWithInferVars
 get_var_type var = do
     (_, _, _, vars) <- ask
     case Arena.get vars var of
         SIR.Variable _ ty _ -> pure ty
-        SIR.Variable'ADTVariant _ _ _ ty _ -> pure ty
+        -- TODO: REMOVE SIR.Variable'ADTVariant _ _ _ ty _ -> pure ty
 
 -- TODO: come up with a better way of doing this
 get_type_synonym :: ContextReader adts (Arena.Arena (Type.TypeSynonym t) Type.TypeSynonymKey) quant_vars vars (Type.TypeSynonymKey -> TypeSolver.SolveMonad (Compiler.WithDiagnostics Error Void) (Type.TypeSynonym t))
@@ -72,20 +78,21 @@ add mods adts type_synonyms quant_vars variables =
 
 variable :: UntypedVariable -> ContextReader TypedWithInferVarsADTArena type_synonyms quant_vars vars TypedWithInferVarsVariable
 variable (SIR.Variable id () name@(Located def_span _)) = SIR.Variable id <$> lift (lift $ TypeSolver.Type'InferVar <$> TypeSolver.new_infer_var (TypeSolver.Variable def_span)) <*> pure name
-variable (SIR.Variable'ADTVariant id variant_index@(Type.ADT.VariantIndex adt_key _) var_type_params () def_span) = do
-    (adts, _, _, _) <- ask
-    let (Type.ADT _ _ adt_type_params _) = Arena.get adts adt_key
-    let variant = Type.ADT.get_variant adts variant_index
-    ty <- case variant of
-            Type.ADT.Variant'Named _ _ _ -> error "bound value should not be made for a named adt variant" -- TODO: statically make sure this cant happen?
-            Type.ADT.Variant'Anon _ _ fields ->
-                let change_quant_vars ty = foldlM (\ ty (adt_typaram, var_typaram) -> lift $ lift $ TypeSolver.substitute_quant_var adt_typaram (TypeSolver.Type'QuantVar var_typaram) ty) ty (zip adt_type_params var_type_params)
-                in mapM (change_quant_vars . snd . snd) fields >>= \ arg_tys ->
-                let wrap_in_forall = case var_type_params of
-                        [] -> identity
-                        param:more -> TypeSolver.Type'Forall (param :| more)
-                in pure $ wrap_in_forall $ foldr TypeSolver.Type'Function (TypeSolver.Type'ADT adt_key (map TypeSolver.Type'QuantVar var_type_params)) arg_tys -- function type that takes all the field types and then results in the adt type
-    pure $ SIR.Variable'ADTVariant id variant_index var_type_params ty def_span
+-- TODO: REMOVE
+-- variable (SIR.Variable'ADTVariant id variant_index@(Type.ADT.VariantIndex adt_key _) var_type_params () def_span) = do
+--     (adts, _, _, _) <- ask
+--     let (Type.ADT _ _ adt_type_params _) = Arena.get adts adt_key
+--     let variant = Type.ADT.get_variant adts variant_index
+--     ty <- case variant of
+--             Type.ADT.Variant'Named _ _ _ -> error "bound value should not be made for a named adt variant" -- TODO: statically make sure this cant happen?
+--             Type.ADT.Variant'Anon _ _ fields ->
+--                 let change_quant_vars ty = foldlM (\ ty (adt_typaram, var_typaram) -> lift $ lift $ TypeSolver.substitute_quant_var adt_typaram (TypeSolver.Type'QuantVar var_typaram) ty) ty (zip adt_type_params var_type_params)
+--                 in mapM (change_quant_vars . snd . snd) fields >>= \ arg_tys ->
+--                 let wrap_in_forall = case var_type_params of
+--                         [] -> identity
+--                         param:more -> TypeSolver.Type'Forall (param :| more)
+--                 in pure $ wrap_in_forall $ foldr TypeSolver.Type'Function (TypeSolver.Type'ADT adt_key (map TypeSolver.Type'QuantVar var_type_params)) arg_tys -- function type that takes all the field types and then results in the adt type
+--     pure $ SIR.Variable'ADTVariant id variant_index var_type_params ty def_span
 
 module_ :: UntypedModule -> ContextReader TypedWithInferVarsADTArena TypedWithInferVarsTypeSynonymArena QuantVarArena TypedWithInferVarsVariableArena TypedWithInferVarsModule
 module_ (SIR.Module id bindings adts type_synonyms) = SIR.Module id <$> mapM binding bindings <*> pure adts <*> pure type_synonyms
@@ -116,7 +123,7 @@ binding (SIR.Binding p eq_sp e) =
     expr e >>= \ e ->
     lift (tell [TypeSolver.Eq TypeSolver.InAssignment eq_sp (loc_pat_type p) (loc_expr_type e)]) >>
     pure (SIR.Binding p eq_sp e)
-binding (SIR.Binding'ADTVariant sp var_key vars variant) = pure $ SIR.Binding'ADTVariant sp var_key vars variant
+-- TODO: REMOVE binding (SIR.Binding'ADTVariant sp var_key vars variant) = pure $ SIR.Binding'ADTVariant sp var_key vars variant
 
 loc_pat_type :: SIR.Pattern stage -> Located (SIR.TypeInfo stage)
 loc_pat_type pattern = Located (SIR.pattern_span pattern) (SIR.pattern_type pattern)
@@ -193,14 +200,14 @@ pattern (SIR.Pattern'NamedADTVariant () _ _ (Just _) _ _) = todo
 pattern (SIR.Pattern'Poison () sp) = SIR.Pattern'Poison <$> (TypeSolver.Type'InferVar <$> lift (lift $ TypeSolver.new_infer_var $ TypeSolver.PoisonPattern sp)) <*> pure sp
 
 expr :: UntypedExpr -> ContextReader TypedWithInferVarsADTArena TypedWithInferVarsTypeSynonymArena QuantVarArena TypedWithInferVarsVariableArena TypedWithInferVarsExpr
-expr (SIR.Expr'Identifier id () sp iden var) =
-    (case var of
-        Just var -> get_var_type var
+expr (SIR.Expr'Identifier id () sp iden bv) =
+    (case bv of
+        Just bv -> get_bv_type bv
         Nothing -> TypeSolver.Type'InferVar <$> lift (lift $ TypeSolver.new_infer_var (TypeSolver.UnresolvedIdenExpr sp))) >>= \ ty ->
 
     split_iden iden >>= \ iden ->
 
-    pure (SIR.Expr'Identifier id ty sp iden var)
+    pure (SIR.Expr'Identifier id ty sp iden bv)
 
 expr (SIR.Expr'Char id () sp c) = pure (SIR.Expr'Char id TypeSolver.Type'Char sp c)
 expr (SIR.Expr'String id () sp t) = pure (SIR.Expr'String id TypeSolver.Type'String sp t)

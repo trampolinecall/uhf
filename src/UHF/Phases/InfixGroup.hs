@@ -12,7 +12,7 @@ import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Util.Arena as Arena
 
-type VIden = Maybe SIR.VariableKey
+type VIden = Maybe SIR.BoundValue
 
 type IsUngrouped s = (SIR.VIdenResolved s ~ VIden, SIR.TypeInfo s ~ (), SIR.BinaryOpsAllowed s ~ ())
 type IsGrouped s = (SIR.VIdenResolved s ~ VIden, SIR.TypeInfo s ~ (), SIR.BinaryOpsAllowed s ~ Void)
@@ -44,14 +44,12 @@ group (SIR.SIR modules adts type_synonyms type_vars variables mod) =
                 convert_variant (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id (map (\ (i, n, (t, teat)) -> (i, n, (convert_type_expr t, teat))) fields)
         convert_type_synonym (Type.TypeSynonym did name (exp, expeat)) = Type.TypeSynonym did name (convert_type_expr exp, expeat)
         convert_variable (SIR.Variable varid tyinfo n) = SIR.Variable varid tyinfo n
-        convert_variable (SIR.Variable'ADTVariant varid id tyvars tyinfo sp) = SIR.Variable'ADTVariant varid id tyvars tyinfo sp
 
 group_module :: Convertible ungrouped grouped => SIR.Module ungrouped -> IDGen.IDGen ID.ExprID (SIR.Module grouped)
 group_module (SIR.Module id bindings adts syns) = SIR.Module id <$> mapM group_binding bindings <*> pure adts <*> pure syns
 
 group_binding :: Convertible ungrouped grouped => SIR.Binding ungrouped -> IDGen.IDGen ID.ExprID (SIR.Binding grouped)
 group_binding (SIR.Binding pat eq_sp e) = SIR.Binding (convert_pattern pat) eq_sp <$> group_expr e
-group_binding (SIR.Binding'ADTVariant sp var_key tparams variant) = pure $ SIR.Binding'ADTVariant sp var_key tparams variant
 
 group_expr :: Convertible ungrouped grouped => SIR.Expr ungrouped -> IDGen.IDGen ID.ExprID (SIR.Expr grouped)
 group_expr (SIR.Expr'Identifier id () sp iden resolved) = pure $ SIR.Expr'Identifier id () sp (convert_split_iden iden) resolved
@@ -74,7 +72,7 @@ group_expr (SIR.Expr'BinaryOps _ () () _ first ops) =
     if null a then pure r else error "internal error: still operations to group after grouping binary ops"
     where
         -- TODO: test this
-        g :: Convertible ungrouped grouped => SIR.Expr grouped -> [(Span, SIR.SplitIdentifier ungrouped (SIR.VIdenStart ungrouped), Maybe SIR.VariableKey, SIR.Expr ungrouped)] -> Int -> IDGen.IDGen ID.ExprID (SIR.Expr grouped, [(Span, SIR.SplitIdentifier ungrouped (SIR.VIdenStart ungrouped), Maybe SIR.VariableKey, SIR.Expr ungrouped)])
+        g :: Convertible ungrouped grouped => SIR.Expr grouped -> [(Span, SIR.SplitIdentifier ungrouped (SIR.VIdenStart ungrouped), Maybe SIR.BoundValue, SIR.Expr ungrouped)] -> Int -> IDGen.IDGen ID.ExprID (SIR.Expr grouped, [(Span, SIR.SplitIdentifier ungrouped (SIR.VIdenStart ungrouped), Maybe SIR.BoundValue, SIR.Expr ungrouped)])
         g left more@((first_op_span, first_op_iden, first_op, first_rhs):after_first_op) cur_precedence =
             let op_prec = const 1 first_op -- TODO: precedence
             -- for example if the current precedence level is that for +, and first_op is *, this will consume the * and incorporate it into left

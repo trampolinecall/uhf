@@ -52,7 +52,6 @@ type_synonym key = ask >>= \ (SIR.SIR _ _ type_synonyms _ _ _) -> let (Type.Type
 
 binding :: (SIR.TypeInfo stage ~ Maybe Type.Type, SIR.TypeExprEvaledAsType stage ~ Maybe Type.Type) => Binding stage -> ReaderT (SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
 binding (SIR.Binding p _ e) = pattern p >> expr e
-binding (SIR.Binding'ADTVariant _ _ _ _) = pure ()
 
 pattern :: Pattern p_iden -> ReaderT (SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
 pattern _ = pure () -- TODO: remove or keep for symmetry?

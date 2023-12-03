@@ -11,7 +11,7 @@ import qualified UHF.Util.Arena as Arena
 type TypeWithInferVars = TypeWithInferVar.Type
 type Type = Type.Type
 
-type VIden = Maybe SIR.VariableKey
+type VIden = Maybe SIR.BoundValue
 type PIden = Maybe Type.ADT.VariantIndex
 
 type QuantVarArena = Arena.Arena Type.QuantVar Type.QuantVarKey

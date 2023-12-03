@@ -50,12 +50,12 @@ convert_binding_chunk (ANFIR.SingleBinding bk) = BackendIR.SingleBinding bk
 convert_binding_chunk (ANFIR.MutuallyRecursiveBindings bs) = BackendIR.MutuallyRecursiveBindings bs
 
 convert_param :: ANFIRParam -> BackendIRParam
-convert_param (ANFIR.Param bvid ty) = BackendIR.Param bvid ty
+convert_param (ANFIR.Param varid ty) = BackendIR.Param varid ty
 
 -- TODO: figure out a better solution than this
 convert_id :: ANFIR.ID -> BackendIR.ID
 convert_id (ANFIR.ExprID e) = BackendIR.ExprID e
-convert_id (ANFIR.BVID e) = BackendIR.BVID e
+convert_id (ANFIR.VarID e) = BackendIR.VarID e
 
 convert_expr :: ANFIRExpr -> BackendIRExpr
 convert_expr (ANFIR.Expr'Refer id ty bk) = BackendIR.Expr'Refer (convert_id id) ty bk

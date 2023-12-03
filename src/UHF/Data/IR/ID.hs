@@ -5,8 +5,8 @@ module UHF.Data.IR.ID
     , DeclID (..)
     , DeclParent (..)
     , ExprID (..)
-    , BoundValueParent (..)
-    , BoundValueID (..)
+    , VariableParent (..)
+    , VariableID (..)
     , ADTVariantID (..)
     , ADTFieldID (..)
 
@@ -49,8 +49,8 @@ data ExprID
     | ExprID'TypeApplyOn ExprID
     deriving Show
 
-data BoundValueParent = BVParent'Module ModuleID | BVParent'LambdaParam ExprID | BVParent'Let ExprID | BVParent'MatchArm ExprID Int deriving Show
-data BoundValueID = BoundValueID BoundValueParent Text | BoundValueID'RIRMadeUp Int deriving Show
+data VariableParent = VarParent'Module ModuleID | VarParent'LambdaParam ExprID | VarParent'Let ExprID | VarParent'MatchArm ExprID Int deriving Show
+data VariableID = VariableID VariableParent Text | VariableID'RIRMadeUp Int deriving Show
 
 data ADTVariantID = ADTVariantID DeclID Text deriving Show
 data ADTFieldID = ADTFieldID ADTVariantID Text deriving Show
@@ -59,7 +59,7 @@ data GeneralID
     = GM ModuleID
     | GD DeclID
     | GE ExprID
-    | GBV BoundValueID
+    | GV VariableID
     | GADTV ADTVariantID
     | GADTF ADTFieldID
 
@@ -72,8 +72,8 @@ instance ID DeclID where
     to_general_id = GD
 instance ID ExprID where
     to_general_id = GE
-instance ID BoundValueID where
-    to_general_id = GBV
+instance ID VariableID where
+    to_general_id = GV
 instance ID ADTVariantID where
     to_general_id = GADTV
 instance ID ADTFieldID where
@@ -86,8 +86,8 @@ stringify = stringify' . to_general_id
         stringify' (GM (ModuleID segments)) = Text.intercalate "::" segments
         stringify' (GD (DeclID parent name)) = stringify_decl_parent parent <> "::" <> name
         stringify' (GE e) = "expr_" <> stringify_expr_id e
-        stringify' (GBV (BoundValueID bv_parent t)) = stringify_bv_parent bv_parent <> "::" <> t
-        stringify' (GBV (BoundValueID'RIRMadeUp i)) = "rir_" <> show i
+        stringify' (GV (VariableID var_parent t)) = stringify_var_parent var_parent <> "::" <> t
+        stringify' (GV (VariableID'RIRMadeUp i)) = "rir_" <> show i
         stringify' (GADTV (ADTVariantID adt_decl name)) = stringify' (GD adt_decl) <> "::" <> name
         stringify' (GADTF (ADTFieldID variant_id name)) = stringify' (GADTV variant_id) <> "::" <> name
 
@@ -115,10 +115,10 @@ stringify = stringify' . to_general_id
         stringify_expr_id (ExprID'ANFIRGen i) = "a" <> show i
         stringify_expr_id (ExprID'InfixGroupGen i) = "i" <> show i
 
-        stringify_bv_parent (BVParent'Module mod) = stringify' (GM mod)
-        stringify_bv_parent (BVParent'Let e) = stringify' (GE e)
-        stringify_bv_parent (BVParent'LambdaParam e) = stringify' (GE e)
-        stringify_bv_parent (BVParent'MatchArm e i) = stringify' (GE e) <> "::arm" <> show i
+        stringify_var_parent (VarParent'Module mod) = stringify' (GM mod)
+        stringify_var_parent (VarParent'Let e) = stringify' (GE e)
+        stringify_var_parent (VarParent'LambdaParam e) = stringify' (GE e)
+        stringify_var_parent (VarParent'MatchArm e i) = stringify' (GE e) <> "::arm" <> show i
 
         stringify_decl_parent (DeclParent'Module mod) = stringify' (GM mod)
         stringify_decl_parent (DeclParent'Let e) = stringify' (GE e)
@@ -130,8 +130,8 @@ instance Mangle GeneralID where
     mangle' (GM m) = "m" <> mangle' m
     mangle' (GD d) = "d" <> mangle' d
     mangle' (GE e) = "e" <> mangle' e
-    mangle' (GBV bv) = "b" <> mangle' bv
-    mangle' (GADTV adtv) = "v" <> mangle' adtv
+    mangle' (GV var) = "v" <> mangle' var
+    mangle' (GADTV adtv) = "a" <> mangle' adtv
     mangle' (GADTF adtf) = "f" <> mangle' adtf
 
 instance Mangle ModuleID where
@@ -167,15 +167,15 @@ instance Mangle ExprID where
     mangle' (ExprID'TypeApplyFirst e) = "w" <> mangle' e
     mangle' (ExprID'TypeApplyOn e) = "x" <> mangle' e
 
-instance Mangle BoundValueID where
-    mangle' (BoundValueID parent pieces) = "b" <> mangle' parent <> mangle' pieces
-    mangle' (BoundValueID'RIRMadeUp i) = "r" <> mangle' i
+instance Mangle VariableID where
+    mangle' (VariableID parent pieces) = "b" <> mangle' parent <> mangle' pieces
+    mangle' (VariableID'RIRMadeUp i) = "r" <> mangle' i
 
-instance Mangle BoundValueParent where
-    mangle' (BVParent'LambdaParam lam) = "l" <> mangle' lam
-    mangle' (BVParent'Let e) = "m" <> mangle' e
-    mangle' (BVParent'MatchArm e ind) = "n" <> mangle' e <> mangle' ind
-    mangle' (BVParent'Module mod) = "o" <> mangle' mod
+instance Mangle VariableParent where
+    mangle' (VarParent'LambdaParam lam) = "l" <> mangle' lam
+    mangle' (VarParent'Let e) = "m" <> mangle' e
+    mangle' (VarParent'MatchArm e ind) = "n" <> mangle' e <> mangle' ind
+    mangle' (VarParent'Module mod) = "o" <> mangle' mod
 
 instance Mangle ADTVariantID where
     mangle' (ADTVariantID adt_decl variant_name) = mangle' adt_decl <> mangle' variant_name

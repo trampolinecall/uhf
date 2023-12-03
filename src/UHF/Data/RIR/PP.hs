@@ -26,7 +26,7 @@ get_adt :: Type.ADTKey -> IRReader (Type.ADT (Maybe (Type.Type Void)))
 get_adt k = reader (\ (RIR.RIR adts _ _ _ _) -> Arena.get adts k)
 get_type_synonym :: Type.TypeSynonymKey -> IRReader (Type.TypeSynonym (Maybe (Type.Type Void)))
 get_type_synonym k = reader (\ (RIR.RIR _ type_synonyms _ _ _) -> Arena.get type_synonyms k)
-get_bv :: RIR.BoundValueKey -> IRReader RIR.BoundValue
+get_bv :: RIR.VariableKey -> IRReader RIR.Variable
 get_bv k = reader (\ (RIR.RIR _ _ _ bvs _) -> Arena.get bvs k)
 get_type_var :: Type.TypeVarKey -> IRReader Type.Var
 get_type_var k = reader (\ (RIR.RIR _ _ type_vars _ _) -> Arena.get type_vars k)
@@ -56,8 +56,8 @@ define_binding (RIR.Binding bvk e) =
     expr e >>= \ e ->
     pure (PP.List [bvk, " = ", e, ";"])
 
-refer_bv :: RIR.BoundValueKey -> IRReader PP.Token
-refer_bv bvk = get_bv bvk >>= \ (RIR.BoundValue id _ _) -> pure (PP.String (ID.stringify id))
+refer_bv :: RIR.VariableKey -> IRReader PP.Token
+refer_bv bvk = get_bv bvk >>= \ (RIR.Variable id _ _) -> pure (PP.String (ID.stringify id))
 
 type_var :: Type.TypeVarKey -> IRReader PP.Token
 type_var k = get_type_var k >>= \ (Type.Var (Located _ name)) -> pure (PP.String name)
@@ -122,7 +122,7 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
                         )
                         m_variant
 
-                pp_assign_rhs (RIR.MatchAssignRHS'OtherBVK other) = refer_bv other
+                pp_assign_rhs (RIR.MatchAssignRHS'OtherVar other) = refer_bv other
                 pp_assign_rhs (RIR.MatchAssignRHS'TupleDestructure1 _ tup) = refer_bv tup >>= \ tup -> pure (PP.List [tup, ".tuple_l"])
                 pp_assign_rhs (RIR.MatchAssignRHS'TupleDestructure2 _ tup) = refer_bv tup >>= \ tup -> pure (PP.List [tup, ".tuple_r"])
                 pp_assign_rhs (RIR.MatchAssignRHS'AnonADTVariantField _ base m_field) =

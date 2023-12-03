@@ -18,7 +18,7 @@ import qualified UHF.Phases.ToRIR.PatternCheck as PatternCheck
 type Type = Maybe (Type.Type Void)
 
 type DIden = Maybe SIR.Decl
-type VIden = Maybe SIR.BoundValueKey
+type VIden = Maybe SIR.VariableKey
 type PIden = Maybe Type.ADTVariantIndex
 
 type LastSIR = (DIden, DIden, Type, VIden, VIden, PIden, PIden, Type, Void)
@@ -37,9 +37,9 @@ type SIRTypeSynonym = Type.TypeSynonym (SIRTypeExpr, Type)
 type RIRExpr = RIR.Expr
 type RIRBinding = RIR.Binding
 
-type BoundValueArena = Arena.Arena RIR.BoundValue RIR.BoundValueKey
+type VariableArena = Arena.Arena RIR.Variable RIR.VariableKey
 
-type ConvertState = ReaderT (Arena.Arena (Type.ADT Type) Type.ADTKey, Arena.Arena (Type.TypeSynonym Type) Type.TypeSynonymKey) (StateT BoundValueArena (IDGen.IDGenT ID.BoundValueID (IDGen.IDGenT ID.ExprID (Compiler.WithDiagnostics (PatternCheck.CompletenessError LastSIR) (PatternCheck.NotUseful LastSIR)))))
+type ConvertState = ReaderT (Arena.Arena (Type.ADT Type) Type.ADTKey, Arena.Arena (Type.TypeSynonym Type) Type.TypeSynonymKey) (StateT VariableArena (IDGen.IDGenT ID.VariableID (IDGen.IDGenT ID.ExprID (Compiler.WithDiagnostics (PatternCheck.CompletenessError LastSIR) (PatternCheck.NotUseful LastSIR)))))
 
 new_made_up_expr_id :: (ID.ExprID -> a) -> ConvertState a
 new_made_up_expr_id make =
@@ -47,18 +47,18 @@ new_made_up_expr_id make =
     pure (make id)
 
 convert :: SIR -> Compiler.WithDiagnostics (PatternCheck.CompletenessError LastSIR) (PatternCheck.NotUseful LastSIR) RIR.RIR
-convert (SIR.SIR modules adts type_synonyms type_vars bvs mod) = do
+convert (SIR.SIR modules adts type_synonyms type_vars vars mod) = do
     let adts_converted = Arena.transform convert_adt adts
     let type_synonyms_converted = Arena.transform convert_type_synonym type_synonyms
-    let bvs_converted =
+    let vars_converted =
             Arena.transform
                 (\case
-                    SIR.BoundValue id ty (Located sp _) -> RIR.BoundValue id ty sp
-                    SIR.BoundValue'ADTVariant id _ _ ty sp -> RIR.BoundValue id ty sp
+                    SIR.Variable id ty (Located sp _) -> RIR.Variable id ty sp
+                    SIR.Variable'ADTVariant id _ _ ty sp -> RIR.Variable id ty sp
                 )
-                bvs
-    (cu, bvs_with_new) <- IDGen.run_id_gen_t ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.BoundValueID'RIRMadeUp $ runStateT (runReaderT (assemble_cu modules mod) (adts_converted, type_synonyms_converted)) bvs_converted
-    pure (RIR.RIR adts_converted type_synonyms_converted type_vars bvs_with_new cu)
+                vars
+    (cu, vars_with_new) <- IDGen.run_id_gen_t ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.VariableID'RIRMadeUp $ runStateT (runReaderT (assemble_cu modules mod) (adts_converted, type_synonyms_converted)) vars_converted
+    pure (RIR.RIR adts_converted type_synonyms_converted type_vars vars_with_new cu)
 
 assemble_cu :: Arena.Arena SIRModule SIR.ModuleKey -> SIR.ModuleKey -> ConvertState RIR.CU
 assemble_cu modules mod =
@@ -76,7 +76,7 @@ convert_type_synonym (Type.TypeSynonym id name (_, expansion)) = Type.TypeSynony
 
 convert_binding :: SIRBinding -> ConvertState [RIRBinding]
 convert_binding (SIR.Binding pat eq_sp expr) = convert_expr expr >>= assign_pattern eq_sp pat
-convert_binding (SIR.Binding'ADTVariant name_sp bvk type_params variant_index) =
+convert_binding (SIR.Binding'ADTVariant name_sp var_key type_params variant_index) =
     ask >>= \ (adts, _) ->
     let variant = Type.get_adt_variant adts variant_index
 
@@ -85,28 +85,28 @@ convert_binding (SIR.Binding'ADTVariant name_sp bvk type_params variant_index) =
             param:more -> \ lambda -> new_made_up_expr_id (\ id -> RIR.Expr'Forall id name_sp (param :| more) lambda)
     in
     make_lambdas type_params variant_index [] (Type.variant_field_types variant) >>= wrap_in_forall >>= \ lambdas ->
-    pure [RIR.Binding bvk lambdas]
+    pure [RIR.Binding var_key lambdas]
     where
         make_lambdas type_params variant_index refer_to_params [] =
             let ty_params_as_tys = map Type.Type'Variable type_params
             in new_made_up_expr_id $ \ id -> RIR.Expr'MakeADT id name_sp variant_index (map Just ty_params_as_tys) refer_to_params
 
         make_lambdas type_params variant_index refer_to_params (cur_field_ty:more_field_tys) =
-            new_bound_value cur_field_ty name_sp >>= \ param_bvk ->
-            new_made_up_expr_id (\ id -> RIR.Expr'Identifier id cur_field_ty name_sp (Just param_bvk)) >>= \ refer_expr ->
+            new_variable cur_field_ty name_sp >>= \ param_var_key ->
+            new_made_up_expr_id (\ id -> RIR.Expr'Identifier id cur_field_ty name_sp (Just param_var_key)) >>= \ refer_expr ->
 
             make_lambdas type_params variant_index (refer_to_params <> [refer_expr]) more_field_tys >>= \ lambda_result ->
-            new_made_up_expr_id (\ id -> RIR.Expr'Lambda id name_sp param_bvk lambda_result)
+            new_made_up_expr_id (\ id -> RIR.Expr'Lambda id name_sp param_var_key lambda_result)
 
-new_made_up_bv_id :: ConvertState ID.BoundValueID
-new_made_up_bv_id = lift $ lift IDGen.gen_id
-new_bound_value :: Type -> Span -> ConvertState SIR.BoundValueKey
-new_bound_value ty sp =
-    new_made_up_bv_id >>= \ id ->
-    lift (state $ Arena.put (RIR.BoundValue id ty sp))
+new_made_up_var_id :: ConvertState ID.VariableID
+new_made_up_var_id = lift $ lift IDGen.gen_id
+new_variable :: Type -> Span -> ConvertState SIR.VariableKey
+new_variable ty sp =
+    new_made_up_var_id >>= \ id ->
+    lift (state $ Arena.put (RIR.Variable id ty sp))
 
 convert_expr :: SIRExpr -> ConvertState RIRExpr
-convert_expr (SIR.Expr'Identifier id ty sp _ bv) = pure $ RIR.Expr'Identifier id ty sp bv
+convert_expr (SIR.Expr'Identifier id ty sp _ var) = pure $ RIR.Expr'Identifier id ty sp var
 convert_expr (SIR.Expr'Char id ty sp c) = pure $ RIR.Expr'Char id sp c
 convert_expr (SIR.Expr'String id ty sp s) = pure $ RIR.Expr'String id sp s
 convert_expr (SIR.Expr'Int id ty sp i) = pure $ RIR.Expr'Int id sp i
@@ -118,7 +118,7 @@ convert_expr (SIR.Expr'Lambda id ty sp param_pat body) =
         body_sp = SIR.expr_span body
     in
     -- '\ (...) -> body' becomes '\ (arg) -> let ... = arg; body'
-    new_bound_value param_ty (SIR.pattern_span param_pat) >>= \ param_bk ->
+    new_variable param_ty (SIR.pattern_span param_pat) >>= \ param_bk ->
     assign_pattern (SIR.pattern_span param_pat) param_pat (RIR.Expr'Identifier id param_ty (SIR.pattern_span param_pat) (Just param_bk)) >>= \ bindings ->
     RIR.Expr'Lambda id sp param_bk <$> (RIR.Expr'Let id body_sp bindings <$> convert_expr body)
 
@@ -139,17 +139,17 @@ convert_expr (SIR.Expr'If id ty sp _ cond true false) =
     convert_expr true >>= \ true ->
     convert_expr false >>= \ false ->
 
-    lift get >>= \ bv_arena ->
-    new_bound_value (RIR.expr_type bv_arena cond) (RIR.expr_span cond) >>= \ cond_bv ->
+    lift get >>= \ var_arena ->
+    new_variable (RIR.expr_type var_arena cond) (RIR.expr_span cond) >>= \ cond_var ->
 
     new_made_up_expr_id
         (\ let_id ->
             RIR.Expr'Let let_id sp
-                [RIR.Binding cond_bv cond]
+                [RIR.Binding cond_var cond]
                 (RIR.Expr'Match id ty sp
                     (RIR.MatchTree
-                        [ ([RIR.MatchClause'Match cond_bv (RIR.Match'BoolLiteral True)], Right true)
-                        , ([RIR.MatchClause'Match cond_bv (RIR.Match'BoolLiteral False)], Right false)
+                        [ ([RIR.MatchClause'Match cond_var (RIR.Match'BoolLiteral True)], Right true)
+                        , ([RIR.MatchClause'Match cond_var (RIR.Match'BoolLiteral False)], Right false)
                         ]
                     )
                 )
@@ -168,8 +168,8 @@ convert_expr (SIR.Expr'Match id ty sp match_tok_sp scrutinee arms) = do
     -- }
 
     scrutinee <- convert_expr scrutinee
-    bv_arena <- lift get
-    scrutinee_bv <- new_bound_value (RIR.expr_type bv_arena scrutinee) (RIR.expr_span scrutinee)
+    var_arena <- lift get
+    scrutinee_var <- new_variable (RIR.expr_type var_arena scrutinee) (RIR.expr_span scrutinee)
 
     (adt_arena, type_synonym_arena) <- ask
     case PatternCheck.check_complete adt_arena type_synonym_arena match_tok_sp (map fst arms) of
@@ -181,7 +181,7 @@ convert_expr (SIR.Expr'Match id ty sp match_tok_sp scrutinee arms) = do
 
     arms <- arms
         & mapM (\ (pat, result) ->
-            pattern_to_clauses scrutinee_bv pat >>= \ clauses ->
+            pattern_to_clauses scrutinee_var pat >>= \ clauses ->
             convert_expr result >>= \ result ->
             pure (clauses, Right result)
         )
@@ -189,32 +189,32 @@ convert_expr (SIR.Expr'Match id ty sp match_tok_sp scrutinee arms) = do
     new_made_up_expr_id
         (\ let_id ->
             RIR.Expr'Let let_id sp
-                [RIR.Binding scrutinee_bv scrutinee]
+                [RIR.Binding scrutinee_var scrutinee]
                 (RIR.Expr'Match id ty sp (RIR.MatchTree arms))
         )
     where
-        pattern_to_clauses scrutinee_bv (SIR.Pattern'Identifier _ _ bvk) = pure [RIR.MatchClause'Assign bvk (RIR.MatchAssignRHS'OtherBVK scrutinee_bv)]
+        pattern_to_clauses scrutinee_var (SIR.Pattern'Identifier _ _ var_key) = pure [RIR.MatchClause'Assign var_key (RIR.MatchAssignRHS'OtherVar scrutinee_var)]
         pattern_to_clauses _ (SIR.Pattern'Wildcard _ _) = pure []
-        pattern_to_clauses scrutinee_bv (SIR.Pattern'Tuple _ _ a b) =
+        pattern_to_clauses scrutinee_var (SIR.Pattern'Tuple _ _ a b) =
             -- scrutinee -> (A, B) becomes [scrutinee -> (,), a = scrutinee.tuple_l, b = scrutinee.tuple_r, a -> A, b -> B]
-            new_bound_value (SIR.pattern_type a) (SIR.pattern_span a) >>= \ a_bv ->
-            new_bound_value (SIR.pattern_type b) (SIR.pattern_span b) >>= \ b_bv ->
+            new_variable (SIR.pattern_type a) (SIR.pattern_span a) >>= \ a_var ->
+            new_variable (SIR.pattern_type b) (SIR.pattern_span b) >>= \ b_var ->
 
-            pattern_to_clauses a_bv a >>= \ a_subpat_matchers ->
-            pattern_to_clauses b_bv b >>= \ b_subpat_matchers ->
+            pattern_to_clauses a_var a >>= \ a_subpat_matchers ->
+            pattern_to_clauses b_var b >>= \ b_subpat_matchers ->
 
-            pure (RIR.MatchClause'Match scrutinee_bv RIR.Match'Tuple : RIR.MatchClause'Assign a_bv (RIR.MatchAssignRHS'TupleDestructure1 (SIR.pattern_type a) scrutinee_bv) : RIR.MatchClause'Assign b_bv (RIR.MatchAssignRHS'TupleDestructure2 (SIR.pattern_type b) scrutinee_bv) : (a_subpat_matchers <> b_subpat_matchers))
+            pure (RIR.MatchClause'Match scrutinee_var RIR.Match'Tuple : RIR.MatchClause'Assign a_var (RIR.MatchAssignRHS'TupleDestructure1 (SIR.pattern_type a) scrutinee_var) : RIR.MatchClause'Assign b_var (RIR.MatchAssignRHS'TupleDestructure2 (SIR.pattern_type b) scrutinee_var) : (a_subpat_matchers <> b_subpat_matchers))
 
-        pattern_to_clauses scrutinee_bv (SIR.Pattern'Named _ _ _ (Located _ bvk) subpat) =
+        pattern_to_clauses scrutinee_var (SIR.Pattern'Named _ _ _ (Located _ var_key) subpat) =
             -- scrutinee -> name@P becomes [name = scrutinee, scrutinee -> P]
-            pattern_to_clauses scrutinee_bv subpat >>= \ subpat_matchers ->
-            pure (RIR.MatchClause'Assign bvk (RIR.MatchAssignRHS'OtherBVK scrutinee_bv) : subpat_matchers)
+            pattern_to_clauses scrutinee_var subpat >>= \ subpat_matchers ->
+            pure (RIR.MatchClause'Assign var_key (RIR.MatchAssignRHS'OtherVar scrutinee_var) : subpat_matchers)
 
-        pattern_to_clauses scrutinee_bv (SIR.Pattern'AnonADTVariant ty sp _ variant_index tyargs fields) =
+        pattern_to_clauses scrutinee_var (SIR.Pattern'AnonADTVariant ty sp _ variant_index tyargs fields) =
             -- Variant(F0, F1, ...) becomes [scrutinee -> Variant, f0 = (scrutinee as Variant).0, f1 = (scrutinee as Variant).1, f0 -> F0, f1 -> F1, ...]
-            fields & mapM (\ pat -> new_bound_value (SIR.pattern_type pat) (SIR.pattern_span pat)) >>= \ field_bvs ->
-            zipWithM pattern_to_clauses field_bvs fields >>= \ field_subpat_clauses ->
-            pure (RIR.MatchClause'Match scrutinee_bv (RIR.Match'AnonADTVariant variant_index) : zipWith (\ i field_bv -> RIR.MatchClause'Assign field_bv (RIR.MatchAssignRHS'AnonADTVariantField (SIR.pattern_type $ fields List.!! i) scrutinee_bv (Type.ADTFieldIndex <$> variant_index <*> pure i))) [0..] field_bvs <> concat field_subpat_clauses)
+            fields & mapM (\ pat -> new_variable (SIR.pattern_type pat) (SIR.pattern_span pat)) >>= \ field_vars ->
+            zipWithM pattern_to_clauses field_vars fields >>= \ field_subpat_clauses ->
+            pure (RIR.MatchClause'Match scrutinee_var (RIR.Match'AnonADTVariant variant_index) : zipWith (\ i field_var -> RIR.MatchClause'Assign field_var (RIR.MatchAssignRHS'AnonADTVariantField (SIR.pattern_type $ fields List.!! i) scrutinee_var (Type.ADTFieldIndex <$> variant_index <*> pure i))) [0..] field_vars <> concat field_subpat_clauses)
 
         pattern_to_clauses _ (SIR.Pattern'NamedADTVariant _ _ _ _ _ _) = todo
         pattern_to_clauses _ (SIR.Pattern'Poison _ _) = pure []
@@ -234,7 +234,7 @@ assign_pattern incomplete_err_sp pat expr = do
 
     go pat expr
     where
-        go (SIR.Pattern'Identifier _ _ bv) expr = pure [RIR.Binding bv expr]
+        go (SIR.Pattern'Identifier _ _ var) expr = pure [RIR.Binding var expr]
         go (SIR.Pattern'Wildcard _ _) _ = pure []
         go (SIR.Pattern'Tuple whole_ty whole_sp a b) expr =
             let a_sp = SIR.pattern_span a
@@ -248,29 +248,29 @@ assign_pattern incomplete_err_sp pat expr = do
             --     ... = case { [whole -> (a, _)] -> a }
             --     ... = case { [whole -> (_, b)] -> b }
 
-            new_bound_value whole_ty whole_sp >>= \ whole_bv ->
-            new_bound_value a_ty a_sp >>= \ a_bv ->
-            new_bound_value b_ty b_sp >>= \ b_bv ->
+            new_variable whole_ty whole_sp >>= \ whole_var ->
+            new_variable a_ty a_sp >>= \ a_var ->
+            new_variable b_ty b_sp >>= \ b_var ->
 
             new_made_up_expr_id identity >>= \ l_extract_id ->
             new_made_up_expr_id identity >>= \ r_extract_id ->
 
-            new_made_up_expr_id (\ id -> RIR.Expr'Match id a_ty a_sp (RIR.MatchTree [([RIR.MatchClause'Match whole_bv RIR.Match'Tuple, RIR.MatchClause'Assign a_bv (RIR.MatchAssignRHS'TupleDestructure1 (SIR.pattern_type a) whole_bv)], Right $ RIR.Expr'Identifier l_extract_id a_ty a_sp (Just a_bv))])) >>= \ extract_a  ->
-            new_made_up_expr_id (\ id -> RIR.Expr'Match id b_ty b_sp (RIR.MatchTree [([RIR.MatchClause'Match whole_bv RIR.Match'Tuple, RIR.MatchClause'Assign b_bv (RIR.MatchAssignRHS'TupleDestructure2 (SIR.pattern_type b) whole_bv)], Right $ RIR.Expr'Identifier r_extract_id b_ty b_sp (Just b_bv))])) >>= \ extract_b ->
+            new_made_up_expr_id (\ id -> RIR.Expr'Match id a_ty a_sp (RIR.MatchTree [([RIR.MatchClause'Match whole_var RIR.Match'Tuple, RIR.MatchClause'Assign a_var (RIR.MatchAssignRHS'TupleDestructure1 (SIR.pattern_type a) whole_var)], Right $ RIR.Expr'Identifier l_extract_id a_ty a_sp (Just a_var))])) >>= \ extract_a  ->
+            new_made_up_expr_id (\ id -> RIR.Expr'Match id b_ty b_sp (RIR.MatchTree [([RIR.MatchClause'Match whole_var RIR.Match'Tuple, RIR.MatchClause'Assign b_var (RIR.MatchAssignRHS'TupleDestructure2 (SIR.pattern_type b) whole_var)], Right $ RIR.Expr'Identifier r_extract_id b_ty b_sp (Just b_var))])) >>= \ extract_b ->
 
             go a extract_a >>= \ assign_a ->
             go b extract_b >>= \ assign_b ->
 
-            pure (RIR.Binding whole_bv expr : assign_a ++ assign_b)
+            pure (RIR.Binding whole_var expr : assign_a ++ assign_b)
 
-        go (SIR.Pattern'Named ty sp _ bv other) expr =
+        go (SIR.Pattern'Named ty sp _ var other) expr =
             --      a@... = e
             --  becomes
             --      a = e
             --      ... = a
-            new_made_up_expr_id (\ id -> RIR.Expr'Identifier id ty sp (Just $ unlocate bv)) >>= \ refer ->
+            new_made_up_expr_id (\ id -> RIR.Expr'Identifier id ty sp (Just $ unlocate var)) >>= \ refer ->
             go other refer >>= \ other_assignments ->
-            pure (RIR.Binding (unlocate bv) expr : other_assignments)
+            pure (RIR.Binding (unlocate var) expr : other_assignments)
 
         go (SIR.Pattern'AnonADTVariant ty sp _ variant tyargs fields) expr = todo
         go (SIR.Pattern'NamedADTVariant ty sp _ variant tyargs fields) expr = todo

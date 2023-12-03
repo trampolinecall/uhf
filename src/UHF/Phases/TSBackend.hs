@@ -53,7 +53,7 @@ runtime_code = $(FileEmbed.embedStringFile "data/ts_runtime.ts")
 
 data TSDecl
 newtype TSADT = TSADT Type.ADTKey
--- TODO: dont use BoundValueKey Ord for order of captures in parameters of function
+-- TODO: dont use VariableKey Ord for order of captures in parameters of function
 data TSLambda = TSLambda BackendIR.BindingKey (Set.Set BackendIR.BindingKey) BindingGroup Type Type BackendIR.BindingKey
 data TS = TS [TSDecl] [TSADT] [TSLambda] [TS.Stmt]
 

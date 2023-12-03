@@ -11,8 +11,8 @@ module UHF.Data.SIR
     , ModuleKey
     , Module(..)
 
-    , BoundValueKey
-    , BoundValue(..)
+    , VariableKey
+    , Variable(..)
 
     , Binding (..)
 
@@ -46,7 +46,7 @@ data SIR stage
         (Arena.Arena (Type.ADT (TypeExpr stage, Stage.TypeExprEvaledAsType stage)) ADTKey)
         (Arena.Arena (Type.TypeSynonym (TypeExpr stage, Stage.TypeExprEvaledAsType stage)) TypeSynonymKey)
         (Arena.Arena Type.Var TypeVarKey)
-        (Arena.Arena (BoundValue stage) BoundValueKey)
+        (Arena.Arena (Variable stage) VariableKey)
         ModuleKey
 
 data Decl
@@ -58,14 +58,14 @@ data Module stage
     = Module ID.ModuleID [Binding stage] [ADTKey] [TypeSynonymKey]
 deriving instance Stage.AllShowable stage => Show (Module stage)
 
-data BoundValue stage
-    = BoundValue ID.BoundValueID (Stage.TypeInfo stage) (Located Text)
-    | BoundValue'ADTVariant ID.BoundValueID Type.ADTVariantIndex [Type.TypeVarKey] (Stage.TypeInfo stage) Span
-deriving instance Stage.AllShowable stage => Show (BoundValue stage)
+data Variable stage
+    = Variable ID.VariableID (Stage.TypeInfo stage) (Located Text)
+    | Variable'ADTVariant ID.VariableID Type.ADTVariantIndex [Type.TypeVarKey] (Stage.TypeInfo stage) Span
+deriving instance Stage.AllShowable stage => Show (Variable stage)
 
 data Binding stage
     = Binding (Pattern stage) Span (Expr stage)
-    | Binding'ADTVariant Span BoundValueKey [Type.TypeVarKey] Type.ADTVariantIndex
+    | Binding'ADTVariant Span VariableKey [Type.TypeVarKey] Type.ADTVariantIndex
 deriving instance Stage.AllShowable stage => Show (Binding stage)
 
 type HoleIdentifier = Located Text
@@ -121,10 +121,10 @@ data Expr stage
 deriving instance Stage.AllShowable stage => Show (Expr stage)
 
 data Pattern stage
-    = Pattern'Identifier (Stage.TypeInfo stage) Span BoundValueKey
+    = Pattern'Identifier (Stage.TypeInfo stage) Span VariableKey
     | Pattern'Wildcard (Stage.TypeInfo stage) Span
     | Pattern'Tuple (Stage.TypeInfo stage) Span (Pattern stage) (Pattern stage)
-    | Pattern'Named (Stage.TypeInfo stage) Span Span (Located BoundValueKey) (Pattern stage)
+    | Pattern'Named (Stage.TypeInfo stage) Span Span (Located VariableKey) (Pattern stage)
     | Pattern'AnonADTVariant (Stage.TypeInfo stage) Span (SplitIdentifier stage (Stage.PIdenStart stage)) (Stage.PIdenResolved stage) [Stage.TypeInfo stage] [Pattern stage]
     | Pattern'NamedADTVariant (Stage.TypeInfo stage) Span (SplitIdentifier stage (Stage.PIdenStart stage)) (Stage.PIdenResolved stage) [Stage.TypeInfo stage] [(Located Text, Pattern stage)]
 

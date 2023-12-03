@@ -11,7 +11,7 @@ import qualified UHF.Data.IR.IDGen as IDGen
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
 
-type VIden = Maybe SIR.BoundValueKey
+type VIden = Maybe SIR.VariableKey
 
 type IsUngrouped s = (SIR.VIdenResolved s ~ VIden, SIR.TypeInfo s ~ (), SIR.BinaryOpsAllowed s ~ ())
 type IsGrouped s = (SIR.VIdenResolved s ~ VIden, SIR.TypeInfo s ~ (), SIR.BinaryOpsAllowed s ~ Void)
@@ -27,13 +27,13 @@ type Convertible ungrouped grouped =
     )
 
 group :: Convertible ungrouped grouped => SIR.SIR ungrouped -> SIR.SIR grouped
-group (SIR.SIR modules adts type_synonyms type_vars bound_values mod) =
+group (SIR.SIR modules adts type_synonyms type_vars variables mod) =
     SIR.SIR
         (IDGen.run_id_gen ID.ExprID'InfixGroupGen (Arena.transformM group_module modules))
         (Arena.transform convert_adt adts)
         (Arena.transform convert_type_synonym type_synonyms)
         type_vars
-        (Arena.transform convert_bound_value bound_values)
+        (Arena.transform convert_variable variables)
         mod
     where
         -- TODO: automate these functions too?
@@ -42,15 +42,15 @@ group (SIR.SIR modules adts type_synonyms type_vars bound_values mod) =
                 convert_variant (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id (map (\ (i, (t, teat)) -> (i, (convert_type_expr t, teat))) fields) -- 'teat' is short for 'type evaluated as type'
                 convert_variant (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id (map (\ (i, n, (t, teat)) -> (i, n, (convert_type_expr t, teat))) fields)
         convert_type_synonym (Type.TypeSynonym did name (exp, expeat)) = Type.TypeSynonym did name (convert_type_expr exp, expeat)
-        convert_bound_value (SIR.BoundValue bvid tyinfo n) = SIR.BoundValue bvid tyinfo n
-        convert_bound_value (SIR.BoundValue'ADTVariant bvid id tyvars tyinfo sp) = SIR.BoundValue'ADTVariant bvid id tyvars tyinfo sp
+        convert_variable (SIR.Variable varid tyinfo n) = SIR.Variable varid tyinfo n
+        convert_variable (SIR.Variable'ADTVariant varid id tyvars tyinfo sp) = SIR.Variable'ADTVariant varid id tyvars tyinfo sp
 
 group_module :: Convertible ungrouped grouped => SIR.Module ungrouped -> IDGen.IDGen ID.ExprID (SIR.Module grouped)
 group_module (SIR.Module id bindings adts syns) = SIR.Module id <$> mapM group_binding bindings <*> pure adts <*> pure syns
 
 group_binding :: Convertible ungrouped grouped => SIR.Binding ungrouped -> IDGen.IDGen ID.ExprID (SIR.Binding grouped)
 group_binding (SIR.Binding pat eq_sp e) = SIR.Binding (convert_pattern pat) eq_sp <$> group_expr e
-group_binding (SIR.Binding'ADTVariant sp bvk tparams variant) = pure $ SIR.Binding'ADTVariant sp bvk tparams variant
+group_binding (SIR.Binding'ADTVariant sp var_key tparams variant) = pure $ SIR.Binding'ADTVariant sp var_key tparams variant
 
 group_expr :: Convertible ungrouped grouped => SIR.Expr ungrouped -> IDGen.IDGen ID.ExprID (SIR.Expr grouped)
 group_expr (SIR.Expr'Identifier id () sp iden resolved) = pure $ SIR.Expr'Identifier id () sp (convert_split_iden iden) resolved
@@ -73,7 +73,7 @@ group_expr (SIR.Expr'BinaryOps _ () () _ first ops) =
     if null a then pure r else error "internal error: still operations to group after grouping binary ops"
     where
         -- TODO: test this
-        g :: Convertible ungrouped grouped => SIR.Expr grouped -> [(Span, SIR.SplitIdentifier ungrouped (SIR.VIdenStart ungrouped), Maybe SIR.BoundValueKey, SIR.Expr ungrouped)] -> Int -> IDGen.IDGen ID.ExprID (SIR.Expr grouped, [(Span, SIR.SplitIdentifier ungrouped (SIR.VIdenStart ungrouped), Maybe SIR.BoundValueKey, SIR.Expr ungrouped)])
+        g :: Convertible ungrouped grouped => SIR.Expr grouped -> [(Span, SIR.SplitIdentifier ungrouped (SIR.VIdenStart ungrouped), Maybe SIR.VariableKey, SIR.Expr ungrouped)] -> Int -> IDGen.IDGen ID.ExprID (SIR.Expr grouped, [(Span, SIR.SplitIdentifier ungrouped (SIR.VIdenStart ungrouped), Maybe SIR.VariableKey, SIR.Expr ungrouped)])
         g left more@((first_op_span, first_op_iden, first_op, first_rhs):after_first_op) cur_precedence =
             let op_prec = const 1 first_op -- TODO: precedence
             -- for example if the current precedence level is that for +, and first_op is *, this will consume the * and incorporate it into left
@@ -117,7 +117,7 @@ convert_split_iden (SIR.SplitIdentifier'Get texpr next) = SIR.SplitIdentifier'Ge
 convert_split_iden (SIR.SplitIdentifier'Single name) = SIR.SplitIdentifier'Single name
 
 convert_type_expr :: Convertible ungrouped grouped => SIR.TypeExpr ungrouped -> SIR.TypeExpr grouped
-convert_type_expr (SIR.TypeExpr'Refer evaled sp bvk) = SIR.TypeExpr'Refer evaled sp bvk
+convert_type_expr (SIR.TypeExpr'Refer evaled sp var_key) = SIR.TypeExpr'Refer evaled sp var_key
 convert_type_expr (SIR.TypeExpr'Get evaled sp parent name) = SIR.TypeExpr'Get evaled sp (convert_type_expr parent) name
 convert_type_expr (SIR.TypeExpr'Tuple evaled sp a b) = SIR.TypeExpr'Tuple evaled sp (convert_type_expr a) (convert_type_expr b)
 convert_type_expr (SIR.TypeExpr'Hole evaled type_info sp hiden) = SIR.TypeExpr'Hole evaled type_info sp hiden
@@ -128,10 +128,10 @@ convert_type_expr (SIR.TypeExpr'Wild evaled sp) = SIR.TypeExpr'Wild evaled sp
 convert_type_expr (SIR.TypeExpr'Poison evaled sp) = SIR.TypeExpr'Poison evaled sp
 
 convert_pattern :: Convertible ungrouped grouped => SIR.Pattern ungrouped -> SIR.Pattern grouped
-convert_pattern (SIR.Pattern'Identifier tyinfo sp bvk) = SIR.Pattern'Identifier tyinfo sp bvk
+convert_pattern (SIR.Pattern'Identifier tyinfo sp var_key) = SIR.Pattern'Identifier tyinfo sp var_key
 convert_pattern (SIR.Pattern'Wildcard tyinfo sp) = SIR.Pattern'Wildcard tyinfo sp
 convert_pattern (SIR.Pattern'Tuple tyinfo sp a b) = SIR.Pattern'Tuple tyinfo sp (convert_pattern a) (convert_pattern b)
-convert_pattern (SIR.Pattern'Named tyinfo sp at bvk sub) = SIR.Pattern'Named tyinfo sp at bvk (convert_pattern sub)
+convert_pattern (SIR.Pattern'Named tyinfo sp at var_key sub) = SIR.Pattern'Named tyinfo sp at var_key (convert_pattern sub)
 convert_pattern (SIR.Pattern'AnonADTVariant tyinfo sp variant_iden variant_resolved tyapps fields) = SIR.Pattern'AnonADTVariant tyinfo sp (convert_split_iden variant_iden) variant_resolved tyapps (map convert_pattern fields)
 convert_pattern (SIR.Pattern'NamedADTVariant tyinfo sp variant_iden variant_resolved tyapps fields) = SIR.Pattern'NamedADTVariant tyinfo sp (convert_split_iden variant_iden) variant_resolved tyapps (map (\ (n, f) -> (n, convert_pattern f)) fields)
 convert_pattern (SIR.Pattern'Poison tyinfo sp) = SIR.Pattern'Poison tyinfo sp

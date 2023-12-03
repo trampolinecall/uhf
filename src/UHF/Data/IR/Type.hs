@@ -31,19 +31,19 @@ import UHF.Source.Located (Located)
 import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Util.Arena as Arena
 
-data Type unk
-    = Type'ADT ADTKey [Type unk]
+data Type infer_var
+    = Type'ADT ADTKey [Type infer_var]
     | Type'Synonym TypeSynonymKey
     | Type'Int
     | Type'Float
     | Type'Char
     | Type'String
     | Type'Bool
-    | Type'Function (Type unk) (Type unk)
-    | Type'Tuple (Type unk) (Type unk)
-    | Type'InferVar unk
+    | Type'Function (Type infer_var) (Type infer_var)
+    | Type'Tuple (Type infer_var) (Type infer_var)
+    | Type'InferVar infer_var
     | Type'Variable TypeVarKey
-    | Type'Forall (NonEmpty TypeVarKey) (Type unk)
+    | Type'Forall (NonEmpty TypeVarKey) (Type infer_var)
     deriving Show
 
 data ADT ty = ADT ID.DeclID (Located Text) [TypeVarKey] [ADTVariant ty] deriving Show

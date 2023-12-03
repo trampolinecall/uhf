@@ -6,20 +6,21 @@ import qualified Data.List as List
 
 import UHF.Source.Located (Located (Located, unlocate))
 import UHF.Source.Span (Span)
-import qualified UHF.Util.Arena as Arena
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.IDGen as IDGen
+import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.RIR as RIR
 import qualified UHF.Data.SIR as SIR
-import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Phases.ToRIR.PatternCheck as PatternCheck
+import qualified UHF.Util.Arena as Arena
 
 type Type = Maybe (Type.Type Void)
 
 type DIden = Maybe SIR.Decl
 type VIden = Maybe SIR.VariableKey
-type PIden = Maybe Type.ADTVariantIndex
+type PIden = Maybe Type.ADT.VariantIndex
 
 type LastSIR = (DIden, DIden, Type, VIden, VIden, PIden, PIden, Type, Void)
 
@@ -47,7 +48,7 @@ new_made_up_expr_id make =
     pure (make id)
 
 convert :: SIR -> Compiler.WithDiagnostics (PatternCheck.CompletenessError LastSIR) (PatternCheck.NotUseful LastSIR) RIR.RIR
-convert (SIR.SIR modules adts type_synonyms type_vars vars mod) = do
+convert (SIR.SIR modules adts type_synonyms quant_vars vars mod) = do
     let adts_converted = Arena.transform convert_adt adts
     let type_synonyms_converted = Arena.transform convert_type_synonym type_synonyms
     let vars_converted =
@@ -58,7 +59,7 @@ convert (SIR.SIR modules adts type_synonyms type_vars vars mod) = do
                 )
                 vars
     (cu, vars_with_new) <- IDGen.run_id_gen_t ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.VariableID'RIRMadeUp $ runStateT (runReaderT (assemble_cu modules mod) (adts_converted, type_synonyms_converted)) vars_converted
-    pure (RIR.RIR adts_converted type_synonyms_converted type_vars vars_with_new cu)
+    pure (RIR.RIR adts_converted type_synonyms_converted quant_vars vars_with_new cu)
 
 assemble_cu :: Arena.Arena SIRModule SIR.ModuleKey -> SIR.ModuleKey -> ConvertState RIR.CU
 assemble_cu modules mod =
@@ -66,10 +67,10 @@ assemble_cu modules mod =
     in RIR.CU <$> (concat <$> mapM convert_binding bindings) <*> pure adts <*> pure syns
 
 convert_adt :: SIRADT -> Type.ADT Type
-convert_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars (map convert_variant variants)
+convert_adt (Type.ADT id name quant_vars variants) = Type.ADT id name quant_vars (map convert_variant variants)
     where
-        convert_variant (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id (map (\ (id, name, (_, ty)) -> (id, name, ty)) fields)
-        convert_variant (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id (map (\ (id, (_, ty)) -> (id, ty)) fields)
+        convert_variant (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id (map (\ (id, name, (_, ty)) -> (id, name, ty)) fields)
+        convert_variant (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id (map (\ (id, (_, ty)) -> (id, ty)) fields)
 
 convert_type_synonym :: SIRTypeSynonym -> Type.TypeSynonym Type
 convert_type_synonym (Type.TypeSynonym id name (_, expansion)) = Type.TypeSynonym id name expansion
@@ -78,17 +79,17 @@ convert_binding :: SIRBinding -> ConvertState [RIRBinding]
 convert_binding (SIR.Binding pat eq_sp expr) = convert_expr expr >>= assign_pattern eq_sp pat
 convert_binding (SIR.Binding'ADTVariant name_sp var_key type_params variant_index) =
     ask >>= \ (adts, _) ->
-    let variant = Type.get_adt_variant adts variant_index
+    let variant = Type.ADT.get_variant adts variant_index
 
         wrap_in_forall = case type_params of
             [] -> pure
             param:more -> \ lambda -> new_made_up_expr_id (\ id -> RIR.Expr'Forall id name_sp (param :| more) lambda)
     in
-    make_lambdas type_params variant_index [] (Type.variant_field_types variant) >>= wrap_in_forall >>= \ lambdas ->
+    make_lambdas type_params variant_index [] (Type.ADT.variant_field_types variant) >>= wrap_in_forall >>= \ lambdas ->
     pure [RIR.Binding var_key lambdas]
     where
         make_lambdas type_params variant_index refer_to_params [] =
-            let ty_params_as_tys = map Type.Type'Variable type_params
+            let ty_params_as_tys = map Type.Type'QuantVar type_params
             in new_made_up_expr_id $ \ id -> RIR.Expr'MakeADT id name_sp variant_index (map Just ty_params_as_tys) refer_to_params
 
         make_lambdas type_params variant_index refer_to_params (cur_field_ty:more_field_tys) =
@@ -214,7 +215,7 @@ convert_expr (SIR.Expr'Match id ty sp match_tok_sp scrutinee arms) = do
             -- Variant(F0, F1, ...) becomes [scrutinee -> Variant, f0 = (scrutinee as Variant).0, f1 = (scrutinee as Variant).1, f0 -> F0, f1 -> F1, ...]
             fields & mapM (\ pat -> new_variable (SIR.pattern_type pat) (SIR.pattern_span pat)) >>= \ field_vars ->
             zipWithM pattern_to_clauses field_vars fields >>= \ field_subpat_clauses ->
-            pure (RIR.MatchClause'Match scrutinee_var (RIR.Match'AnonADTVariant variant_index) : zipWith (\ i field_var -> RIR.MatchClause'Assign field_var (RIR.MatchAssignRHS'AnonADTVariantField (SIR.pattern_type $ fields List.!! i) scrutinee_var (Type.ADTFieldIndex <$> variant_index <*> pure i))) [0..] field_vars <> concat field_subpat_clauses)
+            pure (RIR.MatchClause'Match scrutinee_var (RIR.Match'AnonADTVariant variant_index) : zipWith (\ i field_var -> RIR.MatchClause'Assign field_var (RIR.MatchAssignRHS'AnonADTVariantField (SIR.pattern_type $ fields List.!! i) scrutinee_var (Type.ADT.FieldIndex <$> variant_index <*> pure i))) [0..] field_vars <> concat field_subpat_clauses)
 
         pattern_to_clauses _ (SIR.Pattern'NamedADTVariant _ _ _ _ _ _) = todo
         pattern_to_clauses _ (SIR.Pattern'Poison _ _) = pure []

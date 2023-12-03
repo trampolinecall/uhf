@@ -4,13 +4,14 @@ import UHF.Prelude
 
 import UHF.Source.Located (Located (unlocate))
 import UHF.Source.Span (Span)
-import qualified UHF.Util.Arena as Arena
 import qualified UHF.Compiler as Compiler
-import qualified UHF.Data.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.Type.PP as Type.PP
+import qualified UHF.Data.SIR as SIR
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.PP as PP
+import qualified UHF.Util.Arena as Arena
 
 type Type = Type.Type Void
 
@@ -25,9 +26,9 @@ type TypeExpr stage = SIR.TypeExpr stage
 
 type ADTArena stage = Arena.Arena (ADT stage) Type.ADTKey
 type TypeSynonymArena stage = Arena.Arena (TypeSynonym stage) Type.TypeSynonymKey
-type TypeVarArena = Arena.Arena Type.Var Type.TypeVarKey
+type QuantVarArena = Arena.Arena Type.QuantVar Type.QuantVarKey
 
-data Error stage = Error (ADTArena stage) (TypeSynonymArena stage) TypeVarArena Span (Located Text) Type
+data Error stage = Error (ADTArena stage) (TypeSynonymArena stage) QuantVarArena Span (Located Text) Type
 instance Diagnostic.ToError (Error stage) where
     to_error (Error adts type_synonyms vars sp name ty) =
         let message = "hole: '?" <> unlocate name <> "' of type '" <> PP.render (Type.PP.refer_type absurd adts type_synonyms vars ty) <> "'"
@@ -45,8 +46,8 @@ module_ key =
 adt :: (SIR.TypeInfo stage ~ Maybe Type, SIR.TypeExprEvaledAsType stage ~ Maybe Type) => Type.ADTKey -> ReaderT (SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
 adt key = ask >>= \ (SIR.SIR _ adts _ _ _ _) -> let (Type.ADT _ _ _ variants) = Arena.get adts key in mapM_ variant variants
     where
-        variant (Type.ADTVariant'Named _ _ fields) = mapM_ (\ (_, _, (ty, _)) -> type_expr ty) fields
-        variant (Type.ADTVariant'Anon _ _ fields) = mapM_ (\ (_, (ty, _)) -> type_expr ty) fields
+        variant (Type.ADT.Variant'Named _ _ fields) = mapM_ (\ (_, _, (ty, _)) -> type_expr ty) fields
+        variant (Type.ADT.Variant'Anon _ _ fields) = mapM_ (\ (_, (ty, _)) -> type_expr ty) fields
 
 type_synonym :: (SIR.TypeInfo stage ~ Maybe Type, SIR.TypeExprEvaledAsType stage ~ Maybe Type) => Type.TypeSynonymKey -> ReaderT (SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
 type_synonym key = ask >>= \ (SIR.SIR _ _ type_synonyms _ _ _) -> let (Type.TypeSynonym _ _ (expansion, _)) = Arena.get type_synonyms key in type_expr expansion

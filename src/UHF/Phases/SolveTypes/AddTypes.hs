@@ -10,6 +10,7 @@ import UHF.Phases.SolveTypes.Utils
 import UHF.Source.Located (Located (..))
 import UHF.Source.Span (Span)
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Util.Arena as Arena
 
@@ -59,30 +60,30 @@ add mods adts type_synonyms variables =
 
 variable :: UntypedVariable -> ContextReader vars TypedWithInferVarsADTArena TypedWithInferVarsVariable
 variable (SIR.Variable id () name@(Located def_span _)) = SIR.Variable id <$> lift (lift $ Type.Type'InferVar <$> new_type_unknown (Variable def_span)) <*> pure name
-variable (SIR.Variable'ADTVariant id variant_index@(Type.ADTVariantIndex adt_key _) var_type_params () def_span) = do
+variable (SIR.Variable'ADTVariant id variant_index@(Type.ADT.VariantIndex adt_key _) var_type_params () def_span) = do
     (_, adts) <- ask
     unk_arena <- lift (lift get)
     let (Type.ADT _ _ adt_type_params _) = Arena.get adts adt_key
-    let variant = Type.get_adt_variant adts variant_index
+    let variant = Type.ADT.get_variant adts variant_index
     let ty = case variant of
-            Type.ADTVariant'Named _ _ _ -> error "bound value should not be made for a named adt variant" -- TODO: statically make sure this cant happen?
-            Type.ADTVariant'Anon _ _ fields ->
-                let change_type_params ty = foldl' (\ ty (adt_typaram, var_typaram) -> substitute unk_arena adt_typaram (Type.Type'Variable var_typaram) ty) ty (zip adt_type_params var_type_params)
+            Type.ADT.Variant'Named _ _ _ -> error "bound value should not be made for a named adt variant" -- TODO: statically make sure this cant happen?
+            Type.ADT.Variant'Anon _ _ fields ->
+                let change_type_params ty = foldl' (\ ty (adt_typaram, var_typaram) -> substitute unk_arena adt_typaram (Type.Type'QuantVar var_typaram) ty) ty (zip adt_type_params var_type_params)
                     arg_tys = map (change_type_params . snd . snd) fields
                     wrap_in_forall = case var_type_params of
                         [] -> identity
                         param:more -> Type.Type'Forall (param :| more)
-                 in wrap_in_forall $ foldr Type.Type'Function (Type.Type'ADT adt_key (map Type.Type'Variable var_type_params)) arg_tys -- function type that takes all the field types and then results in the adt type
+                 in wrap_in_forall $ foldr Type.Type'Function (Type.Type'ADT adt_key (map Type.Type'QuantVar var_type_params)) arg_tys -- function type that takes all the field types and then results in the adt type
     pure $ SIR.Variable'ADTVariant id variant_index var_type_params ty def_span
 
 module_ :: UntypedModule -> ContextReader TypedWithInferVarsVariableArena TypedWithInferVarsADTArena TypedWithInferVarsModule
 module_ (SIR.Module id bindings adts type_synonyms) = SIR.Module id <$> mapM binding bindings <*> pure adts <*> pure type_synonyms
 
 adt :: UntypedADT -> ContextReader vars adts TypedWithInferVarsADT
-adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM convert_variant variants
+adt (Type.ADT id name quant_vars variants) = Type.ADT id name quant_vars <$> mapM convert_variant variants
     where
-        convert_variant (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id <$> mapM (\ (id, name, (ty_expr, ty)) -> type_expr ty_expr >>= \ ty_expr -> nothing_to_unk (TypeExpr $ SIR.type_expr_span ty_expr) ty >>= \ ty -> pure (id, name, (ty_expr, ty))) fields
-        convert_variant (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id <$> mapM (\ (id, (ty_expr, ty)) -> type_expr ty_expr >>= \ ty_expr -> nothing_to_unk (TypeExpr $ SIR.type_expr_span ty_expr) ty >>= \ ty -> pure (id, (ty_expr, ty))) fields
+        convert_variant (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id <$> mapM (\ (id, name, (ty_expr, ty)) -> type_expr ty_expr >>= \ ty_expr -> nothing_to_unk (TypeExpr $ SIR.type_expr_span ty_expr) ty >>= \ ty -> pure (id, name, (ty_expr, ty))) fields
+        convert_variant (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id <$> mapM (\ (id, (ty_expr, ty)) -> type_expr ty_expr >>= \ ty_expr -> nothing_to_unk (TypeExpr $ SIR.type_expr_span ty_expr) ty >>= \ ty -> pure (id, (ty_expr, ty))) fields
 
 type_synonym :: UntypedTypeSynonym -> ContextReader vars adts TypedWithInferVarsTypeSynonym
 type_synonym (Type.TypeSynonym id name (expansion, exp_as_type)) = type_expr expansion >>= \ expansion -> nothing_to_unk (TypeExpr $ SIR.type_expr_span expansion) exp_as_type >>= \ exp_as_type -> pure (Type.TypeSynonym id name (expansion, exp_as_type))
@@ -148,12 +149,12 @@ pattern (SIR.Pattern'AnonADTVariant () sp variant_iden Nothing _ fields) =
     Type.Type'InferVar <$> lift (lift $ new_type_unknown (UnresolvedADTVariantPattern sp)) >>= \ ty ->
     split_iden variant_iden >>= \ variant_iden ->
     pure (SIR.Pattern'AnonADTVariant ty sp variant_iden Nothing [] fields)
-pattern (SIR.Pattern'AnonADTVariant () sp variant_iden (Just variant_index@(Type.ADTVariantIndex adt_key _)) _ fields) =
+pattern (SIR.Pattern'AnonADTVariant () sp variant_iden (Just variant_index@(Type.ADT.VariantIndex adt_key _)) _ fields) =
     mapM pattern fields >>= \ pattern_fields ->
 
     ask >>= \ (_, adts) ->
     let Type.ADT _ _ type_params _ = Arena.get adts adt_key
-        variant = Type.get_adt_variant adts variant_index
+        variant = Type.ADT.get_variant adts variant_index
     in
 
     mapM (\ var -> Type.Type'InferVar <$> lift (lift $ new_type_unknown $ ImplicitTyParam sp {- var TODO -})) type_params >>= \ type_param_unks -> -- TODO: declared span
@@ -163,7 +164,7 @@ pattern (SIR.Pattern'AnonADTVariant () sp variant_iden (Just variant_index@(Type
         whole_pat_type = Type.Type'ADT adt_key type_param_unks
 
     in case variant of
-         Type.ADTVariant'Anon _ _ variant_fields ->
+         Type.ADT.Variant'Anon _ _ variant_fields ->
             let variant_field_tys_substituted = map (substitute_adt_params . snd . snd) variant_fields
             in if length pattern_fields /= length variant_field_tys_substituted
                 then error "wrong number of fields in anonymous variant pattern" -- TODO: report proper error
@@ -173,7 +174,7 @@ pattern (SIR.Pattern'AnonADTVariant () sp variant_iden (Just variant_index@(Type
                             lift (tell [Expect InADTVariantPatternField (loc_pat_type pat_field) variant_field_ty]))
                         pattern_fields
                         variant_field_tys_substituted
-         Type.ADTVariant'Named _ _ _ -> error "named variant pattern used with anonymous variant" -- TODO: also report proper error
+         Type.ADT.Variant'Named _ _ _ -> error "named variant pattern used with anonymous variant" -- TODO: also report proper error
         >>
 
     split_iden variant_iden >>= \ variant_iden ->

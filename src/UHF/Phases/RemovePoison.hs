@@ -2,9 +2,10 @@ module UHF.Phases.RemovePoison (remove_poison) where
 
 import UHF.Prelude
 
-import qualified UHF.Util.Arena as Arena
 import qualified UHF.Data.BackendIR as BackendIR
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.Type.ADT as Type.ADT
+import qualified UHF.Util.Arena as Arena
 
 type PoisonedBackendIR = BackendIR.BackendIR PoisonedType ()
 type PoisonedType = Maybe (Type.Type Void)
@@ -37,8 +38,8 @@ remove_poison (BackendIR.BackendIR adts type_synonyms type_vars bindings params 
 rp_adt :: PoisonedADT -> Maybe NoPoisonADT
 rp_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM rp_variant variants
     where
-        rp_variant (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id <$> mapM (\ (field_id, field_name, field_ty) -> (field_id, field_name,) <$> field_ty) fields
-        rp_variant (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id <$> mapM (\ (field_id, field_ty) -> (field_id,) <$> field_ty) fields
+        rp_variant (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id <$> mapM (\ (field_id, field_name, field_ty) -> (field_id, field_name,) <$> field_ty) fields
+        rp_variant (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id <$> mapM (\ (field_id, field_ty) -> (field_id,) <$> field_ty) fields
 
 rp_type_synonym :: PoisonedTypeSynonym -> Maybe NoPoisonTypeSynonym
 rp_type_synonym (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name <$> expansion

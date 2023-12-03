@@ -16,7 +16,7 @@ import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Util.Arena as Arena
 
-type TypeContextReader = ReaderT (TypedWithInferVarsADTArena, TypedWithInferVarsTypeSynonymArena, TypeVarArena)
+type TypeContextReader = ReaderT (TypedWithInferVarsADTArena, TypedWithInferVarsTypeSynonymArena, QuantVarArena)
 
 get_error_type_context :: TypeContextReader StateWithInferVars ErrorTypeContext
 get_error_type_context =
@@ -34,14 +34,14 @@ data Solve1Result
     | Defer
 
 type VarSubGenerator = StateT VarSub
-type VarSubMap = Map.Map Type.TypeVarKey VarSub
+type VarSubMap = Map.Map Type.QuantVarKey VarSub
 newtype VarSub = VarSub Int deriving Eq
 generate_var_sub :: Applicative m => VarSubGenerator m VarSub
 generate_var_sub = StateT $ \ cur_var@(VarSub cur_num) -> pure (cur_var, VarSub $ cur_num + 1)
 run_var_sub_generator :: Monad m => VarSubGenerator m r -> m r
 run_var_sub_generator s = evalStateT s (VarSub 0)
 
-solve :: TypedWithInferVarsADTArena -> TypedWithInferVarsTypeSynonymArena -> TypeVarArena -> [Constraint] -> StateWithInferVars [Constraint]
+solve :: TypedWithInferVarsADTArena -> TypedWithInferVarsTypeSynonymArena -> QuantVarArena -> [Constraint] -> StateWithInferVars [Constraint]
 solve adts type_synonyms vars constraints = runReaderT (solve' constraints) (adts, type_synonyms, vars)
     where
         solve' constraints = do
@@ -123,7 +123,7 @@ apply_ty sp ty@Type.Type'String _ = Just <$> (Left <$> (DoesNotTakeTypeArgument 
 apply_ty sp ty@Type.Type'Bool _ = Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty))
 apply_ty sp ty@(Type.Type'Function _ _) _ = Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty))
 apply_ty sp ty@(Type.Type'Tuple _ _) _ = Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty))
-apply_ty sp ty@(Type.Type'Variable _) _ = Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty)) -- TODO: higher kinded variables
+apply_ty sp ty@(Type.Type'QuantVar _) _ = Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty)) -- TODO: higher kinded variables
 apply_ty _ (Type.Type'Forall (first_var :| more_vars) ty) arg =
     -- TODO: check kind of first_var when higher kinded variables are implemented
     case more_vars of
@@ -165,7 +165,7 @@ unify (Type.Type'Tuple a1 b1, var_map_1) (Type.Type'Tuple a2 b2, var_map_2) = un
 -- variables are carefully constructed to be unique for every forall
 -- for example if '#(T)' appears twice in a source file then both T's are created twice and have different keys in the type var arena so that each one unifies with itself but not with the other
 -- implicitly generated expressions that contain #(...) (for example the constructor functions of adts) also create new variables
-unify (a@(Type.Type'Variable v1), var_map_1) (b@(Type.Type'Variable v2), var_map_2)
+unify (a@(Type.Type'QuantVar v1), var_map_1) (b@(Type.Type'QuantVar v2), var_map_2)
     | v1 == v2 = pure ()
     | otherwise =
         let var_1 = Map.lookup v1 var_map_1
@@ -247,5 +247,5 @@ occurs_check _ Type.Type'String = pure False
 occurs_check _ Type.Type'Bool = pure False
 occurs_check u (Type.Type'Function a r) = (||) <$> occurs_check u a <*> occurs_check u r
 occurs_check u (Type.Type'Tuple a b) = (||) <$> occurs_check u a <*> occurs_check u b
-occurs_check _ (Type.Type'Variable _) = pure False
+occurs_check _ (Type.Type'QuantVar _) = pure False
 occurs_check u (Type.Type'Forall _ ty) = occurs_check u ty

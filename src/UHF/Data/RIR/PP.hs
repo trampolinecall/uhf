@@ -3,13 +3,14 @@ module UHF.Data.RIR.PP (dump_cu) where
 import UHF.Prelude
 
 import UHF.Source.Located (Located (Located, unlocate))
-import qualified UHF.Util.Arena as Arena
 import qualified UHF.Data.IR.ID as ID
-import qualified UHF.Data.RIR as RIR
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.Type.PP as Type.PP
+import qualified UHF.Data.RIR as RIR
 import qualified UHF.PP as PP
 import qualified UHF.PP.Precedence as PP.Precedence
+import qualified UHF.Util.Arena as Arena
 
 -- TODO: dump types too
 
@@ -19,7 +20,7 @@ get_adt_arena :: IRReader (Arena.Arena (Type.ADT (Maybe (Type.Type Void))) Type.
 get_adt_arena = reader (\ (RIR.RIR adts _ _ _ _) -> adts)
 get_type_synonym_arena :: IRReader (Arena.Arena (Type.TypeSynonym (Maybe (Type.Type Void))) Type.TypeSynonymKey)
 get_type_synonym_arena = reader (\ (RIR.RIR _ syns _ _ _) -> syns)
-get_type_var_arena :: IRReader (Arena.Arena Type.Var Type.TypeVarKey)
+get_type_var_arena :: IRReader (Arena.Arena Type.QuantVar Type.QuantVarKey)
 get_type_var_arena = reader (\ (RIR.RIR _ _ vars _ _) -> vars)
 
 get_adt :: Type.ADTKey -> IRReader (Type.ADT (Maybe (Type.Type Void)))
@@ -28,7 +29,7 @@ get_type_synonym :: Type.TypeSynonymKey -> IRReader (Type.TypeSynonym (Maybe (Ty
 get_type_synonym k = reader (\ (RIR.RIR _ type_synonyms _ _ _) -> Arena.get type_synonyms k)
 get_var :: RIR.VariableKey -> IRReader RIR.Variable
 get_var k = reader (\ (RIR.RIR _ _ _ vars _) -> Arena.get vars k)
-get_type_var :: Type.TypeVarKey -> IRReader Type.Var
+get_type_var :: Type.QuantVarKey -> IRReader Type.QuantVar
 get_type_var k = reader (\ (RIR.RIR _ _ type_vars _ _) -> Arena.get type_vars k)
 
 dump_cu :: RIR.RIR -> Text
@@ -59,8 +60,8 @@ define_binding (RIR.Binding var_key e) =
 refer_var :: RIR.VariableKey -> IRReader PP.Token
 refer_var var_key = get_var var_key >>= \ (RIR.Variable id _ _) -> pure (PP.String (ID.stringify id))
 
-type_var :: Type.TypeVarKey -> IRReader PP.Token
-type_var k = get_type_var k >>= \ (Type.Var (Located _ name)) -> pure (PP.String name)
+type_var :: Type.QuantVarKey -> IRReader PP.Token
+type_var k = get_type_var k >>= \ (Type.QuantVar (Located _ name)) -> pure (PP.String name)
 
 expr :: RIR.Expr -> IRReader PP.Token
 expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
@@ -79,13 +80,13 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
 
         levels (RIR.Expr'Tuple _ _ a b) = (1, \ _ _ -> expr a >>= \ a -> expr b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b]))
 
-        levels (RIR.Expr'MakeADT _ _ variant_index@(Type.ADTVariantIndex adt_key _) tyargs args) =
+        levels (RIR.Expr'MakeADT _ _ variant_index@(Type.ADT.VariantIndex adt_key _) tyargs args) =
             ( 1
             , \ _ _ -> Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
-                Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
+                Type.ADT.get_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
                 mapM expr args >>= \ args ->
                 mapM refer_m_type tyargs >>= \ tyargs ->
-                let variant_name = Type.variant_name variant
+                let variant_name = Type.ADT.variant_name variant
                 in pure $ PP.FirstOnLineIfMultiline $ PP.List ["adt ", adt_refer, " ", PP.String $ unlocate variant_name, "#", PP.parenthesized_comma_list PP.Inconsistent tyargs, PP.bracketed_comma_list PP.Inconsistent args]
             )
 
@@ -114,10 +115,10 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
                 pp_matcher (RIR.Match'AnonADTVariant m_variant) =
                     maybe
                         (pure "<name resolution error>")
-                        (\ variant_index@(Type.ADTVariantIndex adt_key _) ->
+                        (\ variant_index@(Type.ADT.VariantIndex adt_key _) ->
                             Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
-                            Type.get_adt_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
-                            let variant_name = Type.variant_name variant
+                            Type.ADT.get_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
+                            let variant_name = Type.ADT.variant_name variant
                             in pure $ PP.List [adt_refer, " ", PP.String $ unlocate variant_name]
                         )
                         m_variant
@@ -130,10 +131,10 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
                     -- TODO: unduplicate this?
                     maybe
                         (pure ("<error>", "<error>"))
-                        (\ (Type.ADTFieldIndex variant_idx@(Type.ADTVariantIndex adt_key _) field_idx) ->
+                        (\ (Type.ADT.FieldIndex variant_idx@(Type.ADT.VariantIndex adt_key _) field_idx) ->
                             Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
-                            Type.get_adt_variant <$> get_adt_arena <*> pure variant_idx >>= \ variant ->
-                            let variant_name = Type.variant_name variant
+                            Type.ADT.get_variant <$> get_adt_arena <*> pure variant_idx >>= \ variant ->
+                            let variant_name = Type.ADT.variant_name variant
                             in pure (PP.List [adt_refer, " ", PP.String $ unlocate variant_name], PP.String $ show field_idx)
                         )
                         m_field >>= \ (refer_variant, field_idx) ->

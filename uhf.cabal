@@ -24,7 +24,10 @@ library
       UHF.Data.IR.IDGen
       UHF.Data.IR.Keys
       UHF.Data.IR.Type
+      UHF.Data.IR.Type.ADT
       UHF.Data.IR.Type.PP
+      UHF.Data.IR.Type.QuantVar
+      UHF.Data.IR.Type.Synonym
       UHF.Data.RIR
       UHF.Data.RIR.PP
       UHF.Data.SIR

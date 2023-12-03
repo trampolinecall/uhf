@@ -48,6 +48,7 @@ import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Diagnostic as Diagnostic
+import qualified UHF.Phases.SolveTypes.Solver.TypeWithInferVar as TypeWithInferVar -- TODO: organize these modules better
 import qualified UHF.Util.Arena as Arena
 
 -- errors {{{1
@@ -87,15 +88,15 @@ instance Diagnostic.ToError Error where
 -- child/name maps {{{1
 -- these are very similar datatypes; the difference between them is conceptual: ChildMaps is a map that tells what the children of a certain entity are, whereas a NameMap just stores what names are currently in scope (and is only used for resolving roots)
 -- this is also why there is a NameMapStack but not a ChildMapStack
-data ChildMaps = ChildMaps (Map.Map Text SIR.Decl) (Map.Map Text SIR.VariableKey) (Map.Map Text Type.ADT.VariantIndex) deriving Show
-data NameMaps = NameMaps (Map.Map Text SIR.Decl) (Map.Map Text SIR.VariableKey) (Map.Map Text Type.ADT.VariantIndex) deriving Show
+data ChildMaps = ChildMaps (Map.Map Text (SIR.Decl TypeWithInferVar.Type)) (Map.Map Text SIR.VariableKey) (Map.Map Text Type.ADT.VariantIndex) deriving Show
+data NameMaps = NameMaps (Map.Map Text (SIR.Decl TypeWithInferVar.Type)) (Map.Map Text SIR.VariableKey) (Map.Map Text Type.ADT.VariantIndex) deriving Show
 data NameMapStack = NameMapStack NameMaps (Maybe NameMapStack)
 
 -- TODO: do not export this
 data DeclAt = DeclAt Span | ImplicitPrim deriving Show
 
 -- TODO: do not export these
-type DeclChildrenList = [(Text, DeclAt, SIR.Decl)]
+type DeclChildrenList = [(Text, DeclAt, SIR.Decl TypeWithInferVar.Type)]
 type VariableList = [(Text, DeclAt, SIR.VariableKey)]
 type ADTVariantList = [(Text, DeclAt, Type.ADT.VariantIndex)]
 
@@ -141,7 +142,7 @@ make_name_maps_from_decls type_synonym_arena bindings adts type_synonyms =
                 & map
                     (\ adt ->
                         let (Type.ADT _ (Located name_sp name) _ _) = Arena.get adt_arena adt
-                            adt_decl_key = SIR.Decl'Type $ Type.Type'ADT adt []
+                            adt_decl_key = SIR.Decl'Type $ TypeWithInferVar.Type'ADT adt []
                         in ([(name, DeclAt name_sp, adt_decl_key)], [], []) -- constructor vars and variants handled by adt variant bindings, TODO: make it not the case so that this can deal with named variants too
                     )
                 & unzip3
@@ -150,7 +151,7 @@ make_name_maps_from_decls type_synonym_arena bindings adts type_synonyms =
                 & map
                     (\ synonym ->
                         let (Type.TypeSynonym _ (Located name_sp name) _) = Arena.get type_synonym_arena synonym
-                            synonym_decl_key = SIR.Decl'Type $ Type.Type'Synonym synonym
+                            synonym_decl_key = SIR.Decl'Type $ TypeWithInferVar.Type'Synonym synonym
                         in ([(name, DeclAt name_sp, synonym_decl_key)], [], [])
                     )
                 & unzip3
@@ -163,11 +164,11 @@ collect_child_maps :: SIR.SIR stage -> WithErrors SIRChildMaps
 collect_child_maps (SIR.SIR mod_arena adt_arena type_synonym_arena _ variable_arena _) = SIRChildMaps <$> Arena.transformM go mod_arena
     where
         primitive_decls =
-                [ ("int", ImplicitPrim, SIR.Decl'Type Type.Type'Int)
-                , ("float", ImplicitPrim, SIR.Decl'Type Type.Type'Float)
-                , ("char", ImplicitPrim, SIR.Decl'Type Type.Type'Char)
-                , ("string", ImplicitPrim, SIR.Decl'Type Type.Type'String)
-                , ("bool", ImplicitPrim, SIR.Decl'Type Type.Type'Bool)
+                [ ("int", ImplicitPrim, SIR.Decl'Type TypeWithInferVar.Type'Int)
+                , ("float", ImplicitPrim, SIR.Decl'Type TypeWithInferVar.Type'Float)
+                , ("char", ImplicitPrim, SIR.Decl'Type TypeWithInferVar.Type'Char)
+                , ("string", ImplicitPrim, SIR.Decl'Type TypeWithInferVar.Type'String)
+                , ("bool", ImplicitPrim, SIR.Decl'Type TypeWithInferVar.Type'Bool)
                 ]
         primitive_vars = []
 
@@ -180,7 +181,7 @@ collect_child_maps (SIR.SIR mod_arena adt_arena type_synonym_arena _ variable_ar
                         & map
                             (\ adt ->
                                 let (Type.ADT _ (Located name_sp name) _ _) = Arena.get adt_arena adt
-                                    adt_decl_key = SIR.Decl'Type $ Type.Type'ADT adt []
+                                    adt_decl_key = SIR.Decl'Type $ TypeWithInferVar.Type'ADT adt []
                                 in ([(name, DeclAt name_sp, adt_decl_key)], [], [])) -- constructor vars and variants handled by adt variant bindings, TODO: make it not the case so that this can deal with named variants too
                         & unzip3
 
@@ -189,7 +190,7 @@ collect_child_maps (SIR.SIR mod_arena adt_arena type_synonym_arena _ variable_ar
                         & map
                             (\ synonym ->
                                 let (Type.TypeSynonym _ (Located name_sp name) _) = Arena.get type_synonym_arena synonym
-                                    synonym_decl_key = SIR.Decl'Type $ Type.Type'Synonym synonym
+                                    synonym_decl_key = SIR.Decl'Type $ TypeWithInferVar.Type'Synonym synonym
                                 in ([(name, DeclAt name_sp, synonym_decl_key)], [], []))
                         & unzip3
             in name_maps_to_child_maps
@@ -228,7 +229,7 @@ var_name var_key =
 
 -- getting from child maps {{{2
 -- TODO: remove duplication from these
-get_decl_child :: SIRChildMaps -> SIR.Decl -> Located Text -> Either Error SIR.Decl
+get_decl_child :: SIRChildMaps -> SIR.Decl TypeWithInferVar.Type -> Located Text -> Either Error (SIR.Decl TypeWithInferVar.Type)
 get_decl_child sir_child_maps decl name =
     let res = case decl of
             SIR.Decl'Module m ->
@@ -240,7 +241,7 @@ get_decl_child sir_child_maps decl name =
         Just res -> Right res
         Nothing -> Left $ Error'CouldNotFindIn Nothing name -- TODO: put previous
 
-get_value_child :: SIRChildMaps -> SIR.Decl -> Located Text -> Either Error SIR.VariableKey
+get_value_child :: SIRChildMaps -> SIR.Decl TypeWithInferVar.Type -> Located Text -> Either Error SIR.VariableKey
 get_value_child sir_child_maps decl name =
     let res = case decl of
             SIR.Decl'Module m ->
@@ -252,7 +253,7 @@ get_value_child sir_child_maps decl name =
         Just res -> Right res
         Nothing -> Left $ Error'CouldNotFindIn Nothing name -- TODO: put previous
 
-get_variant_child :: SIRChildMaps -> SIR.Decl -> Located Text -> Either Error Type.ADT.VariantIndex
+get_variant_child :: SIRChildMaps -> SIR.Decl TypeWithInferVar.Type -> Located Text -> Either Error Type.ADT.VariantIndex
 get_variant_child sir_child_maps decl name =
     let res = case decl of
             SIR.Decl'Module m ->

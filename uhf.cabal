@@ -69,6 +69,7 @@ library
       UHF.Phases.SolveTypes.Solver.Constraint
       UHF.Phases.SolveTypes.Solver.Solve
       UHF.Phases.SolveTypes.Solver.TypeWithInferVar
+      UHF.Phases.SolveTypes.Solver.Utils
       UHF.Phases.SolveTypes.StateWithInferVars
       UHF.Phases.SolveTypes.Utils
       UHF.Phases.ToANFIR

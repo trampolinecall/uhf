@@ -151,7 +151,7 @@ refer_type_raw Type.Type'String = pure $ TS.Type'Reference $ TS.TypeReference "U
 refer_type_raw Type.Type'Bool = pure $ TS.Type'Reference $ TS.TypeReference "Bool" []
 refer_type_raw (Type.Type'Function a r) = refer_type_raw a >>= \ a -> refer_type_raw r >>= \ r -> pure (TS.Type'Reference $ TS.TypeReference "Lambda" [a, r])
 refer_type_raw (Type.Type'Tuple a b) = refer_type_raw a >>= \ a -> refer_type_raw b >>= \ b -> pure (TS.Type'Reference $ TS.TypeReference "Tuple" [a, b])
-refer_type_raw (Type.Type'Unknown void) = absurd void
+refer_type_raw (Type.Type'InferVar void) = absurd void
 refer_type_raw (Type.Type'Variable _) = pure $ TS.Type'Reference $ TS.TypeReference "any" [] -- best approximation
 refer_type_raw (Type.Type'Forall _ t) = refer_type_raw t
 

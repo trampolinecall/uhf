@@ -112,7 +112,7 @@ check adt_arena type_synonym_arena = mapAccumL check_one_pattern [Any]
                 enumerate_adt_ctors_and_fields Type.Type'Bool = error_for_enumerate_adt_ctors_and_fields "Type'Bool"
                 enumerate_adt_ctors_and_fields (Type.Type'Function _ _) = error_for_enumerate_adt_ctors_and_fields "Type'Function"
                 enumerate_adt_ctors_and_fields (Type.Type'Tuple _ _) = error_for_enumerate_adt_ctors_and_fields "Type'Tuple"
-                enumerate_adt_ctors_and_fields (Type.Type'Unknown v) = absurd v
+                enumerate_adt_ctors_and_fields (Type.Type'InferVar v) = absurd v
                 enumerate_adt_ctors_and_fields (Type.Type'Variable _) = error_for_enumerate_adt_ctors_and_fields "Type'Variable"
                 enumerate_adt_ctors_and_fields (Type.Type'Forall _ _) = error_for_enumerate_adt_ctors_and_fields "Type'Forall"
 

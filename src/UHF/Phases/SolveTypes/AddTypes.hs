@@ -43,7 +43,7 @@ get_var_type var = do
 -- "
 -- but it really should produce an error at `thing(0)` saying that thing takes a string and not an int
 -- (this happens because bindings are processed in order and the constraint from 'thing(0)' is processed before the constraint from 'thing = ...')
---
+
 add :: UntypedModuleArena -> UntypedADTArena -> UntypedTypeSynonymArena -> UntypedVariableArena -> WriterT [Constraint] StateWithInferVars (TypedWithInferVarsModuleArena, TypedWithInferVarsADTArena, TypedWithInferVarsTypeSynonymArena, TypedWithInferVarsVariableArena)
 add mods adts type_synonyms variables =
     runReaderT (

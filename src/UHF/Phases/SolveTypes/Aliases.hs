@@ -1,11 +1,11 @@
-module UHF.Phases.Type.Aliases where
+module UHF.Phases.SolveTypes.Aliases where
 
 import UHF.Prelude
 
 import qualified UHF.Util.Arena as Arena
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
-import qualified UHF.Phases.Type.Unknown as Unknown
+import qualified UHF.Phases.SolveTypes.Solver.Unknown as Unknown
 
 type TypeWithUnk = Type.Type Unknown.TypeUnknownKey
 type Type = Type.Type Void

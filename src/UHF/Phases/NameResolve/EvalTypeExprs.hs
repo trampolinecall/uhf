@@ -14,7 +14,7 @@ import qualified UHF.Phases.NameResolve.Utils as Utils
 
 -- TODO: change errors, clean up this whole module
 
-type VIdenStart = Maybe SIR.BoundValueKey
+type VIdenStart = Maybe SIR.VariableKey
 type PIdenStart = Maybe Type.ADTVariantIndex
 
 type EvaledDIden = Maybe SIR.Decl
@@ -34,7 +34,7 @@ type UnevaledPattern = SIR.Pattern Unevaled
 type UnevaledModuleArena = Arena.Arena UnevaledModule SIR.ModuleKey
 type UnevaledADTArena = Arena.Arena UnevaledADT Type.ADTKey
 type UnevaledTypeSynonymArena = Arena.Arena UnevaledTypeSynonym Type.TypeSynonymKey
-type UnevaledBoundValueArena = Arena.Arena (SIR.BoundValue Unevaled) SIR.BoundValueKey
+type UnevaledVariableArena = Arena.Arena (SIR.Variable Unevaled) SIR.VariableKey
 
 type Evaled = (EvaledDIden, EvaledDIden, Maybe (Type.Type Void), VIdenStart, (), PIdenStart, (), (), ())
 
@@ -59,11 +59,11 @@ eval sir_child_maps (SIR.SIR mods adts type_synonyms type_vars bound_values mod)
     runReaderT (eval_in_type_synonyms type_synonyms) ((), (), (), sir_child_maps) >>= \ synonyms ->
     pure (SIR.SIR mods adts synonyms type_vars (Arena.transform change_bound_value bound_values) mod)
     where
-        change_bound_value (SIR.BoundValue bvid tyinfo n) = SIR.BoundValue bvid tyinfo n
-        change_bound_value (SIR.BoundValue'ADTVariant bvid id tyvars tyinfo sp) = SIR.BoundValue'ADTVariant bvid id tyvars tyinfo sp
+        change_bound_value (SIR.Variable bvid tyinfo n) = SIR.Variable bvid tyinfo n
+        change_bound_value (SIR.Variable'ADTVariant bvid id tyvars tyinfo sp) = SIR.Variable'ADTVariant bvid id tyvars tyinfo sp
 
 -- resolving through sir {{{1
-eval_in_mods :: UnevaledModuleArena -> (Utils.NRReader UnevaledADTArena UnevaledBoundValueArena type_var_arena Utils.SIRChildMaps Utils.WithErrors) EvaledModuleArena
+eval_in_mods :: UnevaledModuleArena -> (Utils.NRReader UnevaledADTArena UnevaledVariableArena type_var_arena Utils.SIRChildMaps Utils.WithErrors) EvaledModuleArena
 eval_in_mods = Arena.transformM eval_in_module
 
 eval_in_adts :: UnevaledADTArena -> (Utils.NRReader adt_arena bv_arena type_var_arena Utils.SIRChildMaps Utils.WithErrors) EvaledADTArena
@@ -72,7 +72,7 @@ eval_in_adts = Arena.transformM eval_in_adt
 eval_in_type_synonyms :: UnevaledTypeSynonymArena -> (Utils.NRReader adt_arena bv_arena type_var_arena Utils.SIRChildMaps Utils.WithErrors) EvaledTypeSynonymArena
 eval_in_type_synonyms = Arena.transformM eval_in_type_synonym
 
-eval_in_module :: UnevaledModule -> Utils.NRReader UnevaledADTArena UnevaledBoundValueArena type_var_arena Utils.SIRChildMaps Utils.WithErrors EvaledModule
+eval_in_module :: UnevaledModule -> Utils.NRReader UnevaledADTArena UnevaledVariableArena type_var_arena Utils.SIRChildMaps Utils.WithErrors EvaledModule
 eval_in_module (SIR.Module id bindings adts type_synonyms) = SIR.Module id <$> mapM eval_in_binding bindings <*> pure adts <*> pure type_synonyms
 
 eval_in_adt :: UnevaledADT -> (Utils.NRReader adt_arena bv_arena type_var_arena Utils.SIRChildMaps Utils.WithErrors) EvaledADT
@@ -87,7 +87,7 @@ eval_in_type_synonym (Type.TypeSynonym id name (expansion, ())) =
     lift (evaled_as_type expansion) >>= \ expansion_as_type ->
     pure (Type.TypeSynonym id name (expansion, expansion_as_type))
 
-eval_in_binding :: UnevaledBinding -> (Utils.NRReader UnevaledADTArena UnevaledBoundValueArena type_var_arena Utils.SIRChildMaps Utils.WithErrors) EvaledBinding
+eval_in_binding :: UnevaledBinding -> (Utils.NRReader UnevaledADTArena UnevaledVariableArena type_var_arena Utils.SIRChildMaps Utils.WithErrors) EvaledBinding
 eval_in_binding (SIR.Binding target eq_sp expr) = SIR.Binding <$> eval_in_pat target <*> pure eq_sp <*> eval_in_expr expr
 eval_in_binding (SIR.Binding'ADTVariant bvk variant vars sp) = pure $ SIR.Binding'ADTVariant bvk variant vars sp
 
@@ -141,7 +141,7 @@ eval_in_pat (SIR.Pattern'AnonADTVariant type_info sp variant_split_iden () tyarg
 eval_in_pat (SIR.Pattern'NamedADTVariant type_info sp variant_split_iden () tyargs subpat) = SIR.Pattern'NamedADTVariant type_info sp <$> eval_split_iden variant_split_iden <*> pure () <*> pure tyargs <*> mapM (\ (field_name, field_pat) -> (field_name,) <$> eval_in_pat field_pat) subpat
 eval_in_pat (SIR.Pattern'Poison type_info sp) = pure $ SIR.Pattern'Poison type_info sp
 
-eval_in_expr :: UnevaledExpr -> (Utils.NRReader UnevaledADTArena UnevaledBoundValueArena type_var_arena Utils.SIRChildMaps Utils.WithErrors) EvaledExpr
+eval_in_expr :: UnevaledExpr -> (Utils.NRReader UnevaledADTArena UnevaledVariableArena type_var_arena Utils.SIRChildMaps Utils.WithErrors) EvaledExpr
 eval_in_expr (SIR.Expr'Identifier id type_info sp iden_split ()) = SIR.Expr'Identifier id type_info sp <$> eval_split_iden iden_split <*> pure ()
 eval_in_expr (SIR.Expr'Char id type_info sp c) = pure $ SIR.Expr'Char id type_info sp c
 eval_in_expr (SIR.Expr'String id type_info sp s) = pure $ SIR.Expr'String id type_info sp s

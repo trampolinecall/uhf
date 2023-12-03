@@ -13,14 +13,14 @@ import qualified UHF.Phases.Type.SolveConstraints as SolveConstraints
 
 -- also does type inference
 typecheck :: UntypedSIR -> Compiler.WithDiagnostics Error Void TypedSIR
-typecheck (SIR.SIR mods adts type_synonyms type_vars bound_values mod) = -- TODO: do not destructure ir?
+typecheck (SIR.SIR mods adts type_synonyms type_vars variables mod) = -- TODO: do not destructure ir?
     runStateT
         (
-            runWriterT (AddTypes.add mods adts type_synonyms bound_values) >>= \ ((mods, adts, type_synonyms, bound_values), constraints) ->
+            runWriterT (AddTypes.add mods adts type_synonyms variables) >>= \ ((mods, adts, type_synonyms, variables), constraints) ->
             SolveConstraints.solve adts type_synonyms type_vars constraints >>
-            pure (mods, adts, type_synonyms, bound_values)
+            pure (mods, adts, type_synonyms, variables)
         )
-        Arena.new >>= \ ((mods, adts, type_synonyms, bound_values), vars) ->
+        Arena.new >>= \ ((mods, adts, type_synonyms, variables), vars) ->
 
-    RemoveUnknowns.remove vars mods adts type_synonyms bound_values >>= \ (mods, adts, type_synonyms, bound_values) ->
-    pure (SIR.SIR mods adts type_synonyms type_vars bound_values mod)
+    RemoveUnknowns.remove vars mods adts type_synonyms variables >>= \ (mods, adts, type_synonyms, variables) ->
+    pure (SIR.SIR mods adts type_synonyms type_vars variables mod)

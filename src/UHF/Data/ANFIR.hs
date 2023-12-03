@@ -48,7 +48,7 @@ data ANFIR
 -- "compilation unit"
 data CU = CU BindingGroup [ADTKey] [TypeSynonymKey]
 
-data Param = Param ID.BoundValueID (Maybe (Type.Type Void)) deriving Show
+data Param = Param ID.VariableID (Maybe (Type.Type Void)) deriving Show
 
 data BindingChunk
     = SingleBinding BindingKey
@@ -58,14 +58,14 @@ data Binding = Binding { binding_initializer :: Expr } deriving Show
 
 data ID
     = ExprID ID.ExprID
-    | BVID ID.BoundValueID
+    | VarID ID.VariableID
     deriving Show
 mangle_id :: ID -> Text
 mangle_id (ExprID id) = ID.mangle id
-mangle_id (BVID id) = ID.mangle id
+mangle_id (VarID id) = ID.mangle id
 stringify_id :: ID -> Text
 stringify_id (ExprID id) = ID.stringify id
-stringify_id (BVID id) = ID.stringify id
+stringify_id (VarID id) = ID.stringify id
 
 data Expr
     = Expr'Refer ID (Maybe (Type.Type Void)) BindingKey

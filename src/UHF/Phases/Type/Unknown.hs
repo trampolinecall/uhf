@@ -23,7 +23,7 @@ type TypeUnknownArena = Arena.Arena TypeUnknown TypeUnknownKey
 
 data TypeUnknown = TypeUnknown TypeUnknownForWhat TypeUnknownState
 data TypeUnknownForWhat
-    = BoundValue Span
+    = Variable Span
     | UnresolvedIdenExpr Span
     | CallExpr Span
     | MatchExpr Span
@@ -40,7 +40,7 @@ data TypeUnknownForWhat
 data TypeUnknownState = Fresh | Substituted (Type.Type TypeUnknownKey)
 
 type_unk_for_what_sp :: TypeUnknownForWhat -> Span
-type_unk_for_what_sp (BoundValue sp) = sp
+type_unk_for_what_sp (Variable sp) = sp
 type_unk_for_what_sp (UnresolvedIdenExpr sp) = sp
 type_unk_for_what_sp (CallExpr sp) = sp
 type_unk_for_what_sp (MatchExpr sp) = sp
@@ -56,7 +56,7 @@ type_unk_for_what_sp (ImplicitTyParam sp) = sp
 type_unk_for_what_sp (SomeError sp) = sp
 
 type_unk_for_what_name :: TypeUnknownForWhat -> Text
-type_unk_for_what_name (BoundValue _) = "binding"
+type_unk_for_what_name (Variable _) = "binding"
 type_unk_for_what_name (UnresolvedIdenExpr _) = "identifier expression"
 type_unk_for_what_name (CallExpr _) = "call expression"
 type_unk_for_what_name (MatchExpr _) = "match expression"

@@ -37,7 +37,7 @@ get_type_synonym_arena = reader (\ (SIR.SIR _ _ syns _ _ _) -> syns)
 get_type_var_arena :: IRReader stage (Arena.Arena Type.Var Type.TypeVarKey)
 get_type_var_arena = reader (\ (SIR.SIR _ _ _ vars _ _) -> vars)
 
-get_bv :: SIR.BoundValueKey -> IRReader stage (SIR.BoundValue stage)
+get_bv :: SIR.VariableKey -> IRReader stage (SIR.Variable stage)
 get_bv k = reader (\ (SIR.SIR _ _ _ _ bvs _) -> Arena.get bvs k)
 get_module :: SIR.ModuleKey -> IRReader stage (SIR.Module stage)
 get_module k = reader (\ (SIR.SIR modules _ _ _ _ _) -> Arena.get modules k)
@@ -68,10 +68,10 @@ define_binding (SIR.Binding'ADTVariant _ bvk _ variant_index@(Type.ADTVariantInd
 class DumpableIdentifier stage i where
     refer_iden :: i -> IRReader stage PP.Token
 
-refer_bv :: SIR.BoundValueKey -> IRReader stage PP.Token
+refer_bv :: SIR.VariableKey -> IRReader stage PP.Token
 refer_bv k = get_bv k >>= \case
-    SIR.BoundValue id _ _ -> pure $ PP.String (ID.stringify id)
-    SIR.BoundValue'ADTVariant id _ _ _ _ -> pure $ PP.String (ID.stringify id)
+    SIR.Variable id _ _ -> pure $ PP.String (ID.stringify id)
+    SIR.Variable'ADTVariant id _ _ _ _ -> pure $ PP.String (ID.stringify id)
 
 refer_decl :: SIR.Decl -> IRReader stage PP.Token
 refer_decl d = case d of
@@ -102,7 +102,7 @@ instance DumpableIdentifier stage Text where
 
 instance DumpableIdentifier stage SIR.Decl where
     refer_iden = refer_decl
-instance DumpableIdentifier stage SIR.BoundValueKey where
+instance DumpableIdentifier stage SIR.VariableKey where
     refer_iden = refer_bv
 instance DumpableIdentifier stage Type.ADTVariantIndex where
     refer_iden variant_index@(Type.ADTVariantIndex adt_key _) =

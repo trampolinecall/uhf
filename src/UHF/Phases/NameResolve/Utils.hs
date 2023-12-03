@@ -8,7 +8,7 @@ module UHF.Phases.NameResolve.Utils
 
     , DeclAt (..)
     , DeclChildrenList
-    , BoundValueList
+    , VariableList
     , ADTVariantList
     , make_name_maps
     , make_name_maps_from_decls
@@ -23,13 +23,13 @@ module UHF.Phases.NameResolve.Utils
     , get_value_child
     , get_variant_child
 
-    , pattern_bvs
+    , pattern_vars
     , binding_children
 
     , NRReader
 
     , ask_adt_arena -- TODO: remove
-    , ask_bv_arena -- TODO: remove?
+    , ask_var_arena -- TODO: remove?
     , ask_type_var_arena -- TODO: remove?
     , ask_sir_child_maps -- TODO: remove?
     ) where
@@ -86,8 +86,8 @@ instance Diagnostic.ToError Error where
 -- child/name maps {{{1
 -- these are very similar datatypes; the difference between them is conceptual: ChildMaps is a map that tells what the children of a certain entity are, whereas a NameMap just stores what names are currently in scope (and is only used for resolving roots)
 -- this is also why there is a NameMapStack but not a ChildMapStack
-data ChildMaps = ChildMaps (Map.Map Text SIR.Decl) (Map.Map Text SIR.BoundValueKey) (Map.Map Text Type.ADTVariantIndex) deriving Show
-data NameMaps = NameMaps (Map.Map Text SIR.Decl) (Map.Map Text SIR.BoundValueKey) (Map.Map Text Type.ADTVariantIndex) deriving Show
+data ChildMaps = ChildMaps (Map.Map Text SIR.Decl) (Map.Map Text SIR.VariableKey) (Map.Map Text Type.ADTVariantIndex) deriving Show
+data NameMaps = NameMaps (Map.Map Text SIR.Decl) (Map.Map Text SIR.VariableKey) (Map.Map Text Type.ADTVariantIndex) deriving Show
 data NameMapStack = NameMapStack NameMaps (Maybe NameMapStack)
 
 -- TODO: do not export this
@@ -95,7 +95,7 @@ data DeclAt = DeclAt Span | ImplicitPrim deriving Show
 
 -- TODO: do not export these
 type DeclChildrenList = [(Text, DeclAt, SIR.Decl)]
-type BoundValueList = [(Text, DeclAt, SIR.BoundValueKey)]
+type VariableList = [(Text, DeclAt, SIR.VariableKey)]
 type ADTVariantList = [(Text, DeclAt, Type.ADTVariantIndex)]
 
 -- SIRChildMaps {{{2
@@ -105,13 +105,13 @@ get_module_child_maps :: SIRChildMaps -> SIR.ModuleKey -> ChildMaps
 get_module_child_maps (SIRChildMaps module_child_maps) mk = Arena.get module_child_maps mk
 -- making child maps {{{2
 -- TODO: do not export this
-make_name_maps :: DeclChildrenList -> BoundValueList -> ADTVariantList -> WithErrors NameMaps
-make_name_maps decls bound_values adt_variants =
+make_name_maps :: DeclChildrenList -> VariableList -> ADTVariantList -> WithErrors NameMaps
+make_name_maps decls variables adt_variants =
     let decl_dups = find_dups decls
-        bn_dups = find_dups bound_values
+        bn_dups = find_dups variables
         variant_dups = find_dups adt_variants
     in report_dups decl_dups >> report_dups bn_dups >> report_dups variant_dups >>
-    pure (NameMaps (make_map decls) (make_map bound_values) (make_map adt_variants))
+    pure (NameMaps (make_map decls) (make_map variables) (make_map adt_variants))
     where
         -- separate finding duplicates from making maps so that if there is a duplicate the whole name contexet doesnt just disappear
         -- duplicates will just take the last bound name in the last, because of the how Map.fromList is implemented
@@ -131,20 +131,20 @@ make_name_maps decls bound_values adt_variants =
                 get_decl_at (_, d, _) = d
 
 -- TODO: put this in NRReader monad?
-make_name_maps_from_decls :: Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey -> [SIR.Binding stage] -> [Type.ADTKey] -> [Type.TypeSynonymKey] -> NRReader (Arena.Arena (Type.ADT (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage)) Type.ADTKey) (Arena.Arena (SIR.BoundValue stage) SIR.BoundValueKey) type_var_arena sir_child_maps WithErrors NameMaps
+make_name_maps_from_decls :: Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey -> [SIR.Binding stage] -> [Type.ADTKey] -> [Type.TypeSynonymKey] -> NRReader (Arena.Arena (Type.ADT (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage)) Type.ADTKey) (Arena.Arena (SIR.Variable stage) SIR.VariableKey) type_var_arena sir_child_maps WithErrors NameMaps
 make_name_maps_from_decls type_synonym_arena bindings adts type_synonyms =
-    unzip3 <$> mapM binding_children bindings >>= \ (binding_decl_entries, binding_bv_entries, binding_variant_entries) ->
+    unzip3 <$> mapM binding_children bindings >>= \ (binding_decl_entries, binding_var_entries, binding_variant_entries) ->
     ask_adt_arena >>= \ adt_arena ->
-    let (adt_decl_entries, adt_bv_entries, adt_variant_entries) =
+    let (adt_decl_entries, adt_var_entries, adt_variant_entries) =
             adts
                 & map
                     (\ adt ->
                         let (Type.ADT _ (Located name_sp name) _ _) = Arena.get adt_arena adt
                             adt_decl_key = SIR.Decl'Type $ Type.Type'ADT adt []
-                        in ([(name, DeclAt name_sp, adt_decl_key)], [], []) -- constructor bvs and variants handled by adt variant bindings, TODO: make it not the case so that this can deal with named variants too
+                        in ([(name, DeclAt name_sp, adt_decl_key)], [], []) -- constructor vars and variants handled by adt variant bindings, TODO: make it not the case so that this can deal with named variants too
                     )
                 & unzip3
-        (type_synonym_decl_entries, type_synonym_bv_entries, type_synonym_variant_entries) =
+        (type_synonym_decl_entries, type_synonym_var_entries, type_synonym_variant_entries) =
             type_synonyms
                 & map
                     (\ synonym ->
@@ -155,11 +155,11 @@ make_name_maps_from_decls type_synonym_arena bindings adts type_synonyms =
                 & unzip3
     in lift $ make_name_maps
             (concat $ binding_decl_entries ++ adt_decl_entries ++ type_synonym_decl_entries)
-            (concat $ binding_bv_entries ++ adt_bv_entries ++ type_synonym_bv_entries)
+            (concat $ binding_var_entries ++ adt_var_entries ++ type_synonym_var_entries)
             (concat $ binding_variant_entries ++ adt_variant_entries ++ type_synonym_variant_entries)
 
 collect_child_maps :: SIR.SIR stage -> WithErrors SIRChildMaps
-collect_child_maps (SIR.SIR mod_arena adt_arena type_synonym_arena _ bound_value_arena _) = SIRChildMaps <$> Arena.transformM go mod_arena
+collect_child_maps (SIR.SIR mod_arena adt_arena type_synonym_arena _ variable_arena _) = SIRChildMaps <$> Arena.transformM go mod_arena
     where
         primitive_decls =
                 [ ("int", ImplicitPrim, SIR.Decl'Type Type.Type'Int)
@@ -168,22 +168,22 @@ collect_child_maps (SIR.SIR mod_arena adt_arena type_synonym_arena _ bound_value
                 , ("string", ImplicitPrim, SIR.Decl'Type Type.Type'String)
                 , ("bool", ImplicitPrim, SIR.Decl'Type Type.Type'Bool)
                 ]
-        primitive_bvs = []
+        primitive_vars = []
 
         go (SIR.Module _ bindings adts type_synonyms) =
             -- TODO: remove runReaderT
             -- TODO: use make_name_maps_from_decls but somehow add primitives
-            runReaderT (unzip3 <$> mapM binding_children bindings) (adt_arena, bound_value_arena, (), ()) >>= \ (binding_decl_entries, binding_bv_entries, binding_variant_entries) ->
-            let (adt_decl_entries, adt_bv_entries, adt_variant_entries) =
+            runReaderT (unzip3 <$> mapM binding_children bindings) (adt_arena, variable_arena, (), ()) >>= \ (binding_decl_entries, binding_var_entries, binding_variant_entries) ->
+            let (adt_decl_entries, adt_var_entries, adt_variant_entries) =
                     adts
                         & map
                             (\ adt ->
                                 let (Type.ADT _ (Located name_sp name) _ _) = Arena.get adt_arena adt
                                     adt_decl_key = SIR.Decl'Type $ Type.Type'ADT adt []
-                                in ([(name, DeclAt name_sp, adt_decl_key)], [], [])) -- constructor bvs and variants handled by adt variant bindings, TODO: make it not the case so that this can deal with named variants too
+                                in ([(name, DeclAt name_sp, adt_decl_key)], [], [])) -- constructor vars and variants handled by adt variant bindings, TODO: make it not the case so that this can deal with named variants too
                         & unzip3
 
-                (type_synonym_decl_entries, type_synonym_bv_entries, type_synonym_variant_entries) =
+                (type_synonym_decl_entries, type_synonym_var_entries, type_synonym_variant_entries) =
                     type_synonyms
                         & map
                             (\ synonym ->
@@ -194,7 +194,7 @@ collect_child_maps (SIR.SIR mod_arena adt_arena type_synonym_arena _ bound_value
             in name_maps_to_child_maps
                 <$> (make_name_maps
                         (concat $ primitive_decls : binding_decl_entries ++ adt_decl_entries ++ type_synonym_decl_entries)
-                        (concat $ primitive_bvs : binding_bv_entries ++ adt_bv_entries ++ type_synonym_bv_entries)
+                        (concat $ primitive_vars : binding_var_entries ++ adt_var_entries ++ type_synonym_var_entries)
                         (concat $ binding_variant_entries ++ adt_variant_entries ++ type_synonym_variant_entries))
 
 name_maps_to_child_maps :: NameMaps -> ChildMaps
@@ -202,25 +202,25 @@ name_maps_to_child_maps (NameMaps decl val adtv) = ChildMaps decl val adtv
 child_maps_to_name_maps :: ChildMaps -> NameMaps
 child_maps_to_name_maps (ChildMaps decl val adtv) = NameMaps decl val adtv
 
-binding_children :: Monad under => SIR.Binding stage -> NRReader (Arena.Arena (Type.ADT (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage)) Type.ADTKey) (Arena.Arena (SIR.BoundValue stage) SIR.BoundValueKey) type_var_arena sir_child_maps under (DeclChildrenList, BoundValueList, ADTVariantList)
-binding_children (SIR.Binding pat _ _) = ([],, []) <$> pattern_bvs pat
-binding_children (SIR.Binding'ADTVariant sp bvk _ variant_index) = bv_name bvk >>= \ name -> pure ([], [(name, DeclAt sp, bvk)], [(name, DeclAt sp, variant_index)]) -- TODO: move variants to inside their types, also dont handle adt variants here
+binding_children :: Monad under => SIR.Binding stage -> NRReader (Arena.Arena (Type.ADT (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage)) Type.ADTKey) (Arena.Arena (SIR.Variable stage) SIR.VariableKey) type_var_arena sir_child_maps under (DeclChildrenList, VariableList, ADTVariantList)
+binding_children (SIR.Binding pat _ _) = ([],, []) <$> pattern_vars pat
+binding_children (SIR.Binding'ADTVariant sp var_key _ variant_index) = var_name var_key >>= \ name -> pure ([], [(name, DeclAt sp, var_key)], [(name, DeclAt sp, variant_index)]) -- TODO: move variants to inside their types, also dont handle adt variants here
 
-pattern_bvs :: Monad under => SIR.Pattern stage -> NRReader (Arena.Arena (Type.ADT (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage)) Type.ADTKey) (Arena.Arena (SIR.BoundValue stage) SIR.BoundValueKey) type_var_arena sir_child_maps under BoundValueList
-pattern_bvs (SIR.Pattern'Identifier _ sp bvk) = bv_name bvk >>= \ name -> pure [(name, DeclAt sp, bvk)]
-pattern_bvs (SIR.Pattern'Wildcard _ _) = pure []
-pattern_bvs (SIR.Pattern'Tuple _ _ a b) = pattern_bvs a >>= \ a -> pattern_bvs b >>= \ b -> pure (a ++ b)
-pattern_bvs (SIR.Pattern'Named _ _ _ (Located bv_span bvk) subpat) = bv_name bvk >>= \ name -> pattern_bvs subpat >>= \ subpat -> pure ((name, DeclAt bv_span, bvk) : subpat)
-pattern_bvs (SIR.Pattern'AnonADTVariant _ _ _ _ _ fields) = concat <$> mapM pattern_bvs fields
-pattern_bvs (SIR.Pattern'NamedADTVariant _ _ _ _ _ fields) = concat <$> mapM (pattern_bvs . snd) fields
-pattern_bvs (SIR.Pattern'Poison _ _) = pure []
+pattern_vars :: Monad under => SIR.Pattern stage -> NRReader (Arena.Arena (Type.ADT (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage)) Type.ADTKey) (Arena.Arena (SIR.Variable stage) SIR.VariableKey) type_var_arena sir_child_maps under VariableList
+pattern_vars (SIR.Pattern'Identifier _ sp var_key) = var_name var_key >>= \ name -> pure [(name, DeclAt sp, var_key)]
+pattern_vars (SIR.Pattern'Wildcard _ _) = pure []
+pattern_vars (SIR.Pattern'Tuple _ _ a b) = pattern_vars a >>= \ a -> pattern_vars b >>= \ b -> pure (a ++ b)
+pattern_vars (SIR.Pattern'Named _ _ _ (Located var_span var_key) subpat) = var_name var_key >>= \ name -> pattern_vars subpat >>= \ subpat -> pure ((name, DeclAt var_span, var_key) : subpat)
+pattern_vars (SIR.Pattern'AnonADTVariant _ _ _ _ _ fields) = concat <$> mapM pattern_vars fields
+pattern_vars (SIR.Pattern'NamedADTVariant _ _ _ _ _ fields) = concat <$> mapM (pattern_vars . snd) fields
+pattern_vars (SIR.Pattern'Poison _ _) = pure []
 
-bv_name :: Monad under => SIR.BoundValueKey -> NRReader (Arena.Arena (Type.ADT (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage)) Type.ADTKey) (Arena.Arena (SIR.BoundValue stage) SIR.BoundValueKey) type_var_arena sir_child_maps under Text
-bv_name bvk =
-    ask_bv_arena >>= \ bv_arena ->
-    case Arena.get bv_arena bvk of
-        SIR.BoundValue _ _ (Located _ name) -> pure name
-        SIR.BoundValue'ADTVariant _ variant_index _ _ _ ->
+var_name :: Monad under => SIR.VariableKey -> NRReader (Arena.Arena (Type.ADT (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage)) Type.ADTKey) (Arena.Arena (SIR.Variable stage) SIR.VariableKey) type_var_arena sir_child_maps under Text
+var_name var_key =
+    ask_var_arena >>= \ var_arena ->
+    case Arena.get var_arena var_key of
+        SIR.Variable _ _ (Located _ name) -> pure name
+        SIR.Variable'ADTVariant _ variant_index _ _ _ ->
             ask_adt_arena >>= \ adt_arena ->
             let variant = Type.get_adt_variant adt_arena variant_index
             in pure $ unlocate $ Type.variant_name variant
@@ -239,7 +239,7 @@ get_decl_child sir_child_maps decl name =
         Just res -> Right res
         Nothing -> Left $ Error'CouldNotFindIn Nothing name -- TODO: put previous
 
-get_value_child :: SIRChildMaps -> SIR.Decl -> Located Text -> Either Error SIR.BoundValueKey
+get_value_child :: SIRChildMaps -> SIR.Decl -> Located Text -> Either Error SIR.VariableKey
 get_value_child sir_child_maps decl name =
     let res = case decl of
             SIR.Decl'Module m ->
@@ -263,13 +263,13 @@ get_variant_child sir_child_maps decl name =
         Just res -> Right res
         Nothing -> Left $ Error'CouldNotFindIn Nothing name -- TODO: put previous
 -- NRReader {{{1
-type NRReader adt_arena bv_arena type_var_arena sir_child_maps = ReaderT (adt_arena, bv_arena, type_var_arena, sir_child_maps)
+type NRReader adt_arena var_arena type_var_arena sir_child_maps = ReaderT (adt_arena, var_arena, type_var_arena, sir_child_maps)
 
-ask_adt_arena :: Applicative under => NRReader adt_arena bv_arena type_var_arena sir_child_maps under adt_arena
+ask_adt_arena :: Applicative under => NRReader adt_arena var_arena type_var_arena sir_child_maps under adt_arena
 ask_adt_arena = ReaderT $ \ (adts, _, _, _) -> pure adts
-ask_bv_arena :: Applicative under => NRReader adt_arena bv_arena type_var_arena sir_child_maps under bv_arena
-ask_bv_arena = ReaderT $ \ (_, bvs, _, _) -> pure bvs
-ask_type_var_arena :: Applicative under => NRReader adt_arena bv_arena type_var_arena sir_child_maps under type_var_arena
+ask_var_arena :: Applicative under => NRReader adt_arena var_arena type_var_arena sir_child_maps under var_arena
+ask_var_arena = ReaderT $ \ (_, vars, _, _) -> pure vars
+ask_type_var_arena :: Applicative under => NRReader adt_arena var_arena type_var_arena sir_child_maps under type_var_arena
 ask_type_var_arena = ReaderT $ \ (_, _, tvars, _) -> pure tvars
-ask_sir_child_maps :: Applicative under => NRReader adt_arena bv_arena type_var_arena sir_child_maps under sir_child_maps
+ask_sir_child_maps :: Applicative under => NRReader adt_arena var_arena type_var_arena sir_child_maps under sir_child_maps
 ask_sir_child_maps = ReaderT $ \ (_, _, _, sir_child_maps) -> pure sir_child_maps

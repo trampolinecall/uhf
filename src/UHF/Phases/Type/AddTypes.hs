@@ -13,16 +13,16 @@ import qualified UHF.Util.Arena as Arena
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
 
-type ContextReader bvs adts = ReaderT (bvs, adts) (WriterT [Constraint] StateWithUnk)
+type ContextReader vars adts = ReaderT (vars, adts) (WriterT [Constraint] StateWithUnk)
 
 -- TODO: make helper functions to not use lift
 
-get_bv_type :: SIR.BoundValueKey -> ContextReader TypedWithUnkBoundValueArena adts TypeWithUnk
-get_bv_type bv = do
-    (bvs, _) <- ask
-    case Arena.get bvs bv of
-        SIR.BoundValue _ ty _ -> pure ty
-        SIR.BoundValue'ADTVariant _ _ _ ty _ -> pure ty
+get_var_type :: SIR.VariableKey -> ContextReader TypedWithUnkVariableArena adts TypeWithUnk
+get_var_type var = do
+    (vars, _) <- ask
+    case Arena.get vars var of
+        SIR.Variable _ ty _ -> pure ty
+        SIR.Variable'ADTVariant _ _ _ ty _ -> pure ty
 
 -- TODO: sort constraints by priority so that certain weird things dont happen (sort by depth?)
 -- for example:
@@ -42,24 +42,24 @@ get_bv_type bv = do
 -- but it really should produce an error at `thing(0)` saying that thing takes a string and not an int
 -- (this happens because bindings are processed in order and the constraint from 'thing(0)' is processed before the constraint from 'thing = ...')
 --
-add :: UntypedModuleArena -> UntypedADTArena -> UntypedTypeSynonymArena -> UntypedBoundValueArena -> WriterT [Constraint] StateWithUnk (TypedWithUnkModuleArena, TypedWithUnkADTArena, TypedWithUnkTypeSynonymArena, TypedWithUnkBoundValueArena)
-add mods adts type_synonyms bound_values =
+add :: UntypedModuleArena -> UntypedADTArena -> UntypedTypeSynonymArena -> UntypedVariableArena -> WriterT [Constraint] StateWithUnk (TypedWithUnkModuleArena, TypedWithUnkADTArena, TypedWithUnkTypeSynonymArena, TypedWithUnkVariableArena)
+add mods adts type_synonyms variables =
     runReaderT (
         Arena.transformM adt adts >>= \ adts ->
         Arena.transformM type_synonym  type_synonyms >>= \ type_synonyms ->
         pure (adts, type_synonyms)
     ) ((), ()) >>= \ (adts, type_synonyms) ->
     runReaderT (
-        Arena.transformM bound_value bound_values
-    ) ((), adts) >>= \ bound_values ->
+        Arena.transformM variable variables
+    ) ((), adts) >>= \ variables ->
     runReaderT (
         Arena.transformM module_ mods >>= \ mods ->
-        pure (mods, adts, type_synonyms, bound_values)
-    ) (bound_values, adts)
+        pure (mods, adts, type_synonyms, variables)
+    ) (variables, adts)
 
-bound_value :: UntypedBoundValue -> ContextReader bvs TypedWithUnkADTArena TypedWithUnkBoundValue
-bound_value (SIR.BoundValue id () name@(Located def_span _)) = SIR.BoundValue id <$> lift (lift $ Type.Type'Unknown <$> new_type_unknown (BoundValue def_span)) <*> pure name
-bound_value (SIR.BoundValue'ADTVariant id variant_index@(Type.ADTVariantIndex adt_key _) bv_type_params () def_span) = do
+variable :: UntypedVariable -> ContextReader vars TypedWithUnkADTArena TypedWithUnkVariable
+variable (SIR.Variable id () name@(Located def_span _)) = SIR.Variable id <$> lift (lift $ Type.Type'Unknown <$> new_type_unknown (Variable def_span)) <*> pure name
+variable (SIR.Variable'ADTVariant id variant_index@(Type.ADTVariantIndex adt_key _) var_type_params () def_span) = do
     (_, adts) <- ask
     unk_arena <- lift (lift get)
     let (Type.ADT _ _ adt_type_params _) = Arena.get adts adt_key
@@ -67,33 +67,33 @@ bound_value (SIR.BoundValue'ADTVariant id variant_index@(Type.ADTVariantIndex ad
     let ty = case variant of
             Type.ADTVariant'Named _ _ _ -> error "bound value should not be made for a named adt variant" -- TODO: statically make sure this cant happen?
             Type.ADTVariant'Anon _ _ fields ->
-                let change_type_params ty = foldl' (\ ty (adt_typaram, bv_typaram) -> substitute unk_arena adt_typaram (Type.Type'Variable bv_typaram) ty) ty (zip adt_type_params bv_type_params)
+                let change_type_params ty = foldl' (\ ty (adt_typaram, var_typaram) -> substitute unk_arena adt_typaram (Type.Type'Variable var_typaram) ty) ty (zip adt_type_params var_type_params)
                     arg_tys = map (change_type_params . snd . snd) fields
-                    wrap_in_forall = case bv_type_params of
+                    wrap_in_forall = case var_type_params of
                         [] -> identity
                         param:more -> Type.Type'Forall (param :| more)
-                 in wrap_in_forall $ foldr Type.Type'Function (Type.Type'ADT adt_key (map Type.Type'Variable bv_type_params)) arg_tys -- function type that takes all the field types and then results in the adt type
-    pure $ SIR.BoundValue'ADTVariant id variant_index bv_type_params ty def_span
+                 in wrap_in_forall $ foldr Type.Type'Function (Type.Type'ADT adt_key (map Type.Type'Variable var_type_params)) arg_tys -- function type that takes all the field types and then results in the adt type
+    pure $ SIR.Variable'ADTVariant id variant_index var_type_params ty def_span
 
-module_ :: UntypedModule -> ContextReader TypedWithUnkBoundValueArena TypedWithUnkADTArena TypedWithUnkModule
+module_ :: UntypedModule -> ContextReader TypedWithUnkVariableArena TypedWithUnkADTArena TypedWithUnkModule
 module_ (SIR.Module id bindings adts type_synonyms) = SIR.Module id <$> mapM binding bindings <*> pure adts <*> pure type_synonyms
 
-adt :: UntypedADT -> ContextReader bvs adts TypedWithUnkADT
+adt :: UntypedADT -> ContextReader vars adts TypedWithUnkADT
 adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM convert_variant variants
     where
         convert_variant (Type.ADTVariant'Named name id fields) = Type.ADTVariant'Named name id <$> mapM (\ (id, name, (ty_expr, ty)) -> type_expr ty_expr >>= \ ty_expr -> nothing_to_unk (TypeExpr $ SIR.type_expr_span ty_expr) ty >>= \ ty -> pure (id, name, (ty_expr, ty))) fields
         convert_variant (Type.ADTVariant'Anon name id fields) = Type.ADTVariant'Anon name id <$> mapM (\ (id, (ty_expr, ty)) -> type_expr ty_expr >>= \ ty_expr -> nothing_to_unk (TypeExpr $ SIR.type_expr_span ty_expr) ty >>= \ ty -> pure (id, (ty_expr, ty))) fields
 
-type_synonym :: UntypedTypeSynonym -> ContextReader bvs adts TypedWithUnkTypeSynonym
+type_synonym :: UntypedTypeSynonym -> ContextReader vars adts TypedWithUnkTypeSynonym
 type_synonym (Type.TypeSynonym id name (expansion, exp_as_type)) = type_expr expansion >>= \ expansion -> nothing_to_unk (TypeExpr $ SIR.type_expr_span expansion) exp_as_type >>= \ exp_as_type -> pure (Type.TypeSynonym id name (expansion, exp_as_type))
 
-apply_type :: TypeUnknownForWhat -> Span -> TypeWithUnk -> TypeWithUnk -> ContextReader bvs adts TypeWithUnk
+apply_type :: TypeUnknownForWhat -> Span -> TypeWithUnk -> TypeWithUnk -> ContextReader vars adts TypeWithUnk
 apply_type for_what sp ty arg =
     lift (lift $ new_type_unknown for_what) >>= \ tyu ->
     lift (tell [UnkIsApplyResult sp tyu ty arg]) >>
     pure (Type.Type'Unknown tyu)
 
-type_expr :: UntypedTypeExpr -> ContextReader bvs adts TypedWithUnkTypeExpr
+type_expr :: UntypedTypeExpr -> ContextReader vars adts TypedWithUnkTypeExpr
 -- TODO: do these ForWhats better
 type_expr (SIR.TypeExpr'Refer evaled sp iden) = pure (SIR.TypeExpr'Refer evaled sp iden)
 type_expr (SIR.TypeExpr'Get evaled sp parent name) = SIR.TypeExpr'Get evaled sp <$> type_expr parent <*> pure name
@@ -106,27 +106,27 @@ type_expr (SIR.TypeExpr'Wild evaled sp) = pure (SIR.TypeExpr'Wild evaled sp)
 type_expr (SIR.TypeExpr'Poison evaled sp) = pure (SIR.TypeExpr'Poison evaled sp)
 
 -- TODO: remove this
-nothing_to_unk :: TypeUnknownForWhat -> Maybe (Type.Type Void) -> ContextReader bvs adts TypeWithUnk
+nothing_to_unk :: TypeUnknownForWhat -> Maybe (Type.Type Void) -> ContextReader vars adts TypeWithUnk
 nothing_to_unk for_what Nothing = Type.Type'Unknown <$> lift (lift $ new_type_unknown for_what)
 nothing_to_unk _ (Just t) = pure $ void_unk_to_key t
 
-binding :: UntypedBinding -> ContextReader TypedWithUnkBoundValueArena TypedWithUnkADTArena TypedWithUnkBinding
+binding :: UntypedBinding -> ContextReader TypedWithUnkVariableArena TypedWithUnkADTArena TypedWithUnkBinding
 binding (SIR.Binding p eq_sp e) =
     pattern p >>= \ p ->
     expr e >>= \ e ->
     lift (tell [Eq InAssignment eq_sp (loc_pat_type p) (loc_expr_type e)]) >>
     pure (SIR.Binding p eq_sp e)
-binding (SIR.Binding'ADTVariant sp bvk vars variant) = pure $ SIR.Binding'ADTVariant sp bvk vars variant
+binding (SIR.Binding'ADTVariant sp var_key vars variant) = pure $ SIR.Binding'ADTVariant sp var_key vars variant
 
 loc_pat_type :: SIR.Pattern stage -> Located (SIR.TypeInfo stage)
 loc_pat_type pattern = Located (SIR.pattern_span pattern) (SIR.pattern_type pattern)
 loc_expr_type :: SIR.Expr stage -> Located (SIR.TypeInfo stage)
 loc_expr_type expr = Located (SIR.expr_span expr) (SIR.expr_type expr)
 
-pattern :: UntypedPattern -> ContextReader TypedWithUnkBoundValueArena TypedWithUnkADTArena TypedWithUnkPattern
-pattern (SIR.Pattern'Identifier () sp bv) =
-    get_bv_type bv >>= \ ty ->
-    pure (SIR.Pattern'Identifier ty sp bv)
+pattern :: UntypedPattern -> ContextReader TypedWithUnkVariableArena TypedWithUnkADTArena TypedWithUnkPattern
+pattern (SIR.Pattern'Identifier () sp var) =
+    get_var_type var >>= \ ty ->
+    pure (SIR.Pattern'Identifier ty sp var)
 
 pattern (SIR.Pattern'Wildcard () sp) =
     Type.Type'Unknown <$> lift (lift $ new_type_unknown (WildcardPattern sp)) >>= \ ty ->
@@ -137,11 +137,11 @@ pattern (SIR.Pattern'Tuple () sp l r) =
     pattern r >>= \ r ->
     pure (SIR.Pattern'Tuple (Type.Type'Tuple (SIR.pattern_type l) (SIR.pattern_type r)) sp l r)
 
-pattern (SIR.Pattern'Named () sp at_sp bvk subpat) =
+pattern (SIR.Pattern'Named () sp at_sp var_key subpat) =
     pattern subpat >>= \ subpat ->
-    get_bv_type (unlocate bvk) >>= \ bv_ty ->
-    lift (tell [Eq InNamedPattern at_sp (Located (just_span bvk) bv_ty) (loc_pat_type subpat)]) >>
-    pure (SIR.Pattern'Named bv_ty sp at_sp bvk subpat)
+    get_var_type (unlocate var_key) >>= \ var_ty ->
+    lift (tell [Eq InNamedPattern at_sp (Located (just_span var_key) var_ty) (loc_pat_type subpat)]) >>
+    pure (SIR.Pattern'Named var_ty sp at_sp var_key subpat)
 
 pattern (SIR.Pattern'AnonADTVariant () sp variant_iden Nothing _ fields) =
     mapM pattern fields >>= \ fields ->
@@ -193,15 +193,15 @@ pattern (SIR.Pattern'NamedADTVariant () _ _ (Just _) _ _) = todo
 
 pattern (SIR.Pattern'Poison () sp) = SIR.Pattern'Poison <$> (Type.Type'Unknown <$> lift (lift $ new_type_unknown $ PoisonPattern sp)) <*> pure sp
 
-expr :: UntypedExpr -> ContextReader TypedWithUnkBoundValueArena TypedWithUnkADTArena TypedWithUnkExpr
-expr (SIR.Expr'Identifier id () sp iden bv) =
-    (case bv of
-        Just bv -> get_bv_type bv
+expr :: UntypedExpr -> ContextReader TypedWithUnkVariableArena TypedWithUnkADTArena TypedWithUnkExpr
+expr (SIR.Expr'Identifier id () sp iden var) =
+    (case var of
+        Just var -> get_var_type var
         Nothing -> Type.Type'Unknown <$> lift (lift $ new_type_unknown (UnresolvedIdenExpr sp))) >>= \ ty ->
 
     split_iden iden >>= \ iden ->
 
-    pure (SIR.Expr'Identifier id ty sp iden bv)
+    pure (SIR.Expr'Identifier id ty sp iden var)
 
 expr (SIR.Expr'Char id () sp c) = pure (SIR.Expr'Char id Type.Type'Char sp c)
 expr (SIR.Expr'String id () sp t) = pure (SIR.Expr'String id Type.Type'String sp t)
@@ -284,6 +284,6 @@ expr (SIR.Expr'TypeAnnotation id () sp (annotation, annotation_ty) e) =
     lift (tell [Expect InTypeAnnotation (Located (SIR.type_expr_span annotation) (SIR.expr_type e)) annotation_ty]) >>
     pure (SIR.Expr'TypeAnnotation id annotation_ty sp (annotation, annotation_ty) e)
 
-split_iden :: SIR.SplitIdentifier Untyped start -> ContextReader TypedWithUnkBoundValueArena TypedWithUnkADTArena (SIR.SplitIdentifier TypedWithUnk start)
+split_iden :: SIR.SplitIdentifier Untyped start -> ContextReader TypedWithUnkVariableArena TypedWithUnkADTArena (SIR.SplitIdentifier TypedWithUnk start)
 split_iden (SIR.SplitIdentifier'Get texpr name) = type_expr texpr >>= \ texpr -> pure (SIR.SplitIdentifier'Get texpr name)
 split_iden (SIR.SplitIdentifier'Single start) = pure $ SIR.SplitIdentifier'Single start

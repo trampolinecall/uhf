@@ -6,11 +6,11 @@ import UHF.Phases.SolveTypes.Solver.InferVar
 import qualified UHF.Util.Arena as Arena
 import qualified UHF.Data.IR.Type as Type
 
-substitute :: TypeInferVarArena -> Type.TypeVarKey -> Type.Type TypeInferVarKey -> Type.Type TypeInferVarKey -> Type.Type TypeInferVarKey
+substitute :: InferVarArena -> Type.TypeVarKey -> Type.Type InferVarKey -> Type.Type InferVarKey -> Type.Type InferVarKey
 substitute unk_arena looking_for replacement ty@(Type.Type'InferVar unk) =
     case Arena.get unk_arena unk of
-        TypeInferVar _ (TSubstituted unk_actual) -> substitute unk_arena looking_for replacement unk_actual
-        TypeInferVar _ TFresh -> ty -- TODO: reconsider if this is correct
+        InferVar _ (Substituted unk_actual) -> substitute unk_arena looking_for replacement unk_actual
+        InferVar _ Fresh -> ty -- TODO: reconsider if this is correct
 substitute _ looking_for replacement ty@(Type.Type'Variable v)
     | looking_for == v = replacement
     | otherwise = ty
@@ -25,7 +25,7 @@ substitute unk_arena looking_for replacement (Type.Type'Function a r) = Type.Typ
 substitute unk_arena looking_for replacement (Type.Type'Tuple a b) = Type.Type'Tuple (substitute unk_arena looking_for replacement a) (substitute unk_arena looking_for replacement b)
 substitute unk_arena looking_for replacement (Type.Type'Forall vars ty) = Type.Type'Forall vars (substitute unk_arena looking_for replacement ty)
 
--- basically useless function for converting Type Void to Type TypeInferVarKey
+-- basically useless function for converting Type Void to Type InferVarKey
 -- TODO: remove eventually when replacing Type.Type InferVar with a separate type
 void_unk_to_key :: Type.Type Void -> Type.Type unk
 void_unk_to_key (Type.Type'ADT k params) = Type.Type'ADT k (map void_unk_to_key params)

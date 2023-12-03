@@ -1,23 +1,23 @@
-module UHF.Phases.Type (typecheck) where
+module UHF.Phases.SolveTypes (solve) where
 
 import UHF.Prelude
 
-import UHF.Phases.Type.Aliases
-import UHF.Phases.Type.Error
+import UHF.Phases.SolveTypes.Aliases
+import UHF.Phases.SolveTypes.Error
 import qualified UHF.Util.Arena as Arena
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.SIR as SIR
-import qualified UHF.Phases.Type.AddTypes as AddTypes
-import qualified UHF.Phases.Type.RemoveUnknowns as RemoveUnknowns
-import qualified UHF.Phases.Type.SolveConstraints as SolveConstraints
+import qualified UHF.Phases.SolveTypes.AddTypes as AddTypes
+import qualified UHF.Phases.SolveTypes.RemoveUnknowns as RemoveUnknowns
+import qualified UHF.Phases.SolveTypes.Solver as Solver
 
--- also does type inference
-typecheck :: UntypedSIR -> Compiler.WithDiagnostics Error Void TypedSIR
-typecheck (SIR.SIR mods adts type_synonyms type_vars variables mod) = -- TODO: do not destructure ir?
+-- this does both type inference and type checking
+solve :: UntypedSIR -> Compiler.WithDiagnostics Error Void TypedSIR
+solve (SIR.SIR mods adts type_synonyms type_vars variables mod) = -- TODO: do not destructure ir?
     runStateT
         (
             runWriterT (AddTypes.add mods adts type_synonyms variables) >>= \ ((mods, adts, type_synonyms, variables), constraints) ->
-            SolveConstraints.solve adts type_synonyms type_vars constraints >>
+            Solver.solve adts type_synonyms type_vars constraints >>
             pure (mods, adts, type_synonyms, variables)
         )
         Arena.new >>= \ ((mods, adts, type_synonyms, variables), vars) ->

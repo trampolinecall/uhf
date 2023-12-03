@@ -1,4 +1,4 @@
-module UHF.Phases.Type.Unknown
+module UHF.Phases.SolveTypes.Solver.Unknown
     ( TypeUnknownKey
     , TypeUnknown (..)
     , TypeUnknownForWhat (..)

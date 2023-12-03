@@ -1,11 +1,11 @@
-module UHF.Phases.Type.StateWithUnk (StateWithUnk, new_type_unknown) where
+module UHF.Phases.SolveTypes.StateWithUnk (StateWithUnk, new_type_unknown) where
 
 import UHF.Prelude
 
-import UHF.Phases.Type.Error
-import UHF.Phases.Type.Unknown
-import qualified UHF.Util.Arena as Arena
+import UHF.Phases.SolveTypes.Error
+import UHF.Phases.SolveTypes.Solver.Unknown
 import qualified UHF.Compiler as Compiler
+import qualified UHF.Util.Arena as Arena
 
 type StateWithUnk = StateT TypeUnknownArena (Compiler.WithDiagnostics Error Void)
 

@@ -18,7 +18,7 @@ import qualified UHF.Util.Arena as Arena
 
 type Type = Maybe Type.Type
 
-type DIden = Maybe SIR.Decl
+type DIden = Maybe (SIR.Decl Type.Type)
 type VIden = Maybe SIR.VariableKey
 type PIden = Maybe Type.ADT.VariantIndex
 

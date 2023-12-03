@@ -74,16 +74,16 @@ refer_var k = get_var k >>= \case
     SIR.Variable id _ _ -> pure $ PP.String (ID.stringify id)
     SIR.Variable'ADTVariant id _ _ _ _ -> pure $ PP.String (ID.stringify id)
 
-refer_decl :: SIR.Decl -> IRReader stage PP.Token
+refer_decl :: SIR.Decl t -> IRReader stage PP.Token
 refer_decl d = case d of
     SIR.Decl'Module m ->
         get_module m >>= \ (SIR.Module id _ _ _) ->
         pure (PP.String $ ID.stringify id)
-    SIR.Decl'Type ty ->
-        get_adt_arena >>= \ adt_arena ->
-        get_type_synonym_arena >>= \ type_synonym_arena ->
-        get_quant_var_arena >>= \ quant_var_arena ->
-        pure (Type.PP.refer_type adt_arena type_synonym_arena quant_var_arena ty)
+    SIR.Decl'Type ty -> todo -- TODO
+        -- get_adt_arena >>= \ adt_arena ->
+        -- get_type_synonym_arena >>= \ type_synonym_arena ->
+        -- get_quant_var_arena >>= \ quant_var_arena ->
+        -- pure (Type.PP.refer_type adt_arena type_synonym_arena quant_var_arena ty)
 
 instance DumpableIdentifier stage a => DumpableIdentifier stage (Located a) where
     refer_iden = refer_iden . unlocate
@@ -101,7 +101,7 @@ instance (DumpableConstraints stage, DumpableIdentifier stage start) => Dumpable
 instance DumpableIdentifier stage Text where
     refer_iden = pure . PP.String
 
-instance DumpableIdentifier stage SIR.Decl where
+instance DumpableIdentifier stage (SIR.Decl t) where
     refer_iden = refer_decl
 instance DumpableIdentifier stage SIR.VariableKey where
     refer_iden = refer_var

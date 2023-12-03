@@ -11,18 +11,19 @@ import qualified UHF.Util.Arena as Arena
 type TypeWithInferVars = TypeWithInferVar.Type
 type Type = Type.Type
 
-type DIden = Maybe SIR.Decl
 type VIden = Maybe SIR.VariableKey
 type PIden = Maybe Type.ADT.VariantIndex
 
 type QuantVarArena = Arena.Arena Type.QuantVar Type.QuantVarKey
 
-type Untyped = (DIden, DIden, Maybe Type, VIden, VIden, PIden, PIden, (), Void)
+type Untyped = (UntypedDIden, UntypedDIden, TypeWithInferVars, VIden, VIden, PIden, PIden, (), Void)
+
+type UntypedDIden = Maybe (SIR.Decl TypeWithInferVars)
 
 type UntypedSIR = SIR.SIR Untyped
 type UntypedModule = SIR.Module Untyped
-type UntypedADT = Type.ADT (UntypedTypeExpr, Maybe Type)
-type UntypedTypeSynonym = Type.TypeSynonym (UntypedTypeExpr, Maybe Type)
+type UntypedADT = Type.ADT (UntypedTypeExpr, TypeWithInferVars)
+type UntypedTypeSynonym = Type.TypeSynonym (UntypedTypeExpr, TypeWithInferVars)
 type UntypedBinding = SIR.Binding Untyped
 type UntypedExpr = SIR.Expr Untyped
 type UntypedPattern = SIR.Pattern Untyped
@@ -34,7 +35,9 @@ type UntypedTypeSynonymArena = Arena.Arena UntypedTypeSynonym Type.TypeSynonymKe
 type UntypedVariableArena = Arena.Arena UntypedVariable SIR.VariableKey
 type UntypedModuleArena = Arena.Arena UntypedModule SIR.ModuleKey
 
-type TypedWithInferVars = (DIden, DIden, TypeWithInferVars, VIden, VIden, PIden, PIden, TypeWithInferVars, Void)
+type TypedWithInferVars = (TypedWithInferVarsDIden, TypedWithInferVarsDIden, TypeWithInferVars, VIden, VIden, PIden, PIden, TypeWithInferVars, Void)
+
+type TypedWithInferVarsDIden = Maybe (SIR.Decl TypeWithInferVars)
 
 type TypedWithInferVarsSIR = SIR.SIR TypedWithInferVars
 type TypedWithInferVarsModule = SIR.Module TypedWithInferVars
@@ -51,7 +54,9 @@ type TypedWithInferVarsTypeSynonymArena = Arena.Arena TypedWithInferVarsTypeSyno
 type TypedWithInferVarsVariableArena = Arena.Arena TypedWithInferVarsVariable SIR.VariableKey
 type TypedWithInferVarsModuleArena = Arena.Arena TypedWithInferVarsModule SIR.ModuleKey
 
-type Typed = (DIden, DIden, Maybe Type, VIden, VIden, PIden, PIden, Maybe Type, Void)
+type Typed = (TypedDIden, TypedDIden, Maybe Type, VIden, VIden, PIden, PIden, Maybe Type, Void)
+
+type TypedDIden = Maybe (SIR.Decl Type)
 
 type TypedSIR = SIR.SIR Typed
 type TypedModule = SIR.Module Typed

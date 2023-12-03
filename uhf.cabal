@@ -57,6 +57,17 @@ library
       UHF.Phases.Parser.Test
       UHF.Phases.RemovePoison
       UHF.Phases.ReportHoles
+      UHF.Phases.SolveTypes
+      UHF.Phases.SolveTypes.AddTypes
+      UHF.Phases.SolveTypes.Aliases
+      UHF.Phases.SolveTypes.Error
+      UHF.Phases.SolveTypes.RemoveInferVars
+      UHF.Phases.SolveTypes.Solver
+      UHF.Phases.SolveTypes.Solver.Constraint
+      UHF.Phases.SolveTypes.Solver.InferVar
+      UHF.Phases.SolveTypes.Solver.Solve
+      UHF.Phases.SolveTypes.StateWithInferVars
+      UHF.Phases.SolveTypes.Utils
       UHF.Phases.ToANFIR
       UHF.Phases.ToBackendIR
       UHF.Phases.ToRIR
@@ -65,16 +76,6 @@ library
       UHF.Phases.TSBackend
       UHF.Phases.TSBackend.TS
       UHF.Phases.TSBackend.TS.PP
-      UHF.Phases.Type
-      UHF.Phases.Type.AddTypes
-      UHF.Phases.Type.Aliases
-      UHF.Phases.Type.Constraint
-      UHF.Phases.Type.Error
-      UHF.Phases.Type.RemoveUnknowns
-      UHF.Phases.Type.SolveConstraints
-      UHF.Phases.Type.StateWithUnk
-      UHF.Phases.Type.Unknown
-      UHF.Phases.Type.Utils
       UHF.PP
       UHF.PP.IndentationMonad
       UHF.PP.Precedence

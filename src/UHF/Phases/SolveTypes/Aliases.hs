@@ -5,9 +5,9 @@ import UHF.Prelude
 import qualified UHF.Util.Arena as Arena
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Data.IR.Type as Type
-import qualified UHF.Phases.SolveTypes.Solver.Unknown as Unknown
+import qualified UHF.Phases.SolveTypes.Solver.InferVar as InferVar
 
-type TypeWithUnk = Type.Type Unknown.TypeUnknownKey
+type TypeWithInferVars = Type.Type InferVar.TypeInferVarKey
 type Type = Type.Type Void
 
 type DIden = Maybe SIR.Decl
@@ -33,22 +33,22 @@ type UntypedTypeSynonymArena = Arena.Arena UntypedTypeSynonym Type.TypeSynonymKe
 type UntypedVariableArena = Arena.Arena UntypedVariable SIR.VariableKey
 type UntypedModuleArena = Arena.Arena UntypedModule SIR.ModuleKey
 
-type TypedWithUnk = (DIden, DIden, TypeWithUnk, VIden, VIden, PIden, PIden, TypeWithUnk, Void)
+type TypedWithInferVars = (DIden, DIden, TypeWithInferVars, VIden, VIden, PIden, PIden, TypeWithInferVars, Void)
 
-type TypedWithUnkSIR = SIR.SIR TypedWithUnk
-type TypedWithUnkModule = SIR.Module TypedWithUnk
-type TypedWithUnkADT = Type.ADT (TypedWithUnkTypeExpr, TypeWithUnk)
-type TypedWithUnkTypeSynonym = Type.TypeSynonym (TypedWithUnkTypeExpr, TypeWithUnk)
-type TypedWithUnkBinding = SIR.Binding TypedWithUnk
-type TypedWithUnkExpr = SIR.Expr TypedWithUnk
-type TypedWithUnkPattern = SIR.Pattern TypedWithUnk
-type TypedWithUnkVariable = SIR.Variable TypedWithUnk
-type TypedWithUnkTypeExpr = SIR.TypeExpr TypedWithUnk
+type TypedWithInferVarsSIR = SIR.SIR TypedWithInferVars
+type TypedWithInferVarsModule = SIR.Module TypedWithInferVars
+type TypedWithInferVarsADT = Type.ADT (TypedWithInferVarsTypeExpr, TypeWithInferVars)
+type TypedWithInferVarsTypeSynonym = Type.TypeSynonym (TypedWithInferVarsTypeExpr, TypeWithInferVars)
+type TypedWithInferVarsBinding = SIR.Binding TypedWithInferVars
+type TypedWithInferVarsExpr = SIR.Expr TypedWithInferVars
+type TypedWithInferVarsPattern = SIR.Pattern TypedWithInferVars
+type TypedWithInferVarsVariable = SIR.Variable TypedWithInferVars
+type TypedWithInferVarsTypeExpr = SIR.TypeExpr TypedWithInferVars
 
-type TypedWithUnkADTArena = Arena.Arena TypedWithUnkADT Type.ADTKey
-type TypedWithUnkTypeSynonymArena = Arena.Arena TypedWithUnkTypeSynonym Type.TypeSynonymKey
-type TypedWithUnkVariableArena = Arena.Arena TypedWithUnkVariable SIR.VariableKey
-type TypedWithUnkModuleArena = Arena.Arena TypedWithUnkModule SIR.ModuleKey
+type TypedWithInferVarsADTArena = Arena.Arena TypedWithInferVarsADT Type.ADTKey
+type TypedWithInferVarsTypeSynonymArena = Arena.Arena TypedWithInferVarsTypeSynonym Type.TypeSynonymKey
+type TypedWithInferVarsVariableArena = Arena.Arena TypedWithInferVarsVariable SIR.VariableKey
+type TypedWithInferVarsModuleArena = Arena.Arena TypedWithInferVarsModule SIR.ModuleKey
 
 type Typed = (DIden, DIden, Maybe Type, VIden, VIden, PIden, PIden, Maybe Type, Void)
 

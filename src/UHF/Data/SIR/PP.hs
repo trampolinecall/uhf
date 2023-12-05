@@ -59,13 +59,6 @@ define_module (SIR.Module _ bindings adts type_synonyms) =
 
 define_binding :: DumpableConstraints stage => SIR.Binding stage -> IRReader stage PP.Token
 define_binding (SIR.Binding pat _ init) = pattern pat >>= \ pat -> expr init >>= \ init -> pure $ PP.List [pat, " = ", init, ";"]
--- TODO: REMOVE
--- define_binding (SIR.Binding'ADTVariant _ var_key _ variant_index@(Type.ADT.VariantIndex adt_key _)) =
---     Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
---     Type.ADT.get_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
---     let variant_name = unlocate $ Type.ADT.variant_name variant
---     in refer_var var_key >>= \ var_key ->
---     pure $ PP.List [var_key, " = <constructor for ", adt_refer, " ", PP.String variant_name, ">;"]
 
 refer_var :: SIR.VariableKey -> IRReader stage PP.Token
 refer_var k = get_var k >>= \case

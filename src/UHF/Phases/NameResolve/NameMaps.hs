@@ -134,9 +134,16 @@ collect_child_maps (SIR.SIR mod_arena adt_arena type_synonym_arena _ variable_ar
                     adts
                         & map
                             (\ adt ->
-                                let (Type.ADT _ (Located name_sp name) _ _) = Arena.get adt_arena adt
-                                    adt_decl_key = SIR.Decl'Type $ TypeWithInferVar.Type'ADT adt []
-                                in ([(name, DeclAt name_sp, adt_decl_key)], [], [])) -- constructor vars and variants handled by adt variant bindings, TODO: make it not the case so that this can deal with named variants too
+                                let (Type.ADT _ (Located adt_name_sp adt_name) _ _) = Arena.get adt_arena adt
+                                    (variant_constructors, variant_patterns) = Type.ADT.variant_idxs adt_arena adt
+                                        & map (\ variant_index ->
+                                            case Type.ADT.get_variant adt_arena variant_index of
+                                                Type.ADT.Variant'Anon (Located variant_name_sp variant_name) _ _ -> ((variant_name, DeclAt variant_name_sp, SIR.BoundValue'ADTVariant variant_index), (variant_name, DeclAt variant_name_sp, variant_index))
+                                                Type.ADT.Variant'Named _ _ _ -> todo
+                                        )
+                                        & unzip
+
+                                in ([(adt_name, DeclAt adt_name_sp, SIR.Decl'Type $ TypeWithInferVar.Type'ADT adt [])], variant_constructors, variant_patterns)) -- TODO: make this deal with named variants too; also TODO: move variants to inside their types
                         & unzip3
 
                 (type_synonym_decl_entries, type_synonym_val_entries, type_synonym_variant_entries) =
@@ -160,7 +167,6 @@ child_maps_to_name_maps (ChildMaps decl val adtv) = NameMaps decl val adtv
 
 binding_children :: Monad under => SIR.Binding stage -> NRReader (Arena.Arena (Type.ADT (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage)) Type.ADTKey) (Arena.Arena (SIR.Variable stage) SIR.VariableKey) type_var_arena sir_child_maps under (DeclChildrenList, ValueList, ADTVariantList)
 binding_children (SIR.Binding pat _ _) = ([],, []) <$> pattern_vars pat
--- TODO: REMOVE binding_children (SIR.Binding'ADTVariant sp var_key _ variant_index) = var_name var_key >>= \ name -> pure ([], [(name, DeclAt sp, var_key)], [(name, DeclAt sp, variant_index)]) -- TODO: move variants to inside their types, also dont handle adt variants here
 
 pattern_vars :: Monad under => SIR.Pattern stage -> NRReader (Arena.Arena (Type.ADT (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage)) Type.ADTKey) (Arena.Arena (SIR.Variable stage) SIR.VariableKey) type_var_arena sir_child_maps under ValueList
 pattern_vars (SIR.Pattern'Identifier _ sp var_key) = var_name var_key >>= \ name -> pure [(name, DeclAt sp, SIR.BoundValue'Variable var_key)]
@@ -174,13 +180,8 @@ pattern_vars (SIR.Pattern'Poison _ _) = pure []
 var_name :: Monad under => SIR.VariableKey -> NRReader (Arena.Arena (Type.ADT (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage)) Type.ADTKey) (Arena.Arena (SIR.Variable stage) SIR.VariableKey) type_var_arena sir_child_maps under Text
 var_name var_key =
     ask_var_arena >>= \ var_arena ->
-    case Arena.get var_arena var_key of
-        SIR.Variable _ _ (Located _ name) -> pure name
-        -- TODO: REMOVE
-        -- SIR.Variable'ADTVariant _ variant_index _ _ _ ->
-        --     ask_adt_arena >>= \ adt_arena ->
-        --     let variant = Type.get_adt_variant adt_arena variant_index
-        --     in pure $ unlocate $ Type.variant_name variant
+    let SIR.Variable _ _ (Located _ name) = Arena.get var_arena var_key
+    in pure name
 
 -- getting from child maps {{{2
 -- TODO: remove duplication from these

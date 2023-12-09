@@ -43,6 +43,14 @@ library
       UHF.Diagnostic.Report.Utils
       UHF.Diagnostic.Settings
       UHF.Driver
+      UHF.Parts.TypeSolver
+      UHF.Parts.TypeSolver.Constraint
+      UHF.Parts.TypeSolver.Solve
+      UHF.Parts.TypeSolver.SolveError
+      UHF.Parts.TypeSolver.SolveMonad
+      UHF.Parts.TypeSolver.TypeWithInferVar
+      UHF.Parts.TypeSolver.TypeWithInferVar.PP
+      UHF.Parts.TypeSolver.Utils
       UHF.Phases.InfixGroup
       UHF.Phases.Lexer
       UHF.Phases.Lexer.LexError
@@ -65,13 +73,6 @@ library
       UHF.Phases.SolveTypes.Aliases
       UHF.Phases.SolveTypes.Error
       UHF.Phases.SolveTypes.RemoveInferVars
-      UHF.Phases.SolveTypes.Solver
-      UHF.Phases.SolveTypes.Solver.Constraint
-      UHF.Phases.SolveTypes.Solver.Solve
-      UHF.Phases.SolveTypes.Solver.TypeWithInferVar
-      UHF.Phases.SolveTypes.Solver.Utils
-      UHF.Phases.SolveTypes.StateWithInferVars
-      UHF.Phases.SolveTypes.Utils
       UHF.Phases.ToANFIR
       UHF.Phases.ToBackendIR
       UHF.Phases.ToRIR

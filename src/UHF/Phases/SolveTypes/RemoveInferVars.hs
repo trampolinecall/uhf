@@ -6,64 +6,63 @@ import qualified Data.List.NonEmpty as NonEmpty
 
 import UHF.Phases.SolveTypes.Aliases
 import UHF.Phases.SolveTypes.Error
-import UHF.Phases.SolveTypes.Solver.TypeWithInferVar hiding (Type)
-import qualified UHF.Phases.SolveTypes.Solver.TypeWithInferVar as TypeWithInferVar (Type (..))
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
+import qualified UHF.Parts.TypeSolver as TypeSolver
 import qualified UHF.Util.Arena as Arena
 
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Control.Monad.Fix (mfix)
 
-remove :: InferVarArena -> TypedWithInferVarsModuleArena -> TypedWithInferVarsADTArena -> TypedWithInferVarsTypeSynonymArena -> TypedWithInferVarsVariableArena -> Compiler.WithDiagnostics Error Void (TypedModuleArena, TypedADTArena, TypedTypeSynonymArena, TypedVariableArena)
+remove :: TypeSolver.InferVarArena -> TypedWithInferVarsModuleArena -> TypedWithInferVarsADTArena -> TypedWithInferVarsTypeSynonymArena -> TypedWithInferVarsVariableArena -> Compiler.WithDiagnostics Error Void (TypedModuleArena, TypedADTArena, TypedTypeSynonymArena, TypedVariableArena)
 remove infer_vars mods adts type_synonyms vars =
     convert_vars infer_vars >>= \ infer_vars ->
     pure (Arena.transform (module_ infer_vars) mods, Arena.transform (adt infer_vars) adts, Arena.transform (type_synonym infer_vars) type_synonyms, Arena.transform (variable infer_vars) vars)
 
-convert_vars :: InferVarArena -> Compiler.WithDiagnostics Error Void (Arena.Arena (Maybe Type) InferVarKey)
+convert_vars :: TypeSolver.InferVarArena -> Compiler.WithDiagnostics Error Void (Arena.Arena (Maybe Type) TypeSolver.InferVarKey)
 convert_vars infer_vars =
     -- infinite recursion is not possible because occurs check prevents loops in substitution
     mfix (\ infer_vars_converted -> Arena.transformM (runMaybeT . convert_var infer_vars_converted) infer_vars)
     where
-        r _ TypeWithInferVar.Type'Int = pure Type.Type'Int
-        r _ TypeWithInferVar.Type'Float = pure Type.Type'Float
-        r _ TypeWithInferVar.Type'Char = pure Type.Type'Char
-        r _ TypeWithInferVar.Type'String = pure Type.Type'String
-        r _ TypeWithInferVar.Type'Bool = pure Type.Type'Bool
-        r infer_vars_converted (TypeWithInferVar.Type'ADT a params) = Type.Type'ADT a <$> mapM (r infer_vars_converted) params
-        r _ (TypeWithInferVar.Type'Synonym s) = pure $ Type.Type'Synonym s
-        r infer_vars_converted (TypeWithInferVar.Type'Function arg res) = Type.Type'Function <$> r infer_vars_converted arg <*> r infer_vars_converted res
-        r infer_vars_converted (TypeWithInferVar.Type'Tuple a b) = Type.Type'Tuple <$> r infer_vars_converted a <*> r infer_vars_converted b
-        r infer_vars_converted (TypeWithInferVar.Type'InferVar v) = MaybeT $ pure $ Arena.get infer_vars_converted v
-        r _ (TypeWithInferVar.Type'QuantVar v) = pure $ Type.Type'QuantVar v
-        r infer_vars_converted (TypeWithInferVar.Type'Forall vars ty) = Type.Type'Forall vars <$> r infer_vars_converted ty
+        r _ TypeSolver.Type'Int = pure Type.Type'Int
+        r _ TypeSolver.Type'Float = pure Type.Type'Float
+        r _ TypeSolver.Type'Char = pure Type.Type'Char
+        r _ TypeSolver.Type'String = pure Type.Type'String
+        r _ TypeSolver.Type'Bool = pure Type.Type'Bool
+        r infer_vars_converted (TypeSolver.Type'ADT a params) = Type.Type'ADT a <$> mapM (r infer_vars_converted) params
+        r _ (TypeSolver.Type'Synonym s) = pure $ Type.Type'Synonym s
+        r infer_vars_converted (TypeSolver.Type'Function arg res) = Type.Type'Function <$> r infer_vars_converted arg <*> r infer_vars_converted res
+        r infer_vars_converted (TypeSolver.Type'Tuple a b) = Type.Type'Tuple <$> r infer_vars_converted a <*> r infer_vars_converted b
+        r infer_vars_converted (TypeSolver.Type'InferVar v) = MaybeT $ pure $ Arena.get infer_vars_converted v
+        r _ (TypeSolver.Type'QuantVar v) = pure $ Type.Type'QuantVar v
+        r infer_vars_converted (TypeSolver.Type'Forall vars ty) = Type.Type'Forall vars <$> r infer_vars_converted ty
 
-        convert_var infer_vars_converted (InferVar _ (Substituted s)) = r infer_vars_converted s
-        convert_var _ (InferVar for_what Fresh) = lift (Compiler.tell_error $ AmbiguousType for_what) >> MaybeT (pure Nothing)
+        convert_var infer_vars_converted (TypeSolver.InferVar _ (TypeSolver.Substituted s)) = r infer_vars_converted s
+        convert_var _ (TypeSolver.InferVar for_what TypeSolver.Fresh) = lift (Compiler.tell_error $ AmbiguousType for_what) >> MaybeT (pure Nothing)
 
-module_ :: Arena.Arena (Maybe Type) InferVarKey -> TypedWithInferVarsModule -> TypedModule
+module_ :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> TypedWithInferVarsModule -> TypedModule
 module_ infer_vars (SIR.Module id bindings adts type_synonyms) = SIR.Module id (map (binding infer_vars) bindings) adts type_synonyms
 
-variable :: Arena.Arena (Maybe Type) InferVarKey -> TypedWithInferVarsVariable -> TypedVariable
+variable :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> TypedWithInferVarsVariable -> TypedVariable
 variable infer_vars (SIR.Variable id ty name) = SIR.Variable id (type_ infer_vars ty) name
 variable infer_vars (SIR.Variable'ADTVariant id index tparams ty sp) = SIR.Variable'ADTVariant id index tparams (type_ infer_vars ty) sp
 
-adt :: Arena.Arena (Maybe Type) InferVarKey -> TypedWithInferVarsADT -> TypedADT
+adt :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> TypedWithInferVarsADT -> TypedADT
 adt infer_vars (Type.ADT id name quant_var variants) = Type.ADT id name quant_var (map variant variants)
     where
         variant (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id (map (\ (name, id, ty) -> (name, id, type_expr_and_type infer_vars ty)) fields)
         variant (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id (map (\ (id, ty) -> (id, type_expr_and_type infer_vars ty)) fields)
 
-type_synonym :: Arena.Arena (Maybe Type) InferVarKey -> TypedWithInferVarsTypeSynonym -> TypedTypeSynonym
+type_synonym :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> TypedWithInferVarsTypeSynonym -> TypedTypeSynonym
 type_synonym infer_vars (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name (type_expr_and_type infer_vars expansion)
 
-binding :: Arena.Arena (Maybe Type) InferVarKey -> TypedWithInferVarsBinding -> TypedBinding
+binding :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> TypedWithInferVarsBinding -> TypedBinding
 binding infer_vars (SIR.Binding p eq_sp e) = SIR.Binding (pattern infer_vars p) eq_sp (expr infer_vars e)
 binding _ (SIR.Binding'ADTVariant sp var_key vars variant) = SIR.Binding'ADTVariant sp var_key vars variant
 
-pattern :: Arena.Arena (Maybe Type) InferVarKey -> TypedWithInferVarsPattern -> TypedPattern
+pattern :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> TypedWithInferVarsPattern -> TypedPattern
 pattern infer_vars (SIR.Pattern'Identifier ty sp bn) = SIR.Pattern'Identifier (type_ infer_vars ty) sp bn
 pattern infer_vars (SIR.Pattern'Wildcard ty sp) = SIR.Pattern'Wildcard (type_ infer_vars ty) sp
 pattern infer_vars (SIR.Pattern'Tuple ty sp l r) = SIR.Pattern'Tuple (type_ infer_vars ty) sp (pattern infer_vars l) (pattern infer_vars r)
@@ -72,7 +71,7 @@ pattern infer_vars (SIR.Pattern'AnonADTVariant ty sp variant_iden variant_resolv
 pattern infer_vars (SIR.Pattern'NamedADTVariant ty sp variant_iden variant_resolved tyargs fields) = SIR.Pattern'NamedADTVariant (type_ infer_vars ty) sp (split_identifier infer_vars variant_iden) variant_resolved (map (type_ infer_vars) tyargs) (map (\ (field_name, field_pat) -> (field_name, pattern infer_vars field_pat)) fields)
 pattern infer_vars (SIR.Pattern'Poison ty sp) = SIR.Pattern'Poison (type_ infer_vars ty) sp
 
-expr :: Arena.Arena (Maybe Type) InferVarKey -> TypedWithInferVarsExpr -> TypedExpr
+expr :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> TypedWithInferVarsExpr -> TypedExpr
 expr infer_vars (SIR.Expr'Identifier id ty sp iden_split iden_resolved) = SIR.Expr'Identifier id (type_ infer_vars ty) sp (split_identifier infer_vars iden_split) iden_resolved
 expr infer_vars (SIR.Expr'Char id ty sp c) = SIR.Expr'Char id (type_ infer_vars ty) sp c
 expr infer_vars (SIR.Expr'String id ty sp t) = SIR.Expr'String id (type_ infer_vars ty) sp t
@@ -93,7 +92,7 @@ expr infer_vars (SIR.Expr'TypeApply id ty sp e args) = SIR.Expr'TypeApply id (ty
 expr infer_vars (SIR.Expr'Hole id ty sp hid) = SIR.Expr'Hole id (type_ infer_vars ty) sp hid
 expr infer_vars (SIR.Expr'Poison id ty sp) = SIR.Expr'Poison id (type_ infer_vars ty) sp
 
-type_expr :: Arena.Arena (Maybe Type) InferVarKey -> TypedWithInferVarsTypeExpr -> TypedTypeExpr
+type_expr :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> TypedWithInferVarsTypeExpr -> TypedTypeExpr
 type_expr infer_vars (SIR.TypeExpr'Refer evaled sp iden) = SIR.TypeExpr'Refer (m_decl infer_vars evaled) sp (m_decl infer_vars iden)
 type_expr infer_vars (SIR.TypeExpr'Get evaled sp parent name) = SIR.TypeExpr'Get (m_decl infer_vars evaled) sp (type_expr infer_vars parent) name
 type_expr infer_vars (SIR.TypeExpr'Tuple evaled sp a b) = SIR.TypeExpr'Tuple (m_decl infer_vars evaled) sp (type_expr infer_vars a) (type_expr infer_vars b)
@@ -104,32 +103,32 @@ type_expr infer_vars (SIR.TypeExpr'Apply evaled sp applied_to args) = SIR.TypeEx
 type_expr infer_vars (SIR.TypeExpr'Wild evaled sp) = SIR.TypeExpr'Wild (m_decl infer_vars evaled) sp
 type_expr infer_vars (SIR.TypeExpr'Poison evaled sp) = SIR.TypeExpr'Poison (m_decl infer_vars evaled) sp
 
-type_expr_and_type :: Arena.Arena (Maybe Type) InferVarKey -> (TypedWithInferVarsTypeExpr, TypeWithInferVars) -> (TypedTypeExpr, Maybe Type)
+type_expr_and_type :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> (TypedWithInferVarsTypeExpr, TypeWithInferVars) -> (TypedTypeExpr, Maybe Type)
 type_expr_and_type infer_vars (te, t) = (type_expr infer_vars te, type_ infer_vars t)
 
-split_identifier :: Arena.Arena (Maybe Type) InferVarKey -> SIR.SplitIdentifier TypedWithInferVars start -> SIR.SplitIdentifier Typed start
+split_identifier :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> SIR.SplitIdentifier TypedWithInferVars start -> SIR.SplitIdentifier Typed start
 split_identifier infer_vars (SIR.SplitIdentifier'Get texpr next) = SIR.SplitIdentifier'Get (type_expr infer_vars texpr) next
 split_identifier _ (SIR.SplitIdentifier'Single name) = SIR.SplitIdentifier'Single name
 
-m_decl :: Arena.Arena (Maybe Type) InferVarKey -> Maybe (SIR.Decl TypeWithInferVars) -> Maybe (SIR.Decl Type)
+m_decl :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> Maybe (SIR.Decl TypeWithInferVars) -> Maybe (SIR.Decl Type)
 m_decl infer_vars d = d >>= decl infer_vars
 
-decl :: Arena.Arena (Maybe Type) InferVarKey -> SIR.Decl TypeWithInferVars -> Maybe (SIR.Decl Type)
+decl :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> SIR.Decl TypeWithInferVars -> Maybe (SIR.Decl Type)
 decl _ (SIR.Decl'Module m) = Just $ SIR.Decl'Module m
 decl infer_vars (SIR.Decl'Type t) = SIR.Decl'Type <$> (type_ infer_vars t)
 
-type_ :: Arena.Arena (Maybe Type) InferVarKey -> TypeWithInferVars -> Maybe Type
+type_ :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> TypeWithInferVars -> Maybe Type
 type_ infer_vars = r
     where
-        r TypeWithInferVar.Type'Int = pure Type.Type'Int
-        r TypeWithInferVar.Type'Float = pure Type.Type'Float
-        r TypeWithInferVar.Type'Char = pure Type.Type'Char
-        r TypeWithInferVar.Type'String = pure Type.Type'String
-        r TypeWithInferVar.Type'Bool = pure Type.Type'Bool
-        r (TypeWithInferVar.Type'ADT a params) = Type.Type'ADT a <$> mapM r params
-        r (TypeWithInferVar.Type'Synonym s) = pure $ Type.Type'Synonym s
-        r (TypeWithInferVar.Type'Function arg res) = Type.Type'Function <$> r arg <*> r res
-        r (TypeWithInferVar.Type'Tuple a b) = Type.Type'Tuple <$> r a <*> r b
-        r (TypeWithInferVar.Type'InferVar u) = Arena.get infer_vars u
-        r (TypeWithInferVar.Type'QuantVar v) = Just $ Type.Type'QuantVar v
-        r (TypeWithInferVar.Type'Forall vars ty) = Type.Type'Forall vars <$> r ty
+        r TypeSolver.Type'Int = pure Type.Type'Int
+        r TypeSolver.Type'Float = pure Type.Type'Float
+        r TypeSolver.Type'Char = pure Type.Type'Char
+        r TypeSolver.Type'String = pure Type.Type'String
+        r TypeSolver.Type'Bool = pure Type.Type'Bool
+        r (TypeSolver.Type'ADT a params) = Type.Type'ADT a <$> mapM r params
+        r (TypeSolver.Type'Synonym s) = pure $ Type.Type'Synonym s
+        r (TypeSolver.Type'Function arg res) = Type.Type'Function <$> r arg <*> r res
+        r (TypeSolver.Type'Tuple a b) = Type.Type'Tuple <$> r a <*> r b
+        r (TypeSolver.Type'InferVar u) = Arena.get infer_vars u
+        r (TypeSolver.Type'QuantVar v) = Just $ Type.Type'QuantVar v
+        r (TypeSolver.Type'Forall vars ty) = Type.Type'Forall vars <$> r ty

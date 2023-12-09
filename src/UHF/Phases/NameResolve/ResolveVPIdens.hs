@@ -11,10 +11,10 @@ import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Phases.NameResolve.Utils as Utils
-import qualified UHF.Phases.SolveTypes.Solver.TypeWithInferVar as TypeWithInferVar -- TODO: organize these modules better
+import qualified UHF.Parts.TypeSolver as TypeSolver
 import qualified UHF.Util.Arena as Arena
 
-type DIden = Maybe (SIR.Decl TypeWithInferVar.Type)
+type DIden = Maybe (SIR.Decl TypeSolver.Type)
 
 type UnresolvedVIden = SIR.SplitIdentifier Unresolved ResolvedVIden
 type UnresolvedPIden = SIR.SplitIdentifier Unresolved ResolvedPIden
@@ -22,20 +22,20 @@ type UnresolvedPIden = SIR.SplitIdentifier Unresolved ResolvedPIden
 type ResolvedVIden = Maybe SIR.VariableKey
 type ResolvedPIden = Maybe Type.ADT.VariantIndex
 
-type Unresolved = (DIden, DIden, TypeWithInferVar.Type, ResolvedVIden, (), ResolvedPIden, (), (), ())
+type Unresolved = (DIden, DIden, TypeSolver.Type, ResolvedVIden, (), ResolvedPIden, (), (), ())
 
-type UnresolvedADT = Type.ADT (SIR.TypeExpr Unresolved, TypeWithInferVar.Type)
-type UnresolvedTypeSynonym = Type.TypeSynonym (SIR.TypeExpr Unresolved, TypeWithInferVar.Type)
+type UnresolvedADT = Type.ADT (SIR.TypeExpr Unresolved, TypeSolver.Type)
+type UnresolvedTypeSynonym = Type.TypeSynonym (SIR.TypeExpr Unresolved, TypeSolver.Type)
 
 type UnresolvedModuleArena = Arena.Arena (SIR.Module Unresolved) SIR.ModuleKey
 type UnresolvedADTArena = Arena.Arena UnresolvedADT Type.ADTKey
 type UnresolvedTypeSynonymArena = Arena.Arena UnresolvedTypeSynonym Type.TypeSynonymKey
 type UnresolvedVariableArena = Arena.Arena (SIR.Variable Unresolved) SIR.VariableKey
 
-type Resolved = (DIden, DIden, TypeWithInferVar.Type, ResolvedVIden, ResolvedVIden, ResolvedPIden, ResolvedPIden, (), ())
+type Resolved = (DIden, DIden, TypeSolver.Type, ResolvedVIden, ResolvedVIden, ResolvedPIden, ResolvedPIden, (), ())
 
-type ResolvedADT = Type.ADT (SIR.TypeExpr Resolved, TypeWithInferVar.Type)
-type ResolvedTypeSynonym = Type.TypeSynonym (SIR.TypeExpr Resolved, TypeWithInferVar.Type)
+type ResolvedADT = Type.ADT (SIR.TypeExpr Resolved, TypeSolver.Type)
+type ResolvedTypeSynonym = Type.TypeSynonym (SIR.TypeExpr Resolved, TypeSolver.Type)
 
 type ResolvedModuleArena = Arena.Arena (SIR.Module Resolved) SIR.ModuleKey
 type ResolvedADTArena = Arena.Arena ResolvedADT Type.ADTKey

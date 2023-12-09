@@ -1,4 +1,4 @@
-module UHF.Phases.SolveTypes.Solver.TypeWithInferVar
+module UHF.Parts.TypeSolver.TypeWithInferVar
     ( Type (..)
     , InferVar (..)
     , InferVarArena

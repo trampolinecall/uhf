@@ -17,6 +17,7 @@ solve nr_solver_state (SIR.SIR mods adts type_synonyms quant_vars variables mod)
         (
             runWriterT (AddTypes.add mods adts type_synonyms quant_vars variables) >>= \ ((mods, adts, type_synonyms, variables), constraints) ->
             mapM_ (TypeSolver.solve_constraint adts type_synonyms quant_vars) constraints >>
+            TypeSolver.solve_constraint_backlog adts type_synonyms quant_vars >>
             pure (mods, adts, type_synonyms, variables)
         )
         nr_solver_state >>= \ ((mods, adts, type_synonyms, variables), TypeSolver.SolverState _ infer_vars) ->

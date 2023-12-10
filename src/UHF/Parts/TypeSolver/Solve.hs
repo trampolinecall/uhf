@@ -39,7 +39,7 @@ solve_constraint_backlog adts type_synonyms quant_vars = do
     backlog <- SolveMonad.take_backlog
     (new_backlog, errors) <- runWriterT $ go backlog
     SolveMonad.put_backlog new_backlog
-    pure (errors, length backlog == length new_backlog)
+    pure (errors, length backlog /= length new_backlog)
     where
         go constraints = do
             next <- constraints

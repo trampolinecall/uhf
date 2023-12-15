@@ -201,6 +201,7 @@ unify (Type'Forall vars1 t1, var_map_1) (Type'Forall vars2 t2, var_map_2) = go (
             -- this will error if the same type variable appears twice in nested foralls
             -- i.e. something like #(T) T -> #(T) T -> T
             -- because variables are constructed to be unique to each forall, this should never error in practice
+            -- TODO: maybe this should not be like this?
             let map1' = Map.insertWith (\ _ _ -> error "variable substitution already in map") var1 new_var_sub map1
                 map2' = Map.insertWith (\ _ _ -> error "variable substitution already in map") var2 new_var_sub map2
             in go vars1 t1 map1' vars2 t2 map2'

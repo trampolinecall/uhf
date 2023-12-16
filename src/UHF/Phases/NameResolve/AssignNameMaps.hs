@@ -128,7 +128,7 @@ assign_for_binding nc_stack (SIR.Binding target _ expr) = assign_for_pat nc_stac
 assign_for_binding _ (SIR.Binding'ADTVariant _ _ _ _) = pure ()
 
 assign_for_type_expr :: NameMaps.NameMapStack -> SIR.TypeExpr Extracted -> AssignMonad adt_arena variable_arena QuantVarArena sir_child_maps ()
-assign_for_type_expr nc_stack (SIR.TypeExpr'Refer _ _ id) = assign_type_iden nc_stack id
+assign_for_type_expr nc_stack (SIR.TypeExpr'Refer _ _ id) = assign_for_d_iden id nc_stack
 assign_for_type_expr nc_stack (SIR.TypeExpr'Get _ _ parent _) = assign_for_type_expr nc_stack parent
 assign_for_type_expr nc_stack (SIR.TypeExpr'Tuple _ _ a b) = assign_for_type_expr nc_stack a >> assign_for_type_expr nc_stack b
 assign_for_type_expr _ (SIR.TypeExpr'Hole _ _ _ _) = pure ()
@@ -152,15 +152,15 @@ assign_for_pat _ (SIR.Pattern'Wildcard _ _) = pure ()
 assign_for_pat nc_stack (SIR.Pattern'Tuple _ _ a b) = assign_for_pat nc_stack a >> assign_for_pat nc_stack b
 assign_for_pat nc_stack (SIR.Pattern'Named _ _ _ _ subpat) = assign_for_pat nc_stack subpat
 assign_for_pat nc_stack (SIR.Pattern'AnonADTVariant _ _ variant_iden_split _ _ subpat) = do
-    assign_split_iden assign_pat_iden nc_stack variant_iden_split
+    assign_split_iden assign_for_p_iden nc_stack variant_iden_split
     mapM_ (assign_for_pat nc_stack) subpat
 assign_for_pat nc_stack (SIR.Pattern'NamedADTVariant _ _ variant_iden_split _ _ subpat) = do
-    assign_split_iden assign_pat_iden nc_stack variant_iden_split
+    assign_split_iden assign_for_p_iden nc_stack variant_iden_split
     mapM_ (\ (_, field_pat) -> assign_for_pat nc_stack field_pat) subpat
 assign_for_pat _ (SIR.Pattern'Poison _ _) = pure ()
 
 assign_for_expr :: NameMaps.NameMapStack -> SIR.Expr Extracted -> AssignMonad ADTArena VariableArena QuantVarArena sir_child_maps ()
-assign_for_expr nc_stack (SIR.Expr'Identifier _ _ _ iden_split _) = assign_split_iden assign_expr_iden nc_stack iden_split
+assign_for_expr nc_stack (SIR.Expr'Identifier _ _ _ iden_split _) = assign_split_iden assign_for_v_iden nc_stack iden_split
 assign_for_expr _ (SIR.Expr'Char _ _ _ _) = pure $ ()
 assign_for_expr _ (SIR.Expr'String _ _ _ _) = pure ()
 assign_for_expr _ (SIR.Expr'Int _ _ _ _) = pure ()
@@ -194,7 +194,7 @@ assign_for_expr nc_stack (SIR.Expr'BinaryOps _ _ _ _ first ops) = do
     assign_for_expr nc_stack first
     mapM_
         (\ (_, iden, _, rhs) -> do
-            assign_split_iden assign_expr_iden nc_stack iden
+            assign_split_iden assign_for_v_iden nc_stack iden
             assign_for_expr nc_stack rhs
         )
         ops
@@ -242,17 +242,6 @@ assign_for_expr _ (SIR.Expr'Hole _ _ _ _) = pure ()
 
 assign_for_expr _ (SIR.Expr'Poison _ _ _) = pure ()
 
--- TODO: figure this out
-assign_split_iden :: (NameMaps.NameMapStack -> key -> AssignMonad adt_arena variable_arena QuantVarArena sir_child_maps ()) -> NameMaps.NameMapStack -> SIR.SplitIdentifier Extracted key -> AssignMonad adt_arena variable_arena QuantVarArena sir_child_maps ()
+assign_split_iden :: (key -> NameMaps.NameMapStack -> AssignMonad adt_arena variable_arena QuantVarArena sir_child_maps ()) -> NameMaps.NameMapStack -> SIR.SplitIdentifier Extracted key -> AssignMonad adt_arena variable_arena QuantVarArena sir_child_maps ()
 assign_split_iden _ name_map_stack (SIR.SplitIdentifier'Get texpr _) = assign_for_type_expr name_map_stack texpr
-assign_split_iden assign name_map_stack (SIR.SplitIdentifier'Single i) = assign name_map_stack i
-
--- TODO: remove these
-assign_type_iden :: NameMaps.NameMapStack -> DIdenStartKey -> AssignMonad adt_arena variable_arena quant_var_arena sir_child_maps ()
-assign_type_iden = flip assign_for_d_iden
-
-assign_expr_iden :: NameMaps.NameMapStack -> VIdenStartKey -> AssignMonad adt_arena variable_arena quant_var_arena sir_child_maps ()
-assign_expr_iden = flip assign_for_v_iden
-
-assign_pat_iden :: NameMaps.NameMapStack -> PIdenStartKey -> AssignMonad adt_arena variable_arena quant_var_arena sir_child_maps ()
-assign_pat_iden = flip assign_for_p_iden
+assign_split_iden assign name_map_stack (SIR.SplitIdentifier'Single i) = assign i name_map_stack

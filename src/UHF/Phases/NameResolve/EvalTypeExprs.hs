@@ -12,7 +12,6 @@ import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Parts.TypeSolver as TypeSolver
 import qualified UHF.Phases.NameResolve.Error as Error
-import qualified UHF.Phases.NameResolve.NRReader as NRReader
 import qualified UHF.Phases.NameResolve.NameMaps as NameMaps
 import qualified UHF.Util.Arena as Arena
 

@@ -242,13 +242,13 @@ unify_infer_var (infer_var, infer_var_var_map) (other, other_var_map) infer_var_
                 False -> lift (lift $ set_infer_var_status infer_var (Substituted other))
 
 occurs_check :: Monad under => InferVarKey -> Type -> TypeContextReader t (SolveMonad.SolveMonad under) Bool
--- does the infer_varnown u occur anywhere in the type ty?
-occurs_check u (Type'InferVar other_v) =
-    if u == other_v
+-- does the infer var ifv occur anywhere in the type ty?
+occurs_check ifv (Type'InferVar other_v) =
+    if ifv == other_v
         then pure True
         else
             Arena.get <$> lift SolveMonad.get_infer_vars <*> pure other_v >>= \case
-                InferVar _ (Substituted other_sub) -> occurs_check u other_sub
+                InferVar _ (Substituted other_sub) -> occurs_check ifv other_sub
                 InferVar _ Fresh -> pure False
 
 occurs_check u (Type'ADT _ params) = or <$> mapM (occurs_check u) params

@@ -1,5 +1,6 @@
-module UHF.Phases.NameResolve.IdenKeys
-    ( DIdenStartKey
+module UHF.Phases.NameResolve.Keys
+    ( NameMapKey
+    , DIdenStartKey
     , VIdenStartKey
     , PIdenStartKey
     , DIdenKey
@@ -10,6 +11,11 @@ module UHF.Phases.NameResolve.IdenKeys
 import UHF.Prelude
 
 import qualified UHF.Util.Arena as Arena
+
+newtype NameMapKey = NameMapKey Int deriving Show
+instance Arena.Key NameMapKey where
+    make_key = NameMapKey
+    unmake_key (NameMapKey i) = i
 
 newtype DIdenStartKey = DIdenStartKey Int deriving Show
 instance Arena.Key DIdenStartKey where

@@ -85,8 +85,8 @@ resolve_in_adt adt_parent_name_maps adt_key (Type.ADT id name type_vars variants
     in
     mapM
         (\ var ->
-            NRReader.ask_type_var_arena >>= \ type_var_arena ->
-            let (Type.QuantVar (Located name_sp name)) = Arena.get type_var_arena var
+            NRReader.ask_quant_var_arena >>= \ quant_var_arena ->
+            let (Type.QuantVar (Located name_sp name)) = Arena.get quant_var_arena var
             in pure (name, DeclAt.DeclAt name_sp, SIR.Decl'Type $ TypeSolver.Type'QuantVar var))
         type_vars >>= \ type_vars' ->
     lift (NameMaps.make_name_maps type_vars' [] []) >>= \ new_nc ->
@@ -114,8 +114,8 @@ resolve_in_type_expr nc_stack (SIR.TypeExpr'Function resolved sp arg res) = SIR.
 resolve_in_type_expr nc_stack (SIR.TypeExpr'Forall resolved sp vars ty) =
     mapM
         (\ var ->
-            NRReader.ask_type_var_arena >>= \ type_var_arena ->
-            let (Type.QuantVar (Located name_sp name)) = Arena.get type_var_arena var
+            NRReader.ask_quant_var_arena >>= \ quant_var_arena ->
+            let (Type.QuantVar (Located name_sp name)) = Arena.get quant_var_arena var
             in pure (name, DeclAt.DeclAt name_sp, SIR.Decl'Type $ TypeSolver.Type'QuantVar var))
         (toList vars) >>= \ vars' ->
     lift (NameMaps.make_name_maps vars' [] []) >>= \ new_nc ->
@@ -189,8 +189,8 @@ resolve_in_expr nc_stack (SIR.Expr'TypeAnnotation id type_info sp (ty, tye_ty) e
 resolve_in_expr nc_stack (SIR.Expr'Forall id type_info sp vars e) =
     mapM
         (\ var ->
-            NRReader.ask_type_var_arena >>= \ type_var_arena ->
-            let (Type.QuantVar (Located name_sp name)) = Arena.get type_var_arena var
+            NRReader.ask_quant_var_arena >>= \ quant_var_arena ->
+            let (Type.QuantVar (Located name_sp name)) = Arena.get quant_var_arena var
             in pure (name, DeclAt.DeclAt name_sp, SIR.Decl'Type $ TypeSolver.Type'QuantVar var))
         (toList vars) >>= \ vars' ->
     lift (NameMaps.make_name_maps vars' [] []) >>= \ new_nc ->

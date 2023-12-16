@@ -6,14 +6,12 @@ module UHF.Phases.NameResolve.ExtractIdentifiers
 
 import UHF.Prelude
 
-import UHF.Phases.NameResolve.IdenKeys
+import UHF.Phases.NameResolve.Keys
 import UHF.Source.Located (Located)
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Util.Arena as Arena
-
--- TODO: change errors, clean up this whole module
 
 type IdenStart = Located Text
 

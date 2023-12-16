@@ -1,8 +1,5 @@
 module UHF.Phases.NameResolve.NameMaps
-    ( Error (..)
-    , WithErrors
-
-    , NameMaps (..)
+    ( NameMaps (..)
     , NameMapStack (..)
     , ChildMaps
 
@@ -25,13 +22,6 @@ module UHF.Phases.NameResolve.NameMaps
 
     , pattern_vars
     , binding_children
-
-    , NRReader
-
-    , ask_adt_arena -- TODO: remove
-    , ask_var_arena -- TODO: remove?
-    , ask_type_var_arena -- TODO: remove?
-    , ask_sir_child_maps -- TODO: remove?
     ) where
 
 -- TODO: clean up this and the 3 modules too

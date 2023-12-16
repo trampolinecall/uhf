@@ -20,7 +20,6 @@ import qualified UHF.Phases.NameResolve.NameMaps as NameMaps
 import qualified UHF.Util.Arena as Arena
 
 -- TODO: remove these type aliases
-
 type SIR = SIR.SIR Extracted
 type Module = SIR.Module Extracted
 type ADT = Type.ADT (TypeExpr, ())
@@ -62,7 +61,7 @@ assign_for_p_iden :: PIdenStartKey -> NameMapStack -> AssignMonad adt_arena vari
         assign _ (Just _) = error "assigning multiple name maps to one identifier"
 -- }}}
 
-assign :: Arena.Arena () DIdenStartKey -> Arena.Arena () VIdenStartKey -> Arena.Arena () PIdenStartKey -> SIRChildMaps -> SIR -> Error.WithErrors (DIdenNMArena, VIdenNMArena, PIdenNMArena)
+assign :: Arena.Arena d_iden_start DIdenStartKey -> Arena.Arena v_iden_start VIdenStartKey -> Arena.Arena p_iden_start PIdenStartKey -> SIRChildMaps -> SIR -> Error.WithErrors (DIdenNMArena, VIdenNMArena, PIdenNMArena)
 assign d_iden_arena v_iden_arena p_iden_arena sir_child_maps (SIR.SIR mods adts type_synonyms quant_vars variables _) = do
     -- TODO: put name maps into arena
     ((), (d_iden_nm_arena, v_iden_nm_arena, p_iden_nm_arena)) <-

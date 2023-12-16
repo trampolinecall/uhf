@@ -1,4 +1,4 @@
-module UHF.Phases.NameResolve.Utils
+module UHF.Phases.NameResolve.NameMaps
     ( Error (..)
     , WithErrors
 
@@ -35,65 +35,29 @@ module UHF.Phases.NameResolve.Utils
     ) where
 
 -- TODO: clean up this and the 3 modules too
+-- TODO: clean up folds
 
 import UHF.Prelude
 
 import qualified Data.List as List
 import qualified Data.Map as Map
 
+import UHF.Phases.NameResolve.DeclAt
+import UHF.Phases.NameResolve.Error
+import UHF.Phases.NameResolve.NRReader
 import UHF.Source.Located (Located (Located, unlocate))
-import UHF.Source.Span (Span)
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
-import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Parts.TypeSolver.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Util.Arena as Arena
 
--- errors {{{1
-type WithErrors = Compiler.WithDiagnostics Error Void
-data Error
-    = Error'CouldNotFind (Located Text)
-    | Error'CouldNotFindIn (Maybe (Located Text)) (Located Text)
-    | Error'MultipleDecls Text [DeclAt]
-    | Error'NotAType Span Text
-
-instance Diagnostic.ToError Error where
-    to_error (Error'CouldNotFind (Located sp name)) = Diagnostic.Error (Just sp) ("could not find name '" <> name <> "'") [] []
-    to_error (Error'CouldNotFindIn prev (Located sp name)) =
-        let message =
-                "could not find name '" <> name <> "'"
-                    <> case prev of
-                        Just (Located _ prev_name) -> "in '" <> prev_name <> "'"
-                        Nothing -> ""
-        in Diagnostic.Error (Just sp) message [] []
-
-    to_error (Error'MultipleDecls name decl_ats) =
-        let span = headMay $ mapMaybe decl_at_span decl_ats -- take the first span of the decl_ats; if there are no decl_ats with a span, then this will be Ntohing
-        in Diagnostic.Error
-            span
-            (show (length decl_ats) <> " declarations of '" <> convert_str name <> "'")
-            (map (\ at -> (decl_at_span at, Diagnostic.MsgError, decl_at_message name at)) decl_ats)
-            []
-        where
-            decl_at_span (DeclAt sp) = Just sp
-            decl_at_span ImplicitPrim = Nothing
-            decl_at_message _ (DeclAt _) = Nothing
-            decl_at_message n ImplicitPrim = Just $ "'" <> convert_str n <> "' is implicitly declared as a primitive" -- TODO: reword this message (ideally when it is declared through the prelude import the message would be something like 'implicitly declared by prelude')
-
-    to_error (Error'NotAType sp instead) =
-        Diagnostic.Error (Just sp) ("not a type: got " <> instead) [] []
-
--- child/name maps {{{1
 -- these are very similar datatypes; the difference between them is conceptual: ChildMaps is a map that tells what the children of a certain entity are, whereas a NameMap just stores what names are currently in scope (and is only used for resolving roots)
 -- this is also why there is a NameMapStack but not a ChildMapStack
 data ChildMaps = ChildMaps (Map.Map Text (SIR.Decl TypeWithInferVar.Type)) (Map.Map Text SIR.VariableKey) (Map.Map Text Type.ADT.VariantIndex) deriving Show
 data NameMaps = NameMaps (Map.Map Text (SIR.Decl TypeWithInferVar.Type)) (Map.Map Text SIR.VariableKey) (Map.Map Text Type.ADT.VariantIndex) deriving Show
 data NameMapStack = NameMapStack NameMaps (Maybe NameMapStack)
-
--- TODO: do not export this
-data DeclAt = DeclAt Span | ImplicitPrim deriving Show
 
 -- TODO: do not export these
 type DeclChildrenList = [(Text, DeclAt, SIR.Decl TypeWithInferVar.Type)]
@@ -264,14 +228,3 @@ get_variant_child sir_child_maps decl name =
     in case res of
         Just res -> Right res
         Nothing -> Left $ Error'CouldNotFindIn Nothing name -- TODO: put previous
--- NRReader {{{1
-type NRReader adt_arena var_arena type_var_arena sir_child_maps = ReaderT (adt_arena, var_arena, type_var_arena, sir_child_maps)
-
-ask_adt_arena :: Applicative under => NRReader adt_arena var_arena type_var_arena sir_child_maps under adt_arena
-ask_adt_arena = ReaderT $ \ (adts, _, _, _) -> pure adts
-ask_var_arena :: Applicative under => NRReader adt_arena var_arena type_var_arena sir_child_maps under var_arena
-ask_var_arena = ReaderT $ \ (_, vars, _, _) -> pure vars
-ask_type_var_arena :: Applicative under => NRReader adt_arena var_arena type_var_arena sir_child_maps under type_var_arena
-ask_type_var_arena = ReaderT $ \ (_, _, tvars, _) -> pure tvars
-ask_sir_child_maps :: Applicative under => NRReader adt_arena var_arena type_var_arena sir_child_maps under sir_child_maps
-ask_sir_child_maps = ReaderT $ \ (_, _, _, sir_child_maps) -> pure sir_child_maps

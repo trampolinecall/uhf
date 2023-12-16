@@ -11,7 +11,9 @@ import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Parts.TypeSolver as TypeSolver
-import qualified UHF.Phases.NameResolve.Utils as Utils
+import qualified UHF.Phases.NameResolve.Error as Error
+import qualified UHF.Phases.NameResolve.NRReader as NRReader
+import qualified UHF.Phases.NameResolve.NameMaps as NameMaps
 import qualified UHF.Util.Arena as Arena
 
 -- TODO: change errors, clean up this whole module
@@ -55,10 +57,10 @@ type EvaledTypeSynonymArena = Arena.Arena EvaledTypeSynonym Type.TypeSynonymKey
 
 type QuantVarArena = Arena.Arena Type.QuantVar Type.QuantVarKey
 
-type EvalMonad adts type_synonyms quant_vars = ReaderT (adts, type_synonyms, quant_vars, Utils.SIRChildMaps) (TypeSolver.SolveMonad Utils.WithErrors)
+type EvalMonad adts type_synonyms quant_vars = ReaderT (adts, type_synonyms, quant_vars, NameMaps.SIRChildMaps) (TypeSolver.SolveMonad Error.WithErrors)
 
 -- eval entry point {{{1
-eval :: Utils.SIRChildMaps -> UnevaledSIR -> Compiler.WithDiagnostics Utils.Error Void (EvaledSIR, TypeSolver.SolverState)
+eval :: NameMaps.SIRChildMaps -> UnevaledSIR -> Compiler.WithDiagnostics Error.Error Void (EvaledSIR, TypeSolver.SolverState)
 eval sir_child_maps (SIR.SIR mods adts type_synonyms quant_vars variables mod) =
     TypeSolver.run_solve_monad (
         runReaderT (eval_in_mods mods) (todo, todo, quant_vars, sir_child_maps) >>= \ mods ->
@@ -106,7 +108,7 @@ eval_in_type_expr (SIR.TypeExpr'Get () sp parent name) = do
     (_, _, _, sir_child_maps) <- ask
     parent <- eval_in_type_expr parent
     result <- case SIR.type_expr_evaled parent of
-        Just parent -> case Utils.get_decl_child sir_child_maps parent name of
+        Just parent -> case NameMaps.get_decl_child sir_child_maps parent name of
             Right r -> pure $ Just r
             Left e -> lift (lift $ Compiler.tell_error e) >> pure Nothing
         Nothing -> pure Nothing
@@ -208,6 +210,6 @@ make_infer_var for_what = lift $ TypeSolver.Type'InferVar <$> TypeSolver.new_inf
 evaled_as_type :: EvaledTypeExpr -> EvalMonad adts type_synonyms quant_vars TypeSolver.Type
 evaled_as_type texpr =
     case SIR.type_expr_evaled texpr of
-        Just (SIR.Decl'Module _) -> lift (lift $ Compiler.tell_error (Utils.Error'NotAType (SIR.type_expr_span texpr) "a module")) >> make_infer_var (TypeSolver.TypeExpr $ SIR.type_expr_span texpr)
+        Just (SIR.Decl'Module _) -> lift (lift $ Compiler.tell_error (Error.Error'NotAType (SIR.type_expr_span texpr) "a module")) >> make_infer_var (TypeSolver.TypeExpr $ SIR.type_expr_span texpr)
         Just (SIR.Decl'Type ty) -> pure ty
         Nothing -> make_infer_var (TypeSolver.TypeExpr $ SIR.type_expr_span texpr)

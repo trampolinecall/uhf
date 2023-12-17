@@ -8,6 +8,7 @@ module UHF.Phases.NameResolve.NRReader
     ) where
 
 -- TODO: clean up this and the 3 modules too
+-- TODO: remove this
 
 import UHF.Prelude
 

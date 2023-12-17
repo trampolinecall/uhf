@@ -12,7 +12,6 @@ import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Parts.TypeSolver as TypeSolver
 import qualified UHF.Phases.NameResolve.Error as Error
-import qualified UHF.Phases.NameResolve.NRReader as NRReader
 import qualified UHF.Phases.NameResolve.NameMaps as NameMaps
 import qualified UHF.Util.Arena as Arena
 
@@ -73,7 +72,7 @@ eval sir_child_maps (SIR.SIR mods adts type_synonyms quant_vars variables mod) =
         change_variable (SIR.Variable varid tyinfo n) = SIR.Variable varid tyinfo n
         change_variable (SIR.Variable'ADTVariant varid id tyvars tyinfo sp) = SIR.Variable'ADTVariant varid id tyvars tyinfo sp
 
--- resolving through sir {{{1
+-- evaluating through sir {{{1
 eval_in_mods :: UnevaledModuleArena -> EvalMonad EvaledADTArena EvaledTypeSynonymArena QuantVarArena EvaledModuleArena
 eval_in_mods = Arena.transformM eval_in_module
 
@@ -199,7 +198,7 @@ eval_in_expr (SIR.Expr'Hole id type_info sp hid) = pure $ SIR.Expr'Hole id type_
 
 eval_in_expr (SIR.Expr'Poison id type_info sp) = pure $ SIR.Expr'Poison id type_info sp
 
--- resolving identifiers {{{1
+-- evaluating identifiers {{{1
 eval_split_iden :: SIR.SplitIdentifier Unevaled start -> EvalMonad EvaledADTArena EvaledTypeSynonymArena QuantVarArena (SIR.SplitIdentifier Evaled start)
 eval_split_iden (SIR.SplitIdentifier'Get texpr next) = eval_in_type_expr texpr >>= \ texpr -> pure (SIR.SplitIdentifier'Get texpr next)
 eval_split_iden (SIR.SplitIdentifier'Single start) = pure (SIR.SplitIdentifier'Single start)

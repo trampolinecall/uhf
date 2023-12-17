@@ -59,8 +59,6 @@ library
       UHF.Phases.NameResolve.DeclAt
       UHF.Phases.NameResolve.Error
       UHF.Phases.NameResolve.EvalTypeExprs
-      UHF.Phases.NameResolve.ExtractIdentifiers
-      UHF.Phases.NameResolve.Keys
       UHF.Phases.NameResolve.NameMaps
       UHF.Phases.NameResolve.NRReader
       UHF.Phases.NameResolve.ResolveReferStarts

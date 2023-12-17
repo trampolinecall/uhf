@@ -56,7 +56,7 @@ resolve (SIR.SIR mods adts type_synonyms type_vars variables mod) =
 
 -- resolving through sir {{{1
 resolve_in_mods :: UnresolvedModuleArena -> Error.WithErrors ResolvedModuleArena
-resolve_in_mods module_arena = Arena.transform_with_keyM resolve_in_module module_arena
+resolve_in_mods = Arena.transformM resolve_in_module
 
 resolve_in_adts :: UnresolvedADTArena -> Error.WithErrors ResolvedADTArena
 resolve_in_adts = Arena.transformM resolve_in_adt
@@ -64,8 +64,8 @@ resolve_in_adts = Arena.transformM resolve_in_adt
 resolve_in_type_synonyms :: UnresolvedTypeSynonymArena -> Error.WithErrors ResolvedTypeSynonymArena
 resolve_in_type_synonyms = Arena.transformM resolve_in_type_synonym
 
-resolve_in_module :: SIR.ModuleKey -> SIR.Module Unresolved -> Error.WithErrors (SIR.Module Resolved)
-resolve_in_module mod_key (SIR.Module id bindings adts type_synonyms) = SIR.Module id <$> mapM resolve_in_binding bindings <*> pure adts <*> pure type_synonyms
+resolve_in_module :: SIR.Module Unresolved -> Error.WithErrors (SIR.Module Resolved)
+resolve_in_module (SIR.Module id bindings adts type_synonyms) = SIR.Module id <$> mapM resolve_in_binding bindings <*> pure adts <*> pure type_synonyms
 
 resolve_in_adt :: UnresolvedADT -> Error.WithErrors ResolvedADT
 resolve_in_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM resolve_in_variant variants

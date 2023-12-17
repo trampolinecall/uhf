@@ -19,7 +19,7 @@ import qualified UHF.Phases.NameResolve.NRReader as NRReader
 import qualified UHF.Phases.NameResolve.NameMaps as NameMaps
 import qualified UHF.Util.Arena as Arena
 
--- TODO: figure out a better solution than to have adt_parents and type_synonym_parents
+-- TODO: remove these type aliases
 
 type QuantVarArena = Arena.Arena Type.QuantVar Type.QuantVarKey
 

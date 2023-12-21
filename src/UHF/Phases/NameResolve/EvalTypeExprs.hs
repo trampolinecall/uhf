@@ -72,7 +72,6 @@ eval sir_child_maps (SIR.SIR mods adts type_synonyms quant_vars variables mod) =
         change_variable (SIR.Variable varid tyinfo n) = SIR.Variable varid tyinfo n
         change_variable (SIR.Variable'ADTVariant varid id tyvars tyinfo sp) = SIR.Variable'ADTVariant varid id tyvars tyinfo sp
 
--- evaluating through sir {{{1
 eval_in_mods :: UnevaledModuleArena -> EvalMonad EvaledADTArena EvaledTypeSynonymArena QuantVarArena EvaledModuleArena
 eval_in_mods = Arena.transformM eval_in_module
 
@@ -138,7 +137,7 @@ eval_in_type_expr (SIR.TypeExpr'Apply () sp ty arg) =
     evaled_as_type ty >>= \ ty_as_type ->
     evaled_as_type arg >>= \ arg_as_type ->
     ask >>= \ (adts, type_synonyms, quant_vars, _) ->
-    lift (TypeSolver.apply_type adts type_synonyms quant_vars (TypeSolver.TypeExpr sp) sp ty_as_type arg_as_type) >>= \ result_ty ->
+    lift (TypeSolver.apply_type adts type_synonyms _ quant_vars (TypeSolver.TypeExpr sp) sp ty_as_type arg_as_type) >>= \ result_ty ->
     pure (SIR.TypeExpr'Apply (Just $ SIR.Decl'Type result_ty) sp ty arg)
 eval_in_type_expr (SIR.TypeExpr'Wild () sp) =
     make_infer_var (TypeSolver.TypeExpr sp) >>= \ infer_var ->
@@ -198,7 +197,6 @@ eval_in_expr (SIR.Expr'Hole id type_info sp hid) = pure $ SIR.Expr'Hole id type_
 
 eval_in_expr (SIR.Expr'Poison id type_info sp) = pure $ SIR.Expr'Poison id type_info sp
 
--- evaluating identifiers {{{1
 eval_split_iden :: SIR.SplitIdentifier Unevaled start -> EvalMonad EvaledADTArena EvaledTypeSynonymArena QuantVarArena (SIR.SplitIdentifier Evaled start)
 eval_split_iden (SIR.SplitIdentifier'Get texpr next) = eval_in_type_expr texpr >>= \ texpr -> pure (SIR.SplitIdentifier'Get texpr next)
 eval_split_iden (SIR.SplitIdentifier'Single start) = pure (SIR.SplitIdentifier'Single start)

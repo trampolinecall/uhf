@@ -25,10 +25,17 @@ get_var_type var = do
         SIR.Variable _ ty _ -> pure ty
         SIR.Variable'ADTVariant _ _ _ ty _ -> pure ty
 
+-- TODO: come up with a better way of doing this
+get_type_synonym :: ContextReader adts (Arena.Arena (Type.TypeSynonym t) Type.TypeSynonymKey) quant_vars vars (Type.TypeSynonymKey -> Compiler.WithDiagnostics Error Void (Type.TypeSynonym t))
+get_type_synonym = do
+    (_, type_synonyms, _, _) <- ask
+    pure (\ ts_key -> pure $ Arena.get type_synonyms ts_key)
+
 apply_type :: TypeSolver.InferVarForWhat -> Span -> TypeSolver.Type -> TypeSolver.Type -> ContextReader TypedWithInferVarsADTArena TypedWithInferVarsTypeSynonymArena QuantVarArena vars TypeSolver.Type
 apply_type for_what sp ty arg = do
     (adts, type_synonyms, quant_vars, _) <- ask
-    lift $ lift $ TypeSolver.apply_type adts type_synonyms quant_vars for_what sp ty arg
+    get_type_synonym <- get_type_synonym
+    lift $ lift $ TypeSolver.apply_type adts type_synonyms get_type_synonym quant_vars for_what sp ty arg
 
 -- TODO: sort constraints by priority so that certain weird things dont happen (sort by depth?)
 -- for example:

@@ -9,13 +9,13 @@ import UHF.Source.Located (Located (Located, unlocate, just_span))
 import UHF.Source.Span (Span)
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.ID as ID
-import qualified UHF.Data.IR.IDGen as IDGen
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.RIR as RIR
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Phases.ToRIR.PatternCheck as PatternCheck
 import qualified UHF.Util.Arena as Arena
+import qualified UHF.Util.IDGen as IDGen
 
 type Type = Maybe Type.Type
 

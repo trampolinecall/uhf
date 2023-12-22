@@ -428,6 +428,7 @@ pattern_named =
 path_or_single_iden :: PEG.Parser (Located AST.PathOrSingleIden)
 path_or_single_iden = PEG.choice [path, single_iden]
     where
+        -- TODO: make this work properly because type_ consumes all of the :: segments leaving none for this to consume
         path =
             type_ >>= \ ty ->
             PEG.consume' "'::'" (Token.SingleTypeToken Token.DoubleColon) >>
@@ -440,6 +441,7 @@ path_or_single_iden = PEG.choice [path, single_iden]
 path_or_single_symbol_iden :: PEG.Parser (Located AST.PathOrSingleIden)
 path_or_single_symbol_iden = PEG.choice [path, single_iden]
     where
+        -- TODO: same fix as above
         path =
             type_ >>= \ ty ->
             PEG.consume' "'::'" (Token.SingleTypeToken Token.DoubleColon) >>

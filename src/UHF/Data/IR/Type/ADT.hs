@@ -29,8 +29,8 @@ data Variant ty
     = Variant'Named (Located Text) ID.ADTVariantID [(ID.ADTFieldID, Text, ty)]
     | Variant'Anon (Located Text) ID.ADTVariantID [(ID.ADTFieldID, ty)]
     deriving Show
-data VariantIndex = VariantIndex ADTKey Int deriving (Show, Eq)
-data FieldIndex = FieldIndex VariantIndex Int deriving (Show, Eq)
+data VariantIndex = VariantIndex ADTKey Int deriving (Show, Eq, Ord)
+data FieldIndex = FieldIndex VariantIndex Int deriving (Show, Eq, Ord)
 
 variant_idxs :: Arena.Arena (ADT ty) ADTKey -> ADTKey -> [VariantIndex]
 variant_idxs arena key =

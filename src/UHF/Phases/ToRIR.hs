@@ -3,8 +3,9 @@ module UHF.Phases.ToRIR (PatternCheck.CompletenessError, PatternCheck.NotUseful,
 import UHF.Prelude
 
 import qualified Data.List as List
+import qualified Data.Map as Map
 
-import UHF.Source.Located (Located (Located, unlocate))
+import UHF.Source.Located (Located (Located, unlocate, just_span))
 import UHF.Source.Span (Span)
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.ID as ID
@@ -51,19 +52,52 @@ convert :: SIR -> Compiler.WithDiagnostics (PatternCheck.CompletenessError LastS
 convert (SIR.SIR modules adts type_synonyms quant_vars vars mod) = do
     let adts_converted = Arena.transform convert_adt adts
     let type_synonyms_converted = Arena.transform convert_type_synonym type_synonyms
-    let vars_converted =
-            Arena.transform
-                (\case
-                    SIR.Variable id ty (Located sp _) -> RIR.Variable id ty sp
-                )
-                vars
+    let vars_converted = Arena.transform (\ (SIR.Variable id ty (Located sp _)) -> RIR.Variable id ty sp) vars
     (cu, vars_with_new) <- IDGen.run_id_gen_t ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.VariableID'RIRMadeUp $ runStateT (runReaderT (assemble_cu modules mod) (adts_converted, type_synonyms_converted)) vars_converted
     pure (RIR.RIR adts_converted type_synonyms_converted quant_vars vars_with_new cu)
 
 assemble_cu :: Arena.Arena SIRModule SIR.ModuleKey -> SIR.ModuleKey -> ConvertState RIR.CU
-assemble_cu modules mod =
+assemble_cu modules mod = do
     let SIR.Module _ bindings adts syns = Arena.get modules mod
-    in RIR.CU <$> (concat <$> mapM convert_binding bindings) <*> pure adts <*> pure syns
+    adt_constructor_map <- adts
+        & mapM ( \ adt_key -> do
+            (adts, _) <- ask
+            let variants = Type.ADT.variant_idxs adts adt_key
+            mapM (\ variant_idx -> (variant_idx,) <$> (fst <$> make_adt_constructor variant_idx)) variants
+        )
+        & fmap concat
+        & fmap Map.fromList
+
+    RIR.CU <$> (concat <$> runReaderT (mapM (convert_binding) bindings) adt_constructor_map) <*> pure adts <*> pure syns
+
+make_adt_constructor :: Type.ADT.VariantIndex -> ConvertState (RIR.VariableKey, RIR.Binding)
+make_adt_constructor variant_index@(Type.ADT.VariantIndex adt_key _) = do
+    (adts, _) <- ask
+    let (Type.ADT _ _ adt_quant_vars _) = Arena.get adts adt_key
+    let variant = Type.ADT.get_variant adts variant_index
+    let variant_name_sp = just_span $ Type.ADT.variant_name variant
+
+    -- TODO: do not use the adt quant variables? duplicate them instead?
+    let wrap_in_forall = case adt_quant_vars of
+            [] -> pure
+            param:more -> \ lambda -> new_made_up_expr_id (\ id -> RIR.Expr'Forall id variant_name_sp (param :| more) lambda)
+
+    let make_lambdas type_params variant_index refer_to_params [] =
+            let ty_params_as_tys = map Type.Type'QuantVar type_params
+            in new_made_up_expr_id $ \ id -> RIR.Expr'MakeADT id variant_name_sp variant_index (map Just ty_params_as_tys) refer_to_params
+
+        make_lambdas type_params variant_index refer_to_params (cur_field_ty:more_field_tys) =
+            new_variable cur_field_ty variant_name_sp >>= \ param_var_key ->
+            new_made_up_expr_id (\ id -> RIR.Expr'Identifier id cur_field_ty variant_name_sp (Just param_var_key)) >>= \ refer_expr ->
+
+            make_lambdas type_params variant_index (refer_to_params <> [refer_expr]) more_field_tys >>= \ lambda_result ->
+            new_made_up_expr_id (\ id -> RIR.Expr'Lambda id variant_name_sp param_var_key lambda_result)
+
+    lambdas <- make_lambdas adt_quant_vars variant_index [] (Type.ADT.variant_field_types variant) >>= wrap_in_forall
+
+    var_arena <- lift get
+    var_key <- new_variable (RIR.expr_type var_arena lambdas) variant_name_sp
+    pure (var_key, RIR.Binding var_key lambdas)
 
 convert_adt :: SIRADT -> Type.ADT Type
 convert_adt (Type.ADT id name quant_vars variants) = Type.ADT id name quant_vars (map convert_variant variants)
@@ -74,30 +108,8 @@ convert_adt (Type.ADT id name quant_vars variants) = Type.ADT id name quant_vars
 convert_type_synonym :: SIRTypeSynonym -> Type.TypeSynonym Type
 convert_type_synonym (Type.TypeSynonym id name (_, expansion)) = Type.TypeSynonym id name expansion
 
-convert_binding :: SIRBinding -> ConvertState [RIRBinding]
-convert_binding (SIR.Binding pat eq_sp expr) = convert_expr expr >>= assign_pattern eq_sp pat
--- TODO: REMOVE
--- convert_binding (SIR.Binding'ADTVariant name_sp var_key type_params variant_index) =
---     ask >>= \ (adts, _) ->
---     let variant = Type.get_adt_variant adts variant_index
---
---         wrap_in_forall = case type_params of
---             [] -> pure
---             param:more -> \ lambda -> new_made_up_expr_id (\ id -> RIR.Expr'Forall id name_sp (param :| more) lambda)
---     in
---     make_lambdas type_params variant_index [] (Type.variant_field_types variant) >>= wrap_in_forall >>= \ lambdas ->
---     pure [RIR.Binding var_key lambdas]
---     where
---         make_lambdas type_params variant_index refer_to_params [] =
---             let ty_params_as_tys = map Type.Type'Variable type_params
---             in new_made_up_expr_id $ \ id -> RIR.Expr'MakeADT id name_sp variant_index (map Just ty_params_as_tys) refer_to_params
---
---         make_lambdas type_params variant_index refer_to_params (cur_field_ty:more_field_tys) =
---             new_variable cur_field_ty name_sp >>= \ param_var_key ->
---             new_made_up_expr_id (\ id -> RIR.Expr'Identifier id cur_field_ty name_sp (Just param_var_key)) >>= \ refer_expr ->
---
---             make_lambdas type_params variant_index (refer_to_params <> [refer_expr]) more_field_tys >>= \ lambda_result ->
---             new_made_up_expr_id (\ id -> RIR.Expr'Lambda id name_sp param_var_key lambda_result)
+convert_binding :: SIRBinding -> ReaderT (Map Type.ADT.VariantIndex RIR.VariableKey) ConvertState [RIRBinding]
+convert_binding (SIR.Binding pat eq_sp expr) = convert_expr expr >>= lift . assign_pattern eq_sp pat
 
 new_made_up_var_id :: ConvertState ID.VariableID
 new_made_up_var_id = lift $ lift IDGen.gen_id
@@ -106,8 +118,15 @@ new_variable ty sp =
     new_made_up_var_id >>= \ id ->
     lift (state $ Arena.put (RIR.Variable id ty sp))
 
-convert_expr :: SIRExpr -> ConvertState RIRExpr
-convert_expr (SIR.Expr'Identifier id ty sp _ var) = pure $ RIR.Expr'Identifier id ty sp (todo var) -- TODO
+convert_expr :: SIRExpr -> ReaderT (Map Type.ADT.VariantIndex RIR.VariableKey) ConvertState RIRExpr
+convert_expr (SIR.Expr'Identifier id ty sp _ bv) = do
+    adt_constructor_map <- ask
+    let bv' =
+            case bv of
+                Just (SIR.BoundValue'Variable var) -> Just var
+                Just (SIR.BoundValue'ADTVariant variant) -> Just $ adt_constructor_map Map.! variant -- TODO: lower these on demand to really ensure that this cannot be partial?
+                Nothing -> Nothing
+    pure $ RIR.Expr'Identifier id ty sp bv'
 convert_expr (SIR.Expr'Char id ty sp c) = pure $ RIR.Expr'Char id sp c
 convert_expr (SIR.Expr'String id ty sp s) = pure $ RIR.Expr'String id sp s
 convert_expr (SIR.Expr'Int id ty sp i) = pure $ RIR.Expr'Int id sp i
@@ -119,8 +138,8 @@ convert_expr (SIR.Expr'Lambda id ty sp param_pat body) =
         body_sp = SIR.expr_span body
     in
     -- '\ (...) -> body' becomes '\ (arg) -> let ... = arg; body'
-    new_variable param_ty (SIR.pattern_span param_pat) >>= \ param_bk ->
-    assign_pattern (SIR.pattern_span param_pat) param_pat (RIR.Expr'Identifier id param_ty (SIR.pattern_span param_pat) (Just param_bk)) >>= \ bindings ->
+    lift (new_variable param_ty (SIR.pattern_span param_pat)) >>= \ param_bk ->
+    lift (assign_pattern (SIR.pattern_span param_pat) param_pat (RIR.Expr'Identifier id param_ty (SIR.pattern_span param_pat) (Just param_bk))) >>= \ bindings ->
     RIR.Expr'Lambda id sp param_bk <$> (RIR.Expr'Let id body_sp bindings <$> convert_expr body)
 
 convert_expr (SIR.Expr'Let id ty sp bindings body) = RIR.Expr'Let id sp <$> (concat <$> mapM convert_binding bindings) <*> convert_expr body
@@ -140,10 +159,10 @@ convert_expr (SIR.Expr'If id ty sp _ cond true false) =
     convert_expr true >>= \ true ->
     convert_expr false >>= \ false ->
 
-    lift get >>= \ var_arena ->
-    new_variable (RIR.expr_type var_arena cond) (RIR.expr_span cond) >>= \ cond_var ->
+    lift (lift get) >>= \ var_arena ->
+    lift (new_variable (RIR.expr_type var_arena cond) (RIR.expr_span cond)) >>= \ cond_var ->
 
-    new_made_up_expr_id
+    lift $ new_made_up_expr_id
         (\ let_id ->
             RIR.Expr'Let let_id sp
                 [RIR.Binding cond_var cond]
@@ -169,25 +188,25 @@ convert_expr (SIR.Expr'Match id ty sp match_tok_sp scrutinee arms) = do
     -- }
 
     scrutinee <- convert_expr scrutinee
-    var_arena <- lift get
-    scrutinee_var <- new_variable (RIR.expr_type var_arena scrutinee) (RIR.expr_span scrutinee)
+    var_arena <- lift $ lift get
+    scrutinee_var <- lift $ new_variable (RIR.expr_type var_arena scrutinee) (RIR.expr_span scrutinee)
 
-    (adt_arena, type_synonym_arena) <- ask
+    (adt_arena, type_synonym_arena) <- lift ask
     case PatternCheck.check_complete adt_arena type_synonym_arena match_tok_sp (map fst arms) of
         Right () -> pure ()
-        Left err -> lift $ lift $ lift $ lift $ Compiler.tell_error  err
+        Left err -> lift $ lift $ lift $ lift $ lift $ Compiler.tell_error  err
     case PatternCheck.check_useful adt_arena type_synonym_arena (map fst arms) of
         Right () -> pure ()
-        Left warns -> lift $ lift $ lift $ lift $ Compiler.tell_warnings warns
+        Left warns -> lift $ lift $ lift $ lift $ lift $ Compiler.tell_warnings warns
 
     arms <- arms
         & mapM (\ (pat, result) ->
-            pattern_to_clauses scrutinee_var pat >>= \ clauses ->
+            lift (pattern_to_clauses scrutinee_var pat) >>= \ clauses ->
             convert_expr result >>= \ result ->
             pure (clauses, Right result)
         )
 
-    new_made_up_expr_id
+    lift $ new_made_up_expr_id
         (\ let_id ->
             RIR.Expr'Let let_id sp
                 [RIR.Binding scrutinee_var scrutinee]

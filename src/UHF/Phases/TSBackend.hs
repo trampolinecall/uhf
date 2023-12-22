@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE EmptyCase #-}
 
 module UHF.Phases.TSBackend (lower) where

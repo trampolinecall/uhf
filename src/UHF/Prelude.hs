@@ -83,11 +83,11 @@ import Data.IntSet as X (IntSet)
 
 import Data.Text as X (Text)
 
-import Control.Monad.Trans.State as X (State, state, runState, evalState, execState, mapState, StateT(..), evalStateT, execStateT, mapStateT, get, put, modify, modify')
-import Control.Monad.Trans.Writer as X (Writer, writer, runWriter, execWriter, mapWriter, WriterT(..), execWriterT, mapWriterT, tell)
-import Control.Monad.Trans.Reader as X (Reader, reader, runReader, ReaderT(..), ask)
-import Control.Monad.Trans.Except as X (Except, except, runExcept, ExceptT(..), runExceptT)
-import Control.Monad.Trans.Class as X (lift)
+import Control.Monad.State as X (MonadState (state, get, put), modify, modify', State, StateT(..), runState, runStateT, evalState, evalStateT, execState, execStateT)
+import Control.Monad.Writer as X (MonadWriter (writer, tell), Writer, WriterT(..), runWriter, runWriterT, execWriter, execWriterT, mapWriter, mapWriterT)
+import Control.Monad.Reader as X (MonadReader (ask, reader), Reader, ReaderT(..), runReader, runReaderT)
+import Control.Monad.Except as X (MonadError, Except, ExceptT(..), runExcept, runExceptT)
+import Control.Monad.Trans as X (MonadTrans (lift))
 
 import Control.Applicative as X (Applicative, pure, (<*>))
 import Control.Monad as X (Monad, (>>=), (>>), zipWithM, when)

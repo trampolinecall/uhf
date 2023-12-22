@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module UHF.Source.Location
     ( LineCol
     , Location

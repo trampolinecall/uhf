@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module UHF.Phases.Parser.PEG
     ( TokenStream
 

@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 -- utilities for dealing with precedence in pretty printers
 module UHF.PP.Precedence
     ( PPGivenCurrentAndNextLevels

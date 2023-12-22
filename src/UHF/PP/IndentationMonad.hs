@@ -14,8 +14,8 @@ module UHF.PP.IndentationMonad
 
 import UHF.Prelude hiding (StateT, runStateT, evalStateT, get, modify, Writer, runWriter, tell, execWriter)
 
-import Control.Monad.Trans.State.Strict
-import Control.Monad.Trans.Writer.CPS
+import Control.Monad.State.Strict
+import Control.Monad.Writer.CPS
 import qualified Data.Text as Text
 
 data IndentState = IndentState Int Bool

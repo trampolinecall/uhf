@@ -39,9 +39,8 @@ get_bv_type bv =
 get_var_type :: SIR.VariableKey -> ContextReader adts type_synonyms quant_vars TypedWithInferVarsVariableArena TypeWithInferVars
 get_var_type var = do
     (_, _, _, vars) <- ask
-    case Arena.get vars var of
-        SIR.Variable _ ty _ -> pure ty
-        -- TODO: REMOVE SIR.Variable'ADTVariant _ _ _ ty _ -> pure ty
+    let SIR.Variable _ ty _ = Arena.get vars var
+    pure ty
 
 -- TODO: come up with a better way of doing this
 get_type_synonym :: ContextReader adts (Arena.Arena (Type.TypeSynonym t) Type.TypeSynonymKey) quant_vars vars (Type.TypeSynonymKey -> TypeSolver.SolveMonad (Compiler.WithDiagnostics Error Void) (Type.TypeSynonym t))
@@ -120,7 +119,6 @@ binding (SIR.Binding p eq_sp e) =
     expr e >>= \ e ->
     lift (tell [TypeSolver.Eq TypeSolver.InAssignment eq_sp (loc_pat_type p) (loc_expr_type e)]) >>
     pure (SIR.Binding p eq_sp e)
--- TODO: REMOVE binding (SIR.Binding'ADTVariant sp var_key vars variant) = pure $ SIR.Binding'ADTVariant sp var_key vars variant
 
 loc_pat_type :: SIR.Pattern stage -> Located (SIR.TypeInfo stage)
 loc_pat_type pattern = Located (SIR.pattern_span pattern) (SIR.pattern_type pattern)

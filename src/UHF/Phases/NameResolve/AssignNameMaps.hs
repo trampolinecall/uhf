@@ -55,7 +55,6 @@ assign sir_child_maps (SIR.SIR mods adts type_synonyms type_vars variables mod) 
     pure (SIR.SIR mods adts synonyms type_vars (Arena.transform change_variable variables) mod)
     where
         change_variable (SIR.Variable varid tyinfo n) = SIR.Variable varid tyinfo n
-        -- TODO: REMOVE change_variable (SIR.Variable'ADTVariant varid id tyvars tyinfo sp) = SIR.Variable'ADTVariant varid id tyvars tyinfo sp
 
 -- resolving through sir {{{1
 assign_in_mods :: UnassignedModuleArena -> (NRReader.NRReader UnassignedADTArena UnassignedVariableArena QuantVarArena NameMaps.SIRChildMaps Error.WithErrors) (AssignedModuleArena, Map.Map Type.ADTKey NameMaps.NameMapStack, Map.Map Type.TypeSynonymKey NameMaps.NameMapStack)
@@ -101,7 +100,6 @@ assign_in_type_synonym parent_maps synonym_key (Type.TypeSynonym id name (expans
 
 assign_in_binding :: NameMaps.NameMapStack -> SIR.Binding Unassigned -> (NRReader.NRReader UnassignedADTArena UnassignedVariableArena QuantVarArena NameMaps.SIRChildMaps Error.WithErrors) (SIR.Binding Assigned)
 assign_in_binding nc_stack (SIR.Binding target eq_sp expr) = SIR.Binding <$> assign_in_pat nc_stack target <*> pure eq_sp <*> assign_in_expr nc_stack expr
--- TODO: REMOVE assign_in_binding _ (SIR.Binding'ADTVariant var_key variant vars sp) = pure $ SIR.Binding'ADTVariant var_key variant vars sp
 
 assign_in_type_expr :: NameMaps.NameMapStack -> SIR.TypeExpr Unassigned -> (NRReader.NRReader adt_arena var_arena QuantVarArena NameMaps.SIRChildMaps Error.WithErrors) (SIR.TypeExpr Assigned)
 assign_in_type_expr nc_stack (SIR.TypeExpr'Refer assigned sp id) = SIR.TypeExpr'Refer assigned sp <$> lift (assign_iden nc_stack id)

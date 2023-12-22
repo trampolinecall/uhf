@@ -6,6 +6,9 @@ module UHF.Data.SIR
     ( SIR (..)
     , Stage.Stage (..)
 
+    , ADT
+    , TypeSynonym
+
     , Decl (..)
 
     , ModuleKey
@@ -48,11 +51,14 @@ import qualified UHF.Data.IR.Type.ADT as Type.ADT
 data SIR stage
     = SIR
         (Arena.Arena (Module stage) ModuleKey)
-        (Arena.Arena (Type.ADT (TypeExpr stage, Stage.TypeExprEvaledAsType stage)) ADTKey)
-        (Arena.Arena (Type.TypeSynonym (TypeExpr stage, Stage.TypeExprEvaledAsType stage)) TypeSynonymKey)
+        (Arena.Arena (ADT stage) ADTKey)
+        (Arena.Arena (TypeSynonym stage) TypeSynonymKey)
         (Arena.Arena Type.QuantVar QuantVarKey)
         (Arena.Arena (Variable stage) VariableKey)
         ModuleKey
+
+type ADT stage = Type.ADT (TypeExpr stage, Stage.TypeExprEvaledAsType stage)
+type TypeSynonym stage = Type.TypeSynonym (TypeExpr stage, Stage.TypeExprEvaledAsType stage)
 
 data Decl ty
     = Decl'Module ModuleKey

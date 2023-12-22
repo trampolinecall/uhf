@@ -17,8 +17,6 @@ import qualified UHF.Phases.NameResolve.Error as Error
 import qualified UHF.Phases.NameResolve.NameMaps as NameMaps
 import qualified UHF.Util.Arena as Arena
 
--- TODO: remove these type aliases
-
 type UnresolvedIdenStart = (NameMaps.NameMapStack, Located Text)
 
 type ResolvedDIdenStart = Maybe (SIR.Decl TypeSolver.Type)
@@ -27,21 +25,15 @@ type ResolvedPIdenStart = Maybe Type.ADT.VariantIndex
 
 type Unresolved = (UnresolvedIdenStart, (), (), UnresolvedIdenStart, (), UnresolvedIdenStart, (), (), ())
 
-type UnresolvedADT = Type.ADT (SIR.TypeExpr Unresolved, ())
-type UnresolvedTypeSynonym = Type.TypeSynonym (SIR.TypeExpr Unresolved, ())
-
 type UnresolvedModuleArena = Arena.Arena (SIR.Module Unresolved) SIR.ModuleKey
-type UnresolvedADTArena = Arena.Arena UnresolvedADT Type.ADTKey
-type UnresolvedTypeSynonymArena = Arena.Arena UnresolvedTypeSynonym Type.TypeSynonymKey
+type UnresolvedADTArena = Arena.Arena (SIR.ADT Unresolved) Type.ADTKey
+type UnresolvedTypeSynonymArena = Arena.Arena (SIR.TypeSynonym Unresolved) Type.TypeSynonymKey
 
 type Resolved = (ResolvedDIdenStart, (), (), ResolvedVIdenStart, (), ResolvedPIdenStart, (), (), ())
 
-type ResolvedADT = Type.ADT (SIR.TypeExpr Resolved, ())
-type ResolvedTypeSynonym = Type.TypeSynonym (SIR.TypeExpr Resolved, ())
-
 type ResolvedModuleArena = Arena.Arena (SIR.Module Resolved) SIR.ModuleKey
-type ResolvedADTArena = Arena.Arena ResolvedADT Type.ADTKey
-type ResolvedTypeSynonymArena = Arena.Arena ResolvedTypeSynonym Type.TypeSynonymKey
+type ResolvedADTArena = Arena.Arena (SIR.ADT Resolved) Type.ADTKey
+type ResolvedTypeSynonymArena = Arena.Arena (SIR.TypeSynonym Resolved) Type.TypeSynonymKey
 
 -- resolve entry point {{{1
 resolve :: SIR.SIR Unresolved -> Error.WithErrors (SIR.SIR Resolved)
@@ -66,13 +58,13 @@ resolve_in_type_synonyms = Arena.transformM resolve_in_type_synonym
 resolve_in_module :: SIR.Module Unresolved -> Error.WithErrors (SIR.Module Resolved)
 resolve_in_module (SIR.Module id bindings adts type_synonyms) = SIR.Module id <$> mapM resolve_in_binding bindings <*> pure adts <*> pure type_synonyms
 
-resolve_in_adt :: UnresolvedADT -> Error.WithErrors ResolvedADT
+resolve_in_adt :: (SIR.ADT Unresolved) -> Error.WithErrors (SIR.ADT Resolved)
 resolve_in_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM resolve_in_variant variants
     where
         resolve_in_variant (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id <$> mapM (\ (id, name, (ty, ())) -> resolve_in_type_expr ty >>= \ ty -> pure (id, name, (ty, ()))) fields
         resolve_in_variant (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id <$> mapM (\ (id, (ty, ())) -> resolve_in_type_expr ty >>= \ ty -> pure (id, (ty, ()))) fields
 
-resolve_in_type_synonym :: UnresolvedTypeSynonym -> Error.WithErrors ResolvedTypeSynonym
+resolve_in_type_synonym :: (SIR.TypeSynonym Unresolved) -> Error.WithErrors (SIR.TypeSynonym Resolved)
 resolve_in_type_synonym (Type.TypeSynonym id name (expansion, ())) =
     resolve_in_type_expr expansion >>= \ expansion ->
     pure (Type.TypeSynonym id name (expansion, ()))

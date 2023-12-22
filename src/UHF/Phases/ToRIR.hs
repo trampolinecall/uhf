@@ -25,20 +25,6 @@ type PIden = Maybe Type.ADT.VariantIndex
 
 type LastSIR = (DIden, DIden, Type, VIden, VIden, PIden, PIden, Type, Void)
 
--- TODO: remove these type aliases
-type SIR = SIR.SIR LastSIR
-type SIRModule = SIR.Module LastSIR
-type SIRExpr = SIR.Expr LastSIR
-type SIRTypeExpr = SIR.TypeExpr LastSIR
-type SIRPattern = SIR.Pattern LastSIR
-type SIRBinding = SIR.Binding LastSIR
-
-type SIRADT = Type.ADT (SIRTypeExpr, Type)
-type SIRTypeSynonym = Type.TypeSynonym (SIRTypeExpr, Type)
-
-type RIRExpr = RIR.Expr
-type RIRBinding = RIR.Binding
-
 type VariableArena = Arena.Arena RIR.Variable RIR.VariableKey
 
 type ConvertState = ReaderT (Arena.Arena (Type.ADT Type) Type.ADTKey, Arena.Arena (Type.TypeSynonym Type) Type.TypeSynonymKey) (StateT VariableArena (IDGen.IDGenT ID.VariableID (IDGen.IDGenT ID.ExprID (Compiler.WithDiagnostics (PatternCheck.CompletenessError LastSIR) (PatternCheck.NotUseful LastSIR)))))
@@ -48,7 +34,7 @@ new_made_up_expr_id make =
     lift (lift $ lift IDGen.gen_id) >>= \ id ->
     pure (make id)
 
-convert :: SIR -> Compiler.WithDiagnostics (PatternCheck.CompletenessError LastSIR) (PatternCheck.NotUseful LastSIR) RIR.RIR
+convert :: SIR.SIR LastSIR -> Compiler.WithDiagnostics (PatternCheck.CompletenessError LastSIR) (PatternCheck.NotUseful LastSIR) RIR.RIR
 convert (SIR.SIR modules adts type_synonyms quant_vars vars mod) = do
     let adts_converted = Arena.transform convert_adt adts
     let type_synonyms_converted = Arena.transform convert_type_synonym type_synonyms
@@ -99,16 +85,16 @@ make_adt_constructor variant_index@(Type.ADT.VariantIndex adt_key _) = do
     var_key <- new_variable (RIR.expr_type var_arena lambdas) variant_name_sp
     pure (var_key, RIR.Binding var_key lambdas)
 
-convert_adt :: SIRADT -> Type.ADT Type
+convert_adt :: SIR.ADT LastSIR -> Type.ADT Type
 convert_adt (Type.ADT id name quant_vars variants) = Type.ADT id name quant_vars (map convert_variant variants)
     where
         convert_variant (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id (map (\ (id, name, (_, ty)) -> (id, name, ty)) fields)
         convert_variant (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id (map (\ (id, (_, ty)) -> (id, ty)) fields)
 
-convert_type_synonym :: SIRTypeSynonym -> Type.TypeSynonym Type
+convert_type_synonym :: SIR.TypeSynonym LastSIR -> Type.TypeSynonym Type
 convert_type_synonym (Type.TypeSynonym id name (_, expansion)) = Type.TypeSynonym id name expansion
 
-convert_binding :: SIRBinding -> ReaderT (Map Type.ADT.VariantIndex RIR.VariableKey) ConvertState [RIRBinding]
+convert_binding :: SIR.Binding LastSIR -> ReaderT (Map Type.ADT.VariantIndex RIR.VariableKey) ConvertState [RIR.Binding]
 convert_binding (SIR.Binding pat eq_sp expr) = convert_expr expr >>= lift . assign_pattern eq_sp pat
 
 new_made_up_var_id :: ConvertState ID.VariableID
@@ -118,7 +104,7 @@ new_variable ty sp =
     new_made_up_var_id >>= \ id ->
     lift (state $ Arena.put (RIR.Variable id ty sp))
 
-convert_expr :: SIRExpr -> ReaderT (Map Type.ADT.VariantIndex RIR.VariableKey) ConvertState RIRExpr
+convert_expr :: SIR.Expr LastSIR -> ReaderT (Map Type.ADT.VariantIndex RIR.VariableKey) ConvertState RIR.Expr
 convert_expr (SIR.Expr'Identifier id ty sp _ bv) = do
     adt_constructor_map <- ask
     let bv' =
@@ -249,7 +235,7 @@ convert_expr (SIR.Expr'TypeAnnotation _ _ _ _ other) = convert_expr other
 convert_expr (SIR.Expr'Forall id ty sp vars e) = RIR.Expr'Forall id sp vars <$> convert_expr e
 convert_expr (SIR.Expr'TypeApply id ty sp e (arg, arg_ty)) = RIR.Expr'TypeApply id ty sp <$> convert_expr e <*> pure arg_ty
 
-assign_pattern :: Span -> SIRPattern -> RIRExpr -> ConvertState [RIRBinding]
+assign_pattern :: Span -> SIR.Pattern LastSIR -> RIR.Expr -> ConvertState [RIR.Binding]
 assign_pattern incomplete_err_sp pat expr = do
     (adt_arena, type_synonym_arena) <- ask
     case PatternCheck.check_complete adt_arena type_synonym_arena incomplete_err_sp [pat] of

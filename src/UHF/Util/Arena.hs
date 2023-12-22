@@ -23,7 +23,7 @@ import UHF.Prelude hiding (put, get, modify)
 import qualified Data.Sequence as Sequence
 
 newtype Arena a k = Arena (Seq a) deriving (Show, Eq)
-newtype KeyData = KeyData Int deriving (Show, Eq, Ord)
+newtype KeyData = KeyData Int deriving (Show, Eq, Ord) -- TODO: dont have show?
 
 class Key k where
     make_key :: KeyData -> k

@@ -18,11 +18,23 @@ type ContextReader adts type_synonyms quant_vars vars = ReaderT (adts, type_syno
 
 -- TODO: make helper functions to not use lift
 
-get_bv_type :: SIR.BoundValue -> ContextReader adts type_synonyms quant_vars TypedWithInferVarsVariableArena TypeWithInferVars
+get_bv_type :: SIR.BoundValue -> ContextReader TypedWithInferVarsADTArena type_synonyms quant_vars TypedWithInferVarsVariableArena TypeWithInferVars
 get_bv_type bv =
     case bv of
         SIR.BoundValue'Variable var -> get_var_type var
-        SIR.BoundValue'ADTVariant _ -> todo
+        SIR.BoundValue'ADTVariant variant_index@(Type.ADT.VariantIndex adt_key _) -> do
+            (adts, _, _, _) <- ask
+            let (Type.ADT _ _ adt_type_params _) = Arena.get adts adt_key
+            let variant = Type.ADT.get_variant adts variant_index
+            case variant of
+                    Type.ADT.Variant'Named _ _ _ -> error "bound value should not be made for a named adt variant" -- TODO: statically make sure this cant happen?
+                    Type.ADT.Variant'Anon _ _ fields ->
+                        let change_quant_vars ty = foldlM (\ ty (adt_typaram, var_typaram) -> lift $ lift $ TypeSolver.substitute_quant_var adt_typaram (TypeSolver.Type'QuantVar var_typaram) ty) ty (zip adt_type_params adt_type_params)
+                        in mapM (change_quant_vars . snd . snd) fields >>= \ arg_tys ->
+                        let wrap_in_forall = case adt_type_params of -- TODO: duplicate these type params
+                                [] -> identity
+                                param:more -> TypeSolver.Type'Forall (param :| more)
+                        in pure $ wrap_in_forall $ foldr TypeSolver.Type'Function (TypeSolver.Type'ADT adt_key (map TypeSolver.Type'QuantVar adt_type_params)) arg_tys -- function type that takes all the field types and then results in the adt type
 
 get_var_type :: SIR.VariableKey -> ContextReader adts type_synonyms quant_vars TypedWithInferVarsVariableArena TypeWithInferVars
 get_var_type var = do
@@ -78,21 +90,6 @@ add mods adts type_synonyms quant_vars variables =
 
 variable :: UntypedVariable -> ContextReader TypedWithInferVarsADTArena type_synonyms quant_vars vars TypedWithInferVarsVariable
 variable (SIR.Variable id () name@(Located def_span _)) = SIR.Variable id <$> lift (lift $ TypeSolver.Type'InferVar <$> TypeSolver.new_infer_var (TypeSolver.Variable def_span)) <*> pure name
--- TODO: REMOVE
--- variable (SIR.Variable'ADTVariant id variant_index@(Type.ADT.VariantIndex adt_key _) var_type_params () def_span) = do
---     (adts, _, _, _) <- ask
---     let (Type.ADT _ _ adt_type_params _) = Arena.get adts adt_key
---     let variant = Type.ADT.get_variant adts variant_index
---     ty <- case variant of
---             Type.ADT.Variant'Named _ _ _ -> error "bound value should not be made for a named adt variant" -- TODO: statically make sure this cant happen?
---             Type.ADT.Variant'Anon _ _ fields ->
---                 let change_quant_vars ty = foldlM (\ ty (adt_typaram, var_typaram) -> lift $ lift $ TypeSolver.substitute_quant_var adt_typaram (TypeSolver.Type'QuantVar var_typaram) ty) ty (zip adt_type_params var_type_params)
---                 in mapM (change_quant_vars . snd . snd) fields >>= \ arg_tys ->
---                 let wrap_in_forall = case var_type_params of
---                         [] -> identity
---                         param:more -> TypeSolver.Type'Forall (param :| more)
---                 in pure $ wrap_in_forall $ foldr TypeSolver.Type'Function (TypeSolver.Type'ADT adt_key (map TypeSolver.Type'QuantVar var_type_params)) arg_tys -- function type that takes all the field types and then results in the adt type
---     pure $ SIR.Variable'ADTVariant id variant_index var_type_params ty def_span
 
 module_ :: UntypedModule -> ContextReader TypedWithInferVarsADTArena TypedWithInferVarsTypeSynonymArena QuantVarArena TypedWithInferVarsVariableArena TypedWithInferVarsModule
 module_ (SIR.Module id bindings adts type_synonyms) = SIR.Module id <$> mapM binding bindings <*> pure adts <*> pure type_synonyms

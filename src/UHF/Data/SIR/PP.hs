@@ -11,6 +11,7 @@ import UHF.Prelude
 import UHF.Source.Located (Located (Located, unlocate))
 import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Parts.TypeSolver as TypeSolver
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.Type.PP as Type.PP
 import qualified UHF.Data.SIR as SIR
@@ -68,16 +69,12 @@ refer_bv :: SIR.BoundValue -> IRReader stage PP.Token
 refer_bv (SIR.BoundValue'Variable v) = refer_var v
 refer_bv (SIR.BoundValue'ADTVariant var) = refer_iden var
 
-refer_decl :: SIR.Decl t -> IRReader stage PP.Token
+refer_decl :: DumpableType stage t => SIR.Decl t -> IRReader stage PP.Token
 refer_decl d = case d of
     SIR.Decl'Module m ->
         get_module m >>= \ (SIR.Module id _ _ _) ->
         pure (PP.String $ ID.stringify id)
-    SIR.Decl'Type ty -> todo -- TODO
-        -- get_adt_arena >>= \ adt_arena ->
-        -- get_type_synonym_arena >>= \ type_synonym_arena ->
-        -- get_quant_var_arena >>= \ quant_var_arena ->
-        -- pure (Type.PP.refer_type adt_arena type_synonym_arena quant_var_arena ty)
+    SIR.Decl'Type ty -> refer_type ty
 
 refer_adt_variant :: Type.ADT.VariantIndex -> IRReader stage PP.Token
 refer_adt_variant variant_index@(Type.ADT.VariantIndex adt_key _) =
@@ -85,6 +82,22 @@ refer_adt_variant variant_index@(Type.ADT.VariantIndex adt_key _) =
     Type.ADT.get_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
     let variant_name = unlocate $ Type.ADT.variant_name variant
     in pure $ PP.List [adt_referred, "::", PP.String variant_name]
+
+class DumpableType stage ty where
+    refer_type :: ty -> IRReader stage PP.Token
+
+instance DumpableType stage TypeSolver.Type where
+    refer_type t = do
+        adt_arena <- get_adt_arena
+        type_synonym_arena <- get_type_synonym_arena
+        quant_var_arena <- get_quant_var_arena
+        pure (fst $ TypeSolver.run_infer_var_namer $ TypeSolver.pp_type False adt_arena type_synonym_arena quant_var_arena todo t) -- TODO
+instance DumpableType stage Type.Type where
+    refer_type t = do
+        adt_arena <- get_adt_arena
+        type_synonym_arena <- get_type_synonym_arena
+        quant_var_arena <- get_quant_var_arena
+        pure (Type.PP.refer_type adt_arena type_synonym_arena quant_var_arena t)
 
 class DumpableIdentifier stage i where
     refer_iden :: i -> IRReader stage PP.Token
@@ -105,7 +118,7 @@ instance (DumpableConstraints stage, DumpableIdentifier stage start) => Dumpable
 instance DumpableIdentifier stage Text where
     refer_iden = pure . PP.String
 
-instance DumpableIdentifier stage (SIR.Decl t) where
+instance DumpableType stage t => DumpableIdentifier stage (SIR.Decl t) where
     refer_iden = refer_decl
 instance DumpableIdentifier stage SIR.BoundValue where
     refer_iden = refer_bv

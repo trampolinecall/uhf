@@ -4,6 +4,8 @@ module UHF.Parts.TypeSolver
     , ExpectInWhat (..)
 
     , Type (..)
+    , pp_type
+    , run_infer_var_namer
 
     , InferVar (..)
     , InferVarStatus (..)
@@ -34,4 +36,5 @@ import UHF.Parts.TypeSolver.Solve
 import UHF.Parts.TypeSolver.SolveError
 import UHF.Parts.TypeSolver.SolveMonad
 import UHF.Parts.TypeSolver.TypeWithInferVar
+import UHF.Parts.TypeSolver.TypeWithInferVar.PP
 import UHF.Parts.TypeSolver.Utils

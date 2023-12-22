@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 module UHF.Parts.TypeSolver.Solve
     ( solve -- TODO: remove?
 
@@ -25,17 +26,17 @@ import qualified UHF.Util.Arena as Arena
 type TypeContextReader e_t t under = ReaderT (Arena.Arena (Type.ADT e_t) Type.ADTKey, Arena.Arena (Type.TypeSynonym e_t) Type.TypeSynonymKey, Type.TypeSynonymKey -> under (Type.TypeSynonym (t, Type)), Arena.Arena Type.QuantVar Type.QuantVarKey) under
 
 -- TODO: figure out a better way to put this
-apply_type :: Monad under => Arena.Arena (Type.ADT (t, Type)) Type.ADTKey -> Arena.Arena (Type.TypeSynonym (t, Type)) Type.TypeSynonymKey -> (Type.TypeSynonymKey -> under (Type.TypeSynonym (t, Type))) -> Arena.Arena Type.QuantVar Type.QuantVarKey -> InferVarForWhat -> Span -> Type -> Type -> SolveMonad.SolveMonad under Type
+apply_type :: Monad under => Arena.Arena (Type.ADT e_t) Type.ADTKey -> Arena.Arena (Type.TypeSynonym e_t) Type.TypeSynonymKey -> (Type.TypeSynonymKey -> under (Type.TypeSynonym (t, Type))) -> Arena.Arena Type.QuantVar Type.QuantVarKey -> InferVarForWhat -> Span -> Type -> Type -> SolveMonad.SolveMonad under Type
 apply_type adts type_synonyms get_type_synonym quant_vars for_what sp ty arg =
     SolveMonad.new_infer_var for_what >>= \ result_ifv ->
     solve_constraint adts type_synonyms get_type_synonym quant_vars (InferVarIsApplyResult sp result_ifv ty arg) >>= \ _ -> -- TODO: do not ignore result and push constraint onto backlog if not solvable
     pure (Type'InferVar result_ifv)
 
 -- TODO: figure out a better place in this module to put these 2 functions
-solve_constraint :: Monad under => Arena.Arena (Type.ADT (t, Type)) Type.ADTKey -> Arena.Arena (Type.TypeSynonym (t, Type)) Type.TypeSynonymKey -> (Type.TypeSynonymKey -> under (Type.TypeSynonym (t, Type))) -> Arena.Arena Type.QuantVar Type.QuantVarKey -> Constraint -> SolveMonad.SolveMonad under (Maybe (Either (SolveError (t, Type)) ()))
+solve_constraint :: forall e_t under t. Monad under => Arena.Arena (Type.ADT e_t) Type.ADTKey -> Arena.Arena (Type.TypeSynonym e_t) Type.TypeSynonymKey -> (Type.TypeSynonymKey -> under (Type.TypeSynonym (t, Type))) -> Arena.Arena Type.QuantVar Type.QuantVarKey -> Constraint -> SolveMonad.SolveMonad under (Maybe (Either (SolveError e_t) ()))
 solve_constraint adts type_synonyms get_type_synonym quant_vars constraint = solve adts type_synonyms (lift . get_type_synonym) quant_vars constraint
 
-solve_constraint_backlog :: Monad under => Arena.Arena (Type.ADT (t, Type)) Type.ADTKey -> Arena.Arena (Type.TypeSynonym (t, Type)) Type.TypeSynonymKey -> (Type.TypeSynonymKey -> under (Type.TypeSynonym (t, Type))) -> Arena.Arena Type.QuantVar Type.QuantVarKey -> SolveMonad.SolveMonad under ([SolveError (t, Type)], Bool)
+solve_constraint_backlog :: Monad under => Arena.Arena (Type.ADT e_t) Type.ADTKey -> Arena.Arena (Type.TypeSynonym e_t) Type.TypeSynonymKey -> (Type.TypeSynonymKey -> under (Type.TypeSynonym (t, Type))) -> Arena.Arena Type.QuantVar Type.QuantVarKey -> SolveMonad.SolveMonad under ([SolveError e_t], Bool)
 solve_constraint_backlog adts type_synonyms get_type_synonym quant_vars = do
     backlog <- SolveMonad.take_backlog
     (new_backlog, errors) <- runWriterT $ go backlog

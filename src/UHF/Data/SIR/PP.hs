@@ -66,9 +66,6 @@ define_binding (SIR.Binding'ADTVariant _ var_key _ variant_index@(Type.ADT.Varia
     in refer_var var_key >>= \ var_key ->
     pure $ PP.List [var_key, " = <constructor for ", adt_refer, " ", PP.String variant_name, ">;"]
 
-class DumpableIdentifier stage i where
-    refer_iden :: i -> IRReader stage PP.Token
-
 refer_var :: SIR.VariableKey -> IRReader stage PP.Token
 refer_var k = get_var k >>= \case
     SIR.Variable id _ _ -> pure $ PP.String (ID.stringify id)
@@ -84,6 +81,9 @@ refer_decl d = case d of
         -- get_type_synonym_arena >>= \ type_synonym_arena ->
         -- get_quant_var_arena >>= \ quant_var_arena ->
         -- pure (Type.PP.refer_type adt_arena type_synonym_arena quant_var_arena ty)
+
+class DumpableIdentifier stage i where
+    refer_iden :: i -> IRReader stage PP.Token
 
 instance DumpableIdentifier stage a => DumpableIdentifier stage (Located a) where
     refer_iden = refer_iden . unlocate

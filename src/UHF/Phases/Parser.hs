@@ -309,9 +309,9 @@ type_ :: PEG.Parser AST.Type
 type_ = type_forall
 
 type_forall :: PEG.Parser AST.Type
-type_forall = PEG.choice [forall, type_function]
+type_forall = PEG.choice [forall_, type_function]
     where
-        forall =
+        forall_ =
             PEG.consume' "'#'" (Token.SingleTypeToken Token.Hash) >>= \ (Located hash_sp _) ->
             PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>
             PEG.delim_star (PEG.consume' "type variable" (Token.AlphaIdentifier ()) >>= \ (Located sp (Token.AlphaIdentifier a)) -> pure (Located sp a)) (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ vars ->

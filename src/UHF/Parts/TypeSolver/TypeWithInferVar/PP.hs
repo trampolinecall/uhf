@@ -12,7 +12,6 @@ import qualified Data.Map as Map
 
 import UHF.Parts.TypeSolver.TypeWithInferVar
 import UHF.Source.Located (Located (..))
-import UHF.Source.Span (Span)
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.PP as Type.PP
 import qualified UHF.Diagnostic as Diagnostic

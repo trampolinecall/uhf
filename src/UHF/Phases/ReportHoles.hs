@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeOperators #-}
+
 module UHF.Phases.ReportHoles (report_holes) where
 
 import UHF.Prelude

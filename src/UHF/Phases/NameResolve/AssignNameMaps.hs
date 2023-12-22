@@ -1,5 +1,7 @@
 module UHF.Phases.NameResolve.AssignNameMaps
-    ( assign
+    ( Unassigned
+    , Assigned
+    , assign
     ) where
 
 import UHF.Prelude

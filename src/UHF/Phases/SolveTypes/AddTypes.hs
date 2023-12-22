@@ -26,7 +26,7 @@ get_var_type var = do
         SIR.Variable'ADTVariant _ _ _ ty _ -> pure ty
 
 -- TODO: come up with a better way of doing this
-get_type_synonym :: ContextReader adts (Arena.Arena (Type.TypeSynonym t) Type.TypeSynonymKey) quant_vars vars (Type.TypeSynonymKey -> Compiler.WithDiagnostics Error Void (Type.TypeSynonym t))
+get_type_synonym :: ContextReader adts (Arena.Arena (Type.TypeSynonym t) Type.TypeSynonymKey) quant_vars vars (Type.TypeSynonymKey -> TypeSolver.SolveMonad (Compiler.WithDiagnostics Error Void) (Type.TypeSynonym t))
 get_type_synonym = do
     (_, type_synonyms, _, _) <- ask
     pure (\ ts_key -> pure $ Arena.get type_synonyms ts_key)

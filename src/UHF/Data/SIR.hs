@@ -16,6 +16,8 @@ module UHF.Data.SIR
 
     , Binding (..)
 
+    , HoleIdentifier
+
     , TypeExpr(..)
     , SplitIdentifier (..)
     , Expr(..)
@@ -75,7 +77,7 @@ data TypeExpr stage
     = TypeExpr'Refer (Stage.TypeExprEvaled stage) Span (Stage.DIdenStart stage)
     | TypeExpr'Get (Stage.TypeExprEvaled stage) Span (TypeExpr stage) (Located Text)
     | TypeExpr'Tuple (Stage.TypeExprEvaled stage) Span (TypeExpr stage) (TypeExpr stage)
-    | TypeExpr'Hole (Stage.TypeExprEvaled stage) (Stage.TypeExprEvaledAsType stage) Span HoleIdentifier -- TODO: using a TypeInfo field here seems a little inelegant
+    | TypeExpr'Hole (Stage.TypeExprEvaled stage) (Stage.TypeExprEvaledAsType stage) Span HoleIdentifier
     | TypeExpr'Function (Stage.TypeExprEvaled stage) Span (TypeExpr stage) (TypeExpr stage)
     | TypeExpr'Forall (Stage.TypeExprEvaled stage) Span (NonEmpty QuantVarKey) (TypeExpr stage)
     | TypeExpr'Apply (Stage.TypeExprEvaled stage) Span (TypeExpr stage) (TypeExpr stage)

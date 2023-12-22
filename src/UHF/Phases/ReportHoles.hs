@@ -89,7 +89,8 @@ expr (SIR.Expr'Hole _ type_info sp hid) =
     case type_info of
         Just type_info ->
             ask >>= \ (SIR.SIR _ adts type_synonyms vars _ _) ->
-            lift (Compiler.tell_error (Error adts type_synonyms vars sp hid type_info))
+            lift (Compiler.tell_error (Error adts type_synonyms vars sp hid type_info)) >>
+            pure ()
         Nothing -> pure () -- typing phase will have already reported ambiguous type
 
 expr (SIR.Expr'Poison _ _ _) = pure ()
@@ -102,7 +103,8 @@ type_expr (SIR.TypeExpr'Hole _ type_info sp hid) =
     case type_info of
         Just type_info ->
             ask >>= \ (SIR.SIR _ adts type_synonyms vars _ _) ->
-            lift (Compiler.tell_error (Error adts type_synonyms vars sp hid type_info))
+            lift (Compiler.tell_error (Error adts type_synonyms vars sp hid type_info)) >>
+            pure ()
         Nothing -> pure () -- typing phase will have already reported ambiguous type
 type_expr (SIR.TypeExpr'Function _ _ arg res) = type_expr arg >> type_expr res
 type_expr (SIR.TypeExpr'Forall _ _ _ ty) = type_expr ty

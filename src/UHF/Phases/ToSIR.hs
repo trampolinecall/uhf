@@ -76,7 +76,7 @@ new_variable var =
         let (key, variables') = Arena.put var variables
         in (key, (mods, adts, type_synonyms, type_vars, variables'))
 
-tell_error :: Error -> MakeIRState ()
+tell_error :: Error -> MakeIRState Compiler.ErrorReportedPromise
 tell_error = lift . Compiler.tell_error
 
 convert :: [AST.Decl] -> Compiler.WithDiagnostics Error Void SIR

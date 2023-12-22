@@ -196,7 +196,7 @@ convert_expr (SIR.Expr'Match id ty sp match_tok_sp scrutinee arms) = do
     (adt_arena, type_synonym_arena) <- lift ask
     case PatternCheck.check_complete adt_arena type_synonym_arena match_tok_sp (map fst arms) of
         Right () -> pure ()
-        Left err -> lift $ lift $ lift $ lift $ lift $ Compiler.tell_error  err
+        Left err -> lift (lift $ lift $ lift $ lift $ Compiler.tell_error err) >> pure ()
     case PatternCheck.check_useful adt_arena type_synonym_arena (map fst arms) of
         Right () -> pure ()
         Left warns -> lift $ lift $ lift $ lift $ lift $ Compiler.tell_warnings warns
@@ -254,7 +254,7 @@ assign_pattern incomplete_err_sp pat expr = do
     (adt_arena, type_synonym_arena) <- ask
     case PatternCheck.check_complete adt_arena type_synonym_arena incomplete_err_sp [pat] of
         Right () -> pure ()
-        Left err -> lift $ lift $ lift $ lift $ Compiler.tell_error err
+        Left err -> lift $ lift $ lift $ lift $ Compiler.tell_error err >> pure ()
 
     go pat expr
     where

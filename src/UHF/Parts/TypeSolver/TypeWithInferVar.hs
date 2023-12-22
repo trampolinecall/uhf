@@ -31,7 +31,7 @@ data Type
     | Type'Forall (NonEmpty Type.QuantVarKey) Type
     deriving Show
 
-newtype InferVarKey = InferVarKey Int deriving (Show, Eq, Ord)
+newtype InferVarKey = InferVarKey Arena.KeyData deriving (Show, Eq, Ord)
 instance Arena.Key InferVarKey where
     make_key = InferVarKey
     unmake_key (InferVarKey i) = i

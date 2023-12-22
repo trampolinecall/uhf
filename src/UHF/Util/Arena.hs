@@ -3,6 +3,7 @@
 module UHF.Util.Arena
     ( Arena
     , Key(..)
+    , KeyData
     , new
     , put
     , get
@@ -22,10 +23,11 @@ import UHF.Prelude hiding (put, get, modify)
 import qualified Data.Sequence as Sequence
 
 newtype Arena a k = Arena (Seq a) deriving (Show, Eq)
+newtype KeyData = KeyData Int deriving (Show, Eq, Ord)
 
 class Key k where
-    make_key :: Int -> k
-    unmake_key :: k -> Int
+    make_key :: KeyData -> k
+    unmake_key :: k -> KeyData
 
 new :: Arena a k
 new = Arena Sequence.empty
@@ -33,20 +35,24 @@ new = Arena Sequence.empty
 put :: Key k => a -> Arena a k -> (k, Arena a k)
 put item (Arena items) =
     let index = length items
-    in (make_key index, Arena $ items Sequence.|> item)
+    in (make_key (KeyData index), Arena $ items Sequence.|> item)
 
 get :: Key k => Arena a k -> k -> a
-get (Arena items) key = items `Sequence.index` unmake_key key
+get (Arena items) key =
+    let (KeyData index) = unmake_key key
+    in items `Sequence.index` index
 
 modify :: Key k => Arena a k -> k -> (a -> a) -> Arena a k
 modify (Arena items) key change =
-    case Sequence.splitAt (unmake_key key) items of
+    let (KeyData index) = unmake_key key
+    in case Sequence.splitAt index items of
         (before, old Sequence.:<| after) -> Arena $ before <> (change old Sequence.<| after)
         (_, Sequence.Empty) -> unreachable -- because the key should always be valid
 
 modifyM :: (Monad m, Key k) => Arena a k -> k -> (a -> m a) -> m (Arena a k)
 modifyM (Arena items) key change =
-    case Sequence.splitAt (unmake_key key) items of
+    let (KeyData index) = unmake_key key
+    in case Sequence.splitAt index items of
         (before, old Sequence.:<| after) -> change old >>= \ changed -> pure (Arena $ before <> (changed Sequence.<| after))
         (_, Sequence.Empty) -> unreachable -- because the key should always be valid
 
@@ -54,26 +60,26 @@ transform :: Key k => (a -> b) -> Arena a k -> Arena b k
 transform t (Arena items) = Arena $ fmap t items
 
 transform_with_key :: Key k => (k -> a -> b) -> Arena a k -> Arena b k
-transform_with_key t (Arena items) = Arena $ fmap (uncurry t) (Sequence.zip (fmap make_key [0 .. Sequence.length items - 1]) items)
+transform_with_key t (Arena items) = Arena $ fmap (uncurry t) (Sequence.zip (fmap (make_key . KeyData) [0 .. Sequence.length items - 1]) items)
 
 transformM :: (Key k, Monad m) => (a -> m b) -> Arena a k -> m (Arena b k)
 transformM t (Arena items) = Arena <$> mapM t items
 
 transform_with_keyM :: (Key k, Monad m) => (k -> a -> m b) -> Arena a k -> m (Arena b k)
-transform_with_keyM t (Arena items) = Arena <$> mapM (uncurry t) (Sequence.zip (fmap make_key [0 .. Sequence.length items - 1]) items)
+transform_with_keyM t (Arena items) = Arena <$> mapM (uncurry t) (Sequence.zip (fmap (make_key . KeyData) [0 .. Sequence.length items - 1]) items)
 
-newtype TestKey = TestKey Int deriving (Show, Eq)
+newtype TestKey = TestKey KeyData deriving (Show, Eq)
 instance Key TestKey where
     make_key = TestKey
     unmake_key (TestKey k) = k
 
 case_put :: Assertion
 case_put =
-    put (0 :: Int) new @?= (TestKey 0, Arena [0])
+    put (0 :: Int) new @?= (TestKey $ KeyData 0, Arena [0])
 
 case_put_more :: Assertion
 case_put_more =
-    put (1 :: Int) (Arena [0]) @?= (TestKey 1, Arena [0, 1])
+    put (1 :: Int) (Arena [0]) @?= (TestKey $ KeyData 1, Arena [0, 1])
 
 case_get :: Assertion
 case_get =

@@ -18,7 +18,6 @@ import qualified UHF.Phases.NameResolve.NRReader as NRReader
 import qualified UHF.Phases.NameResolve.NameMaps as NameMaps
 import qualified UHF.Util.Arena as Arena
 
--- TODO: remove these type aliases
 -- TODO: figure out a better solution than to have adt_parents and type_synonym_parents
 -- TODO: put name maps into arena
 
@@ -29,22 +28,16 @@ type AssignedIdenStart = (NameMaps.NameMapStack, IdenStart)
 
 type Unassigned = (IdenStart, (), (), IdenStart, (), IdenStart, (), (), ())
 
-type UnassignedADT = Type.ADT (SIR.TypeExpr Unassigned, ())
-type UnassignedTypeSynonym = Type.TypeSynonym (SIR.TypeExpr Unassigned, ())
-
 type UnassignedModuleArena = Arena.Arena (SIR.Module Unassigned) SIR.ModuleKey
-type UnassignedADTArena = Arena.Arena UnassignedADT Type.ADTKey
-type UnassignedTypeSynonymArena = Arena.Arena UnassignedTypeSynonym Type.TypeSynonymKey
+type UnassignedADTArena = Arena.Arena (SIR.ADT Unassigned) Type.ADTKey
+type UnassignedTypeSynonymArena = Arena.Arena (SIR.TypeSynonym Unassigned) Type.TypeSynonymKey
 type UnassignedVariableArena = Arena.Arena (SIR.Variable Unassigned) SIR.VariableKey
 
 type Assigned = (AssignedIdenStart, (), (), AssignedIdenStart, (), AssignedIdenStart, (), (), ())
 
-type AssignedADT = Type.ADT (SIR.TypeExpr Assigned, ())
-type AssignedTypeSynonym = Type.TypeSynonym (SIR.TypeExpr Assigned, ())
-
 type AssignedModuleArena = Arena.Arena (SIR.Module Assigned) SIR.ModuleKey
-type AssignedADTArena = Arena.Arena AssignedADT Type.ADTKey
-type AssignedTypeSynonymArena = Arena.Arena AssignedTypeSynonym Type.TypeSynonymKey
+type AssignedADTArena = Arena.Arena (SIR.ADT Assigned) Type.ADTKey
+type AssignedTypeSynonymArena = Arena.Arena (SIR.TypeSynonym Assigned) Type.TypeSynonymKey
 
 -- assign entry point {{{1
 assign :: NameMaps.SIRChildMaps -> SIR.SIR Unassigned -> Error.WithErrors (SIR.SIR Assigned)
@@ -76,7 +69,7 @@ assign_in_module mod_key (SIR.Module id bindings adts type_synonyms) =
     mapM (\ synonym -> lift $ tell $ Map.singleton synonym (NameMaps.NameMapStack (NameMaps.child_maps_to_name_maps cur_map) Nothing)) type_synonyms >>
     SIR.Module id <$> mapM (lift . lift . assign_in_binding (NameMaps.NameMapStack (NameMaps.child_maps_to_name_maps cur_map) Nothing)) bindings <*> pure adts <*> pure type_synonyms
 
-assign_in_adt :: Map.Map Type.ADTKey NameMaps.NameMapStack -> Type.ADTKey -> UnassignedADT -> (NRReader.NRReader adt_arena var_arena QuantVarArena NameMaps.SIRChildMaps Error.WithErrors) AssignedADT
+assign_in_adt :: Map.Map Type.ADTKey NameMaps.NameMapStack -> Type.ADTKey -> (SIR.ADT Unassigned) -> (NRReader.NRReader adt_arena var_arena QuantVarArena NameMaps.SIRChildMaps Error.WithErrors) (SIR.ADT Assigned)
 assign_in_adt adt_parent_name_maps adt_key (Type.ADT id name type_vars variants) =
     let parent = adt_parent_name_maps Map.! adt_key
     in
@@ -92,7 +85,7 @@ assign_in_adt adt_parent_name_maps adt_key (Type.ADT id name type_vars variants)
         assign_in_variant nc_stack (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id <$> mapM (\ (id, name, (ty, ())) -> assign_in_type_expr nc_stack ty >>= \ ty -> pure (id, name, (ty, ()))) fields
         assign_in_variant nc_stack (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id <$> mapM (\ (id, (ty, ())) -> assign_in_type_expr nc_stack ty >>= \ ty -> pure (id, (ty, ()))) fields
 
-assign_in_type_synonym :: Map.Map Type.TypeSynonymKey NameMaps.NameMapStack -> Type.TypeSynonymKey -> UnassignedTypeSynonym -> (NRReader.NRReader adt_arena var_arena QuantVarArena NameMaps.SIRChildMaps Error.WithErrors) AssignedTypeSynonym
+assign_in_type_synonym :: Map.Map Type.TypeSynonymKey NameMaps.NameMapStack -> Type.TypeSynonymKey -> (SIR.TypeSynonym Unassigned) -> (NRReader.NRReader adt_arena var_arena QuantVarArena NameMaps.SIRChildMaps Error.WithErrors) (SIR.TypeSynonym Assigned)
 assign_in_type_synonym parent_maps synonym_key (Type.TypeSynonym id name (expansion, ())) =
     let parent = parent_maps Map.! synonym_key
     in assign_in_type_expr parent expansion >>= \ expansion ->

@@ -22,8 +22,8 @@ type UntypedDIden = Maybe (SIR.Decl TypeWithInferVars)
 
 type UntypedSIR = SIR.SIR Untyped
 type UntypedModule = SIR.Module Untyped
-type UntypedADT = Type.ADT (UntypedTypeExpr, TypeWithInferVars)
-type UntypedTypeSynonym = Type.TypeSynonym (UntypedTypeExpr, TypeWithInferVars)
+type UntypedADT = SIR.ADT Untyped
+type UntypedTypeSynonym = SIR.TypeSynonym Untyped
 type UntypedBinding = SIR.Binding Untyped
 type UntypedExpr = SIR.Expr Untyped
 type UntypedPattern = SIR.Pattern Untyped
@@ -41,8 +41,8 @@ type TypedWithInferVarsDIden = Maybe (SIR.Decl TypeWithInferVars)
 
 type TypedWithInferVarsSIR = SIR.SIR TypedWithInferVars
 type TypedWithInferVarsModule = SIR.Module TypedWithInferVars
-type TypedWithInferVarsADT = Type.ADT (TypedWithInferVarsTypeExpr, TypeWithInferVars)
-type TypedWithInferVarsTypeSynonym = Type.TypeSynonym (TypedWithInferVarsTypeExpr, TypeWithInferVars)
+type TypedWithInferVarsADT = SIR.ADT TypedWithInferVars
+type TypedWithInferVarsTypeSynonym = SIR.TypeSynonym TypedWithInferVars
 type TypedWithInferVarsBinding = SIR.Binding TypedWithInferVars
 type TypedWithInferVarsExpr = SIR.Expr TypedWithInferVars
 type TypedWithInferVarsPattern = SIR.Pattern TypedWithInferVars
@@ -60,8 +60,8 @@ type TypedDIden = Maybe (SIR.Decl Type)
 
 type TypedSIR = SIR.SIR Typed
 type TypedModule = SIR.Module Typed
-type TypedADT = Type.ADT (TypedTypeExpr, Maybe Type)
-type TypedTypeSynonym = Type.TypeSynonym (TypedTypeExpr, Maybe Type)
+type TypedADT = SIR.ADT Typed
+type TypedTypeSynonym = SIR.TypeSynonym Typed
 type TypedBinding = SIR.Binding Typed
 type TypedExpr = SIR.Expr Typed
 type TypedPattern = SIR.Pattern Typed

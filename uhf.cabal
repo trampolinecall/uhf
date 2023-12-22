@@ -55,10 +55,14 @@ library
       UHF.Phases.Lexer
       UHF.Phases.Lexer.LexError
       UHF.Phases.NameResolve
+      UHF.Phases.NameResolve.AssignNameMaps
+      UHF.Phases.NameResolve.DeclAt
+      UHF.Phases.NameResolve.Error
       UHF.Phases.NameResolve.EvalTypeExprs
+      UHF.Phases.NameResolve.NameMaps
+      UHF.Phases.NameResolve.NRReader
       UHF.Phases.NameResolve.ResolveReferStarts
       UHF.Phases.NameResolve.ResolveVPIdens
-      UHF.Phases.NameResolve.Utils
       UHF.Phases.OptimizeANFIR
       UHF.Phases.OptimizeANFIR.RemoveRefers
       UHF.Phases.OptimizeANFIR.Utils

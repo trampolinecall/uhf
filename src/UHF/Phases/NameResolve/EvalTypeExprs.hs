@@ -41,7 +41,7 @@ type UnevaledTypeSynonymArena = Arena.Arena UnevaledTypeSynonym Type.TypeSynonym
 type UnevaledVariableArena = Arena.Arena (SIR.Variable Unevaled) SIR.VariableKey
 
 type Extracted = (EvaledDIden, TypeExprKey, (), VIdenStart, (), PIdenStart, (), (), ())
-newtype TypeExprKey = TypeExprKey Int
+newtype TypeExprKey = TypeExprKey Arena.KeyData
 instance Arena.Key TypeExprKey where
     make_key = TypeExprKey
     unmake_key (TypeExprKey i) = i

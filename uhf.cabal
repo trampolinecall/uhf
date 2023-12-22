@@ -21,7 +21,6 @@ library
       UHF.Data.BackendIR
       UHF.Data.BackendIR.PP
       UHF.Data.IR.ID
-      UHF.Data.IR.IDGen
       UHF.Data.IR.Keys
       UHF.Data.IR.Type
       UHF.Data.IR.Type.ADT
@@ -97,6 +96,7 @@ library
       UHF.Source.Location.SpanHelper
       UHF.Source.Span
       UHF.Util.Arena
+      UHF.Util.IDGen
   other-modules:
       Paths_uhf
   hs-source-dirs:

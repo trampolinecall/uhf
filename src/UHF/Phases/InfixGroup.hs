@@ -6,11 +6,11 @@ import UHF.Prelude
 
 import UHF.Source.Span (Span)
 import qualified UHF.Data.IR.ID as ID
-import qualified UHF.Data.IR.IDGen as IDGen
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Util.Arena as Arena
+import qualified UHF.Util.IDGen as IDGen
 
 type VIden = Maybe SIR.BoundValue
 

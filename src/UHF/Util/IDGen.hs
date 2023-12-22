@@ -1,6 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module UHF.Data.IR.IDGen
+module UHF.Util.IDGen
     ( IDGen
     , IDGenT
     , gen_id

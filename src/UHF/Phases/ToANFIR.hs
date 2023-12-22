@@ -11,11 +11,11 @@ import qualified Data.Set as Set
 
 import qualified UHF.Data.ANFIR as ANFIR
 import qualified UHF.Data.IR.ID as ID
-import qualified UHF.Data.IR.IDGen as IDGen
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.RIR as RIR
 import qualified UHF.Util.Arena as Arena
+import qualified UHF.Util.IDGen as IDGen
 
 type RIRExpr = RIR.Expr
 type RIRBinding = RIR.Binding

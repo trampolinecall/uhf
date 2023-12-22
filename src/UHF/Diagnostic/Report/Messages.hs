@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-} -- TODO: remove this
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE FlexibleInstances #-}
 
 module UHF.Diagnostic.Report.Messages

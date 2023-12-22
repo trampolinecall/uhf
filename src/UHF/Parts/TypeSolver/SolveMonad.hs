@@ -16,8 +16,6 @@ module UHF.Parts.TypeSolver.SolveMonad
 
 import UHF.Prelude
 
-import Control.Monad.Trans.Class (MonadTrans)
-
 import UHF.Parts.TypeSolver.Constraint
 import UHF.Parts.TypeSolver.TypeWithInferVar
 import qualified UHF.Util.Arena as Arena

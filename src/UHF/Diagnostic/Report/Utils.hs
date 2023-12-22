@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module UHF.Diagnostic.Report.Utils where
 
 import UHF.Prelude

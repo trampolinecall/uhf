@@ -106,10 +106,10 @@ library
       LambdaCase
       DeriveGeneric
       TupleSections
-      TemplateHaskell
       OverloadedStrings
       NoImplicitPrelude
       TypeFamilies
+      FlexibleContexts
   ghc-options: -Wall -Wextra -Wno-name-shadowing -Werror=incomplete-patterns -Werror=incomplete-uni-patterns -Werror=missing-fields -Werror=missing-methods
   build-depends:
       ansi-terminal
@@ -118,6 +118,7 @@ library
     , file-embed
     , filepath
     , inflist
+    , mtl >2.3
     , safe
     , tasty
     , tasty-hunit
@@ -137,10 +138,10 @@ executable uhfc
       LambdaCase
       DeriveGeneric
       TupleSections
-      TemplateHaskell
       OverloadedStrings
       NoImplicitPrelude
       TypeFamilies
+      FlexibleContexts
   ghc-options: -Wall -Wextra -Wno-name-shadowing -Werror=incomplete-patterns -Werror=incomplete-uni-patterns -Werror=missing-fields -Werror=missing-methods -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.13 && <5
@@ -161,10 +162,10 @@ test-suite uhf-test
       LambdaCase
       DeriveGeneric
       TupleSections
-      TemplateHaskell
       OverloadedStrings
       NoImplicitPrelude
       TypeFamilies
+      FlexibleContexts
   ghc-options: -Wall -Wextra -Wno-name-shadowing -Werror=incomplete-patterns -Werror=incomplete-uni-patterns -Werror=missing-fields -Werror=missing-methods
   build-depends:
       base >=4.13 && <5

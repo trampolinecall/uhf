@@ -17,10 +17,10 @@ default-extensions:
   - LambdaCase
   - DeriveGeneric
   - TupleSections
-  - TemplateHaskell
   - OverloadedStrings
   - NoImplicitPrelude
   - TypeFamilies
+  - FlexibleContexts
 # TODO: split tests from library, but somehow still allow access to test private functions and things
 
 library:
@@ -31,6 +31,7 @@ library:
     - ansi-terminal
     - text
     - safe
+    - mtl > 2.3
     - transformers
     - template-haskell
     - inflist

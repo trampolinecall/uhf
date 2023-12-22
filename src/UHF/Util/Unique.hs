@@ -13,11 +13,10 @@ module UHF.Util.Unique
 
 import UHF.Prelude
 
-import qualified Control.Monad.Trans.Class as Trans
 import qualified Data.Functor.Identity as Identity
 
 newtype Unique = Unique { ununique :: Int } deriving (Show, Eq, Ord)
-newtype UniqueMakerT m r = UniqueMakerT (StateT Int m r) deriving (Functor, Applicative, Monad, Trans.MonadTrans)
+newtype UniqueMakerT m r = UniqueMakerT (StateT Int m r) deriving (Functor, Applicative, Monad, MonadTrans)
 type UniqueMaker = UniqueMakerT Identity.Identity
 
 make_unique :: Monad m => UniqueMakerT m Unique

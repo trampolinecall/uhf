@@ -53,12 +53,11 @@ convert (SIR.SIR modules adts type_synonyms quant_vars vars mod) = do
     let adts_converted = Arena.transform convert_adt adts
     let type_synonyms_converted = Arena.transform convert_type_synonym type_synonyms
     let vars_converted = Arena.transform (\ (SIR.Variable id ty (Located sp _)) -> RIR.Variable id ty sp) vars
-    (cu, vars_with_new) <- IDGen.run_id_gen_t ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.VariableID'RIRMadeUp $ runStateT (runReaderT (assemble_cu modules mod) (adts_converted, type_synonyms_converted)) vars_converted
-    pure (RIR.RIR adts_converted type_synonyms_converted quant_vars vars_with_new cu)
+    (modules, vars_with_new) <- IDGen.run_id_gen_t ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.VariableID'RIRMadeUp $ runStateT (runReaderT (Arena.transformM convert_module modules) (adts_converted, type_synonyms_converted)) vars_converted
+    pure (RIR.RIR modules adts_converted type_synonyms_converted quant_vars vars_with_new mod)
 
-assemble_cu :: Arena.Arena SIRModule SIR.ModuleKey -> SIR.ModuleKey -> ConvertState RIR.CU
-assemble_cu modules mod = do
-    let SIR.Module _ bindings adts syns = Arena.get modules mod
+convert_module :: SIR.Module LastSIR -> ConvertState RIR.Module
+convert_module (SIR.Module id bindings adts type_synonyms) = do
     adt_constructors <- adts
         & mapM ( \ adt_key -> do
             (adts, _) <- ask
@@ -69,7 +68,7 @@ assemble_cu modules mod = do
     let adt_constructor_map = Map.fromList $ map (\ (variant_index, (var_key, _)) -> (variant_index, var_key)) adt_constructors
 
     bindings <- concat <$> runReaderT (mapM (convert_binding) bindings) adt_constructor_map
-    pure (RIR.CU (bindings <> map (\ (_, (_, binding)) -> binding) adt_constructors) adts syns)
+    pure (RIR.Module id (bindings <> map (\ (_, (_, binding)) -> binding) adt_constructors) adts type_synonyms)
 
 make_adt_constructor :: Type.ADT.VariantIndex -> ConvertState (RIR.VariableKey, RIR.Binding)
 make_adt_constructor variant_index@(Type.ADT.VariantIndex adt_key _) = do

@@ -102,7 +102,7 @@ print_outputs compile_options file = evalStateT (mapM_ print_output_format (outp
         print_output_format NRSIR = get_nrsir >>= output_if_outputable (\ (ir, _) -> lift (lift (write_output_file "uhf_nrsir" (SIR.PP.dump_main_module ir))))
         print_output_format InfixGroupedSIR = get_infix_grouped >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_infix_grouped" (SIR.PP.dump_main_module ir))))
         print_output_format TypedSIR = get_typed_sir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_typed_sir" (SIR.PP.dump_main_module ir))))
-        print_output_format RIR = get_rir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_rir" (RIR.PP.dump_cu ir))))
+        print_output_format RIR = get_rir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_rir" (RIR.PP.dump_main_module ir))))
         print_output_format ANFIR = get_anfir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_anfir" (ANFIR.PP.dump_cu ir))))
         print_output_format OptimizedANFIR = get_optimized_anfir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_anfir_optimized" (ANFIR.PP.dump_cu ir))))
         print_output_format BackendIR = get_backend_ir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_backend_ir" (BackendIR.PP.dump_cu ir))))

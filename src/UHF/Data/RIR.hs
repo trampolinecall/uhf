@@ -1,6 +1,6 @@
 module UHF.Data.RIR
     ( RIR (..)
-    , CU (..)
+    , Module (..)
 
     , Binding (..)
 
@@ -29,11 +29,12 @@ import qualified UHF.Util.Arena as Arena
 -- not used a lot; serves mostly as a intermediary step where a lot of things get desugared to make the transition to anfir easier
 data RIR
     = RIR
+        (Arena.Arena Module ModuleKey)
         (Arena.Arena (Type.ADT (Maybe Type.Type)) ADTKey)
         (Arena.Arena (Type.TypeSynonym (Maybe Type.Type)) TypeSynonymKey)
         (Arena.Arena Type.QuantVar Type.QuantVarKey)
         (Arena.Arena Variable VariableKey)
-        CU
+        ModuleKey
 
 data Variable
     = Variable
@@ -43,8 +44,7 @@ data Variable
         }
     deriving Show
 
--- "compilation unit"
-data CU = CU [Binding] [ADTKey] [TypeSynonymKey]
+data Module = Module ID.ModuleID [Binding] [ADTKey] [TypeSynonymKey]
 
 data Binding = Binding VariableKey Expr deriving Show
 

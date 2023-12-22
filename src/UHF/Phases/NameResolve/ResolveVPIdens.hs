@@ -111,11 +111,11 @@ resolve_in_expr (SIR.Expr'Tuple id type_info sp a b) = SIR.Expr'Tuple id type_in
 resolve_in_expr (SIR.Expr'Lambda id type_info sp param body) =
     SIR.Expr'Lambda id type_info sp <$> resolve_in_pat param <*> resolve_in_expr body
 
-resolve_in_expr (SIR.Expr'Let id type_info sp bindings body) =
-    SIR.Expr'Let id type_info sp <$> mapM resolve_in_binding bindings <*> resolve_in_expr body
+resolve_in_expr (SIR.Expr'Let id type_info sp bindings adts type_synonyms body) =
+    SIR.Expr'Let id type_info sp <$> mapM resolve_in_binding bindings <*> pure adts <*> pure type_synonyms <*> resolve_in_expr body
 
-resolve_in_expr (SIR.Expr'LetRec id type_info sp bindings body) =
-    SIR.Expr'LetRec id type_info sp <$> mapM resolve_in_binding bindings <*> resolve_in_expr body
+resolve_in_expr (SIR.Expr'LetRec id type_info sp bindings adts type_synonyms body) =
+    SIR.Expr'LetRec id type_info sp <$> mapM resolve_in_binding bindings <*> pure adts <*> pure type_synonyms <*> resolve_in_expr body
 
 resolve_in_expr (SIR.Expr'BinaryOps id allowed type_info sp first ops) =
     SIR.Expr'BinaryOps id allowed type_info sp

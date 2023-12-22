@@ -158,8 +158,8 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
         levels (SIR.Expr'Tuple _ _ _ a b) = (2, \ _ _ -> expr a >>= \ a -> expr b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b]))
         levels (SIR.Expr'Lambda _ _ _ param body) = (2, \ _ _ -> PP.FirstOnLineIfMultiline <$> (pattern param >>= \ param -> expr body >>= \ body -> pure (PP.List ["\\ ", param, " -> ", body]))) -- TODO: decide if this should be \ (x) -> or \ x ->
 
-        levels (SIR.Expr'Let _ _ _ bindings body) = (2, \ _ _ -> pp_let "let" bindings body)
-        levels (SIR.Expr'LetRec _ _ _ bindings body) = (2, \ _ _ -> pp_let "letrec" bindings body)
+        levels (SIR.Expr'Let _ _ _ bindings adts type_synonyms body) = (2, \ _ _ -> pp_let "let" bindings adts type_synonyms body)
+        levels (SIR.Expr'LetRec _ _ _ bindings adts type_synonyms body) = (2, \ _ _ -> pp_let "letrec" bindings adts type_synonyms body)
 
         levels (SIR.Expr'If _ _ _ _ cond t f) = (2, \ _ _ -> expr cond >>= \ cond -> expr t >>= \ t -> expr f >>= \ f -> pure (PP.FirstOnLineIfMultiline $ PP.List ["if ", cond, " then ", t, " else ", f]))
         levels (SIR.Expr'Match _ _ _ _ e arms) = (2, \ _ _ -> expr e >>= \ e -> mapM (\ (p, e) -> pattern p >>= \ p -> expr e >>= \ e -> pure (PP.List [p, " -> ", e, ";"])) arms >>= \ arms -> pure (PP.List ["match ", e, " ", PP.braced_block arms]))
@@ -168,9 +168,21 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
 
         levels (SIR.Expr'Forall _ _ _ tys e) = (2, \ _ _ -> mapM quant_var tys >>= \ tys -> expr e >>= \ e -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList tys, " ", e]))
 
-pp_let :: DumpableConstraints stage => Text -> [SIR.Binding stage] -> SIR.Expr stage -> IRReader stage PP.Token
-pp_let let_kw [binding] body = define_binding binding >>= \ binding -> expr body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List [PP.String let_kw, " ", binding, "\n", body])
-pp_let let_kw bindings body = mapM define_binding bindings >>= \ bindings -> expr body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List [PP.String let_kw, " ", PP.braced_block bindings, "\n", body])
+pp_let :: DumpableConstraints stage => Text -> [SIR.Binding stage] -> [Type.ADTKey] -> [Type.TypeSynonymKey] -> SIR.Expr stage -> IRReader stage PP.Token
+pp_let let_kw bindings adts type_synonyms body = do
+    sir <- ask
+
+    bindings <- mapM define_binding bindings
+    adts <- mapM (\ k -> get_adt k >>= \ adt -> pure (Type.PP.define_adt adt)) adts
+    type_synonyms <- mapM (\ k -> get_type_syn k >>= \ ts -> pure (Type.PP.define_type_synonym (\ (ty, _) -> runReader (type_expr ty) sir) ts)) type_synonyms
+
+    body <- expr body
+
+    let all_decls = adts ++ type_synonyms ++ bindings
+    pure
+        $ case all_decls of
+            [decl] -> PP.FirstOnLineIfMultiline $ PP.List [PP.String let_kw, " ", decl, "\n", body]
+            _ -> PP.FirstOnLineIfMultiline $ PP.List [PP.String let_kw, " ", PP.braced_block all_decls, "\n", body]
 
 pattern :: DumpableConstraints stage => SIR.Pattern stage -> IRReader stage PP.Token
 pattern (SIR.Pattern'Identifier _ _ var_key) = refer_var var_key

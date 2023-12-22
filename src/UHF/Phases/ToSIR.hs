@@ -194,11 +194,11 @@ convert_expr cur_id (AST.Expr'Let sp decls subexpr) = go cur_id decls
     where
         go cur_id [] = convert_expr cur_id subexpr
         go cur_id (first:more) =
-            convert_decls (ID.VarParent'Let cur_id) (ID.DeclParent'Let cur_id) [first] >>= \ (bindings, _, _) -> -- TODO: put adts and type synonyms
-            SIR.Expr'Let cur_id () sp bindings <$> go (ID.ExprID'LetResultOf cur_id) more
+            convert_decls (ID.VarParent'Let cur_id) (ID.DeclParent'Let cur_id) [first] >>= \ (bindings, adts, type_synonyms) ->
+            SIR.Expr'Let cur_id () sp bindings adts type_synonyms <$> go (ID.ExprID'LetResultOf cur_id) more
 convert_expr cur_id (AST.Expr'LetRec sp decls subexpr) =
-    convert_decls (ID.VarParent'Let cur_id) (ID.DeclParent'Let cur_id) decls >>= \ (bindings, _, _) -> -- TODO: put adts and type synonyms
-    SIR.Expr'LetRec cur_id () sp bindings <$> convert_expr (ID.ExprID'LetResultOf cur_id) subexpr
+    convert_decls (ID.VarParent'Let cur_id) (ID.DeclParent'Let cur_id) decls >>= \ (bindings, adts, type_synonyms) ->
+    SIR.Expr'LetRec cur_id () sp bindings adts type_synonyms <$> convert_expr (ID.ExprID'LetResultOf cur_id) subexpr
 
 convert_expr cur_id (AST.Expr'BinaryOps sp first ops) =
     SIR.Expr'BinaryOps cur_id () () sp

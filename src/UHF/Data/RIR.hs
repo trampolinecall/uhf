@@ -61,7 +61,7 @@ data Expr
 
     | Expr'Lambda ID.ExprID Span VariableKey Expr
 
-    | Expr'Let ID.ExprID Span [Binding] Expr
+    | Expr'Let ID.ExprID Span [Binding] [ADTKey] [TypeSynonymKey] Expr
 
     | Expr'Call ID.ExprID Span Expr Expr
 
@@ -106,7 +106,7 @@ expr_type _ (Expr'Float _ _ _) = Just Type.Type'Float
 expr_type _ (Expr'Bool _ _ _) = Just Type.Type'Bool
 expr_type var_arena (Expr'Tuple _ _ a b) = Type.Type'Tuple <$> expr_type var_arena a <*> expr_type var_arena b
 expr_type var_arena (Expr'Lambda _ _ param_var body) = Type.Type'Function <$> var_ty (Arena.get var_arena param_var) <*> expr_type var_arena body
-expr_type var_arena (Expr'Let _ _ _ res) = expr_type var_arena res
+expr_type var_arena (Expr'Let _ _ _ _ _ res) = expr_type var_arena res
 expr_type var_arena (Expr'Call _ _ callee _) =
     let callee_ty = expr_type var_arena callee
     in callee_ty <&> \case
@@ -127,7 +127,7 @@ expr_span (Expr'Float _ sp _) = sp
 expr_span (Expr'Bool _ sp _) = sp
 expr_span (Expr'Tuple _ sp _ _) = sp
 expr_span (Expr'Lambda _ sp _ _) = sp
-expr_span (Expr'Let _ sp _ _) = sp
+expr_span (Expr'Let _ sp _ _ _ _) = sp
 expr_span (Expr'Call _ sp _ _) = sp
 expr_span (Expr'Match _ _ sp _) = sp
 expr_span (Expr'Forall _ sp _ _) = sp

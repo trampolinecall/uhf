@@ -138,7 +138,7 @@ convert_expr m_varid expr@(RIR.Expr'Lambda id _ param_var body) =
 
     new_binding (\ _ -> AlmostExpr'Lambda (choose_id m_varid id) ty anfir_param body_included_bindings body)
 
-convert_expr _ (RIR.Expr'Let _ _ bindings e) = mapM (lift . convert_binding) bindings >>= \ binding_involved_bindings -> tell (concat binding_involved_bindings) >> convert_expr Nothing e
+convert_expr _ (RIR.Expr'Let _ _ bindings adts type_synonyms e) = mapM (lift . convert_binding) bindings >>= \ binding_involved_bindings -> tell (concat binding_involved_bindings) >> convert_expr Nothing e -- TODO: deal with adts and type synonyms properly
 
 convert_expr m_varid expr@(RIR.Expr'Call id _ callee arg) = lift (lift $ lift $ lift ask) >>= \ var_arena -> let ty = RIR.expr_type var_arena expr in convert_expr Nothing callee >>= \ callee -> convert_expr Nothing arg >>= \ arg -> new_binding (\ _ -> AlmostExpr'Call (choose_id m_varid id) ty callee arg)
 

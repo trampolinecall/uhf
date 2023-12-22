@@ -63,8 +63,8 @@ group_expr (SIR.Expr'Tuple id () sp a b) = SIR.Expr'Tuple id () sp <$> group_exp
 
 group_expr (SIR.Expr'Lambda id () sp param body) = SIR.Expr'Lambda id () sp (convert_pattern param) <$> group_expr body
 
-group_expr (SIR.Expr'Let id () sp bindings body) = SIR.Expr'Let id () sp <$> mapM group_binding bindings <*> group_expr body
-group_expr (SIR.Expr'LetRec id () sp bindings body) = SIR.Expr'LetRec id () sp <$> mapM group_binding bindings <*> group_expr body
+group_expr (SIR.Expr'Let id () sp bindings adts type_synonyms body) = SIR.Expr'Let id () sp <$> mapM group_binding bindings <*> pure adts <*> pure type_synonyms <*> group_expr body
+group_expr (SIR.Expr'LetRec id () sp bindings adts type_synonyms body) = SIR.Expr'LetRec id () sp <$> mapM group_binding bindings <*> pure adts <*> pure type_synonyms <*> group_expr body
 
 group_expr (SIR.Expr'BinaryOps _ () () _ first ops) =
     group_expr first >>= \ first ->

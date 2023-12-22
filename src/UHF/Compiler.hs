@@ -2,6 +2,7 @@ module UHF.Compiler
     ( WithDiagnostics
     , WithDiagnosticsT
     , Diagnostics (..)
+    , ErrorReportedPromise
 
     , report_diagnostics
     , convert_diagnostics
@@ -28,6 +29,7 @@ type WithDiagnosticsT e w = WriterT (Diagnostics e w)
 type WithDiagnostics e w = WithDiagnosticsT e w Identity
 
 data Diagnostics e w = Diagnostics (Seq e) (Seq w) deriving Show
+data ErrorReportedPromise = ErrorReportedPromise deriving Show
 
 instance Monoid (Diagnostics e w) where
     mempty = Diagnostics Sequence.empty Sequence.empty
@@ -45,10 +47,10 @@ had_errors (Diagnostics errs _) = not $ Sequence.null errs
 convert_diagnostics :: (Functor m, Diagnostic.ToError e, Diagnostic.ToWarning w) => WithDiagnosticsT e w m r -> WithDiagnosticsT Diagnostic.Error Diagnostic.Warning m r
 convert_diagnostics = mapWriterT (fmap (\ (r, Diagnostics e w) -> (r, Diagnostics (fmap Diagnostic.to_error e) (fmap Diagnostic.to_warning w))))
 
-tell_error :: (Monad m, Diagnostic.ToError e) => e -> WithDiagnosticsT e w m ()
-tell_error e = tell (Diagnostics (Sequence.singleton e) Sequence.empty)
-tell_errors :: (Monad m, Diagnostic.ToError e) => [e] -> WithDiagnosticsT e w m ()
-tell_errors es = tell (Diagnostics (Sequence.fromList es) Sequence.empty)
+tell_error :: (Monad m, Diagnostic.ToError e) => e -> WithDiagnosticsT e w m ErrorReportedPromise
+tell_error e = tell (Diagnostics (Sequence.singleton e) Sequence.empty) >> pure ErrorReportedPromise
+tell_errors :: (Monad m, Diagnostic.ToError e) => [e] -> WithDiagnosticsT e w m ErrorReportedPromise
+tell_errors es = tell (Diagnostics (Sequence.fromList es) Sequence.empty) >> pure ErrorReportedPromise
 tell_warning :: (Monad m, Diagnostic.ToWarning w) => w -> WithDiagnosticsT e w m ()
 tell_warning w = tell (Diagnostics Sequence.empty (Sequence.singleton w))
 tell_warnings :: (Monad m, Diagnostic.ToWarning w) => [w] -> WithDiagnosticsT e w m ()

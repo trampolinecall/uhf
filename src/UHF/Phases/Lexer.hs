@@ -250,7 +250,7 @@ consume p = StateT $ \ loc ->
 get_loc :: Lexer Location
 get_loc = get
 
-put_error :: LexError.Error -> Lexer ()
+put_error :: LexError.Error -> Lexer Compiler.ErrorReportedPromise
 put_error = lift . Compiler.tell_error
 
 one_or_more :: Lexer a -> Lexer [a]

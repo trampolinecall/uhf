@@ -147,11 +147,11 @@ assign_in_expr nc_stack (SIR.Expr'Lambda id type_info sp param body) =
 assign_in_expr nc_stack (SIR.Expr'Let id type_info sp bindings body) =
     -- do not need to do binding by binding because the ToSIR should have already desugared that into a sequence of lets
     -- so this let should only have 1 or 0 bindings
-    NameMaps.make_name_maps_from_decls todo bindings [] [] >>= \ new_nm ->
+    NameMaps.make_name_maps_from_decls [] [] [] todo bindings [] [] >>= \ new_nm ->
     SIR.Expr'Let id type_info sp <$> mapM (assign_in_binding nc_stack) bindings <*> assign_in_expr (NameMaps.NameMapStack new_nm (Just nc_stack)) body
 
 assign_in_expr nc_stack (SIR.Expr'LetRec id type_info sp bindings body) =
-    NameMaps.make_name_maps_from_decls todo bindings [] [] >>= \ new_nm ->
+    NameMaps.make_name_maps_from_decls [] [] [] todo bindings [] [] >>= \ new_nm ->
     let new_nc_stack = NameMaps.NameMapStack new_nm (Just nc_stack)
     in SIR.Expr'LetRec id type_info sp <$> mapM (assign_in_binding new_nc_stack) bindings <*> assign_in_expr new_nc_stack body
 

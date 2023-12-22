@@ -84,14 +84,14 @@ render = IndentationMonad.exec_pp . render'
                 intercalate_delim True (x:more) = x >> intercalate_delim False more
                 intercalate_delim False (x:more) = IndentationMonad.write delim_if_single_line >> x >> intercalate_delim False more
 
-        is_multiline (Block consistency _ left_if_single_line right_if_single_line items) = block_is_multiline consistency left_if_single_line right_if_single_line items
-        is_multiline (NoIndentBlock consistency _ left_if_single_line right_if_single_line items) = block_is_multiline consistency left_if_single_line right_if_single_line items
+        is_multiline (Block _ _ left_if_single_line right_if_single_line items) = block_is_multiline left_if_single_line right_if_single_line items
+        is_multiline (NoIndentBlock _ _ left_if_single_line right_if_single_line items) = block_is_multiline left_if_single_line right_if_single_line items
         is_multiline (FirstOnLineIfMultiline child) = is_multiline child -- always assume that this is the first on line
         is_multiline (List items) = any is_multiline items
         is_multiline (String t) = has_nl t
 
-        block_is_multiline consistency left_if_single_line right_if_single_line items =
-            any is_multiline items -- '\n' appears after delim, which is guaranteed to appear after whichever item needs breaking (if items is empty, any_multiline will be false)
+        block_is_multiline left_if_single_line right_if_single_line items =
+            any is_multiline items -- '\n' appears after delim, which is guaranteed to appear after whichever item needs breaking (if items is empty, this will be false)
                 || if null items
                     then False
                     else maybe False has_nl left_if_single_line || maybe False has_nl right_if_single_line

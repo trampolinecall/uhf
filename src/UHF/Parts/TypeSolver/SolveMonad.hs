@@ -12,6 +12,7 @@ module UHF.Parts.TypeSolver.SolveMonad
     , modify_infer_vars
     , take_backlog
     , put_backlog
+    , push_backlog
     ) where
 
 import UHF.Prelude
@@ -49,3 +50,6 @@ take_backlog = SolveMonad $ StateT $ \ (SolverState backlog ifvs) -> pure (backl
 
 put_backlog :: Monad under => [Constraint] -> SolveMonad under ()
 put_backlog new_backlog = SolveMonad $ UHF.Prelude.modify $ \ (SolverState _ ifvars) -> SolverState new_backlog ifvars
+
+push_backlog :: Monad under => Constraint -> SolveMonad under ()
+push_backlog new_constraint = SolveMonad $ UHF.Prelude.modify $ \ (SolverState backlog ifvars) -> SolverState (new_constraint : backlog) ifvars

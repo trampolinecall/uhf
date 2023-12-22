@@ -386,7 +386,13 @@ eval_type_expr tek = do
             evaled_as_type' ty ty_evaled >>= \ ty_as_type ->
             evaled_as_type' arg arg_evaled >>= \ arg_as_type ->
             lift (lift ask) >>= \ (adts, type_synonyms, quant_vars, _) ->
-            TypeSolver.apply_type adts type_synonyms (get_type_synonym type_synonyms) quant_vars (TypeSolver.TypeExpr sp) sp ty_as_type arg_as_type >>= \ result_ty ->
+            TypeSolver.apply_type adts type_synonyms (get_type_synonym type_synonyms) quant_vars (TypeSolver.TypeExpr sp) sp ty_as_type arg_as_type >>= \ (solve_result, result_ty) ->
+
+            (case solve_result of
+                Just (Left e) -> lift (lift $ lift $ Compiler.tell_error (Error.Error'SolveError e)) >> pure ()
+                Just (Right ()) -> pure ()
+                Nothing -> pure ()) >>
+
             pure (Just $ SIR.Decl'Type result_ty)
         go (TypeExpr'Wild sp) =
             make_infer_var (TypeSolver.TypeExpr sp) >>= \ infer_var ->

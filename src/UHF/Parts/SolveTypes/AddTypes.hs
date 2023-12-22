@@ -52,7 +52,12 @@ apply_type :: TypeSolver.InferVarForWhat -> Span -> TypeSolver.Type -> TypeSolve
 apply_type for_what sp ty arg = do
     (adts, type_synonyms, quant_vars, _) <- ask
     get_type_synonym <- get_type_synonym
-    lift $ lift $ TypeSolver.apply_type adts type_synonyms get_type_synonym quant_vars for_what sp ty arg
+    (solve_result, applied) <- lift $ lift $ TypeSolver.apply_type adts type_synonyms get_type_synonym quant_vars for_what sp ty arg
+    case solve_result of
+        Just (Left e) -> lift (lift $ lift $ Compiler.tell_error (SolveError e)) >> pure ()
+        Just (Right ()) -> pure ()
+        Nothing -> pure ()
+    pure applied
 
 -- TODO: sort constraints by priority so that certain weird things dont happen (sort by depth?)
 -- for example:

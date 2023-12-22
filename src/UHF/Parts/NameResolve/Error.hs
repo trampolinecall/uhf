@@ -1,3 +1,4 @@
+{-# LANGUAGE ExistentialQuantification #-}
 module UHF.Parts.NameResolve.Error
     ( Error (..)
     , WithErrors
@@ -12,6 +13,7 @@ import UHF.Source.Located (Located (Located))
 import UHF.Source.Span (Span)
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Diagnostic as Diagnostic
+import qualified UHF.Parts.TypeSolver as TypeSolver
 
 type WithErrors = Compiler.WithDiagnostics Error Void
 data Error
@@ -19,6 +21,7 @@ data Error
     | Error'CouldNotFindIn (Maybe (Located Text)) (Located Text)
     | Error'MultipleDecls Text [DeclAt]
     | Error'NotAType Span Text
+    | forall t. Error'SolveError (TypeSolver.SolveError t) -- i did this out of laziness :)
 
 instance Diagnostic.ToError Error where
     to_error (Error'CouldNotFind (Located sp name)) = Diagnostic.Error (Just sp) ("could not find name '" <> name <> "'") [] []
@@ -45,3 +48,5 @@ instance Diagnostic.ToError Error where
 
     to_error (Error'NotAType sp instead) =
         Diagnostic.Error (Just sp) ("not a type: got " <> instead) [] []
+
+    to_error (Error'SolveError se) = Diagnostic.to_error se

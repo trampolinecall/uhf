@@ -11,8 +11,6 @@ import qualified System.FilePath as FilePath
 import qualified Pipes
 import Control.Monad (forever)
 
-import UHF.IO.File (File)
-import UHF.IO.Located (Located)
 import UHF.Source.File (File)
 import UHF.Source.Located (Located)
 import qualified UHF.Compiler as Compiler
@@ -32,8 +30,6 @@ import qualified UHF.Data.SIR.PP as SIR.PP
 import qualified UHF.Data.Token as Token
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Settings as DiagnosticSettings
-import qualified UHF.IO.File as File
-import qualified UHF.IO.FormattedString as FormattedString
 import qualified UHF.Parts.TypeSolver as TypeSolver
 import qualified UHF.Phases.InfixGroup as InfixGroup
 import qualified UHF.Phases.Lexer as Lexer
@@ -99,7 +95,7 @@ compile c_needed diagnostic_settings compile_options =
     pure (if Compiler.had_errors diagnostics then Left () else Right ())
 
 print_outputs :: CompileOptions -> File -> WithDiagnosticsIO ()
-print_outputs compile_options file = evalStateT (mapM_ print_output_format (output_formats compile_options)) (PhaseResultsCache file Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing)
+print_outputs compile_options file = evalStateT (mapM_ print_output_format (output_formats compile_options)) (PhaseResultsCache file Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing)
     where
         print_output_format AST = get_ast >>= output_if_outputable (\ ast -> lift (lift (putTextLn $ AST.PP.pp_decls ast)))
         print_output_format ASTDump = get_ast >>= output_if_outputable (\ ast -> lift (lift (putTextLn $ AST.Dump.dump ast)))

@@ -425,7 +425,7 @@ case_lex_str_lit_unclosed =
 case_lex_number_underscores :: Assertion
 case_lex_number_underscores =
     minilex_test' lex_number "12_34__5" $ \case
-        Just (l, [], [Located _ (Token.Int Token.Dec 12345)])
+        Just (l, [Right (Located _ (Token.Int Token.Dec 12345))])
             | remaining l == "" -> pure ()
         x -> minilex_test_fail "lex_number" x
 

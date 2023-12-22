@@ -217,15 +217,15 @@ expr (SIR.Expr'Lambda id () sp param body) =
     expr body >>= \ body ->
     pure (SIR.Expr'Lambda id (TypeSolver.Type'Function (SIR.pattern_type param) (SIR.expr_type body)) sp param body)
 
-expr (SIR.Expr'Let id () sp bindings result) =
+expr (SIR.Expr'Let id () sp bindings adts type_synonyms result) =
     mapM binding bindings >>= \ bindings ->
     expr result >>= \ result ->
-    pure (SIR.Expr'Let id (SIR.expr_type result) sp bindings result)
+    pure (SIR.Expr'Let id (SIR.expr_type result) sp bindings adts type_synonyms result)
 
-expr (SIR.Expr'LetRec id () sp bindings result) =
+expr (SIR.Expr'LetRec id () sp bindings adts type_synonyms result) =
     mapM binding bindings >>= \ bindings ->
     expr result >>= \ result ->
-    pure (SIR.Expr'LetRec id (SIR.expr_type result) sp bindings result)
+    pure (SIR.Expr'LetRec id (SIR.expr_type result) sp bindings adts type_synonyms result)
 
 expr (SIR.Expr'BinaryOps _ void _ _ _ _) = absurd void
 

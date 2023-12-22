@@ -144,16 +144,16 @@ assign_in_expr nc_stack (SIR.Expr'Lambda id type_info sp param body) =
     lift (NameMaps.make_name_maps [] param_vars []) >>= \ new_nc ->
     SIR.Expr'Lambda id type_info sp <$> assign_in_pat nc_stack param <*> assign_in_expr (NameMaps.NameMapStack new_nc (Just nc_stack)) body
 
-assign_in_expr nc_stack (SIR.Expr'Let id type_info sp bindings body) =
+assign_in_expr nc_stack (SIR.Expr'Let id type_info sp bindings adts type_synonyms body) =
     -- do not need to do binding by binding because the ToSIR should have already desugared that into a sequence of lets
     -- so this let should only have 1 or 0 bindings
-    NameMaps.make_name_maps_from_decls [] [] [] todo bindings [] [] >>= \ new_nm ->
-    SIR.Expr'Let id type_info sp <$> mapM (assign_in_binding nc_stack) bindings <*> assign_in_expr (NameMaps.NameMapStack new_nm (Just nc_stack)) body
+    NameMaps.make_name_maps_from_decls [] [] [] todo bindings adts type_synonyms >>= \ new_nm ->
+    SIR.Expr'Let id type_info sp <$> mapM (assign_in_binding nc_stack) bindings <*> pure adts <*> pure type_synonyms <*> assign_in_expr (NameMaps.NameMapStack new_nm (Just nc_stack)) body
 
-assign_in_expr nc_stack (SIR.Expr'LetRec id type_info sp bindings body) =
-    NameMaps.make_name_maps_from_decls [] [] [] todo bindings [] [] >>= \ new_nm ->
+assign_in_expr nc_stack (SIR.Expr'LetRec id type_info sp bindings adts type_synonyms body) =
+    NameMaps.make_name_maps_from_decls [] [] [] todo bindings adts type_synonyms >>= \ new_nm ->
     let new_nc_stack = NameMaps.NameMapStack new_nm (Just nc_stack)
-    in SIR.Expr'LetRec id type_info sp <$> mapM (assign_in_binding new_nc_stack) bindings <*> assign_in_expr new_nc_stack body
+    in SIR.Expr'LetRec id type_info sp <$> mapM (assign_in_binding new_nc_stack) bindings <*> pure adts <*> pure type_synonyms <*> assign_in_expr new_nc_stack body
 
 assign_in_expr nc_stack (SIR.Expr'BinaryOps id allowed type_info sp first ops) =
     SIR.Expr'BinaryOps id allowed type_info sp

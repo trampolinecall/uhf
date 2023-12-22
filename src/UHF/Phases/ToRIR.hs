@@ -141,10 +141,10 @@ convert_expr (SIR.Expr'Lambda id ty sp param_pat body) =
     -- '\ (...) -> body' becomes '\ (arg) -> let ... = arg; body'
     lift (new_variable param_ty (SIR.pattern_span param_pat)) >>= \ param_bk ->
     lift (assign_pattern (SIR.pattern_span param_pat) param_pat (RIR.Expr'Identifier id param_ty (SIR.pattern_span param_pat) (Just param_bk))) >>= \ bindings ->
-    RIR.Expr'Lambda id sp param_bk <$> (RIR.Expr'Let id body_sp bindings <$> convert_expr body)
+    RIR.Expr'Lambda id sp param_bk <$> (RIR.Expr'Let id body_sp bindings [] [] <$> convert_expr body)
 
-convert_expr (SIR.Expr'Let id ty sp bindings body) = RIR.Expr'Let id sp <$> (concat <$> mapM convert_binding bindings) <*> convert_expr body
-convert_expr (SIR.Expr'LetRec id ty sp bindings body) = RIR.Expr'Let id sp <$> (concat <$> mapM convert_binding bindings) <*> convert_expr body
+convert_expr (SIR.Expr'Let id ty sp bindings adts type_synonyms body) = RIR.Expr'Let id sp <$> (concat <$> mapM convert_binding bindings) <*> pure adts <*> pure type_synonyms <*> convert_expr body -- TODO: define adt constructors for these
+convert_expr (SIR.Expr'LetRec id ty sp bindings adts type_synonyms body) = RIR.Expr'Let id sp <$> (concat <$> mapM convert_binding bindings) <*> pure adts <*> pure type_synonyms <*> convert_expr body -- TODO: define adt constructors for these
 convert_expr (SIR.Expr'BinaryOps _ void _ _ _ _) = absurd void
 convert_expr (SIR.Expr'Call id ty sp callee arg) = RIR.Expr'Call id sp <$> convert_expr callee <*> convert_expr arg
 convert_expr (SIR.Expr'If id ty sp _ cond true false) =
@@ -167,6 +167,8 @@ convert_expr (SIR.Expr'If id ty sp _ cond true false) =
         (\ let_id ->
             RIR.Expr'Let let_id sp
                 [RIR.Binding cond_var cond]
+                []
+                []
                 (RIR.Expr'Match id ty sp
                     (RIR.MatchTree
                         [ ([RIR.MatchClause'Match cond_var (RIR.Match'BoolLiteral True)], Right true)
@@ -211,6 +213,8 @@ convert_expr (SIR.Expr'Match id ty sp match_tok_sp scrutinee arms) = do
         (\ let_id ->
             RIR.Expr'Let let_id sp
                 [RIR.Binding scrutinee_var scrutinee]
+                []
+                []
                 (RIR.Expr'Match id ty sp (RIR.MatchTree arms))
         )
     where

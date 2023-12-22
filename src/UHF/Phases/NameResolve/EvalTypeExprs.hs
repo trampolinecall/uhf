@@ -38,7 +38,6 @@ type UnevaledPattern = SIR.Pattern Unevaled
 type UnevaledModuleArena = Arena.Arena UnevaledModule SIR.ModuleKey
 type UnevaledADTArena = Arena.Arena UnevaledADT Type.ADTKey
 type UnevaledTypeSynonymArena = Arena.Arena UnevaledTypeSynonym Type.TypeSynonymKey
-type UnevaledVariableArena = Arena.Arena (SIR.Variable Unevaled) SIR.VariableKey
 
 type Extracted = (EvaledDIden, TypeExprKey, (), VIdenStart, (), PIdenStart, (), (), ())
 newtype TypeExprKey = TypeExprKey Arena.KeyData
@@ -203,8 +202,8 @@ extract_in_expr (SIR.Expr'Tuple id type_info sp a b) = SIR.Expr'Tuple id type_in
 extract_in_expr (SIR.Expr'Lambda id type_info sp param body) =
     SIR.Expr'Lambda id type_info sp <$> extract_in_pat param <*> extract_in_expr body
 
-extract_in_expr (SIR.Expr'Let id type_info sp bindings body) = SIR.Expr'Let id type_info sp <$> mapM extract_in_binding bindings <*> extract_in_expr body
-extract_in_expr (SIR.Expr'LetRec id type_info sp bindings body) = SIR.Expr'LetRec id type_info sp <$> mapM extract_in_binding bindings <*> extract_in_expr body
+extract_in_expr (SIR.Expr'Let id type_info sp bindings adts type_synonyms body) = SIR.Expr'Let id type_info sp <$> mapM extract_in_binding bindings <*> pure adts <*> pure type_synonyms <*> extract_in_expr body
+extract_in_expr (SIR.Expr'LetRec id type_info sp bindings adts type_synonyms body) = SIR.Expr'LetRec id type_info sp <$> mapM extract_in_binding bindings <*> pure adts <*> pure type_synonyms <*> extract_in_expr body
 
 extract_in_expr (SIR.Expr'BinaryOps id allowed type_info sp first ops) =
     SIR.Expr'BinaryOps id allowed type_info sp
@@ -312,8 +311,8 @@ put_back_in_expr (SIR.Expr'Tuple id type_info sp a b) = SIR.Expr'Tuple id type_i
 put_back_in_expr (SIR.Expr'Lambda id type_info sp param body) =
     SIR.Expr'Lambda id type_info sp <$> put_back_in_pat param <*> put_back_in_expr body
 
-put_back_in_expr (SIR.Expr'Let id type_info sp bindings body) = SIR.Expr'Let id type_info sp <$> mapM put_back_in_binding bindings <*> put_back_in_expr body
-put_back_in_expr (SIR.Expr'LetRec id type_info sp bindings body) = SIR.Expr'LetRec id type_info sp <$> mapM put_back_in_binding bindings <*> put_back_in_expr body
+put_back_in_expr (SIR.Expr'Let id type_info sp bindings adts type_synonyms body) = SIR.Expr'Let id type_info sp <$> mapM put_back_in_binding bindings <*> pure adts <*> pure type_synonyms <*> put_back_in_expr body
+put_back_in_expr (SIR.Expr'LetRec id type_info sp bindings adts type_synonyms body) = SIR.Expr'LetRec id type_info sp <$> mapM put_back_in_binding bindings <*> pure adts <*> pure type_synonyms <*> put_back_in_expr body
 
 put_back_in_expr (SIR.Expr'BinaryOps id allowed type_info sp first ops) =
     SIR.Expr'BinaryOps id allowed type_info sp

@@ -91,8 +91,20 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
             )
 
         levels (RIR.Expr'Lambda _ _ param body) = (1, \ _ _ -> refer_var param >>= \ param -> expr body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, " -> ", body]))
-        levels (RIR.Expr'Let _ _ [binding] res) = (1, \ _ _ -> define_binding binding >>= \ binding -> expr res >>= \ res -> pure (PP.FirstOnLineIfMultiline $ PP.List ["let ", binding, "\n", res]))
-        levels (RIR.Expr'Let _ _ bindings res) = (1, \ _ _ -> expr res >>= \ res -> mapM define_binding bindings >>= \ bindings -> pure (PP.FirstOnLineIfMultiline $ PP.List ["let ", PP.braced_block bindings, "\n", res]))
+        levels (RIR.Expr'Let _ _ bindings adts type_synonyms res) =
+            ( 1
+            , \ _ _ -> do
+                rir <- ask
+                res <- expr res
+                bindings <- mapM define_binding bindings
+                adts <- mapM (fmap Type.PP.define_adt . get_adt) adts
+                type_synonyms <- mapM (fmap (Type.PP.define_type_synonym (\ ty -> runReader (refer_m_type ty) rir)) . get_type_synonym) type_synonyms
+                let all_decls = adts ++ type_synonyms ++ bindings
+                pure
+                    $ case all_decls of
+                        [decl] -> PP.FirstOnLineIfMultiline $ PP.List ["let ", decl, "\n", res]
+                        _ -> PP.FirstOnLineIfMultiline $ PP.List ["let ", PP.braced_block all_decls, "\n", res]
+            )
 
         levels (RIR.Expr'Match _ _ _ tree) = (1, \ _ _ -> pp_match_tree tree >>= \ tree -> pure (PP.List ["match ", tree]))
 

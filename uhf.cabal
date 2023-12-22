@@ -42,6 +42,40 @@ library
       UHF.Diagnostic.Report.Utils
       UHF.Diagnostic.Settings
       UHF.Driver
+      UHF.Parts.InfixGroup
+      UHF.Parts.Lexer
+      UHF.Parts.Lexer.LexError
+      UHF.Parts.NameResolve
+      UHF.Parts.NameResolve.AssignNameMaps
+      UHF.Parts.NameResolve.DeclAt
+      UHF.Parts.NameResolve.Error
+      UHF.Parts.NameResolve.EvalTypeExprs
+      UHF.Parts.NameResolve.NameMaps
+      UHF.Parts.NameResolve.NRReader
+      UHF.Parts.NameResolve.ResolveReferStarts
+      UHF.Parts.NameResolve.ResolveVPIdens
+      UHF.Parts.OptimizeANFIR
+      UHF.Parts.OptimizeANFIR.RemoveRefers
+      UHF.Parts.OptimizeANFIR.Utils
+      UHF.Parts.Parser
+      UHF.Parts.Parser.Error
+      UHF.Parts.Parser.PEG
+      UHF.Parts.Parser.Test
+      UHF.Parts.RemovePoison
+      UHF.Parts.ReportHoles
+      UHF.Parts.SolveTypes
+      UHF.Parts.SolveTypes.AddTypes
+      UHF.Parts.SolveTypes.Aliases
+      UHF.Parts.SolveTypes.Error
+      UHF.Parts.SolveTypes.RemoveInferVars
+      UHF.Parts.ToANFIR
+      UHF.Parts.ToBackendIR
+      UHF.Parts.ToRIR
+      UHF.Parts.ToRIR.PatternCheck
+      UHF.Parts.ToSIR
+      UHF.Parts.TSBackend
+      UHF.Parts.TSBackend.TS
+      UHF.Parts.TSBackend.TS.PP
       UHF.Parts.TypeSolver
       UHF.Parts.TypeSolver.Constraint
       UHF.Parts.TypeSolver.Solve
@@ -50,40 +84,6 @@ library
       UHF.Parts.TypeSolver.TypeWithInferVar
       UHF.Parts.TypeSolver.TypeWithInferVar.PP
       UHF.Parts.TypeSolver.Utils
-      UHF.Phases.InfixGroup
-      UHF.Phases.Lexer
-      UHF.Phases.Lexer.LexError
-      UHF.Phases.NameResolve
-      UHF.Phases.NameResolve.AssignNameMaps
-      UHF.Phases.NameResolve.DeclAt
-      UHF.Phases.NameResolve.Error
-      UHF.Phases.NameResolve.EvalTypeExprs
-      UHF.Phases.NameResolve.NameMaps
-      UHF.Phases.NameResolve.NRReader
-      UHF.Phases.NameResolve.ResolveReferStarts
-      UHF.Phases.NameResolve.ResolveVPIdens
-      UHF.Phases.OptimizeANFIR
-      UHF.Phases.OptimizeANFIR.RemoveRefers
-      UHF.Phases.OptimizeANFIR.Utils
-      UHF.Phases.Parser
-      UHF.Phases.Parser.Error
-      UHF.Phases.Parser.PEG
-      UHF.Phases.Parser.Test
-      UHF.Phases.RemovePoison
-      UHF.Phases.ReportHoles
-      UHF.Phases.SolveTypes
-      UHF.Phases.SolveTypes.AddTypes
-      UHF.Phases.SolveTypes.Aliases
-      UHF.Phases.SolveTypes.Error
-      UHF.Phases.SolveTypes.RemoveInferVars
-      UHF.Phases.ToANFIR
-      UHF.Phases.ToBackendIR
-      UHF.Phases.ToRIR
-      UHF.Phases.ToRIR.PatternCheck
-      UHF.Phases.ToSIR
-      UHF.Phases.TSBackend
-      UHF.Phases.TSBackend.TS
-      UHF.Phases.TSBackend.TS.PP
       UHF.PP
       UHF.PP.IndentationMonad
       UHF.PP.Precedence

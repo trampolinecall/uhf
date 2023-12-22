@@ -163,7 +163,7 @@ unify (Type'ADT a_adt_key a_params, a_var_map) (Type'ADT b_adt_key b_params, b_v
         && length a_params == length b_params =
         mapM_
             (\ (a_param, b_param) -> unify (a_param, a_var_map) (b_param, b_var_map))
-            (zip a_params b_params )
+            (zip a_params b_params)
 
 unify (Type'Synonym a_syn_key, a_var_map) b =
     lift (lift ask) >>= \ (_, _, get_type_synonym, _) ->

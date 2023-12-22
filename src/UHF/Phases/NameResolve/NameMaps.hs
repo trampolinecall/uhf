@@ -95,10 +95,16 @@ make_name_maps_from_decls type_synonym_arena bindings adts type_synonyms =
             adts
                 & map
                     (\ adt ->
-                        let (Type.ADT _ (Located name_sp name) _ _) = Arena.get adt_arena adt
-                            adt_decl_key = SIR.Decl'Type $ TypeWithInferVar.Type'ADT adt []
-                        in ([(name, DeclAt name_sp, adt_decl_key)], [], []) -- TODO: handle constructor values
-                    )
+                        let (Type.ADT _ (Located adt_name_sp adt_name) _ _) = Arena.get adt_arena adt
+                            (variant_constructors, variant_patterns) = Type.ADT.variant_idxs adt_arena adt
+                                & map (\ variant_index ->
+                                    case Type.ADT.get_variant adt_arena variant_index of
+                                        Type.ADT.Variant'Anon (Located variant_name_sp variant_name) _ _ -> ((variant_name, DeclAt variant_name_sp, SIR.BoundValue'ADTVariant variant_index), (variant_name, DeclAt variant_name_sp, variant_index))
+                                        Type.ADT.Variant'Named _ _ _ -> todo
+                                )
+                                & unzip
+
+                        in ([(adt_name, DeclAt adt_name_sp, SIR.Decl'Type $ TypeWithInferVar.Type'ADT adt [])], variant_constructors, variant_patterns)) -- TODO: make this deal with named variants too; also TODO: move variants to inside their types
                 & unzip3
         (type_synonym_decl_entries, type_synonym_val_entries, type_synonym_variant_entries) =
             type_synonyms

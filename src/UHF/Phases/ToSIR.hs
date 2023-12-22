@@ -112,19 +112,6 @@ convert_decls var_parent decl_parent decls =
 
                 lift (new_adt adt) >>= \ adt_key ->
 
-                -- TODO: use Type.adt_variant_idxs?
-                -- TODO: REMOVE
-                -- (catMaybes <$> mapM
-                --     (\ case
-                --         (Type.ADT.Variant'Anon (Located name_sp name) _ _, index) ->
-                --             mapM (lift . new_type_var) type_params >>= \ ty_param_vars_for_constructor ->
-                --             let variant_index = Type.ADT.VariantIndex adt_key index
-                --             in lift (new_variable (SIR.Variable'ADTVariant (ID.VariableID var_parent name) variant_index ty_param_vars_for_constructor () name_sp)) >>= \ var_key ->
-                --             pure (Just (SIR.Binding'ADTVariant name_sp var_key ty_param_vars_for_constructor variant_index))
-                --         (Type.ADT.Variant'Named _ _ _, _) -> pure Nothing
-                --     )
-                --     (zip variants_converted [0..])) >>= \ constructor_bindings ->
-
                 pure adt_key
             ) >>= \case
                 Just adt_key -> pure ([], [adt_key], [])

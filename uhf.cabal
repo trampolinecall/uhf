@@ -97,7 +97,6 @@ library
       UHF.Source.Location.SpanHelper
       UHF.Source.Span
       UHF.Util.Arena
-      UHF.Util.Unique
   other-modules:
       Paths_uhf
   hs-source-dirs:

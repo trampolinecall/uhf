@@ -7,20 +7,20 @@ packages:
 - completed:
     hackage: inflist-0.0.1@sha256:f78bb0b472e43dc475c1d9345dde5bafd554a0b780e7638235e6f25f71f3083d,1089
     pantry-tree:
-      size: 407
       sha256: 999f1189f7e52e17b765063373fd3d936f9648f675dfd63ce3a34ba70195a36b
+      size: 407
   original:
     hackage: inflist-0.0.1
 - completed:
     hackage: weeder-2.4.1@sha256:c770961b5f2d32f21eb9499954758eaf68044fc488439e2e6acf4fe1757f00d5,1959
     pantry-tree:
-      size: 439
       sha256: 26b9aa41d2fa2555e5699004e34fae3d39a8163310e39ef46789180bf176cc40
+      size: 439
   original:
     hackage: weeder-2.4.1
 snapshots:
 - completed:
-    size: 649592
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/20/16.yaml
-    sha256: dad15e2ec0c09280a5c2e07190fb18710fc54472f029f34f861f686540824d81
-  original: lts-20.16
+    sha256: e176944bc843f740e05242fa7a66ca1f440c127e425254f7f1257f9b19add23f
+    size: 712153
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/22/0.yaml
+  original: lts-22.0

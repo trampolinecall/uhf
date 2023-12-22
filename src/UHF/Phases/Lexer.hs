@@ -175,7 +175,8 @@ lex_number =
 
     get_loc >>= \ end_loc ->
 
-    let num_span = new_span_start_and_end start_loc end_loc
+    let digits_no_underscore = filter ((/='_') . Located.unlocate) digits
+        num_span = new_span_start_and_end start_loc end_loc
         ei_tok_base = case m_base of
             Just (Located _ 'o') -> Right (Token.Oct, 8)
             Just (Located _ 'x') -> Right (Token.Hex, 16)
@@ -196,24 +197,24 @@ lex_number =
                     Token.Bin -> \ c -> c == '0' || c == '1'
                     Token.Dec -> isDigit
 
-                illegal_digits = check_digits digit_legal digits
+                illegal_digits = check_digits digit_legal digits_no_underscore
 
             in if null illegal_digits
-                then pure [Located num_span (Token.Int tok_base (read_digits ((^) :: Integer -> Int -> Integer) base_num (zip [0..] (map Located.unlocate (reverse digits)))))]
+                then pure [Located num_span (Token.Int tok_base (read_digits ((^) :: Integer -> Int -> Integer) base_num (zip [0..] (map Located.unlocate (reverse digits_no_underscore)))))]
                 else mapM_ put_error illegal_digits >> pure []
 
         (Right (tok_base, _), _) ->
-            let illegal_digits = check_digits isDigit (digits ++ floats)
+            let illegal_digits = check_digits isDigit (digits_no_underscore ++ floats)
                 base_is_dec = if tok_base == Token.Dec then [] else [LexError.NonDecimalFloat num_span]
 
             in if null illegal_digits && null base_is_dec
-                then pure [Located num_span (Token.Float $ read_digits ((^^) :: Rational -> Int -> Rational) 10 (zip [0..] (map Located.unlocate $ reverse digits) ++ zip [-1, -2..] (map Located.unlocate floats)))]
+                then pure [Located num_span (Token.Float $ read_digits ((^^) :: Rational -> Int -> Rational) 10 (zip [0..] (map Located.unlocate $ reverse digits_no_underscore) ++ zip [-1, -2..] (map Located.unlocate floats)))]
                 else mapM_ put_error (illegal_digits ++ base_is_dec) >> pure []
 
         (Left err, _) -> put_error err >> pure []
     where
         lex_base = consume (=='0') >> consume isAlpha
-        lex_digits = one_or_more (consume isHexDigit)
+        lex_digits = one_or_more (consume (\ c -> isHexDigit c || c == '_'))
         lex_float = consume (=='.') >> lex_digits
 
 lex_space :: Lexer (Seq Token.LToken)
@@ -415,6 +416,13 @@ case_lex_str_lit_unclosed =
         Just (l, [LexError.UnclosedStrLit _], [])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_str_or_char_lit" x
+
+case_lex_number_underscores :: Assertion
+case_lex_number_underscores =
+    lex_test' lex_number "12_34__5" $ \case
+        Just (l, [], [Located _ (Token.Int Token.Dec 12345)])
+            | remaining l == "" -> pure ()
+        x -> lex_test_fail "lex_number" x
 
 case_lex_number_decimal :: Assertion
 case_lex_number_decimal =

@@ -59,16 +59,17 @@ convert (SIR.SIR modules adts type_synonyms quant_vars vars mod) = do
 assemble_cu :: Arena.Arena SIRModule SIR.ModuleKey -> SIR.ModuleKey -> ConvertState RIR.CU
 assemble_cu modules mod = do
     let SIR.Module _ bindings adts syns = Arena.get modules mod
-    adt_constructor_map <- adts
+    adt_constructors <- adts
         & mapM ( \ adt_key -> do
             (adts, _) <- ask
             let variants = Type.ADT.variant_idxs adts adt_key
-            mapM (\ variant_idx -> (variant_idx,) <$> (fst <$> make_adt_constructor variant_idx)) variants
+            mapM (\ variant_idx -> (variant_idx,) <$> (make_adt_constructor variant_idx)) variants
         )
         & fmap concat
-        & fmap Map.fromList
+    let adt_constructor_map = Map.fromList $ map (\ (variant_index, (var_key, _)) -> (variant_index, var_key)) adt_constructors
 
-    RIR.CU <$> (concat <$> runReaderT (mapM (convert_binding) bindings) adt_constructor_map) <*> pure adts <*> pure syns
+    bindings <- concat <$> runReaderT (mapM (convert_binding) bindings) adt_constructor_map
+    pure (RIR.CU (bindings <> map (\ (_, (_, binding)) -> binding) adt_constructors) adts syns)
 
 make_adt_constructor :: Type.ADT.VariantIndex -> ConvertState (RIR.VariableKey, RIR.Binding)
 make_adt_constructor variant_index@(Type.ADT.VariantIndex adt_key _) = do

@@ -62,7 +62,7 @@ instance Diagnostic.ToError (SolveError t) where
                     pure (PP.render a_part_printed, PP.render b_part_printed, PP.render a_whole_printed, PP.render b_whole_printed)
         in Diagnostic.Error
             (Just span)
-            ("conflicting types in " <> what <> ": '" <> a_part_printed <> "' vs '" <> b_part_printed <> "'")
+            ("conflicting types in " <> what <> ": '" <> a_part_printed <> "' vs '" <> b_part_printed <> "'") -- TODO: somehow make this say conflicting kinds or maybe just reword the whole message?
             (just_span a_whole `Diagnostic.msg_note_at` convert_str a_whole_printed
                 : just_span b_whole `Diagnostic.msg_note_at` convert_str b_whole_printed
                 : make_infer_var_name_messages infer_vars var_names)
@@ -75,6 +75,7 @@ instance Diagnostic.ToError (SolveError t) where
                 InCallExpr -> "call expression"
                 InTypeApplication -> "type application"
                 InADTVariantPatternField -> "ADT variant pattern field"
+                InADTFieldType -> "ADT field type"
 
             sp = just_span got_whole
 

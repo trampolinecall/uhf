@@ -80,10 +80,11 @@ apply_type for_what sp ty arg = do
 add :: UntypedModuleArena -> UntypedADTArena -> UntypedTypeSynonymArena -> QuantVarArena -> UntypedVariableArena -> WriterT [TypeSolver.Constraint] (TypeSolver.SolveMonad (Compiler.WithDiagnostics Error Void)) (TypedWithInferVarsModuleArena, TypedWithInferVarsADTArena, TypedWithInferVarsTypeSynonymArena, TypedWithInferVarsVariableArena)
 add mods adts type_synonyms quant_vars variables =
     runReaderT (
-        Arena.transformM adt adts >>= \ adts ->
-        Arena.transformM type_synonym  type_synonyms >>= \ type_synonyms ->
-        pure (adts, type_synonyms)
-    ) ((), (), (), ()) >>= \ (adts, type_synonyms) ->
+        Arena.transformM type_synonym  type_synonyms
+    ) ((), (), (), ()) >>= \ type_synonyms ->
+    runReaderT (
+        Arena.transformM adt adts
+    ) (adts, type_synonyms, quant_vars, ()) >>= \ adts ->
     runReaderT (
         Arena.transformM variable variables
     ) (adts, (), (), ()) >>= \ variables ->
@@ -98,11 +99,18 @@ variable (SIR.Variable id () name@(Located def_span _)) = SIR.Variable id <$> li
 module_ :: UntypedModule -> ContextReader TypedWithInferVarsADTArena TypedWithInferVarsTypeSynonymArena QuantVarArena TypedWithInferVarsVariableArena TypedWithInferVarsModule
 module_ (SIR.Module id bindings adts type_synonyms) = SIR.Module id <$> mapM binding bindings <*> pure adts <*> pure type_synonyms
 
-adt :: UntypedADT -> ContextReader adts type_synonyms quant_vars vars TypedWithInferVarsADT
+adt :: UntypedADT -> ContextReader UntypedADTArena TypedWithInferVarsTypeSynonymArena QuantVarArena vars TypedWithInferVarsADT
 adt (Type.ADT id name quant_vars variants) = Type.ADT id name quant_vars <$> mapM convert_variant variants
     where
-        convert_variant (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id <$> mapM (\ (id, name, (ty_expr, ty)) -> type_expr ty_expr >>= \ ty_expr -> pure (id, name, (ty_expr, ty))) fields
-        convert_variant (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id <$> mapM (\ (id, (ty_expr, ty)) -> type_expr ty_expr >>= \ ty_expr -> pure (id, (ty_expr, ty))) fields
+        -- TODO: deduplicate these?
+        convert_variant (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id <$> mapM (\ (id, name, field) -> (id, name,) <$> do_field field) fields
+        convert_variant (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id <$> mapM (\ (id, field) -> (id,) <$> do_field field) fields
+
+        do_field (ty_expr, ty) = do
+            ty_expr <- type_expr ty_expr
+            (adt_arena, type_synonym_arena, quant_var_arena, _) <- ask
+            lift $ tell [TypeSolver.Expect TypeSolver.InADTFieldType (Located (SIR.type_expr_span ty_expr) (TypeSolver.kind_of adt_arena type_synonym_arena quant_var_arena ty)) TypeSolver.Type'Kind'Type]
+            pure (ty_expr, ty)
 
 type_synonym :: UntypedTypeSynonym -> ContextReader adts type_synonyms quant_vars vars TypedWithInferVarsTypeSynonym
 type_synonym (Type.TypeSynonym id name (expansion, exp_as_type)) = type_expr expansion >>= \ expansion -> pure (Type.TypeSynonym id name (expansion, exp_as_type))
@@ -285,6 +293,8 @@ expr (SIR.Expr'TypeApply id () sp e (arg, arg_ty)) =
 expr (SIR.Expr'TypeAnnotation id () sp (annotation, annotation_ty) e) =
     type_expr annotation >>= \ annotation ->
     expr e >>= \ e ->
+    ask >>= \ (adts, type_synonyms, quant_vars, _) ->
+    lift (tell [TypeSolver.Expect TypeSolver.InTypeAnnotation (Located (SIR.type_expr_span annotation) (TypeSolver.kind_of adts type_synonyms quant_vars annotation_ty)) TypeSolver.Type'Kind'Type]) >>
     lift (tell [TypeSolver.Expect TypeSolver.InTypeAnnotation (Located (SIR.type_expr_span annotation) (SIR.expr_type e)) annotation_ty]) >>
     pure (SIR.Expr'TypeAnnotation id annotation_ty sp (annotation, annotation_ty) e)
 

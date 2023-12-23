@@ -160,6 +160,7 @@ test-suite uhf-test
   type: exitcode-stdio-1.0
   main-is: uhf.hs
   other-modules:
+      CompileTests
       Paths_uhf
   hs-source-dirs:
       test/

@@ -1,0 +1,7 @@
+data X {
+    Cons(int, int);
+};
+
+x = match Cons(0, 0) {
+    Cons(x, y, z) -> 0; // expect compile error: wrong number of fields in adt variant pattern
+};

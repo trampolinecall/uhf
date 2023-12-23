@@ -19,6 +19,8 @@ dump_decl :: AST.Decl -> PP.Token
 dump_decl (AST.Decl'Value target _ init) = dump_struct "Decl'Value" [("target", dump_pattern target), ("init", dump_expr init)]
 dump_decl (AST.Decl'Data name type_params variants) = dump_struct "Decl'Data" [("name", dump_identifier name), ("type_params", dump_list dump_identifier type_params), ("variants", dump_list dump_data_variant variants)]
 dump_decl (AST.Decl'TypeSyn name ty) = dump_struct "Decl'TypeSyn" [("name", dump_identifier name), ("ty", dump_type ty)]
+dump_decl (AST.Decl'Class name params subdecls) = dump_struct "Decl'Class" [("name", dump_identifier name), ("params", dump_list dump_identifier params), ("subdecls", dump_list dump_decl subdecls)]
+dump_decl (AST.Decl'Instance params constraint subdecls) = dump_struct "Decl'Instance" [("params", dump_list dump_identifier params), ("constraint", dump_type constraint), ("subdecls", dump_list dump_decl subdecls)]
 
 dump_data_variant :: AST.DataVariant -> PP.Token
 dump_data_variant (AST.DataVariant'Anon name fields) = dump_struct "DataVariant'Anon" [("name", dump_identifier name), ("fields", dump_list dump_type fields)]

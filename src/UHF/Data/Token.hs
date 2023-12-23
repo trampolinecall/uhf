@@ -62,6 +62,8 @@ data SingleTypeToken
     | Then
     | Else
     | Match
+    | Class
+    | Instance
 
     | OBrace
     | CBrace
@@ -109,6 +111,8 @@ instance Format SingleTypeToken where
     format Then = "'then'"
     format Else = "'else'"
     format Match = "'match'"
+    format Class = "'class'"
+    format Instance = "instance'"
 
     format OBrace = "'{'"
     format CBrace = "'}'"

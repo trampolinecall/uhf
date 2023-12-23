@@ -1,4 +1,4 @@
-module UHF.Data.IR.Class
+module UHF.Data.IR.Type.Class
     ( Class (..)
     , ClassKey
     , Instance (..)

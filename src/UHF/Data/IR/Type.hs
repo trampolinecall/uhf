@@ -10,6 +10,11 @@ module UHF.Data.IR.Type
     , QuantVar (..)
     , QuantVarKey
 
+    , Class (..)
+    , Instance (..)
+    , ClassKey
+    , InstanceKey
+
     , type_kind
     ) where
 
@@ -19,6 +24,7 @@ import UHF.Data.IR.Keys
 import UHF.Data.IR.Type.ADT
 import UHF.Data.IR.Type.QuantVar
 import UHF.Data.IR.Type.Synonym
+import UHF.Data.IR.Type.Class
 import qualified UHF.Util.Arena as Arena
 
 data Type

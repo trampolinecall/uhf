@@ -2,7 +2,7 @@ module UHF.Parts.ToSIR (convert) where
 
 import UHF.Prelude
 
-import Control.Monad.Trans.Maybe (runMaybeT)
+import Data.List (unzip5)
 
 import UHF.Source.Located (Located (..))
 import UHF.Source.Span (Span)
@@ -19,13 +19,23 @@ data Error
     = Tuple1 Span
     | Tuple0 Span
 
+data Warning
+    = ClassChildNotImplementedYet Span
+    | InstanceChildNotImplementedYet Span
+
 data DeclAt = DeclAt Span | ImplicitPrim deriving Show
 
 instance Diagnostic.ToError Error where
     to_error (Tuple1 sp) = Diagnostic.Error (Just sp) "tuple of 1 element" [] []
     to_error (Tuple0 sp) = Diagnostic.Error (Just sp) "tuple of 0 elements" [] []
 
-type SIRStage = (Located Text, (), (), Located Text, (), Located Text, (), (), ())
+instance Diagnostic.ToWarning Warning where
+    to_warning (ClassChildNotImplementedYet sp) = Diagnostic.Warning (Just sp) "class children are not implemented yet" [] []
+    to_warning (InstanceChildNotImplementedYet sp) = Diagnostic.Warning (Just sp) "instance children are not implemented yet" [] []
+
+type SIRStage = (Located Text, (), (), Located Text, (), Located Text, (), (), (), ())
+
+-- TODO: remove these type aliases
 
 type SIR = SIR.SIR SIRStage
 
@@ -33,6 +43,8 @@ type Module = SIR.Module SIRStage
 type Binding = SIR.Binding SIRStage
 type ADT = Type.ADT (TypeExpr, ())
 type TypeSynonym = Type.TypeSynonym (TypeExpr, ())
+type Class = Type.Class
+type Instance = Type.Instance (TypeExpr, ()) (TypeExpr, ())
 type TypeExpr = SIR.TypeExpr SIRStage
 type Expr = SIR.Expr SIRStage
 type Pattern = SIR.Pattern SIRStage
@@ -41,99 +53,118 @@ type Variable = SIR.Variable SIRStage
 type ModuleArena = Arena.Arena Module SIR.ModuleKey
 type ADTArena = Arena.Arena ADT Type.ADTKey
 type TypeSynonymArena = Arena.Arena TypeSynonym Type.TypeSynonymKey
+type ClassArena = Arena.Arena Class Type.ClassKey
+type InstanceArena = Arena.Arena Instance Type.InstanceKey
 type VariableArena = Arena.Arena Variable SIR.VariableKey
 type QuantVarArena = Arena.Arena Type.QuantVar Type.QuantVarKey
 
-type MakeIRState = StateT (ModuleArena, ADTArena, TypeSynonymArena, QuantVarArena, VariableArena) (Compiler.WithDiagnostics Error Void)
+type MakeIRState = StateT (ModuleArena, ADTArena, TypeSynonymArena, QuantVarArena, VariableArena, ClassArena, InstanceArena) (Compiler.WithDiagnostics Error Warning)
 
 new_module :: Module -> MakeIRState SIR.ModuleKey
 new_module m =
-    state $ \ (mods, adts, type_synonyms, type_vars, variables) ->
+    state $ \ (mods, adts, type_synonyms, type_vars, variables, classes, instances) ->
         let (key, mods') = Arena.put m mods
-        in (key, (mods', adts, type_synonyms, type_vars, variables))
+        in (key, (mods', adts, type_synonyms, type_vars, variables, classes, instances))
 
 new_adt :: ADT -> MakeIRState Type.ADTKey
 new_adt adt =
-    state $ \ (mods, adts, type_synonyms, type_vars, variables) ->
+    state $ \ (mods, adts, type_synonyms, type_vars, variables, classes, instances) ->
         let (key, adts') = Arena.put adt adts
-        in (key, (mods, adts', type_synonyms, type_vars, variables))
+        in (key, (mods, adts', type_synonyms, type_vars, variables, classes, instances))
 
 new_type_synonym :: TypeSynonym -> MakeIRState Type.TypeSynonymKey
 new_type_synonym ts =
-    state $ \ (mods, adts, type_synonyms, type_vars, variables) ->
+    state $ \ (mods, adts, type_synonyms, type_vars, variables, classes, instances) ->
         let (key, type_synonyms') = Arena.put ts type_synonyms
-        in (key, (mods, adts, type_synonyms', type_vars, variables))
+        in (key, (mods, adts, type_synonyms', type_vars, variables, classes, instances))
+
+new_class :: Class -> MakeIRState Type.ClassKey
+new_class c =
+    state $ \ (mods, adts, type_synonyms, type_vars, variables, classes, instances) ->
+        let (key, classes') = Arena.put c classes
+        in (key, (mods, adts, type_synonyms, type_vars, variables, classes', instances))
+
+new_instance :: Instance -> MakeIRState Type.InstanceKey
+new_instance i =
+    state $ \ (mods, adts, type_synonyms, type_vars, variables, classes, instances) ->
+        let (key, instances') = Arena.put i instances
+        in (key, (mods, adts, type_synonyms, type_vars, variables, classes, instances'))
 
 new_type_var :: Located Text -> MakeIRState Type.QuantVarKey
 new_type_var name =
-    state $ \ (mods, adts, type_synonyms, type_vars, variables) ->
+    state $ \ (mods, adts, type_synonyms, type_vars, variables, classes, instances) ->
         let (key, type_vars') = Arena.put (Type.QuantVar name) type_vars
-        in (key, (mods, adts, type_synonyms, type_vars', variables))
+        in (key, (mods, adts, type_synonyms, type_vars', variables, classes, instances))
 
 new_variable :: Variable -> MakeIRState SIR.VariableKey
 new_variable var =
-    state $ \ (mods, adts, type_synonyms, type_vars, variables) ->
+    state $ \ (mods, adts, type_synonyms, type_vars, variables, classes, instances) ->
         let (key, variables') = Arena.put var variables
-        in (key, (mods, adts, type_synonyms, type_vars, variables'))
+        in (key, (mods, adts, type_synonyms, type_vars, variables', classes, instances))
 
 tell_error :: Error -> MakeIRState Compiler.ErrorReportedPromise
 tell_error = lift . Compiler.tell_error
 
-convert :: [AST.Decl] -> Compiler.WithDiagnostics Error Void SIR
+convert :: [AST.Decl] -> Compiler.WithDiagnostics Error Warning SIR
 convert decls =
     runStateT
         (
             let module_id = ID.ModuleID'Root
-            in convert_decls (ID.VarParent'Module module_id) (ID.DeclParent'Module module_id) decls >>= \ (bindings, adts, type_synonyms) ->
-            new_module (SIR.Module module_id bindings adts type_synonyms)
+            in convert_decls (ID.VarParent'Module module_id) (ID.DeclParent'Module module_id) decls >>= \ (bindings, adts, type_synonyms, typeclasses, instances) ->
+            new_module (SIR.Module module_id bindings adts type_synonyms typeclasses instances)
         )
-        (Arena.new, Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (mod, (mods, adts, type_synonyms, type_vars, variables)) ->
-    pure (SIR.SIR mods adts type_synonyms type_vars variables mod)
+        (Arena.new, Arena.new, Arena.new, Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (mod, (mods, adts, type_synonyms, type_vars, variables, classes, instances)) ->
+    pure (SIR.SIR mods adts type_synonyms type_vars variables classes instances mod)
 
-convert_decls :: ID.VariableParent -> ID.DeclParent -> [AST.Decl] -> MakeIRState ([Binding], [Type.ADTKey], [Type.TypeSynonymKey])
+convert_decls :: ID.VariableParent -> ID.DeclParent -> [AST.Decl] -> MakeIRState ([Binding], [Type.ADTKey], [Type.TypeSynonymKey], [Type.ClassKey], [Type.InstanceKey])
 convert_decls var_parent decl_parent decls =
-    unzip3 <$> zipWithM convert_decl [0..] decls >>= \ (bindings, adts, type_synonyms) ->
-    pure (concat bindings, concat adts, concat type_synonyms)
+    unzip5 <$> zipWithM convert_decl [0..] decls >>= \ (bindings, adts, type_synonyms, typeclasses, instances) ->
+    pure (concat bindings, concat adts, concat type_synonyms, concat typeclasses, concat instances)
     where
-        convert_decl :: Int -> AST.Decl -> MakeIRState ([Binding], [Type.ADTKey], [Type.TypeSynonymKey])
+        convert_decl :: Int -> AST.Decl -> MakeIRState ([Binding], [Type.ADTKey], [Type.TypeSynonymKey], [Type.ClassKey], [Type.InstanceKey])
         convert_decl ind (AST.Decl'Value target eq_sp expr) =
             convert_expr (ID.ExprID'InitializerOf decl_parent ind) expr >>= \ expr' ->
             convert_pattern var_parent target >>= \ target' ->
-            pure ([SIR.Binding target' eq_sp expr'], [], [])
+            pure ([SIR.Binding target' eq_sp expr'], [], [], [], [])
 
         convert_decl _ (AST.Decl'Data l_data_name@(Located _ data_name) type_params variants) =
-            runMaybeT (
-                mapM (lift . new_type_var) type_params >>= \ ty_param_vars ->
+            mapM new_type_var type_params >>= \ ty_param_vars ->
 
-                let adt_id = ID.DeclID decl_parent data_name
-                in mapM (convert_variant adt_id) variants >>= \ variants_converted ->
-                let adt = Type.ADT adt_id l_data_name ty_param_vars variants_converted
-                in
+            let adt_id = ID.DeclID decl_parent data_name
+            in mapM (convert_variant adt_id) variants >>= \ variants_converted ->
+            let adt = Type.ADT adt_id l_data_name ty_param_vars variants_converted
+            in
 
-                lift (new_adt adt) >>= \ adt_key ->
+            new_adt adt >>= \ adt_key ->
 
-                pure adt_key
-            ) >>= \case
-                Just adt_key -> pure ([], [adt_key], [])
-                Nothing -> pure ([], [], [])
+            pure ([], [adt_key], [], [], [])
 
         convert_decl _ (AST.Decl'TypeSyn l_name@(Located _ name) expansion) =
-            runMaybeT (
-                lift (convert_type expansion) >>= \ expansion' ->
-                lift (new_type_synonym (Type.TypeSynonym (ID.DeclID decl_parent name) l_name (expansion', ())))
-            ) >>= \case
-                Just syn_key -> pure ([], [], [syn_key])
-                Nothing -> pure ([], [], [])
+            convert_type expansion >>= \ expansion' ->
+            new_type_synonym (Type.TypeSynonym (ID.DeclID decl_parent name) l_name (expansion', ())) >>= \ tsyn_key ->
+            pure ([], [], [tsyn_key], [], [])
 
-        convert_decl _ (AST.Decl'Class l_class_name@(Located _ class_name) type_params subdecls) = todo
-        convert_decl _ (AST.Decl'Instance type_params class_ args subdecls) = todo
+        convert_decl _ (AST.Decl'Class l_class_name@(Located class_name_sp class_name) type_params subdecls) = do
+            let id = ID.DeclID decl_parent class_name
+            ty_param_quant_vars <- mapM new_type_var type_params
+            mapM_ (const (lift $ Compiler.tell_warning (ClassChildNotImplementedYet class_name_sp))) subdecls -- TODO: do this span properly, TODO: implement this and then remove the warning
+            class_key <- new_class $ Type.Class id l_class_name ty_param_quant_vars (map (const ()) subdecls) -- TODO: figure out how subdecls are supposed to work
+            pure ([], [], [], [class_key], [])
+
+        convert_decl _ (AST.Decl'Instance type_params class_ args subdecls) = do
+            ty_param_quant_vars <- mapM new_type_var type_params
+            class_converted <- convert_type class_
+            args <- mapM convert_type args
+            mapM_ (const (lift $ Compiler.tell_warning (InstanceChildNotImplementedYet (AST.type_span class_)))) subdecls -- TODO: do this span properly, TODO: implement this and then remove the warning
+            instance_key <- new_instance $ Type.Instance ty_param_quant_vars (class_converted, ()) (map (,()) args) (map (const ()) subdecls) -- TODO: figure out how subdecls are supposed to work
+            pure ([], [], [], [], [instance_key])
 
         convert_variant adt_id (AST.DataVariant'Anon variant_name fields) =
             let variant_id = ID.ADTVariantID adt_id (unlocate variant_name)
             in Type.ADT.Variant'Anon variant_name variant_id
                 <$> zipWithM
                     (\ field_idx ty_ast ->
-                        lift (convert_type ty_ast) >>= \ ty ->
+                        convert_type ty_ast >>= \ ty ->
                         pure (ID.ADTFieldID variant_id (show (field_idx :: Int)), (ty, ())))
                     [0..]
                     fields
@@ -143,7 +174,7 @@ convert_decls var_parent decl_parent decls =
             -- TODO: check no duplicate field names
                 <$> mapM
                     (\ (field_name, ty_ast) ->
-                        lift (convert_type ty_ast) >>= \ ty ->
+                        convert_type ty_ast >>= \ ty ->
                         pure (ID.ADTFieldID variant_id (unlocate field_name), unlocate field_name, (ty, ())))
                     fields
 
@@ -196,11 +227,11 @@ convert_expr cur_id (AST.Expr'Let sp decls subexpr) = go cur_id decls
     where
         go cur_id [] = convert_expr cur_id subexpr
         go cur_id (first:more) =
-            convert_decls (ID.VarParent'Let cur_id) (ID.DeclParent'Let cur_id) [first] >>= \ (bindings, adts, type_synonyms) ->
-            SIR.Expr'Let cur_id () sp bindings adts type_synonyms <$> go (ID.ExprID'LetResultOf cur_id) more
+            convert_decls (ID.VarParent'Let cur_id) (ID.DeclParent'Let cur_id) [first] >>= \ (bindings, adts, type_synonyms, typeclasses, instances) ->
+            SIR.Expr'Let cur_id () sp bindings adts type_synonyms typeclasses instances <$> go (ID.ExprID'LetResultOf cur_id) more
 convert_expr cur_id (AST.Expr'LetRec sp decls subexpr) =
-    convert_decls (ID.VarParent'Let cur_id) (ID.DeclParent'Let cur_id) decls >>= \ (bindings, adts, type_synonyms) ->
-    SIR.Expr'LetRec cur_id () sp bindings adts type_synonyms <$> convert_expr (ID.ExprID'LetResultOf cur_id) subexpr
+    convert_decls (ID.VarParent'Let cur_id) (ID.DeclParent'Let cur_id) decls >>= \ (bindings, adts, type_synonyms, typeclasses, instances) ->
+    SIR.Expr'LetRec cur_id () sp bindings adts type_synonyms typeclasses instances <$> convert_expr (ID.ExprID'LetResultOf cur_id) subexpr
 
 convert_expr cur_id (AST.Expr'BinaryOps sp first ops) =
     SIR.Expr'BinaryOps cur_id () () sp

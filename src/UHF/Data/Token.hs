@@ -112,7 +112,7 @@ instance Format SingleTypeToken where
     format Else = "'else'"
     format Match = "'match'"
     format Class = "'class'"
-    format Instance = "instance'"
+    format Instance = "'instance'"
 
     format OBrace = "'{'"
     format CBrace = "'}'"

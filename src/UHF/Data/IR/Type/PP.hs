@@ -61,6 +61,6 @@ refer_type adts type_synonyms vars = go
                     in PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent (map (\ vk -> let (Type.QuantVar (Located _ name)) = Arena.get vars vk in PP.String name) (toList new_vars)), " ", ty']
                 -- TODO: do kinds correctly
                 Type.Type'Kind'Type -> PP.String "*" -- TODO: this does not seem right
-                Type.Type'Kind'Arrow a b -> PP.List [refer_type adts type_synonyms vars a, PP.String " -> ", refer_type adts type_synonyms vars b] -- TODO: precedence
+                Type.Type'Kind'Arrow a b -> PP.List [refer_type adts type_synonyms vars a, PP.String " -># ", refer_type adts type_synonyms vars b] -- TODO: precedence
                 Type.Type'Kind'Kind -> PP.String "<kind>" -- TODO: this is most definitely not correct
 

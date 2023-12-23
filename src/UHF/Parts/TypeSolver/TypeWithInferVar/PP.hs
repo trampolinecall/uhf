@@ -93,5 +93,5 @@ pp_type name_infer_vars adts type_synonyms vars infer_vars = go
         go (Type'Kind'Arrow a b) = do
             a <- go a
             b <- go b
-            pure (PP.List [a, PP.String " -> ", b]) -- TODO: precedence
+            pure (PP.List [a, PP.String " -># ", b]) -- TODO: precedence
         go Type'Kind'Kind = pure $ PP.String "<kind>" -- TODO: this is most definitely not correct

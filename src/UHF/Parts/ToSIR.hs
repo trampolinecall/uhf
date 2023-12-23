@@ -117,11 +117,10 @@ convert_decls var_parent decl_parent decls =
                 Just adt_key -> pure ([], [adt_key], [])
                 Nothing -> pure ([], [], [])
 
-        convert_decl _ (AST.Decl'TypeSyn name expansion) =
+        convert_decl _ (AST.Decl'TypeSyn l_name@(Located _ name) expansion) =
             runMaybeT (
                 lift (convert_type expansion) >>= \ expansion' ->
-                let l_syn_name@(Located _ syn_name) = name -- TODO: remove
-                in lift (new_type_synonym (Type.TypeSynonym (ID.DeclID decl_parent syn_name) l_syn_name (expansion', ())))
+                lift (new_type_synonym (Type.TypeSynonym (ID.DeclID decl_parent name) l_name (expansion', ())))
             ) >>= \case
                 Just syn_key -> pure ([], [], [syn_key])
                 Nothing -> pure ([], [], [])

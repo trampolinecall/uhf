@@ -32,4 +32,5 @@ solve nr_solver_state (SIR.SIR mods adts type_synonyms quant_vars variables mod)
         nr_solver_state >>= \ ((mods, adts, type_synonyms, variables), TypeSolver.SolverState _ infer_vars) ->
 
     RemoveInferVars.remove infer_vars mods adts type_synonyms variables >>= \ (mods, adts, type_synonyms, variables) ->
+
     pure (SIR.SIR mods adts type_synonyms quant_vars variables mod)

@@ -1,6 +1,5 @@
 module UHF.Parts.TypeSolver.TypeWithInferVar
     ( Type (..)
-    , Kind (..)
     , InferVar (..)
     , InferVarArena
     , InferVarKey
@@ -8,6 +7,8 @@ module UHF.Parts.TypeSolver.TypeWithInferVar
     , InferVarStatus (..)
     , infer_var_for_what_sp
     , infer_var_for_what_name
+
+    , type_kind
     )
     where
 
@@ -30,13 +31,42 @@ data Type
     | Type'QuantVar Type.QuantVarKey
     | Type'InferVar InferVarKey
     | Type'Forall (NonEmpty Type.QuantVarKey) Type
-    | Type'Kind Kind
+    | Type'Kind'Type
+    | Type'Kind'Arrow Type Type
+    | Type'Kind'Kind
     deriving Show
-data Kind
-    = Kind'Type
-    | Kind'Arrow Type Type
-    | Kind'Kind
-    deriving Show
+
+type_kind :: Arena.Arena (Type.ADT (t, Type)) Type.ADTKey -> Arena.Arena (Type.TypeSynonym (t, Type)) Type.TypeSynonymKey -> Arena.Arena Type.QuantVar Type.QuantVarKey -> Type -> Type
+type_kind adt_arena type_synonym_arena quant_var_arena = go
+    where
+        go :: Type -> Type
+        go t = case t of
+            Type'ADT adt_key applied ->
+                let Type.ADT _ _ quant_vars _ = Arena.get adt_arena adt_key
+                in make_arrows (map quant_var_kind (drop (length applied) quant_vars)) Type'Kind'Type
+            Type'Synonym ts_key ->
+                let Type.TypeSynonym _ _ (_, expansion) = Arena.get type_synonym_arena ts_key
+                in go expansion -- TODO: need to modify this when type synonyms can be parameterized
+            Type'Int -> Type'Kind'Type
+            Type'Float -> Type'Kind'Type
+            Type'Char -> Type'Kind'Type
+            Type'String -> Type'Kind'Type
+            Type'Bool -> Type'Kind'Type
+            Type'Function _ _ -> Type'Kind'Type
+            Type'Tuple _ _ -> Type'Kind'Type
+            Type'QuantVar qvk -> quant_var_kind qvk
+            Type'InferVar _ -> Type'Kind'Type -- TODO: infer vars with different kinds
+            Type'Forall quant_vars result -> make_arrows (map quant_var_kind (toList quant_vars)) result
+            Type'Kind'Type -> Type'Kind'Kind
+            Type'Kind'Arrow _ _ -> Type'Kind'Kind
+            Type'Kind'Kind -> Type'Kind'Kind
+
+        quant_var_kind :: Type.QuantVarKey -> Type
+        quant_var_kind qvk = Type'Kind'Type -- TODO: quant vars with different kinds
+
+        make_arrows :: [Type] -> Type -> Type
+        make_arrows [] res = res
+        make_arrows (cur_arg:more_args) res = Type'Kind'Arrow cur_arg (make_arrows more_args res)
 
 newtype InferVarKey = InferVarKey Arena.KeyData deriving (Show, Eq, Ord)
 instance Arena.Key InferVarKey where

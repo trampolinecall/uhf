@@ -4,7 +4,6 @@ module UHF.Data.IR.Type.PP
     , refer_adt
     , refer_type_synonym
     , refer_type
-    , refer_kind
     ) where
 
 import UHF.Prelude
@@ -60,14 +59,8 @@ refer_type adts type_synonyms vars = go
                 Type.Type'Forall new_vars ty ->
                     let ty' = go ty
                     in PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent (map (\ vk -> let (Type.QuantVar (Located _ name)) = Arena.get vars vk in PP.String name) (toList new_vars)), " ", ty']
-                Type.Type'Kind k -> refer_kind adts type_synonyms vars k
+                -- TODO: do kinds correctly
+                Type.Type'Kind'Type -> PP.String "*" -- TODO: this does not seem right
+                Type.Type'Kind'Arrow a b -> PP.List [refer_type adts type_synonyms vars a, PP.String " -> ", refer_type adts type_synonyms vars b] -- TODO: precedence
+                Type.Type'Kind'Kind -> PP.String "<kind>" -- TODO: this is most definitely not correct
 
-refer_kind :: Arena.Arena (Type.ADT ty) Type.ADTKey -> Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey -> Arena.Arena Type.QuantVar Type.QuantVarKey -> Type.Kind -> PP.Token
-refer_kind adts type_synonyms vars = go
-    where
-        go k =
-            case k of
-                -- TODO: do this correctly
-                Type.Kind'Type -> PP.String "*" -- TODO: this does not seem right
-                Type.Kind'Arrow a b -> PP.List [refer_type adts type_synonyms vars a, PP.String " -> ", refer_type adts type_synonyms vars b] -- TODO: precedence
-                Type.Kind'Kind -> PP.String "<kind>" -- TODO: this is most definitely not correct

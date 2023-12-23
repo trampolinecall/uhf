@@ -4,7 +4,6 @@ module UHF.Parts.TypeSolver
     , ExpectInWhat (..)
 
     , Type (..)
-    , Kind (..)
     , pp_type
     , run_infer_var_namer
 

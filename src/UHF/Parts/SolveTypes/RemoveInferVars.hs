@@ -40,9 +40,9 @@ convert_vars infer_vars =
                 TypeSolver.Type'InferVar v -> MaybeT $ pure $ Arena.get infer_vars_converted v
                 TypeSolver.Type'QuantVar v -> pure $ Type.Type'QuantVar v
                 TypeSolver.Type'Forall vars ty -> Type.Type'Forall vars <$> r infer_vars_converted ty
-                TypeSolver.Type'Kind TypeSolver.Kind'Type -> pure $ Type.Type'Kind Type.Kind'Type
-                TypeSolver.Type'Kind (TypeSolver.Kind'Arrow a b) -> Type.Type'Kind <$> (Type.Kind'Arrow <$> r infer_vars_converted a <*> r infer_vars_converted b)
-                TypeSolver.Type'Kind TypeSolver.Kind'Kind -> pure $ Type.Type'Kind Type.Kind'Kind
+                TypeSolver.Type'Kind'Type -> pure $ Type.Type'Kind'Type
+                TypeSolver.Type'Kind'Arrow a b -> Type.Type'Kind'Arrow <$> r infer_vars_converted a <*> r infer_vars_converted b
+                TypeSolver.Type'Kind'Kind -> pure $ Type.Type'Kind'Kind
 
         convert_var infer_vars_converted (TypeSolver.InferVar _ (TypeSolver.Substituted s)) = r infer_vars_converted s
         convert_var _ (TypeSolver.InferVar for_what TypeSolver.Fresh) = lift (Compiler.tell_error $ AmbiguousType for_what) >> MaybeT (pure Nothing)
@@ -135,6 +135,6 @@ type_ infer_vars = r
         r (TypeSolver.Type'InferVar u) = Arena.get infer_vars u
         r (TypeSolver.Type'QuantVar v) = Just $ Type.Type'QuantVar v
         r (TypeSolver.Type'Forall vars ty) = Type.Type'Forall vars <$> r ty
-        r (TypeSolver.Type'Kind TypeSolver.Kind'Type) = pure $ Type.Type'Kind Type.Kind'Type
-        r (TypeSolver.Type'Kind (TypeSolver.Kind'Arrow a b)) = Type.Type'Kind <$> (Type.Kind'Arrow <$> r a <*> r b)
-        r (TypeSolver.Type'Kind TypeSolver.Kind'Kind) = pure $ Type.Type'Kind Type.Kind'Kind
+        r TypeSolver.Type'Kind'Type = pure $ Type.Type'Kind'Type
+        r (TypeSolver.Type'Kind'Arrow a b) = Type.Type'Kind'Arrow <$> r a <*> r b
+        r TypeSolver.Type'Kind'Kind = pure $ Type.Type'Kind'Kind

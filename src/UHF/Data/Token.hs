@@ -108,7 +108,7 @@ instance Format SingleTypeToken where
     format If = "'if'"
     format Then = "'then'"
     format Else = "'else'"
-    format Match = "match"
+    format Match = "'match'"
 
     format OBrace = "'{'"
     format CBrace = "'}'"

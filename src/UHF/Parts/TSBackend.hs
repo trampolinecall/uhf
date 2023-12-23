@@ -155,6 +155,7 @@ refer_type_raw (Type.Type'Function a r) = refer_type_raw a >>= \ a -> refer_type
 refer_type_raw (Type.Type'Tuple a b) = refer_type_raw a >>= \ a -> refer_type_raw b >>= \ b -> pure (TS.Type'Reference $ TS.TypeReference "Tuple" [a, b])
 refer_type_raw (Type.Type'QuantVar _) = pure $ TS.Type'Reference $ TS.TypeReference "any" [] -- best approximation
 refer_type_raw (Type.Type'Forall _ t) = refer_type_raw t
+refer_type_raw (Type.Type'Kind _) = pure $ TS.Type'Reference $ TS.TypeReference "any" [] -- not sure what should happen here; throw internal error?
 
 refer_type :: Type.Type -> IRReader TS.Type
 refer_type = refer_type_raw -- may not always be the case

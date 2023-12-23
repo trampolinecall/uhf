@@ -1,5 +1,6 @@
 module UHF.Data.IR.Type
     ( Type (..)
+    , Kind (..)
 
     , ADT (..)
     , ADTKey
@@ -31,4 +32,11 @@ data Type
     | Type'Tuple Type Type
     | Type'QuantVar QuantVarKey
     | Type'Forall (NonEmpty QuantVarKey) Type
+    | Type'Kind Kind
+    deriving Show
+
+data Kind
+    = Kind'Type
+    | Kind'Arrow Type Type
+    | Kind'Kind
     deriving Show

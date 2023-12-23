@@ -53,8 +53,9 @@ name_infer_var var = state $
     -}
 
 pp_type :: Bool -> Arena.Arena (Type.ADT a) Type.ADTKey -> Arena.Arena (Type.TypeSynonym b) Type.TypeSynonymKey -> Arena.Arena Type.QuantVar Type.QuantVarKey -> InferVarArena -> Type -> InferVarNamer PP.Token -- TODO: put the arenas and things into a reader monad inside InferVarNamer?
-pp_type name_infer_vars adts type_synonyms vars infer_vars = go -- TODO: Type.PP.refer_type_m show_infer_var adts type_synonyms vars
+pp_type name_infer_vars adts type_synonyms vars infer_vars = go
     where
+        -- TODO: it is a bit inelegant to duplicate this with IR.Type.Type because then the pretty printing code (and a lot of the other code) is duplicated and you have remember to change it in both places
         go (Type'ADT k params) =
             mapM go params >>= \ params ->
             let params'
@@ -87,3 +88,14 @@ pp_type name_infer_vars adts type_synonyms vars infer_vars = go -- TODO: Type.PP
         go (Type'Forall new_vars ty) = do
             ty <- go ty
             pure $ PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent (map (\ vk -> let (Type.QuantVar (Located _ name)) = Arena.get vars vk in PP.String name) (toList new_vars)), " ", ty]
+        go (Type'Kind k) = refer_kind k
+
+        refer_kind k =
+            case k of
+                -- TODO: do this correctly
+                Kind'Type -> pure $ PP.String "*" -- TODO: this does not seem right
+                Kind'Arrow a b -> do
+                    a <- go a
+                    b <- go b
+                    pure (PP.List [a, PP.String " -> ", b]) -- TODO: precedence
+                Kind'Kind -> pure $ PP.String "<kind>" -- TODO: this is most definitely not correct

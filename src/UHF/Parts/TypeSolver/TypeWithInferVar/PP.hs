@@ -88,14 +88,10 @@ pp_type name_infer_vars adts type_synonyms vars infer_vars = go
         go (Type'Forall new_vars ty) = do
             ty <- go ty
             pure $ PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent (map (\ vk -> let (Type.QuantVar (Located _ name)) = Arena.get vars vk in PP.String name) (toList new_vars)), " ", ty]
-        go (Type'Kind k) = refer_kind k
-
-        refer_kind k =
-            case k of
-                -- TODO: do this correctly
-                Kind'Type -> pure $ PP.String "*" -- TODO: this does not seem right
-                Kind'Arrow a b -> do
-                    a <- go a
-                    b <- go b
-                    pure (PP.List [a, PP.String " -> ", b]) -- TODO: precedence
-                Kind'Kind -> pure $ PP.String "<kind>" -- TODO: this is most definitely not correct
+        -- TODO: do kinds correctly
+        go Type'Kind'Type = pure $ PP.String "*" -- TODO: this does not seem right
+        go (Type'Kind'Arrow a b) = do
+            a <- go a
+            b <- go b
+            pure (PP.List [a, PP.String " -> ", b]) -- TODO: precedence
+        go Type'Kind'Kind = pure $ PP.String "<kind>" -- TODO: this is most definitely not correct

@@ -116,7 +116,9 @@ check adt_arena type_synonym_arena = mapAccumL check_one_pattern [Any]
                 enumerate_adt_ctors_and_fields (Type.Type'Tuple _ _) = error_for_enumerate_adt_ctors_and_fields "Type'Tuple"
                 enumerate_adt_ctors_and_fields (Type.Type'QuantVar _) = error_for_enumerate_adt_ctors_and_fields "Type'QuantVar"
                 enumerate_adt_ctors_and_fields (Type.Type'Forall _ _) = error_for_enumerate_adt_ctors_and_fields "Type'Forall"
-                enumerate_adt_ctors_and_fields (Type.Type'Kind _) = error_for_enumerate_adt_ctors_and_fields "Type'Kind"
+                enumerate_adt_ctors_and_fields Type.Type'Kind'Type = error_for_enumerate_adt_ctors_and_fields "Type'Kind'Type"
+                enumerate_adt_ctors_and_fields (Type.Type'Kind'Arrow _ _) = error_for_enumerate_adt_ctors_and_fields "Type'Kind'Arrow"
+                enumerate_adt_ctors_and_fields Type.Type'Kind'Kind = error_for_enumerate_adt_ctors_and_fields "Type'Kind'Kind"
 
                 error_for_enumerate_adt_ctors_and_fields ty = error $ "cannot enumerate adt constructors for " ++ ty
 

@@ -160,9 +160,9 @@ apply_ty _ (Type'Forall (first_var :| more_vars) ty) arg =
         more_1:more_more ->
             Just . Right . Type'Forall (more_1 :| more_more) <$> lift (substitute_quant_var first_var arg ty)
 
-apply_ty sp ty@(Type'Kind Kind'Type) _ = Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty))
-apply_ty sp ty@(Type'Kind (Kind'Arrow _ _)) _ = Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty))
-apply_ty sp ty@(Type'Kind Kind'Kind) _ = Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty))
+apply_ty sp ty@(Type'Kind'Type) _ = Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty))
+apply_ty sp ty@(Type'Kind'Arrow _ _) _ = Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty))
+apply_ty sp ty@(Type'Kind'Kind) _ = Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty))
 
 unify :: Monad under => (Type, VarSubMap) -> (Type, VarSubMap) -> ExceptT UnifyError (VarSubGenerator (TypeContextReader e_t t under)) ()
 unify (Type'InferVar a, a_var_map) b = unify_infer_var (a, a_var_map) b False
@@ -223,9 +223,9 @@ unify (Type'Forall vars1 t1, var_map_1) (Type'Forall vars2 t2, var_map_2) = go (
         remake_forall_ty [] t1 = t1
         remake_forall_ty (v1:vmore) t1 = Type'Forall (v1 :| vmore) t1
 
-unify (Type'Kind Kind'Type, _) (Type'Kind Kind'Type, _) = pure ()
-unify (Type'Kind (Kind'Arrow a1 b1), var_map_1) (Type'Kind (Kind'Arrow a2 b2), var_map_2) = unify (a1, var_map_1) (a2, var_map_2) >> unify (b1, var_map_1) (b2, var_map_2)
-unify (Type'Kind Kind'Kind, _) (Type'Kind Kind'Kind, _) = pure ()
+unify (Type'Kind'Type, _) (Type'Kind'Type, _) = pure ()
+unify (Type'Kind'Arrow a1 b1, var_map_1) (Type'Kind'Arrow a2 b2, var_map_2) = unify (a1, var_map_1) (a2, var_map_2) >> unify (b1, var_map_1) (b2, var_map_2)
+unify (Type'Kind'Kind, _) (Type'Kind'Kind, _) = pure ()
 
 unify (a, _) (b, _) = ExceptT (pure $ Left $ Mismatch a b)
 
@@ -285,6 +285,6 @@ occurs_check u (Type'Function a r) = (||) <$> occurs_check u a <*> occurs_check 
 occurs_check u (Type'Tuple a b) = (||) <$> occurs_check u a <*> occurs_check u b
 occurs_check _ (Type'QuantVar _) = pure False
 occurs_check u (Type'Forall _ ty) = occurs_check u ty
-occurs_check _ (Type'Kind Kind'Type) = pure False
-occurs_check u (Type'Kind (Kind'Arrow a b)) = (||) <$> occurs_check u a <*> occurs_check u b
-occurs_check _ (Type'Kind Kind'Kind) = pure False
+occurs_check _ (Type'Kind'Type) = pure False
+occurs_check u (Type'Kind'Arrow a b) = (||) <$> occurs_check u a <*> occurs_check u b
+occurs_check _ (Type'Kind'Kind) = pure False

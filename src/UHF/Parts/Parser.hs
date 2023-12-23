@@ -128,7 +128,7 @@ decl_class =
 -- TODO: other requirements (like 'instance Something a => Class a' in haskell) (probably do something like 'instance#(A, B, C; Constraint) Class#(A, B, C)')
 decl_instance :: PEG.Parser AST.Decl
 decl_instance =
-    PEG.consume' "instance declaration" (Token.SingleTypeToken Token.Class) >>
+    PEG.consume' "instance declaration" (Token.SingleTypeToken Token.Instance) >>
     PEG.optional (
         PEG.consume' "'#'" (Token.SingleTypeToken Token.Hash) >>
         PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>

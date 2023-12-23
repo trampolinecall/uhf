@@ -8,6 +8,8 @@ module UHF.Data.SIR
 
     , ADT
     , TypeSynonym
+    , Class
+    , Instance
 
     , Decl (..)
 
@@ -55,10 +57,14 @@ data SIR stage
         (Arena.Arena (TypeSynonym stage) TypeSynonymKey)
         (Arena.Arena Type.QuantVar QuantVarKey)
         (Arena.Arena (Variable stage) VariableKey)
+        (Arena.Arena (Class stage) ClassKey)
+        (Arena.Arena (Instance stage) InstanceKey)
         ModuleKey
 
 type ADT stage = Type.ADT (TypeExpr stage, Stage.TypeExprEvaledAsType stage)
 type TypeSynonym stage = Type.TypeSynonym (TypeExpr stage, Stage.TypeExprEvaledAsType stage)
+type Class stage = Type.Class
+type Instance stage = Type.Instance (TypeExpr stage, Stage.InstanceHead stage) (TypeExpr stage, Stage.TypeExprEvaledAsType stage)
 
 data Decl ty
     = Decl'Module ModuleKey
@@ -66,7 +72,7 @@ data Decl ty
     deriving Show
 
 data Module stage
-    = Module ID.ModuleID [Binding stage] [ADTKey] [TypeSynonymKey]
+    = Module ID.ModuleID [Binding stage] [ADTKey] [TypeSynonymKey] [ClassKey] [InstanceKey]
 deriving instance Stage.AllShowable stage => Show (Module stage)
 
 data Variable stage
@@ -114,8 +120,8 @@ data Expr stage
 
     | Expr'Lambda ID.ExprID (Stage.TypeInfo stage) Span (Pattern stage) (Expr stage)
 
-    | Expr'Let ID.ExprID (Stage.TypeInfo stage) Span [Binding stage] [ADTKey] [TypeSynonymKey] (Expr stage)
-    | Expr'LetRec ID.ExprID (Stage.TypeInfo stage) Span [Binding stage] [ADTKey] [TypeSynonymKey] (Expr stage)
+    | Expr'Let ID.ExprID (Stage.TypeInfo stage) Span [Binding stage] [ADTKey] [TypeSynonymKey] [ClassKey] [InstanceKey] (Expr stage)
+    | Expr'LetRec ID.ExprID (Stage.TypeInfo stage) Span [Binding stage] [ADTKey] [TypeSynonymKey] [ClassKey] [InstanceKey] (Expr stage)
 
     | Expr'BinaryOps ID.ExprID (Stage.BinaryOpsAllowed stage) (Stage.TypeInfo stage) Span (Expr stage) [(Span, SplitIdentifier stage (Stage.VIdenStart stage), Stage.VIdenResolved stage, Expr stage)]
 
@@ -176,8 +182,8 @@ expr_type (Expr'Float _ type_info _ _) = type_info
 expr_type (Expr'Bool _ type_info _ _) = type_info
 expr_type (Expr'Tuple _ type_info _ _ _) = type_info
 expr_type (Expr'Lambda _ type_info _ _ _) = type_info
-expr_type (Expr'Let _ type_info _ _ _ _ _) = type_info
-expr_type (Expr'LetRec _ type_info _ _ _ _ _) = type_info
+expr_type (Expr'Let _ type_info _ _ _ _ _ _ _) = type_info
+expr_type (Expr'LetRec _ type_info _ _ _ _ _ _ _) = type_info
 expr_type (Expr'BinaryOps _ _ type_info _ _ _) = type_info
 expr_type (Expr'Call _ type_info _ _ _) = type_info
 expr_type (Expr'If _ type_info _ _ _ _ _) = type_info
@@ -197,8 +203,8 @@ expr_span (Expr'Float _ _ sp _) = sp
 expr_span (Expr'Bool _ _ sp _) = sp
 expr_span (Expr'Tuple _ _ sp _ _) = sp
 expr_span (Expr'Lambda _ _ sp _ _) = sp
-expr_span (Expr'Let _ _ sp _ _ _ _) = sp
-expr_span (Expr'LetRec _ _ sp _ _ _ _) = sp
+expr_span (Expr'Let _ _ sp _ _ _ _ _ _) = sp
+expr_span (Expr'LetRec _ _ sp _ _ _ _ _ _) = sp
 expr_span (Expr'BinaryOps _ _ _ sp _ _) = sp
 expr_span (Expr'Call _ _ sp _ _) = sp
 expr_span (Expr'If _ _ sp _ _ _ _) = sp

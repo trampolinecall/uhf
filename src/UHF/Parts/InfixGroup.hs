@@ -26,16 +26,19 @@ type Convertible ungrouped grouped =
     , SIR.TypeExprEvaledAsType ungrouped ~ SIR.TypeExprEvaledAsType grouped
     , SIR.PIdenStart ungrouped ~ SIR.PIdenStart grouped
     , SIR.PIdenResolved ungrouped ~ SIR.PIdenResolved grouped
+    , SIR.InstanceHead ungrouped ~ SIR.InstanceHead grouped
     )
 
 group :: Convertible ungrouped grouped => SIR.SIR ungrouped -> SIR.SIR grouped
-group (SIR.SIR modules adts type_synonyms type_vars variables mod) =
+group (SIR.SIR modules adts type_synonyms type_vars variables classes instances mod) =
     SIR.SIR
         (IDGen.run_id_gen ID.ExprID'InfixGroupGen (Arena.transformM group_module modules))
         (Arena.transform convert_adt adts)
         (Arena.transform convert_type_synonym type_synonyms)
         type_vars
         (Arena.transform convert_variable variables)
+        (Arena.transform convert_class classes)
+        (Arena.transform convert_instance instances)
         mod
     where
         -- TODO: automate these functions too?
@@ -45,9 +48,11 @@ group (SIR.SIR modules adts type_synonyms type_vars variables mod) =
                 convert_variant (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id (map (\ (i, n, (t, teat)) -> (i, n, (convert_type_expr t, teat))) fields)
         convert_type_synonym (Type.TypeSynonym did name (exp, expeat)) = Type.TypeSynonym did name (convert_type_expr exp, expeat)
         convert_variable (SIR.Variable varid tyinfo n) = SIR.Variable varid tyinfo n
+        convert_class (Type.Class id name type_vars) = Type.Class id name type_vars
+        convert_instance (Type.Instance quant_vars (class_, class_resolved) args) = Type.Instance quant_vars (convert_type_expr class_, class_resolved) (map (\ (arg, arg_as_type) -> (convert_type_expr arg, arg_as_type)) args)
 
 group_module :: Convertible ungrouped grouped => SIR.Module ungrouped -> IDGen.IDGen ID.ExprID (SIR.Module grouped)
-group_module (SIR.Module id bindings adts syns) = SIR.Module id <$> mapM group_binding bindings <*> pure adts <*> pure syns
+group_module (SIR.Module id bindings adts syns classes instances) = SIR.Module id <$> mapM group_binding bindings <*> pure adts <*> pure syns <*> pure classes <*> pure instances
 
 group_binding :: Convertible ungrouped grouped => SIR.Binding ungrouped -> IDGen.IDGen ID.ExprID (SIR.Binding grouped)
 group_binding (SIR.Binding pat eq_sp e) = SIR.Binding (convert_pattern pat) eq_sp <$> group_expr e
@@ -64,8 +69,8 @@ group_expr (SIR.Expr'Tuple id () sp a b) = SIR.Expr'Tuple id () sp <$> group_exp
 
 group_expr (SIR.Expr'Lambda id () sp param body) = SIR.Expr'Lambda id () sp (convert_pattern param) <$> group_expr body
 
-group_expr (SIR.Expr'Let id () sp bindings adts type_synonyms body) = SIR.Expr'Let id () sp <$> mapM group_binding bindings <*> pure adts <*> pure type_synonyms <*> group_expr body
-group_expr (SIR.Expr'LetRec id () sp bindings adts type_synonyms body) = SIR.Expr'LetRec id () sp <$> mapM group_binding bindings <*> pure adts <*> pure type_synonyms <*> group_expr body
+group_expr (SIR.Expr'Let id () sp bindings adts type_synonyms classes instances body) = SIR.Expr'Let id () sp <$> mapM group_binding bindings <*> pure adts <*> pure type_synonyms <*> pure classes <*> pure instances <*> group_expr body
+group_expr (SIR.Expr'LetRec id () sp bindings adts type_synonyms classes instances body) = SIR.Expr'LetRec id () sp <$> mapM group_binding bindings <*> pure adts <*> pure type_synonyms <*> pure classes <*> pure instances <*> group_expr body
 
 group_expr (SIR.Expr'BinaryOps _ () () _ first ops) =
     group_expr first >>= \ first ->

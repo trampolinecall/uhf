@@ -23,13 +23,13 @@ type ResolvedDIdenStart = Maybe (SIR.Decl TypeSolver.Type)
 type ResolvedVIdenStart = Maybe SIR.BoundValue
 type ResolvedPIdenStart = Maybe Type.ADT.VariantIndex
 
-type Unresolved = (UnresolvedIdenStart, (), (), UnresolvedIdenStart, (), UnresolvedIdenStart, (), (), ())
+type Unresolved = (UnresolvedIdenStart, (), (), UnresolvedIdenStart, (), UnresolvedIdenStart, (), (), (), ())
 
 type UnresolvedModuleArena = Arena.Arena (SIR.Module Unresolved) SIR.ModuleKey
 type UnresolvedADTArena = Arena.Arena (SIR.ADT Unresolved) Type.ADTKey
 type UnresolvedTypeSynonymArena = Arena.Arena (SIR.TypeSynonym Unresolved) Type.TypeSynonymKey
 
-type Resolved = (ResolvedDIdenStart, (), (), ResolvedVIdenStart, (), ResolvedPIdenStart, (), (), ())
+type Resolved = (ResolvedDIdenStart, (), (), ResolvedVIdenStart, (), ResolvedPIdenStart, (), (), (), ())
 
 type ResolvedModuleArena = Arena.Arena (SIR.Module Resolved) SIR.ModuleKey
 type ResolvedADTArena = Arena.Arena (SIR.ADT Resolved) Type.ADTKey
@@ -37,15 +37,18 @@ type ResolvedTypeSynonymArena = Arena.Arena (SIR.TypeSynonym Resolved) Type.Type
 
 -- resolve entry point {{{1
 resolve :: SIR.SIR Unresolved -> Error.WithErrors (SIR.SIR Resolved)
-resolve (SIR.SIR mods adts type_synonyms type_vars variables mod) =
+resolve (SIR.SIR mods adts type_synonyms type_vars variables classes instances mod) =
     resolve_in_mods mods >>= \ (mods) ->
     resolve_in_adts adts >>= \ adts ->
     resolve_in_type_synonyms type_synonyms >>= \ synonyms ->
-    pure (SIR.SIR mods adts synonyms type_vars (Arena.transform change_variable variables) mod)
+    Arena.transformM resolve_in_class classes >>= \ classes ->
+    Arena.transformM resolve_in_instance instances >>= \ instances ->
+    pure (SIR.SIR mods adts synonyms type_vars (Arena.transform change_variable variables) classes instances mod)
     where
         change_variable (SIR.Variable varid tyinfo n) = SIR.Variable varid tyinfo n
 
 -- resolving through sir {{{1
+-- TODO: remove these functions
 resolve_in_mods :: UnresolvedModuleArena -> Error.WithErrors ResolvedModuleArena
 resolve_in_mods = Arena.transformM resolve_in_module
 
@@ -56,7 +59,7 @@ resolve_in_type_synonyms :: UnresolvedTypeSynonymArena -> Error.WithErrors Resol
 resolve_in_type_synonyms = Arena.transformM resolve_in_type_synonym
 
 resolve_in_module :: SIR.Module Unresolved -> Error.WithErrors (SIR.Module Resolved)
-resolve_in_module (SIR.Module id bindings adts type_synonyms) = SIR.Module id <$> mapM resolve_in_binding bindings <*> pure adts <*> pure type_synonyms
+resolve_in_module (SIR.Module id bindings adts type_synonyms classes instances) = SIR.Module id <$> mapM resolve_in_binding bindings <*> pure adts <*> pure type_synonyms <*> pure classes <*> pure instances
 
 resolve_in_adt :: (SIR.ADT Unresolved) -> Error.WithErrors (SIR.ADT Resolved)
 resolve_in_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM resolve_in_variant variants
@@ -68,6 +71,15 @@ resolve_in_type_synonym :: (SIR.TypeSynonym Unresolved) -> Error.WithErrors (SIR
 resolve_in_type_synonym (Type.TypeSynonym id name (expansion, ())) =
     resolve_in_type_expr expansion >>= \ expansion ->
     pure (Type.TypeSynonym id name (expansion, ()))
+
+resolve_in_class :: SIR.Class Unresolved -> Error.WithErrors (SIR.Class Resolved)
+resolve_in_class (Type.Class id name type_vars) = pure $ Type.Class id name type_vars
+
+resolve_in_instance :: SIR.Instance Unresolved -> Error.WithErrors (SIR.Instance Resolved)
+resolve_in_instance (Type.Instance quant_vars (class_type_expr, class_resolved) args) = do
+    class_type_expr <- resolve_in_type_expr class_type_expr
+    args <- mapM (\ (arg, as_ty) -> (,as_ty) <$> resolve_in_type_expr arg) args
+    pure (Type.Instance quant_vars (class_type_expr, class_resolved) args)
 
 resolve_in_binding :: SIR.Binding Unresolved -> Error.WithErrors (SIR.Binding Resolved)
 resolve_in_binding (SIR.Binding target eq_sp expr) = SIR.Binding <$> resolve_in_pat target <*> pure eq_sp <*> resolve_in_expr expr
@@ -104,9 +116,8 @@ resolve_in_expr (SIR.Expr'Tuple id type_info sp a b) = SIR.Expr'Tuple id type_in
 
 resolve_in_expr (SIR.Expr'Lambda id type_info sp param body) = SIR.Expr'Lambda id type_info sp <$> resolve_in_pat param <*> resolve_in_expr body
 
-resolve_in_expr (SIR.Expr'Let id type_info sp bindings adts type_synonyms body) = SIR.Expr'Let id type_info sp <$> mapM resolve_in_binding bindings <*> pure adts <*> pure type_synonyms <*> resolve_in_expr body
-
-resolve_in_expr (SIR.Expr'LetRec id type_info sp bindings adts type_synonyms body) = SIR.Expr'LetRec id type_info sp <$> mapM resolve_in_binding bindings <*> pure adts <*> pure type_synonyms <*> resolve_in_expr body
+resolve_in_expr (SIR.Expr'Let id type_info sp bindings adts type_synonyms classes instances body) = SIR.Expr'Let id type_info sp <$> mapM resolve_in_binding bindings <*> pure adts <*> pure type_synonyms <*> pure classes <*> pure instances <*> resolve_in_expr body
+resolve_in_expr (SIR.Expr'LetRec id type_info sp bindings adts type_synonyms classes instances body) = SIR.Expr'LetRec id type_info sp <$> mapM resolve_in_binding bindings <*> pure adts <*> pure type_synonyms <*> pure classes <*> pure instances <*> resolve_in_expr body
 
 resolve_in_expr (SIR.Expr'BinaryOps id allowed type_info sp first ops) =
     SIR.Expr'BinaryOps id allowed type_info sp

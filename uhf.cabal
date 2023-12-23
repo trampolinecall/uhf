@@ -20,11 +20,11 @@ library
       UHF.Data.AST.PP
       UHF.Data.BackendIR
       UHF.Data.BackendIR.PP
-      UHF.Data.IR.Class
       UHF.Data.IR.ID
       UHF.Data.IR.Keys
       UHF.Data.IR.Type
       UHF.Data.IR.Type.ADT
+      UHF.Data.IR.Type.Class
       UHF.Data.IR.Type.PP
       UHF.Data.IR.Type.QuantVar
       UHF.Data.IR.Type.Synonym

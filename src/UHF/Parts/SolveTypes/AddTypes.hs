@@ -77,11 +77,13 @@ apply_type for_what sp ty arg = do
 -- but it really should produce an error at `thing(0)` saying that thing takes a string and not an int
 -- (this happens because bindings are processed in order and the constraint from 'thing(0)' is processed before the constraint from 'thing = ...')
 
-add :: UntypedModuleArena -> UntypedADTArena -> UntypedTypeSynonymArena -> QuantVarArena -> UntypedVariableArena -> WriterT [TypeSolver.Constraint] (TypeSolver.SolveMonad (Compiler.WithDiagnostics Error Void)) (TypedWithInferVarsModuleArena, TypedWithInferVarsADTArena, TypedWithInferVarsTypeSynonymArena, TypedWithInferVarsVariableArena)
-add mods adts type_synonyms quant_vars variables =
+add :: UntypedModuleArena -> UntypedADTArena -> UntypedTypeSynonymArena -> QuantVarArena -> UntypedVariableArena -> UntypedClassArena -> UntypedInstanceArena -> WriterT [TypeSolver.Constraint] (TypeSolver.SolveMonad (Compiler.WithDiagnostics Error Void)) (TypedWithInferVarsModuleArena, TypedWithInferVarsADTArena, TypedWithInferVarsTypeSynonymArena, TypedWithInferVarsVariableArena, TypedWithInferVarsClassArena, TypedWithInferVarsInstanceArena)
+add mods adts type_synonyms quant_vars variables classes instances =
     runReaderT (
-        Arena.transformM type_synonym type_synonyms
-    ) ((), (), (), ()) >>= \ type_synonyms ->
+        (,)
+            <$> Arena.transformM type_synonym type_synonyms
+            <*> Arena.transformM instance_ instances
+    ) ((), (), (), ()) >>= \ (type_synonyms, instances) ->
     runReaderT (
         Arena.transformM adt adts
     ) (adts, type_synonyms, quant_vars, ()) >>= \ adts ->
@@ -90,14 +92,14 @@ add mods adts type_synonyms quant_vars variables =
     ) (adts, (), (), ()) >>= \ variables ->
     runReaderT (
         Arena.transformM module_ mods >>= \ mods ->
-        pure (mods, adts, type_synonyms, variables)
+        pure (mods, adts, type_synonyms, variables, classes, instances)
     ) (adts, type_synonyms, quant_vars, variables)
 
 variable :: UntypedVariable -> ContextReader TypedWithInferVarsADTArena type_synonyms quant_vars vars TypedWithInferVarsVariable
 variable (SIR.Variable id () name@(Located def_span _)) = SIR.Variable id <$> lift (lift $ TypeSolver.Type'InferVar <$> TypeSolver.new_infer_var (TypeSolver.Variable def_span)) <*> pure name
 
 module_ :: UntypedModule -> ContextReader TypedWithInferVarsADTArena TypedWithInferVarsTypeSynonymArena QuantVarArena TypedWithInferVarsVariableArena TypedWithInferVarsModule
-module_ (SIR.Module id bindings adts type_synonyms) = SIR.Module id <$> mapM binding bindings <*> pure adts <*> pure type_synonyms
+module_ (SIR.Module id bindings adts type_synonyms classes instances) = SIR.Module id <$> mapM binding bindings <*> pure adts <*> pure type_synonyms <*> pure classes <*> pure instances
 
 adt :: UntypedADT -> ContextReader UntypedADTArena TypedWithInferVarsTypeSynonymArena QuantVarArena vars TypedWithInferVarsADT
 adt (Type.ADT id name quant_vars variants) = Type.ADT id name quant_vars <$> mapM convert_variant variants
@@ -114,6 +116,18 @@ adt (Type.ADT id name quant_vars variants) = Type.ADT id name quant_vars <$> map
 
 type_synonym :: UntypedTypeSynonym -> ContextReader adts type_synonyms quant_vars vars TypedWithInferVarsTypeSynonym
 type_synonym (Type.TypeSynonym id name (expansion, exp_as_type)) = type_expr expansion >>= \ expansion -> pure (Type.TypeSynonym id name (expansion, exp_as_type))
+
+-- TODO: is this actually supposed to be a no-op?
+{-
+class_ :: UntypedClass -> ContextReader adts type_synonyms quant_vars vars TypedWithInferVarsClass
+class_ (Type.Class id name qvars) = pure $ Type.Class id name qvars
+-}
+
+instance_ :: UntypedInstance -> ContextReader adts type_synonyms quant_vars vars TypedWithInferVarsInstance
+instance_ (Type.Instance qvars (class_type_expr, class_resolved) args) = do
+    class_type_expr <- type_expr class_type_expr
+    args <- mapM (\ (arg_type_expr, arg_as_type) -> (,arg_as_type) <$> type_expr arg_type_expr) args
+    pure (Type.Instance qvars (class_type_expr, class_resolved) args)
 
 type_expr :: UntypedTypeExpr -> ContextReader adts type_synonyms quant_vars vars TypedWithInferVarsTypeExpr
 type_expr (SIR.TypeExpr'Refer evaled sp iden) = pure (SIR.TypeExpr'Refer evaled sp iden)
@@ -230,15 +244,15 @@ expr (SIR.Expr'Lambda id () sp param body) =
     expr body >>= \ body ->
     pure (SIR.Expr'Lambda id (TypeSolver.Type'Function (SIR.pattern_type param) (SIR.expr_type body)) sp param body)
 
-expr (SIR.Expr'Let id () sp bindings adts type_synonyms result) =
+expr (SIR.Expr'Let id () sp bindings adts type_synonyms classes instances result) =
     mapM binding bindings >>= \ bindings ->
     expr result >>= \ result ->
-    pure (SIR.Expr'Let id (SIR.expr_type result) sp bindings adts type_synonyms result)
+    pure (SIR.Expr'Let id (SIR.expr_type result) sp bindings adts type_synonyms classes instances result)
 
-expr (SIR.Expr'LetRec id () sp bindings adts type_synonyms result) =
+expr (SIR.Expr'LetRec id () sp bindings adts type_synonyms classes instances result) =
     mapM binding bindings >>= \ bindings ->
     expr result >>= \ result ->
-    pure (SIR.Expr'LetRec id (SIR.expr_type result) sp bindings adts type_synonyms result)
+    pure (SIR.Expr'LetRec id (SIR.expr_type result) sp bindings adts type_synonyms classes instances result)
 
 expr (SIR.Expr'BinaryOps _ void _ _ _ _) = absurd void
 

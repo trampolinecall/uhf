@@ -24,8 +24,9 @@ type UnresolvedPIden = SIR.SplitIdentifier Unresolved ResolvedPIden
 type ResolvedVIden = Maybe SIR.BoundValue
 type ResolvedPIden = Maybe Type.ADT.VariantIndex
 
-type Unresolved = (DIden, DIden, TypeSolver.Type, ResolvedVIden, (), ResolvedPIden, (), (), ())
+type Unresolved = (DIden, DIden, TypeSolver.Type, ResolvedVIden, (), ResolvedPIden, (), (), Maybe Type.ClassKey, ())
 
+-- TODO: remove these type aliases
 type UnresolvedADT = Type.ADT (SIR.TypeExpr Unresolved, TypeSolver.Type)
 type UnresolvedTypeSynonym = Type.TypeSynonym (SIR.TypeExpr Unresolved, TypeSolver.Type)
 
@@ -34,7 +35,7 @@ type UnresolvedADTArena = Arena.Arena UnresolvedADT Type.ADTKey
 type UnresolvedTypeSynonymArena = Arena.Arena UnresolvedTypeSynonym Type.TypeSynonymKey
 type UnresolvedVariableArena = Arena.Arena (SIR.Variable Unresolved) SIR.VariableKey
 
-type Resolved = (DIden, DIden, TypeSolver.Type, ResolvedVIden, ResolvedVIden, ResolvedPIden, ResolvedPIden, (), ())
+type Resolved = (DIden, DIden, TypeSolver.Type, ResolvedVIden, ResolvedVIden, ResolvedPIden, ResolvedPIden, (), Maybe Type.ClassKey, ())
 
 type ResolvedADT = Type.ADT (SIR.TypeExpr Resolved, TypeSolver.Type)
 type ResolvedTypeSynonym = Type.TypeSynonym (SIR.TypeExpr Resolved, TypeSolver.Type)
@@ -45,26 +46,19 @@ type ResolvedTypeSynonymArena = Arena.Arena ResolvedTypeSynonym Type.TypeSynonym
 
 -- resolve entry point {{{1
 resolve :: NameMaps.SIRChildMaps -> SIR.SIR Unresolved -> Error.WithErrors (SIR.SIR Resolved)
-resolve sir_child_maps (SIR.SIR mods adts type_synonyms type_vars variables mod) =
-    runReaderT (resolve_in_mods mods) (adts, variables, (), sir_child_maps) >>= \ mods ->
-    runReaderT (resolve_in_adts adts) ((), (), (), sir_child_maps) >>= \ adts ->
-    runReaderT (resolve_in_type_synonyms type_synonyms) ((), (), (), sir_child_maps) >>= \ synonyms ->
-    pure (SIR.SIR mods adts synonyms type_vars (Arena.transform change_variable variables) mod)
+resolve sir_child_maps (SIR.SIR mods adts type_synonyms type_vars variables classes instances mod) =
+    runReaderT (Arena.transformM resolve_in_module mods) (adts, variables, (), sir_child_maps) >>= \ mods ->
+    runReaderT (Arena.transformM resolve_in_adt adts) ((), (), (), sir_child_maps) >>= \ adts ->
+    runReaderT (Arena.transformM resolve_in_type_synonym type_synonyms) ((), (), (), sir_child_maps) >>= \ synonyms ->
+    runReaderT (Arena.transformM resolve_in_class classes) ((), (), (), sir_child_maps) >>= \ classes ->
+    runReaderT (Arena.transformM resolve_in_instance instances) ((), (), (), sir_child_maps) >>= \ instances ->
+    pure (SIR.SIR mods adts synonyms type_vars (Arena.transform change_variable variables) classes instances mod)
     where
         change_variable (SIR.Variable varid tyinfo n) = SIR.Variable varid tyinfo n
 
 -- resolving through sir {{{1
-resolve_in_mods :: UnresolvedModuleArena -> (NRReader.NRReader UnresolvedADTArena UnresolvedVariableArena type_var_arena NameMaps.SIRChildMaps Error.WithErrors) ResolvedModuleArena
-resolve_in_mods = Arena.transformM resolve_in_module
-
-resolve_in_adts :: UnresolvedADTArena -> (NRReader.NRReader adt_arena var_arena type_var_arena NameMaps.SIRChildMaps Error.WithErrors) ResolvedADTArena
-resolve_in_adts = Arena.transformM resolve_in_adt
-
-resolve_in_type_synonyms :: UnresolvedTypeSynonymArena -> (NRReader.NRReader adt_arena var_arena type_var_arena NameMaps.SIRChildMaps Error.WithErrors) ResolvedTypeSynonymArena
-resolve_in_type_synonyms = Arena.transformM resolve_in_type_synonym
-
 resolve_in_module :: SIR.Module Unresolved -> NRReader.NRReader UnresolvedADTArena UnresolvedVariableArena type_var_arena NameMaps.SIRChildMaps Error.WithErrors (SIR.Module Resolved)
-resolve_in_module (SIR.Module id bindings adts type_synonyms) = SIR.Module id <$> mapM resolve_in_binding bindings <*> pure adts <*> pure type_synonyms
+resolve_in_module (SIR.Module id bindings adts type_synonyms classes instances) = SIR.Module id <$> mapM resolve_in_binding bindings <*> pure adts <*> pure type_synonyms <*> pure classes <*> pure instances
 
 resolve_in_adt :: UnresolvedADT -> (NRReader.NRReader adt_arena var_arena type_var_arena NameMaps.SIRChildMaps Error.WithErrors) ResolvedADT
 resolve_in_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM resolve_in_variant variants
@@ -74,6 +68,15 @@ resolve_in_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_var
 
 resolve_in_type_synonym :: UnresolvedTypeSynonym -> (NRReader.NRReader adt_arena var_arena type_var_arena NameMaps.SIRChildMaps Error.WithErrors) ResolvedTypeSynonym
 resolve_in_type_synonym (Type.TypeSynonym id name (expansion, expeat)) = resolve_in_type_expr expansion >>= \ expansion -> pure (Type.TypeSynonym id name (expansion, expeat))
+
+resolve_in_class :: SIR.Class Unresolved -> (NRReader.NRReader adt_arena var_arena type_var_arena NameMaps.SIRChildMaps Error.WithErrors) (SIR.Class Resolved)
+resolve_in_class (Type.Class id name type_vars) = pure $ Type.Class id name type_vars
+
+resolve_in_instance :: SIR.Instance Unresolved -> (NRReader.NRReader adt_arena var_arena type_var_arena NameMaps.SIRChildMaps Error.WithErrors) (SIR.Instance Resolved)
+resolve_in_instance (Type.Instance quant_vars (class_type_expr, class_resolved) args) = do
+    class_type_expr <- resolve_in_type_expr class_type_expr
+    args <- mapM (\ (arg, as_ty) -> (,as_ty) <$> resolve_in_type_expr arg) args
+    pure (Type.Instance quant_vars (class_type_expr, class_resolved) args)
 
 resolve_in_binding :: SIR.Binding Unresolved -> (NRReader.NRReader UnresolvedADTArena UnresolvedVariableArena type_var_arena NameMaps.SIRChildMaps Error.WithErrors) (SIR.Binding Resolved)
 resolve_in_binding (SIR.Binding target eq_sp expr) = SIR.Binding <$> resolve_in_pat target <*> pure eq_sp <*> resolve_in_expr expr
@@ -111,11 +114,11 @@ resolve_in_expr (SIR.Expr'Tuple id type_info sp a b) = SIR.Expr'Tuple id type_in
 resolve_in_expr (SIR.Expr'Lambda id type_info sp param body) =
     SIR.Expr'Lambda id type_info sp <$> resolve_in_pat param <*> resolve_in_expr body
 
-resolve_in_expr (SIR.Expr'Let id type_info sp bindings adts type_synonyms body) =
-    SIR.Expr'Let id type_info sp <$> mapM resolve_in_binding bindings <*> pure adts <*> pure type_synonyms <*> resolve_in_expr body
+resolve_in_expr (SIR.Expr'Let id type_info sp bindings adts type_synonyms classes instances body) =
+    SIR.Expr'Let id type_info sp <$> mapM resolve_in_binding bindings <*> pure adts <*> pure type_synonyms <*> pure classes <*> pure instances <*> resolve_in_expr body
 
-resolve_in_expr (SIR.Expr'LetRec id type_info sp bindings adts type_synonyms body) =
-    SIR.Expr'LetRec id type_info sp <$> mapM resolve_in_binding bindings <*> pure adts <*> pure type_synonyms <*> resolve_in_expr body
+resolve_in_expr (SIR.Expr'LetRec id type_info sp bindings adts type_synonyms classes instances body) =
+    SIR.Expr'LetRec id type_info sp <$> mapM resolve_in_binding bindings <*> pure adts <*> pure type_synonyms <*> pure classes <*> pure instances <*> resolve_in_expr body
 
 resolve_in_expr (SIR.Expr'BinaryOps id allowed type_info sp first ops) =
     SIR.Expr'BinaryOps id allowed type_info sp
@@ -150,7 +153,6 @@ resolve_in_expr (SIR.Expr'TypeApply id type_info sp e (arg, arg_ty)) = SIR.Expr'
 resolve_in_expr (SIR.Expr'Hole id type_info sp hid) = pure $ SIR.Expr'Hole id type_info sp hid
 
 resolve_in_expr (SIR.Expr'Poison id type_info sp) = pure $ SIR.Expr'Poison id type_info sp
-
 -- resolving identifiers {{{1
 resolve_split_iden :: SIR.SplitIdentifier Unresolved start -> NRReader.NRReader adt_arena var_arena type_var_arena NameMaps.SIRChildMaps Error.WithErrors (SIR.SplitIdentifier Resolved start)
 resolve_split_iden (SIR.SplitIdentifier'Get texpr next) = resolve_in_type_expr texpr >>= \ texpr -> pure (SIR.SplitIdentifier'Get texpr next)

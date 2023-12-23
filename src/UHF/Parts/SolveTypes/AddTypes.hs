@@ -22,7 +22,7 @@ get_bv_type :: SIR.BoundValue -> ContextReader TypedWithInferVarsADTArena type_s
 get_bv_type bv =
     case bv of
         SIR.BoundValue'Variable var -> get_var_type var
-        SIR.BoundValue'ADTVariant variant_index@(Type.ADT.VariantIndex adt_key _) -> do
+        SIR.BoundValue'ADTVariant variant_index@(Type.ADT.VariantIndex _ adt_key _) -> do
             (adts, _, _, _) <- ask
             let (Type.ADT _ _ adt_type_params _) = Arena.get adts adt_key
             let variant = Type.ADT.get_variant adts variant_index
@@ -155,7 +155,7 @@ pattern (SIR.Pattern'AnonADTVariant () sp variant_iden Nothing _ fields) =
     TypeSolver.Type'InferVar <$> lift (lift $ TypeSolver.new_infer_var (TypeSolver.UnresolvedADTVariantPattern sp)) >>= \ ty ->
     split_iden variant_iden >>= \ variant_iden ->
     pure (SIR.Pattern'AnonADTVariant ty sp variant_iden Nothing [] fields)
-pattern (SIR.Pattern'AnonADTVariant () sp variant_iden (Just variant_index@(Type.ADT.VariantIndex adt_key _)) _ fields) =
+pattern (SIR.Pattern'AnonADTVariant () sp variant_iden (Just variant_index@(Type.ADT.VariantIndex _ adt_key _)) _ fields) =
     mapM pattern fields >>= \ pattern_fields ->
 
     ask >>= \ (adts, _, _, _) ->

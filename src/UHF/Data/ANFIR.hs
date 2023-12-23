@@ -96,7 +96,6 @@ data Expr
     | Expr'Poison ID (Maybe Type.Type)
     deriving Show
 
--- TODO: split match things into separate module?
 data MatchTree
     = MatchTree [([MatchClause], Either MatchTree (BindingGroup, BindingKey))]
     deriving Show

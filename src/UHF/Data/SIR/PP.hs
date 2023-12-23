@@ -77,7 +77,7 @@ refer_decl d = case d of
     SIR.Decl'Type ty -> refer_type ty
 
 refer_adt_variant :: Type.ADT.VariantIndex -> IRReader stage PP.Token
-refer_adt_variant variant_index@(Type.ADT.VariantIndex adt_key _) =
+refer_adt_variant variant_index@(Type.ADT.VariantIndex _ adt_key _) =
     Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_referred ->
     Type.ADT.get_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
     let variant_name = unlocate $ Type.ADT.variant_name variant

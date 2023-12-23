@@ -71,4 +71,3 @@ refer_kind adts type_synonyms vars = go
                 Type.Kind'Type -> PP.String "*" -- TODO: this does not seem right
                 Type.Kind'Arrow a b -> PP.List [refer_type adts type_synonyms vars a, PP.String " -> ", refer_type adts type_synonyms vars b] -- TODO: precedence
                 Type.Kind'Kind -> PP.String "<kind>" -- TODO: this is most definitely not correct
-

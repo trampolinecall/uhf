@@ -57,7 +57,7 @@ convert_module (SIR.Module id bindings adts type_synonyms) = do
     pure (RIR.Module id (bindings <> map (\ (_, (_, binding)) -> binding) adt_constructors) adts type_synonyms)
 
 make_adt_constructor :: Type.ADT.VariantIndex -> ConvertState (RIR.VariableKey, RIR.Binding)
-make_adt_constructor variant_index@(Type.ADT.VariantIndex adt_key _) = do
+make_adt_constructor variant_index@(Type.ADT.VariantIndex _ adt_key _) = do
     (adts, _) <- ask
     let (Type.ADT _ _ adt_quant_vars _) = Arena.get adts adt_key
     let variant = Type.ADT.get_variant adts variant_index
@@ -203,6 +203,10 @@ convert_expr (SIR.Expr'Match id ty sp match_tok_sp scrutinee arms) = do
                 (RIR.Expr'Match id ty sp (RIR.MatchTree arms))
         )
     where
+        pattern_to_clauses ::
+            SIR.VariableKey
+                      -> SIR.Pattern LastSIR
+                      -> ConvertState [RIR.MatchClause]
         pattern_to_clauses scrutinee_var (SIR.Pattern'Identifier _ _ var_key) = pure [RIR.MatchClause'Assign var_key (RIR.MatchAssignRHS'OtherVar scrutinee_var)]
         pattern_to_clauses _ (SIR.Pattern'Wildcard _ _) = pure []
         pattern_to_clauses scrutinee_var (SIR.Pattern'Tuple _ _ a b) =
@@ -224,7 +228,27 @@ convert_expr (SIR.Expr'Match id ty sp match_tok_sp scrutinee arms) = do
             -- Variant(F0, F1, ...) becomes [scrutinee -> Variant, f0 = (scrutinee as Variant).0, f1 = (scrutinee as Variant).1, f0 -> F0, f1 -> F1, ...]
             fields & mapM (\ pat -> new_variable (SIR.pattern_type pat) (SIR.pattern_span pat)) >>= \ field_vars ->
             zipWithM pattern_to_clauses field_vars fields >>= \ field_subpat_clauses ->
-            pure (RIR.MatchClause'Match scrutinee_var (RIR.Match'AnonADTVariant variant_index) : zipWith (\ i field_var -> RIR.MatchClause'Assign field_var (RIR.MatchAssignRHS'AnonADTVariantField (SIR.pattern_type $ fields List.!! i) scrutinee_var (Type.ADT.FieldIndex <$> variant_index <*> pure i))) [0..] field_vars <> concat field_subpat_clauses)
+            ask >>= \ (adt_arena, _) ->
+            let field_idxs = Type.ADT.variant_field_idxs adt_arena <$> variant_index
+            in
+            pure (
+                RIR.MatchClause'Match scrutinee_var (RIR.Match'AnonADTVariant variant_index)
+                    : case field_idxs of
+                        Just field_idxs ->
+                            if length field_idxs /= length field_vars
+                                then error "not the right number fields in a anon adt variant pattern" -- sanity check assertion
+                            else zipWith3
+                                (\ field_idx field_var field_pat -> RIR.MatchClause'Assign field_var (RIR.MatchAssignRHS'AnonADTVariantField (SIR.pattern_type field_pat) scrutinee_var (Just field_idx)))
+                                field_idxs
+                                field_vars
+                                fields
+                        Nothing ->
+                            zipWith
+                                (\ field_var field_pat -> RIR.MatchClause'Assign field_var (RIR.MatchAssignRHS'AnonADTVariantField (SIR.pattern_type field_pat) scrutinee_var Nothing))
+                                field_vars
+                                fields
+                    <> concat field_subpat_clauses
+            )
 
         pattern_to_clauses _ (SIR.Pattern'NamedADTVariant _ _ _ _ _ _) = todo
         pattern_to_clauses _ (SIR.Pattern'Poison _ _) = pure []

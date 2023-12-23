@@ -89,7 +89,7 @@ instance Diagnostic.ToError (SolveError t) where
         in Diagnostic.Error
             (Just sp)
             ("conflicting types in " <> what <> ": '" <> expect_part_printed <> "' vs '" <> got_part_printed <> "'")
-            ((sp `Diagnostic.msg_note_at` convert_str ("expected '" <> expect_whole_printed <> "', got '" <> got_whole_printed <> "'")) : make_infer_var_name_messages infer_vars var_names)
+            ((sp `Diagnostic.msg_error_at` convert_str ("expected '" <> expect_whole_printed <> "', got '" <> got_whole_printed <> "'")) : make_infer_var_name_messages infer_vars var_names)
             []
 
     to_error (OccursCheckError context@(ErrorTypeContext _ _ _ infer_vars) span var_key ty) =

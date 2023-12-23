@@ -142,11 +142,20 @@ decl_instance =
         pure vars
     ) >>= \ type_params ->
     type_ >>= \ constraint ->
+    let (class_, params) = remove_applies constraint
+    in
     PEG.consume' "'{'" (Token.SingleTypeToken Token.OBrace) >>
     PEG.star decl >>= \ subdecls ->
     PEG.consume' "'}'" (Token.SingleTypeToken Token.CBrace) >>
     PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>
-    pure (AST.Decl'Instance (fromMaybe [] type_params) constraint subdecls)
+    pure (AST.Decl'Instance (fromMaybe [] type_params) class_ params subdecls)
+    where
+        -- split Something#(A, B, C) into Something and [A, B, C]
+        remove_applies :: AST.Type -> (AST.Type, [AST.Type])
+        remove_applies (AST.Type'Apply _ apply_target top_args) =
+            let (parent, inner_args) = remove_applies apply_target
+            in (parent, inner_args ++ top_args)
+        remove_applies t = (t, [])
 
 decl_binding :: PEG.Parser AST.Decl
 decl_binding =

@@ -125,8 +125,8 @@ convert_decls var_parent decl_parent decls =
                 Just syn_key -> pure ([], [], [syn_key])
                 Nothing -> pure ([], [], [])
 
-        convert_decl _ (AST.Decl'Class l_data_name@(Located _ data_name) type_params subdecls) = todo
-        convert_decl _ (AST.Decl'Instance type_params constraint subdecls) = todo
+        convert_decl _ (AST.Decl'Class l_class_name@(Located _ class_name) type_params subdecls) = todo
+        convert_decl _ (AST.Decl'Instance type_params class_ args subdecls) = todo
 
         convert_variant adt_id (AST.DataVariant'Anon variant_name fields) =
             let variant_id = ID.ADTVariantID adt_id (unlocate variant_name)

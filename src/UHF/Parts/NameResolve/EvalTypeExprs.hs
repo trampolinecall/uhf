@@ -23,13 +23,13 @@ type EvaledDIden = Maybe (SIR.Decl TypeSolver.Type)
 type VIdenStart = Maybe SIR.BoundValue
 type PIdenStart = Maybe Type.ADT.VariantIndex
 
-type Unevaled = (EvaledDIden, (), (), VIdenStart, (), PIdenStart, (), (), ())
+type Unevaled = (EvaledDIden, (), (), VIdenStart, (), PIdenStart, (), (), (), ())
 
 type UnevaledModuleArena = Arena.Arena (SIR.Module Unevaled) SIR.ModuleKey
 type UnevaledADTArena = Arena.Arena (SIR.ADT Unevaled) Type.ADTKey
 type UnevaledTypeSynonymArena = Arena.Arena (SIR.TypeSynonym Unevaled) Type.TypeSynonymKey
 
-type Extracted = (EvaledDIden, TypeExprKey, (), VIdenStart, (), PIdenStart, (), (), ())
+type Extracted = (EvaledDIden, TypeExprKey, (), VIdenStart, (), PIdenStart, (), (), (), ())
 newtype TypeExprKey = TypeExprKey Arena.KeyData
 instance Arena.Key TypeExprKey where
     make_key = TypeExprKey
@@ -39,7 +39,7 @@ type ExtractedModuleArena = Arena.Arena (SIR.Module Extracted) SIR.ModuleKey
 type ExtractedADTArena = Arena.Arena (SIR.ADT Extracted) Type.ADTKey
 type ExtractedTypeSynonymArena = Arena.Arena (SIR.TypeSynonym Extracted) Type.TypeSynonymKey
 
-type Evaled = (EvaledDIden, EvaledDIden, TypeSolver.Type, VIdenStart, (), PIdenStart, (), (), ())
+type Evaled = (EvaledDIden, EvaledDIden, TypeSolver.Type, VIdenStart, (), PIdenStart, (), (), Maybe Type.ClassKey, ())
 
 type EvaledSIR = SIR.SIR Evaled
 type EvaledModule = SIR.Module Evaled
@@ -84,20 +84,23 @@ eval sir_child_maps sir =
     in put_back sir_child_maps type_expr_arena sir'
 -- extract {{{1
 extract :: (SIR.SIR Unevaled) -> ((SIR.SIR Extracted), Arena.Arena TypeExpr TypeExprKey)
-extract (SIR.SIR mods adts type_synonyms quant_vars variables mod) =
-    let ((mods', adts', type_synonyms'), d_iden_arena) =
+extract (SIR.SIR mods adts type_synonyms quant_vars variables classes instances mod) =
+    let ((mods', adts', type_synonyms', classes', instances'), d_iden_arena) =
             runState
                 ( do
                     mods <- extract_in_mods mods
                     adts <- extract_in_adts adts
                     type_synonyms <- extract_in_type_synonyms type_synonyms
-                    pure (mods, adts, type_synonyms)
+                    classes <- Arena.transformM extract_in_class classes
+                    instances <- Arena.transformM extract_in_instance instances
+                    pure (mods, adts, type_synonyms, classes, instances)
                 )
                 Arena.new
-    in (SIR.SIR mods' adts' type_synonyms' quant_vars (Arena.transform change_variable variables) mod, d_iden_arena)
+    in (SIR.SIR mods' adts' type_synonyms' quant_vars (Arena.transform change_variable variables) classes' instances' mod, d_iden_arena)
     where
         change_variable (SIR.Variable varid tyinfo n) = SIR.Variable varid tyinfo n
 
+-- TODO: remove these functions
 extract_in_mods :: UnevaledModuleArena -> ExtractMonad ExtractedModuleArena
 extract_in_mods = Arena.transformM extract_in_module
 
@@ -108,7 +111,7 @@ extract_in_type_synonyms :: UnevaledTypeSynonymArena -> ExtractMonad ExtractedTy
 extract_in_type_synonyms = Arena.transformM extract_in_type_synonym
 
 extract_in_module :: (SIR.Module Unevaled) -> ExtractMonad (SIR.Module Extracted)
-extract_in_module (SIR.Module id bindings adts type_synonyms) = SIR.Module id <$> mapM extract_in_binding bindings <*> pure adts <*> pure type_synonyms
+extract_in_module (SIR.Module id bindings adts type_synonyms classes instances) = SIR.Module id <$> mapM extract_in_binding bindings <*> pure adts <*> pure type_synonyms <*> pure classes <*> pure instances
 
 extract_in_adt :: (SIR.ADT Unevaled) -> ExtractMonad (SIR.ADT Extracted)
 extract_in_adt (Type.ADT id name quant_vars variants) = Type.ADT id name quant_vars <$> mapM extract_in_variant variants
@@ -120,6 +123,15 @@ extract_in_type_synonym :: (SIR.TypeSynonym Unevaled) -> ExtractMonad (SIR.TypeS
 extract_in_type_synonym (Type.TypeSynonym id name (expansion, ())) =
     extract_in_type_expr expansion >>= \ (_, expansion) ->
     pure (Type.TypeSynonym id name (expansion, ()))
+
+extract_in_class :: SIR.Class Unevaled -> ExtractMonad (SIR.Class Extracted)
+extract_in_class (Type.Class id name type_vars) = pure $ Type.Class id name type_vars
+
+extract_in_instance :: SIR.Instance Unevaled -> ExtractMonad (SIR.Instance Extracted)
+extract_in_instance (Type.Instance quant_vars (class_type_expr, ()) args) = do
+    (_, class_type_expr) <- extract_in_type_expr class_type_expr
+    args <- mapM (\ (arg, ()) -> extract_in_type_expr arg >>= \ (_, arg) -> pure (arg, ())) args
+    pure (Type.Instance quant_vars (class_type_expr, ()) args)
 
 extract_in_binding :: (SIR.Binding Unevaled) -> ExtractMonad (SIR.Binding Extracted)
 extract_in_binding (SIR.Binding target eq_sp expr) = SIR.Binding <$> extract_in_pat target <*> pure eq_sp <*> extract_in_expr expr
@@ -183,8 +195,8 @@ extract_in_expr (SIR.Expr'Tuple id type_info sp a b) = SIR.Expr'Tuple id type_in
 extract_in_expr (SIR.Expr'Lambda id type_info sp param body) =
     SIR.Expr'Lambda id type_info sp <$> extract_in_pat param <*> extract_in_expr body
 
-extract_in_expr (SIR.Expr'Let id type_info sp bindings adts type_synonyms body) = SIR.Expr'Let id type_info sp <$> mapM extract_in_binding bindings <*> pure adts <*> pure type_synonyms <*> extract_in_expr body
-extract_in_expr (SIR.Expr'LetRec id type_info sp bindings adts type_synonyms body) = SIR.Expr'LetRec id type_info sp <$> mapM extract_in_binding bindings <*> pure adts <*> pure type_synonyms <*> extract_in_expr body
+extract_in_expr (SIR.Expr'Let id type_info sp bindings adts type_synonyms classes instances body) = SIR.Expr'Let id type_info sp <$> mapM extract_in_binding bindings <*> pure adts <*> pure type_synonyms <*> pure classes <*> pure instances <*> extract_in_expr body
+extract_in_expr (SIR.Expr'LetRec id type_info sp bindings adts type_synonyms classes instances body) = SIR.Expr'LetRec id type_info sp <$> mapM extract_in_binding bindings <*> pure adts <*> pure type_synonyms <*> pure classes <*> pure instances <*> extract_in_expr body
 
 extract_in_expr (SIR.Expr'BinaryOps id allowed type_info sp first ops) =
     SIR.Expr'BinaryOps id allowed type_info sp
@@ -216,7 +228,7 @@ extract_in_split_iden (SIR.SplitIdentifier'Get texpr next) = extract_in_type_exp
 extract_in_split_iden (SIR.SplitIdentifier'Single start) = pure (SIR.SplitIdentifier'Single start)
 -- put back {{{1
 put_back :: NameMaps.SIRChildMaps -> Arena.Arena TypeExpr TypeExprKey -> SIR.SIR Extracted  -> Error.WithErrors (SIR.SIR Evaled, TypeSolver.SolverState)
-put_back sir_child_maps type_expr_arena (SIR.SIR mods adts type_synonyms quant_vars variables mod) =
+put_back sir_child_maps type_expr_arena (SIR.SIR mods adts type_synonyms quant_vars variables classes instances mod) =
     runReaderT (
         evalStateT (
             TypeSolver.run_solve_monad (
@@ -224,7 +236,9 @@ put_back sir_child_maps type_expr_arena (SIR.SIR mods adts type_synonyms quant_v
                 put_back_in_mods mods >>= \ mods ->
                 put_back_in_adts adts >>= \ adts ->
                 put_back_in_type_synonyms type_synonyms >>= \ synonyms ->
-                pure (SIR.SIR mods adts synonyms quant_vars (Arena.transform change_variable variables) mod)
+                Arena.transformM put_back_in_class classes >>= \ classes ->
+                Arena.transformM put_back_in_instance instances >>= \ instances ->
+                pure (SIR.SIR mods adts synonyms quant_vars (Arena.transform change_variable variables) classes instances mod)
             )
         ) (Arena.transform (,Nothing) type_expr_arena)
     ) (adts, type_synonyms, quant_vars, sir_child_maps)
@@ -241,7 +255,7 @@ put_back_in_type_synonyms :: ExtractedTypeSynonymArena -> EvalMonad (Arena.Arena
 put_back_in_type_synonyms = Arena.transformM put_back_in_type_synonym
 
 put_back_in_module :: (SIR.Module Extracted) -> EvalMonad (Arena.Arena (SIR.ADT Extracted) Type.ADTKey) (Arena.Arena (SIR.TypeSynonym Extracted) Type.TypeSynonymKey) QuantVarArena EvaledModule
-put_back_in_module (SIR.Module id bindings adts type_synonyms) = SIR.Module id <$> mapM put_back_in_binding bindings <*> pure adts <*> pure type_synonyms
+put_back_in_module (SIR.Module id bindings adts type_synonyms classes instances) = SIR.Module id <$> mapM put_back_in_binding bindings <*> pure adts <*> pure type_synonyms <*> pure classes <*> pure instances
 
 put_back_in_adt :: (SIR.ADT Extracted) -> EvalMonad (Arena.Arena (SIR.ADT Extracted) Type.ADTKey) (Arena.Arena (SIR.TypeSynonym Extracted) Type.TypeSynonymKey) QuantVarArena EvaledADT
 put_back_in_adt (Type.ADT id name quant_vars variants) = Type.ADT id name quant_vars <$> mapM put_back_in_variant variants
@@ -254,6 +268,21 @@ put_back_in_type_synonym (Type.TypeSynonym id name (expansion, ())) =
     put_back_in_type_expr expansion >>= \ expansion ->
     type_expr_evaled_as_type expansion >>= \ expansion_as_type ->
     pure (Type.TypeSynonym id name (expansion, expansion_as_type))
+
+-- TODO: remove arguments from EvalMonad
+put_back_in_class :: SIR.Class Extracted -> EvalMonad (Arena.Arena (SIR.ADT Extracted) Type.ADTKey) (Arena.Arena (SIR.TypeSynonym Extracted) Type.TypeSynonymKey) QuantVarArena (SIR.Class Evaled)
+put_back_in_class (Type.Class id name type_vars) = pure $ Type.Class id name type_vars
+
+put_back_in_instance :: SIR.Instance Extracted -> EvalMonad (Arena.Arena (SIR.ADT Extracted) Type.ADTKey) (Arena.Arena (SIR.TypeSynonym Extracted) Type.TypeSynonymKey) QuantVarArena (SIR.Instance Evaled)
+put_back_in_instance (Type.Instance quant_vars (class_type_expr, ()) args) = do
+    class_type_expr <- put_back_in_type_expr class_type_expr
+    class_as_class <- case type_expr_evaled_as_type class_type_expr of
+                        -- TODO: add Type'Class constructor to type
+        not_class -> do
+            _ <- lift $ lift $ lift $ Compiler.tell_error $ Error.Error'NotAClass (SIR.type_expr_span class_type_expr) "something else" -- TODO: print not_class and put that into the error
+            pure Nothing
+    args <- mapM (\ (arg, ()) -> put_back_in_type_expr arg >>= \ arg -> type_expr_evaled_as_type arg >>= \ arg_as_type -> pure (arg, arg_as_type)) args
+    pure (Type.Instance quant_vars (class_type_expr, class_as_class) args)
 
 put_back_in_binding :: (SIR.Binding Extracted) -> EvalMonad (Arena.Arena (SIR.ADT Extracted) Type.ADTKey) (Arena.Arena (SIR.TypeSynonym Extracted) Type.TypeSynonymKey) QuantVarArena EvaledBinding
 put_back_in_binding (SIR.Binding target eq_sp expr) = SIR.Binding <$> put_back_in_pat target <*> pure eq_sp <*> put_back_in_expr expr
@@ -292,8 +321,8 @@ put_back_in_expr (SIR.Expr'Tuple id type_info sp a b) = SIR.Expr'Tuple id type_i
 put_back_in_expr (SIR.Expr'Lambda id type_info sp param body) =
     SIR.Expr'Lambda id type_info sp <$> put_back_in_pat param <*> put_back_in_expr body
 
-put_back_in_expr (SIR.Expr'Let id type_info sp bindings adts type_synonyms body) = SIR.Expr'Let id type_info sp <$> mapM put_back_in_binding bindings <*> pure adts <*> pure type_synonyms <*> put_back_in_expr body
-put_back_in_expr (SIR.Expr'LetRec id type_info sp bindings adts type_synonyms body) = SIR.Expr'LetRec id type_info sp <$> mapM put_back_in_binding bindings <*> pure adts <*> pure type_synonyms <*> put_back_in_expr body
+put_back_in_expr (SIR.Expr'Let id type_info sp bindings adts type_synonyms classes instances body) = SIR.Expr'Let id type_info sp <$> mapM put_back_in_binding bindings <*> pure adts <*> pure type_synonyms <*> pure classes <*> pure instances <*> put_back_in_expr body
+put_back_in_expr (SIR.Expr'LetRec id type_info sp bindings adts type_synonyms classes instances body) = SIR.Expr'LetRec id type_info sp <$> mapM put_back_in_binding bindings <*> pure adts <*> pure type_synonyms <*> pure classes <*> pure instances <*> put_back_in_expr body
 
 put_back_in_expr (SIR.Expr'BinaryOps id allowed type_info sp first ops) =
     SIR.Expr'BinaryOps id allowed type_info sp

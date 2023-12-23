@@ -148,7 +148,7 @@ convert_decls var_parent decl_parent decls =
             let id = ID.DeclID decl_parent class_name
             ty_param_quant_vars <- mapM new_type_var type_params
             mapM_ (const (lift $ Compiler.tell_warning (ClassChildNotImplementedYet class_name_sp))) subdecls -- TODO: do this span properly, TODO: implement this and then remove the warning
-            class_key <- new_class $ Type.Class id l_class_name ty_param_quant_vars (map (const ()) subdecls) -- TODO: figure out how subdecls are supposed to work
+            class_key <- new_class $ Type.Class id l_class_name ty_param_quant_vars -- TODO: figure out how subdecls are supposed to work
             pure ([], [], [], [class_key], [])
 
         convert_decl _ (AST.Decl'Instance type_params class_ args subdecls) = do
@@ -156,7 +156,7 @@ convert_decls var_parent decl_parent decls =
             class_converted <- convert_type class_
             args <- mapM convert_type args
             mapM_ (const (lift $ Compiler.tell_warning (InstanceChildNotImplementedYet (AST.type_span class_)))) subdecls -- TODO: do this span properly, TODO: implement this and then remove the warning
-            instance_key <- new_instance $ Type.Instance ty_param_quant_vars (class_converted, ()) (map (,()) args) (map (const ()) subdecls) -- TODO: figure out how subdecls are supposed to work
+            instance_key <- new_instance $ Type.Instance ty_param_quant_vars (class_converted, ()) (map (,()) args) -- TODO: figure out how subdecls are supposed to work
             pure ([], [], [], [], [instance_key])
 
         convert_variant adt_id (AST.DataVariant'Anon variant_name fields) =

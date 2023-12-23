@@ -26,14 +26,14 @@ type QuantVarArena = Arena.Arena Type.QuantVar Type.QuantVarKey
 type IdenStart = Located Text
 type AssignedIdenStart = (NameMaps.NameMapStack, IdenStart)
 
-type Unassigned = (IdenStart, (), (), IdenStart, (), IdenStart, (), (), ())
+type Unassigned = (IdenStart, (), (), IdenStart, (), IdenStart, (), (), (), ())
 
 type UnassignedModuleArena = Arena.Arena (SIR.Module Unassigned) SIR.ModuleKey
 type UnassignedADTArena = Arena.Arena (SIR.ADT Unassigned) Type.ADTKey
 type UnassignedTypeSynonymArena = Arena.Arena (SIR.TypeSynonym Unassigned) Type.TypeSynonymKey
 type UnassignedVariableArena = Arena.Arena (SIR.Variable Unassigned) SIR.VariableKey
 
-type Assigned = (AssignedIdenStart, (), (), AssignedIdenStart, (), AssignedIdenStart, (), (), ())
+type Assigned = (AssignedIdenStart, (), (), AssignedIdenStart, (), AssignedIdenStart, (), (), (), ())
 
 type AssignedModuleArena = Arena.Arena (SIR.Module Assigned) SIR.ModuleKey
 type AssignedADTArena = Arena.Arena (SIR.ADT Assigned) Type.ADTKey
@@ -41,19 +41,30 @@ type AssignedTypeSynonymArena = Arena.Arena (SIR.TypeSynonym Assigned) Type.Type
 
 -- assign entry point {{{1
 assign :: NameMaps.SIRChildMaps -> SIR.SIR Unassigned -> Error.WithErrors (SIR.SIR Assigned)
-assign sir_child_maps (SIR.SIR mods adts type_synonyms type_vars variables mod) =
-    runReaderT (assign_in_mods mods) (adts, variables, type_vars, sir_child_maps) >>= \ (mods, adt_parents, type_synonym_parents) ->
+assign sir_child_maps (SIR.SIR mods adts type_synonyms type_vars variables classes instances mod) =
+    runReaderT (assign_in_mods mods) (adts, variables, type_vars, sir_child_maps) >>= \ (mods, adt_parents, type_synonym_parents, class_parents, instance_parents) ->
+        -- TODO: merge these
     runReaderT (assign_in_adts adt_parents adts) ((), (), type_vars, sir_child_maps) >>= \ adts ->
     runReaderT (assign_in_type_synonyms type_synonym_parents type_synonyms) ((), (), type_vars, sir_child_maps) >>= \ synonyms ->
-    pure (SIR.SIR mods adts synonyms type_vars (Arena.transform change_variable variables) mod)
+    runReaderT (Arena.transform_with_keyM (assign_in_class class_parents) classes) ((), (), type_vars, sir_child_maps) >>= \ classes ->
+    runReaderT (Arena.transform_with_keyM (assign_in_instance instance_parents) instances) ((), (), type_vars, sir_child_maps) >>= \ instances ->
+    pure (SIR.SIR mods adts synonyms type_vars (Arena.transform change_variable variables) classes instances mod)
     where
         change_variable (SIR.Variable varid tyinfo n) = SIR.Variable varid tyinfo n
 
 -- resolving through sir {{{1
-assign_in_mods :: UnassignedModuleArena -> (NRReader.NRReader UnassignedADTArena UnassignedVariableArena QuantVarArena NameMaps.SIRChildMaps Error.WithErrors) (AssignedModuleArena, Map.Map Type.ADTKey NameMaps.NameMapStack, Map.Map Type.TypeSynonymKey NameMaps.NameMapStack)
+assign_in_mods ::
+    UnassignedModuleArena ->
+        NRReader.NRReader UnassignedADTArena UnassignedVariableArena QuantVarArena NameMaps.SIRChildMaps Error.WithErrors
+            ( AssignedModuleArena
+            , Map.Map Type.ADTKey NameMaps.NameMapStack
+            , Map.Map Type.TypeSynonymKey NameMaps.NameMapStack
+            , Map.Map Type.ClassKey NameMaps.NameMapStack
+            , Map.Map Type.InstanceKey NameMaps.NameMapStack
+            )
 assign_in_mods module_arena =
-    runWriterT (runWriterT $ Arena.transform_with_keyM assign_in_module module_arena) >>= \ ((module_arena, adt_parents), type_synonym_parents) ->
-    pure (module_arena, adt_parents, type_synonym_parents)
+    runWriterT (runWriterT $ runWriterT $ runWriterT $ Arena.transform_with_keyM assign_in_module module_arena) >>= \ ((((module_arena, instance_parents), class_parents), adt_parents), type_synonym_parents) ->
+    pure (module_arena, adt_parents, type_synonym_parents, class_parents, instance_parents)
 
 assign_in_adts :: Map.Map Type.ADTKey NameMaps.NameMapStack -> UnassignedADTArena -> (NRReader.NRReader adt_arena var_arena QuantVarArena NameMaps.SIRChildMaps Error.WithErrors) AssignedADTArena
 assign_in_adts adt_parent_name_maps = Arena.transform_with_keyM (assign_in_adt adt_parent_name_maps)
@@ -61,13 +72,26 @@ assign_in_adts adt_parent_name_maps = Arena.transform_with_keyM (assign_in_adt a
 assign_in_type_synonyms :: Map.Map Type.TypeSynonymKey NameMaps.NameMapStack -> UnassignedTypeSynonymArena -> (NRReader.NRReader adt_arena var_arena QuantVarArena NameMaps.SIRChildMaps Error.WithErrors) AssignedTypeSynonymArena
 assign_in_type_synonyms synonym_parent_name_maps = Arena.transform_with_keyM (assign_in_type_synonym synonym_parent_name_maps)
 
-assign_in_module :: SIR.ModuleKey -> SIR.Module Unassigned -> WriterT (Map Type.ADTKey NameMaps.NameMapStack) (WriterT (Map Type.TypeSynonymKey NameMaps.NameMapStack) (NRReader.NRReader UnassignedADTArena UnassignedVariableArena QuantVarArena NameMaps.SIRChildMaps Error.WithErrors)) (SIR.Module Assigned)
-assign_in_module mod_key (SIR.Module id bindings adts type_synonyms) =
-    lift (lift NRReader.ask_sir_child_maps) >>= \ sir_child_maps ->
+assign_in_class :: Map.Map Type.ClassKey NameMaps.NameMapStack -> Type.ClassKey -> SIR.Class Unassigned -> (NRReader.NRReader adt_arena var_arena type_var_arena NameMaps.SIRChildMaps Error.WithErrors) (SIR.Class Assigned)
+assign_in_class class_parents class_key (Type.Class id name type_vars) = pure $ Type.Class id name type_vars
+
+assign_in_instance :: Map.Map Type.InstanceKey NameMaps.NameMapStack -> Type.InstanceKey -> SIR.Instance Unassigned -> (NRReader.NRReader adt_arena var_arena QuantVarArena NameMaps.SIRChildMaps Error.WithErrors) (SIR.Instance Assigned)
+assign_in_instance instance_parents instance_key (Type.Instance quant_vars (class_type_expr, class_assigned) args) = do
+    let parent = instance_parents Map.! instance_key
+    class_type_expr <- assign_in_type_expr parent class_type_expr
+    args <- mapM (\ (arg, ()) -> (,()) <$> assign_in_type_expr parent arg) args
+    pure (Type.Instance quant_vars (class_type_expr, class_assigned) args)
+
+assign_in_module :: SIR.ModuleKey -> SIR.Module Unassigned -> WriterT (Map Type.InstanceKey NameMaps.NameMapStack) (WriterT (Map Type.ClassKey NameMaps.NameMapStack) ((WriterT (Map Type.ADTKey NameMaps.NameMapStack) (WriterT (Map Type.TypeSynonymKey NameMaps.NameMapStack) (NRReader.NRReader UnassignedADTArena UnassignedVariableArena QuantVarArena NameMaps.SIRChildMaps Error.WithErrors))))) (SIR.Module Assigned)
+assign_in_module mod_key (SIR.Module id bindings adts type_synonyms classes instances) =
+    lift (lift $ lift $ lift NRReader.ask_sir_child_maps) >>= \ sir_child_maps ->
     let cur_map = NameMaps.get_module_child_maps sir_child_maps mod_key
-    in mapM_ (\ adt -> tell $ Map.singleton adt (NameMaps.NameMapStack (NameMaps.child_maps_to_name_maps cur_map) Nothing)) adts >>
-    mapM (\ synonym -> lift $ tell $ Map.singleton synonym (NameMaps.NameMapStack (NameMaps.child_maps_to_name_maps cur_map) Nothing)) type_synonyms >>
-    SIR.Module id <$> mapM (lift . lift . assign_in_binding (NameMaps.NameMapStack (NameMaps.child_maps_to_name_maps cur_map) Nothing)) bindings <*> pure adts <*> pure type_synonyms
+    in mapM_ (\ adt -> lift $ lift $ tell $ Map.singleton adt (NameMaps.NameMapStack (NameMaps.child_maps_to_name_maps cur_map) Nothing)) adts >>
+    mapM (\ synonym -> lift $ lift $ lift $ tell $ Map.singleton synonym (NameMaps.NameMapStack (NameMaps.child_maps_to_name_maps cur_map) Nothing)) type_synonyms >>
+    mapM_ (\ class_ -> lift $ tell $ Map.singleton class_ (NameMaps.NameMapStack (NameMaps.child_maps_to_name_maps cur_map) Nothing)) classes >>
+    mapM_ (\ instance_ -> tell $ Map.singleton instance_ (NameMaps.NameMapStack (NameMaps.child_maps_to_name_maps cur_map) Nothing)) instances >>
+    -- TODO: walk through let bindings to assign parents too
+    SIR.Module id <$> mapM (lift . lift . lift . lift . assign_in_binding (NameMaps.NameMapStack (NameMaps.child_maps_to_name_maps cur_map) Nothing)) bindings <*> pure adts <*> pure type_synonyms <*> pure classes <*> pure instances
 
 assign_in_adt :: Map.Map Type.ADTKey NameMaps.NameMapStack -> Type.ADTKey -> (SIR.ADT Unassigned) -> (NRReader.NRReader adt_arena var_arena QuantVarArena NameMaps.SIRChildMaps Error.WithErrors) (SIR.ADT Assigned)
 assign_in_adt adt_parent_name_maps adt_key (Type.ADT id name type_vars variants) =
@@ -137,16 +161,16 @@ assign_in_expr nc_stack (SIR.Expr'Lambda id type_info sp param body) =
     lift (NameMaps.make_name_maps [] param_vars []) >>= \ new_nc ->
     SIR.Expr'Lambda id type_info sp <$> assign_in_pat nc_stack param <*> assign_in_expr (NameMaps.NameMapStack new_nc (Just nc_stack)) body
 
-assign_in_expr nc_stack (SIR.Expr'Let id type_info sp bindings adts type_synonyms body) =
+assign_in_expr nc_stack (SIR.Expr'Let id type_info sp bindings adts type_synonyms classes instances body) =
     -- do not need to do binding by binding because the ToSIR should have already desugared that into a sequence of lets
     -- so this let should only have 1 or 0 bindings
     NameMaps.make_name_maps_from_decls [] [] [] todo bindings adts type_synonyms >>= \ new_nm ->
-    SIR.Expr'Let id type_info sp <$> mapM (assign_in_binding nc_stack) bindings <*> pure adts <*> pure type_synonyms <*> assign_in_expr (NameMaps.NameMapStack new_nm (Just nc_stack)) body
+    SIR.Expr'Let id type_info sp <$> mapM (assign_in_binding nc_stack) bindings <*> pure adts <*> pure type_synonyms <*> pure classes <*> pure instances <*> assign_in_expr (NameMaps.NameMapStack new_nm (Just nc_stack)) body
 
-assign_in_expr nc_stack (SIR.Expr'LetRec id type_info sp bindings adts type_synonyms body) =
+assign_in_expr nc_stack (SIR.Expr'LetRec id type_info sp bindings adts type_synonyms classes instances body) =
     NameMaps.make_name_maps_from_decls [] [] [] todo bindings adts type_synonyms >>= \ new_nm ->
     let new_nc_stack = NameMaps.NameMapStack new_nm (Just nc_stack)
-    in SIR.Expr'LetRec id type_info sp <$> mapM (assign_in_binding new_nc_stack) bindings <*> pure adts <*> pure type_synonyms <*> assign_in_expr new_nc_stack body
+    in SIR.Expr'LetRec id type_info sp <$> mapM (assign_in_binding new_nc_stack) bindings <*> pure adts <*> pure type_synonyms <*> pure classes <*> pure instances <*> assign_in_expr new_nc_stack body
 
 assign_in_expr nc_stack (SIR.Expr'BinaryOps id allowed type_info sp first ops) =
     SIR.Expr'BinaryOps id allowed type_info sp

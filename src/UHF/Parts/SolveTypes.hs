@@ -13,10 +13,11 @@ import qualified UHF.Util.Arena as Arena
 
 -- this does both type inference and type checking
 solve :: TypeSolver.SolverState -> UntypedSIR -> Compiler.WithDiagnostics Error Void TypedSIR
-solve nr_solver_state (SIR.SIR mods adts type_synonyms quant_vars variables mod) = -- TODO: do not destructure ir?
+solve nr_solver_state (SIR.SIR mods adts type_synonyms quant_vars variables classes instances mod) = -- TODO: do not destructure ir?
     TypeSolver.run_solve_monad_with
         (
-            runWriterT (AddTypes.add mods adts type_synonyms quant_vars variables) >>= \ ((mods, adts, type_synonyms, variables), constraints) ->
+            runWriterT (AddTypes.add mods adts type_synonyms quant_vars variables classes instances) >>= \ ((mods, adts, type_synonyms, variables, classes, instances), constraints) ->
+
             let get_type_synonym ts_key = pure $ Arena.get type_synonyms ts_key
             in
             mapM_ (\ constraint -> do
@@ -27,10 +28,11 @@ solve nr_solver_state (SIR.SIR mods adts type_synonyms quant_vars variables mod)
             ) constraints >>
             TypeSolver.solve_constraint_backlog adts type_synonyms get_type_synonym quant_vars >>= \ (backlog_errors, backlog_progress_made) -> -- TODO: not sure what to do with backlog_progress_made
             mapM (lift . Compiler.tell_error . SolveError) backlog_errors >>
-            pure (mods, adts, type_synonyms, variables)
+
+            pure (mods, adts, type_synonyms, variables, classes, instances)
         )
-        nr_solver_state >>= \ ((mods, adts, type_synonyms, variables), TypeSolver.SolverState _ infer_vars) ->
+        nr_solver_state >>= \ ((mods, adts, type_synonyms, variables, classes, instances), TypeSolver.SolverState _ infer_vars) ->
 
-    RemoveInferVars.remove infer_vars mods adts type_synonyms variables >>= \ (mods, adts, type_synonyms, variables) ->
+    RemoveInferVars.remove infer_vars mods adts type_synonyms variables classes instances >>= \ (mods, adts, type_synonyms, variables, classes, instances) ->
 
-    pure (SIR.SIR mods adts type_synonyms quant_vars variables mod)
+    pure (SIR.SIR mods adts type_synonyms quant_vars variables classes instances mod)

@@ -87,6 +87,7 @@ make_name_maps decls values adt_variants =
                 get_decl_at (_, d, _) = d
 
 -- TODO: remove already arguments and find a better way to do things
+-- TODO: classes do make decls (instances do not)
 make_name_maps_from_decls :: DeclChildrenList -> ValueList -> ADTVariantList -> Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey -> [SIR.Binding stage] -> [Type.ADTKey] -> [Type.TypeSynonymKey] -> NRReader (Arena.Arena (Type.ADT (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage)) Type.ADTKey) (Arena.Arena (SIR.Variable stage) SIR.VariableKey) quant_var_arena sir_child_maps WithErrors NameMaps
 make_name_maps_from_decls already_decls already_vals already_variants type_synonym_arena bindings adts type_synonyms =
     unzip3 <$> mapM binding_children bindings >>= \ (binding_decl_entries, binding_val_entries, binding_variant_entries) ->
@@ -122,7 +123,7 @@ make_name_maps_from_decls already_decls already_vals already_variants type_synon
             (concat $ already_variants : binding_variant_entries ++ adt_variant_entries ++ type_synonym_variant_entries)
 
 collect_child_maps :: SIR.SIR stage -> WithErrors SIRChildMaps
-collect_child_maps (SIR.SIR mod_arena adt_arena type_synonym_arena _ variable_arena _) = SIRChildMaps <$> Arena.transformM go mod_arena
+collect_child_maps (SIR.SIR mod_arena adt_arena type_synonym_arena _ variable_arena _ _ _) = SIRChildMaps <$> Arena.transformM go mod_arena
     where
         primitive_decls =
                 [ ("int", ImplicitPrim, SIR.Decl'Type TypeWithInferVar.Type'Int)
@@ -133,7 +134,7 @@ collect_child_maps (SIR.SIR mod_arena adt_arena type_synonym_arena _ variable_ar
                 ]
         primitive_vals = []
 
-        go (SIR.Module _ bindings adts type_synonyms) =
+        go (SIR.Module _ bindings adts type_synonyms _ _) =
             runReaderT (name_maps_to_child_maps <$> make_name_maps_from_decls primitive_decls primitive_vals [] type_synonym_arena bindings adts type_synonyms) (adt_arena, variable_arena, (), ())
 
 name_maps_to_child_maps :: NameMaps -> ChildMaps

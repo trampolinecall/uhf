@@ -26,22 +26,28 @@ instance Diagnostic.ToError (Error stage) where
         in Diagnostic.Error (Just sp) message [] []
 
 report_holes :: (SIR.TypeInfo stage ~ Maybe Type.Type, SIR.TypeExprEvaledAsType stage ~ Maybe Type.Type) => SIR.SIR stage -> Compiler.WithDiagnostics (Error stage) Void ()
-report_holes sir@(SIR.SIR _ _ _ _ _ mod) = runReaderT (module_ mod) sir
+report_holes sir@(SIR.SIR _ _ _ _ _ _ _ mod) = runReaderT (module_ mod) sir
 
 module_ :: (SIR.TypeInfo stage ~ Maybe Type.Type, SIR.TypeExprEvaledAsType stage ~ Maybe Type.Type) => SIR.ModuleKey -> ReaderT (SIR.SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
 module_ key =
-    ask >>= \ (SIR.SIR modules _ _ _ _ _) ->
-    let SIR.Module _ bindings adts type_synonyms = Arena.get modules key
-    in mapM_ binding bindings >> mapM_ adt adts >> mapM_ type_synonym type_synonyms
+    ask >>= \ (SIR.SIR modules _ _ _ _ _ _ _) ->
+    let SIR.Module _ bindings adts type_synonyms classes instances = Arena.get modules key
+    in mapM_ binding bindings >> mapM_ adt adts >> mapM_ type_synonym type_synonyms >> mapM_ class_ classes >> mapM_ instance_ instances
 
 adt :: (SIR.TypeInfo stage ~ Maybe Type.Type, SIR.TypeExprEvaledAsType stage ~ Maybe Type.Type) => Type.ADTKey -> ReaderT (SIR.SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
-adt key = ask >>= \ (SIR.SIR _ adts _ _ _ _) -> let (Type.ADT _ _ _ variants) = Arena.get adts key in mapM_ variant variants
+adt key = ask >>= \ (SIR.SIR _ adts _ _ _ _ _ _) -> let (Type.ADT _ _ _ variants) = Arena.get adts key in mapM_ variant variants
     where
         variant (Type.ADT.Variant'Named _ _ fields) = mapM_ (\ (_, _, (ty, _)) -> type_expr ty) fields
         variant (Type.ADT.Variant'Anon _ _ fields) = mapM_ (\ (_, (ty, _)) -> type_expr ty) fields
 
 type_synonym :: (SIR.TypeInfo stage ~ Maybe Type.Type, SIR.TypeExprEvaledAsType stage ~ Maybe Type.Type) => Type.TypeSynonymKey -> ReaderT (SIR.SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
-type_synonym key = ask >>= \ (SIR.SIR _ _ type_synonyms _ _ _) -> let (Type.TypeSynonym _ _ (expansion, _)) = Arena.get type_synonyms key in type_expr expansion
+type_synonym key = ask >>= \ (SIR.SIR _ _ type_synonyms _ _ _ _ _) -> let (Type.TypeSynonym _ _ (expansion, _)) = Arena.get type_synonyms key in type_expr expansion
+
+class_ :: (SIR.TypeInfo stage ~ Maybe Type.Type, SIR.TypeExprEvaledAsType stage ~ Maybe Type.Type) => Type.ClassKey -> ReaderT (SIR.SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
+class_ key = ask >>= \ (SIR.SIR _ _ _ _ _ classes _ _) -> let (Type.Class _ _ _) = Arena.get classes key in pure ()
+
+instance_ :: (SIR.TypeInfo stage ~ Maybe Type.Type, SIR.TypeExprEvaledAsType stage ~ Maybe Type.Type) => Type.InstanceKey -> ReaderT (SIR.SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
+instance_ key = ask >>= \ (SIR.SIR _ _ _ _ _ _ instances _) -> let (Type.Instance _ (class_, _) args) = Arena.get instances key in type_expr class_ >> mapM_ (type_expr . fst) args
 
 binding :: (SIR.TypeInfo stage ~ Maybe Type.Type, SIR.TypeExprEvaledAsType stage ~ Maybe Type.Type) => SIR.Binding stage -> ReaderT (SIR.SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
 binding (SIR.Binding p _ e) = pattern p >> expr e
@@ -61,8 +67,8 @@ expr (SIR.Expr'Tuple _ _ _ a b) = expr a >> expr b
 
 expr (SIR.Expr'Lambda _ _ _ param body) = pattern param >> expr body
 
-expr (SIR.Expr'Let _ _ _ bindings adts type_synonyms body) = mapM_ binding bindings >> mapM_ adt adts >> mapM_ type_synonym type_synonyms >> expr body
-expr (SIR.Expr'LetRec _ _ _ bindings adts type_synonyms body) = mapM_ binding bindings >> mapM_ adt adts >> mapM_ type_synonym type_synonyms >> expr body
+expr (SIR.Expr'Let _ _ _ bindings adts type_synonyms classes instances body) = mapM_ binding bindings >> mapM_ adt adts >> mapM_ type_synonym type_synonyms >> mapM_ class_ classes >> mapM_ instance_ instances >> expr body
+expr (SIR.Expr'LetRec _ _ _ bindings adts type_synonyms classes instances body) = mapM_ binding bindings >> mapM_ adt adts >> mapM_ type_synonym type_synonyms >> mapM_ class_ classes >> mapM_ instance_ instances >> expr body
 
 expr (SIR.Expr'BinaryOps _ _ _ _ first ops) = expr first >> mapM_ (\ (_, _, _, rhs) -> expr rhs) ops
 
@@ -79,7 +85,7 @@ expr (SIR.Expr'TypeApply _ _ _ e (arg, _)) = expr e >> type_expr arg
 expr (SIR.Expr'Hole _ type_info sp hid) =
     case type_info of
         Just type_info ->
-            ask >>= \ (SIR.SIR _ adts type_synonyms vars _ _) ->
+            ask >>= \ (SIR.SIR _ adts type_synonyms vars _ _ _ _) ->
             lift (Compiler.tell_error (Error adts type_synonyms vars sp hid type_info)) >>
             pure ()
         Nothing -> pure () -- typing phase will have already reported ambiguous type
@@ -93,7 +99,7 @@ type_expr (SIR.TypeExpr'Tuple _ _ a b) = type_expr a >> type_expr b
 type_expr (SIR.TypeExpr'Hole _ type_info sp hid) =
     case type_info of
         Just type_info ->
-            ask >>= \ (SIR.SIR _ adts type_synonyms vars _ _) ->
+            ask >>= \ (SIR.SIR _ adts type_synonyms vars _ _ _ _) ->
             lift (Compiler.tell_error (Error adts type_synonyms vars sp hid type_info)) >>
             pure ()
         Nothing -> pure () -- typing phase will have already reported ambiguous type

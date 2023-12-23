@@ -21,6 +21,7 @@ data Error
     | Error'CouldNotFindIn (Maybe (Located Text)) (Located Text)
     | Error'MultipleDecls Text [DeclAt]
     | Error'NotAType Span Text
+    | Error'NotAClass Span Text
     | forall t. Error'SolveError (TypeSolver.SolveError t) -- i did this out of laziness :)
 
 instance Diagnostic.ToError Error where
@@ -48,5 +49,8 @@ instance Diagnostic.ToError Error where
 
     to_error (Error'NotAType sp instead) =
         Diagnostic.Error (Just sp) ("not a type: got " <> instead) [] []
+
+    to_error (Error'NotAClass sp instead) =
+        Diagnostic.Error (Just sp) ("not a typeclass: got " <> instead) [] []
 
     to_error (Error'SolveError se) = Diagnostic.to_error se

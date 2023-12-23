@@ -16,10 +16,10 @@ import qualified UHF.Util.Arena as Arena
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Control.Monad.Fix (mfix)
 
-remove :: TypeSolver.InferVarArena -> TypedWithInferVarsModuleArena -> TypedWithInferVarsADTArena -> TypedWithInferVarsTypeSynonymArena -> TypedWithInferVarsVariableArena -> Compiler.WithDiagnostics Error Void (TypedModuleArena, TypedADTArena, TypedTypeSynonymArena, TypedVariableArena)
-remove infer_vars mods adts type_synonyms vars =
+remove :: TypeSolver.InferVarArena -> TypedWithInferVarsModuleArena -> TypedWithInferVarsADTArena -> TypedWithInferVarsTypeSynonymArena -> TypedWithInferVarsVariableArena -> TypedWithInferVarsClassArena -> TypedWithInferVarsInstanceArena -> Compiler.WithDiagnostics Error Void (TypedModuleArena, TypedADTArena, TypedTypeSynonymArena, TypedVariableArena, TypedClassArena, TypedInstanceArena)
+remove infer_vars mods adts type_synonyms vars classes instances =
     convert_vars infer_vars >>= \ infer_vars ->
-    pure (Arena.transform (module_ infer_vars) mods, Arena.transform (adt infer_vars) adts, Arena.transform (type_synonym infer_vars) type_synonyms, Arena.transform (variable infer_vars) vars)
+    pure (Arena.transform (module_ infer_vars) mods, Arena.transform (adt infer_vars) adts, Arena.transform (type_synonym infer_vars) type_synonyms, Arena.transform (variable infer_vars) vars, Arena.transform (class_ infer_vars) classes, Arena.transform (instance_ infer_vars) instances)
 
 convert_vars :: TypeSolver.InferVarArena -> Compiler.WithDiagnostics Error Void (Arena.Arena (Maybe Type) TypeSolver.InferVarKey)
 convert_vars infer_vars =
@@ -48,7 +48,7 @@ convert_vars infer_vars =
         convert_var _ (TypeSolver.InferVar for_what TypeSolver.Fresh) = lift (Compiler.tell_error $ AmbiguousType for_what) >> MaybeT (pure Nothing)
 
 module_ :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> TypedWithInferVarsModule -> TypedModule
-module_ infer_vars (SIR.Module id bindings adts type_synonyms) = SIR.Module id (map (binding infer_vars) bindings) adts type_synonyms
+module_ infer_vars (SIR.Module id bindings adts type_synonyms classes instances) = SIR.Module id (map (binding infer_vars) bindings) adts type_synonyms classes instances
 
 variable :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> TypedWithInferVarsVariable -> TypedVariable
 variable infer_vars (SIR.Variable id ty name) = SIR.Variable id (type_ infer_vars ty) name
@@ -61,6 +61,12 @@ adt infer_vars (Type.ADT id name quant_var variants) = Type.ADT id name quant_va
 
 type_synonym :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> TypedWithInferVarsTypeSynonym -> TypedTypeSynonym
 type_synonym infer_vars (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name (type_expr_and_type infer_vars expansion)
+
+class_ :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> TypedWithInferVarsClass -> TypedClass
+class_ _ (Type.Class id name qvars) = Type.Class id name qvars
+
+instance_ :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> TypedWithInferVarsInstance -> TypedInstance
+instance_ infer_vars (Type.Instance qvars (class_type_expr, class_resolved) args) = Type.Instance qvars (type_expr infer_vars class_type_expr, class_resolved) (map (type_expr_and_type infer_vars) args)
 
 binding :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> TypedWithInferVarsBinding -> TypedBinding
 binding infer_vars (SIR.Binding p eq_sp e) = SIR.Binding (pattern infer_vars p) eq_sp (expr infer_vars e)
@@ -83,8 +89,8 @@ expr infer_vars (SIR.Expr'Float id ty sp r) = SIR.Expr'Float id (type_ infer_var
 expr infer_vars (SIR.Expr'Bool id ty sp b) = SIR.Expr'Bool id (type_ infer_vars ty) sp b
 expr infer_vars (SIR.Expr'Tuple id ty sp l r) = SIR.Expr'Tuple id (type_ infer_vars ty) sp (expr infer_vars l) (expr infer_vars r)
 expr infer_vars (SIR.Expr'Lambda id ty sp param body) = SIR.Expr'Lambda id (type_ infer_vars ty) sp (pattern infer_vars param) (expr infer_vars body)
-expr infer_vars (SIR.Expr'Let id ty sp bindings adts type_synonyms result) = SIR.Expr'Let id (type_ infer_vars ty) sp (map (binding infer_vars) bindings) adts type_synonyms (expr infer_vars result)
-expr infer_vars (SIR.Expr'LetRec id ty sp bindings adts type_synonyms result) = SIR.Expr'LetRec id (type_ infer_vars ty) sp (map (binding infer_vars) bindings) adts type_synonyms (expr infer_vars result)
+expr infer_vars (SIR.Expr'Let id ty sp bindings adts type_synonyms classes instances result) = SIR.Expr'Let id (type_ infer_vars ty) sp (map (binding infer_vars) bindings) adts type_synonyms classes instances (expr infer_vars result)
+expr infer_vars (SIR.Expr'LetRec id ty sp bindings adts type_synonyms classes instances result) = SIR.Expr'LetRec id (type_ infer_vars ty) sp (map (binding infer_vars) bindings) adts type_synonyms classes instances (expr infer_vars result)
 expr _ (SIR.Expr'BinaryOps _ void _ _ _ _) = absurd void
 expr infer_vars (SIR.Expr'Call id ty sp callee arg) = SIR.Expr'Call id (type_ infer_vars ty) sp (expr infer_vars callee) (expr infer_vars arg)
 expr infer_vars (SIR.Expr'If id ty sp if_sp cond true false) = SIR.Expr'If id (type_ infer_vars ty) sp if_sp (expr infer_vars cond) (expr infer_vars true) (expr infer_vars false)

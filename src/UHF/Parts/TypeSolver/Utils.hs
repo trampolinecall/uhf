@@ -29,3 +29,6 @@ substitute_quant_var looking_for replacement ty = go ty
         go (Type'Function a r) = Type'Function <$> go a <*> go r
         go (Type'Tuple a b) = Type'Tuple <$> go a <*> go b
         go (Type'Forall vars ty) = Type'Forall vars <$> go ty
+        go (Type'Kind (Kind'Type)) = pure $ Type'Kind Kind'Type
+        go (Type'Kind (Kind'Arrow a b)) = Type'Kind <$> (Kind'Arrow <$> go a <*> go b)
+        go (Type'Kind (Kind'Kind)) = pure $ Type'Kind Kind'Kind

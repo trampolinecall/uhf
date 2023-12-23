@@ -1,5 +1,6 @@
 module UHF.Parts.TypeSolver.TypeWithInferVar
     ( Type (..)
+    , Kind (..)
     , InferVar (..)
     , InferVarArena
     , InferVarKey
@@ -29,6 +30,12 @@ data Type
     | Type'QuantVar Type.QuantVarKey
     | Type'InferVar InferVarKey
     | Type'Forall (NonEmpty Type.QuantVarKey) Type
+    | Type'Kind Kind
+    deriving Show
+data Kind
+    = Kind'Type
+    | Kind'Arrow Type Type
+    | Kind'Kind
     deriving Show
 
 newtype InferVarKey = InferVarKey Arena.KeyData deriving (Show, Eq, Ord)

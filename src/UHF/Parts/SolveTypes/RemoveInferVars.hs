@@ -26,18 +26,23 @@ convert_vars infer_vars =
     -- infinite recursion is not possible because occurs check prevents loops in substitution
     mfix (\ infer_vars_converted -> Arena.transformM (runMaybeT . convert_var infer_vars_converted) infer_vars)
     where
-        r _ TypeSolver.Type'Int = pure Type.Type'Int
-        r _ TypeSolver.Type'Float = pure Type.Type'Float
-        r _ TypeSolver.Type'Char = pure Type.Type'Char
-        r _ TypeSolver.Type'String = pure Type.Type'String
-        r _ TypeSolver.Type'Bool = pure Type.Type'Bool
-        r infer_vars_converted (TypeSolver.Type'ADT a params) = Type.Type'ADT a <$> mapM (r infer_vars_converted) params
-        r _ (TypeSolver.Type'Synonym s) = pure $ Type.Type'Synonym s
-        r infer_vars_converted (TypeSolver.Type'Function arg res) = Type.Type'Function <$> r infer_vars_converted arg <*> r infer_vars_converted res
-        r infer_vars_converted (TypeSolver.Type'Tuple a b) = Type.Type'Tuple <$> r infer_vars_converted a <*> r infer_vars_converted b
-        r infer_vars_converted (TypeSolver.Type'InferVar v) = MaybeT $ pure $ Arena.get infer_vars_converted v
-        r _ (TypeSolver.Type'QuantVar v) = pure $ Type.Type'QuantVar v
-        r infer_vars_converted (TypeSolver.Type'Forall vars ty) = Type.Type'Forall vars <$> r infer_vars_converted ty
+        r infer_vars_converted t =
+            case t of
+                TypeSolver.Type'Int -> pure Type.Type'Int
+                TypeSolver.Type'Float -> pure Type.Type'Float
+                TypeSolver.Type'Char -> pure Type.Type'Char
+                TypeSolver.Type'String -> pure Type.Type'String
+                TypeSolver.Type'Bool -> pure Type.Type'Bool
+                TypeSolver.Type'ADT a params -> Type.Type'ADT a <$> mapM (r infer_vars_converted) params
+                TypeSolver.Type'Synonym s -> pure $ Type.Type'Synonym s
+                TypeSolver.Type'Function arg res -> Type.Type'Function <$> r infer_vars_converted arg <*> r infer_vars_converted res
+                TypeSolver.Type'Tuple a b -> Type.Type'Tuple <$> r infer_vars_converted a <*> r infer_vars_converted b
+                TypeSolver.Type'InferVar v -> MaybeT $ pure $ Arena.get infer_vars_converted v
+                TypeSolver.Type'QuantVar v -> pure $ Type.Type'QuantVar v
+                TypeSolver.Type'Forall vars ty -> Type.Type'Forall vars <$> r infer_vars_converted ty
+                TypeSolver.Type'Kind TypeSolver.Kind'Type -> pure $ Type.Type'Kind Type.Kind'Type
+                TypeSolver.Type'Kind (TypeSolver.Kind'Arrow a b) -> Type.Type'Kind <$> (Type.Kind'Arrow <$> r infer_vars_converted a <*> r infer_vars_converted b)
+                TypeSolver.Type'Kind TypeSolver.Kind'Kind -> pure $ Type.Type'Kind Type.Kind'Kind
 
         convert_var infer_vars_converted (TypeSolver.InferVar _ (TypeSolver.Substituted s)) = r infer_vars_converted s
         convert_var _ (TypeSolver.InferVar for_what TypeSolver.Fresh) = lift (Compiler.tell_error $ AmbiguousType for_what) >> MaybeT (pure Nothing)
@@ -130,3 +135,6 @@ type_ infer_vars = r
         r (TypeSolver.Type'InferVar u) = Arena.get infer_vars u
         r (TypeSolver.Type'QuantVar v) = Just $ Type.Type'QuantVar v
         r (TypeSolver.Type'Forall vars ty) = Type.Type'Forall vars <$> r ty
+        r (TypeSolver.Type'Kind TypeSolver.Kind'Type) = pure $ Type.Type'Kind Type.Kind'Type
+        r (TypeSolver.Type'Kind (TypeSolver.Kind'Arrow a b)) = Type.Type'Kind <$> (Type.Kind'Arrow <$> r a <*> r b)
+        r (TypeSolver.Type'Kind TypeSolver.Kind'Kind) = pure $ Type.Type'Kind Type.Kind'Kind

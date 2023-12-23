@@ -19,7 +19,7 @@ data Decl
     | Decl'Data Identifier [Identifier] [DataVariant]
     | Decl'TypeSyn Identifier Type
     | Decl'Class Identifier [Identifier] [Decl]
-    | Decl'Instance [Identifier] Type [Decl]
+    | Decl'Instance [Identifier] Type [Type] [Decl]
     -- TODO: | Decl'Import Type
     deriving (Generic, EqIgnoringSpans, Show)
 

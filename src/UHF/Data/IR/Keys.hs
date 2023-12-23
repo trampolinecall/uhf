@@ -1,6 +1,8 @@
 module UHF.Data.IR.Keys
     ( ADTKey
     , TypeSynonymKey
+    , ClassKey
+    , InstanceKey
     , ModuleKey
     , QuantVarKey
     , VariableKey
@@ -23,6 +25,16 @@ newtype TypeSynonymKey = TypeSynonymKey Arena.KeyData deriving (Show, Eq, Ord)
 instance Arena.Key TypeSynonymKey where
     make_key = TypeSynonymKey
     unmake_key (TypeSynonymKey i) = i
+
+newtype ClassKey = ClassKey Arena.KeyData deriving (Show, Eq, Ord)
+instance Arena.Key ClassKey where
+    make_key = ClassKey
+    unmake_key (ClassKey i) = i
+
+newtype InstanceKey = InstanceKey Arena.KeyData deriving (Show, Eq, Ord)
+instance Arena.Key InstanceKey where
+    make_key = InstanceKey
+    unmake_key (InstanceKey i) = i
 
 newtype ModuleKey = ModuleKey Arena.KeyData deriving (Show, Eq)
 instance Arena.Key ModuleKey where

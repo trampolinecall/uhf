@@ -28,12 +28,15 @@ pp_decl (AST.Decl'Class name params subdecls) =
             | null params = PP.List [""]
             | otherwise = PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent (map pp_iden params)]
     in PP.List ["class ", pp_iden name, params', " ", subdecls', ";"]
-pp_decl (AST.Decl'Instance params constraint subdecls) =
+pp_decl (AST.Decl'Instance params class_ args subdecls) =
     let subdecls' = PP.braced_block $ map pp_decl subdecls
         params'
             | null params = PP.List [""]
             | otherwise = PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent (map pp_iden params)]
-    in PP.List ["instance ", params', pp_type constraint, " ", subdecls', ";"]
+        args'
+            | null args = PP.List [""]
+            | otherwise = PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent (map pp_type args)]
+    in PP.List ["instance ", params', pp_type class_, args', " ", subdecls', ";"]
 
 pp_data_variant :: AST.DataVariant -> PP.Token
 pp_data_variant (AST.DataVariant'Anon name fields) = PP.List [pp_iden name, PP.parenthesized_comma_list PP.Inconsistent $ map pp_type fields, ";"]

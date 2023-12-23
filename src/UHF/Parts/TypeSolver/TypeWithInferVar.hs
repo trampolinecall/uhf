@@ -8,7 +8,7 @@ module UHF.Parts.TypeSolver.TypeWithInferVar
     , infer_var_for_what_sp
     , infer_var_for_what_name
 
-    , type_kind
+    , kind_of
     )
     where
 
@@ -36,8 +36,8 @@ data Type
     | Type'Kind'Kind
     deriving Show
 
-type_kind :: Arena.Arena (Type.ADT (t, Type)) Type.ADTKey -> Arena.Arena (Type.TypeSynonym (t, Type)) Type.TypeSynonymKey -> Arena.Arena Type.QuantVar Type.QuantVarKey -> Type -> Type
-type_kind adt_arena type_synonym_arena quant_var_arena = go
+kind_of :: Arena.Arena (Type.ADT adt_t) Type.ADTKey -> Arena.Arena (Type.TypeSynonym (t, Type)) Type.TypeSynonymKey -> Arena.Arena Type.QuantVar Type.QuantVarKey -> Type -> Type
+kind_of adt_arena type_synonym_arena quant_var_arena = go
     where
         go :: Type -> Type
         go t = case t of

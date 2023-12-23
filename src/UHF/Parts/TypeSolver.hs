@@ -6,6 +6,7 @@ module UHF.Parts.TypeSolver
     , Type (..)
     , pp_type
     , run_infer_var_namer
+    , kind_of
 
     , InferVar (..)
     , InferVarStatus (..)

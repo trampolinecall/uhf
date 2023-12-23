@@ -18,6 +18,8 @@ data Decl
     = Decl'Value Pattern Span Expr
     | Decl'Data Identifier [Identifier] [DataVariant]
     | Decl'TypeSyn Identifier Type
+    | Decl'Class Identifier [Identifier] [Decl]
+    | Decl'Instance [Identifier] Type [Decl]
     -- TODO: | Decl'Import Type
     deriving (Generic, EqIgnoringSpans, Show)
 

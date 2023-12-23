@@ -80,7 +80,7 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
 
         levels (RIR.Expr'Tuple _ _ a b) = (1, \ _ _ -> expr a >>= \ a -> expr b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b]))
 
-        levels (RIR.Expr'MakeADT _ _ variant_index@(Type.ADT.VariantIndex adt_key _) tyargs args) =
+        levels (RIR.Expr'MakeADT _ _ variant_index@(Type.ADT.VariantIndex _ adt_key _) tyargs args) =
             ( 1
             , \ _ _ -> Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
                 Type.ADT.get_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
@@ -127,7 +127,7 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
                 pp_matcher (RIR.Match'AnonADTVariant m_variant) =
                     maybe
                         (pure "<name resolution error>")
-                        (\ variant_index@(Type.ADT.VariantIndex adt_key _) ->
+                        (\ variant_index@(Type.ADT.VariantIndex _ adt_key _) ->
                             Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
                             Type.ADT.get_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
                             let variant_name = Type.ADT.variant_name variant
@@ -143,7 +143,7 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
                     -- TODO: unduplicate this?
                     maybe
                         (pure ("<error>", "<error>"))
-                        (\ (Type.ADT.FieldIndex variant_idx@(Type.ADT.VariantIndex adt_key _) field_idx) ->
+                        (\ (Type.ADT.FieldIndex _ variant_idx@(Type.ADT.VariantIndex _ adt_key _) field_idx) ->
                             Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
                             Type.ADT.get_variant <$> get_adt_arena <*> pure variant_idx >>= \ variant ->
                             let variant_name = Type.ADT.variant_name variant

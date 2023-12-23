@@ -76,7 +76,6 @@ data Expr
     | Expr'Poison ID.ExprID (Maybe Type.Type) Span
     deriving Show
 
--- TODO: split match things into separate module?
 data MatchTree
     = MatchTree [([MatchClause], Either MatchTree Expr)]
     deriving Show
@@ -115,7 +114,7 @@ expr_type var_arena (Expr'Call _ _ callee _) =
 expr_type _ (Expr'Match _ ty _ _) = ty
 expr_type var_arena (Expr'Forall _ _ tyvars res) = Type.Type'Forall tyvars <$> expr_type var_arena res
 expr_type _ (Expr'TypeApply _ ty _ _ _) = ty
-expr_type _ (Expr'MakeADT _ _ (Type.ADT.VariantIndex adt_key _) vars _) = Type.Type'ADT adt_key <$> sequence vars
+expr_type _ (Expr'MakeADT _ _ (Type.ADT.VariantIndex _ adt_key _) vars _) = Type.Type'ADT adt_key <$> sequence vars
 expr_type _ (Expr'Poison _ ty _) = ty
 
 expr_span :: Expr -> Span

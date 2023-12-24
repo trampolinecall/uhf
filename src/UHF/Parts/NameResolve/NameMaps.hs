@@ -120,14 +120,14 @@ make_name_maps_from_decls already_decls already_vals already_variants type_synon
             classes
                 & map
                     (\ class_key ->
-                        let (Type.Class _ (Located name_sp name) quant_vars) = Arena.get class_arena class_key
-                        in ([(name, DeclAt name_sp, SIR.Decl'Type $ TypeWithInferVar.Type'Class class_key)], [], [])
+                        let (Type.Class _ (Located name_sp name) _) = Arena.get class_arena class_key
+                        in ([(name, DeclAt name_sp, SIR.Decl'Type $ TypeWithInferVar.Type'Class class_key [])], [], [])
                     )
                 & unzip3
     in lift $ make_name_maps
-            (concat $ already_decls : binding_decl_entries ++ adt_decl_entries ++ type_synonym_decl_entries)
-            (concat $ already_vals : binding_val_entries ++ adt_val_entries ++ type_synonym_val_entries)
-            (concat $ already_variants : binding_variant_entries ++ adt_variant_entries ++ type_synonym_variant_entries)
+            (concat $ already_decls : binding_decl_entries ++ adt_decl_entries ++ type_synonym_decl_entries ++ class_decl_entries)
+            (concat $ already_vals : binding_val_entries ++ adt_val_entries ++ type_synonym_val_entries ++ class_val_entries)
+            (concat $ already_variants : binding_variant_entries ++ adt_variant_entries ++ type_synonym_variant_entries ++ class_variant_entries)
 
 collect_child_maps :: SIR.SIR stage -> WithErrors SIRChildMaps
 collect_child_maps (SIR.SIR mod_arena adt_arena type_synonym_arena class_arena _ _ variable_arena _) = SIRChildMaps <$> Arena.transformM go mod_arena

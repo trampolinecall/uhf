@@ -42,8 +42,8 @@ refer_class (Type.Class id _ _) = PP.String $ ID.stringify id
 
 -- TODO: construct an ast and print it
 -- TODO: precedence for this
-refer_type :: Arena.Arena (Type.ADT ty) Type.ADTKey -> Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey -> Arena.Arena Type.QuantVar Type.QuantVarKey -> Type.Type -> PP.Token
-refer_type adts type_synonyms vars = go
+refer_type :: Arena.Arena (Type.ADT ty) Type.ADTKey -> Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey -> Arena.Arena Type.Class Type.ClassKey -> Arena.Arena Type.QuantVar Type.QuantVarKey -> Type.Type -> PP.Token
+refer_type adts type_synonyms classes vars = go
     where
         go ty =
             case ty of
@@ -73,8 +73,14 @@ refer_type adts type_synonyms vars = go
                 Type.Type'Forall new_vars ty ->
                     let ty' = go ty
                     in PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent (map (\ vk -> let (Type.QuantVar (Located _ name)) = Arena.get vars vk in PP.String name) (toList new_vars)), " ", ty']
+                Type.Type'Class k applied ->
+                    let applied' = map go applied
+                        applied''
+                            | null applied' = ""
+                            | otherwise = PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent applied']
+                    in PP.List [refer_class (Arena.get classes k), applied'']
                 -- TODO: do kinds correctly
                 Type.Type'Kind'Type -> PP.String "*" -- TODO: this does not seem right
-                Type.Type'Kind'Arrow a b -> PP.List [refer_type adts type_synonyms vars a, PP.String " -># ", refer_type adts type_synonyms vars b] -- TODO: precedence
+                Type.Type'Kind'Arrow a b -> PP.List [go a, PP.String " -># ", go b] -- TODO: precedence
                 Type.Type'Kind'Kind -> PP.String "<kind>" -- TODO: this is most definitely not correct
-
+                Type.Type'Kind'Constraint -> PP.String "constraint" -- TODO: this is also probably not right; make these builtins?

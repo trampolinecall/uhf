@@ -41,9 +41,9 @@ data BackendIR ty poison_allowed
     = BackendIR
         (Arena.Arena (Type.ADT ty) ADTKey)
         (Arena.Arena (Type.TypeSynonym ty) TypeSynonymKey)
-        (Arena.Arena Type.QuantVar Type.QuantVarKey)
         (Arena.Arena (Type.Class) ClassKey)
         (Arena.Arena (Type.Instance (Maybe ClassKey) ty) InstanceKey)
+        (Arena.Arena Type.QuantVar Type.QuantVarKey)
         (Arena.Arena (Binding ty poison_allowed) BindingKey)
         (Arena.Arena (Param ty) ParamKey)
         CU

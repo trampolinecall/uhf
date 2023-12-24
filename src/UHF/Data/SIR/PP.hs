@@ -37,7 +37,7 @@ get_adt_arena = reader (\ (SIR.SIR _ adts _ _ _ _ _ _) -> adts)
 get_type_synonym_arena :: IRReader stage (Arena.Arena (Type.TypeSynonym (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage)) Type.TypeSynonymKey)
 get_type_synonym_arena = reader (\ (SIR.SIR _ _ syns _ _ _ _ _) -> syns)
 get_quant_var_arena :: IRReader stage (Arena.Arena Type.QuantVar Type.QuantVarKey)
-get_quant_var_arena = reader (\ (SIR.SIR _ _ _ vars _ _ _ _) -> vars)
+get_quant_var_arena = reader (\ (SIR.SIR _ _ _ _ _ vars _ _) -> vars)
 
 get_var :: SIR.VariableKey -> IRReader stage (SIR.Variable stage)
 get_var k = reader (\ (SIR.SIR _ _ _ _ _ _ vars _) -> Arena.get vars k)
@@ -48,11 +48,11 @@ get_adt k = reader (\ (SIR.SIR _ adts _ _ _ _ _ _) -> Arena.get adts k)
 get_type_syn :: Type.TypeSynonymKey -> IRReader stage (Type.TypeSynonym (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage))
 get_type_syn k = reader (\ (SIR.SIR _ _ syns _ _ _ _ _) -> Arena.get syns k)
 get_quant_var :: Type.QuantVarKey -> IRReader stage Type.QuantVar
-get_quant_var k = reader (\ (SIR.SIR _ _ _ quant_vars _ _ _ _) -> Arena.get quant_vars k)
+get_quant_var k = reader (\ (SIR.SIR _ _ _ _ _ quant_vars _ _) -> Arena.get quant_vars k)
 get_class :: Type.ClassKey -> IRReader stage Type.Class
-get_class k = reader (\ (SIR.SIR _ _ _ _ classes _ _ _) -> Arena.get classes k)
+get_class k = reader (\ (SIR.SIR _ _ _ classes _ _ _ _) -> Arena.get classes k)
 get_instance :: Type.InstanceKey -> IRReader stage (SIR.Instance stage)
-get_instance k = reader (\ (SIR.SIR _ _ _ _ _ instances _ _) -> Arena.get instances k)
+get_instance k = reader (\ (SIR.SIR _ _ _ _ instances _ _ _) -> Arena.get instances k)
 
 define_module :: DumpableConstraints stage => SIR.Module stage -> IRReader stage PP.Token
 define_module (SIR.Module _ bindings adts type_synonyms classes instances) =
@@ -101,10 +101,8 @@ instance DumpableType stage TypeSolver.Type where
         pure (fst $ TypeSolver.run_infer_var_namer $ TypeSolver.pp_type False adt_arena type_synonym_arena quant_var_arena todo t) -- TODO
 instance DumpableType stage Type.Type where
     refer_type t = do
-        adt_arena <- get_adt_arena
-        type_synonym_arena <- get_type_synonym_arena
-        quant_var_arena <- get_quant_var_arena
-        pure (Type.PP.refer_type adt_arena type_synonym_arena quant_var_arena t)
+        (SIR.SIR _ adt_arena type_synonym_arena class_arena _ quant_var_arena _ _) <- ask
+        pure (Type.PP.refer_type adt_arena type_synonym_arena class_arena quant_var_arena t)
 
 class DumpableIdentifier stage i where
     refer_iden :: i -> IRReader stage PP.Token

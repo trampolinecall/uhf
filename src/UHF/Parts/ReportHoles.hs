@@ -19,10 +19,10 @@ type ADTArena stage = Arena.Arena (SIR.ADT stage) Type.ADTKey
 type TypeSynonymArena stage = Arena.Arena (SIR.TypeSynonym stage) Type.TypeSynonymKey
 type QuantVarArena = Arena.Arena Type.QuantVar Type.QuantVarKey
 
-data Error stage = Error (ADTArena stage) (TypeSynonymArena stage) QuantVarArena Span (Located Text) Type.Type
+data Error stage = Error (ADTArena stage) (TypeSynonymArena stage) (Arena.Arena (SIR.Class stage) Type.ClassKey) QuantVarArena  Span (Located Text) Type.Type
 instance Diagnostic.ToError (Error stage) where
-    to_error (Error adts type_synonyms vars sp name ty) =
-        let message = "hole: '?" <> unlocate name <> "' of type '" <> PP.render (Type.PP.refer_type adts type_synonyms vars ty) <> "'"
+    to_error (Error adts type_synonyms classes vars sp name ty) =
+        let message = "hole: '?" <> unlocate name <> "' of type '" <> PP.render (Type.PP.refer_type adts type_synonyms classes vars ty) <> "'"
         in Diagnostic.Error (Just sp) message [] []
 
 report_holes :: (SIR.TypeInfo stage ~ Maybe Type.Type, SIR.TypeExprEvaledAsType stage ~ Maybe Type.Type) => SIR.SIR stage -> Compiler.WithDiagnostics (Error stage) Void ()
@@ -44,10 +44,10 @@ type_synonym :: (SIR.TypeInfo stage ~ Maybe Type.Type, SIR.TypeExprEvaledAsType 
 type_synonym key = ask >>= \ (SIR.SIR _ _ type_synonyms _ _ _ _ _) -> let (Type.TypeSynonym _ _ (expansion, _)) = Arena.get type_synonyms key in type_expr expansion
 
 class_ :: (SIR.TypeInfo stage ~ Maybe Type.Type, SIR.TypeExprEvaledAsType stage ~ Maybe Type.Type) => Type.ClassKey -> ReaderT (SIR.SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
-class_ key = ask >>= \ (SIR.SIR _ _ _ _ classes _ _ _) -> let (Type.Class _ _ _) = Arena.get classes key in pure ()
+class_ key = ask >>= \ (SIR.SIR _ _ _ classes _ _ _ _) -> let (Type.Class _ _ _) = Arena.get classes key in pure ()
 
 instance_ :: (SIR.TypeInfo stage ~ Maybe Type.Type, SIR.TypeExprEvaledAsType stage ~ Maybe Type.Type) => Type.InstanceKey -> ReaderT (SIR.SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
-instance_ key = ask >>= \ (SIR.SIR _ _ _ _ _ instances _ _) -> let (Type.Instance _ (class_, _) args) = Arena.get instances key in type_expr class_ >> mapM_ (type_expr . fst) args
+instance_ key = ask >>= \ (SIR.SIR _ _ _ _ instances _ _ _) -> let (Type.Instance _ (class_, _) args) = Arena.get instances key in type_expr class_ >> mapM_ (type_expr . fst) args
 
 binding :: (SIR.TypeInfo stage ~ Maybe Type.Type, SIR.TypeExprEvaledAsType stage ~ Maybe Type.Type) => SIR.Binding stage -> ReaderT (SIR.SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
 binding (SIR.Binding p _ e) = pattern p >> expr e
@@ -85,8 +85,8 @@ expr (SIR.Expr'TypeApply _ _ _ e (arg, _)) = expr e >> type_expr arg
 expr (SIR.Expr'Hole _ type_info sp hid) =
     case type_info of
         Just type_info ->
-            ask >>= \ (SIR.SIR _ adts type_synonyms vars _ _ _ _) ->
-            lift (Compiler.tell_error (Error adts type_synonyms vars sp hid type_info)) >>
+            ask >>= \ (SIR.SIR _ adts type_synonyms classes _ vars _ _) ->
+            lift (Compiler.tell_error (Error adts type_synonyms classes vars sp hid type_info)) >>
             pure ()
         Nothing -> pure () -- typing phase will have already reported ambiguous type
 
@@ -99,8 +99,8 @@ type_expr (SIR.TypeExpr'Tuple _ _ a b) = type_expr a >> type_expr b
 type_expr (SIR.TypeExpr'Hole _ type_info sp hid) =
     case type_info of
         Just type_info ->
-            ask >>= \ (SIR.SIR _ adts type_synonyms vars _ _ _ _) ->
-            lift (Compiler.tell_error (Error adts type_synonyms vars sp hid type_info)) >>
+            ask >>= \ (SIR.SIR _ adts type_synonyms classes _ vars _ _) ->
+            lift (Compiler.tell_error (Error adts type_synonyms classes vars sp hid type_info)) >>
             pure ()
         Nothing -> pure () -- typing phase will have already reported ambiguous type
 type_expr (SIR.TypeExpr'Function _ _ arg res) = type_expr arg >> type_expr res

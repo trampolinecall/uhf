@@ -28,13 +28,13 @@ type NoPoisonBinding = BackendIR.Binding NoPoisonType Void
 type NoPoisonParam = BackendIR.Param NoPoisonType
 
 remove_poison :: PoisonedBackendIR -> Maybe NoPoisonBackendIR
-remove_poison (BackendIR.BackendIR adts type_synonyms type_vars classes instances bindings params cu) =
+remove_poison (BackendIR.BackendIR adts type_synonyms classes instances type_vars bindings params cu) =
     BackendIR.BackendIR
         <$> Arena.transformM rp_adt adts
         <*> Arena.transformM rp_type_synonym type_synonyms
-        <*> pure type_vars
         <*> Arena.transformM rp_class classes
         <*> Arena.transformM rp_instance instances
+        <*> pure type_vars
         <*> Arena.transformM rp_binding bindings
         <*> Arena.transformM rp_param params
         <*> pure cu

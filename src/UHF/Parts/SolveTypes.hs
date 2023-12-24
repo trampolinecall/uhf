@@ -13,10 +13,10 @@ import qualified UHF.Util.Arena as Arena
 
 -- this does both type inference and type checking
 solve :: TypeSolver.SolverState -> UntypedSIR -> Compiler.WithDiagnostics Error Void TypedSIR
-solve nr_solver_state (SIR.SIR mods adts type_synonyms quant_vars classes instances variables mod) = -- TODO: do not destructure ir?
+solve nr_solver_state (SIR.SIR mods adts type_synonyms classes instances quant_vars variables mod) = -- TODO: do not destructure ir?
     TypeSolver.run_solve_monad_with
         (
-            runWriterT (AddTypes.add mods adts type_synonyms quant_vars classes instances variables) >>= \ ((mods, adts, type_synonyms, classes, instances, variables), constraints) ->
+            runWriterT (AddTypes.add mods adts type_synonyms classes instances quant_vars variables) >>= \ ((mods, adts, type_synonyms, classes, instances, variables), constraints) ->
 
             let get_type_synonym ts_key = pure $ Arena.get type_synonyms ts_key
             in
@@ -35,4 +35,4 @@ solve nr_solver_state (SIR.SIR mods adts type_synonyms quant_vars classes instan
 
     RemoveInferVars.remove infer_vars mods adts type_synonyms classes instances variables >>= \ (mods, adts, type_synonyms, classes, instances, variables) ->
 
-    pure (SIR.SIR mods adts type_synonyms quant_vars classes instances variables mod)
+    pure (SIR.SIR mods adts type_synonyms classes instances quant_vars variables mod)

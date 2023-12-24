@@ -24,7 +24,7 @@ get_adt_arena = reader (\ (BackendIR.BackendIR adts _ _ _ _ _ _ _) -> adts)
 get_type_synonym_arena :: IRReader ty poison_allowed (Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey)
 get_type_synonym_arena = reader (\ (BackendIR.BackendIR _ syns _ _ _ _ _ _) -> syns)
 get_type_var_arena :: IRReader ty poison_allowed (Arena.Arena Type.QuantVar Type.QuantVarKey)
-get_type_var_arena = reader (\ (BackendIR.BackendIR _ _ vars _ _ _ _ _) -> vars)
+get_type_var_arena = reader (\ (BackendIR.BackendIR _ _ _ _ vars _ _ _) -> vars)
 
 get_binding :: BackendIR.BindingKey -> IRReader ty poison_allowed (BackendIR.Binding ty poison_allowed)
 get_binding k = reader (\ (BackendIR.BackendIR _ _ _ _ _ bindings _ _) -> Arena.get bindings k)
@@ -35,11 +35,11 @@ get_adt k = reader (\ (BackendIR.BackendIR adts _ _ _ _ _ _ _) -> Arena.get adts
 get_type_synonym :: Type.TypeSynonymKey -> IRReader ty poison_allowed (Type.TypeSynonym ty)
 get_type_synonym k = reader (\ (BackendIR.BackendIR _ type_synonyms _ _ _ _ _ _) -> Arena.get type_synonyms k)
 get_type_var :: Type.QuantVarKey -> IRReader ty poison_allowed Type.QuantVar
-get_type_var k = reader (\ (BackendIR.BackendIR _ _ type_vars _ _ _ _ _) -> Arena.get type_vars k)
+get_type_var k = reader (\ (BackendIR.BackendIR _ _ _ _ type_vars _ _ _) -> Arena.get type_vars k)
 get_class :: Type.ClassKey -> IRReader ty poison_allowed Type.Class
-get_class k = reader (\ (BackendIR.BackendIR _ _ _ classes _ _ _ _ ) -> Arena.get classes k)
+get_class k = reader (\ (BackendIR.BackendIR _ _ classes _ _ _ _ _ ) -> Arena.get classes k)
 get_instance :: Type.InstanceKey -> IRReader ty poison_allowed (Type.Instance (Maybe Type.ClassKey) ty)
-get_instance k = reader (\ (BackendIR.BackendIR _ _ _ _ instances _ _  _) -> Arena.get instances k)
+get_instance k = reader (\ (BackendIR.BackendIR _ _ _ instances _ _ _ _) -> Arena.get instances k)
 
 dump_cu :: (DumpableType ty) => BackendIR.BackendIR ty poison_allowed -> Text
 dump_cu ir@(BackendIR.BackendIR _ _ _ _ _ _ _ cu) = PP.render $ runReader (define_cu cu) ir
@@ -88,10 +88,8 @@ instance DumpableType (Maybe Type.Type) where -- TODO: remove this
 
 instance DumpableType Type.Type where
     refer_type ty =
-        get_adt_arena >>= \ adt_arena ->
-        get_type_synonym_arena >>= \ type_synonym_arena ->
-        get_type_var_arena >>= \ type_var_arena ->
-        pure (Type.PP.refer_type adt_arena type_synonym_arena type_var_arena ty)
+        ask >>= \ (BackendIR.BackendIR adt_arena type_synonym_arena class_arena _ quant_var_arena _ _ _) ->
+        pure (Type.PP.refer_type adt_arena type_synonym_arena class_arena quant_var_arena ty)
 
 type_var :: Type.QuantVarKey -> IRReader ty poison_allowed PP.Token
 type_var k = get_type_var k >>= \ (Type.QuantVar (Located _ name)) -> pure (PP.String name)

@@ -39,13 +39,15 @@ data Type
     | Type'Tuple Type Type
     | Type'QuantVar QuantVarKey
     | Type'Forall (NonEmpty QuantVarKey) Type
+    | Type'Class ClassKey [Type]
     | Type'Kind'Type
     | Type'Kind'Arrow Type Type
     | Type'Kind'Kind
+    | Type'Kind'Constraint
     deriving Show
 
-type_kind :: Arena.Arena (ADT (t, Type)) ADTKey -> Arena.Arena (TypeSynonym (t, Type)) TypeSynonymKey -> Arena.Arena QuantVar QuantVarKey -> Type -> Type
-type_kind adt_arena type_synonym_arena quant_var_arena = go
+type_kind :: Arena.Arena (ADT (t, Type)) ADTKey -> Arena.Arena (TypeSynonym (t, Type)) TypeSynonymKey -> Arena.Arena Class ClassKey -> Arena.Arena QuantVar QuantVarKey -> Type -> Type
+type_kind adt_arena type_synonym_arena class_arena quant_var_arena = go
     where
         go :: Type -> Type
         go t = case t of
@@ -64,9 +66,13 @@ type_kind adt_arena type_synonym_arena quant_var_arena = go
             Type'Tuple _ _ -> Type'Kind'Type
             Type'QuantVar qvk -> quant_var_kind qvk
             Type'Forall quant_vars result -> make_arrows (map quant_var_kind (toList quant_vars)) result
+            Type'Class class_key applied ->
+                let Class _ _ quant_vars = Arena.get class_arena class_key
+                in make_arrows (map quant_var_kind (drop (length applied) quant_vars)) Type'Kind'Constraint
             Type'Kind'Type -> Type'Kind'Kind
             Type'Kind'Arrow _ _ -> Type'Kind'Kind
             Type'Kind'Kind -> Type'Kind'Kind
+            Type'Kind'Constraint -> Type'Kind'Constraint
 
         quant_var_kind :: QuantVarKey -> Type
         quant_var_kind qvk = Type'Kind'Type -- TODO: quant vars with different kinds

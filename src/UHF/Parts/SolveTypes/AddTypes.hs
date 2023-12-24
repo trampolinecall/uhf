@@ -77,8 +77,25 @@ apply_type for_what sp ty arg = do
 -- but it really should produce an error at `thing(0)` saying that thing takes a string and not an int
 -- (this happens because bindings are processed in order and the constraint from 'thing(0)' is processed before the constraint from 'thing = ...')
 
-add :: UntypedModuleArena -> UntypedADTArena -> UntypedTypeSynonymArena -> QuantVarArena -> UntypedVariableArena -> UntypedClassArena -> UntypedInstanceArena -> WriterT [TypeSolver.Constraint] (TypeSolver.SolveMonad (Compiler.WithDiagnostics Error Void)) (TypedWithInferVarsModuleArena, TypedWithInferVarsADTArena, TypedWithInferVarsTypeSynonymArena, TypedWithInferVarsVariableArena, TypedWithInferVarsClassArena, TypedWithInferVarsInstanceArena)
-add mods adts type_synonyms quant_vars variables classes instances =
+add ::
+    UntypedModuleArena
+    -> UntypedADTArena
+    -> UntypedTypeSynonymArena
+    -> QuantVarArena
+    -> UntypedClassArena
+    -> UntypedInstanceArena
+    -> UntypedVariableArena
+    -> WriterT
+        [TypeSolver.Constraint]
+        (TypeSolver.SolveMonad (Compiler.WithDiagnostics Error Void))
+        ( TypedWithInferVarsModuleArena
+        , TypedWithInferVarsADTArena
+        , TypedWithInferVarsTypeSynonymArena
+        , TypedWithInferVarsClassArena
+        , TypedWithInferVarsInstanceArena
+        , TypedWithInferVarsVariableArena
+        )
+add mods adts type_synonyms quant_vars classes instances variables =
     runReaderT (
         (,)
             <$> Arena.transformM type_synonym type_synonyms
@@ -92,7 +109,7 @@ add mods adts type_synonyms quant_vars variables classes instances =
     ) (adts, (), (), ()) >>= \ variables ->
     runReaderT (
         Arena.transformM module_ mods >>= \ mods ->
-        pure (mods, adts, type_synonyms, variables, classes, instances)
+        pure (mods, adts, type_synonyms, classes, instances, variables)
     ) (adts, type_synonyms, quant_vars, variables)
 
 variable :: UntypedVariable -> ContextReader TypedWithInferVarsADTArena type_synonyms quant_vars vars TypedWithInferVarsVariable

@@ -54,12 +54,11 @@ type DeclChildrenList = [(Text, DeclAt, SIR.Decl TypeWithInferVar.Type)]
 type ValueList = [(Text, DeclAt, SIR.BoundValue)]
 type ADTVariantList = [(Text, DeclAt, Type.ADT.VariantIndex)]
 
--- SIRChildMaps {{{2
 data SIRChildMaps = SIRChildMaps (Arena.Arena ChildMaps SIR.ModuleKey)
 
 get_module_child_maps :: SIRChildMaps -> SIR.ModuleKey -> ChildMaps
 get_module_child_maps (SIRChildMaps module_child_maps) mk = Arena.get module_child_maps mk
--- making child maps {{{2
+
 -- TODO: do not export this
 make_name_maps :: DeclChildrenList -> ValueList -> ADTVariantList -> WithErrors NameMaps
 make_name_maps decls values adt_variants =
@@ -123,7 +122,7 @@ make_name_maps_from_decls already_decls already_vals already_variants type_synon
             (concat $ already_variants : binding_variant_entries ++ adt_variant_entries ++ type_synonym_variant_entries)
 
 collect_child_maps :: SIR.SIR stage -> WithErrors SIRChildMaps
-collect_child_maps (SIR.SIR mod_arena adt_arena type_synonym_arena _ variable_arena _ _ _) = SIRChildMaps <$> Arena.transformM go mod_arena
+collect_child_maps (SIR.SIR mod_arena adt_arena type_synonym_arena _ _ _ variable_arena _) = SIRChildMaps <$> Arena.transformM go mod_arena
     where
         primitive_decls =
                 [ ("int", ImplicitPrim, SIR.Decl'Type TypeWithInferVar.Type'Int)
@@ -160,7 +159,6 @@ var_name var_key =
     let SIR.Variable _ _ (Located _ name) = Arena.get var_arena var_key
     in pure name
 
--- getting from child maps {{{2
 -- TODO: remove duplication from these
 get_decl_child :: SIRChildMaps -> SIR.Decl TypeWithInferVar.Type -> Located Text -> Either Error (SIR.Decl TypeWithInferVar.Type)
 get_decl_child sir_child_maps decl name =

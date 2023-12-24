@@ -46,13 +46,13 @@ type ResolvedTypeSynonymArena = Arena.Arena ResolvedTypeSynonym Type.TypeSynonym
 
 -- resolve entry point {{{1
 resolve :: NameMaps.SIRChildMaps -> SIR.SIR Unresolved -> Error.WithErrors (SIR.SIR Resolved)
-resolve sir_child_maps (SIR.SIR mods adts type_synonyms type_vars variables classes instances mod) =
+resolve sir_child_maps (SIR.SIR mods adts type_synonyms type_vars classes instances variables mod) =
     runReaderT (Arena.transformM resolve_in_module mods) (adts, variables, (), sir_child_maps) >>= \ mods ->
     runReaderT (Arena.transformM resolve_in_adt adts) ((), (), (), sir_child_maps) >>= \ adts ->
     runReaderT (Arena.transformM resolve_in_type_synonym type_synonyms) ((), (), (), sir_child_maps) >>= \ synonyms ->
     runReaderT (Arena.transformM resolve_in_class classes) ((), (), (), sir_child_maps) >>= \ classes ->
     runReaderT (Arena.transformM resolve_in_instance instances) ((), (), (), sir_child_maps) >>= \ instances ->
-    pure (SIR.SIR mods adts synonyms type_vars (Arena.transform change_variable variables) classes instances mod)
+    pure (SIR.SIR mods adts synonyms type_vars classes instances (Arena.transform change_variable variables) mod)
     where
         change_variable (SIR.Variable varid tyinfo n) = SIR.Variable varid tyinfo n
 

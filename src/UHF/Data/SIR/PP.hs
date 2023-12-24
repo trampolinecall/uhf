@@ -40,7 +40,7 @@ get_quant_var_arena :: IRReader stage (Arena.Arena Type.QuantVar Type.QuantVarKe
 get_quant_var_arena = reader (\ (SIR.SIR _ _ _ vars _ _ _ _) -> vars)
 
 get_var :: SIR.VariableKey -> IRReader stage (SIR.Variable stage)
-get_var k = reader (\ (SIR.SIR _ _ _ _ vars _ _ _) -> Arena.get vars k)
+get_var k = reader (\ (SIR.SIR _ _ _ _ _ _ vars _) -> Arena.get vars k)
 get_module :: SIR.ModuleKey -> IRReader stage (SIR.Module stage)
 get_module k = reader (\ (SIR.SIR modules _ _ _ _ _ _ _) -> Arena.get modules k)
 get_adt :: Type.ADTKey -> IRReader stage (Type.ADT (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage))
@@ -50,9 +50,9 @@ get_type_syn k = reader (\ (SIR.SIR _ _ syns _ _ _ _ _) -> Arena.get syns k)
 get_quant_var :: Type.QuantVarKey -> IRReader stage Type.QuantVar
 get_quant_var k = reader (\ (SIR.SIR _ _ _ quant_vars _ _ _ _) -> Arena.get quant_vars k)
 get_class :: Type.ClassKey -> IRReader stage Type.Class
-get_class k = reader (\ (SIR.SIR _ _ _ _ _ classes _ _) -> Arena.get classes k)
+get_class k = reader (\ (SIR.SIR _ _ _ _ classes _ _ _) -> Arena.get classes k)
 get_instance :: Type.InstanceKey -> IRReader stage (SIR.Instance stage)
-get_instance k = reader (\ (SIR.SIR _ _ _ _ _ _ instances _) -> Arena.get instances k)
+get_instance k = reader (\ (SIR.SIR _ _ _ _ _ instances _ _) -> Arena.get instances k)
 
 define_module :: DumpableConstraints stage => SIR.Module stage -> IRReader stage PP.Token
 define_module (SIR.Module _ bindings adts type_synonyms classes instances) =

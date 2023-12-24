@@ -34,7 +34,7 @@ new_made_up_expr_id make =
     pure (make id)
 
 convert :: SIR.SIR LastSIR -> Compiler.WithDiagnostics (PatternCheck.CompletenessError LastSIR) (PatternCheck.NotUseful LastSIR) RIR.RIR
-convert (SIR.SIR modules adts type_synonyms quant_vars vars classes instances mod) = do
+convert (SIR.SIR modules adts type_synonyms quant_vars classes instances vars mod) = do
     let adts_converted = Arena.transform convert_adt adts
     let type_synonyms_converted = Arena.transform convert_type_synonym type_synonyms
     let classes_converted = Arena.transform convert_class classes

@@ -56,9 +56,9 @@ data SIR stage
         (Arena.Arena (ADT stage) ADTKey)
         (Arena.Arena (TypeSynonym stage) TypeSynonymKey)
         (Arena.Arena Type.QuantVar QuantVarKey)
-        (Arena.Arena (Variable stage) VariableKey)
         (Arena.Arena (Class stage) ClassKey)
         (Arena.Arena (Instance stage) InstanceKey)
+        (Arena.Arena (Variable stage) VariableKey)
         ModuleKey
 
 type ADT stage = Type.ADT (TypeExpr stage, Stage.TypeExprEvaledAsType stage)

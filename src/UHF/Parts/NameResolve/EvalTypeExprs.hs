@@ -276,8 +276,12 @@ put_back_in_class (Type.Class id name type_vars) = pure $ Type.Class id name typ
 put_back_in_instance :: SIR.Instance Extracted -> EvalMonad (Arena.Arena (SIR.ADT Extracted) Type.ADTKey) (Arena.Arena (SIR.TypeSynonym Extracted) Type.TypeSynonymKey) QuantVarArena (SIR.Instance Evaled)
 put_back_in_instance (Type.Instance quant_vars (class_type_expr, ()) args) = do
     class_type_expr <- put_back_in_type_expr class_type_expr
-    class_as_class <- case type_expr_evaled_as_type class_type_expr of
-                        -- TODO: add Type'Class constructor to type
+    class_as_class <- type_expr_evaled_as_type class_type_expr >>= \case
+        TypeSolver.Type'Class ck [] -> pure $ Just ck
+        TypeSolver.Type'Class _ _ -> do
+            -- internal error?
+            _ <- lift $ lift $ lift $ Compiler.tell_error $ Error.Error'NotAClass (SIR.type_expr_span class_type_expr) "a partially applied class" -- TODO: print the class and put that into the error, also TODO: make this error message better (make a new variant in Error?)
+            pure Nothing
         not_class -> do
             _ <- lift $ lift $ lift $ Compiler.tell_error $ Error.Error'NotAClass (SIR.type_expr_span class_type_expr) "something else" -- TODO: print not_class and put that into the error
             pure Nothing

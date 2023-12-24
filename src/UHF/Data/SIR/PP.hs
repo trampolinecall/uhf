@@ -49,15 +49,21 @@ get_type_syn :: Type.TypeSynonymKey -> IRReader stage (Type.TypeSynonym (SIR.Typ
 get_type_syn k = reader (\ (SIR.SIR _ _ syns _ _ _ _ _) -> Arena.get syns k)
 get_quant_var :: Type.QuantVarKey -> IRReader stage Type.QuantVar
 get_quant_var k = reader (\ (SIR.SIR _ _ _ quant_vars _ _ _ _) -> Arena.get quant_vars k)
+get_class :: Type.ClassKey -> IRReader stage Type.Class
+get_class k = reader (\ (SIR.SIR _ _ _ _ _ classes _ _) -> Arena.get classes k)
+get_instance :: Type.InstanceKey -> IRReader stage (SIR.Instance stage)
+get_instance k = reader (\ (SIR.SIR _ _ _ _ _ _ instances _) -> Arena.get instances k)
 
 define_module :: DumpableConstraints stage => SIR.Module stage -> IRReader stage PP.Token
 define_module (SIR.Module _ bindings adts type_synonyms classes instances) =
     ask >>= \ sir ->
-    mapM (\ k -> get_adt k >>= \ adt -> pure (Type.PP.define_adt adt)) adts >>= \ adts_defined ->
-    mapM (\ k -> get_type_syn k >>= \ ts -> pure (Type.PP.define_type_synonym (\ (ty, _) -> runReader (type_expr ty) sir) ts)) type_synonyms >>= \ type_synonyms_defined ->
+    let show_ty = (\ (ty, _) -> runReader (type_expr ty) sir)
+    in mapM (\ k -> get_adt k >>= \ adt -> pure (Type.PP.define_adt adt)) adts >>= \ adts_defined ->
+    mapM (\ k -> get_type_syn k >>= \ ts -> pure (Type.PP.define_type_synonym show_ty ts)) type_synonyms >>= \ type_synonyms_defined ->
+    mapM (\ k -> get_class k >>= \ class_ -> pure (Type.PP.define_class class_)) classes >>= \ classes_defined ->
+    mapM (\ k -> get_instance k >>= \ instance_ -> pure (Type.PP.define_instance todo show_ty instance_)) instances >>= \ instances_defined ->
     mapM define_binding bindings >>= \ bindings_defined ->
-        -- TODO: define classes and instances
-    pure (PP.flat_block $ adts_defined <> type_synonyms_defined <> bindings_defined)
+    pure (PP.flat_block $ adts_defined <> type_synonyms_defined <> classes_defined <> instances_defined <> bindings_defined)
 
 define_binding :: DumpableConstraints stage => SIR.Binding stage -> IRReader stage PP.Token
 define_binding (SIR.Binding pat _ init) = pattern pat >>= \ pat -> expr init >>= \ init -> pure $ PP.List [pat, " = ", init, ";"]
@@ -185,14 +191,18 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
 pp_let :: DumpableConstraints stage => Text -> [SIR.Binding stage] -> [Type.ADTKey] -> [Type.TypeSynonymKey] -> [Type.ClassKey] -> [Type.InstanceKey] -> SIR.Expr stage -> IRReader stage PP.Token
 pp_let let_kw bindings adts type_synonyms classes instances body = do
     sir <- ask
+    let show_ty = (\ (ty, _) -> runReader (type_expr ty) sir)
 
+    -- TODO: deduplicate this with defining a module
     bindings <- mapM define_binding bindings
     adts <- mapM (\ k -> get_adt k >>= \ adt -> pure (Type.PP.define_adt adt)) adts
     type_synonyms <- mapM (\ k -> get_type_syn k >>= \ ts -> pure (Type.PP.define_type_synonym (\ (ty, _) -> runReader (type_expr ty) sir) ts)) type_synonyms
+    classes <- mapM (\ k -> get_class k >>= \ class_ -> pure (Type.PP.define_class class_)) classes
+    instances <- mapM (\ k -> get_instance k >>= \ instance_ -> pure (Type.PP.define_instance todo show_ty instance_)) instances
 
     body <- expr body
 
-    let all_decls = adts ++ type_synonyms ++ bindings
+    let all_decls = adts ++ type_synonyms ++ classes ++ instances ++ bindings
     pure
         $ case all_decls of
             [decl] -> PP.FirstOnLineIfMultiline $ PP.List [PP.String let_kw, " ", decl, "\n", body]

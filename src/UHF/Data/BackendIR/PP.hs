@@ -36,18 +36,23 @@ get_type_synonym :: Type.TypeSynonymKey -> IRReader ty poison_allowed (Type.Type
 get_type_synonym k = reader (\ (BackendIR.BackendIR _ type_synonyms _ _ _ _ _ _) -> Arena.get type_synonyms k)
 get_type_var :: Type.QuantVarKey -> IRReader ty poison_allowed Type.QuantVar
 get_type_var k = reader (\ (BackendIR.BackendIR _ _ type_vars _ _ _ _ _) -> Arena.get type_vars k)
+get_class :: Type.ClassKey -> IRReader ty poison_allowed Type.Class
+get_class k = reader (\ (BackendIR.BackendIR _ _ _ classes _ _ _ _ ) -> Arena.get classes k)
+get_instance :: Type.InstanceKey -> IRReader ty poison_allowed (Type.Instance (Maybe Type.ClassKey) ty)
+get_instance k = reader (\ (BackendIR.BackendIR _ _ _ _ instances _ _  _) -> Arena.get instances k)
 
 dump_cu :: (DumpableType ty) => BackendIR.BackendIR ty poison_allowed -> Text
 dump_cu ir@(BackendIR.BackendIR _ _ _ _ _ _ _ cu) = PP.render $ runReader (define_cu cu) ir
 
 define_cu :: (DumpableType ty) => BackendIR.CU -> IRReader ty poison_allowed PP.Token
 define_cu (BackendIR.CU bindings adts type_synonyms classes instances) =
-    -- TODO: do classes and instances properly
-    ask >>= \ anfir ->
+    ask >>= \ ir ->
     mapM (fmap Type.PP.define_adt . get_adt) adts >>= \ adts ->
-    mapM (fmap (Type.PP.define_type_synonym (\ ty -> runReader (refer_type ty) anfir)) . get_type_synonym) type_synonyms >>= \ type_synonyms ->
+    mapM (fmap (Type.PP.define_type_synonym (\ ty -> runReader (refer_type ty) ir)) . get_type_synonym) type_synonyms >>= \ type_synonyms ->
+    mapM (fmap (Type.PP.define_class) . get_class) classes >>= \ classes ->
+    mapM (fmap (Type.PP.define_instance (maybe "<class resolution error>" (\ cl -> runReader (Type.PP.refer_class <$> get_class cl) ir)) (\ ty -> runReader (refer_type ty) ir)) . get_instance) instances >>= \ instances ->
     define_binding_group_flat bindings >>= \ bindings ->
-    pure (PP.flat_block $ adts <> type_synonyms <> bindings)
+    pure (PP.flat_block $ adts <> type_synonyms <> classes <> instances <> bindings)
 
 refer_param :: BackendIR.ParamKey -> IRReader ty poison_allowed PP.Token
 refer_param key = get_param key >>= \ (BackendIR.Param id _) -> pure (PP.String (ID.stringify id))

@@ -34,17 +34,24 @@ get_type_synonym :: Type.TypeSynonymKey -> IRReader (Type.TypeSynonym (Maybe Typ
 get_type_synonym k = reader (\ (ANFIR.ANFIR _ type_synonyms _ _ _ _ _ _) -> Arena.get type_synonyms k)
 get_type_var :: Type.QuantVarKey -> IRReader Type.QuantVar
 get_type_var k = reader (\ (ANFIR.ANFIR _ _ type_vars _ _ _ _ _) -> Arena.get type_vars k)
+get_class :: Type.ClassKey -> IRReader Type.Class
+get_class k = reader (\ (ANFIR.ANFIR _ _ _ classes _ _ _ _ ) -> Arena.get classes k)
+get_instance :: Type.InstanceKey -> IRReader (Type.Instance (Maybe Type.ClassKey) (Maybe Type.Type))
+get_instance k = reader (\ (ANFIR.ANFIR _ _ _ _ instances _ _  _) -> Arena.get instances k)
 
 dump_cu :: ANFIR.ANFIR -> Text
 dump_cu ir@(ANFIR.ANFIR _ _ _ _ _ _ _ cu) = PP.render $ runReader (define_cu cu) ir
 
 define_cu :: ANFIR.CU -> IRReader PP.Token
 define_cu (ANFIR.CU bindings adts type_synonyms classes instances) =
+    -- TODO: do classes and instances properly
     ask >>= \ anfir ->
     mapM (fmap Type.PP.define_adt . get_adt) adts >>= \ adts ->
     mapM (fmap (Type.PP.define_type_synonym (\ ty -> runReader (refer_type ty) anfir)) . get_type_synonym) type_synonyms >>= \ type_synonyms ->
+    mapM (fmap (Type.PP.define_class) . get_class) classes >>= \ classes ->
+    mapM (fmap (Type.PP.define_instance (maybe "<class resolution error>" (\ cl -> runReader (Type.PP.refer_class <$> get_class cl) anfir)) (\ ty -> runReader (refer_type ty) anfir)) . get_instance) instances >>= \ instances ->
     define_binding_group_flat bindings >>= \ bindings ->
-    pure (PP.flat_block $ adts <> type_synonyms <> bindings)
+    pure (PP.flat_block $ adts <> type_synonyms <> classes <> instances <> bindings)
 
 refer_param :: ANFIR.ParamKey -> IRReader PP.Token
 refer_param key = get_param key >>= \ (ANFIR.Param id _) -> pure (PP.String (ID.stringify id))

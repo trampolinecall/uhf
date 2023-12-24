@@ -2,7 +2,6 @@ module UHF.Parts.ToRIR (PatternCheck.CompletenessError, PatternCheck.NotUseful, 
 
 import UHF.Prelude
 
-import qualified Data.List as List
 import qualified Data.Map as Map
 
 import UHF.Source.Located (Located (Located, unlocate, just_span))
@@ -23,7 +22,7 @@ type DIden = Maybe (SIR.Decl Type.Type)
 type VIden = Maybe SIR.BoundValue
 type PIden = Maybe Type.ADT.VariantIndex
 
-type LastSIR = (DIden, DIden, Type, VIden, VIden, PIden, PIden, Type, Void)
+type LastSIR = (DIden, DIden, Type, VIden, VIden, PIden, PIden, Type, Maybe Type.ClassKey, Void)
 
 type VariableArena = Arena.Arena RIR.Variable RIR.VariableKey
 
@@ -35,15 +34,17 @@ new_made_up_expr_id make =
     pure (make id)
 
 convert :: SIR.SIR LastSIR -> Compiler.WithDiagnostics (PatternCheck.CompletenessError LastSIR) (PatternCheck.NotUseful LastSIR) RIR.RIR
-convert (SIR.SIR modules adts type_synonyms quant_vars vars mod) = do
+convert (SIR.SIR modules adts type_synonyms quant_vars vars classes instances mod) = do
     let adts_converted = Arena.transform convert_adt adts
     let type_synonyms_converted = Arena.transform convert_type_synonym type_synonyms
+    let classes_converted = Arena.transform convert_class classes
+    let instances_converted = Arena.transform convert_instance instances
     let vars_converted = Arena.transform (\ (SIR.Variable id ty (Located sp _)) -> RIR.Variable id ty sp) vars
     (modules, vars_with_new) <- IDGen.run_id_gen_t ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.VariableID'RIRMadeUp $ runStateT (runReaderT (Arena.transformM convert_module modules) (adts_converted, type_synonyms_converted)) vars_converted
-    pure (RIR.RIR modules adts_converted type_synonyms_converted quant_vars vars_with_new mod)
+    pure (RIR.RIR modules adts_converted type_synonyms_converted quant_vars classes_converted instances_converted vars_with_new mod)
 
 convert_module :: SIR.Module LastSIR -> ConvertState RIR.Module
-convert_module (SIR.Module id bindings adts type_synonyms) = do
+convert_module (SIR.Module id bindings adts type_synonyms classes instances) = do
     adt_constructors <- adts
         & mapM ( \ adt_key -> do
             (adts, _) <- ask
@@ -54,7 +55,7 @@ convert_module (SIR.Module id bindings adts type_synonyms) = do
     let adt_constructor_map = Map.fromList $ map (\ (variant_index, (var_key, _)) -> (variant_index, var_key)) adt_constructors
 
     bindings <- concat <$> runReaderT (mapM (convert_binding) bindings) adt_constructor_map
-    pure (RIR.Module id (bindings <> map (\ (_, (_, binding)) -> binding) adt_constructors) adts type_synonyms)
+    pure (RIR.Module id (bindings <> map (\ (_, (_, binding)) -> binding) adt_constructors) adts type_synonyms classes instances)
 
 make_adt_constructor :: Type.ADT.VariantIndex -> ConvertState (RIR.VariableKey, RIR.Binding)
 make_adt_constructor variant_index@(Type.ADT.VariantIndex _ adt_key _) = do
@@ -94,6 +95,12 @@ convert_adt (Type.ADT id name quant_vars variants) = Type.ADT id name quant_vars
 convert_type_synonym :: SIR.TypeSynonym LastSIR -> Type.TypeSynonym Type
 convert_type_synonym (Type.TypeSynonym id name (_, expansion)) = Type.TypeSynonym id name expansion
 
+convert_class :: SIR.Class LastSIR -> Type.Class
+convert_class (Type.Class id name quant_vars) = Type.Class id name quant_vars
+
+convert_instance :: SIR.Instance LastSIR -> Type.Instance (Maybe Type.ClassKey) Type
+convert_instance (Type.Instance quant_vars (_, class_) args) = Type.Instance quant_vars class_ (map snd args)
+
 convert_binding :: SIR.Binding LastSIR -> ReaderT (Map Type.ADT.VariantIndex RIR.VariableKey) ConvertState [RIR.Binding]
 convert_binding (SIR.Binding pat eq_sp expr) = convert_expr expr >>= lift . assign_pattern eq_sp pat
 
@@ -126,10 +133,10 @@ convert_expr (SIR.Expr'Lambda id ty sp param_pat body) =
     -- '\ (...) -> body' becomes '\ (arg) -> let ... = arg; body'
     lift (new_variable param_ty (SIR.pattern_span param_pat)) >>= \ param_bk ->
     lift (assign_pattern (SIR.pattern_span param_pat) param_pat (RIR.Expr'Identifier id param_ty (SIR.pattern_span param_pat) (Just param_bk))) >>= \ bindings ->
-    RIR.Expr'Lambda id sp param_bk <$> (RIR.Expr'Let id body_sp bindings [] [] <$> convert_expr body)
+    RIR.Expr'Lambda id sp param_bk <$> (RIR.Expr'Let id body_sp bindings [] [] [] [] <$> convert_expr body)
 
-convert_expr (SIR.Expr'Let id ty sp bindings adts type_synonyms body) = RIR.Expr'Let id sp <$> (concat <$> mapM convert_binding bindings) <*> pure adts <*> pure type_synonyms <*> convert_expr body -- TODO: define adt constructors for these
-convert_expr (SIR.Expr'LetRec id ty sp bindings adts type_synonyms body) = RIR.Expr'Let id sp <$> (concat <$> mapM convert_binding bindings) <*> pure adts <*> pure type_synonyms <*> convert_expr body -- TODO: define adt constructors for these
+convert_expr (SIR.Expr'Let id ty sp bindings adts type_synonyms classes instances body) = RIR.Expr'Let id sp <$> (concat <$> mapM convert_binding bindings) <*> pure adts <*> pure type_synonyms <*> pure classes <*> pure instances <*> convert_expr body -- TODO: define adt constructors for these
+convert_expr (SIR.Expr'LetRec id ty sp bindings adts type_synonyms classes instances body) = RIR.Expr'Let id sp <$> (concat <$> mapM convert_binding bindings) <*> pure adts <*> pure type_synonyms <*> pure classes <*> pure instances <*> convert_expr body -- TODO: define adt constructors for these
 convert_expr (SIR.Expr'BinaryOps _ void _ _ _ _) = absurd void
 convert_expr (SIR.Expr'Call id ty sp callee arg) = RIR.Expr'Call id sp <$> convert_expr callee <*> convert_expr arg
 convert_expr (SIR.Expr'If id ty sp _ cond true false) =
@@ -152,6 +159,8 @@ convert_expr (SIR.Expr'If id ty sp _ cond true false) =
         (\ let_id ->
             RIR.Expr'Let let_id sp
                 [RIR.Binding cond_var cond]
+                []
+                []
                 []
                 []
                 (RIR.Expr'Match id ty sp
@@ -198,6 +207,8 @@ convert_expr (SIR.Expr'Match id ty sp match_tok_sp scrutinee arms) = do
         (\ let_id ->
             RIR.Expr'Let let_id sp
                 [RIR.Binding scrutinee_var scrutinee]
+                []
+                []
                 []
                 []
                 (RIR.Expr'Match id ty sp (RIR.MatchTree arms))

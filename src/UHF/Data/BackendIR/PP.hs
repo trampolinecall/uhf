@@ -20,28 +20,29 @@ import qualified UHF.Util.Arena as Arena
 type IRReader ty poison_allowed = Reader (BackendIR.BackendIR ty poison_allowed)
 
 get_adt_arena :: IRReader ty poison_allowed (Arena.Arena (Type.ADT ty) Type.ADTKey)
-get_adt_arena = reader (\ (BackendIR.BackendIR adts _ _ _ _ _) -> adts)
+get_adt_arena = reader (\ (BackendIR.BackendIR adts _ _ _ _ _ _ _) -> adts)
 get_type_synonym_arena :: IRReader ty poison_allowed (Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey)
-get_type_synonym_arena = reader (\ (BackendIR.BackendIR _ syns _ _ _ _) -> syns)
+get_type_synonym_arena = reader (\ (BackendIR.BackendIR _ syns _ _ _ _ _ _) -> syns)
 get_type_var_arena :: IRReader ty poison_allowed (Arena.Arena Type.QuantVar Type.QuantVarKey)
-get_type_var_arena = reader (\ (BackendIR.BackendIR _ _ vars _ _ _) -> vars)
+get_type_var_arena = reader (\ (BackendIR.BackendIR _ _ vars _ _ _ _ _) -> vars)
 
 get_binding :: BackendIR.BindingKey -> IRReader ty poison_allowed (BackendIR.Binding ty poison_allowed)
-get_binding k = reader (\ (BackendIR.BackendIR _ _ _ bindings _ _) -> Arena.get bindings k)
+get_binding k = reader (\ (BackendIR.BackendIR _ _ _ _ _ bindings _ _) -> Arena.get bindings k)
 get_param :: BackendIR.ParamKey -> IRReader ty poison_allowed (BackendIR.Param ty)
-get_param k = reader (\ (BackendIR.BackendIR _ _ _ _ params _) -> Arena.get params k)
+get_param k = reader (\ (BackendIR.BackendIR _ _ _ _ _ _ params _) -> Arena.get params k)
 get_adt :: Type.ADTKey -> IRReader ty poison_allowed (Type.ADT ty)
-get_adt k = reader (\ (BackendIR.BackendIR adts _ _ _ _ _) -> Arena.get adts k)
+get_adt k = reader (\ (BackendIR.BackendIR adts _ _ _ _ _ _ _) -> Arena.get adts k)
 get_type_synonym :: Type.TypeSynonymKey -> IRReader ty poison_allowed (Type.TypeSynonym ty)
-get_type_synonym k = reader (\ (BackendIR.BackendIR _ type_synonyms _ _ _ _) -> Arena.get type_synonyms k)
+get_type_synonym k = reader (\ (BackendIR.BackendIR _ type_synonyms _ _ _ _ _ _) -> Arena.get type_synonyms k)
 get_type_var :: Type.QuantVarKey -> IRReader ty poison_allowed Type.QuantVar
-get_type_var k = reader (\ (BackendIR.BackendIR _ _ type_vars _ _ _) -> Arena.get type_vars k)
+get_type_var k = reader (\ (BackendIR.BackendIR _ _ type_vars _ _ _ _ _) -> Arena.get type_vars k)
 
 dump_cu :: (DumpableType ty) => BackendIR.BackendIR ty poison_allowed -> Text
-dump_cu ir@(BackendIR.BackendIR _ _ _ _ _ cu) = PP.render $ runReader (define_cu cu) ir
+dump_cu ir@(BackendIR.BackendIR _ _ _ _ _ _ _ cu) = PP.render $ runReader (define_cu cu) ir
 
 define_cu :: (DumpableType ty) => BackendIR.CU -> IRReader ty poison_allowed PP.Token
-define_cu (BackendIR.CU bindings adts type_synonyms) =
+define_cu (BackendIR.CU bindings adts type_synonyms classes instances) =
+    -- TODO: do classes and instances properly
     ask >>= \ anfir ->
     mapM (fmap Type.PP.define_adt . get_adt) adts >>= \ adts ->
     mapM (fmap (Type.PP.define_type_synonym (\ ty -> runReader (refer_type ty) anfir)) . get_type_synonym) type_synonyms >>= \ type_synonyms ->

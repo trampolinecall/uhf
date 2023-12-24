@@ -72,10 +72,10 @@ data AlmostMatchTree
     = AlmostMatchTree [([ANFIR.MatchClause], Either AlmostMatchTree ([ANFIR.BindingKey], ANFIR.BindingKey))]
 
 convert :: RIR.RIR -> ANFIR
-convert (RIR.RIR modules adts type_synonyms type_vars variables mod) =
+convert (RIR.RIR modules adts type_synonyms quant_vars classes instances variables mod) =
     let (bindings_step_1, params, cu_step_1) = convert_step_1 variables (Arena.get modules mod)
         (bindings_step_2, cu_step_2) = convert_step_2 bindings_step_1 cu_step_1
-    in ANFIR.ANFIR adts type_synonyms type_vars bindings_step_2 params cu_step_2
+    in ANFIR.ANFIR adts type_synonyms quant_vars classes instances bindings_step_2 params cu_step_2
 
 -- step 1: converting from rir to almost anfir {{{1
 convert_step_1 :: VariableArena -> RIR.Module -> (BindingArena AlmostExpr, ANFIRParamArena, NeedsTopoSort ANFIR.CU)
@@ -85,7 +85,7 @@ convert_step_1 variables mod =
     in (bindings_needs_deps, params, cu_needs_deps)
 
 make_cu :: RIR.Module -> MakeGraphState (NeedsVarMap AlmostExpr) (NeedsTopoSort ANFIR.CU)
-make_cu (RIR.Module _ bindings adts type_synonyms) = concat <$> mapM convert_binding bindings >>= \ bindings -> pure (make_binding_group bindings >>= \ group -> pure (ANFIR.CU group adts type_synonyms))
+make_cu (RIR.Module _ bindings adts type_synonyms classes instances) = concat <$> mapM convert_binding bindings >>= \ bindings -> pure (make_binding_group bindings >>= \ group -> pure (ANFIR.CU group adts type_synonyms classes instances))
 
 map_variable :: RIR.VariableKey -> ANFIR.BindingKey -> MakeGraphState binding ()
 map_variable k binding = tell $ Map.singleton k binding
@@ -140,7 +140,7 @@ convert_expr m_varid expr@(RIR.Expr'Lambda id _ param_var body) =
 
     new_binding (\ _ -> AlmostExpr'Lambda (choose_id m_varid id) ty anfir_param body_included_bindings body)
 
-convert_expr m_varid (RIR.Expr'Let id _ bindings adts type_synonyms result) = do
+convert_expr m_varid (RIR.Expr'Let id _ bindings adts type_synonyms classes instances result) = do
     var_arena <- lift $ lift $ lift $ lift ask
     let result_ty = RIR.expr_type var_arena result
     (result, body_bindings) <-
@@ -149,7 +149,7 @@ convert_expr m_varid (RIR.Expr'Let id _ bindings adts type_synonyms result) = do
             tell (concat bindings)
             convert_expr Nothing result
 
-    -- TODO: deal with adts and type synonyms properly
+    -- TODO: deal with adts, type synonyms, classes, and instances properly
     new_binding (\ _ -> AlmostExpr'Let (choose_id m_varid id) result_ty body_bindings result)
 
 convert_expr m_varid expr@(RIR.Expr'Call id _ callee arg) = lift (lift $ lift $ lift ask) >>= \ var_arena -> let ty = RIR.expr_type var_arena expr in convert_expr Nothing callee >>= \ callee -> convert_expr Nothing arg >>= \ arg -> new_binding (\ _ -> AlmostExpr'Call (choose_id m_varid id) ty callee arg)

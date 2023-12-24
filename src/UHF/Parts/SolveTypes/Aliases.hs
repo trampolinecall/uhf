@@ -17,7 +17,7 @@ type PIden = Maybe Type.ADT.VariantIndex
 
 type QuantVarArena = Arena.Arena Type.QuantVar Type.QuantVarKey
 
-type Untyped = (UntypedDIden, UntypedDIden, TypeWithInferVars, VIden, VIden, PIden, PIden, (), Type.ClassKey, Void)
+type Untyped = (UntypedDIden, UntypedDIden, TypeWithInferVars, VIden, VIden, PIden, PIden, (), Maybe Type.ClassKey, Void)
 
 type UntypedSIR = SIR.SIR Untyped
 type UntypedModule = SIR.Module Untyped
@@ -40,7 +40,7 @@ type UntypedModuleArena = Arena.Arena UntypedModule SIR.ModuleKey
 
 type TypedWithInferVarsDIden = Maybe (SIR.Decl TypeWithInferVars)
 
-type TypedWithInferVars = (TypedWithInferVarsDIden, TypedWithInferVarsDIden, TypeWithInferVars, VIden, VIden, PIden, PIden, TypeWithInferVars, Type.ClassKey, Void)
+type TypedWithInferVars = (TypedWithInferVarsDIden, TypedWithInferVarsDIden, TypeWithInferVars, VIden, VIden, PIden, PIden, TypeWithInferVars, Maybe Type.ClassKey, Void)
 
 type TypedWithInferVarsSIR = SIR.SIR TypedWithInferVars
 type TypedWithInferVarsModule = SIR.Module TypedWithInferVars
@@ -61,7 +61,7 @@ type TypedWithInferVarsInstanceArena = Arena.Arena TypedWithInferVarsInstance Ty
 type TypedWithInferVarsVariableArena = Arena.Arena TypedWithInferVarsVariable SIR.VariableKey
 type TypedWithInferVarsModuleArena = Arena.Arena TypedWithInferVarsModule SIR.ModuleKey
 
-type Typed = (TypedDIden, TypedDIden, Maybe Type, VIden, VIden, PIden, PIden, Maybe Type, Type.ClassKey, Void)
+type Typed = (TypedDIden, TypedDIden, Maybe Type, VIden, VIden, PIden, PIden, Maybe Type, Maybe Type.ClassKey, Void)
 
 type TypedDIden = Maybe (SIR.Decl Type)
 

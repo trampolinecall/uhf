@@ -30,14 +30,14 @@ type BackendIRBindingArena = Arena.Arena BackendIRBinding BackendIR.BindingKey
 type BackendIRParamArena = Arena.Arena BackendIRParam BackendIR.ParamKey
 
 convert :: ANFIR -> BackendIR
-convert (ANFIR.ANFIR adts type_synonyms type_vars bindings params cu) =
+convert (ANFIR.ANFIR adts type_synonyms type_vars classes instances bindings params cu) =
     let bindings' = Arena.transform convert_binding bindings
         params' = Arena.transform convert_param params
         cu' = convert_cu cu
-    in BackendIR.BackendIR adts type_synonyms type_vars bindings' params' cu'
+    in BackendIR.BackendIR adts type_synonyms type_vars classes instances bindings' params' cu'
 
 convert_cu :: ANFIR.CU -> BackendIR.CU
-convert_cu (ANFIR.CU group adts type_synonyms) = BackendIR.CU (convert_binding_group group) adts type_synonyms
+convert_cu (ANFIR.CU group adts type_synonyms classes instances) = BackendIR.CU (convert_binding_group group) adts type_synonyms classes instances
 
 convert_binding :: ANFIRBinding -> BackendIRBinding
 convert_binding (ANFIR.Binding initializer) = BackendIR.Binding $ convert_expr initializer

@@ -11,6 +11,8 @@ type PoisonedBackendIR = BackendIR.BackendIR PoisonedType ()
 type PoisonedType = Maybe Type.Type
 type PoisonedADT = Type.ADT PoisonedType
 type PoisonedTypeSynonym = Type.TypeSynonym PoisonedType
+type PoisonedClass = Type.Class
+type PoisonedInstance = Type.Instance (Maybe Type.ClassKey) PoisonedType
 type PoisonedExpr = BackendIR.Expr PoisonedType ()
 type PoisonedBinding = BackendIR.Binding PoisonedType ()
 type PoisonedParam = BackendIR.Param PoisonedType
@@ -19,16 +21,20 @@ type NoPoisonBackendIR = BackendIR.BackendIR NoPoisonType Void
 type NoPoisonType = Type.Type
 type NoPoisonADT = Type.ADT NoPoisonType
 type NoPoisonTypeSynonym = Type.TypeSynonym NoPoisonType
+type NoPoisonClass = Type.Class
+type NoPoisonInstance = Type.Instance (Maybe Type.ClassKey) NoPoisonType
 type NoPoisonExpr = BackendIR.Expr NoPoisonType Void
 type NoPoisonBinding = BackendIR.Binding NoPoisonType Void
 type NoPoisonParam = BackendIR.Param NoPoisonType
 
 remove_poison :: PoisonedBackendIR -> Maybe NoPoisonBackendIR
-remove_poison (BackendIR.BackendIR adts type_synonyms type_vars bindings params cu) =
+remove_poison (BackendIR.BackendIR adts type_synonyms type_vars classes instances bindings params cu) =
     BackendIR.BackendIR
         <$> Arena.transformM rp_adt adts
         <*> Arena.transformM rp_type_synonym type_synonyms
         <*> pure type_vars
+        <*> Arena.transformM rp_class classes
+        <*> Arena.transformM rp_instance instances
         <*> Arena.transformM rp_binding bindings
         <*> Arena.transformM rp_param params
         <*> pure cu
@@ -43,6 +49,12 @@ rp_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> ma
 
 rp_type_synonym :: PoisonedTypeSynonym -> Maybe NoPoisonTypeSynonym
 rp_type_synonym (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name <$> expansion
+
+rp_class :: PoisonedClass -> Maybe NoPoisonClass
+rp_class (Type.Class id name quant_vars) = Just $ Type.Class id name quant_vars
+
+rp_instance :: PoisonedInstance -> Maybe NoPoisonInstance
+rp_instance (Type.Instance quant_vars class_ args) = Type.Instance quant_vars class_ <$> sequence args
 
 rp_binding :: PoisonedBinding -> Maybe NoPoisonBinding
 rp_binding (BackendIR.Binding initializer) = BackendIR.Binding <$> rp_expr initializer

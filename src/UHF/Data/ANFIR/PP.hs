@@ -18,28 +18,28 @@ import qualified UHF.Util.Arena as Arena
 type IRReader = Reader ANFIR.ANFIR
 
 get_adt_arena :: IRReader (Arena.Arena (Type.ADT (Maybe Type.Type)) Type.ADTKey)
-get_adt_arena = reader (\ (ANFIR.ANFIR adts _ _ _ _ _) -> adts)
+get_adt_arena = reader (\ (ANFIR.ANFIR adts _ _ _ _ _ _ _) -> adts)
 get_type_synonym_arena :: IRReader (Arena.Arena (Type.TypeSynonym (Maybe Type.Type)) Type.TypeSynonymKey)
-get_type_synonym_arena = reader (\ (ANFIR.ANFIR _ syns _ _ _ _) -> syns)
+get_type_synonym_arena = reader (\ (ANFIR.ANFIR _ syns _ _ _ _ _ _) -> syns)
 get_type_var_arena :: IRReader (Arena.Arena Type.QuantVar Type.QuantVarKey)
-get_type_var_arena = reader (\ (ANFIR.ANFIR _ _ vars _ _ _) -> vars)
+get_type_var_arena = reader (\ (ANFIR.ANFIR _ _ vars _ _ _ _ _) -> vars)
 
 get_binding :: ANFIR.BindingKey -> IRReader ANFIR.Binding
-get_binding k = reader (\ (ANFIR.ANFIR _ _ _ bindings _ _) -> Arena.get bindings k)
+get_binding k = reader (\ (ANFIR.ANFIR _ _ _ _ _ bindings _ _) -> Arena.get bindings k)
 get_param :: ANFIR.ParamKey -> IRReader ANFIR.Param
-get_param k = reader (\ (ANFIR.ANFIR _ _ _ _ params _) -> Arena.get params k)
+get_param k = reader (\ (ANFIR.ANFIR _ _ _ _ _ _ params _) -> Arena.get params k)
 get_adt :: Type.ADTKey -> IRReader (Type.ADT (Maybe Type.Type))
-get_adt k = reader (\ (ANFIR.ANFIR adts _ _ _ _ _) -> Arena.get adts k)
+get_adt k = reader (\ (ANFIR.ANFIR adts _ _ _ _ _ _ _) -> Arena.get adts k)
 get_type_synonym :: Type.TypeSynonymKey -> IRReader (Type.TypeSynonym (Maybe Type.Type))
-get_type_synonym k = reader (\ (ANFIR.ANFIR _ type_synonyms _ _ _ _) -> Arena.get type_synonyms k)
+get_type_synonym k = reader (\ (ANFIR.ANFIR _ type_synonyms _ _ _ _ _ _) -> Arena.get type_synonyms k)
 get_type_var :: Type.QuantVarKey -> IRReader Type.QuantVar
-get_type_var k = reader (\ (ANFIR.ANFIR _ _ type_vars _ _ _) -> Arena.get type_vars k)
+get_type_var k = reader (\ (ANFIR.ANFIR _ _ type_vars _ _ _ _ _) -> Arena.get type_vars k)
 
 dump_cu :: ANFIR.ANFIR -> Text
-dump_cu ir@(ANFIR.ANFIR _ _ _ _ _ cu) = PP.render $ runReader (define_cu cu) ir
+dump_cu ir@(ANFIR.ANFIR _ _ _ _ _ _ _ cu) = PP.render $ runReader (define_cu cu) ir
 
 define_cu :: ANFIR.CU -> IRReader PP.Token
-define_cu (ANFIR.CU bindings adts type_synonyms) =
+define_cu (ANFIR.CU bindings adts type_synonyms classes instances) =
     ask >>= \ anfir ->
     mapM (fmap Type.PP.define_adt . get_adt) adts >>= \ adts ->
     mapM (fmap (Type.PP.define_type_synonym (\ ty -> runReader (refer_type ty) anfir)) . get_type_synonym) type_synonyms >>= \ type_synonyms ->

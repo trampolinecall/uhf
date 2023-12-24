@@ -44,7 +44,6 @@ dump_cu ir@(ANFIR.ANFIR _ _ _ _ _ _ _ cu) = PP.render $ runReader (define_cu cu)
 
 define_cu :: ANFIR.CU -> IRReader PP.Token
 define_cu (ANFIR.CU bindings adts type_synonyms classes instances) =
-    -- TODO: do classes and instances properly
     ask >>= \ anfir ->
     mapM (fmap Type.PP.define_adt . get_adt) adts >>= \ adts ->
     mapM (fmap (Type.PP.define_type_synonym (\ ty -> runReader (refer_type ty) anfir)) . get_type_synonym) type_synonyms >>= \ type_synonyms ->

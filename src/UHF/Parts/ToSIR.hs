@@ -114,7 +114,7 @@ convert decls =
             new_module (SIR.Module module_id bindings adts type_synonyms typeclasses instances)
         )
         (Arena.new, Arena.new, Arena.new, Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (mod, (mods, adts, type_synonyms, type_vars, variables, classes, instances)) ->
-    pure (SIR.SIR mods adts type_synonyms type_vars classes instances variables mod)
+    pure (SIR.SIR mods adts type_synonyms classes instances type_vars variables mod)
 
 convert_decls :: ID.VariableParent -> ID.DeclParent -> [AST.Decl] -> MakeIRState ([Binding], [Type.ADTKey], [Type.TypeSynonymKey], [Type.ClassKey], [Type.InstanceKey])
 convert_decls var_parent decl_parent decls =

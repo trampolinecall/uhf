@@ -21,7 +21,7 @@ get_adt_arena = reader (\ (RIR.RIR _ adts _ _ _ _ _ _) -> adts)
 get_type_synonym_arena :: IRReader (Arena.Arena (Type.TypeSynonym (Maybe Type.Type)) Type.TypeSynonymKey)
 get_type_synonym_arena = reader (\ (RIR.RIR _ _ syns _ _ _ _ _) -> syns)
 get_type_var_arena :: IRReader (Arena.Arena Type.QuantVar Type.QuantVarKey)
-get_type_var_arena = reader (\ (RIR.RIR _ _ _ vars _ _ _ _) -> vars)
+get_type_var_arena = reader (\ (RIR.RIR _ _ _ _ _ vars _ _) -> vars)
 
 get_adt :: Type.ADTKey -> IRReader (Type.ADT (Maybe Type.Type))
 get_adt k = reader (\ (RIR.RIR _ adts _ _ _ _ _ _) -> Arena.get adts k)
@@ -30,11 +30,11 @@ get_type_synonym k = reader (\ (RIR.RIR _ _ type_synonyms _ _ _ _ _) -> Arena.ge
 get_var :: RIR.VariableKey -> IRReader RIR.Variable
 get_var k = reader (\ (RIR.RIR _ _ _ _ _ _ vars _) -> Arena.get vars k)
 get_type_var :: Type.QuantVarKey -> IRReader Type.QuantVar
-get_type_var k = reader (\ (RIR.RIR _ _ _ type_vars _ _ _ _) -> Arena.get type_vars k)
+get_type_var k = reader (\ (RIR.RIR _ _ _ _ _ type_vars _ _) -> Arena.get type_vars k)
 get_class :: Type.ClassKey -> IRReader Type.Class
-get_class k = reader (\ (RIR.RIR _ _ _ _ classes _ _ _) -> Arena.get classes k)
+get_class k = reader (\ (RIR.RIR _ _ _ classes _ _ _ _) -> Arena.get classes k)
 get_instance :: Type.InstanceKey -> IRReader (Type.Instance (Maybe Type.ClassKey) (Maybe Type.Type))
-get_instance k = reader (\ (RIR.RIR _ _ _ _ _ instances _ _) -> Arena.get instances k)
+get_instance k = reader (\ (RIR.RIR _ _ _ _ instances _ _ _) -> Arena.get instances k)
 
 dump_main_module :: RIR.RIR -> Text
 dump_main_module ir@(RIR.RIR modules _ _ _ _ _ _ mod) = PP.render $ runReader (define_module $ Arena.get modules mod) ir
@@ -51,10 +51,8 @@ define_module (RIR.Module _ bindings adts type_synonyms classes instances) =
 
 refer_m_type :: Maybe Type.Type -> IRReader PP.Token -- TODO: remove
 refer_m_type (Just ty) =
-    get_adt_arena >>= \ adt_arena ->
-    get_type_synonym_arena >>= \ type_synonym_arena ->
-    get_type_var_arena >>= \ type_var_arena ->
-    pure (Type.PP.refer_type adt_arena type_synonym_arena type_var_arena ty)
+    ask >>= \ (RIR.RIR _ adt_arena type_synonym_arena class_arena _ quant_var_arena _ _) ->
+    pure (Type.PP.refer_type adt_arena type_synonym_arena class_arena quant_var_arena ty)
 refer_m_type Nothing = pure "<type error>"
 
 define_binding :: RIR.Binding -> IRReader PP.Token

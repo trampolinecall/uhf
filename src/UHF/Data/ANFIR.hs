@@ -41,9 +41,9 @@ data ANFIR
     = ANFIR
         (Arena.Arena (Type.ADT (Maybe Type.Type)) ADTKey)
         (Arena.Arena (Type.TypeSynonym (Maybe Type.Type)) TypeSynonymKey)
-        (Arena.Arena Type.QuantVar Type.QuantVarKey)
         (Arena.Arena (Type.Class) ClassKey)
         (Arena.Arena (Type.Instance (Maybe ClassKey) (Maybe Type.Type)) InstanceKey)
+        (Arena.Arena Type.QuantVar Type.QuantVarKey)
         (Arena.Arena Binding BindingKey)
         (Arena.Arena Param ParamKey)
         CU

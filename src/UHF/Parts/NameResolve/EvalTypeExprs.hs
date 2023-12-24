@@ -84,7 +84,7 @@ eval sir_child_maps sir =
     in put_back sir_child_maps type_expr_arena sir'
 -- extract {{{1
 extract :: (SIR.SIR Unevaled) -> ((SIR.SIR Extracted), Arena.Arena TypeExpr TypeExprKey)
-extract (SIR.SIR mods adts type_synonyms quant_vars classes instances variables mod) =
+extract (SIR.SIR mods adts type_synonyms classes instances quant_vars variables mod) =
     let ((mods', adts', type_synonyms', classes', instances'), d_iden_arena) =
             runState
                 ( do
@@ -96,7 +96,7 @@ extract (SIR.SIR mods adts type_synonyms quant_vars classes instances variables 
                     pure (mods, adts, type_synonyms, classes, instances)
                 )
                 Arena.new
-    in (SIR.SIR mods' adts' type_synonyms' quant_vars classes' instances' (Arena.transform change_variable variables) mod, d_iden_arena)
+    in (SIR.SIR mods' adts' type_synonyms' classes' instances' quant_vars (Arena.transform change_variable variables) mod, d_iden_arena)
     where
         change_variable (SIR.Variable varid tyinfo n) = SIR.Variable varid tyinfo n
 
@@ -228,7 +228,7 @@ extract_in_split_iden (SIR.SplitIdentifier'Get texpr next) = extract_in_type_exp
 extract_in_split_iden (SIR.SplitIdentifier'Single start) = pure (SIR.SplitIdentifier'Single start)
 -- put back {{{1
 put_back :: NameMaps.SIRChildMaps -> Arena.Arena TypeExpr TypeExprKey -> SIR.SIR Extracted  -> Error.WithErrors (SIR.SIR Evaled, TypeSolver.SolverState)
-put_back sir_child_maps type_expr_arena (SIR.SIR mods adts type_synonyms quant_vars classes instances variables mod) =
+put_back sir_child_maps type_expr_arena (SIR.SIR mods adts type_synonyms classes instances quant_vars variables mod) =
     runReaderT (
         evalStateT (
             TypeSolver.run_solve_monad (
@@ -238,7 +238,7 @@ put_back sir_child_maps type_expr_arena (SIR.SIR mods adts type_synonyms quant_v
                 put_back_in_type_synonyms type_synonyms >>= \ synonyms ->
                 Arena.transformM put_back_in_class classes >>= \ classes ->
                 Arena.transformM put_back_in_instance instances >>= \ instances ->
-                pure (SIR.SIR mods adts synonyms quant_vars classes instances (Arena.transform change_variable variables) mod)
+                pure (SIR.SIR mods adts synonyms classes instances quant_vars (Arena.transform change_variable variables) mod)
             )
         ) (Arena.transform (,Nothing) type_expr_arena)
     ) (adts, type_synonyms, quant_vars, sir_child_maps)

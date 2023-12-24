@@ -81,9 +81,9 @@ add ::
     UntypedModuleArena
     -> UntypedADTArena
     -> UntypedTypeSynonymArena
-    -> QuantVarArena
     -> UntypedClassArena
     -> UntypedInstanceArena
+    -> QuantVarArena
     -> UntypedVariableArena
     -> WriterT
         [TypeSolver.Constraint]
@@ -95,7 +95,7 @@ add ::
         , TypedWithInferVarsInstanceArena
         , TypedWithInferVarsVariableArena
         )
-add mods adts type_synonyms quant_vars classes instances variables =
+add mods adts type_synonyms classes instances quant_vars variables =
     runReaderT (
         (,)
             <$> Arena.transformM type_synonym type_synonyms

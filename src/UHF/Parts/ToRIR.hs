@@ -34,14 +34,14 @@ new_made_up_expr_id make =
     pure (make id)
 
 convert :: SIR.SIR LastSIR -> Compiler.WithDiagnostics (PatternCheck.CompletenessError LastSIR) (PatternCheck.NotUseful LastSIR) RIR.RIR
-convert (SIR.SIR modules adts type_synonyms quant_vars classes instances vars mod) = do
+convert (SIR.SIR modules adts type_synonyms classes instances quant_vars vars mod) = do
     let adts_converted = Arena.transform convert_adt adts
     let type_synonyms_converted = Arena.transform convert_type_synonym type_synonyms
     let classes_converted = Arena.transform convert_class classes
     let instances_converted = Arena.transform convert_instance instances
     let vars_converted = Arena.transform (\ (SIR.Variable id ty (Located sp _)) -> RIR.Variable id ty sp) vars
     (modules, vars_with_new) <- IDGen.run_id_gen_t ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.VariableID'RIRMadeUp $ runStateT (runReaderT (Arena.transformM convert_module modules) (adts_converted, type_synonyms_converted)) vars_converted
-    pure (RIR.RIR modules adts_converted type_synonyms_converted quant_vars classes_converted instances_converted vars_with_new mod)
+    pure (RIR.RIR modules adts_converted type_synonyms_converted classes_converted instances_converted quant_vars vars_with_new mod)
 
 convert_module :: SIR.Module LastSIR -> ConvertState RIR.Module
 convert_module (SIR.Module id bindings adts type_synonyms classes instances) = do

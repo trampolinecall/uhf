@@ -6,11 +6,11 @@ import qualified UHF.Util.Arena as Arena
 import qualified UHF.Data.ANFIR as ANFIR
 
 iterate_over_bindings :: Monad m => (ANFIR.Binding -> m ANFIR.Binding) -> ANFIR.ANFIR -> m ANFIR.ANFIR
-iterate_over_bindings change (ANFIR.ANFIR adts type_synonyms vars bindings params cu) =
+iterate_over_bindings change (ANFIR.ANFIR adts type_synonyms vars classes instances bindings params cu) =
     runStateT (do_cu cu) bindings >>= \ ((), bindings) ->
-    pure (ANFIR.ANFIR adts type_synonyms vars bindings params cu)
+    pure (ANFIR.ANFIR adts type_synonyms vars classes instances bindings params cu)
     where
-        do_cu (ANFIR.CU group _ _) = do_group group
+        do_cu (ANFIR.CU group _ _ _ _) = do_group group
 
         do_group (ANFIR.BindingGroup chunks) = mapM_ do_chunk chunks
 

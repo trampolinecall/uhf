@@ -42,12 +42,14 @@ data ANFIR
         (Arena.Arena (Type.ADT (Maybe Type.Type)) ADTKey)
         (Arena.Arena (Type.TypeSynonym (Maybe Type.Type)) TypeSynonymKey)
         (Arena.Arena Type.QuantVar Type.QuantVarKey)
+        (Arena.Arena (Type.Class) ClassKey)
+        (Arena.Arena (Type.Instance (Maybe ClassKey) (Maybe Type.Type)) InstanceKey)
         (Arena.Arena Binding BindingKey)
         (Arena.Arena Param ParamKey)
         CU
 
 -- "compilation unit"
-data CU = CU BindingGroup [ADTKey] [TypeSynonymKey]
+data CU = CU BindingGroup [ADTKey] [TypeSynonymKey] [ClassKey] [InstanceKey]
 
 data Param = Param ID.VariableID (Maybe Type.Type) deriving Show
 

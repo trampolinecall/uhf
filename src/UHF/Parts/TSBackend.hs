@@ -163,7 +163,8 @@ refer_type :: Type.Type -> IRReader TS.Type
 refer_type = refer_type_raw -- may not always be the case
 -- lowering {{{1
 lower :: BackendIR -> Text
-lower (BackendIR.BackendIR adts type_synonyms type_vars bindings params cu) =
+lower (BackendIR.BackendIR adts type_synonyms type_vars classes instances bindings params cu) =
+    -- TODO: deal with classes and instances properly
     runReader
         (
             runWriterT (
@@ -189,7 +190,8 @@ lower (BackendIR.BackendIR adts type_synonyms type_vars bindings params cu) =
         (adts, type_synonyms, bindings, params)
 
 define_cu :: CU -> TSWriter ()
-define_cu (BackendIR.CU global_group adts _) =
+define_cu (BackendIR.CU global_group adts _ _ _) =
+    -- TODO: deal with classes and instances properly
     mapM_ (tell_adt . TSADT) adts >>
     lift (lower_binding_group global_group) >>= \ global_init_stmts ->
     mapM_ tell_global_stmt global_init_stmts >>

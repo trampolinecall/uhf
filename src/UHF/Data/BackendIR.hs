@@ -36,17 +36,20 @@ import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Util.Arena as Arena
 
+-- TODO: allow Maybe ClassKey to become just ClassKey
 data BackendIR ty poison_allowed
     = BackendIR
         (Arena.Arena (Type.ADT ty) ADTKey)
         (Arena.Arena (Type.TypeSynonym ty) TypeSynonymKey)
         (Arena.Arena Type.QuantVar Type.QuantVarKey)
+        (Arena.Arena (Type.Class) ClassKey)
+        (Arena.Arena (Type.Instance (Maybe ClassKey) ty) InstanceKey)
         (Arena.Arena (Binding ty poison_allowed) BindingKey)
         (Arena.Arena (Param ty) ParamKey)
         CU
 
 -- "compilation unit"
-data CU = CU BindingGroup [ADTKey] [TypeSynonymKey]
+data CU = CU BindingGroup [ADTKey] [TypeSynonymKey] [ClassKey] [InstanceKey]
 
 data Param ty = Param ID.VariableID ty deriving Show
 

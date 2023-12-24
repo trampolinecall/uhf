@@ -44,10 +44,10 @@ type_synonym :: (SIR.TypeInfo stage ~ Maybe Type.Type, SIR.TypeExprEvaledAsType 
 type_synonym key = ask >>= \ (SIR.SIR _ _ type_synonyms _ _ _ _ _) -> let (Type.TypeSynonym _ _ (expansion, _)) = Arena.get type_synonyms key in type_expr expansion
 
 class_ :: (SIR.TypeInfo stage ~ Maybe Type.Type, SIR.TypeExprEvaledAsType stage ~ Maybe Type.Type) => Type.ClassKey -> ReaderT (SIR.SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
-class_ key = ask >>= \ (SIR.SIR _ _ _ _ _ classes _ _) -> let (Type.Class _ _ _) = Arena.get classes key in pure ()
+class_ key = ask >>= \ (SIR.SIR _ _ _ _ classes _ _ _) -> let (Type.Class _ _ _) = Arena.get classes key in pure ()
 
 instance_ :: (SIR.TypeInfo stage ~ Maybe Type.Type, SIR.TypeExprEvaledAsType stage ~ Maybe Type.Type) => Type.InstanceKey -> ReaderT (SIR.SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
-instance_ key = ask >>= \ (SIR.SIR _ _ _ _ _ _ instances _) -> let (Type.Instance _ (class_, _) args) = Arena.get instances key in type_expr class_ >> mapM_ (type_expr . fst) args
+instance_ key = ask >>= \ (SIR.SIR _ _ _ _ _ instances _ _) -> let (Type.Instance _ (class_, _) args) = Arena.get instances key in type_expr class_ >> mapM_ (type_expr . fst) args
 
 binding :: (SIR.TypeInfo stage ~ Maybe Type.Type, SIR.TypeExprEvaledAsType stage ~ Maybe Type.Type) => SIR.Binding stage -> ReaderT (SIR.SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
 binding (SIR.Binding p _ e) = pattern p >> expr e

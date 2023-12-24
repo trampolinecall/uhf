@@ -37,13 +37,13 @@ type ResolvedTypeSynonymArena = Arena.Arena (SIR.TypeSynonym Resolved) Type.Type
 
 -- resolve entry point {{{1
 resolve :: SIR.SIR Unresolved -> Error.WithErrors (SIR.SIR Resolved)
-resolve (SIR.SIR mods adts type_synonyms type_vars variables classes instances mod) =
+resolve (SIR.SIR mods adts type_synonyms type_vars classes instances variables mod) =
     resolve_in_mods mods >>= \ (mods) ->
     resolve_in_adts adts >>= \ adts ->
     resolve_in_type_synonyms type_synonyms >>= \ synonyms ->
     Arena.transformM resolve_in_class classes >>= \ classes ->
     Arena.transformM resolve_in_instance instances >>= \ instances ->
-    pure (SIR.SIR mods adts synonyms type_vars (Arena.transform change_variable variables) classes instances mod)
+    pure (SIR.SIR mods adts synonyms type_vars classes instances (Arena.transform change_variable variables) mod)
     where
         change_variable (SIR.Variable varid tyinfo n) = SIR.Variable varid tyinfo n
 

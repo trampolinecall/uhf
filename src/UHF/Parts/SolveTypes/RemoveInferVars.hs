@@ -16,10 +16,10 @@ import qualified UHF.Util.Arena as Arena
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Control.Monad.Fix (mfix)
 
-remove :: TypeSolver.InferVarArena -> TypedWithInferVarsModuleArena -> TypedWithInferVarsADTArena -> TypedWithInferVarsTypeSynonymArena -> TypedWithInferVarsVariableArena -> TypedWithInferVarsClassArena -> TypedWithInferVarsInstanceArena -> Compiler.WithDiagnostics Error Void (TypedModuleArena, TypedADTArena, TypedTypeSynonymArena, TypedVariableArena, TypedClassArena, TypedInstanceArena)
-remove infer_vars mods adts type_synonyms vars classes instances =
+remove :: TypeSolver.InferVarArena -> TypedWithInferVarsModuleArena -> TypedWithInferVarsADTArena -> TypedWithInferVarsTypeSynonymArena -> TypedWithInferVarsClassArena -> TypedWithInferVarsInstanceArena -> TypedWithInferVarsVariableArena -> Compiler.WithDiagnostics Error Void (TypedModuleArena, TypedADTArena, TypedTypeSynonymArena, TypedClassArena, TypedInstanceArena, TypedVariableArena)
+remove infer_vars mods adts type_synonyms classes instances vars =
     convert_vars infer_vars >>= \ infer_vars ->
-    pure (Arena.transform (module_ infer_vars) mods, Arena.transform (adt infer_vars) adts, Arena.transform (type_synonym infer_vars) type_synonyms, Arena.transform (variable infer_vars) vars, Arena.transform (class_ infer_vars) classes, Arena.transform (instance_ infer_vars) instances)
+    pure (Arena.transform (module_ infer_vars) mods, Arena.transform (adt infer_vars) adts, Arena.transform (type_synonym infer_vars) type_synonyms, Arena.transform (class_ infer_vars) classes, Arena.transform (instance_ infer_vars) instances, Arena.transform (variable infer_vars) vars)
 
 convert_vars :: TypeSolver.InferVarArena -> Compiler.WithDiagnostics Error Void (Arena.Arena (Maybe Type) TypeSolver.InferVarKey)
 convert_vars infer_vars =

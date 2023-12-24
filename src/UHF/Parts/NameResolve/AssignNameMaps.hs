@@ -73,13 +73,33 @@ assign_in_type_synonyms :: Map.Map Type.TypeSynonymKey NameMaps.NameMapStack -> 
 assign_in_type_synonyms synonym_parent_name_maps = Arena.transform_with_keyM (assign_in_type_synonym synonym_parent_name_maps)
 
 assign_in_class :: Map.Map Type.ClassKey NameMaps.NameMapStack -> Type.ClassKey -> SIR.Class Unassigned -> (NRReader.NRReader adt_arena var_arena type_var_arena NameMaps.SIRChildMaps Error.WithErrors) (SIR.Class Assigned)
-assign_in_class class_parents class_key (Type.Class id name type_vars) = pure $ Type.Class id name type_vars
+assign_in_class class_parents class_key (Type.Class id name type_vars) =
+    {- TODO: add this when subdecls are implemented (this was directly copied and pasted from the code for adt, so it probably needs modification to work, but the idea is here)
+    mapM
+        (\ var ->
+            NRReader.ask_quant_var_arena >>= \ quant_var_arena ->
+            let (Type.QuantVar (Located name_sp name)) = Arena.get quant_var_arena var
+            in pure (name, DeclAt.DeclAt name_sp, SIR.Decl'Type $ TypeSolver.Type'QuantVar var))
+        type_vars >>= \ type_vars' ->
+    lift (NameMaps.make_name_maps type_vars' [] []) >>= \ new_nc ->
+    -}
+    pure $ Type.Class id name type_vars
 
 assign_in_instance :: Map.Map Type.InstanceKey NameMaps.NameMapStack -> Type.InstanceKey -> SIR.Instance Unassigned -> (NRReader.NRReader adt_arena var_arena QuantVarArena NameMaps.SIRChildMaps Error.WithErrors) (SIR.Instance Assigned)
 assign_in_instance instance_parents instance_key (Type.Instance quant_vars (class_type_expr, class_assigned) args) = do
     let parent = instance_parents Map.! instance_key
-    class_type_expr <- assign_in_type_expr parent class_type_expr
-    args <- mapM (\ (arg, ()) -> (,()) <$> assign_in_type_expr parent arg) args
+
+    quant_vars' <- mapM
+        (\ var ->
+            NRReader.ask_quant_var_arena >>= \ quant_var_arena ->
+            let (Type.QuantVar (Located name_sp name)) = Arena.get quant_var_arena var
+            in pure (name, DeclAt.DeclAt name_sp, SIR.Decl'Type $ TypeSolver.Type'QuantVar var))
+        quant_vars
+    new_nc <- lift (NameMaps.make_name_maps quant_vars' [] [])
+    let new_nc_stack = NameMaps.NameMapStack new_nc (Just parent)
+
+    class_type_expr <- assign_in_type_expr new_nc_stack class_type_expr
+    args <- mapM (\ (arg, ()) -> (,()) <$> assign_in_type_expr new_nc_stack arg) args
     pure (Type.Instance quant_vars (class_type_expr, class_assigned) args)
 
 assign_in_module :: SIR.ModuleKey -> SIR.Module Unassigned -> WriterT (Map Type.InstanceKey NameMaps.NameMapStack) (WriterT (Map Type.ClassKey NameMaps.NameMapStack) ((WriterT (Map Type.ADTKey NameMaps.NameMapStack) (WriterT (Map Type.TypeSynonymKey NameMaps.NameMapStack) (NRReader.NRReader UnassignedADTArena UnassignedVariableArena QuantVarArena NameMaps.SIRChildMaps Error.WithErrors))))) (SIR.Module Assigned)

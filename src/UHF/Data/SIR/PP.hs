@@ -95,10 +95,8 @@ class DumpableType stage ty where
 
 instance DumpableType stage TypeSolver.Type where
     refer_type t = do
-        adt_arena <- get_adt_arena
-        type_synonym_arena <- get_type_synonym_arena
-        quant_var_arena <- get_quant_var_arena
-        pure (fst $ TypeSolver.run_infer_var_namer $ TypeSolver.pp_type False adt_arena type_synonym_arena quant_var_arena todo t) -- TODO
+        SIR.SIR _ adt_arena type_synonym_arena class_arena _ quant_var_arena _ _ <- ask
+        pure (fst $ TypeSolver.run_infer_var_namer $ TypeSolver.pp_type False adt_arena type_synonym_arena class_arena quant_var_arena todo t) -- TODO
 instance DumpableType stage Type.Type where
     refer_type t = do
         (SIR.SIR _ adt_arena type_synonym_arena class_arena _ quant_var_arena _ _) <- ask

@@ -52,8 +52,8 @@ name_infer_var var = state $
         to_characters n = chr $ 65 + n
     -}
 
-pp_type :: Bool -> Arena.Arena (Type.ADT a) Type.ADTKey -> Arena.Arena (Type.TypeSynonym b) Type.TypeSynonymKey -> Arena.Arena Type.QuantVar Type.QuantVarKey -> InferVarArena -> Type -> InferVarNamer PP.Token -- TODO: put the arenas and things into a reader monad inside InferVarNamer?
-pp_type name_infer_vars adts type_synonyms vars infer_vars = go
+pp_type :: Bool -> Arena.Arena (Type.ADT a) Type.ADTKey -> Arena.Arena (Type.TypeSynonym b) Type.TypeSynonymKey -> Arena.Arena Type.Class Type.ClassKey -> Arena.Arena Type.QuantVar Type.QuantVarKey -> InferVarArena -> Type -> InferVarNamer PP.Token -- TODO: put the arenas and things into a reader monad inside InferVarNamer?
+pp_type name_infer_vars adts type_synonyms classes vars infer_vars = go
     where
         -- TODO: it is a bit inelegant to duplicate this with IR.Type.Type because then the pretty printing code (and a lot of the other code) is duplicated and you have remember to change it in both places
         go (Type'ADT k params) =
@@ -88,6 +88,12 @@ pp_type name_infer_vars adts type_synonyms vars infer_vars = go
         go (Type'Forall new_vars ty) = do
             ty <- go ty
             pure $ PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent (map (\ vk -> let (Type.QuantVar (Located _ name)) = Arena.get vars vk in PP.String name) (toList new_vars)), " ", ty]
+        go (Type'Class k applied) = do
+            applied <- mapM go applied
+            let applied'
+                    | null applied = PP.String ""
+                    | otherwise = PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent applied]
+            pure $ PP.List [Type.PP.refer_class (Arena.get classes k), applied']
         -- TODO: do kinds correctly
         go Type'Kind'Type = pure $ PP.String "*" -- TODO: this does not seem right
         go (Type'Kind'Arrow a b) = do
@@ -95,3 +101,4 @@ pp_type name_infer_vars adts type_synonyms vars infer_vars = go
             b <- go b
             pure (PP.List [a, PP.String " -># ", b]) -- TODO: precedence
         go Type'Kind'Kind = pure $ PP.String "<kind>" -- TODO: this is most definitely not correct
+        go Type'Kind'Constraint = pure $ PP.String "constraint" -- TODO: this is probably not right

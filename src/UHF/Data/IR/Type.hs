@@ -72,7 +72,7 @@ type_kind adt_arena type_synonym_arena class_arena quant_var_arena = go
             Type'Kind'Type -> Type'Kind'Kind
             Type'Kind'Arrow _ _ -> Type'Kind'Kind
             Type'Kind'Kind -> Type'Kind'Kind
-            Type'Kind'Constraint -> Type'Kind'Constraint
+            Type'Kind'Constraint -> Type'Kind'Kind
 
         quant_var_kind :: QuantVarKey -> Type
         quant_var_kind qvk = Type'Kind'Type -- TODO: quant vars with different kinds

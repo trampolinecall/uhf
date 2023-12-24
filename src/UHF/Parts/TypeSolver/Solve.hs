@@ -23,27 +23,27 @@ import qualified UHF.Parts.TypeSolver.SolveMonad as SolveMonad
 import qualified UHF.Util.Arena as Arena
 
 -- e_t for error type - the type of the type expressions in the things that will be passed to error messages
-type TypeContextReader e_t t under = ReaderT (Arena.Arena (Type.ADT e_t) Type.ADTKey, Arena.Arena (Type.TypeSynonym e_t) Type.TypeSynonymKey, Type.TypeSynonymKey -> SolveMonad.SolveMonad under (Type.TypeSynonym (t, Type)), Arena.Arena Type.QuantVar Type.QuantVarKey) (SolveMonad.SolveMonad under)
+type TypeContextReader e_t t under = ReaderT (Arena.Arena (Type.ADT e_t) Type.ADTKey, Arena.Arena (Type.TypeSynonym e_t) Type.TypeSynonymKey, Type.TypeSynonymKey -> SolveMonad.SolveMonad under (Type.TypeSynonym (t, Type)), Arena.Arena Type.Class Type.ClassKey, Arena.Arena Type.QuantVar Type.QuantVarKey) (SolveMonad.SolveMonad under)
 
 -- TODO: figure out a better interface for pushing onto the backlog
 
 -- TODO: figure out a better way to put this
-apply_type :: Monad under => Arena.Arena (Type.ADT e_t) Type.ADTKey -> Arena.Arena (Type.TypeSynonym e_t) Type.TypeSynonymKey -> (Type.TypeSynonymKey -> SolveMonad.SolveMonad under (Type.TypeSynonym (t, Type))) -> Arena.Arena Type.QuantVar Type.QuantVarKey -> InferVarForWhat -> Span -> Type -> Type -> SolveMonad.SolveMonad under (Maybe (Either (SolveError e_t) ()), Type)
-apply_type adts type_synonyms get_type_synonym quant_vars for_what sp ty arg = do
+apply_type :: Monad under => Arena.Arena (Type.ADT e_t) Type.ADTKey -> Arena.Arena (Type.TypeSynonym e_t) Type.TypeSynonymKey -> (Type.TypeSynonymKey -> SolveMonad.SolveMonad under (Type.TypeSynonym (t, Type))) -> Arena.Arena Type.Class Type.ClassKey -> Arena.Arena Type.QuantVar Type.QuantVarKey -> InferVarForWhat -> Span -> Type -> Type -> SolveMonad.SolveMonad under (Maybe (Either (SolveError e_t) ()), Type)
+apply_type adts type_synonyms get_type_synonym classes quant_vars for_what sp ty arg = do
     result_ifv <- SolveMonad.new_infer_var for_what
     let constraint = InferVarIsApplyResult sp result_ifv ty arg
-    result <- solve_constraint adts type_synonyms get_type_synonym quant_vars constraint
+    result <- solve_constraint adts type_synonyms get_type_synonym classes quant_vars constraint
     case result of
         Nothing -> SolveMonad.push_backlog constraint
         Just _ -> pure ()
     pure (result, Type'InferVar result_ifv)
 
 -- TODO: figure out a better place in this module to put these 2 functions
-solve_constraint :: forall e_t under t. Monad under => Arena.Arena (Type.ADT e_t) Type.ADTKey -> Arena.Arena (Type.TypeSynonym e_t) Type.TypeSynonymKey -> (Type.TypeSynonymKey -> SolveMonad.SolveMonad under (Type.TypeSynonym (t, Type))) -> Arena.Arena Type.QuantVar Type.QuantVarKey -> Constraint -> SolveMonad.SolveMonad under (Maybe (Either (SolveError e_t) ()))
-solve_constraint adts type_synonyms get_type_synonym quant_vars constraint = solve adts type_synonyms get_type_synonym quant_vars constraint
+solve_constraint :: forall e_t under t. Monad under => Arena.Arena (Type.ADT e_t) Type.ADTKey -> Arena.Arena (Type.TypeSynonym e_t) Type.TypeSynonymKey -> (Type.TypeSynonymKey -> SolveMonad.SolveMonad under (Type.TypeSynonym (t, Type))) -> Arena.Arena Type.Class Type.ClassKey -> Arena.Arena Type.QuantVar Type.QuantVarKey -> Constraint -> SolveMonad.SolveMonad under (Maybe (Either (SolveError e_t) ()))
+solve_constraint adts type_synonyms get_type_synonym classes quant_vars constraint = solve adts type_synonyms get_type_synonym classes quant_vars constraint
 
-solve_constraint_backlog :: Monad under => Arena.Arena (Type.ADT e_t) Type.ADTKey -> Arena.Arena (Type.TypeSynonym e_t) Type.TypeSynonymKey -> (Type.TypeSynonymKey -> SolveMonad.SolveMonad under (Type.TypeSynonym (t, Type))) -> Arena.Arena Type.QuantVar Type.QuantVarKey -> SolveMonad.SolveMonad under ([SolveError e_t], Bool)
-solve_constraint_backlog adts type_synonyms get_type_synonym quant_vars = do
+solve_constraint_backlog :: Monad under => Arena.Arena (Type.ADT e_t) Type.ADTKey -> Arena.Arena (Type.TypeSynonym e_t) Type.TypeSynonymKey -> (Type.TypeSynonymKey -> SolveMonad.SolveMonad under (Type.TypeSynonym (t, Type))) -> Arena.Arena Type.Class Type.ClassKey -> Arena.Arena Type.QuantVar Type.QuantVarKey -> SolveMonad.SolveMonad under ([SolveError e_t], Bool)
+solve_constraint_backlog adts type_synonyms get_type_synonym classes quant_vars = do
     backlog <- SolveMonad.take_backlog
     (new_backlog, errors) <- runWriterT $ go backlog
     SolveMonad.put_backlog new_backlog
@@ -53,7 +53,7 @@ solve_constraint_backlog adts type_synonyms get_type_synonym quant_vars = do
             next <- constraints
                 -- try to solve each constraint and save each one that couldn't be solved in this round
                 & mapM (\ constraint ->
-                    lift (solve adts type_synonyms get_type_synonym quant_vars constraint) >>= \case
+                    lift (solve adts type_synonyms get_type_synonym classes quant_vars constraint) >>= \case
                         Just (Right ()) -> pure Nothing
                         Just (Left err) -> do
                             tell [err]
@@ -71,8 +71,8 @@ solve_constraint_backlog adts type_synonyms get_type_synonym quant_vars = do
 get_error_type_context :: Monad under => TypeContextReader e_t t under (ErrorTypeContext e_t)
 get_error_type_context =
     lift SolveMonad.get_infer_vars >>= \ infer_vars ->
-    ask >>= \ (adts, type_synonyms, _, vars) ->
-    pure (ErrorTypeContext adts type_synonyms vars infer_vars)
+    ask >>= \ (adts, type_synonyms, _, classes, vars) ->
+    pure (ErrorTypeContext adts type_synonyms classes vars infer_vars)
 
 data UnifyError
     = Mismatch Type Type
@@ -86,8 +86,8 @@ generate_var_sub = StateT $ \ cur_var@(VarSub cur_num) -> pure (cur_var, VarSub 
 run_var_sub_generator :: Monad m => VarSubGenerator m r -> m r
 run_var_sub_generator s = evalStateT s (VarSub 0)
 
-solve :: Monad under => Arena.Arena (Type.ADT e_t) Type.ADTKey -> Arena.Arena (Type.TypeSynonym e_t) Type.TypeSynonymKey -> (Type.TypeSynonymKey -> SolveMonad.SolveMonad under (Type.TypeSynonym (t, Type))) -> Arena.Arena Type.QuantVar Type.QuantVarKey -> Constraint -> SolveMonad.SolveMonad under (Maybe (Either (SolveError e_t) ()))
-solve adts type_synonyms get_type_synonym vars constraints = runReaderT (solve' constraints) (adts, type_synonyms, get_type_synonym, vars)
+solve :: Monad under => Arena.Arena (Type.ADT e_t) Type.ADTKey -> Arena.Arena (Type.TypeSynonym e_t) Type.TypeSynonymKey -> (Type.TypeSynonymKey -> SolveMonad.SolveMonad under (Type.TypeSynonym (t, Type))) -> Arena.Arena Type.Class Type.ClassKey -> Arena.Arena Type.QuantVar Type.QuantVarKey -> Constraint -> SolveMonad.SolveMonad under (Maybe (Either (SolveError e_t) ()))
+solve adts type_synonyms get_type_synonym classes vars constraints = runReaderT (solve' constraints) (adts, type_synonyms, get_type_synonym, classes, vars)
 
 -- TODO: figure out how to gracefully handle errors because the infer vars become ambiguous if they cant be unified
 solve' :: Monad under => Constraint -> TypeContextReader e_t t under (Maybe (Either (SolveError e_t) ()))
@@ -138,7 +138,7 @@ apply_ty sp (Type'InferVar infer_var) arg =
         InferVar _ (Substituted sub) -> apply_ty sp sub arg
         InferVar _ Fresh -> pure Nothing
 apply_ty sp ty@(Type'ADT adt params_already_applied) arg = do
-    (adts, _, _, _) <- ask
+    (adts, _, _, _, _) <- ask
     let (Type.ADT _ _ type_params _) = Arena.get adts adt
     if length params_already_applied < length type_params -- TODO: check kind of arg when higher kinds are implemented
           then pure $ Just $ Right $ Type'ADT adt (params_already_applied <> [arg])
@@ -159,10 +159,17 @@ apply_ty _ (Type'Forall (first_var :| more_vars) ty) arg =
             Just . Right <$> lift (substitute_quant_var first_var arg ty)
         more_1:more_more ->
             Just . Right . Type'Forall (more_1 :| more_more) <$> lift (substitute_quant_var first_var arg ty)
+apply_ty sp ty@(Type'Class class_ params_already_applied) arg = do
+    (_, _, _, classes, _) <- ask
+    let (Type.Class _ _ type_params) = Arena.get classes class_
+    if length params_already_applied < length type_params -- TODO: check kind of arg when higher kinds are implemented
+          then pure $ Just $ Right $ Type'Class class_ (params_already_applied <> [arg])
+          else Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty))
 
 apply_ty sp ty@(Type'Kind'Type) _ = Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty))
 apply_ty sp ty@(Type'Kind'Arrow _ _) _ = Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty))
 apply_ty sp ty@(Type'Kind'Kind) _ = Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty))
+apply_ty sp ty@(Type'Kind'Constraint) _ = Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty))
 
 unify :: Monad under => (Type, VarSubMap) -> (Type, VarSubMap) -> ExceptT UnifyError (VarSubGenerator (TypeContextReader e_t t under)) ()
 unify (Type'InferVar a, a_var_map) b = unify_infer_var (a, a_var_map) b False
@@ -176,12 +183,12 @@ unify (Type'ADT a_adt_key a_params, a_var_map) (Type'ADT b_adt_key b_params, b_v
             (zip a_params b_params)
 
 unify (Type'Synonym a_syn_key, a_var_map) b =
-    lift (lift ask) >>= \ (_, _, get_type_synonym, _) ->
+    lift (lift ask) >>= \ (_, _, get_type_synonym, _, _) ->
     lift (lift $ lift $ get_type_synonym a_syn_key) >>= \ (Type.TypeSynonym _ _ (_, a_expansion)) ->
     unify (a_expansion, a_var_map) b
 
 unify a (Type'Synonym b_syn_key, b_var_map) =
-    lift (lift ask) >>= \ (_, _, get_type_synonym, _) ->
+    lift (lift ask) >>= \ (_, _, get_type_synonym, _, _) ->
     lift (lift $ lift $ get_type_synonym b_syn_key) >>= \ (Type.TypeSynonym _ _ (_, b_expansion)) ->
     unify a (b_expansion, b_var_map)
 
@@ -272,7 +279,7 @@ occurs_check u (Type'ADT _ params) = or <$> mapM (occurs_check u) params
 
 occurs_check u (Type'Synonym syn_key) =
     -- TODO: reconsider if this is correct
-    ask >>= \ (_, _, get_type_synonym, _) ->
+    ask >>= \ (_, _, get_type_synonym, _, _) ->
     lift (get_type_synonym syn_key) >>= \ (Type.TypeSynonym _ _ (_, other_expansion)) ->
     occurs_check u other_expansion
 
@@ -285,6 +292,8 @@ occurs_check u (Type'Function a r) = (||) <$> occurs_check u a <*> occurs_check 
 occurs_check u (Type'Tuple a b) = (||) <$> occurs_check u a <*> occurs_check u b
 occurs_check _ (Type'QuantVar _) = pure False
 occurs_check u (Type'Forall _ ty) = occurs_check u ty
+occurs_check u (Type'Class _ params) = or <$> mapM (occurs_check u) params
 occurs_check _ (Type'Kind'Type) = pure False
 occurs_check u (Type'Kind'Arrow a b) = (||) <$> occurs_check u a <*> occurs_check u b
 occurs_check _ (Type'Kind'Kind) = pure False
+occurs_check _ (Type'Kind'Constraint) = pure False

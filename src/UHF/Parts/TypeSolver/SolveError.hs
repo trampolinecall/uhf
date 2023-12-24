@@ -19,6 +19,7 @@ data ErrorTypeContext t
     = ErrorTypeContext
         (Arena.Arena (Type.ADT t) Type.ADTKey)
         (Arena.Arena (Type.TypeSynonym t) Type.TypeSynonymKey)
+        (Arena.Arena Type.Class Type.ClassKey)
         (Arena.Arena Type.QuantVar Type.QuantVarKey)
         InferVarArena
 data SolveError t
@@ -45,7 +46,7 @@ data SolveError t
     | WrongTypeArgument (ErrorTypeContext t) Span Type Type
 
 instance Diagnostic.ToError (SolveError t) where
-    to_error (EqError context@(ErrorTypeContext _ _ _ infer_vars) in_what span a_whole b_whole a_part b_part) =
+    to_error (EqError context@(ErrorTypeContext _ _ _ _ infer_vars) in_what span a_whole b_whole a_part b_part) =
         let what = case in_what of
                 InAssignment -> "assignment"
                 InNamedPattern -> "named pattern"
@@ -68,7 +69,7 @@ instance Diagnostic.ToError (SolveError t) where
                 : make_infer_var_name_messages infer_vars var_names)
             []
 
-    to_error (ExpectError context@(ErrorTypeContext _ _ _ infer_vars) in_what got_whole expect_whole got_part expect_part) =
+    to_error (ExpectError context@(ErrorTypeContext _ _ _ _ infer_vars) in_what got_whole expect_whole got_part expect_part) =
         let what = case in_what of
                 InTypeAnnotation -> "type annotation"
                 InIfCondition -> "'if' condition"
@@ -93,7 +94,7 @@ instance Diagnostic.ToError (SolveError t) where
             ((sp `Diagnostic.msg_error_at` convert_str ("expected '" <> expect_whole_printed <> "', got '" <> got_whole_printed <> "'")) : make_infer_var_name_messages infer_vars var_names)
             []
 
-    to_error (OccursCheckError context@(ErrorTypeContext _ _ _ infer_vars) span var_key ty) =
+    to_error (OccursCheckError context@(ErrorTypeContext _ _ _ _ infer_vars) span var_key ty) =
         let var_as_type = Type'InferVar var_key
 
             ((ty_printed, var_printed), var_names) =
@@ -107,7 +108,7 @@ instance Diagnostic.ToError (SolveError t) where
             (make_infer_var_name_messages infer_vars var_names)
             []
 
-    to_error (DoesNotTakeTypeArgument context@(ErrorTypeContext _ _ _ infer_vars) sp ty) =
+    to_error (DoesNotTakeTypeArgument context@(ErrorTypeContext _ _ _ _ infer_vars) sp ty) =
         let (ty_printed, var_names) =
                 run_infer_var_namer $
                     pp_type_with_error_context False context ty >>= \ ty_printed ->
@@ -119,7 +120,7 @@ instance Diagnostic.ToError (SolveError t) where
             (make_infer_var_name_messages infer_vars var_names)
             []
 
-    to_error (WrongTypeArgument context@(ErrorTypeContext _ _ _ infer_vars) sp ty arg) =
+    to_error (WrongTypeArgument context@(ErrorTypeContext _ _ _ _ infer_vars) sp ty arg) =
         let ((ty_printed, arg_printed), var_names) =
                 run_infer_var_namer $
                     pp_type_with_error_context False context ty >>= \ ty_printed ->
@@ -133,4 +134,4 @@ instance Diagnostic.ToError (SolveError t) where
             []
 
 pp_type_with_error_context :: Bool -> ErrorTypeContext t -> Type -> InferVarNamer PP.Token
-pp_type_with_error_context name_infer_vars (ErrorTypeContext adts type_synonyms quant_vars infer_vars) = pp_type name_infer_vars adts type_synonyms quant_vars infer_vars
+pp_type_with_error_context name_infer_vars (ErrorTypeContext adts type_synonyms classes quant_vars infer_vars) = pp_type name_infer_vars adts type_synonyms classes quant_vars infer_vars

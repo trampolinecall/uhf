@@ -21,12 +21,12 @@ solve nr_solver_state (SIR.SIR mods adts type_synonyms classes instances quant_v
             let get_type_synonym ts_key = pure $ Arena.get type_synonyms ts_key
             in
             mapM_ (\ constraint -> do
-                TypeSolver.solve_constraint adts type_synonyms get_type_synonym quant_vars constraint >>= \case
+                TypeSolver.solve_constraint adts type_synonyms get_type_synonym classes quant_vars constraint >>= \case
                     Just (Left e) -> lift (Compiler.tell_error (SolveError e)) >> pure ()
                     Just (Right ()) -> pure ()
                     Nothing -> pure ()
             ) constraints >>
-            TypeSolver.solve_constraint_backlog adts type_synonyms get_type_synonym quant_vars >>= \ (backlog_errors, backlog_progress_made) -> -- TODO: not sure what to do with backlog_progress_made
+            TypeSolver.solve_constraint_backlog adts type_synonyms get_type_synonym classes quant_vars >>= \ (backlog_errors, backlog_progress_made) -> -- TODO: not sure what to do with backlog_progress_made
             mapM (lift . Compiler.tell_error . SolveError) backlog_errors >>
 
             pure (mods, adts, type_synonyms, classes, instances, variables)

@@ -31,6 +31,10 @@ get_var :: RIR.VariableKey -> IRReader RIR.Variable
 get_var k = reader (\ (RIR.RIR _ _ _ _ _ _ vars _) -> Arena.get vars k)
 get_type_var :: Type.QuantVarKey -> IRReader Type.QuantVar
 get_type_var k = reader (\ (RIR.RIR _ _ _ type_vars _ _ _ _) -> Arena.get type_vars k)
+get_class :: Type.ClassKey -> IRReader Type.Class
+get_class k = reader (\ (RIR.RIR _ _ _ _ classes _ _ _) -> Arena.get classes k)
+get_instance :: Type.InstanceKey -> IRReader (Type.Instance (Maybe Type.ClassKey) (Maybe Type.Type))
+get_instance k = reader (\ (RIR.RIR _ _ _ _ _ instances _ _) -> Arena.get instances k)
 
 dump_main_module :: RIR.RIR -> Text
 dump_main_module ir@(RIR.RIR modules _ _ _ _ _ _ mod) = PP.render $ runReader (define_module $ Arena.get modules mod) ir
@@ -40,9 +44,10 @@ define_module (RIR.Module _ bindings adts type_synonyms classes instances) =
     ask >>= \ rir ->
     mapM (fmap Type.PP.define_adt . get_adt) adts >>= \ adts ->
     mapM (fmap (Type.PP.define_type_synonym (\ ty -> runReader (refer_m_type ty) rir)) . get_type_synonym) type_synonyms >>= \ type_synonyms ->
+    mapM (fmap (Type.PP.define_class) . get_class) classes >>= \ classes ->
+    mapM (fmap (Type.PP.define_instance (maybe "<class resolution error>" (\ cl -> runReader (Type.PP.refer_class <$> get_class cl) rir)) (\ ty -> runReader (refer_m_type ty) rir)) . get_instance) instances >>= \ instances ->
     mapM define_binding bindings >>= \ bindings ->
-        -- TODO: define classes and instances
-    pure (PP.flat_block $ adts <> type_synonyms <> bindings)
+    pure (PP.flat_block $ adts <> type_synonyms <> classes <> instances <> bindings)
 
 refer_m_type :: Maybe Type.Type -> IRReader PP.Token -- TODO: remove
 refer_m_type (Just ty) =
@@ -95,13 +100,15 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
         levels (RIR.Expr'Let _ _ bindings adts type_synonyms classes instances res) =
             ( 1
             , \ _ _ -> do
+                -- TODO: also deduplicate this with defining modules
                 rir <- ask
                 res <- expr res
                 bindings <- mapM define_binding bindings
                 adts <- mapM (fmap Type.PP.define_adt . get_adt) adts
-                -- TODO: classes and instances
                 type_synonyms <- mapM (fmap (Type.PP.define_type_synonym (\ ty -> runReader (refer_m_type ty) rir)) . get_type_synonym) type_synonyms
-                let all_decls = adts ++ type_synonyms ++ bindings
+                classes <- mapM (fmap (Type.PP.define_class) . get_class) classes
+                instances <- mapM (fmap (Type.PP.define_instance (maybe "<class resolution error>" (\ cl -> runReader (Type.PP.refer_class <$> get_class cl) rir)) (\ ty -> runReader (refer_m_type ty) rir)) . get_instance) instances
+                let all_decls = adts ++ type_synonyms ++ classes ++ instances ++ bindings
                 pure
                     $ case all_decls of
                         [decl] -> PP.FirstOnLineIfMultiline $ PP.List ["let ", decl, "\n", res]

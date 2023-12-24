@@ -1,9 +1,12 @@
 module UHF.Data.IR.Type.PP
     ( define_adt
     , define_type_synonym
+    , define_class
+    , define_instance
     , refer_adt
     , refer_type_synonym
     , refer_type
+    , refer_class
     ) where
 
 import UHF.Prelude
@@ -20,11 +23,22 @@ define_adt (Type.ADT _ (Located _ name) _ _) = PP.List ["data ", PP.String name,
 define_type_synonym :: (ty -> PP.Token) -> Type.TypeSynonym ty -> PP.Token
 define_type_synonym show_ty (Type.TypeSynonym _ (Located _ name) expansion) = PP.List ["typesyn ", PP.String name, " = ", show_ty expansion, ";"]
 
+define_class :: Type.Class -> PP.Token
+define_class (Type.Class _ (Located _ name) _) = PP.List ["class ", PP.String name, ";"] -- TODO
+
+define_instance :: (cl -> PP.Token) -> (ty -> PP.Token) -> Type.Instance cl ty -> PP.Token
+define_instance show_cl show_ty (Type.Instance _ cl args) =
+    let args' = if null args then PP.String "" else PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent (map show_ty args)]
+    in PP.List ["instance ", show_cl cl, args', " {}"]
+
 refer_adt :: Type.ADT ty -> PP.Token
 refer_adt (Type.ADT id _ _ _) = PP.String $ ID.stringify id
 
 refer_type_synonym :: Type.TypeSynonym ty -> PP.Token
 refer_type_synonym (Type.TypeSynonym id _ _) = PP.String $ ID.stringify id
+
+refer_class :: Type.Class -> PP.Token
+refer_class (Type.Class id _ _) = PP.String $ ID.stringify id
 
 -- TODO: construct an ast and print it
 -- TODO: precedence for this

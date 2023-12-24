@@ -65,7 +65,7 @@ make_type_expr_entry te = state $ \ d_iden_arena ->
     in (k, d_iden_arena')
 -- eval monad {{{1
 -- TODO: remove these type parameters?
-type EvalMonad adts type_synonyms quant_vars = TypeSolver.SolveMonad (StateT (Arena.Arena (TypeExpr, Maybe EvaledDIden) TypeExprKey) (ReaderT (adts, type_synonyms, quant_vars, NameMaps.SIRChildMaps) Error.WithErrors))
+type EvalMonad adts type_synonyms quant_vars = TypeSolver.SolveMonad (StateT (Arena.Arena (TypeExpr, Maybe EvaledDIden) TypeExprKey) (ReaderT (adts, type_synonyms, Arena.Arena Type.Class Type.ClassKey, quant_vars, NameMaps.SIRChildMaps) Error.WithErrors))
 -- type expr data in arena {{{1
 data TypeExpr
     = TypeExpr'Refer Span EvaledDIden
@@ -241,7 +241,7 @@ put_back sir_child_maps type_expr_arena (SIR.SIR mods adts type_synonyms classes
                 pure (SIR.SIR mods adts synonyms classes instances quant_vars (Arena.transform change_variable variables) mod)
             )
         ) (Arena.transform (,Nothing) type_expr_arena)
-    ) (adts, type_synonyms, quant_vars, sir_child_maps)
+    ) (adts, type_synonyms, classes, quant_vars, sir_child_maps)
     where
         change_variable (SIR.Variable varid tyinfo n) = SIR.Variable varid tyinfo n
 
@@ -380,7 +380,7 @@ eval_type_expr tek = do
     where
         go (TypeExpr'Refer _ iden) = pure iden
         go (TypeExpr'Get _ parent name) = do
-            (_, _, _, sir_child_maps) <- lift $ lift ask
+            (_, _, _, _, sir_child_maps) <- lift $ lift ask
             parent_evaled <- eval_type_expr parent
             result <- case parent_evaled of
                 Just parent -> case NameMaps.get_decl_child sir_child_maps parent name of
@@ -414,8 +414,8 @@ eval_type_expr tek = do
             eval_type_expr arg >>= \ arg_evaled ->
             evaled_as_type' ty ty_evaled >>= \ ty_as_type ->
             evaled_as_type' arg arg_evaled >>= \ arg_as_type ->
-            lift (lift ask) >>= \ (adts, type_synonyms, quant_vars, _) ->
-            TypeSolver.apply_type adts type_synonyms (get_type_synonym type_synonyms) quant_vars (TypeSolver.TypeExpr sp) sp ty_as_type arg_as_type >>= \ (solve_result, result_ty) ->
+            lift (lift ask) >>= \ (adts, type_synonyms, classes, quant_vars, _) ->
+            TypeSolver.apply_type adts type_synonyms (get_type_synonym type_synonyms) classes quant_vars (TypeSolver.TypeExpr sp) sp ty_as_type arg_as_type >>= \ (solve_result, result_ty) ->
 
             (case solve_result of
                 Just (Left e) -> lift (lift $ lift $ Compiler.tell_error (Error.Error'SolveError e)) >> pure ()

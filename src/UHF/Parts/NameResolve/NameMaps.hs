@@ -86,9 +86,8 @@ make_name_maps decls values adt_variants =
                 get_decl_at (_, d, _) = d
 
 -- TODO: remove already arguments and find a better way to do things
--- TODO: classes do make decls (instances do not)
-make_name_maps_from_decls :: DeclChildrenList -> ValueList -> ADTVariantList -> Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey -> [SIR.Binding stage] -> [Type.ADTKey] -> [Type.TypeSynonymKey] -> NRReader (Arena.Arena (Type.ADT (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage)) Type.ADTKey) (Arena.Arena (SIR.Variable stage) SIR.VariableKey) quant_var_arena sir_child_maps WithErrors NameMaps
-make_name_maps_from_decls already_decls already_vals already_variants type_synonym_arena bindings adts type_synonyms =
+make_name_maps_from_decls :: DeclChildrenList -> ValueList -> ADTVariantList -> Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey -> Arena.Arena Type.Class Type.ClassKey -> [SIR.Binding stage] -> [Type.ADTKey] -> [Type.TypeSynonymKey] -> [Type.ClassKey] -> NRReader (Arena.Arena (Type.ADT (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage)) Type.ADTKey) (Arena.Arena (SIR.Variable stage) SIR.VariableKey) quant_var_arena sir_child_maps WithErrors NameMaps
+make_name_maps_from_decls already_decls already_vals already_variants type_synonym_arena class_arena bindings adts type_synonyms classes =
     unzip3 <$> mapM binding_children bindings >>= \ (binding_decl_entries, binding_val_entries, binding_variant_entries) ->
     ask_adt_arena >>= \ adt_arena ->
     let (adt_decl_entries, adt_val_entries, adt_variant_entries) =
@@ -116,13 +115,22 @@ make_name_maps_from_decls already_decls already_vals already_variants type_synon
                         in ([(name, DeclAt name_sp, synonym_decl_key)], [], [])
                     )
                 & unzip3
+
+        (class_decl_entries, class_val_entries, class_variant_entries) =
+            classes
+                & map
+                    (\ class_key ->
+                        let (Type.Class _ (Located name_sp name) quant_vars) = Arena.get class_arena class_key
+                        in ([(name, DeclAt name_sp, SIR.Decl'Type $ TypeWithInferVar.Type'Class class_key)], [], [])
+                    )
+                & unzip3
     in lift $ make_name_maps
             (concat $ already_decls : binding_decl_entries ++ adt_decl_entries ++ type_synonym_decl_entries)
             (concat $ already_vals : binding_val_entries ++ adt_val_entries ++ type_synonym_val_entries)
             (concat $ already_variants : binding_variant_entries ++ adt_variant_entries ++ type_synonym_variant_entries)
 
 collect_child_maps :: SIR.SIR stage -> WithErrors SIRChildMaps
-collect_child_maps (SIR.SIR mod_arena adt_arena type_synonym_arena _ _ _ variable_arena _) = SIRChildMaps <$> Arena.transformM go mod_arena
+collect_child_maps (SIR.SIR mod_arena adt_arena type_synonym_arena class_arena _ _ variable_arena _) = SIRChildMaps <$> Arena.transformM go mod_arena
     where
         primitive_decls =
                 [ ("int", ImplicitPrim, SIR.Decl'Type TypeWithInferVar.Type'Int)
@@ -133,8 +141,8 @@ collect_child_maps (SIR.SIR mod_arena adt_arena type_synonym_arena _ _ _ variabl
                 ]
         primitive_vals = []
 
-        go (SIR.Module _ bindings adts type_synonyms _ _) =
-            runReaderT (name_maps_to_child_maps <$> make_name_maps_from_decls primitive_decls primitive_vals [] type_synonym_arena bindings adts type_synonyms) (adt_arena, variable_arena, (), ())
+        go (SIR.Module _ bindings adts type_synonyms classes _) =
+            runReaderT (name_maps_to_child_maps <$> make_name_maps_from_decls primitive_decls primitive_vals [] type_synonym_arena class_arena bindings adts type_synonyms classes) (adt_arena, variable_arena, (), ())
 
 name_maps_to_child_maps :: NameMaps -> ChildMaps
 name_maps_to_child_maps (NameMaps decl val adtv) = ChildMaps decl val adtv

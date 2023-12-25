@@ -17,9 +17,11 @@ import qualified UHF.Data.RIR as RIR
 import qualified UHF.Util.Arena as Arena
 import qualified UHF.Util.IDGen as IDGen
 
+-- TODO: remove these type synonyms
 type RIRExpr = RIR.Expr
 type RIRBinding = RIR.Binding
 
+-- TODO: remove these type synonyms
 type ANFIR = ANFIR.ANFIR
 type ANFIRExpr = ANFIR.Expr
 type ANFIRParam = ANFIR.Param
@@ -38,7 +40,14 @@ type VariableMap = Map.Map RIR.VariableKey ANFIR.BindingKey
 
 type MakeGraphState binding = WriterT VariableMap (StateT (BindingArena binding, ANFIRParamArena) (IDGen.IDGenT ID.ExprID (Reader VariableArena)))
 
--- the same thing as ANFIR.Expr except lambdas dont have captures and all the binding groups are actually just [BindingKey]
+data Dependency = NeedsExecuted ANFIR.BindingKey | NeedsCallable ANFIR.BindingKey deriving (Eq, Ord)
+get_dependency_bk :: Dependency -> ANFIR.BindingKey
+-- TODO: rename Executed to Initialized?
+get_dependency_bk (NeedsExecuted bk) = bk
+get_dependency_bk (NeedsCallable bk) = bk
+
+newtype AlmostBindingGroup = AlmostBindingGroup [ANFIR.BindingKey]
+-- the same thing as ANFIR.Expr except lambdas dont have captures and all the binding groups are AlmostBindingGroup
 data AlmostExpr
     = AlmostExpr'Refer ANFIR.ID (Maybe Type.Type) ANFIR.BindingKey
 
@@ -50,7 +59,7 @@ data AlmostExpr
     | AlmostExpr'Tuple ANFIR.ID (Maybe Type.Type) ANFIR.BindingKey ANFIR.BindingKey
     | AlmostExpr'MakeADT ANFIR.ID (Maybe Type.Type) Type.ADT.VariantIndex [Maybe Type.Type] [ANFIR.BindingKey]
 
-    | AlmostExpr'Lambda ANFIR.ID (Maybe Type.Type) ANFIR.ParamKey [ANFIR.BindingKey] ANFIR.BindingKey
+    | AlmostExpr'Lambda ANFIR.ID (Maybe Type.Type) ANFIR.ParamKey AlmostBindingGroup ANFIR.BindingKey
     | AlmostExpr'Param ANFIR.ID (Maybe Type.Type) ANFIR.ParamKey
 
     | AlmostExpr'Call ANFIR.ID (Maybe Type.Type) ANFIR.BindingKey ANFIR.BindingKey
@@ -61,13 +70,13 @@ data AlmostExpr
     | AlmostExpr'TupleDestructure2 ANFIR.ID (Maybe Type.Type) ANFIR.BindingKey
     | AlmostExpr'ADTDestructure ANFIR.ID (Maybe Type.Type) ANFIR.BindingKey (Maybe Type.ADT.FieldIndex)
 
-    | AlmostExpr'Forall ANFIR.ID (Maybe Type.Type) Type.QuantVarKey [ANFIR.BindingKey] ANFIR.BindingKey
+    | AlmostExpr'Forall ANFIR.ID (Maybe Type.Type) Type.QuantVarKey AlmostBindingGroup ANFIR.BindingKey
     | AlmostExpr'TypeApply ANFIR.ID (Maybe Type.Type) ANFIR.BindingKey (Maybe Type.Type)
 
     | AlmostExpr'Poison ANFIR.ID (Maybe Type.Type)
 
 data AlmostMatchTree
-    = AlmostMatchTree [([ANFIR.MatchClause], Either AlmostMatchTree ([ANFIR.BindingKey], ANFIR.BindingKey))]
+    = AlmostMatchTree [([ANFIR.MatchClause], Either AlmostMatchTree (AlmostBindingGroup, ANFIR.BindingKey))]
 
 convert :: RIR.RIR -> ANFIR
 convert (RIR.RIR modules adts type_synonyms type_vars variables mod) =
@@ -83,7 +92,7 @@ convert_step_1 variables mod =
     in (bindings_needs_deps, params, cu_needs_deps)
 
 make_cu :: RIR.Module -> MakeGraphState (NeedsVarMap AlmostExpr) (NeedsTopoSort ANFIR.CU)
-make_cu (RIR.Module _ bindings adts type_synonyms) = concat <$> mapM convert_binding bindings >>= \ bindings -> pure (make_binding_group bindings >>= \ group -> pure (ANFIR.CU group adts type_synonyms))
+make_cu (RIR.Module _ bindings adts type_synonyms) = concat <$> mapM convert_binding bindings >>= \ bindings -> pure (make_binding_group (AlmostBindingGroup bindings) >>= \ group -> pure (ANFIR.CU group adts type_synonyms))
 
 map_variable :: RIR.VariableKey -> ANFIR.BindingKey -> MakeGraphState binding ()
 map_variable k binding = tell $ Map.singleton k binding
@@ -136,7 +145,7 @@ convert_expr m_varid expr@(RIR.Expr'Lambda id _ param_var body) =
         convert_expr Nothing body
     ) >>= \ (body, body_included_bindings) ->
 
-    new_binding (\ _ -> AlmostExpr'Lambda (choose_id m_varid id) ty anfir_param body_included_bindings body)
+    new_binding (\ _ -> AlmostExpr'Lambda (choose_id m_varid id) ty anfir_param (AlmostBindingGroup body_included_bindings) body)
 
 convert_expr m_varid (RIR.Expr'Let id _ bindings adts type_synonyms result) = do
     var_arena <- lift $ lift $ lift $ lift ask
@@ -160,7 +169,7 @@ convert_expr m_varid (RIR.Expr'Match id ty _ tree) =
                     (case result of
                         Right e ->
                             runWriterT (convert_expr Nothing e) >>= \ (result, result_involved_bindings) ->
-                            pure (\ _ -> Right (result_involved_bindings, result))
+                            pure (\ _ -> Right (AlmostBindingGroup result_involved_bindings, result))
                         Left subtree ->
                             convert_tree subtree >>= \ subtree ->
                             pure (\ var_map -> Left (subtree var_map))) >>= \ result ->
@@ -204,7 +213,7 @@ convert_expr m_varid expr@(RIR.Expr'Forall id _ vars e) = go (toList vars) e
             let result_ty = RIR.expr_type var_arena result
             in lift (runWriterT (go vars result)) >>= \ (result, result_bindings) ->
             lift new_expr_id >>= \ eid ->
-            new_binding (\ _ -> AlmostExpr'Forall (ANFIR.ExprID eid) (Type.Type'Forall (var:|[]) <$> result_ty) var result_bindings result)
+            new_binding (\ _ -> AlmostExpr'Forall (ANFIR.ExprID eid) (Type.Type'Forall (var:|[]) <$> result_ty) var (AlmostBindingGroup result_bindings) result)
 convert_expr m_varid (RIR.Expr'TypeApply id ty _ e arg) = convert_expr Nothing e >>= \ e -> new_binding (\ _ -> AlmostExpr'TypeApply (choose_id m_varid id) ty e arg)
 
 convert_expr m_varid expr@(RIR.Expr'MakeADT id _ variant tyargs args) = lift (lift $ lift $ lift ask) >>= \ var_arena -> let ty = RIR.expr_type var_arena expr in mapM (convert_expr Nothing) args >>= \ args -> new_binding (\ _ -> AlmostExpr'MakeADT (choose_id m_varid id) ty variant tyargs args)
@@ -226,7 +235,7 @@ convert_almost_expr (AlmostExpr'Char id ty c) = pure $ ANFIR.Expr'Char id ty c
 convert_almost_expr (AlmostExpr'String id ty s) = pure $ ANFIR.Expr'String id ty s
 convert_almost_expr (AlmostExpr'Tuple id ty a b) = pure $ ANFIR.Expr'Tuple id ty a b
 convert_almost_expr (AlmostExpr'MakeADT id ty var_idx tyargs args) = pure $ ANFIR.Expr'MakeADT id ty var_idx tyargs args
-convert_almost_expr (AlmostExpr'Lambda id ty param bindings result) = ANFIR.Expr'Lambda id ty param <$> get_dependencies_of_binding_list_and_expr bindings result <*> make_binding_group bindings <*> pure result
+convert_almost_expr (AlmostExpr'Lambda id ty param bindings result) = ANFIR.Expr'Lambda id ty param <$> (Set.map get_dependency_bk <$> (get_execute_dependencies_of_almost_binding_group_and_expr bindings result)) <*> make_binding_group bindings <*> pure result
 convert_almost_expr (AlmostExpr'Param id ty param) = pure $ ANFIR.Expr'Param id ty param
 convert_almost_expr (AlmostExpr'Call id ty callee arg) = pure $ ANFIR.Expr'Call id ty callee arg
 convert_almost_expr (AlmostExpr'Match id ty tree) = ANFIR.Expr'Match id ty <$> convert_tree tree
@@ -249,73 +258,118 @@ convert_almost_expr (AlmostExpr'Forall id ty qvar bindings result) = ANFIR.Expr'
 convert_almost_expr (AlmostExpr'TypeApply id ty e tyarg) = pure $ ANFIR.Expr'TypeApply id ty e tyarg
 convert_almost_expr (AlmostExpr'Poison id ty) = pure $ ANFIR.Expr'Poison id ty
 
-get_dependencies_of_binding_list_and_expr :: [ANFIR.BindingKey] -> ANFIR.BindingKey -> Reader (BindingArena AlmostExpr) (Set ANFIR.BindingKey)
-get_dependencies_of_binding_list_and_expr bindings e =
-    Set.unions <$> mapM get_dependencies_of_almost_expr bindings >>= \ bindings_dependencies ->
-    pure ((bindings_dependencies <> [e]) `Set.difference` Set.fromList bindings)
+get_execute_dependencies_of_almost_binding_group_and_expr :: AlmostBindingGroup -> ANFIR.BindingKey -> Reader (BindingArena AlmostExpr) (Set Dependency)
+get_execute_dependencies_of_almost_binding_group_and_expr (AlmostBindingGroup bindings) e = do
+    binding_dependencies <- Set.unions <$> mapM get_execute_dependencies_of_almost_expr bindings
+    pure $
+        Set.filter
+            -- exclude all dependencies that are defined in the binding group because those are not dependencies of the binding group and expr as a whole
+            (\dep -> not $ Set.member (get_dependency_bk dep) (Set.fromList bindings))
+            (binding_dependencies <> [NeedsExecuted e])
 
-get_dependencies_of_almost_expr :: ANFIR.BindingKey -> Reader (BindingArena AlmostExpr) (Set.Set ANFIR.BindingKey)
-get_dependencies_of_almost_expr bk =
+get_execute_dependencies_of_almost_expr :: ANFIR.BindingKey -> Reader (BindingArena AlmostExpr) (Set.Set Dependency)
+get_execute_dependencies_of_almost_expr bk =
     ask >>= \ binding_arena ->
     case Arena.get binding_arena bk of
-        AlmostExpr'Refer _ _ i -> pure [i]
+        AlmostExpr'Refer _ _ i -> pure [NeedsExecuted i]
         AlmostExpr'Char _ _ _ -> pure []
         AlmostExpr'String _ _ _ -> pure []
         AlmostExpr'Int _ _ _ -> pure []
         AlmostExpr'Float _ _ _ -> pure []
         AlmostExpr'Bool _ _ _ -> pure []
-        AlmostExpr'Tuple _ _ a b -> pure [a, b]
-        AlmostExpr'Lambda _ _ _ bindings result -> get_dependencies_of_binding_list_and_expr bindings result
+        AlmostExpr'Tuple _ _ a b -> pure [NeedsExecuted a, NeedsExecuted b]
+        AlmostExpr'Lambda _ _ _ bindings result ->
+            -- 'get_execute_dependencies_of_almost_binding_group_and_expr bindings result' returns the dependencies needed to execute the body of the lambda
+            -- but to execute the lambda (not execute its body, just define the body), we dont have any dependencies
+            -- we dont require that the captures have been executed because that prevents recursive functions from working (because recursive functions capture themselves)
+            pure []
         AlmostExpr'Param _ _ _ -> pure []
-        AlmostExpr'Call _ _ callee arg -> pure [callee, arg]
+        AlmostExpr'Call _ _ callee arg -> pure [NeedsCallable callee, NeedsExecuted arg]
         AlmostExpr'Match _ _ tree -> go_through_tree tree
             where
                 go_through_tree (AlmostMatchTree arms) =
                     arms
                         & mapM
                             (\ (clauses, result) ->
-                                let (referenced_in_clauses, bindings_defined_in_clauses) = clauses
+                                let (referenced_in_clauses, defined_in_clauses) = clauses
                                         & map go_through_clause
                                         & unzip
+                                    remove_defined_in_clauses = Set.filter (\ dep -> not $ Set.member (get_dependency_bk dep) (Set.unions defined_in_clauses))
                                 in
 
                                 (case result of
                                     Left subtree -> go_through_tree subtree
-                                    Right (bindings, e) -> get_dependencies_of_binding_list_and_expr bindings e) >>= \ result_dependencies ->
-                                pure ((Set.unions referenced_in_clauses <> result_dependencies) `Set.difference` Set.unions bindings_defined_in_clauses)
+                                    Right (bindings, e) -> get_execute_dependencies_of_almost_binding_group_and_expr bindings e) >>= \ result_dependencies ->
+
+                                pure (remove_defined_in_clauses $ Set.unions referenced_in_clauses <> result_dependencies)
                             )
                         <&> Set.unions
 
-                -- first element is bindings referenced, second element is bindings defined
-                go_through_clause (ANFIR.MatchClause'Match binding _) = ([binding], [])
+                -- first element is execute dependencies, second element is bindings defined
+                go_through_clause (ANFIR.MatchClause'Match binding _) = ([NeedsExecuted binding], [])
                 go_through_clause (ANFIR.MatchClause'Binding b) = ([], [b])
 
-        AlmostExpr'TupleDestructure1 _ _ tup -> pure [tup]
-        AlmostExpr'TupleDestructure2 _ _ tup -> pure [tup]
-        AlmostExpr'ADTDestructure _ _ base _ -> pure [base]
-        AlmostExpr'Forall _ _ _ bindings e -> get_dependencies_of_binding_list_and_expr bindings e
-        AlmostExpr'TypeApply _ _ e _ -> pure [e]
-        AlmostExpr'MakeADT _ _ _ _ args -> pure $ Set.fromList args
+        AlmostExpr'TupleDestructure1 _ _ tup -> pure [NeedsExecuted tup]
+        AlmostExpr'TupleDestructure2 _ _ tup -> pure [NeedsExecuted tup]
+        AlmostExpr'ADTDestructure _ _ base _ -> pure [NeedsExecuted base]
+        AlmostExpr'Forall _ _ _ bindings e -> get_execute_dependencies_of_almost_binding_group_and_expr bindings e
+        AlmostExpr'TypeApply _ _ e _ -> pure [NeedsExecuted e]
+        AlmostExpr'MakeADT _ _ _ _ args -> pure $ Set.fromList $ map NeedsExecuted args
         AlmostExpr'Poison _ _ -> pure []
 
-make_binding_group :: [ANFIR.BindingKey] -> Reader (BindingArena AlmostExpr) ANFIRBindingGroup
-make_binding_group bindings =
-    Map.fromList <$> mapM (\ b -> (b,) <$> get_dependencies_of_almost_expr b) bindings >>= \ binding_dependencies ->
-    let binding_dependencies_only_here = Map.map (Set.filter (`elem` bindings)) binding_dependencies
-    in topological_sort binding_dependencies_only_here [] bindings >>= \ bindings_sorted ->
+get_call_dependencies_of_almost_expr :: ANFIR.BindingKey -> Reader (BindingArena AlmostExpr) (Set.Set Dependency)
+get_call_dependencies_of_almost_expr bk =
+    ask >>= \ binding_arena ->
+    case Arena.get binding_arena bk of
+        -- these expressions are all atomic, so they can be called anywhere that they have been executed (i.e. their call dependencies are the same as their execute dependencies)
+        AlmostExpr'Char _ _ _ -> get_execute_dependencies_of_almost_expr bk
+        AlmostExpr'String _ _ _ -> get_execute_dependencies_of_almost_expr bk
+        AlmostExpr'Int _ _ _ -> get_execute_dependencies_of_almost_expr bk
+        AlmostExpr'Float _ _ _ -> get_execute_dependencies_of_almost_expr bk
+        AlmostExpr'Bool _ _ _ -> get_execute_dependencies_of_almost_expr bk
+        AlmostExpr'Param _ _ _ -> get_execute_dependencies_of_almost_expr bk
+        AlmostExpr'Poison _ _ -> get_execute_dependencies_of_almost_expr bk
+
+        -- these expressions dont store code themselves, but do refer to store other expressions, so they are only callable if the other ones are also callable
+        AlmostExpr'Refer _ _ r -> pure [NeedsCallable r]
+        AlmostExpr'Tuple _ _ a b -> pure [NeedsCallable a, NeedsCallable b]
+        AlmostExpr'Call _ _ callee arg -> pure [NeedsCallable callee, NeedsCallable arg]
+        AlmostExpr'Match _ _ tree -> get_execute_dependencies_of_almost_expr bk
+        AlmostExpr'TupleDestructure1 _ _ tup -> pure [NeedsCallable tup]
+        AlmostExpr'TupleDestructure2 _ _ tup -> pure [NeedsCallable tup]
+        AlmostExpr'ADTDestructure _ _ v _ -> pure [NeedsCallable v]
+        AlmostExpr'Forall _ _ _ bindings e -> pure [NeedsCallable e] -- TODO: reconsider if this is correct
+        AlmostExpr'TypeApply _ _ e _ -> pure [NeedsCallable e]
+        AlmostExpr'MakeADT _ _ _ _ args -> pure $ Set.fromList $ map NeedsCallable args
+
+        -- lambdas store code
+        AlmostExpr'Lambda _ _ _ bindings result ->
+            -- because calling a lambda executes bindings and result, the call dependencies of this lambda are the execute dependencies of bindings and result unmodified
+            get_execute_dependencies_of_almost_binding_group_and_expr bindings result
+
+make_binding_group :: AlmostBindingGroup -> Reader (BindingArena AlmostExpr) ANFIRBindingGroup
+make_binding_group (AlmostBindingGroup bindings) =
+    Map.fromList <$> mapM (\ b -> (b,) <$> get_execute_dependencies_of_almost_expr b) bindings >>= \ exec_dependencies ->
+    Map.fromList <$> mapM (\ b -> (b,) <$> get_call_dependencies_of_almost_expr b) bindings >>= \ call_dependencies ->
+    let exec_dependencies_only_here = Map.map (Set.filter ((`elem` bindings) . get_dependency_bk)) exec_dependencies
+        call_dependencies_only_here = Map.map (Set.filter ((`elem` bindings) . get_dependency_bk)) call_dependencies
+
+    in topological_sort call_dependencies_only_here exec_dependencies_only_here [] bindings >>= \ bindings_sorted ->
     pure (ANFIR.BindingGroup bindings_sorted)
     where
-        topological_sort _ done [] = pure done
-        topological_sort binding_dependencies done left =
-            case List.partition dependencies_satisfied left of
+        topological_sort _ _ done [] = pure done
+        topological_sort call_dependencies exec_dependencies done left =
+            case List.partition exec_dependencies_satisfied left of
                 ([], waiting) ->
                     let (loops, not_loop) = find_loops waiting
                     in mapM deal_with_loop loops >>= \ loops ->
-                    topological_sort binding_dependencies (done ++ loops) not_loop
+                    topological_sort call_dependencies exec_dependencies (done ++ loops) not_loop
 
-                (ready, waiting) -> topological_sort binding_dependencies (done ++ map ANFIR.SingleBinding ready) waiting
+                (ready, waiting) -> topological_sort call_dependencies exec_dependencies (done ++ map ANFIR.SingleBinding ready) waiting
             where
-                dependencies_satisfied bk = and $ Set.map (`List.elem` concatMap ANFIR.chunk_bindings done) (binding_dependencies Map.! bk)
+                exec_dependencies_satisfied bk = and $ Set.map dependency_satisfied (exec_dependencies Map.! bk)
+                dependency_satisfied (NeedsExecuted dep) = dep `List.elem` concatMap ANFIR.chunk_bindings done -- dep needs to have been executed, so check if it is in done
+                dependency_satisfied (NeedsCallable dep) = and $ Set.map dependency_satisfied (call_dependencies Map.! dep) -- dep needs to be callable, so make sure that all of its call dependencies are satisfied
 
                 find_loops = find [] []
                     where
@@ -331,16 +385,16 @@ make_binding_group bindings =
                                             let (loop, not_in_loop) = splitAt (current_idx + 1) visited_stack -- top of stack is at beginning
                                             in Just (loop, not_in_loop, unvisited) -- all items of visited stack and current should not be in unvisited
                                         Nothing ->
-                                            let current_dependencies = binding_dependencies Map.! current
+                                            let current_dependencies = exec_dependencies Map.! current
                                             in headMay $
                                                 mapMaybe
                                                     (\ neighbor -> trace_single_loop (current:visited_stack) neighbor (filter (/=neighbor) unvisited))
-                                                    (toList $ Set.filter (`elem` searching_for_loops_in) current_dependencies)
+                                                    (toList $ Set.filter (`elem` searching_for_loops_in) $ Set.map get_dependency_bk current_dependencies) -- TODO: figure out a better error for this
 
                 deal_with_loop loop =
                     ask >>= \ binding_arena ->
                     if all (allowed_in_loop . Arena.get binding_arena) loop
-                        then pure $ ANFIR.MutuallyRecursiveBindings loop
+                        then error "aa" -- pure $ ANFIR.MutuallyRecursiveBindings loop
                         else error "illegal loop" -- TODO: proper error message for this
                     where
                         -- TODO: fix this because this allows loops where with only foralls

@@ -80,7 +80,7 @@ apply_type for_what sp ty arg = do
 add :: UntypedModuleArena -> UntypedADTArena -> UntypedTypeSynonymArena -> QuantVarArena -> UntypedVariableArena -> WriterT [TypeSolver.Constraint] (TypeSolver.SolveMonad (Compiler.WithDiagnostics Error Void)) (TypedWithInferVarsModuleArena, TypedWithInferVarsADTArena, TypedWithInferVarsTypeSynonymArena, TypedWithInferVarsVariableArena)
 add mods adts type_synonyms quant_vars variables =
     runReaderT (
-        Arena.transformM type_synonym  type_synonyms
+        Arena.transformM type_synonym type_synonyms
     ) ((), (), (), ()) >>= \ type_synonyms ->
     runReaderT (
         Arena.transformM adt adts

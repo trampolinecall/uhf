@@ -14,7 +14,7 @@ import qualified UHF.Data.SIR as SIR
 import qualified UHF.Parts.TypeSolver as TypeSolver
 import qualified UHF.Util.Arena as Arena
 
-type ContextReader adts type_synonyms quant_vars vars = ReaderT (adts, type_synonyms, quant_vars, vars) (WriterT [TypeSolver.Constraint] (TypeSolver.SolveMonad (Compiler.WithDiagnostics Error Void)))
+type ContextReader adts type_synonyms quant_vars vars = ReaderT (adts, type_synonyms, quant_vars, vars) (WriterT [TypeSolver.Constraint] (StateT TypeSolver.InferVarArena (StateT [TypeSolver.Constraint] (Compiler.WithDiagnostics Error Void))))
 
 -- TODO: make helper functions to not use lift
 
@@ -43,7 +43,7 @@ get_var_type var = do
     pure ty
 
 -- TODO: come up with a better way of doing this
-get_type_synonym :: ContextReader adts (Arena.Arena (Type.TypeSynonym t) Type.TypeSynonymKey) quant_vars vars (Type.TypeSynonymKey -> TypeSolver.SolveMonad (Compiler.WithDiagnostics Error Void) (Type.TypeSynonym t))
+get_type_synonym :: ContextReader adts (Arena.Arena (Type.TypeSynonym t) Type.TypeSynonymKey) quant_vars vars (Type.TypeSynonymKey -> m (Type.TypeSynonym t))
 get_type_synonym = do
     (_, type_synonyms, _, _) <- ask
     pure (\ ts_key -> pure $ Arena.get type_synonyms ts_key)
@@ -52,7 +52,7 @@ apply_type :: TypeSolver.InferVarForWhat -> Span -> TypeSolver.Type -> TypeSolve
 apply_type for_what sp ty arg = do
     (adts, type_synonyms, quant_vars, _) <- ask
     get_type_synonym <- get_type_synonym
-    (solve_result, applied) <- lift $ lift $ TypeSolver.apply_type adts type_synonyms get_type_synonym quant_vars for_what sp ty arg
+    (solve_result, applied) <- TypeSolver.apply_type_and_push_to_backlog adts type_synonyms get_type_synonym quant_vars for_what sp ty arg
     case solve_result of
         Just (Left e) -> lift (lift $ lift $ Compiler.tell_error (SolveError e)) >> pure ()
         Just (Right ()) -> pure ()
@@ -77,7 +77,7 @@ apply_type for_what sp ty arg = do
 -- but it really should produce an error at `thing(0)` saying that thing takes a string and not an int
 -- (this happens because bindings are processed in order and the constraint from 'thing(0)' is processed before the constraint from 'thing = ...')
 
-add :: UntypedModuleArena -> UntypedADTArena -> UntypedTypeSynonymArena -> QuantVarArena -> UntypedVariableArena -> WriterT [TypeSolver.Constraint] (TypeSolver.SolveMonad (Compiler.WithDiagnostics Error Void)) (TypedWithInferVarsModuleArena, TypedWithInferVarsADTArena, TypedWithInferVarsTypeSynonymArena, TypedWithInferVarsVariableArena)
+add :: UntypedModuleArena -> UntypedADTArena -> UntypedTypeSynonymArena -> QuantVarArena -> UntypedVariableArena -> WriterT [TypeSolver.Constraint] (StateT TypeSolver.InferVarArena (StateT [TypeSolver.Constraint] (Compiler.WithDiagnostics Error Void))) (TypedWithInferVarsModuleArena, TypedWithInferVarsADTArena, TypedWithInferVarsTypeSynonymArena, TypedWithInferVarsVariableArena)
 add mods adts type_synonyms quant_vars variables =
     runReaderT (
         Arena.transformM type_synonym type_synonyms

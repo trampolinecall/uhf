@@ -17,13 +17,13 @@ module UHF.Parts.TypeSolver
     , infer_var_for_what_name
 
     , SolveMonad
-    , SolverState (..)
-    , run_solve_monad
-    , run_solve_monad_with
+    , HasConstraintBacklog
     , new_infer_var
-    , apply_type
+    , push_backlog
+    , apply_type_and_push_to_backlog
 
-    , solve_constraint
+    , solve_constraint_
+    , solve_constraint_and_push_to_backlog
     , solve_constraint_backlog
     , SolveError
 

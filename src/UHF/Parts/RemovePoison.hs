@@ -59,6 +59,8 @@ rp_expr (BackendIR.Expr'Tuple id ty a b) = ty >>= \ ty -> pure (BackendIR.Expr'T
 rp_expr (BackendIR.Expr'Lambda id ty a c g r) = ty >>= \ ty -> pure (BackendIR.Expr'Lambda id ty a c g r)
 rp_expr (BackendIR.Expr'Param id ty p) = ty >>= \ ty -> pure (BackendIR.Expr'Param id ty p)
 
+rp_expr (BackendIR.Expr'Let id ty g r) = ty >>= \ ty -> pure (BackendIR.Expr'Let id ty g r)
+
 rp_expr (BackendIR.Expr'Call id ty c a) = ty >>= \ ty -> pure (BackendIR.Expr'Call id ty c a)
 
 rp_expr (BackendIR.Expr'Match id ty t) = ty >>= \ ty -> rp_tree t >>= \ t -> pure (BackendIR.Expr'Match id ty t)

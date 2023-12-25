@@ -231,7 +231,7 @@ lower_binding (BackendIR.Binding init) = l init
             let variant_id = Type.ADT.variant_id variant
             in zipWithM (\ field_id arg -> mangle_binding_as_var arg >>= \ arg -> pure (ID.mangle field_id, Just $ TS.Expr'Identifier arg)) (Type.ADT.variant_field_ids variant) args >>= \ object_fields ->
             let_current id (TS.Expr'New (TS.Expr'Identifier adt_mangled) [TS.Expr'Object $ ("discriminant", Just $ TS.Expr'StrLit $ ID.mangle variant_id) : object_fields]) >>= \ let_stmt ->
-                pure ([let_stmt], [])
+            pure ([let_stmt], [])
 
         l (BackendIR.Expr'Lambda id _ _ captures _ _) =
             mangle_binding_id_as_var id >>= \ current_var ->
@@ -246,6 +246,16 @@ lower_binding (BackendIR.Binding init) = l init
             pure ([let_stmt], set_captures)
         l (BackendIR.Expr'Param id _ _) = let_current id (TS.Expr'Identifier "param") >>= \ let_stmt -> pure ([let_stmt], [])
         l (BackendIR.Expr'Call id _ callee arg) = mangle_binding_as_var callee >>= \ callee -> mangle_binding_as_var arg >>= \ arg -> let_current id (TS.Expr'Call (TS.Expr'Get (TS.Expr'Identifier callee) "call") [TS.Expr'Identifier arg]) >>= \ let_stmt -> pure ([let_stmt], [])
+
+        l (BackendIR.Expr'Let id _ group result) = do
+            store_var <- mangle_binding_id_as_var id
+            result <- mangle_binding_as_var result
+
+            let let_store_var = TS.Stmt'Let store_var Nothing Nothing
+            binding_group <- lower_binding_group group
+            let assign_store_var = TS.Stmt'Expr $ TS.Expr'Assign (TS.Expr'Identifier store_var) (TS.Expr'Identifier result)
+
+            pure (let_store_var : binding_group ++ [assign_store_var], [])
 
         l (BackendIR.Expr'Match id _ tree) =
             mangle_binding_id_as_var id >>= \ result_var ->

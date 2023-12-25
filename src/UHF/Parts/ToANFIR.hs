@@ -53,6 +53,8 @@ data AlmostExpr
     | AlmostExpr'Lambda ANFIR.ID (Maybe Type.Type) ANFIR.ParamKey [ANFIR.BindingKey] ANFIR.BindingKey
     | AlmostExpr'Param ANFIR.ID (Maybe Type.Type) ANFIR.ParamKey
 
+    | AlmostExpr'Let ANFIR.ID (Maybe Type.Type) [ANFIR.BindingKey] ANFIR.BindingKey
+
     | AlmostExpr'Call ANFIR.ID (Maybe Type.Type) ANFIR.BindingKey ANFIR.BindingKey
 
     | AlmostExpr'Match ANFIR.ID (Maybe Type.Type) AlmostMatchTree
@@ -138,7 +140,17 @@ convert_expr m_varid expr@(RIR.Expr'Lambda id _ param_var body) =
 
     new_binding (\ _ -> AlmostExpr'Lambda (choose_id m_varid id) ty anfir_param body_included_bindings body)
 
-convert_expr _ (RIR.Expr'Let _ _ bindings adts type_synonyms e) = mapM (lift . convert_binding) bindings >>= \ binding_involved_bindings -> tell (concat binding_involved_bindings) >> convert_expr Nothing e -- TODO: deal with adts and type synonyms properly
+convert_expr m_varid (RIR.Expr'Let id _ bindings adts type_synonyms result) = do
+    var_arena <- lift $ lift $ lift $ lift ask
+    let result_ty = RIR.expr_type var_arena result
+    (result, body_bindings) <-
+        lift $ runWriterT $ do
+            bindings <- mapM (lift . convert_binding) bindings
+            tell (concat bindings)
+            convert_expr Nothing result
+
+    -- TODO: deal with adts and type synonyms properly
+    new_binding (\ _ -> AlmostExpr'Let (choose_id m_varid id) result_ty body_bindings result)
 
 convert_expr m_varid expr@(RIR.Expr'Call id _ callee arg) = lift (lift $ lift $ lift ask) >>= \ var_arena -> let ty = RIR.expr_type var_arena expr in convert_expr Nothing callee >>= \ callee -> convert_expr Nothing arg >>= \ arg -> new_binding (\ _ -> AlmostExpr'Call (choose_id m_varid id) ty callee arg)
 
@@ -217,6 +229,7 @@ convert_almost_expr (AlmostExpr'Tuple id ty a b) = pure $ ANFIR.Expr'Tuple id ty
 convert_almost_expr (AlmostExpr'MakeADT id ty var_idx tyargs args) = pure $ ANFIR.Expr'MakeADT id ty var_idx tyargs args
 convert_almost_expr (AlmostExpr'Lambda id ty param bindings result) = ANFIR.Expr'Lambda id ty param <$> get_dependencies_of_binding_list_and_expr bindings result <*> make_binding_group bindings <*> pure result
 convert_almost_expr (AlmostExpr'Param id ty param) = pure $ ANFIR.Expr'Param id ty param
+convert_almost_expr (AlmostExpr'Let id ty bindings result) = ANFIR.Expr'Let id ty <$> make_binding_group bindings <*> pure result
 convert_almost_expr (AlmostExpr'Call id ty callee arg) = pure $ ANFIR.Expr'Call id ty callee arg
 convert_almost_expr (AlmostExpr'Match id ty tree) = ANFIR.Expr'Match id ty <$> convert_tree tree
     where
@@ -256,6 +269,7 @@ get_dependencies_of_almost_expr bk =
         AlmostExpr'Tuple _ _ a b -> pure [a, b]
         AlmostExpr'Lambda _ _ _ bindings result -> get_dependencies_of_binding_list_and_expr bindings result
         AlmostExpr'Param _ _ _ -> pure []
+        AlmostExpr'Let _ _ bindings result -> get_dependencies_of_binding_list_and_expr bindings result
         AlmostExpr'Call _ _ callee arg -> pure [callee, arg]
         AlmostExpr'Match _ _ tree -> go_through_tree tree
             where

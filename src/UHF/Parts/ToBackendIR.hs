@@ -68,6 +68,7 @@ convert_expr (ANFIR.Expr'Tuple id ty a b) = BackendIR.Expr'Tuple (convert_id id)
 convert_expr (ANFIR.Expr'MakeADT id ty var_idx tyargs args) = BackendIR.Expr'MakeADT (convert_id id) ty var_idx tyargs args
 convert_expr (ANFIR.Expr'Lambda id ty param captures group result) = BackendIR.Expr'Lambda (convert_id id) ty param captures (convert_binding_group group) result
 convert_expr (ANFIR.Expr'Param id ty param) = BackendIR.Expr'Param (convert_id id) ty param
+convert_expr (ANFIR.Expr'Let id ty group result) = BackendIR.Expr'Let (convert_id id) ty (convert_binding_group group) result
 convert_expr (ANFIR.Expr'Call id ty callee arg) = BackendIR.Expr'Call (convert_id id) ty callee arg
 convert_expr (ANFIR.Expr'Match id ty tree) = BackendIR.Expr'Match (convert_id id) ty (convert_tree tree)
     where

@@ -41,7 +41,7 @@ parse toks eof_tok =
         choose_error :: [Error.Error] -> Compiler.WithDiagnostics (Located [Error.Error]) Void ()
         choose_error [] = pure ()
         choose_error errs =
-            let max_ind = maximum $ map (\ (Error.BadToken ind _ _ _) -> ind) errs
+            let max_ind = maximum $ map (\ (Error.BadToken ind _ _ _) -> ind) errs -- TODO: make this work
                 latest_errors = filter (\ (Error.BadToken ind _ _ _) -> ind == max_ind) errs
                 (Error.BadToken _ (Located latest_span _) _ _) = head latest_errors
             in Compiler.tell_error (Located latest_span latest_errors) >> pure ()
@@ -428,12 +428,13 @@ pattern_named =
 path_or_single_iden :: PEG.Parser (Located AST.PathOrSingleIden)
 path_or_single_iden = PEG.choice [path, single_iden]
     where
-        -- TODO: make this work properly because type_ consumes all of the :: segments leaving none for this to consume
-        path =
-            type_ >>= \ ty ->
-            PEG.consume' "'::'" (Token.SingleTypeToken Token.DoubleColon) >>
-            PEG.consume' "identifier" (Token.AlphaIdentifier ()) >>= \ (Located next_sp (Token.AlphaIdentifier next)) ->
-            pure (Located (AST.type_span ty <> next_sp) (AST.PathOrSingleIden'Path ty (Located next_sp next)))
+        -- a hack to make paths work: let the type parse the path and then afterwards, pick out the topmost Get portion and turn that into a AST.PathOrSingleIden'Path node
+        path = do
+            ty <- type_
+            case ty of
+                AST.Type'Get whole_span ty (Located next_sp next) ->
+                    pure (Located whole_span (AST.PathOrSingleIden'Path ty (Located next_sp next)))
+                _ -> PEG.fail (Error.NotAPath (AST.type_span ty))
         single_iden =
             PEG.consume' "identifier" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
             pure (Located iden_sp (AST.PathOrSingleIden'Single (Located iden_sp iden)))
@@ -441,7 +442,7 @@ path_or_single_iden = PEG.choice [path, single_iden]
 path_or_single_symbol_iden :: PEG.Parser (Located AST.PathOrSingleIden)
 path_or_single_symbol_iden = PEG.choice [path, single_iden]
     where
-        -- TODO: same fix as above
+        -- this does not need the hack from above because ::<symbol identifier> wont be consumed by type_
         path =
             type_ >>= \ ty ->
             PEG.consume' "'::'" (Token.SingleTypeToken Token.DoubleColon) >>

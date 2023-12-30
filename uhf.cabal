@@ -36,11 +36,12 @@ library
       UHF.Diagnostic
       UHF.Diagnostic.Diagnostic
       UHF.Diagnostic.Report
-      UHF.Diagnostic.Report.Line
-      UHF.Diagnostic.Report.Messages
-      UHF.Diagnostic.Report.Style
-      UHF.Diagnostic.Report.Utils
       UHF.Diagnostic.Settings
+      UHF.Diagnostic.Styles.Default
+      UHF.Diagnostic.Styles.Default.Line
+      UHF.Diagnostic.Styles.Default.Options
+      UHF.Diagnostic.Styles.Default.RenderMessagesSection
+      UHF.Diagnostic.Styles.Default.Utils
       UHF.Driver
       UHF.Parts.InfixGroup
       UHF.Parts.Lexer

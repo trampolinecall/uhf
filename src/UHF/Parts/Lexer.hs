@@ -63,7 +63,7 @@ lex_one_token =
         mapM
             (\case
                 Right tok -> Pipes.yield tok
-                Left err -> lift $ Compiler.tell_error err)
+                Left err -> lift (Compiler.tell_error err) >> pure ())
             chosen_tokens >>
         pure ((), next_loc)
 -- MiniLexer {{{2

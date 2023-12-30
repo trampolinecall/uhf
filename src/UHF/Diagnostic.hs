@@ -14,8 +14,6 @@ module UHF.Diagnostic
 
 import UHF.Prelude
 
-import qualified System.IO as IO
-
 import UHF.Diagnostic.Diagnostic
 import UHF.Diagnostic.Report as Report
 import UHF.Diagnostic.Settings
@@ -29,9 +27,9 @@ instance DiagnosticStyle SomeStyle where
     report_debug_message  (SomeStyle s) = Report.report_debug_message  s
     report_internal_error (SomeStyle s) = Report.report_internal_error s
 
-report_error :: ToError e => Settings -> FormattedString.ColorsNeeded -> IO.Handle -> e -> IO ()
+report_error :: ToError e => Settings -> FormattedString.ColorsNeeded -> Handle -> e -> IO ()
 report_error settings = Report.report_error (choose_style settings)
-report_warning :: ToWarning w => Settings -> FormattedString.ColorsNeeded -> IO.Handle -> w -> IO ()
+report_warning :: ToWarning w => Settings -> FormattedString.ColorsNeeded -> Handle -> w -> IO ()
 report_warning settings = Report.report_warning (choose_style settings)
 report_debug_message :: Settings -> FormattedString.ColorsNeeded -> Handle -> DebugMessage -> IO ()
 report_debug_message settings = Report.report_debug_message (choose_style settings)

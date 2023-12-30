@@ -42,6 +42,7 @@ library
       UHF.Diagnostic.Styles.Default.Options
       UHF.Diagnostic.Styles.Default.RenderMessagesSection
       UHF.Diagnostic.Styles.Default.Utils
+      UHF.Diagnostic.Styles.JSON
       UHF.Driver
       UHF.Parts.InfixGroup
       UHF.Parts.Lexer

@@ -8,11 +8,11 @@ import UHF.Prelude
 import Options.Applicative
 import qualified Data.Map as Map
 
-import qualified UHF.Diagnostic.Settings as DiagnosticSettings
+import qualified UHF.Diagnostic.Settings as Diagnostic.Settings
 import qualified UHF.Driver as Driver
 import qualified UHF.Source.FormattedString as FormattedString
 
-data Args = Args Driver.CompileOptions FormattedString.ColorsNeeded DiagnosticSettings.Settings
+data Args = Args Driver.CompileOptions FormattedString.ColorsNeeded Diagnostic.Settings.Settings
 
 argparser :: ParserInfo Args
 argparser =
@@ -65,14 +65,15 @@ argparser =
                         <> value FormattedString.AutoDetect
                         <> help "When to print colors in diagnostics"
                     )
-            <*> (DiagnosticSettings.Settings <$> option
+            <*> (Diagnostic.Settings.Settings <$> option
                     (reader_from_map
-                        [ ("original-ascii", DiagnosticSettings.ASCII)
-                        , ("original-unicode", DiagnosticSettings.Unicode)
+                        [ ("ascii", Diagnostic.Settings.ASCII)
+                        , ("unicode", Diagnostic.Settings.Unicode)
+                        , ("json", Diagnostic.Settings.JSON)
                         ])
                     (long "diagnostic-format"
                         <> metavar "FORMAT"
-                        <> value DiagnosticSettings.Unicode
+                        <> value Diagnostic.Settings.Unicode
                         <> help "The format to output diagnostics"
                     )
                 )

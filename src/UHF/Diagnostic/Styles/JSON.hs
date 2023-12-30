@@ -1,4 +1,4 @@
-module UHF.Diagnostic.Styles.JSON (JSON) where
+module UHF.Diagnostic.Styles.JSON (JSON (..)) where
 
 import UHF.Prelude
 
@@ -10,13 +10,13 @@ data JSON = JSON
 
 instance Report.DiagnosticStyle JSON where
     report_error          JSON _ handle e =
-        let (Diagnostic.Error sp main_message messages sections) = Diagnostic.to_error e
+        let (Diagnostic.Error         sp main_message messages sections) = Diagnostic.to_error e
         in report handle sp main_message messages sections
     report_warning        JSON _ handle w =
-        let (Diagnostic.Warning sp main_message messages sections) = Diagnostic.to_warning w
+        let (Diagnostic.Warning       sp main_message messages sections) = Diagnostic.to_warning w
         in report handle sp main_message messages sections
     report_debug_message  JSON _ handle d =
-        let (Diagnostic.DebugMessage sp main_message messages sections) = d
+        let (Diagnostic.DebugMessage  sp main_message messages sections) = d
         in report handle sp main_message messages sections
     report_internal_error JSON _ handle i =
         let (Diagnostic.InternalError sp main_message messages sections) = i

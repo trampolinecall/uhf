@@ -18,6 +18,7 @@ import UHF.Diagnostic.Diagnostic
 import UHF.Diagnostic.Report as Report
 import UHF.Diagnostic.Settings
 import qualified UHF.Diagnostic.Styles.Default as Styles.Default
+import qualified UHF.Diagnostic.Styles.JSON as Styles.JSON
 import qualified UHF.Source.FormattedString as FormattedString
 
 data SomeStyle = forall s. DiagnosticStyle s => SomeStyle s
@@ -39,3 +40,4 @@ report_internal_error settings = Report.report_internal_error (choose_style sett
 choose_style :: Settings -> SomeStyle
 choose_style (Settings Unicode) = SomeStyle $ Styles.Default.DefaultStyle Styles.Default.Unicode
 choose_style (Settings ASCII) = SomeStyle $ Styles.Default.DefaultStyle Styles.Default.ASCII
+choose_style (Settings JSON) = SomeStyle Styles.JSON.JSON

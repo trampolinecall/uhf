@@ -22,7 +22,7 @@ import qualified Data.Sequence as Sequence
 import qualified System.IO as IO
 
 import qualified UHF.Diagnostic as Diagnostic
-import qualified UHF.Diagnostic.Settings as DiagnosticSettings
+import qualified UHF.Diagnostic.Settings as Diagnostic.Settings
 import qualified UHF.Source.FormattedString as FormattedString
 
 type WithDiagnosticsT e w = WriterT (Diagnostics e w)
@@ -36,10 +36,10 @@ instance Monoid (Diagnostics e w) where
 instance Semigroup (Diagnostics e w) where
     Diagnostics e1 w1 <> Diagnostics e2 w2 = Diagnostics (e1 <> e2) (w1 <> w2)
 
-report_diagnostics :: (Diagnostic.ToError e, Diagnostic.ToWarning w) => FormattedString.ColorsNeeded -> DiagnosticSettings.Settings -> Diagnostics e w -> IO ()
+report_diagnostics :: (Diagnostic.ToError e, Diagnostic.ToWarning w) => FormattedString.ColorsNeeded -> Diagnostic.Settings.Settings -> Diagnostics e w -> IO ()
 report_diagnostics c_needed diag_settings (Diagnostics errors warnings) = do
-    mapM_ (Diagnostic.report IO.stderr c_needed diag_settings . Diagnostic.to_error) errors
-    mapM_ (Diagnostic.report IO.stderr c_needed diag_settings . Diagnostic.to_warning) warnings
+    mapM_ (Diagnostic.report_error diag_settings c_needed IO.stderr . Diagnostic.to_error) errors
+    mapM_ (Diagnostic.report_warning diag_settings c_needed IO.stderr . Diagnostic.to_warning) warnings
 
 had_errors :: Diagnostics e w -> Bool
 had_errors (Diagnostics errs _) = not $ Sequence.null errs

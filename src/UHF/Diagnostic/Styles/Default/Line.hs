@@ -1,5 +1,6 @@
-module UHF.Diagnostic.Report.Line
+module UHF.Diagnostic.Styles.Default.Line
     ( Line
+    , print
     , prefix
     , separ
     , contents
@@ -16,28 +17,37 @@ module UHF.Diagnostic.Report.Line
 import UHF.Prelude
 
 import qualified Data.Text as Text
+import qualified System.IO as IO
 
 import UHF.Source.File (File)
-import qualified UHF.Diagnostic.Report.Style as Style
+import qualified UHF.Diagnostic.Styles.Default.Options as Options
 import qualified UHF.Source.File as File
 import qualified UHF.Source.FormattedString as FormattedString
 
 data Line = Line { prefix :: Text, separ :: Char, contents :: FormattedString.FormattedString } deriving (Show, Eq)
 
-file_line :: Style.Style -> File -> Line
-file_line style f = Line "" (Style.file_line_char style) (FormattedString.color_text (Style.file_path_color style) $ Text.pack $ File.path f)
+print :: FormattedString.ColorsNeeded -> Int -> IO.Handle -> Line -> IO ()
+print c_needed indent handle (Line pre sep contents) =
+    hPutStr handle (replicate (indent - Text.length pre) ' ') >>
+    hPutStr handle pre >>
+    hPutStr handle [' ', sep, ' '] >>
+    FormattedString.render handle c_needed contents >>
+    hPutText handle "\n"
 
-elipsis_line :: Style.Style -> Line
-elipsis_line style = Line "..." (Style.other_line_char style) "..."
+file_line :: Options.Options -> File -> Line
+file_line style f = Line "" (Options.file_line_char style) (FormattedString.color_text (Options.file_path_color style) $ Text.pack $ File.path f)
 
-numbered_line :: Style.Style -> Int -> FormattedString.FormattedString -> Line
-numbered_line style num = Line (Text.pack $ show num) (Style.other_line_char style)
+elipsis_line :: Options.Options -> Line
+elipsis_line style = Line "..." (Options.other_line_char style) "..."
 
-heading_line :: Style.Style -> FormattedString.FormattedString -> Line
-heading_line style = Line "" (Style.header_line_char style)
+numbered_line :: Options.Options -> Int -> FormattedString.FormattedString -> Line
+numbered_line style num = Line (Text.pack $ show num) (Options.other_line_char style)
 
-other_line :: Style.Style -> FormattedString.FormattedString -> Line
-other_line style = Line "" (Style.other_line_char style)
+heading_line :: Options.Options -> FormattedString.FormattedString -> Line
+heading_line style = Line "" (Options.header_line_char style)
+
+other_line :: Options.Options -> FormattedString.FormattedString -> Line
+other_line style = Line "" (Options.other_line_char style)
 
 compare_lines :: [(Text, Char, Text)] -> [Line] -> Assertion
 compare_lines expect lns =

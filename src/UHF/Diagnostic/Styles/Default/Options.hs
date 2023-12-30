@@ -1,19 +1,17 @@
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
-module UHF.Diagnostic.Report.Style
-    ( Style(..)
-    , default_style
-    , unicode_style
+module UHF.Diagnostic.Styles.Default.Options
+    ( Options(..)
+    , ascii_options
+    , unicode_options
     ) where
 
 import UHF.Prelude
 
 import System.Console.ANSI
 
-import qualified UHF.Source.FormattedString as FormattedString
-
-data Style
-    = Style
+data Options
+    = Options
         { file_path_color, error_color, warning_color, debug_message_color, note_color, hint_color :: [SGR]
         , multiline_other_color :: [SGR]
 
@@ -24,12 +22,10 @@ data Style
         , message_below_char :: Char
         , message_prefix_line, message_prefix_last :: Char
         , message_prefix :: Text
-
-        , make_footer :: Text -> Text -> FormattedString.FormattedString
         }
 
-default_style :: Style
-default_style = Style
+ascii_options :: Options
+ascii_options = Options
     { file_path_color = [bold, fg_bcyan]
     , error_color = [bold, fg_bred]
     , warning_color = [bold, fg_bmagenta]
@@ -59,11 +55,10 @@ default_style = Style
     , message_prefix_line = '|'
     , message_prefix_last = '`'
     , message_prefix = "--"
-
-    , make_footer = \ code desc -> "==> [" <> FormattedString.color_text [bold] code <> "] " <> FormattedString.color_text [bold] desc
     }
-unicode_style :: Style
-unicode_style = Style
+
+unicode_options :: Options
+unicode_options = Options
     { file_path_color = [bold, fg_bcyan]
     , error_color = [bold, fg_bred]
     , warning_color = [bold, fg_bmagenta]
@@ -94,8 +89,6 @@ unicode_style = Style
     , message_prefix_line = '├'
     , message_prefix_last = '╰'
     , message_prefix = "──"
-
-    , make_footer = \ code desc -> "═╧══[" <> FormattedString.color_text [bold] code <> "] " <> FormattedString.color_text [bold] desc
     }
 
 bold, bg_white, bg_cyan, bg_magenta, bg_blue, bg_yellow, bg_green, bg_red, bg_black, bg_bwhite, bg_bcyan, bg_bmagenta, bg_bblue, bg_byellow, bg_bgreen, bg_bred, bg_bblack, fg_white, fg_cyan, fg_magenta, fg_blue, fg_yellow, fg_green, fg_red, fg_black, fg_bwhite, fg_bcyan, fg_bmagenta, fg_bblue, fg_byellow, fg_bgreen, fg_bred, fg_bblack, reset, normal :: SGR

@@ -90,7 +90,7 @@ data Expr
     | Expr'TupleDestructure2 ID (Maybe Type.Type) BindingKey
     | Expr'ADTDestructure ID (Maybe Type.Type) BindingKey (Maybe Type.ADT.FieldIndex)
 
-    | Expr'Forall ID (Maybe Type.Type) (NonEmpty QuantVarKey) BindingGroup BindingKey
+    | Expr'Forall ID (Maybe Type.Type) QuantVarKey BindingGroup BindingKey
     | Expr'TypeApply ID (Maybe Type.Type) BindingKey (Maybe Type.Type)
 
     | Expr'Poison ID (Maybe Type.Type)

@@ -61,7 +61,7 @@ data AlmostExpr
     | AlmostExpr'TupleDestructure2 ANFIR.ID (Maybe Type.Type) ANFIR.BindingKey
     | AlmostExpr'ADTDestructure ANFIR.ID (Maybe Type.Type) ANFIR.BindingKey (Maybe Type.ADT.FieldIndex)
 
-    | AlmostExpr'Forall ANFIR.ID (Maybe Type.Type) (NonEmpty Type.QuantVarKey) [ANFIR.BindingKey] ANFIR.BindingKey
+    | AlmostExpr'Forall ANFIR.ID (Maybe Type.Type) Type.QuantVarKey [ANFIR.BindingKey] ANFIR.BindingKey
     | AlmostExpr'TypeApply ANFIR.ID (Maybe Type.Type) ANFIR.BindingKey (Maybe Type.Type)
 
     | AlmostExpr'Poison ANFIR.ID (Maybe Type.Type)
@@ -197,8 +197,12 @@ convert_expr m_varid (RIR.Expr'Match id ty _ tree) =
             pure binding
 
 convert_expr m_varid expr@(RIR.Expr'Forall id _ vars e) =
-    lift (lift $ lift $ lift ask) >>= \ var_arena -> let ty = RIR.expr_type var_arena expr in
     lift (runWriterT (convert_expr Nothing e)) >>= \ (e, e_involved_bindings) ->
+    go id vars e e_involved_bindings
+    where
+        go id [] result result_involved_bindings =
+        go id (var:vars) result result_involved_bindings = _
+    lift (lift $ lift $ lift ask) >>= \ var_arena -> let ty = RIR.expr_type var_arena expr in
     new_binding (\ _ -> AlmostExpr'Forall (choose_id m_varid id) ty vars e_involved_bindings e)
 convert_expr m_varid (RIR.Expr'TypeApply id ty _ e arg) = convert_expr Nothing e >>= \ e -> new_binding (\ _ -> AlmostExpr'TypeApply (choose_id m_varid id) ty e arg)
 
@@ -240,7 +244,7 @@ convert_almost_expr (AlmostExpr'Match id ty tree) = ANFIR.Expr'Match id ty <$> c
 convert_almost_expr (AlmostExpr'TupleDestructure1 id ty tup) = pure $ ANFIR.Expr'TupleDestructure1 id ty tup
 convert_almost_expr (AlmostExpr'TupleDestructure2 id ty tup) = pure $ ANFIR.Expr'TupleDestructure2 id ty tup
 convert_almost_expr (AlmostExpr'ADTDestructure id ty base field_idx) = pure $ ANFIR.Expr'ADTDestructure id ty base field_idx
-convert_almost_expr (AlmostExpr'Forall id ty tys bindings result) = ANFIR.Expr'Forall id ty tys <$> make_binding_group bindings <*> pure result
+convert_almost_expr (AlmostExpr'Forall id ty qvar bindings result) = ANFIR.Expr'Forall id ty qvar <$> make_binding_group bindings <*> pure result
 convert_almost_expr (AlmostExpr'TypeApply id ty e tyarg) = pure $ ANFIR.Expr'TypeApply id ty e tyarg
 convert_almost_expr (AlmostExpr'Poison id ty) = pure $ ANFIR.Expr'Poison id ty
 

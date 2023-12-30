@@ -17,7 +17,6 @@ module UHF.Diagnostic.Styles.Default.Line
 import UHF.Prelude
 
 import qualified Data.Text as Text
-import qualified System.IO as IO
 
 import UHF.Source.File (File)
 import qualified UHF.Diagnostic.Styles.Default.Options as Options
@@ -26,7 +25,7 @@ import qualified UHF.Source.FormattedString as FormattedString
 
 data Line = Line { prefix :: Text, separ :: Char, contents :: FormattedString.FormattedString } deriving (Show, Eq)
 
-print :: FormattedString.ColorsNeeded -> Int -> IO.Handle -> Line -> IO ()
+print :: FormattedString.ColorsNeeded -> Int -> Handle -> Line -> IO ()
 print c_needed indent handle (Line pre sep contents) =
     hPutStr handle (replicate (indent - Text.length pre) ' ') >>
     hPutStr handle pre >>

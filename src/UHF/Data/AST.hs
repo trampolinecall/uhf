@@ -14,12 +14,16 @@ type Identifier = Located Text
 
 -- TODO: make all asts store spans (some do right now based on where they are needed in the later phases, but all of them should have one just for consistency)
 
+data TypeParams = TypeParams [Identifier] [Type] deriving (Generic, EqIgnoringSpans, Show)
+empty_type_params :: TypeParams
+empty_type_params = TypeParams [] []
+
 data Decl
     = Decl'Value Pattern Span Expr
-    | Decl'Data Identifier [Identifier] [DataVariant]
+    | Decl'Data Identifier TypeParams [DataVariant]
     | Decl'TypeSyn Identifier Type
-    | Decl'Class Identifier [Identifier] [Decl]
-    | Decl'Instance [Identifier] Type [Type] [Decl]
+    | Decl'Class Identifier TypeParams [Decl]
+    | Decl'Instance TypeParams Type [Type] [Decl]
     -- TODO: | Decl'Import Type
     deriving (Generic, EqIgnoringSpans, Show)
 
@@ -34,7 +38,7 @@ data Type
     | Type'Tuple Span [Type] -- TODO: anonymous named products? (ie field names, but no datatype name)
     | Type'Hole Span Identifier
     | Type'Function Span Type Type
-    | Type'Forall Span [Identifier] Type
+    | Type'Forall Span TypeParams Type
     | Type'Apply Span Type [Type]
     | Type'Wild Span -- TODO: come up with better name for this
     deriving (Generic, EqIgnoringSpans, Show)
@@ -66,7 +70,7 @@ data Expr
     | Expr'If Span Span Expr Expr Expr
     | Expr'Match Span Span Expr [(Pattern, Expr)]
 
-    | Expr'Forall Span [Identifier] Expr -- TODO: add constraints like '#(T, U; Constraint#(T, U)) ...'
+    | Expr'Forall Span TypeParams Expr -- TODO: add constraints like '#(T, U; Constraint#(T, U)) ...'
     | Expr'TypeApply Span Expr [Type]
 
     | Expr'TypeAnnotation Span Type Expr

@@ -17,22 +17,16 @@ pp_decl :: AST.Decl -> PP.Token
 pp_decl (AST.Decl'Value target _ init) = PP.List [pp_pattern target, " = ", pp_expr init, ";"]
 pp_decl (AST.Decl'Data name params variants) =
     let variants' = PP.braced_block $ map pp_data_variant variants
-        params'
-            | null params = PP.List [""]
-            | otherwise = PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent (map pp_iden params)]
+        params' = pp_type_params_maybe params
     in PP.List ["data ", pp_iden name, params', " ", variants', ";"]
 pp_decl (AST.Decl'TypeSyn name ty) = PP.List ["typesyn ", pp_iden name, " = ", pp_type ty, ";"]
 pp_decl (AST.Decl'Class name params subdecls) =
     let subdecls' = PP.braced_block $ map pp_decl subdecls
-        params'
-            | null params = PP.List [""]
-            | otherwise = PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent (map pp_iden params)]
+        params' = pp_type_params_maybe params
     in PP.List ["class ", pp_iden name, params', " ", subdecls', ";"]
 pp_decl (AST.Decl'Instance params class_ args subdecls) =
     let subdecls' = PP.braced_block $ map pp_decl subdecls
-        params'
-            | null params = PP.List [""]
-            | otherwise = PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent (map pp_iden params)]
+        params' = pp_type_params_maybe params
         args'
             | null args = PP.List [""]
             | otherwise = PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent (map pp_type args)]
@@ -45,7 +39,7 @@ pp_data_variant (AST.DataVariant'Named name fields) = PP.List [pp_iden name, " "
 pp_type :: AST.Type -> PP.Token
 pp_type = PP.Precedence.pp_precedence levels PP.Precedence.parenthesize
     where
-        levels (AST.Type'Forall _ names subty) = (1, \ cur _ -> PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ map pp_iden names, " ", cur subty])
+        levels (AST.Type'Forall _ names subty) = (1, \ cur _ -> PP.List [pp_type_params_always names, " ", cur subty])
         levels (AST.Type'Function _ arg res) = (2, \ cur next -> PP.List [next arg, " -> ", cur res])
         levels (AST.Type'Apply _ callee args) = (3, \ cur _ -> PP.List [cur callee, "#", PP.parenthesized_comma_list PP.Inconsistent $ map pp_type args])
         levels (AST.Type'Get _ prev next) = (3, \ cur _ -> PP.List [cur prev, "::", PP.String $ unlocate next])
@@ -81,7 +75,7 @@ pp_expr = PP.Precedence.pp_precedence levels PP.Precedence.parenthesize
 
         levels (AST.Expr'TypeAnnotation _ ty e) = (2, \ _ _ -> PP.List [":", pp_type ty, ": ", pp_expr e])
 
-        levels (AST.Expr'Forall _ tys e) = (2, \ _ _ -> PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ map pp_iden tys, " ", pp_expr e])
+        levels (AST.Expr'Forall _ tys e) = (2, \ _ _ -> PP.List [pp_type_params_always tys, " ", pp_expr e])
 
 pp_let :: Text -> [AST.Decl] -> AST.Expr -> PP.Token
 pp_let let_str [decl] res = PP.FirstOnLineIfMultiline $ PP.List [PP.String let_str, " ", pp_decl decl, "\n", pp_expr res]
@@ -98,6 +92,18 @@ pp_pattern (AST.Pattern'Tuple _ items) = PP.parenthesized_comma_list PP.Inconsis
 pp_pattern (AST.Pattern'Named _ name _ subpat) = PP.List [pp_iden name, "@", pp_pattern subpat]
 pp_pattern (AST.Pattern'AnonADTVariant _ variant fields) = PP.List [pp_path_or_single_iden variant, PP.parenthesized_comma_list PP.Inconsistent (map pp_pattern fields)]
 pp_pattern (AST.Pattern'NamedADTVariant _ variant fields) = PP.List [pp_path_or_single_iden variant, PP.braced_block $ map (\ (field_name, field_pat) -> PP.List [pp_iden field_name, " = ", pp_pattern field_pat, ";"]) fields]
+
+pp_type_params_maybe :: AST.TypeParams -> PP.Token
+pp_type_params_maybe (AST.TypeParams [] []) = ""
+pp_type_params_maybe tp = pp_type_params_always tp
+
+pp_type_params_always :: AST.TypeParams -> PP.Token
+pp_type_params_always (AST.TypeParams vars insts) =
+    let vars' = PP.comma_separated PP.Inconsistent $ map pp_iden vars
+        insts' = PP.comma_separated PP.Inconsistent $ map pp_type insts
+    in case (vars, insts) of
+         (_, []) -> PP.List ["#(", vars', ")"]
+         (_, _) -> PP.List ["#(", vars', "; ", insts', ")"]
 
 pp_iden :: Located Text -> PP.Token
 pp_iden (Located _ i) = PP.String i

@@ -60,23 +60,12 @@ decl_data :: PEG.Parser AST.Decl
 decl_data =
     PEG.consume' "data declaration" (Token.SingleTypeToken Token.Data) >>
     PEG.consume' "datatype name" (Token.AlphaIdentifier ()) >>= \ (Located name_sp (Token.AlphaIdentifier name)) ->
-    PEG.optional (
-        PEG.consume' "'#'" (Token.SingleTypeToken Token.Hash) >>
-        PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>
-        PEG.delim_star
-            (
-                PEG.consume' "type variable name" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
-                pure (Located iden_sp iden)
-            )
-            (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ vars ->
-        PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>
-        pure vars
-    ) >>= \ type_params ->
+    PEG.optional type_params  >>= \ type_params ->
     PEG.consume' "'{'" (Token.SingleTypeToken Token.OBrace) >>
     PEG.star variant >>= \ variants ->
     PEG.consume' "'}'" (Token.SingleTypeToken Token.CBrace) >>
     PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>
-    pure (AST.Decl'Data (Located name_sp name) (fromMaybe [] type_params) variants)
+    pure (AST.Decl'Data (Located name_sp name) (fromMaybe AST.empty_type_params (Located.unlocate <$> type_params)) variants)
     where
         variant =
             PEG.consume' "variant name" (Token.AlphaIdentifier ()) >>= \ (Located name_sp (Token.AlphaIdentifier name)) ->
@@ -107,40 +96,18 @@ decl_class :: PEG.Parser AST.Decl
 decl_class =
     PEG.consume' "typeclass declaration" (Token.SingleTypeToken Token.Class) >>
     PEG.consume' "typeclass name" (Token.AlphaIdentifier ()) >>= \ (Located name_sp (Token.AlphaIdentifier name)) ->
-    PEG.optional (
-        PEG.consume' "'#'" (Token.SingleTypeToken Token.Hash) >>
-        PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>
-        PEG.delim_star
-            (
-                PEG.consume' "type variable name" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
-                pure (Located iden_sp iden)
-            )
-            (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ vars ->
-        PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>
-        pure vars
-    ) >>= \ type_params ->
+    PEG.optional type_params >>= \ type_params ->
     PEG.consume' "'{'" (Token.SingleTypeToken Token.OBrace) >>
     PEG.star decl >>= \ subdecls ->
     PEG.consume' "'}'" (Token.SingleTypeToken Token.CBrace) >>
     PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>
-    pure (AST.Decl'Class (Located name_sp name) (fromMaybe [] type_params) subdecls)
+    pure (AST.Decl'Class (Located name_sp name) (fromMaybe AST.empty_type_params (Located.unlocate <$> type_params)) subdecls)
 
 -- TODO: other requirements (like 'instance Something a => Class a' in haskell) (probably do something like 'instance#(A, B, C; Constraint) Class#(A, B, C)')
 decl_instance :: PEG.Parser AST.Decl
 decl_instance =
     PEG.consume' "instance declaration" (Token.SingleTypeToken Token.Instance) >>
-    PEG.optional (
-        PEG.consume' "'#'" (Token.SingleTypeToken Token.Hash) >>
-        PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>
-        PEG.delim_star
-            (
-                PEG.consume' "type variable name" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
-                pure (Located iden_sp iden)
-            )
-            (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ vars ->
-        PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>
-        pure vars
-    ) >>= \ type_params ->
+    PEG.optional type_params >>= \ type_params ->
     type_ >>= \ constraint ->
     let (class_, params) = remove_applies constraint
     in
@@ -148,7 +115,7 @@ decl_instance =
     PEG.star decl >>= \ subdecls ->
     PEG.consume' "'}'" (Token.SingleTypeToken Token.CBrace) >>
     PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>
-    pure (AST.Decl'Instance (fromMaybe [] type_params) class_ params subdecls)
+    pure (AST.Decl'Instance (fromMaybe AST.empty_type_params (Located.unlocate <$> type_params)) class_ params subdecls)
     where
         -- split Something#(A, B, C) into Something and [A, B, C]
         remove_applies :: AST.Type -> (AST.Type, [AST.Type])
@@ -273,17 +240,9 @@ expr_bool_lit =
 
 expr_forall :: PEG.Parser AST.Expr
 expr_forall =
-    PEG.consume' "'#'" (Token.SingleTypeToken Token.Hash) >>= \ (Located sp _) ->
-    PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>
-    PEG.delim_star
-        (
-            PEG.consume' "type variable name" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
-            pure (Located iden_sp iden)
-        )
-        (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ tys ->
-    PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>
+    type_params >>= \ (Located tys_sp tys) ->
     expr >>= \ e ->
-    pure (AST.Expr'Forall (sp <> AST.expr_span e) tys e)
+    pure (AST.Expr'Forall (tys_sp <> AST.expr_span e) tys e)
 
 expr_parenthesized :: PEG.Parser AST.Expr
 expr_parenthesized =
@@ -369,12 +328,9 @@ type_forall :: PEG.Parser AST.Type
 type_forall = PEG.choice [forall_, type_function]
     where
         forall_ =
-            PEG.consume' "'#'" (Token.SingleTypeToken Token.Hash) >>= \ (Located hash_sp _) ->
-            PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>
-            PEG.delim_star (PEG.consume' "type variable" (Token.AlphaIdentifier ()) >>= \ (Located sp (Token.AlphaIdentifier a)) -> pure (Located sp a)) (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ vars ->
-            PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>
+            type_params >>= \ (Located vars_sp vars) ->
             type_forall >>= \ subty ->
-            pure (AST.Type'Forall (hash_sp <> AST.type_span subty) vars subty)
+            pure (AST.Type'Forall (vars_sp <> AST.type_span subty) vars subty)
 
 type_function :: PEG.Parser AST.Type
 type_function = type_apply >>= m_function
@@ -509,6 +465,18 @@ path_or_single_symbol_iden = PEG.choice [path, single_iden]
             PEG.consume' "operator" (Token.SymbolIdentifier ()) >>= \ (Located iden_sp (Token.SymbolIdentifier iden)) ->
             pure (Located iden_sp (AST.PathOrSingleIden'Single (Located iden_sp iden)))
 
+type_params :: PEG.Parser (Located AST.TypeParams)
+type_params =
+    PEG.consume' "'#'" (Token.SingleTypeToken Token.Hash) >>= \ (Located hash_sp _) ->
+    PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>
+    PEG.delim_star
+        (
+            PEG.consume' "type variable name" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
+            pure (Located iden_sp iden)
+        )
+        (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ vars ->
+        PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ (Located cparen_sp _) ->
+    pure (Located (hash_sp <> cparen_sp) (AST.TypeParams vars [])) -- TODO: parse constraints too
 -- tests {{{1
 {- TODO
 -- test_decls :: [TestTree]

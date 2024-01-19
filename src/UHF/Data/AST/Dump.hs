@@ -17,10 +17,10 @@ dump_decl_list = PP.bracketed_comma_list PP.Consistent . map dump_decl
 
 dump_decl :: AST.Decl -> PP.Token
 dump_decl (AST.Decl'Value target _ init) = dump_struct "Decl'Value" [("target", dump_pattern target), ("init", dump_expr init)]
-dump_decl (AST.Decl'Data name type_params variants) = dump_struct "Decl'Data" [("name", dump_identifier name), ("type_params", dump_list dump_identifier type_params), ("variants", dump_list dump_data_variant variants)]
+dump_decl (AST.Decl'Data name type_params variants) = dump_struct "Decl'Data" [("name", dump_identifier name), ("type_params", dump_type_params type_params), ("variants", dump_list dump_data_variant variants)]
 dump_decl (AST.Decl'TypeSyn name ty) = dump_struct "Decl'TypeSyn" [("name", dump_identifier name), ("ty", dump_type ty)]
-dump_decl (AST.Decl'Class name params subdecls) = dump_struct "Decl'Class" [("name", dump_identifier name), ("params", dump_list dump_identifier params), ("subdecls", dump_list dump_decl subdecls)]
-dump_decl (AST.Decl'Instance params class_ args subdecls) = dump_struct "Decl'Instance" [("params", dump_list dump_identifier params), ("class", dump_type class_), ("args", dump_list dump_type args), ("subdecls", dump_list dump_decl subdecls)]
+dump_decl (AST.Decl'Class name params subdecls) = dump_struct "Decl'Class" [("name", dump_identifier name), ("params", dump_type_params params), ("subdecls", dump_list dump_decl subdecls)]
+dump_decl (AST.Decl'Instance type_params class_ args subdecls) = dump_struct "Decl'Instance" [("uquant", dump_type_params type_params), ("class", dump_type class_), ("args", dump_list dump_type args), ("subdecls", dump_list dump_decl subdecls)]
 
 dump_data_variant :: AST.DataVariant -> PP.Token
 dump_data_variant (AST.DataVariant'Anon name fields) = dump_struct "DataVariant'Anon" [("name", dump_identifier name), ("fields", dump_list dump_type fields)]
@@ -32,7 +32,7 @@ dump_type (AST.Type'Get _ prev next) = dump_struct "Type'Get" [("prev", dump_typ
 dump_type (AST.Type'Tuple _ items) = dump_struct "Type'Tuple" [("items", dump_list dump_type items)]
 dump_type (AST.Type'Hole _ name) = dump_struct "Type'Hole" [("name", dump_identifier name)]
 dump_type (AST.Type'Function _ arg res) = dump_struct "Type'Function" [("arg", dump_type arg), ("res", dump_type res)]
-dump_type (AST.Type'Forall _ tys ty) = dump_struct "Type'Forall" [("new", dump_list dump_identifier tys), ("ty", dump_type ty)]
+dump_type (AST.Type'Forall _ tys ty) = dump_struct "Type'Forall" [("tys", dump_type_params tys), ("ty", dump_type ty)]
 dump_type (AST.Type'Apply _ ty tys) = dump_struct "Type'Apply" [("ty", dump_type ty), ("args", dump_list dump_type tys)]
 dump_type (AST.Type'Wild _) = dump_struct "Type'Wild" []
 
@@ -52,7 +52,7 @@ dump_expr (AST.Expr'Call _ callee args) = dump_struct "Expr'Call" [("callee", du
 dump_expr (AST.Expr'If _ _ cond true false) = dump_struct "Expr'If" [("cond", dump_expr cond), ("true", dump_expr true), ("false", dump_expr false)]
 dump_expr (AST.Expr'Match _ _ e arms) = dump_struct "Expr'Match" [("e", dump_expr e), ("arms", dump_list (\ (pat, expr) -> PP.List [dump_pattern pat, " -> ", dump_expr expr]) arms)]
 dump_expr (AST.Expr'TypeAnnotation _ ty e) = dump_struct "Expr'TypeAnnotation" [("ty", dump_type ty), ("e", dump_expr e)]
-dump_expr (AST.Expr'Forall _ tys e) = dump_struct "Expr'Forall" [("new", dump_list dump_identifier tys), ("e", dump_expr e)]
+dump_expr (AST.Expr'Forall _ tys e) = dump_struct "Expr'Forall" [("tys", dump_type_params tys), ("e", dump_expr e)]
 dump_expr (AST.Expr'TypeApply _ e tys) = dump_struct "Expr'TypeApply" [("e", dump_expr e), ("args", dump_list dump_type tys)]
 dump_expr (AST.Expr'Hole _ name) = dump_struct "Expr'Hole" [("name", dump_identifier name)]
 
@@ -70,6 +70,9 @@ dump_identifier (Located _ i) = PP.String i
 dump_path_or_single_iden :: AST.PathOrSingleIden -> PP.Token
 dump_path_or_single_iden (AST.PathOrSingleIden'Single i) = dump_struct "PathOrSingleIden'Single" [("i", dump_identifier i)]
 dump_path_or_single_iden (AST.PathOrSingleIden'Path ty i) = dump_struct "PathOrSingleIden'Path" [("ty", dump_type ty), ("i", dump_identifier i)]
+
+dump_type_params :: AST.TypeParams -> PP.Token
+dump_type_params (AST.TypeParams vars insts) = dump_struct "TypeParams" [("vars", dump_list dump_identifier vars), ("instances", dump_list dump_type insts)]
 
 dump_struct :: Text -> [(Text, PP.Token)] -> PP.Token
 dump_struct name fields = PP.List [PP.String name, " ", PP.braced_comma_list PP.Consistent (map dump_field fields)]

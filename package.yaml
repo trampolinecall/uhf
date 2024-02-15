@@ -36,6 +36,7 @@ library:
     - template-haskell
     - inflist
     - file-embed
+    - json
     - filepath
 
     - tasty

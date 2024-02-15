@@ -294,7 +294,6 @@ expr (SIR.Expr'TypeAnnotation id () sp (annotation, annotation_ty) e) =
     type_expr annotation >>= \ annotation ->
     expr e >>= \ e ->
     ask >>= \ (adts, type_synonyms, quant_vars, _) ->
-    lift (tell [TypeSolver.Expect TypeSolver.InTypeAnnotation (Located (SIR.type_expr_span annotation) (TypeSolver.kind_of adts type_synonyms quant_vars annotation_ty)) TypeSolver.Type'Kind'Type]) >>
     lift (tell [TypeSolver.Expect TypeSolver.InTypeAnnotation (Located (SIR.type_expr_span annotation) (SIR.expr_type e)) annotation_ty]) >>
     pure (SIR.Expr'TypeAnnotation id annotation_ty sp (annotation, annotation_ty) e)
 

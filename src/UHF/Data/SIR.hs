@@ -66,6 +66,9 @@ type TypeSynonym stage = Type.TypeSynonym (TypeExpr stage, Stage.TypeExprEvaledA
 type Class stage = Type.Class
 type Instance stage = Type.Instance (TypeExpr stage, Stage.InstanceHead stage) (TypeExpr stage, Stage.TypeExprEvaledAsType stage)
 
+data TypeParams stage = TypeParams [QuantVarKey] [TypeExpr stage]
+deriving instance Stage.AllShowable stage => Show (TypeParams stage)
+
 data Decl ty
     = Decl'Module ModuleKey
     | Decl'Type ty
@@ -96,7 +99,7 @@ data TypeExpr stage
     | TypeExpr'Tuple (Stage.TypeExprEvaled stage) Span (TypeExpr stage) (TypeExpr stage)
     | TypeExpr'Hole (Stage.TypeExprEvaled stage) (Stage.TypeExprEvaledAsType stage) Span HoleIdentifier
     | TypeExpr'Function (Stage.TypeExprEvaled stage) Span (TypeExpr stage) (TypeExpr stage)
-    | TypeExpr'Forall (Stage.TypeExprEvaled stage) Span (NonEmpty QuantVarKey) (TypeExpr stage)
+    | TypeExpr'Forall (Stage.TypeExprEvaled stage) Span (TypeParams stage) (TypeExpr stage)
     | TypeExpr'Apply (Stage.TypeExprEvaled stage) Span (TypeExpr stage) (TypeExpr stage)
     | TypeExpr'Wild (Stage.TypeExprEvaled stage) Span
     | TypeExpr'Poison (Stage.TypeExprEvaled stage) Span
@@ -130,7 +133,7 @@ data Expr stage
     | Expr'If ID.ExprID (Stage.TypeInfo stage) Span Span (Expr stage) (Expr stage) (Expr stage)
     | Expr'Match ID.ExprID (Stage.TypeInfo stage) Span Span (Expr stage) [(Pattern stage, Expr stage)]
 
-    | Expr'Forall ID.ExprID (Stage.TypeInfo stage) Span (NonEmpty QuantVarKey) (Expr stage)
+    | Expr'Forall ID.ExprID (Stage.TypeInfo stage) Span (TypeParams stage) (Expr stage)
     | Expr'TypeApply ID.ExprID (Stage.TypeInfo stage) Span (Expr stage) (TypeExpr stage, Stage.TypeExprEvaledAsType stage)
 
     | Expr'TypeAnnotation ID.ExprID (Stage.TypeInfo stage) Span (TypeExpr stage, Stage.TypeExprEvaledAsType stage) (Expr stage)

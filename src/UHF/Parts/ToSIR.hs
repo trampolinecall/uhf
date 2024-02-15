@@ -22,6 +22,7 @@ data Error
 data Warning
     = ClassChildNotImplementedYet Span
     | InstanceChildNotImplementedYet Span
+    | ConstraintsNotImplementedYet Span
 
 data DeclAt = DeclAt Span | ImplicitPrim deriving Show
 
@@ -32,6 +33,7 @@ instance Diagnostic.ToError Error where
 instance Diagnostic.ToWarning Warning where
     to_warning (ClassChildNotImplementedYet sp) = Diagnostic.Warning (Just sp) "class children are not implemented yet" [] []
     to_warning (InstanceChildNotImplementedYet sp) = Diagnostic.Warning (Just sp) "instance children are not implemented yet" [] []
+    to_warning (ConstraintsNotImplementedYet sp) = Diagnostic.Warning (Just sp) "constraints are not implemented yet" [] []
 
 type SIRStage = (Located Text, (), (), Located Text, (), Located Text, (), (), (), ())
 
@@ -128,7 +130,7 @@ convert_decls var_parent decl_parent decls =
             pure ([SIR.Binding target' eq_sp expr'], [], [], [], [])
 
         convert_decl _ (AST.Decl'Data l_data_name@(Located _ data_name) type_params variants) =
-            mapM new_type_var type_params >>= \ ty_param_vars ->
+            ignore_instances_of_type_params type_params >>= mapM new_type_var >>= \ ty_param_vars ->
 
             let adt_id = ID.DeclID decl_parent data_name
             in mapM (convert_variant adt_id) variants >>= \ variants_converted ->
@@ -146,13 +148,13 @@ convert_decls var_parent decl_parent decls =
 
         convert_decl _ (AST.Decl'Class l_class_name@(Located class_name_sp class_name) type_params subdecls) = do
             let id = ID.DeclID decl_parent class_name
-            ty_param_quant_vars <- mapM new_type_var type_params
+            ty_param_quant_vars <- ignore_instances_of_type_params type_params >>= mapM new_type_var
             mapM_ (const (lift $ Compiler.tell_warning (ClassChildNotImplementedYet class_name_sp))) subdecls -- TODO: do this span properly, TODO: implement this and then remove the warning
             class_key <- new_class $ Type.Class id l_class_name ty_param_quant_vars -- TODO: figure out how subdecls are supposed to work
             pure ([], [], [], [class_key], [])
 
         convert_decl _ (AST.Decl'Instance type_params class_ args subdecls) = do
-            ty_param_quant_vars <- mapM new_type_var type_params
+            ty_param_quant_vars <- ignore_instances_of_type_params type_params >>= mapM new_type_var
             class_converted <- convert_type class_
             args <- mapM convert_type args
             mapM_ (const (lift $ Compiler.tell_warning (InstanceChildNotImplementedYet (AST.type_span class_)))) subdecls -- TODO: do this span properly, TODO: implement this and then remove the warning
@@ -191,7 +193,7 @@ convert_type (AST.Type'Tuple sp items) = mapM convert_type items >>= group_items
 convert_type (AST.Type'Hole sp id) = pure $ SIR.TypeExpr'Hole () () sp id
 convert_type (AST.Type'Function sp arg res) = SIR.TypeExpr'Function () sp <$> convert_type arg <*> convert_type res
 convert_type (AST.Type'Forall sp tys ty) =
-    mapM new_type_var tys >>= \case
+    ignore_instances_of_type_params tys >>= mapM new_type_var >>= \case
         [] -> convert_type ty -- can happen if the user passed none
         tyv1:tyv_more -> SIR.TypeExpr'Forall () sp (tyv1 :| tyv_more) <$> convert_type ty
 
@@ -268,7 +270,7 @@ convert_expr cur_id (AST.Expr'Match sp match_tok_sp e arms) =
 
 convert_expr cur_id (AST.Expr'TypeAnnotation sp ty e) = SIR.Expr'TypeAnnotation cur_id () sp <$> ((,()) <$> convert_type ty) <*> convert_expr (ID.ExprID'TypeAnnotationSubject cur_id) e
 convert_expr cur_id (AST.Expr'Forall sp tys e) =
-    mapM new_type_var tys >>= \case
+    ignore_instances_of_type_params tys >>= mapM new_type_var >>= \case
         [] -> convert_expr (ID.ExprID'ForallResult cur_id) e
         tyv1:tyv_more -> SIR.Expr'Forall cur_id () sp (tyv1 :| tyv_more) <$> convert_expr (ID.ExprID'ForallResult cur_id) e
 
@@ -315,3 +317,11 @@ convert_pattern parent (AST.Pattern'NamedADTVariant sp variant fields) =
 convert_path_or_single_iden :: AST.PathOrSingleIden -> MakeIRState (SIR.SplitIdentifier SIRStage (Located Text))
 convert_path_or_single_iden (AST.PathOrSingleIden'Single i) = pure $ SIR.SplitIdentifier'Single i
 convert_path_or_single_iden (AST.PathOrSingleIden'Path ty i) = convert_type ty >>= \ ty -> pure (SIR.SplitIdentifier'Get ty i)
+
+-- TODO: REMOVE
+ignore_instances_of_type_params :: AST.TypeParams -> MakeIRState [AST.Identifier]
+ignore_instances_of_type_params (AST.TypeParams tys constraints) = do
+    mapM_ warn constraints
+    pure tys
+    where
+        warn ty = lift $ Compiler.tell_warning $ ConstraintsNotImplementedYet $ AST.type_span ty

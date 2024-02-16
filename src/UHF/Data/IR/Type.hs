@@ -57,7 +57,7 @@ type_kind adt_arena type_synonym_arena quant_var_arena = go
             Type'Function _ _ -> Type'Kind'Type
             Type'Tuple _ _ -> Type'Kind'Type
             Type'QuantVar qvk -> quant_var_kind qvk
-            Type'Forall quant_vars result -> make_arrows (map quant_var_kind (toList quant_vars)) result
+            Type'Forall quant_vars result -> make_arrows (map quant_var_kind (toList quant_vars)) (go result)
             Type'Kind'Type -> Type'Kind'Kind
             Type'Kind'Arrow _ _ -> Type'Kind'Kind
             Type'Kind'Kind -> Type'Kind'Kind

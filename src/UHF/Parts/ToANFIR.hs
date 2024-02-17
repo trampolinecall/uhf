@@ -196,14 +196,15 @@ convert_expr m_varid (RIR.Expr'Match id ty _ tree) =
             runWriterT (new_binding (\ var_map -> AlmostExpr'ADTDestructure (ANFIR.ExprID id) ty (var_map Map.! base) field_idx)) >>= \ (binding, _) -> -- same note as above
             pure binding
 
-convert_expr m_varid expr@(RIR.Expr'Forall id _ vars e) =
-    lift (runWriterT (convert_expr Nothing e)) >>= \ (e, e_involved_bindings) ->
-    go id vars e e_involved_bindings
+convert_expr m_varid expr@(RIR.Expr'Forall id _ vars e) = go (toList vars) e
     where
-        go id [] result result_involved_bindings =
-        go id (var:vars) result result_involved_bindings = _
-    lift (lift $ lift $ lift ask) >>= \ var_arena -> let ty = RIR.expr_type var_arena expr in
-    new_binding (\ _ -> AlmostExpr'Forall (choose_id m_varid id) ty vars e_involved_bindings e)
+        go [] result = convert_expr Nothing e
+        go (var:vars) result =
+            lift (lift $ lift $ lift ask) >>= \ var_arena ->
+            let result_ty = RIR.expr_type var_arena result
+            in lift (runWriterT (go vars result)) >>= \ (result, result_bindings) ->
+            lift new_expr_id >>= \ eid ->
+            new_binding (\ _ -> AlmostExpr'Forall (ANFIR.ExprID eid) (Type.Type'Forall (var:|[]) <$> result_ty) var result_bindings result)
 convert_expr m_varid (RIR.Expr'TypeApply id ty _ e arg) = convert_expr Nothing e >>= \ e -> new_binding (\ _ -> AlmostExpr'TypeApply (choose_id m_varid id) ty e arg)
 
 convert_expr m_varid expr@(RIR.Expr'MakeADT id _ variant tyargs args) = lift (lift $ lift $ lift ask) >>= \ var_arena -> let ty = RIR.expr_type var_arena expr in mapM (convert_expr Nothing) args >>= \ args -> new_binding (\ _ -> AlmostExpr'MakeADT (choose_id m_varid id) ty variant tyargs args)

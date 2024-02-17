@@ -90,7 +90,7 @@ data Expr ty poison_allowed
     | Expr'TupleDestructure2 ID ty BindingKey
     | Expr'ADTDestructure ID ty BindingKey (Either poison_allowed Type.ADT.FieldIndex)
 
-    | Expr'Forall ID ty (NonEmpty QuantVarKey) BindingGroup BindingKey
+    | Expr'Forall ID ty QuantVarKey BindingGroup BindingKey
     | Expr'TypeApply ID ty BindingKey ty
 
     | Expr'Poison ID ty poison_allowed

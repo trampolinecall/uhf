@@ -21,6 +21,7 @@ type Type = Type.Type
 type ADT = Type.ADT Type
 type TypeSynonym = Type.TypeSynonym Type
 type Binding = BackendIR.Binding Type Void
+type Expr = BackendIR.Expr Type Void
 type BindingGroup = BackendIR.BindingGroup
 type Param = BackendIR.Param Type
 
@@ -56,7 +57,7 @@ runtime_code = $(FileEmbed.embedStringFile "data/ts_runtime.ts")
 data TSDecl
 newtype TSADT = TSADT Type.ADTKey
 -- TODO: dont use VariableKey Ord for order of captures in parameters of function
-data TSLambda = TSLambda BackendIR.BindingKey (Set.Set BackendIR.BindingKey) BindingGroup Type Type BackendIR.BindingKey
+data TSLambda = TSLambda BackendIR.BindingKey (Set.Set BackendIR.BindingKey) Type Type Expr
 data TS = TS [TSDecl] [TSADT] [TSLambda] [TS.Stmt]
 
 instance Semigroup TS where
@@ -101,7 +102,7 @@ convert_ts_adt (TSADT key) =
             pure (TS.Type'Object $ name_field : fields)
 
 convert_ts_lambda :: TSLambda -> IRReader TS.Stmt
-convert_ts_lambda (TSLambda key captures group@(BackendIR.BindingGroup _) arg_ty result_ty body_key) =
+convert_ts_lambda (TSLambda key captures arg_ty result_ty body) =
     refer_type_raw arg_ty >>= \ arg_type_raw ->
     refer_type arg_ty >>= \ arg_type ->
     refer_type_raw result_ty >>= \ result_type_raw ->
@@ -115,14 +116,15 @@ convert_ts_lambda (TSLambda key captures group@(BackendIR.BindingGroup _) arg_ty
         (toList captures) >>= \ capture_constructor_params ->
 
     mangle_binding_as_lambda key >>= \ lambda_mangled ->
-    mangle_binding_as_var body_key >>= \ body_as_var ->
+    mangle_expr_as_var body >>= \ body_as_var ->
+    lower_expr body >>= \ (body_defining, body_after) ->
+
     mapM
         (\ capture ->
             mangle_binding_as_var capture >>= \ capture_as_var ->
             mangle_binding_as_capture capture >>= \ capture_as_capture ->
             pure (TS.Stmt'Let capture_as_var Nothing (Just $ TS.Expr'Get (TS.Expr'Identifier "this") capture_as_capture)))
         (toList captures) >>= \ make_captures_local ->
-    lower_binding_group group >>= \ group_lowered ->
 
     pure
         (TS.Stmt'Class
@@ -132,7 +134,8 @@ convert_ts_lambda (TSLambda key captures group@(BackendIR.BindingGroup _) arg_ty
             , TS.ClassMember'MethodDecl "call" [TS.Parameter Nothing "param" (Just arg_type)] (Just result_type)
                 (Just $
                     make_captures_local ++
-                    group_lowered ++
+                    body_defining ++
+                    body_after ++
                     [TS.Stmt'Return $ TS.Expr'Identifier body_as_var])
             ]
         )
@@ -196,10 +199,10 @@ define_cu (BackendIR.CU global_group adts _) =
     pure ()
 
 define_lambda_type :: BackendIR.BindingKey -> Binding -> TSWriter ()
-define_lambda_type key (BackendIR.Binding (BackendIR.Expr'Lambda _ _ param captures group body)) =
+define_lambda_type key (BackendIR.Binding (BackendIR.Expr'Lambda _ _ param captures body)) =
     lift (get_param param) >>= \ (BackendIR.Param _ param_ty) ->
-    lift (binding_type body) >>= \ body_type ->
-    tell_lambda (TSLambda key captures group param_ty body_type body)
+    let body_type = BackendIR.expr_type body
+    in tell_lambda (TSLambda key captures param_ty body_type body)
 define_lambda_type _ _ = pure ()
 
 lower_binding_group :: BindingGroup -> IRReader [TS.Stmt]
@@ -214,8 +217,14 @@ lower_binding_group (BackendIR.BindingGroup chunks) = concat <$> mapM chunk chun
 
         lower_binding_key bk = get_binding bk >>= lower_binding
 
+-- TODO: remove 'after bindings'
 lower_binding :: Binding -> IRReader ([TS.Stmt], [TS.Stmt])
-lower_binding (BackendIR.Binding init) = l init
+lower_binding (BackendIR.Binding init) = lower_expr init
+
+-- TODO: remove 'after bindings'
+-- TODO: put this back into lower_binding?
+lower_expr :: Expr -> IRReader ([TS.Stmt], [TS.Stmt])
+lower_expr = l
     where
         l (BackendIR.Expr'Refer id _ other) = mangle_binding_as_var other >>= \ other -> let_current id (TS.Expr'Identifier other) >>= \ let_stmt -> pure ([let_stmt], [])
         l (BackendIR.Expr'Int id _ i) = let_current id (TS.Expr'New (TS.Expr'Identifier "Int") [TS.Expr'Int i]) >>= \ let_stmt -> pure ([let_stmt], [])
@@ -233,7 +242,7 @@ lower_binding (BackendIR.Binding init) = l init
             let_current id (TS.Expr'New (TS.Expr'Identifier adt_mangled) [TS.Expr'Object $ ("discriminant", Just $ TS.Expr'StrLit $ ID.mangle variant_id) : object_fields]) >>= \ let_stmt ->
             pure ([let_stmt], [])
 
-        l (BackendIR.Expr'Lambda id _ _ captures _ _) =
+        l (BackendIR.Expr'Lambda id _ _ captures _) =
             mangle_binding_id_as_var id >>= \ current_var ->
             mangle_binding_id_as_lambda id >>= \ lambda ->
             mapM
@@ -246,6 +255,17 @@ lower_binding (BackendIR.Binding init) = l init
             pure ([let_stmt], set_captures)
         l (BackendIR.Expr'Param id _ _) = let_current id (TS.Expr'Identifier "param") >>= \ let_stmt -> pure ([let_stmt], [])
         l (BackendIR.Expr'Call id _ callee arg) = mangle_binding_as_var callee >>= \ callee -> mangle_binding_as_var arg >>= \ arg -> let_current id (TS.Expr'Call (TS.Expr'Get (TS.Expr'Identifier callee) "call") [TS.Expr'Identifier arg]) >>= \ let_stmt -> pure ([let_stmt], [])
+
+        l (BackendIR.Expr'Let id _ group result) = do
+            final_var <- mangle_binding_id_as_var id
+            result_var <- mangle_expr_as_var result
+
+            let let_final_var = TS.Stmt'Let final_var Nothing Nothing
+            binding_group <- lower_binding_group group
+            (result_defining, result_after) <- l result
+            let assign_final_var = TS.Stmt'Expr $ TS.Expr'Assign (TS.Expr'Identifier final_var) (TS.Expr'Identifier result_var)
+
+            pure (let_final_var : binding_group ++ result_defining ++ [assign_final_var], result_after)
 
         l (BackendIR.Expr'Match id _ tree) =
             mangle_binding_id_as_var id >>= \ result_var ->
@@ -265,10 +285,10 @@ lower_binding (BackendIR.Binding init) = l init
                         <$> mapM
                             (\ (clauses, result) ->
                                 (case result of
-                                    Right (group, result) ->
-                                        lower_binding_group group >>= \ group_lowered ->
-                                        mangle_binding_as_var result >>= \ result ->
-                                        pure (TS.Stmt'Block $ group_lowered ++ set_result (TS.Expr'Identifier result))
+                                    Right result ->
+                                        mangle_expr_as_var result >>= \ result_var ->
+                                        l result >>= \ (result_defining_bindings, result_after_bindings) ->
+                                        pure (TS.Stmt'Block $ result_defining_bindings ++ result_after_bindings ++ set_result (TS.Expr'Identifier result_var))
                                     Left subtree -> lower_tree set_result subtree) >>= \ result ->
                                 foldrM lower_clause result clauses
                             )
@@ -300,12 +320,12 @@ lower_binding (BackendIR.Binding init) = l init
         l (BackendIR.Expr'ADTDestructure _ _ _ (Left void)) = absurd void
 
         -- TODO: lower these 2 properly
-        l (BackendIR.Expr'Forall id _ _ group result) =
+        l (BackendIR.Expr'Forall id _ _ result) =
             mangle_binding_id_as_var id >>= \ current_var ->
-            mangle_binding_as_var result >>= \ result ->
-            lower_binding_group group >>= \ group_lowered ->
-            let final_assign = TS.Stmt'Expr $ TS.Expr'Assign (TS.Expr'Identifier current_var) (TS.Expr'Identifier result)
-            in pure ([TS.Stmt'Let current_var Nothing Nothing, TS.Stmt'Block (group_lowered ++ [final_assign])], [])
+            mangle_expr_as_var result >>= \ result_var ->
+            l result >>= \ (result_defining_bindings, result_after_bindings) ->
+            let last_assign = TS.Stmt'Expr $ TS.Expr'Assign (TS.Expr'Identifier current_var) (TS.Expr'Identifier result_var)
+            in pure ([TS.Stmt'Let current_var Nothing Nothing, TS.Stmt'Block (result_defining_bindings ++ [last_assign])], result_after_bindings)
         l (BackendIR.Expr'TypeApply id _ expr _) = mangle_binding_as_var expr >>= \ expr -> let_current id (TS.Expr'Identifier expr) >>= \ let_stmt -> pure ([let_stmt], [])
 
         l (BackendIR.Expr'Poison _ _ void) = absurd void
@@ -315,6 +335,8 @@ lower_binding (BackendIR.Binding init) = l init
 -- mangling {{{2
 mangle_adt :: Type.ADTKey -> IRReader Text
 mangle_adt key = get_adt key >>= \ (Type.ADT id _ _ _) -> pure (ID.mangle id)
+
+-- TODO: clean this up
 
 mangle_binding_as_lambda :: BackendIR.BindingKey -> IRReader Text
 mangle_binding_as_lambda key = BackendIR.binding_id <$> get_binding key >>= mangle_binding_id_as_lambda
@@ -327,6 +349,9 @@ mangle_binding_as_capture key = BackendIR.binding_id <$> get_binding key >>= \ i
 
 mangle_binding_as_var :: BackendIR.BindingKey -> IRReader Text
 mangle_binding_as_var key = BackendIR.binding_id <$> get_binding key >>= mangle_binding_id_as_var
+
+mangle_expr_as_var :: Expr -> IRReader Text
+mangle_expr_as_var e = mangle_binding_id_as_var $ BackendIR.expr_id e
 
 mangle_binding_id_as_var :: BackendIR.ID -> IRReader Text
 mangle_binding_id_as_var id = pure ("var" <> BackendIR.mangle_id id)

@@ -82,8 +82,6 @@ data Expr ty poison_allowed
     | Expr'Lambda ID ty ParamKey (Set.Set BindingKey) BindingGroup BindingKey
     | Expr'Param ID ty ParamKey
 
-    | Expr'Let ID ty BindingGroup BindingKey
-
     | Expr'Call ID ty BindingKey BindingKey
 
     | Expr'Match ID ty (MatchTree poison_allowed)
@@ -121,7 +119,6 @@ expr_type (Expr'String _ ty _) = ty
 expr_type (Expr'Tuple _ ty _ _) = ty
 expr_type (Expr'Lambda _ ty _ _ _ _) = ty
 expr_type (Expr'Param _ ty _) = ty
-expr_type (Expr'Let _ ty _ _) = ty
 expr_type (Expr'Call _ ty _ _) = ty
 expr_type (Expr'Match _ ty _) = ty
 expr_type (Expr'TupleDestructure1 _ ty _) = ty
@@ -142,7 +139,6 @@ expr_id (Expr'String id _ _) = id
 expr_id (Expr'Tuple id _ _ _) = id
 expr_id (Expr'Lambda id _ _ _ _ _) = id
 expr_id (Expr'Param id _ _) = id
-expr_id (Expr'Let id _ _ _) = id
 expr_id (Expr'Call id _ _ _) = id
 expr_id (Expr'Match id _ _) = id
 expr_id (Expr'TupleDestructure1 id _ _) = id

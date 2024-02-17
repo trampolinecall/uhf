@@ -247,16 +247,6 @@ lower_binding (BackendIR.Binding init) = l init
         l (BackendIR.Expr'Param id _ _) = let_current id (TS.Expr'Identifier "param") >>= \ let_stmt -> pure ([let_stmt], [])
         l (BackendIR.Expr'Call id _ callee arg) = mangle_binding_as_var callee >>= \ callee -> mangle_binding_as_var arg >>= \ arg -> let_current id (TS.Expr'Call (TS.Expr'Get (TS.Expr'Identifier callee) "call") [TS.Expr'Identifier arg]) >>= \ let_stmt -> pure ([let_stmt], [])
 
-        l (BackendIR.Expr'Let id _ group result) = do
-            store_var <- mangle_binding_id_as_var id
-            result <- mangle_binding_as_var result
-
-            let let_store_var = TS.Stmt'Let store_var Nothing Nothing
-            binding_group <- lower_binding_group group
-            let assign_store_var = TS.Stmt'Expr $ TS.Expr'Assign (TS.Expr'Identifier store_var) (TS.Expr'Identifier result)
-
-            pure (let_store_var : binding_group ++ [assign_store_var], [])
-
         l (BackendIR.Expr'Match id _ tree) =
             mangle_binding_id_as_var id >>= \ result_var ->
             let label_name = "label_for_match" <> result_var

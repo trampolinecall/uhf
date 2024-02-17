@@ -82,8 +82,6 @@ data Expr
     | Expr'Lambda ID (Maybe Type.Type) ParamKey (Set.Set BindingKey) BindingGroup BindingKey -- TODO: dont use BindingKey Ord for order of captures
     | Expr'Param ID (Maybe Type.Type) ParamKey
 
-    | Expr'Let ID (Maybe Type.Type) BindingGroup BindingKey
-
     | Expr'Call ID (Maybe Type.Type) BindingKey BindingKey
 
     | Expr'Match ID (Maybe Type.Type) MatchTree
@@ -121,7 +119,6 @@ expr_type (Expr'String _ ty _) = ty
 expr_type (Expr'Tuple _ ty _ _) = ty
 expr_type (Expr'Lambda _ ty _ _ _ _) = ty
 expr_type (Expr'Param _ ty _) = ty
-expr_type (Expr'Let _ ty _ _) = ty
 expr_type (Expr'Call _ ty _ _) = ty
 expr_type (Expr'Match _ ty _) = ty
 expr_type (Expr'TupleDestructure1 _ ty _) = ty
@@ -142,7 +139,6 @@ expr_id (Expr'String id _ _) = id
 expr_id (Expr'Tuple id _ _ _) = id
 expr_id (Expr'Lambda id _ _ _ _ _) = id
 expr_id (Expr'Param id _ _) = id
-expr_id (Expr'Let id _ _ _) = id
 expr_id (Expr'Call id _ _ _) = id
 expr_id (Expr'Match id _ _) = id
 expr_id (Expr'TupleDestructure1 id _ _) = id

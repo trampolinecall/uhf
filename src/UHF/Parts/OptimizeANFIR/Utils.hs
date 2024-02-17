@@ -53,8 +53,6 @@ iterate_over_all_subexpressions modify = iterate_over_bindings do_binding
         do_expr (ANFIR.Expr'Lambda id ty param captures group res) = modify res >>= \ res -> pure (ANFIR.Expr'Lambda id ty param captures group res)
         do_expr (ANFIR.Expr'Param id ty param) = pure (ANFIR.Expr'Param id ty param)
 
-        do_expr (ANFIR.Expr'Let id ty group result) = modify result >>= \ result -> pure (ANFIR.Expr'Let id ty group result)
-
         do_expr (ANFIR.Expr'Call id ty callee arg) = modify callee >>= \ callee -> modify arg >>= \ arg -> pure (ANFIR.Expr'Call id ty callee arg)
 
         do_expr (ANFIR.Expr'Match id ty tree) = do_tree tree >>= \ tree -> pure (ANFIR.Expr'Match id ty tree)

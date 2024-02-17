@@ -89,7 +89,7 @@ expr (ANFIR.Expr'Bool _ _ b) = pure $ PP.String $ if b then "true" else "false"
 expr (ANFIR.Expr'Char _ _ c) = pure $ PP.String $ show c
 expr (ANFIR.Expr'String _ _ s) = pure $ PP.String $ show s
 expr (ANFIR.Expr'Tuple _ _ a b) = refer_binding a >>= \ a -> refer_binding b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b])
-expr (ANFIR.Expr'Lambda _ _ param captures body) = refer_param param >>= \ param -> expr body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, " ->", body]) -- TODO: show captures
+expr (ANFIR.Expr'Lambda _ _ param captures body) = refer_param param >>= \ param -> expr body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, " -> ", body]) -- TODO: show captures
 expr (ANFIR.Expr'Param _ _ pk) = refer_param pk
 expr (ANFIR.Expr'Let _ _ group result) = do
     group <- define_binding_group group

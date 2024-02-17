@@ -56,8 +56,10 @@ rp_expr (BackendIR.Expr'Char id ty c) = ty >>= \ ty -> pure (BackendIR.Expr'Char
 rp_expr (BackendIR.Expr'String id ty t) = ty >>= \ ty -> pure (BackendIR.Expr'String id ty t)
 rp_expr (BackendIR.Expr'Tuple id ty a b) = ty >>= \ ty -> pure (BackendIR.Expr'Tuple id ty a b)
 
-rp_expr (BackendIR.Expr'Lambda id ty a c g r) = ty >>= \ ty -> pure (BackendIR.Expr'Lambda id ty a c g r)
+rp_expr (BackendIR.Expr'Lambda id ty a c r) = ty >>= \ ty -> rp_expr r >>= \ r -> pure (BackendIR.Expr'Lambda id ty a c r)
 rp_expr (BackendIR.Expr'Param id ty p) = ty >>= \ ty -> pure (BackendIR.Expr'Param id ty p)
+
+rp_expr (BackendIR.Expr'Let id ty g r) = ty >>= \ ty -> rp_expr r >>= \ r -> pure (BackendIR.Expr'Let id ty g r)
 
 rp_expr (BackendIR.Expr'Call id ty c a) = ty >>= \ ty -> pure (BackendIR.Expr'Call id ty c a)
 
@@ -70,7 +72,7 @@ rp_expr (BackendIR.Expr'Match id ty t) = ty >>= \ ty -> rp_tree t >>= \ t -> pur
                         (,)
                             <$> mapM rp_clause clauses
                             <*> case result of
-                                    Right e -> Just $ Right e
+                                    Right e -> Right <$> rp_expr e
                                     Left subtree -> Left <$> rp_tree subtree
                     )
                     arms
@@ -88,7 +90,7 @@ rp_expr (BackendIR.Expr'TupleDestructure2 id ty t) = ty >>= \ ty -> pure (Backen
 rp_expr (BackendIR.Expr'ADTDestructure id ty b (Right field)) = ty >>= \ ty -> pure (BackendIR.Expr'ADTDestructure id ty b (Right field))
 rp_expr (BackendIR.Expr'ADTDestructure _ _ _ (Left ())) = Nothing
 
-rp_expr (BackendIR.Expr'Forall id ty vars group e) = ty >>= \ ty -> pure (BackendIR.Expr'Forall id ty vars group e)
+rp_expr (BackendIR.Expr'Forall id ty vars e) = ty >>= \ ty -> rp_expr e >>= \ e -> pure (BackendIR.Expr'Forall id ty vars e)
 rp_expr (BackendIR.Expr'TypeApply id ty e arg) = ty >>= \ ty -> arg >>= \ arg -> pure (BackendIR.Expr'TypeApply id ty e arg)
 
 rp_expr (BackendIR.Expr'MakeADT id ty variant tyargs args) = ty >>= \ ty -> sequence tyargs >>= \ tyargs -> pure (BackendIR.Expr'MakeADT id ty variant tyargs args)

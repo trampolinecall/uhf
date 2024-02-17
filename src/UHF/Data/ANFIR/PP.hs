@@ -89,8 +89,12 @@ expr (ANFIR.Expr'Bool _ _ b) = pure $ PP.String $ if b then "true" else "false"
 expr (ANFIR.Expr'Char _ _ c) = pure $ PP.String $ show c
 expr (ANFIR.Expr'String _ _ s) = pure $ PP.String $ show s
 expr (ANFIR.Expr'Tuple _ _ a b) = refer_binding a >>= \ a -> refer_binding b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b])
-expr (ANFIR.Expr'Lambda _ _ param captures group body) = refer_param param >>= \ param -> define_binding_group group >>= \ group -> refer_binding body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, " ->", PP.indented_block [group, body]]) -- TODO: show captures
+expr (ANFIR.Expr'Lambda _ _ param captures body) = refer_param param >>= \ param -> expr body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, " ->", body]) -- TODO: show captures
 expr (ANFIR.Expr'Param _ _ pk) = refer_param pk
+expr (ANFIR.Expr'Let _ _ group result) = do
+    group <- define_binding_group group
+    result <- expr result
+    pure (PP.FirstOnLineIfMultiline $ PP.List ["let ", group, "\n", result])
 expr (ANFIR.Expr'Call _ _ callee arg) = refer_binding callee >>= \ callee -> refer_binding arg >>= \ arg -> pure (PP.List [callee, "(", arg, ")"])
 expr (ANFIR.Expr'Match _ _ t) = tree t >>= \ t -> pure (PP.List ["match ", t])
     where
@@ -99,9 +103,7 @@ expr (ANFIR.Expr'Match _ _ t) = tree t >>= \ t -> pure (PP.List ["match ", t])
         arm (clauses, result) =
             mapM clause clauses >>= \ clauses ->
             (case result of
-                Right (group, expr) ->
-                    define_binding_group group >>= \ group -> refer_binding expr >>= \ expr ->
-                    pure (PP.indented_block [group, expr])
+                Right e -> expr e
                 Left subtree -> tree subtree) >>= \ result ->
             pure (PP.List [PP.bracketed_comma_list PP.Inconsistent clauses, " -> ", result, ";"])
 
@@ -135,7 +137,7 @@ expr (ANFIR.Expr'ADTDestructure _ _ base m_field_idx) =
         )
         m_field_idx >>= \ (variant_referred, field) ->
     pure (PP.List ["(", base, " as ", variant_referred, ").", field])
-expr (ANFIR.Expr'Forall _ _ var group e) = quant_var var >>= \ var -> define_binding_group group >>= \ group -> refer_binding e >>= \ e -> pure (PP.FirstOnLineIfMultiline $ PP.List ["#(", var, ") ", PP.indented_block [group, e]])
+expr (ANFIR.Expr'Forall _ _ var e) = quant_var var >>= \ var -> expr e >>= \ e -> pure (PP.FirstOnLineIfMultiline $ PP.List ["#(", var, ") ", e])
 expr (ANFIR.Expr'TypeApply _ _ e arg) = refer_binding e >>= \ e -> refer_type arg >>= \ arg -> pure (PP.List [e, "#(", arg, ")"])
 expr (ANFIR.Expr'MakeADT _ _ variant_index@(Type.ADT.VariantIndex _ adt_key _) tyargs args) =
     Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_referred ->

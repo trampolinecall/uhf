@@ -59,13 +59,9 @@ dump_captures :: Set.Set BackendIR.BindingKey -> IRReader ty poison_allowed [PP.
 dump_captures = mapM refer_binding . toList
 
 define_binding_group_flat :: (DumpableType ty) => BackendIR.BindingGroup -> IRReader ty poison_allowed [PP.Token]
-define_binding_group_flat (BackendIR.BindingGroup chunks) = mapM define_chunk chunks
+define_binding_group_flat (BackendIR.BindingGroup bindings) = mapM define_binding bindings
 define_binding_group :: (DumpableType ty) => BackendIR.BindingGroup -> IRReader ty poison_allowed PP.Token
-define_binding_group (BackendIR.BindingGroup chunks) = mapM define_chunk chunks >>= \ chunks -> pure (PP.braced_block chunks)
-
-define_chunk :: (DumpableType ty) => BackendIR.BindingChunk -> IRReader ty poison_allowed PP.Token
-define_chunk (BackendIR.SingleBinding bk) = define_binding bk
-define_chunk (BackendIR.MutuallyRecursiveBindings bindings) = mapM define_binding bindings >>= \ bindings -> pure (PP.List ["mutually recursive ", PP.braced_block bindings])
+define_binding_group (BackendIR.BindingGroup bindings) = mapM define_binding bindings >>= \ bindings -> pure (PP.braced_block bindings)
 
 define_binding :: (DumpableType ty) => BackendIR.BindingKey -> IRReader ty poison_allowed PP.Token
 define_binding key =

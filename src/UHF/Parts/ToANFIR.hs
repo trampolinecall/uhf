@@ -399,10 +399,10 @@ make_binding_group (AlmostBindingGroup bindings) =
                     in mapM deal_with_loop loops >>= \ loops ->
                     topological_sort call_dependencies exec_dependencies (done ++ loops) not_loop
 
-                (ready, waiting) -> topological_sort call_dependencies exec_dependencies (done ++ map ANFIR.SingleBinding ready) waiting
+                (ready, waiting) -> topological_sort call_dependencies exec_dependencies (done ++ ready) waiting
             where
                 exec_dependencies_satisfied bk = and $ Set.map dependency_satisfied (exec_dependencies Map.! bk)
-                dependency_satisfied (NeedsExecuted dep) = dep `List.elem` concatMap ANFIR.chunk_bindings done -- dep needs to have been executed, so check if it is in done
+                dependency_satisfied (NeedsExecuted dep) = dep `List.elem` done -- dep needs to have been executed, so check if it is in done
                 dependency_satisfied (NeedsCallable dep) = and $ Set.map dependency_satisfied (call_dependencies Map.! dep) -- dep needs to be callable, so make sure that all of its call dependencies are satisfied
 
                 find_loops = find [] []

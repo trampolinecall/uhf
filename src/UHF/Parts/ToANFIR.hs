@@ -266,6 +266,14 @@ get_execute_dependencies_of_almost_binding_group_and_expr (AlmostBindingGroup bi
             -- exclude all dependencies that are defined in the binding group because those are not dependencies of the binding group and expr as a whole
             (\dep -> not $ Set.member (get_dependency_bk dep) (Set.fromList bindings))
             (binding_dependencies <> [NeedsExecuted e])
+get_call_dependencies_of_almost_binding_group_and_expr :: AlmostBindingGroup -> ANFIR.BindingKey -> Reader (BindingArena AlmostExpr) (Set Dependency)
+get_call_dependencies_of_almost_binding_group_and_expr (AlmostBindingGroup bindings) e = do
+    binding_dependencies <- Set.unions <$> mapM get_call_dependencies_of_almost_expr bindings
+    pure $
+        Set.filter
+            -- exclude all dependencies that are defined in the binding group because those are not dependencies of the binding group and expr as a whole
+            (\dep -> not $ Set.member (get_dependency_bk dep) (Set.fromList bindings))
+            (binding_dependencies <> [NeedsExecuted e])
 
 get_execute_dependencies_of_almost_expr :: ANFIR.BindingKey -> Reader (BindingArena AlmostExpr) (Set.Set Dependency)
 get_execute_dependencies_of_almost_expr bk =
@@ -290,24 +298,23 @@ get_execute_dependencies_of_almost_expr bk =
                 go_through_tree (AlmostMatchTree arms) =
                     arms
                         & mapM
-                            (\ (clauses, result) ->
-                                let (referenced_in_clauses, defined_in_clauses) = clauses
-                                        & map go_through_clause
-                                        & unzip
-                                    remove_defined_in_clauses = Set.filter (\ dep -> not $ Set.member (get_dependency_bk dep) (Set.unions defined_in_clauses))
-                                in
+                            (\ (clauses, result) -> do
+                                (referenced_in_clauses, defined_in_clauses) <-  clauses
+                                        & mapM go_through_clause
+                                        <&> unzip
+                                let remove_defined_in_clauses = Set.filter (\ dep -> not $ Set.member (get_dependency_bk dep) (Set.unions defined_in_clauses))
 
-                                (case result of
+                                result_dependencies <- case result of
                                     Left subtree -> go_through_tree subtree
-                                    Right (bindings, e) -> get_execute_dependencies_of_almost_binding_group_and_expr bindings e) >>= \ result_dependencies ->
+                                    Right (bindings, e) -> get_execute_dependencies_of_almost_binding_group_and_expr bindings e
 
-                                pure (remove_defined_in_clauses $ Set.unions referenced_in_clauses <> result_dependencies)
+                                pure $ remove_defined_in_clauses $ Set.unions referenced_in_clauses <> result_dependencies
                             )
                         <&> Set.unions
 
                 -- first element is execute dependencies, second element is bindings defined
-                go_through_clause (ANFIR.MatchClause'Match binding _) = ([NeedsExecuted binding], [])
-                go_through_clause (ANFIR.MatchClause'Binding b) = ([], [b])
+                go_through_clause (ANFIR.MatchClause'Match binding _) = pure ([NeedsExecuted binding], [])
+                go_through_clause (ANFIR.MatchClause'Binding b) = get_execute_dependencies_of_almost_expr b >>= \ b_deps -> pure (b_deps, [b])
 
         AlmostExpr'TupleDestructure1 _ _ tup -> pure [NeedsExecuted tup]
         AlmostExpr'TupleDestructure2 _ _ tup -> pure [NeedsExecuted tup]
@@ -318,34 +325,61 @@ get_execute_dependencies_of_almost_expr bk =
         AlmostExpr'Poison _ _ -> pure []
 
 get_call_dependencies_of_almost_expr :: ANFIR.BindingKey -> Reader (BindingArena AlmostExpr) (Set.Set Dependency)
-get_call_dependencies_of_almost_expr bk =
-    ask >>= \ binding_arena ->
-    case Arena.get binding_arena bk of
-        -- these expressions are all atomic, so they can be called anywhere that they have been executed (i.e. their call dependencies are the same as their execute dependencies)
-        AlmostExpr'Char _ _ _ -> get_execute_dependencies_of_almost_expr bk
-        AlmostExpr'String _ _ _ -> get_execute_dependencies_of_almost_expr bk
-        AlmostExpr'Int _ _ _ -> get_execute_dependencies_of_almost_expr bk
-        AlmostExpr'Float _ _ _ -> get_execute_dependencies_of_almost_expr bk
-        AlmostExpr'Bool _ _ _ -> get_execute_dependencies_of_almost_expr bk
-        AlmostExpr'Param _ _ _ -> get_execute_dependencies_of_almost_expr bk
-        AlmostExpr'Poison _ _ -> get_execute_dependencies_of_almost_expr bk
+get_call_dependencies_of_almost_expr bk = do
+    binding_arena <- ask
+    deps <- case Arena.get binding_arena bk of
+        -- these expressions are all atomic, so they can be called when they have been executed (this requirement is at the final pure call below)
+        AlmostExpr'Char _ _ _ -> pure []
+        AlmostExpr'String _ _ _ -> pure []
+        AlmostExpr'Int _ _ _ -> pure []
+        AlmostExpr'Float _ _ _ -> pure []
+        AlmostExpr'Bool _ _ _ -> pure []
+        AlmostExpr'Param _ _ _ -> pure []
+        AlmostExpr'Poison _ _ -> pure []
 
-        -- these expressions dont store code themselves, but do refer to store other expressions, so they are only callable if the other ones are also callable
+        -- these expressions are only callable if the expressions it refers to are also callable
         AlmostExpr'Refer _ _ r -> pure [NeedsCallable r]
+        AlmostExpr'Call _ _ callee arg -> pure [NeedsCallable callee, NeedsCallable arg] -- TODO: this is probably not correct
         AlmostExpr'Tuple _ _ a b -> pure [NeedsCallable a, NeedsCallable b]
-        AlmostExpr'Call _ _ callee arg -> pure [NeedsCallable callee, NeedsCallable arg]
-        AlmostExpr'Match _ _ tree -> get_execute_dependencies_of_almost_expr bk
         AlmostExpr'TupleDestructure1 _ _ tup -> pure [NeedsCallable tup]
         AlmostExpr'TupleDestructure2 _ _ tup -> pure [NeedsCallable tup]
         AlmostExpr'ADTDestructure _ _ v _ -> pure [NeedsCallable v]
-        AlmostExpr'Forall _ _ _ bindings e -> pure [NeedsCallable e] -- TODO: reconsider if this is correct
         AlmostExpr'TypeApply _ _ e _ -> pure [NeedsCallable e]
         AlmostExpr'MakeADT _ _ _ _ args -> pure $ Set.fromList $ map NeedsCallable args
+        AlmostExpr'Forall _ _ _ bindings e -> get_call_dependencies_of_almost_binding_group_and_expr bindings e -- TODO: reconsider if this is correct
+
+        -- a match is callable if all of its arms are callable
+        AlmostExpr'Match _ _ tree -> go_through_tree tree
+            where
+                go_through_tree (AlmostMatchTree arms) =
+                    arms
+                        & mapM
+                            (\ (clauses, result) ->
+                                let defined_in_clauses = clauses & map go_through_clause & Set.unions
+                                    remove_defined_in_clauses = Set.filter (\ dep -> not $ Set.member (get_dependency_bk dep) defined_in_clauses)
+                                in
+
+                                (case result of
+                                    Left subtree -> go_through_tree subtree
+                                    Right (AlmostBindingGroup bindings, e) ->
+                                        if not $ e `List.elem` bindings
+                                            then pure [NeedsCallable e]
+                                            else pure []) >>= \ result_dependencies ->
+
+                                pure (remove_defined_in_clauses result_dependencies)
+                            )
+                        <&> Set.unions
+
+                -- returns the bindings defined in the clauses
+                go_through_clause (ANFIR.MatchClause'Match binding _) = []
+                go_through_clause (ANFIR.MatchClause'Binding b) = [b]
 
         -- lambdas store code
         AlmostExpr'Lambda _ _ _ bindings result ->
             -- because calling a lambda executes bindings and result, the call dependencies of this lambda are the execute dependencies of bindings and result unmodified
             get_execute_dependencies_of_almost_binding_group_and_expr bindings result
+
+    pure ([NeedsExecuted bk] <> deps) -- any expression is only callable after it has been executed
 
 make_binding_group :: AlmostBindingGroup -> Reader (BindingArena AlmostExpr) ANFIRBindingGroup
 make_binding_group (AlmostBindingGroup bindings) =

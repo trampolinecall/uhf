@@ -79,25 +79,27 @@ data Expr ty poison_allowed
     | Expr'Tuple ID ty BindingKey BindingKey
     | Expr'MakeADT ID ty Type.ADT.VariantIndex [ty] [BindingKey]
 
-    | Expr'Lambda ID ty ParamKey (Set.Set BindingKey) BindingGroup BindingKey
+    | Expr'Lambda ID ty ParamKey (Set.Set BindingKey) (Expr ty poison_allowed)
     | Expr'Param ID ty ParamKey
+
+    | Expr'Let ID ty BindingGroup (Expr ty poison_allowed)
 
     | Expr'Call ID ty BindingKey BindingKey
 
-    | Expr'Match ID ty (MatchTree poison_allowed)
+    | Expr'Match ID ty (MatchTree ty poison_allowed)
 
     | Expr'TupleDestructure1 ID ty BindingKey
     | Expr'TupleDestructure2 ID ty BindingKey
     | Expr'ADTDestructure ID ty BindingKey (Either poison_allowed Type.ADT.FieldIndex)
 
-    | Expr'Forall ID ty QuantVarKey BindingGroup BindingKey
+    | Expr'Forall ID ty QuantVarKey (Expr ty poison_allowed)
     | Expr'TypeApply ID ty BindingKey ty
 
     | Expr'Poison ID ty poison_allowed
     deriving Show
 
-data MatchTree poison_allowed
-    = MatchTree [([MatchClause poison_allowed], Either (MatchTree poison_allowed) (BindingGroup, BindingKey))]
+data MatchTree ty poison_allowed
+    = MatchTree [([MatchClause poison_allowed], Either (MatchTree ty poison_allowed) (Expr ty poison_allowed))]
     deriving Show
 data MatchClause poison_allowed
     = MatchClause'Match BindingKey (MatchMatcher poison_allowed)
@@ -117,14 +119,15 @@ expr_type (Expr'Bool _ ty _) = ty
 expr_type (Expr'Char _ ty _) = ty
 expr_type (Expr'String _ ty _) = ty
 expr_type (Expr'Tuple _ ty _ _) = ty
-expr_type (Expr'Lambda _ ty _ _ _ _) = ty
+expr_type (Expr'Lambda _ ty _ _ _) = ty
 expr_type (Expr'Param _ ty _) = ty
+expr_type (Expr'Let _ ty _ _) = ty
 expr_type (Expr'Call _ ty _ _) = ty
 expr_type (Expr'Match _ ty _) = ty
 expr_type (Expr'TupleDestructure1 _ ty _) = ty
 expr_type (Expr'TupleDestructure2 _ ty _) = ty
 expr_type (Expr'ADTDestructure _ ty _ _) = ty
-expr_type (Expr'Forall _ ty _ _ _) = ty
+expr_type (Expr'Forall _ ty _ _) = ty
 expr_type (Expr'TypeApply _ ty _ _) = ty
 expr_type (Expr'MakeADT _ ty _ _ _) = ty
 expr_type (Expr'Poison _ ty _) = ty
@@ -137,14 +140,15 @@ expr_id (Expr'Bool id _ _) = id
 expr_id (Expr'Char id _ _) = id
 expr_id (Expr'String id _ _) = id
 expr_id (Expr'Tuple id _ _ _) = id
-expr_id (Expr'Lambda id _ _ _ _ _) = id
+expr_id (Expr'Lambda id _ _ _ _) = id
 expr_id (Expr'Param id _ _) = id
+expr_id (Expr'Let id _ _ _) = id
 expr_id (Expr'Call id _ _ _) = id
 expr_id (Expr'Match id _ _) = id
 expr_id (Expr'TupleDestructure1 id _ _) = id
 expr_id (Expr'TupleDestructure2 id _ _) = id
 expr_id (Expr'ADTDestructure id _ _ _) = id
-expr_id (Expr'Forall id _ _ _ _) = id
+expr_id (Expr'Forall id _ _ _) = id
 expr_id (Expr'TypeApply id _ _ _) = id
 expr_id (Expr'MakeADT id _ _ _ _) = id
 expr_id (Expr'Poison id _ _) = id

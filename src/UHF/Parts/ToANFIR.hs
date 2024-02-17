@@ -402,8 +402,14 @@ make_binding_group (AlmostBindingGroup bindings) =
                 (ready, waiting) -> topological_sort call_dependencies exec_dependencies (done ++ ready) waiting
             where
                 exec_dependencies_satisfied bk = and $ Set.map dependency_satisfied (exec_dependencies Map.! bk)
-                dependency_satisfied (NeedsExecuted dep) = dep `List.elem` done -- dep needs to have been executed, so check if it is in done
-                dependency_satisfied (NeedsCallable dep) = and $ Set.map dependency_satisfied (call_dependencies Map.! dep) -- dep needs to be callable, so make sure that all of its call dependencies are satisfied
+                dependency_satisfied = go []
+                    where
+                        -- use a stack to keep track of which dependencies we are trying to prove because certain loops can make circular dependencies
+                        go stack dep
+                            | dep `elem` stack = False -- if there is an unsatisfiable loop, this dependency is not satisfied
+                            | otherwise = case dep of
+                                NeedsExecuted depbk -> depbk `List.elem` done -- dep needs to have been executed, so check if it is in done
+                                NeedsCallable depbk -> and $ Set.map (go (dep:stack)) (call_dependencies Map.! depbk) -- dep needs to be callable, so make sure that all of its call dependencies are satisfied
 
                 find_loops = find [] []
                     where

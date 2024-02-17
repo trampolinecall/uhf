@@ -20,8 +20,8 @@ get_adt_arena :: IRReader (Arena.Arena (Type.ADT (Maybe Type.Type)) Type.ADTKey)
 get_adt_arena = reader (\ (RIR.RIR _ adts _ _ _ _) -> adts)
 get_type_synonym_arena :: IRReader (Arena.Arena (Type.TypeSynonym (Maybe Type.Type)) Type.TypeSynonymKey)
 get_type_synonym_arena = reader (\ (RIR.RIR _ _ syns _ _ _) -> syns)
-get_type_var_arena :: IRReader (Arena.Arena Type.QuantVar Type.QuantVarKey)
-get_type_var_arena = reader (\ (RIR.RIR _ _ _ vars _ _) -> vars)
+get_quant_var_arena :: IRReader (Arena.Arena Type.QuantVar Type.QuantVarKey)
+get_quant_var_arena = reader (\ (RIR.RIR _ _ _ vars _ _) -> vars)
 
 get_adt :: Type.ADTKey -> IRReader (Type.ADT (Maybe Type.Type))
 get_adt k = reader (\ (RIR.RIR _ adts _ _ _ _) -> Arena.get adts k)
@@ -29,8 +29,8 @@ get_type_synonym :: Type.TypeSynonymKey -> IRReader (Type.TypeSynonym (Maybe Typ
 get_type_synonym k = reader (\ (RIR.RIR _ _ type_synonyms _ _ _) -> Arena.get type_synonyms k)
 get_var :: RIR.VariableKey -> IRReader RIR.Variable
 get_var k = reader (\ (RIR.RIR _ _ _ _ vars _) -> Arena.get vars k)
-get_type_var :: Type.QuantVarKey -> IRReader Type.QuantVar
-get_type_var k = reader (\ (RIR.RIR _ _ _ type_vars _ _) -> Arena.get type_vars k)
+get_quant_var :: Type.QuantVarKey -> IRReader Type.QuantVar
+get_quant_var k = reader (\ (RIR.RIR _ _ _ quant_vars _ _) -> Arena.get quant_vars k)
 
 dump_main_module :: RIR.RIR -> Text
 dump_main_module ir@(RIR.RIR modules _ _ _ _ mod) = PP.render $ runReader (define_module $ Arena.get modules mod) ir
@@ -38,7 +38,8 @@ dump_main_module ir@(RIR.RIR modules _ _ _ _ mod) = PP.render $ runReader (defin
 define_module :: RIR.Module -> IRReader PP.Token
 define_module (RIR.Module _ bindings adts type_synonyms) =
     ask >>= \ rir ->
-    mapM (fmap Type.PP.define_adt . get_adt) adts >>= \ adts ->
+    get_quant_var_arena >>= \ quant_var_arena ->
+    mapM (fmap (Type.PP.define_adt quant_var_arena (\ ty -> runReader (refer_m_type ty) rir)) . get_adt) adts >>= \ adts ->
     mapM (fmap (Type.PP.define_type_synonym (\ ty -> runReader (refer_m_type ty) rir)) . get_type_synonym) type_synonyms >>= \ type_synonyms ->
     mapM define_binding bindings >>= \ bindings ->
     pure (PP.flat_block $ adts <> type_synonyms <> bindings)
@@ -47,8 +48,8 @@ refer_m_type :: Maybe Type.Type -> IRReader PP.Token -- TODO: remove
 refer_m_type (Just ty) =
     get_adt_arena >>= \ adt_arena ->
     get_type_synonym_arena >>= \ type_synonym_arena ->
-    get_type_var_arena >>= \ type_var_arena ->
-    pure (Type.PP.refer_type adt_arena type_synonym_arena type_var_arena ty)
+    get_quant_var_arena >>= \ quant_var_arena ->
+    pure (Type.PP.refer_type adt_arena type_synonym_arena quant_var_arena ty)
 refer_m_type Nothing = pure "<type error>"
 
 define_binding :: RIR.Binding -> IRReader PP.Token
@@ -60,8 +61,8 @@ define_binding (RIR.Binding var_key e) =
 refer_var :: RIR.VariableKey -> IRReader PP.Token
 refer_var var_key = get_var var_key >>= \ (RIR.Variable id _ _) -> pure (PP.String (ID.stringify id))
 
-type_var :: Type.QuantVarKey -> IRReader PP.Token
-type_var k = get_type_var k >>= \ (Type.QuantVar (Located _ name)) -> pure (PP.String name)
+quant_var :: Type.QuantVarKey -> IRReader PP.Token
+quant_var k = get_quant_var k >>= \ (Type.QuantVar (Located _ name)) -> pure (PP.String name)
 
 expr :: RIR.Expr -> IRReader PP.Token
 expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
@@ -95,9 +96,10 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
             ( 1
             , \ _ _ -> do
                 rir <- ask
+                quant_var_arena <- get_quant_var_arena
                 res <- expr res
                 bindings <- mapM define_binding bindings
-                adts <- mapM (fmap Type.PP.define_adt . get_adt) adts
+                adts <- mapM (fmap (Type.PP.define_adt quant_var_arena (\ ty -> runReader (refer_m_type ty) rir)) . get_adt) adts
                 type_synonyms <- mapM (fmap (Type.PP.define_type_synonym (\ ty -> runReader (refer_m_type ty) rir)) . get_type_synonym) type_synonyms
                 let all_decls = adts ++ type_synonyms ++ bindings
                 pure
@@ -108,7 +110,7 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
 
         levels (RIR.Expr'Match _ _ _ tree) = (1, \ _ _ -> pp_match_tree tree >>= \ tree -> pure (PP.List ["match ", tree]))
 
-        levels (RIR.Expr'Forall _ _ tys e) = (1, \ _ _ -> mapM type_var tys >>= \ tys -> expr e >>= \ e -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList tys, " ", e]))
+        levels (RIR.Expr'Forall _ _ tys e) = (1, \ _ _ -> mapM quant_var tys >>= \ tys -> expr e >>= \ e -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList tys, " ", e]))
 
         pp_match_tree (RIR.MatchTree arms) = mapM pp_arm arms >>= \ arms -> pure (PP.braced_block arms)
             where

@@ -53,7 +53,8 @@ get_quant_var k = reader (\ (SIR.SIR _ _ _ quant_vars _ _) -> Arena.get quant_va
 define_module :: DumpableConstraints stage => SIR.Module stage -> IRReader stage PP.Token
 define_module (SIR.Module _ bindings adts type_synonyms) =
     ask >>= \ sir ->
-    mapM (\ k -> get_adt k >>= \ adt -> pure (Type.PP.define_adt adt)) adts >>= \ adts_defined ->
+    get_quant_var_arena >>= \ quant_var_arena ->
+    mapM (\ k -> get_adt k >>= \ adt -> pure (Type.PP.define_adt quant_var_arena (\ (ty, _) -> runReader (type_expr ty) sir) adt)) adts >>= \ adts_defined ->
     mapM (\ k -> get_type_syn k >>= \ ts -> pure (Type.PP.define_type_synonym (\ (ty, _) -> runReader (type_expr ty) sir) ts)) type_synonyms >>= \ type_synonyms_defined ->
     mapM define_binding bindings >>= \ bindings_defined ->
     pure (PP.flat_block $ adts_defined <> type_synonyms_defined <> bindings_defined)
@@ -186,7 +187,8 @@ pp_let let_kw bindings adts type_synonyms body = do
     sir <- ask
 
     bindings <- mapM define_binding bindings
-    adts <- mapM (\ k -> get_adt k >>= \ adt -> pure (Type.PP.define_adt adt)) adts
+    quant_var_arena <- get_quant_var_arena
+    adts <- mapM (\ k -> get_adt k >>= \ adt -> pure (Type.PP.define_adt quant_var_arena (\ (ty, _) -> runReader (type_expr ty) sir) adt)) adts
     type_synonyms <- mapM (\ k -> get_type_syn k >>= \ ts -> pure (Type.PP.define_type_synonym (\ (ty, _) -> runReader (type_expr ty) sir) ts)) type_synonyms
 
     body <- expr body

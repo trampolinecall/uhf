@@ -23,8 +23,8 @@ get_adt_arena :: IRReader ty poison_allowed (Arena.Arena (Type.ADT ty) Type.ADTK
 get_adt_arena = reader (\ (BackendIR.BackendIR adts _ _ _ _ _) -> adts)
 get_type_synonym_arena :: IRReader ty poison_allowed (Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey)
 get_type_synonym_arena = reader (\ (BackendIR.BackendIR _ syns _ _ _ _) -> syns)
-get_type_var_arena :: IRReader ty poison_allowed (Arena.Arena Type.QuantVar Type.QuantVarKey)
-get_type_var_arena = reader (\ (BackendIR.BackendIR _ _ vars _ _ _) -> vars)
+get_quant_var_arena :: IRReader ty poison_allowed (Arena.Arena Type.QuantVar Type.QuantVarKey)
+get_quant_var_arena = reader (\ (BackendIR.BackendIR _ _ vars _ _ _) -> vars)
 
 get_binding :: BackendIR.BindingKey -> IRReader ty poison_allowed (BackendIR.Binding ty poison_allowed)
 get_binding k = reader (\ (BackendIR.BackendIR _ _ _ bindings _ _) -> Arena.get bindings k)
@@ -34,8 +34,8 @@ get_adt :: Type.ADTKey -> IRReader ty poison_allowed (Type.ADT ty)
 get_adt k = reader (\ (BackendIR.BackendIR adts _ _ _ _ _) -> Arena.get adts k)
 get_type_synonym :: Type.TypeSynonymKey -> IRReader ty poison_allowed (Type.TypeSynonym ty)
 get_type_synonym k = reader (\ (BackendIR.BackendIR _ type_synonyms _ _ _ _) -> Arena.get type_synonyms k)
-get_type_var :: Type.QuantVarKey -> IRReader ty poison_allowed Type.QuantVar
-get_type_var k = reader (\ (BackendIR.BackendIR _ _ type_vars _ _ _) -> Arena.get type_vars k)
+get_quant_var :: Type.QuantVarKey -> IRReader ty poison_allowed Type.QuantVar
+get_quant_var k = reader (\ (BackendIR.BackendIR _ _ quant_vars _ _ _) -> Arena.get quant_vars k)
 
 dump_cu :: (DumpableType ty) => BackendIR.BackendIR ty poison_allowed -> Text
 dump_cu ir@(BackendIR.BackendIR _ _ _ _ _ cu) = PP.render $ runReader (define_cu cu) ir
@@ -43,7 +43,8 @@ dump_cu ir@(BackendIR.BackendIR _ _ _ _ _ cu) = PP.render $ runReader (define_cu
 define_cu :: (DumpableType ty) => BackendIR.CU -> IRReader ty poison_allowed PP.Token
 define_cu (BackendIR.CU bindings adts type_synonyms) =
     ask >>= \ anfir ->
-    mapM (fmap Type.PP.define_adt . get_adt) adts >>= \ adts ->
+    get_quant_var_arena >>= \ quant_var_arena ->
+    mapM (fmap (Type.PP.define_adt quant_var_arena (\ ty -> runReader (refer_type ty) anfir)) . get_adt) adts >>= \ adts ->
     mapM (fmap (Type.PP.define_type_synonym (\ ty -> runReader (refer_type ty) anfir)) . get_type_synonym) type_synonyms >>= \ type_synonyms ->
     define_binding_group_flat bindings >>= \ bindings ->
     pure (PP.flat_block $ adts <> type_synonyms <> bindings)
@@ -84,11 +85,11 @@ instance DumpableType Type.Type where
     refer_type ty =
         get_adt_arena >>= \ adt_arena ->
         get_type_synonym_arena >>= \ type_synonym_arena ->
-        get_type_var_arena >>= \ type_var_arena ->
-        pure (Type.PP.refer_type adt_arena type_synonym_arena type_var_arena ty)
+        get_quant_var_arena >>= \ quant_var_arena ->
+        pure (Type.PP.refer_type adt_arena type_synonym_arena quant_var_arena ty)
 
-type_var :: Type.QuantVarKey -> IRReader ty poison_allowed PP.Token
-type_var k = get_type_var k >>= \ (Type.QuantVar (Located _ name)) -> pure (PP.String name)
+quant_var :: Type.QuantVarKey -> IRReader ty poison_allowed PP.Token
+quant_var k = get_quant_var k >>= \ (Type.QuantVar (Located _ name)) -> pure (PP.String name)
 
 expr :: (DumpableType ty) => BackendIR.Expr ty poison_allowed -> IRReader ty poison_allowed PP.Token
 expr (BackendIR.Expr'Refer _ _ bk) = refer_binding bk
@@ -144,7 +145,7 @@ expr (BackendIR.Expr'ADTDestructure _ _ base m_field_idx) =
         )
         m_field_idx >>= \ (variant_referred, field) ->
     pure (PP.List ["(", base, " as ", variant_referred, ").", field])
-expr (BackendIR.Expr'Forall _ _ var group e) = type_var var >>= \ var -> define_binding_group group >>= \ group -> refer_binding e >>= \ e -> pure (PP.FirstOnLineIfMultiline $ PP.List ["#(", var, ") ", PP.indented_block [group, e]])
+expr (BackendIR.Expr'Forall _ _ var group e) = quant_var var >>= \ var -> define_binding_group group >>= \ group -> refer_binding e >>= \ e -> pure (PP.FirstOnLineIfMultiline $ PP.List ["#(", var, ") ", PP.indented_block [group, e]])
 expr (BackendIR.Expr'TypeApply _ _ e arg) = refer_binding e >>= \ e -> refer_type arg >>= \ arg -> pure (PP.List [e, "#(", arg, ")"])
 expr (BackendIR.Expr'MakeADT _ _ variant_index@(Type.ADT.VariantIndex _ adt_key _) tyargs args) =
     Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_referred ->

@@ -21,8 +21,8 @@ get_adt_arena :: IRReader (Arena.Arena (Type.ADT (Maybe Type.Type)) Type.ADTKey)
 get_adt_arena = reader (\ (ANFIR.ANFIR adts _ _ _ _ _) -> adts)
 get_type_synonym_arena :: IRReader (Arena.Arena (Type.TypeSynonym (Maybe Type.Type)) Type.TypeSynonymKey)
 get_type_synonym_arena = reader (\ (ANFIR.ANFIR _ syns _ _ _ _) -> syns)
-get_type_var_arena :: IRReader (Arena.Arena Type.QuantVar Type.QuantVarKey)
-get_type_var_arena = reader (\ (ANFIR.ANFIR _ _ vars _ _ _) -> vars)
+get_quant_var_arena :: IRReader (Arena.Arena Type.QuantVar Type.QuantVarKey)
+get_quant_var_arena = reader (\ (ANFIR.ANFIR _ _ vars _ _ _) -> vars)
 
 get_binding :: ANFIR.BindingKey -> IRReader ANFIR.Binding
 get_binding k = reader (\ (ANFIR.ANFIR _ _ _ bindings _ _) -> Arena.get bindings k)
@@ -32,8 +32,8 @@ get_adt :: Type.ADTKey -> IRReader (Type.ADT (Maybe Type.Type))
 get_adt k = reader (\ (ANFIR.ANFIR adts _ _ _ _ _) -> Arena.get adts k)
 get_type_synonym :: Type.TypeSynonymKey -> IRReader (Type.TypeSynonym (Maybe Type.Type))
 get_type_synonym k = reader (\ (ANFIR.ANFIR _ type_synonyms _ _ _ _) -> Arena.get type_synonyms k)
-get_type_var :: Type.QuantVarKey -> IRReader Type.QuantVar
-get_type_var k = reader (\ (ANFIR.ANFIR _ _ type_vars _ _ _) -> Arena.get type_vars k)
+get_quant_var :: Type.QuantVarKey -> IRReader Type.QuantVar
+get_quant_var k = reader (\ (ANFIR.ANFIR _ _ quant_vars _ _ _) -> Arena.get quant_vars k)
 
 dump_cu :: ANFIR.ANFIR -> Text
 dump_cu ir@(ANFIR.ANFIR _ _ _ _ _ cu) = PP.render $ runReader (define_cu cu) ir
@@ -41,7 +41,8 @@ dump_cu ir@(ANFIR.ANFIR _ _ _ _ _ cu) = PP.render $ runReader (define_cu cu) ir
 define_cu :: ANFIR.CU -> IRReader PP.Token
 define_cu (ANFIR.CU bindings adts type_synonyms) =
     ask >>= \ anfir ->
-    mapM (fmap Type.PP.define_adt . get_adt) adts >>= \ adts ->
+    get_quant_var_arena >>= \ quant_var_arena ->
+    mapM (fmap (Type.PP.define_adt quant_var_arena (\ ty -> runReader (refer_type ty) anfir)) . get_adt) adts >>= \ adts ->
     mapM (fmap (Type.PP.define_type_synonym (\ ty -> runReader (refer_type ty) anfir)) . get_type_synonym) type_synonyms >>= \ type_synonyms ->
     define_binding_group_flat bindings >>= \ bindings ->
     pure (PP.flat_block $ adts <> type_synonyms <> bindings)
@@ -73,12 +74,12 @@ refer_type :: Maybe Type.Type -> IRReader PP.Token
 refer_type (Just ty) =
     get_adt_arena >>= \ adt_arena ->
     get_type_synonym_arena >>= \ type_synonym_arena ->
-    get_type_var_arena >>= \ type_var_arena ->
-    pure (Type.PP.refer_type adt_arena type_synonym_arena type_var_arena ty)
+    get_quant_var_arena >>= \ quant_var_arena ->
+    pure (Type.PP.refer_type adt_arena type_synonym_arena quant_var_arena ty)
 refer_type Nothing = pure $ PP.String "<type error>"
 
 quant_var :: Type.QuantVarKey -> IRReader PP.Token
-quant_var k = get_type_var k >>= \ (Type.QuantVar (Located _ name)) -> pure (PP.String name)
+quant_var k = get_quant_var k >>= \ (Type.QuantVar (Located _ name)) -> pure (PP.String name)
 
 expr :: ANFIR.Expr -> IRReader PP.Token
 expr (ANFIR.Expr'Refer _ _ bk) = refer_binding bk

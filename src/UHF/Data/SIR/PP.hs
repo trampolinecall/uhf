@@ -10,13 +10,14 @@ import UHF.Prelude
 
 import UHF.Source.Located (Located (Located, unlocate))
 import qualified UHF.Data.IR.ID as ID
+import qualified UHF.Data.IR.Intrinsics as Intrinsics
 import qualified UHF.Data.IR.Type as Type
-import qualified UHF.Parts.TypeSolver as TypeSolver
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.Type.PP as Type.PP
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.PP as PP
 import qualified UHF.PP.Precedence as PP.Precedence
+import qualified UHF.Parts.TypeSolver as TypeSolver
 import qualified UHF.Util.Arena as Arena
 
 type IRReader stage = Reader (SIR.SIR stage)
@@ -69,6 +70,7 @@ refer_var k = get_var k >>= \case
 refer_bv :: SIR.BoundValue -> IRReader stage PP.Token
 refer_bv (SIR.BoundValue'Variable v) = refer_var v
 refer_bv (SIR.BoundValue'ADTVariant var) = refer_iden var
+refer_bv (SIR.BoundValue'Intrinsic i) = pure $ PP.String $ Intrinsics.intrinsic_bv_name i
 
 refer_decl :: DumpableType stage t => SIR.Decl t -> IRReader stage PP.Token
 refer_decl d = case d of
@@ -76,6 +78,7 @@ refer_decl d = case d of
         get_module m >>= \ (SIR.Module id _ _ _) ->
         pure (PP.String $ ID.stringify id)
     SIR.Decl'Type ty -> refer_type ty
+    SIR.Decl'ExternPackage SIR.ExternPackage'IntrinsicsPackage -> pure "uhf_intrinsics"
 
 refer_adt_variant :: Type.ADT.VariantIndex -> IRReader stage PP.Token
 refer_adt_variant variant_index@(Type.ADT.VariantIndex _ adt_key _) =

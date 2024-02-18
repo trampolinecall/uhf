@@ -8,6 +8,7 @@ import UHF.Parts.SolveTypes.Error
 import UHF.Source.Located (Located (..))
 import UHF.Source.Span (Span)
 import qualified UHF.Compiler as Compiler
+import qualified UHF.Data.IR.Intrinsics as Intrinsics
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
@@ -35,6 +36,7 @@ get_bv_type bv =
                                 [] -> identity
                                 param:more -> TypeSolver.Type'Forall (param :| more)
                         in pure $ wrap_in_forall $ foldr TypeSolver.Type'Function (TypeSolver.Type'ADT adt_key (map TypeSolver.Type'QuantVar adt_type_params)) arg_tys -- function type that takes all the field types and then results in the adt type
+        SIR.BoundValue'Intrinsic i -> pure $ TypeSolver.from_ir_type $ Intrinsics.intrinsic_bv_type i
 
 get_var_type :: SIR.VariableKey -> ContextReader adts type_synonyms quant_vars TypedWithInferVarsVariableArena TypeWithInferVars
 get_var_type var = do

@@ -10,6 +10,7 @@ import qualified Data.Set as Set
 
 import qualified UHF.Data.BackendIR as BackendIR
 import qualified UHF.Data.IR.ID as ID
+import qualified UHF.Data.IR.Intrinsics as Intrinsics
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Parts.TSBackend.TS as TS
@@ -218,6 +219,7 @@ lower_binding :: Binding -> IRReader ([TS.Stmt], [TS.Stmt])
 lower_binding (BackendIR.Binding init) = l init
     where
         l (BackendIR.Expr'Refer id _ other) = mangle_binding_as_var other >>= \ other -> let_current id (TS.Expr'Identifier other) >>= \ let_stmt -> pure ([let_stmt], [])
+        l (BackendIR.Expr'Intrinsic id _ i) = mangle_intrinsic_bv i >>= \ i -> let_current id (TS.Expr'Identifier i) >>= \ let_stmt -> pure ([let_stmt], [])
         l (BackendIR.Expr'Int id _ i) = let_current id (TS.Expr'New (TS.Expr'Identifier "Int") [TS.Expr'Int i]) >>= \ let_stmt -> pure ([let_stmt], [])
         l (BackendIR.Expr'Float id _ (n :% d)) = let_current id (TS.Expr'New (TS.Expr'Identifier "Float") [TS.Expr'Div (TS.Expr'Int n) (TS.Expr'Int d)]) >>= \ let_stmt -> pure ([let_stmt], [])
         l (BackendIR.Expr'Bool id _ b) = let_current id (TS.Expr'New (TS.Expr'Identifier "Bool") [TS.Expr'Bool b]) >>= \ let_stmt -> pure ([let_stmt], [])
@@ -330,3 +332,6 @@ mangle_binding_as_var key = BackendIR.binding_id <$> get_binding key >>= mangle_
 
 mangle_binding_id_as_var :: BackendIR.ID -> IRReader Text
 mangle_binding_id_as_var id = pure ("var" <> BackendIR.mangle_id id)
+
+mangle_intrinsic_bv :: Intrinsics.IntrinsicBoundValue -> IRReader Text
+mangle_intrinsic_bv i = pure $ ID.mangle $ Intrinsics.intrinsic_bv_id i

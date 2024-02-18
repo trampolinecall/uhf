@@ -21,6 +21,7 @@ import UHF.Prelude
 import UHF.Data.IR.Keys
 import UHF.Source.Span (Span)
 import qualified UHF.Data.IR.ID as ID
+import qualified UHF.Data.IR.Intrinsics as Intrinsics
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Util.Arena as Arena
@@ -51,6 +52,7 @@ data Binding = Binding VariableKey Expr deriving Show
 data Expr
     -- identifiers need explicit types in case the identifiers form loops
     = Expr'Identifier ID.ExprID (Maybe Type.Type) Span (Maybe VariableKey)
+    | Expr'Intrinsic ID.ExprID (Maybe Type.Type) Span Intrinsics.IntrinsicBoundValue
     | Expr'Char ID.ExprID Span Char
     | Expr'String ID.ExprID Span Text
     | Expr'Int ID.ExprID Span Integer
@@ -98,6 +100,7 @@ data MatchAssignRHS
 
 expr_type :: Arena.Arena Variable VariableKey -> Expr -> Maybe Type.Type
 expr_type _ (Expr'Identifier _ ty _ _) = ty
+expr_type _ (Expr'Intrinsic _ ty _ _) = ty
 expr_type _ (Expr'Char _ _ _) = Just Type.Type'Char
 expr_type _ (Expr'String _ _ _) = Just Type.Type'String
 expr_type _ (Expr'Int _ _ _) = Just Type.Type'Int
@@ -119,6 +122,7 @@ expr_type _ (Expr'Poison _ ty _) = ty
 
 expr_span :: Expr -> Span
 expr_span (Expr'Identifier _ _ sp _) = sp
+expr_span (Expr'Intrinsic _ _ sp _) = sp
 expr_span (Expr'Char _ sp _) = sp
 expr_span (Expr'String _ sp _) = sp
 expr_span (Expr'Int _ sp _) = sp

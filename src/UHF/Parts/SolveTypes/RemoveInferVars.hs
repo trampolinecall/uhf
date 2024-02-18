@@ -119,6 +119,7 @@ m_decl infer_vars d = d >>= decl infer_vars
 decl :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> SIR.Decl TypeWithInferVars -> Maybe (SIR.Decl Type)
 decl _ (SIR.Decl'Module m) = Just $ SIR.Decl'Module m
 decl infer_vars (SIR.Decl'Type t) = SIR.Decl'Type <$> (type_ infer_vars t)
+decl _ (SIR.Decl'ExternPackage ep) = Just $ SIR.Decl'ExternPackage ep
 
 type_ :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> TypeWithInferVars -> Maybe Type
 type_ infer_vars = r

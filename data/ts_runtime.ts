@@ -21,3 +21,6 @@ class Tuple<A, B> {
     constructor(public first: A, public second: B) {}
 }
 
+function istr_concat(a: UHFString, b: UHFString) {
+    return new UHFString(a.value + b.value);
+}

@@ -7,6 +7,7 @@ import UHF.Prelude
 import UHF.Source.Located (Located (Located, unlocate))
 import qualified UHF.Data.ANFIR as ANFIR
 import qualified UHF.Data.IR.ID as ID
+import qualified UHF.Data.IR.Intrinsics as Intrinsics
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.Type.PP as Type.PP
@@ -83,6 +84,7 @@ quant_var k = get_quant_var k >>= \ (Type.QuantVar (Located _ name)) -> pure (PP
 
 expr :: ANFIR.Expr -> IRReader PP.Token
 expr (ANFIR.Expr'Refer _ _ bk) = refer_binding bk
+expr (ANFIR.Expr'Intrinsic _ _ i) = pure $ PP.String $ Intrinsics.intrinsic_bv_name i
 expr (ANFIR.Expr'Int _ _ i) = pure $ PP.String $ show i
 expr (ANFIR.Expr'Float _ _ (n :% d)) = pure $ PP.String $ "(" <> show n <> "/" <> show d <> ")"
 expr (ANFIR.Expr'Bool _ _ b) = pure $ PP.String $ if b then "true" else "false"

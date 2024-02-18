@@ -429,4 +429,5 @@ evaled_as_type sp decl =
     case decl of
         Just (SIR.Decl'Module _) -> lift (lift $ lift $ Compiler.tell_error (Error.Error'NotAType sp "a module")) >> make_infer_var (TypeSolver.TypeExpr sp) -- TODO: don't make variables for these?
         Just (SIR.Decl'Type ty) -> pure ty
+        Just (SIR.Decl'ExternPackage _) -> lift (lift $ lift $ Compiler.tell_error (Error.Error'NotAType sp "external package")) >> make_infer_var (TypeSolver.TypeExpr sp) -- TODO: don't make variables for these?
         Nothing -> make_infer_var (TypeSolver.TypeExpr sp) -- TODO: make this message better

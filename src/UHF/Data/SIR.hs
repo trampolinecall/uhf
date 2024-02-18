@@ -11,6 +11,8 @@ module UHF.Data.SIR
 
     , Decl (..)
 
+    , ExternPackage (..)
+
     , ModuleKey
     , Module (..)
 
@@ -41,11 +43,12 @@ import UHF.Prelude
 import UHF.Data.IR.Keys
 import UHF.Source.Located (Located)
 import UHF.Source.Span (Span)
-import qualified UHF.Util.Arena as Arena
 import qualified UHF.Data.IR.ID as ID
-import qualified UHF.Data.SIR.Stage as Stage
+import qualified UHF.Data.IR.Intrinsics as Intrinsics
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
+import qualified UHF.Data.SIR.Stage as Stage
+import qualified UHF.Util.Arena as Arena
 
 -- "syntax based ir"
 data SIR stage
@@ -63,6 +66,11 @@ type TypeSynonym stage = Type.TypeSynonym (TypeExpr stage, Stage.TypeExprEvaledA
 data Decl ty
     = Decl'Module ModuleKey
     | Decl'Type ty
+    | Decl'ExternPackage ExternPackage
+    deriving Show
+
+data ExternPackage
+    = ExternPackage'IntrinsicsPackage
     deriving Show
 
 data Module stage
@@ -76,6 +84,7 @@ deriving instance Stage.AllShowable stage => Show (Variable stage)
 data BoundValue
     = BoundValue'Variable VariableKey
     | BoundValue'ADTVariant Type.ADT.VariantIndex
+    | BoundValue'Intrinsic Intrinsics.IntrinsicBoundValue
     deriving Show
 
 data Binding stage

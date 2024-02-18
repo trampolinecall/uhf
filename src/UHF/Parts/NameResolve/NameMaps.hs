@@ -32,11 +32,13 @@ import UHF.Prelude
 import qualified Data.List as List
 import qualified Data.Map as Map
 
+import qualified GHC.Enum as Enum (enumFromTo, minBound, maxBound)
 import UHF.Parts.NameResolve.DeclAt
 import UHF.Parts.NameResolve.Error
 import UHF.Parts.NameResolve.NRReader
 import UHF.Source.Located (Located (Located, unlocate))
 import qualified UHF.Compiler as Compiler
+import qualified UHF.Data.IR.Intrinsics as Intrinsics
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
@@ -130,6 +132,7 @@ collect_child_maps (SIR.SIR mod_arena adt_arena type_synonym_arena _ variable_ar
                 , ("char", ImplicitPrim, SIR.Decl'Type TypeWithInferVar.Type'Char)
                 , ("string", ImplicitPrim, SIR.Decl'Type TypeWithInferVar.Type'String)
                 , ("bool", ImplicitPrim, SIR.Decl'Type TypeWithInferVar.Type'Bool)
+                , ("uhf_intrinsics", ImplicitPrim, SIR.Decl'ExternPackage SIR.ExternPackage'IntrinsicsPackage)
                 ]
         primitive_vals = []
 
@@ -159,6 +162,14 @@ var_name var_key =
     let SIR.Variable _ _ (Located _ name) = Arena.get var_arena var_key
     in pure name
 
+-- intrinsics package child maps {{{1
+-- not sure if this is the best place to put this
+intrinsics_package_child_maps :: ChildMaps
+intrinsics_package_child_maps =
+    ChildMaps
+        (Map.fromList [])
+        (Map.fromList $ map (\ intrinsic -> (Intrinsics.intrinsic_bv_name intrinsic, SIR.BoundValue'Intrinsic intrinsic)) (Enum.enumFromTo Enum.minBound Enum.maxBound))
+        (Map.fromList [])
 -- getting from child maps {{{1
 -- TODO: remove duplication from these
 get_decl_child :: SIRChildMaps -> SIR.Decl TypeWithInferVar.Type -> Located Text -> Either Error (SIR.Decl TypeWithInferVar.Type)
@@ -169,6 +180,11 @@ get_decl_child sir_child_maps decl name =
                 in Map.lookup (unlocate name) d_children
 
             SIR.Decl'Type _ -> Nothing
+
+            SIR.Decl'ExternPackage SIR.ExternPackage'IntrinsicsPackage ->
+                let ChildMaps d_children _ _ = intrinsics_package_child_maps
+                in Map.lookup (unlocate name) d_children
+
     in case res of
         Just res -> Right res
         Nothing -> Left $ Error'CouldNotFindIn Nothing name -- TODO: put previous
@@ -181,6 +197,10 @@ get_value_child sir_child_maps decl name =
                 in Map.lookup (unlocate name) v_children
 
             SIR.Decl'Type _ -> Nothing
+
+            SIR.Decl'ExternPackage SIR.ExternPackage'IntrinsicsPackage ->
+                let ChildMaps _ v_children _ = intrinsics_package_child_maps
+                in Map.lookup (unlocate name) v_children
     in case res of
         Just res -> Right res
         Nothing -> Left $ Error'CouldNotFindIn Nothing name -- TODO: put previous
@@ -193,6 +213,10 @@ get_variant_child sir_child_maps decl name =
                 in Map.lookup (unlocate name) adtv_children
 
             SIR.Decl'Type _ -> Nothing
+
+            SIR.Decl'ExternPackage SIR.ExternPackage'IntrinsicsPackage ->
+                let ChildMaps _ _ adtv_children = intrinsics_package_child_maps
+                in Map.lookup (unlocate name) adtv_children
     in case res of
         Just res -> Right res
         Nothing -> Left $ Error'CouldNotFindIn Nothing name -- TODO: put previous

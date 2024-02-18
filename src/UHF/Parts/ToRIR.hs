@@ -2,7 +2,6 @@ module UHF.Parts.ToRIR (PatternCheck.CompletenessError, PatternCheck.NotUseful, 
 
 import UHF.Prelude
 
-import qualified Data.List as List
 import qualified Data.Map as Map
 
 import UHF.Source.Located (Located (Located, unlocate, just_span))
@@ -107,12 +106,11 @@ new_variable ty sp =
 convert_expr :: SIR.Expr LastSIR -> ReaderT (Map Type.ADT.VariantIndex RIR.VariableKey) ConvertState RIR.Expr
 convert_expr (SIR.Expr'Identifier id ty sp _ bv) = do
     adt_constructor_map <- ask
-    let bv' =
-            case bv of
-                Just (SIR.BoundValue'Variable var) -> Just var
-                Just (SIR.BoundValue'ADTVariant variant) -> Just $ adt_constructor_map Map.! variant -- TODO: lower these on demand to really ensure that this cannot be partial?
-                Nothing -> Nothing
-    pure $ RIR.Expr'Identifier id ty sp bv'
+    case bv of
+        Just (SIR.BoundValue'Variable var) -> pure $ RIR.Expr'Identifier id ty sp (Just var)
+        Just (SIR.BoundValue'ADTVariant variant) -> pure $ RIR.Expr'Identifier id ty sp (Just $ adt_constructor_map Map.! variant) -- TODO: lower these on demand to really ensure that this cannot be partial?
+        Just (SIR.BoundValue'Intrinsic i) -> pure $ RIR.Expr'Intrinsic id ty sp i
+        Nothing -> pure $ RIR.Expr'Identifier id ty sp Nothing
 convert_expr (SIR.Expr'Char id ty sp c) = pure $ RIR.Expr'Char id sp c
 convert_expr (SIR.Expr'String id ty sp s) = pure $ RIR.Expr'String id sp s
 convert_expr (SIR.Expr'Int id ty sp i) = pure $ RIR.Expr'Int id sp i

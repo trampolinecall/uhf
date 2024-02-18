@@ -59,6 +59,7 @@ convert_id (ANFIR.VarID e) = BackendIR.VarID e
 
 convert_expr :: ANFIRExpr -> BackendIRExpr
 convert_expr (ANFIR.Expr'Refer id ty bk) = BackendIR.Expr'Refer (convert_id id) ty bk
+convert_expr (ANFIR.Expr'Intrinsic id ty i) = BackendIR.Expr'Intrinsic (convert_id id) ty i
 convert_expr (ANFIR.Expr'Int id ty i) = BackendIR.Expr'Int (convert_id id) ty i
 convert_expr (ANFIR.Expr'Float id ty f) = BackendIR.Expr'Float (convert_id id) ty f
 convert_expr (ANFIR.Expr'Bool id ty b) = BackendIR.Expr'Bool (convert_id id) ty b

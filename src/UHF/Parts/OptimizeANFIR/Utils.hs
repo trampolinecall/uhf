@@ -42,6 +42,7 @@ iterate_over_all_subexpressions modify = iterate_over_bindings do_binding
 
         do_expr (ANFIR.Expr'Refer id ty bk) = modify bk >>= \ bk -> pure (ANFIR.Expr'Refer id ty bk)
 
+        do_expr (ANFIR.Expr'Intrinsic id ty i) = pure (ANFIR.Expr'Intrinsic id ty i)
         do_expr (ANFIR.Expr'Int id ty i) = pure (ANFIR.Expr'Int id ty i)
         do_expr (ANFIR.Expr'Float id ty r) = pure (ANFIR.Expr'Float id ty r)
         do_expr (ANFIR.Expr'Bool id ty b) = pure (ANFIR.Expr'Bool id ty b)

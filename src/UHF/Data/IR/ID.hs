@@ -5,6 +5,7 @@ module UHF.Data.IR.ID
     , DeclID (..)
     , DeclParent (..)
     , ExprID (..)
+    , IntrinsicBVID (..)
     , VariableParent (..)
     , VariableID (..)
     , ADTVariantID (..)
@@ -49,6 +50,9 @@ data ExprID
     | ExprID'TypeApplyOn ExprID
     deriving Show
 
+data IntrinsicBVID
+    = IntrinsicBVID'StrConcat
+
 data VariableParent = VarParent'Module ModuleID | VarParent'LambdaParam ExprID | VarParent'Let ExprID | VarParent'MatchArm ExprID Int deriving Show
 data VariableID = VariableID VariableParent Text | VariableID'RIRMadeUp Int deriving Show
 
@@ -62,6 +66,7 @@ data GeneralID
     | GV VariableID
     | GADTV ADTVariantID
     | GADTF ADTFieldID
+    | GIBVID IntrinsicBVID
 
 class ID i where
     to_general_id :: i -> GeneralID
@@ -78,6 +83,8 @@ instance ID ADTVariantID where
     to_general_id = GADTV
 instance ID ADTFieldID where
     to_general_id = GADTF
+instance ID IntrinsicBVID where
+    to_general_id = GIBVID
 
 stringify :: ID i => i -> Text
 stringify = stringify' . to_general_id
@@ -90,6 +97,7 @@ stringify = stringify' . to_general_id
         stringify' (GV (VariableID'RIRMadeUp i)) = "rir_" <> show i
         stringify' (GADTV (ADTVariantID adt_decl name)) = stringify' (GD adt_decl) <> "::" <> name
         stringify' (GADTF (ADTFieldID variant_id name)) = stringify' (GADTV variant_id) <> "::" <> name
+        stringify' (GIBVID (IntrinsicBVID'StrConcat)) = "uhf_intrinsics::str_concat"
 
         stringify_expr_id (ExprID'InitializerOf parent ind) = "initializer_of_" <> stringify_decl_parent parent <> "_" <> show ind
 
@@ -133,6 +141,7 @@ instance Mangle GeneralID where
     mangle' (GV var) = "v" <> mangle' var
     mangle' (GADTV adtv) = "a" <> mangle' adtv
     mangle' (GADTF adtf) = "f" <> mangle' adtf
+    mangle' (GIBVID i) = "i" <> mangle' i
 
 instance Mangle ModuleID where
     mangle' ModuleID'Root = "r"
@@ -166,6 +175,9 @@ instance Mangle ExprID where
     mangle' (ExprID'TypeAnnotationSubject e) = "v" <> mangle' e
     mangle' (ExprID'TypeApplyFirst e) = "w" <> mangle' e
     mangle' (ExprID'TypeApplyOn e) = "x" <> mangle' e
+
+instance Mangle IntrinsicBVID where
+    mangle' IntrinsicBVID'StrConcat = "str_concat"
 
 instance Mangle VariableID where
     mangle' (VariableID parent pieces) = "b" <> mangle' parent <> mangle' pieces

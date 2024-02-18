@@ -4,6 +4,7 @@ import UHF.Prelude
 
 import UHF.Source.Located (Located (Located, unlocate))
 import qualified UHF.Data.IR.ID as ID
+import qualified UHF.Data.IR.Intrinsics as Intrinsics
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.Type.PP as Type.PP
@@ -72,6 +73,7 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
 
         levels (RIR.Expr'Identifier _ _ _ (Just var_key)) = (1, \ _ _ -> refer_var var_key)
         levels (RIR.Expr'Identifier _ _ _ Nothing) = (1, \ _ _ -> pure $ PP.List ["<name resolution error>"])
+        levels (RIR.Expr'Intrinsic _ _ _ i) = (1, \ _ _ -> pure $ PP.String $ Intrinsics.intrinsic_bv_name i)
         levels (RIR.Expr'Poison _ _ _) = (1, \ _ _ -> pure $ PP.List ["poison"])
         levels (RIR.Expr'Char _ _ c) = (1, \ _ _ -> pure $ PP.FirstOnLineIfMultiline $ PP.String $ show c)
         levels (RIR.Expr'String _ _ s) = (1, \ _ _ -> pure $ PP.FirstOnLineIfMultiline $ PP.String $ show s)

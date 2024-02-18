@@ -54,12 +54,12 @@ type DeclChildrenList = [(Text, DeclAt, SIR.Decl TypeWithInferVar.Type)]
 type ValueList = [(Text, DeclAt, SIR.BoundValue)]
 type ADTVariantList = [(Text, DeclAt, Type.ADT.VariantIndex)]
 
--- SIRChildMaps {{{2
+-- SIRChildMaps {{{1
 data SIRChildMaps = SIRChildMaps (Arena.Arena ChildMaps SIR.ModuleKey)
 
 get_module_child_maps :: SIRChildMaps -> SIR.ModuleKey -> ChildMaps
 get_module_child_maps (SIRChildMaps module_child_maps) mk = Arena.get module_child_maps mk
--- making child maps {{{2
+-- making child maps {{{1
 -- TODO: do not export this
 make_name_maps :: DeclChildrenList -> ValueList -> ADTVariantList -> WithErrors NameMaps
 make_name_maps decls values adt_variants =
@@ -159,7 +159,7 @@ var_name var_key =
     let SIR.Variable _ _ (Located _ name) = Arena.get var_arena var_key
     in pure name
 
--- getting from child maps {{{2
+-- getting from child maps {{{1
 -- TODO: remove duplication from these
 get_decl_child :: SIRChildMaps -> SIR.Decl TypeWithInferVar.Type -> Located Text -> Either Error (SIR.Decl TypeWithInferVar.Type)
 get_decl_child sir_child_maps decl name =

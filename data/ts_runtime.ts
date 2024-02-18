@@ -40,3 +40,8 @@ function iint_div(a: Int, b: Int) {
 function iint_mod(a: Int, b: Int) {
     return new Int(a.value % b.value);
 }
+
+function iimpure_print(a: UHFString) {
+    console.log(a.value);
+    return new Int(0);
+}

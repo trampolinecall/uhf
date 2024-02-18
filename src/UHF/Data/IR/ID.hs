@@ -50,8 +50,7 @@ data ExprID
     | ExprID'TypeApplyOn ExprID
     deriving Show
 
-data IntrinsicBVID
-    = IntrinsicBVID'StrConcat
+data IntrinsicBVID = IntrinsicBVID Text
 
 data VariableParent = VarParent'Module ModuleID | VarParent'LambdaParam ExprID | VarParent'Let ExprID | VarParent'MatchArm ExprID Int deriving Show
 data VariableID = VariableID VariableParent Text | VariableID'RIRMadeUp Int deriving Show
@@ -97,7 +96,7 @@ stringify = stringify' . to_general_id
         stringify' (GV (VariableID'RIRMadeUp i)) = "rir_" <> show i
         stringify' (GADTV (ADTVariantID adt_decl name)) = stringify' (GD adt_decl) <> "::" <> name
         stringify' (GADTF (ADTFieldID variant_id name)) = stringify' (GADTV variant_id) <> "::" <> name
-        stringify' (GIBVID (IntrinsicBVID'StrConcat)) = "uhf_intrinsics::str_concat"
+        stringify' (GIBVID (IntrinsicBVID name)) = "uhf_intrinsics::" <> name
 
         stringify_expr_id (ExprID'InitializerOf parent ind) = "initializer_of_" <> stringify_decl_parent parent <> "_" <> show ind
 
@@ -177,7 +176,7 @@ instance Mangle ExprID where
     mangle' (ExprID'TypeApplyOn e) = "x" <> mangle' e
 
 instance Mangle IntrinsicBVID where
-    mangle' IntrinsicBVID'StrConcat = "str_concat"
+    mangle' (IntrinsicBVID name) = name -- this cannot be ambiguous because there are only a number of hardcoded names for intrinsics
 
 instance Mangle VariableID where
     mangle' (VariableID parent pieces) = "b" <> mangle' parent <> mangle' pieces

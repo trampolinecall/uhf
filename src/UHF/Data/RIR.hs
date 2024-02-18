@@ -49,7 +49,7 @@ data Module = Module ID.ModuleID [Binding] [ADTKey] [TypeSynonymKey]
 data Binding = Binding VariableKey Expr deriving Show
 
 data Expr
-    -- identifiers need explicit types in case there the identifiers form loops
+    -- identifiers need explicit types in case the identifiers form loops
     = Expr'Identifier ID.ExprID (Maybe Type.Type) Span (Maybe VariableKey)
     | Expr'Char ID.ExprID Span Char
     | Expr'String ID.ExprID Span Text

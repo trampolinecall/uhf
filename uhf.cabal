@@ -121,6 +121,8 @@ library
     , inflist
     , json
     , mtl >2.3
+    , pipes
+    , pipes-parse
     , safe
     , tasty
     , tasty-hunit

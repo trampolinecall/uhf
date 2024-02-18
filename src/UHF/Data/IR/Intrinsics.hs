@@ -19,6 +19,7 @@ data IntrinsicBoundValue
     | IntrinsicBoundValue'IntMul
     | IntrinsicBoundValue'IntDiv
     | IntrinsicBoundValue'IntMod
+    | IntrinsicBoundValue'ImpurePrint
     deriving (Show, Bounded, Enum)
 
 intrinsic_bv_info :: IntrinsicBoundValue -> (Text, Type.Type)
@@ -28,6 +29,7 @@ intrinsic_bv_info IntrinsicBoundValue'IntSub = ("int_sub", Type.Type'Int `Type.T
 intrinsic_bv_info IntrinsicBoundValue'IntMul = ("int_mul", Type.Type'Int `Type.Type'Function` (Type.Type'Int `Type.Type'Function` Type.Type'Int)) -- int_mul :: int -> int -> int
 intrinsic_bv_info IntrinsicBoundValue'IntDiv = ("int_div", Type.Type'Int `Type.Type'Function` (Type.Type'Int `Type.Type'Function` Type.Type'Int)) -- int_div :: int -> int -> int
 intrinsic_bv_info IntrinsicBoundValue'IntMod = ("int_mod", Type.Type'Int `Type.Type'Function` (Type.Type'Int `Type.Type'Function` Type.Type'Int)) -- int_mod :: int -> int -> int
+intrinsic_bv_info IntrinsicBoundValue'ImpurePrint = ("impure_print", Type.Type'String `Type.Type'Function` Type.Type'Int) -- impure_print :: string -> int (always returns 0) TODO: this is really bad
 
 intrinsic_bv_type :: IntrinsicBoundValue -> Type.Type
 intrinsic_bv_type i = let (_, ty) = intrinsic_bv_info i in ty

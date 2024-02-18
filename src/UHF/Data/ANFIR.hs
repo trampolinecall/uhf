@@ -5,8 +5,6 @@ module UHF.Data.ANFIR
     , BindingKey
     , ParamKey
 
-    , BindingChunk(..)
-    , chunk_bindings
     , BindingGroup (..)
     , Binding (..)
 
@@ -51,10 +49,7 @@ data CU = CU BindingGroup [ADTKey] [TypeSynonymKey]
 
 data Param = Param ID.VariableID (Maybe Type.Type) deriving Show
 
-data BindingChunk
-    = SingleBinding BindingKey
-    | MutuallyRecursiveBindings [BindingKey] deriving Show
-data BindingGroup = BindingGroup { binding_group_chunks :: [BindingChunk] } deriving Show
+data BindingGroup = BindingGroup { binding_group_chunks :: [BindingKey] } deriving Show
 data Binding = Binding { binding_initializer :: Expr } deriving Show
 
 data ID
@@ -153,7 +148,3 @@ binding_type :: Binding -> Maybe Type.Type
 binding_type = expr_type . binding_initializer
 binding_id :: Binding -> ID
 binding_id = expr_id . binding_initializer
-
-chunk_bindings :: BindingChunk -> [BindingKey]
-chunk_bindings (SingleBinding b) = [b]
-chunk_bindings (MutuallyRecursiveBindings bs) = bs

@@ -5,7 +5,6 @@ module UHF.Data.BackendIR
     , BindingKey
     , ParamKey
 
-    , BindingChunk (..)
     , BindingGroup (..)
     , Binding (..)
 
@@ -23,7 +22,6 @@ module UHF.Data.BackendIR
     , expr_id
     , binding_type
     , binding_id
-    , chunk_bindings
     ) where
 
 import UHF.Prelude
@@ -50,10 +48,7 @@ data CU = CU BindingGroup [ADTKey] [TypeSynonymKey]
 
 data Param ty = Param ID.VariableID ty deriving Show
 
-data BindingChunk
-    = SingleBinding BindingKey
-    | MutuallyRecursiveBindings [BindingKey] deriving Show
-data BindingGroup = BindingGroup { binding_group_chunks :: [BindingChunk] } deriving Show
+data BindingGroup = BindingGroup { binding_group_chunks :: [BindingKey] } deriving Show
 
 data Binding ty poison_allowed = Binding { binding_initializer :: Expr ty poison_allowed }
 
@@ -153,7 +148,3 @@ binding_type :: Binding ty poison_allowed -> ty
 binding_type = expr_type . binding_initializer
 binding_id :: Binding ty poison_allowed -> ID
 binding_id = expr_id . binding_initializer
-
-chunk_bindings :: BindingChunk -> [BindingKey]
-chunk_bindings (SingleBinding b) = [b]
-chunk_bindings (MutuallyRecursiveBindings bs) = bs

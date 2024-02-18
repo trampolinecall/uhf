@@ -14,7 +14,6 @@ type ANFIRExpr = ANFIR.Expr
 type ANFIRParam = ANFIR.Param
 type ANFIRBinding = ANFIR.Binding
 type ANFIRBindingGroup = ANFIR.BindingGroup
-type ANFIRBindingChunk = ANFIR.BindingChunk
 
 type ANFIRBindingArena = Arena.Arena ANFIRBinding ANFIR.BindingKey
 type ANFIRParamArena = Arena.Arena ANFIRParam ANFIR.ParamKey
@@ -24,7 +23,6 @@ type BackendIRExpr = BackendIR.Expr Type ()
 type BackendIRParam = BackendIR.Param Type
 type BackendIRBinding = BackendIR.Binding Type ()
 type BackendIRBindingGroup = BackendIR.BindingGroup
-type BackendIRBindingChunk = BackendIR.BindingChunk
 
 type BackendIRBindingArena = Arena.Arena BackendIRBinding BackendIR.BindingKey
 type BackendIRParamArena = Arena.Arena BackendIRParam BackendIR.ParamKey
@@ -43,11 +41,7 @@ convert_binding :: ANFIRBinding -> BackendIRBinding
 convert_binding (ANFIR.Binding initializer) = BackendIR.Binding $ convert_expr initializer
 
 convert_binding_group :: ANFIRBindingGroup -> BackendIRBindingGroup
-convert_binding_group (ANFIR.BindingGroup chunks) = BackendIR.BindingGroup (map convert_binding_chunk chunks)
-
-convert_binding_chunk :: ANFIRBindingChunk -> BackendIRBindingChunk
-convert_binding_chunk (ANFIR.SingleBinding bk) = BackendIR.SingleBinding bk
-convert_binding_chunk (ANFIR.MutuallyRecursiveBindings bs) = BackendIR.MutuallyRecursiveBindings bs
+convert_binding_group (ANFIR.BindingGroup bindings) = BackendIR.BindingGroup bindings
 
 convert_param :: ANFIRParam -> BackendIRParam
 convert_param (ANFIR.Param varid ty) = BackendIR.Param varid ty

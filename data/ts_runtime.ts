@@ -24,3 +24,19 @@ class Tuple<A, B> {
 function istr_concat(a: UHFString, b: UHFString) {
     return new UHFString(a.value + b.value);
 }
+
+function iint_add(a: Int, b: Int) {
+    return new Int(a.value + b.value);
+}
+function iint_sub(a: Int, b: Int) {
+    return new Int(a.value - b.value);
+}
+function iint_mul(a: Int, b: Int) {
+    return new Int(a.value * b.value);
+}
+function iint_div(a: Int, b: Int) {
+    return new Int(Math.floor(a.value / b.value));
+}
+function iint_mod(a: Int, b: Int) {
+    return new Int(a.value % b.value);
+}

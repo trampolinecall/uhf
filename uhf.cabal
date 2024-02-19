@@ -61,6 +61,7 @@ library
       UHF.Parts.OptimizeANFIR.Utils
       UHF.Parts.Parser
       UHF.Parts.Parser.Error
+      UHF.Parts.Parser.Parser
       UHF.Parts.Parser.PEG
       UHF.Parts.Parser.Test
       UHF.Parts.RemovePoison

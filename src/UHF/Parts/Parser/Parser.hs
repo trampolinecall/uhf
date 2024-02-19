@@ -14,7 +14,10 @@ module UHF.Parts.Parser.Parser
 
     , peek
     , consume
+    , consume'
     , advance
+
+    , star
 
     , tests
     ) where
@@ -22,6 +25,7 @@ module UHF.Parts.Parser.Parser
 import UHF.Prelude
 
 import qualified Data.InfList as InfList
+import qualified Data.List.NonEmpty as NonEmpty
 
 -- import UHF.Source.EqIgnoringSpans (eqis, expected_assert_eqis)
 import qualified UHF.Data.Token as Token
@@ -52,14 +56,29 @@ consume make_err expect = Parser $ ExceptT $ state $
             then (Right tok, more_toks)
             else (Left $ make_err tok, more_toks)
 
+-- TODO: REMOVE this, also remove todo call
+consume' :: Text -> Token.TokenType -> Parser Token.LToken
+consume' name expect = consume (\ token -> NonEmpty.singleton $ Error.BadToken todo token expect name) expect
+
 advance :: Parser Token.LToken
 advance = Parser $ state $ \ toks -> (InfList.head toks, InfList.tail toks)
 
 -- combinators {{{1
 
--- TODO: repeat :: ((Token.Token, Token.Token) -> Bool) -> Parser a -> Parser [a]
--- TODO: repeat_delim :: ((Token.Token, Token.Token) -> Bool) -> Parser a -> Parser a -> Parser [a]
---
+star :: (Token.Token -> Bool) -> Parser a -> Parser [a]
+star = go []
+    where
+        go acc stop_pred parse_thing = do
+            stop <- stop_pred . Located.unlocate <$> peek
+            if stop
+               then pure acc
+               else do
+                   thing <- parse_thing
+                   go (thing:acc) stop_pred parse_thing
+
+-- TODO: star_synchronize :: (Token.Token -> Bool) -> (Token.Token -> Bool) -> Parser a -> Parser [a]
+-- TODO: star_delim :: ((Token.Token, Token.Token) -> Bool) -> Parser a -> Parser a -> Parser [a]
+
 -- tests {{{1
 -- TODO: tests
 

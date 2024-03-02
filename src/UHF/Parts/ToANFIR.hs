@@ -425,7 +425,7 @@ make_binding_group (AlmostBindingGroup bindings) =
                                             let (loop, not_in_loop) = splitAt (current_idx + 1) visited_stack -- top of stack is at beginning
                                             in Just (loop, not_in_loop, unvisited) -- all items of visited stack and current should not be in unvisited
                                         Nothing ->
-                                            let current_dependencies = exec_dependencies Map.! current
+                                            let current_dependencies = (exec_dependencies Map.! current) `Set.union` (call_dependencies Map.! current)
                                             in headMay $
                                                 mapMaybe
                                                     (\ neighbor -> trace_single_loop (current:visited_stack) neighbor (filter (/=neighbor) unvisited))

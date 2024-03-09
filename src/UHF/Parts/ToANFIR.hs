@@ -79,20 +79,20 @@ data AlmostMatchTree
     = AlmostMatchTree [([ANFIR.MatchClause], Either AlmostMatchTree (AlmostBindingGroup, ANFIR.BindingKey))]
 
 convert :: RIR.RIR -> ANFIR
-convert (RIR.RIR modules adts type_synonyms type_vars variables mod) =
-    let (bindings_step_1, params, cu_step_1) = convert_step_1 variables (Arena.get modules mod)
+convert (RIR.RIR adts type_synonyms type_vars variables cu) =
+    let (bindings_step_1, params, cu_step_1) = convert_step_1 variables cu
         (bindings_step_2, cu_step_2) = convert_step_2 bindings_step_1 cu_step_1
     in ANFIR.ANFIR adts type_synonyms type_vars bindings_step_2 params cu_step_2
 
 -- step 1: converting from rir to almost anfir {{{1
-convert_step_1 :: VariableArena -> RIR.Module -> (BindingArena AlmostExpr, ANFIRParamArena, NeedsTopoSort ANFIR.CU)
-convert_step_1 variables mod =
-    let ((cu_needs_deps, var_map), (bindings_needs_var_map, params)) = runReader (IDGen.run_id_gen_t ID.ExprID'ANFIRGen (runStateT (runWriterT (make_cu mod)) (Arena.new, Arena.new))) variables
+convert_step_1 :: VariableArena -> RIR.CU -> (BindingArena AlmostExpr, ANFIRParamArena, NeedsTopoSort ANFIR.CU)
+convert_step_1 variables cu =
+    let ((cu_needs_deps, var_map), (bindings_needs_var_map, params)) = runReader (IDGen.run_id_gen_t ID.ExprID'ANFIRGen (runStateT (runWriterT (make_cu cu)) (Arena.new, Arena.new))) variables
         bindings_needs_deps = Arena.transform ($ var_map) bindings_needs_var_map
     in (bindings_needs_deps, params, cu_needs_deps)
 
-make_cu :: RIR.Module -> MakeGraphState (NeedsVarMap AlmostExpr) (NeedsTopoSort ANFIR.CU)
-make_cu (RIR.Module _ bindings adts type_synonyms) = concat <$> mapM convert_binding bindings >>= \ bindings -> pure (make_binding_group (AlmostBindingGroup bindings) >>= \ group -> pure (ANFIR.CU group adts type_synonyms))
+make_cu :: RIR.CU -> MakeGraphState (NeedsVarMap AlmostExpr) (NeedsTopoSort ANFIR.CU)
+make_cu (RIR.CU bindings adts type_synonyms) = concat <$> mapM convert_binding bindings >>= \ bindings -> pure (make_binding_group (AlmostBindingGroup bindings) >>= \ group -> pure (ANFIR.CU group adts type_synonyms))
 
 map_variable :: RIR.VariableKey -> ANFIR.BindingKey -> MakeGraphState binding ()
 map_variable k binding = tell $ Map.singleton k binding

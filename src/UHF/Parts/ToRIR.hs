@@ -35,15 +35,15 @@ new_made_up_expr_id make =
     pure (make id)
 
 convert :: SIR.SIR LastSIR -> Compiler.WithDiagnostics (PatternCheck.CompletenessError LastSIR) (PatternCheck.NotUseful LastSIR) RIR.RIR
-convert (SIR.SIR modules adts type_synonyms quant_vars vars mod) = do
+convert (SIR.SIR modules adts type_synonyms quant_vars vars main_module) = do
     let adts_converted = Arena.transform convert_adt adts
     let type_synonyms_converted = Arena.transform convert_type_synonym type_synonyms
     let vars_converted = Arena.transform (\ (SIR.Variable id ty (Located sp _)) -> RIR.Variable id ty sp) vars
-    (modules, vars_with_new) <- IDGen.run_id_gen_t ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.VariableID'RIRMadeUp $ runStateT (runReaderT (Arena.transformM convert_module modules) (adts_converted, type_synonyms_converted)) vars_converted
-    pure (RIR.RIR modules adts_converted type_synonyms_converted quant_vars vars_with_new mod)
+    (cu, vars_with_new) <- IDGen.run_id_gen_t ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.VariableID'RIRMadeUp $ runStateT (runReaderT (convert_module $ Arena.get modules main_module) (adts_converted, type_synonyms_converted)) vars_converted
+    pure (RIR.RIR adts_converted type_synonyms_converted quant_vars vars_with_new cu)
 
-convert_module :: SIR.Module LastSIR -> ConvertState RIR.Module
-convert_module (SIR.Module id bindings adts type_synonyms) = do
+convert_module :: SIR.Module LastSIR -> ConvertState RIR.CU
+convert_module (SIR.Module _ bindings adts type_synonyms) = do
     adt_constructors <- adts
         & mapM ( \ adt_key -> do
             (adts, _) <- ask
@@ -54,7 +54,7 @@ convert_module (SIR.Module id bindings adts type_synonyms) = do
     let adt_constructor_map = Map.fromList $ map (\ (variant_index, (var_key, _)) -> (variant_index, var_key)) adt_constructors
 
     bindings <- concat <$> runReaderT (mapM (convert_binding) bindings) adt_constructor_map
-    pure (RIR.Module id (bindings <> map (\ (_, (_, binding)) -> binding) adt_constructors) adts type_synonyms)
+    pure (RIR.CU (bindings <> map (\ (_, (_, binding)) -> binding) adt_constructors) adts type_synonyms)
 
 make_adt_constructor :: Type.ADT.VariantIndex -> ConvertState (RIR.VariableKey, RIR.Binding)
 make_adt_constructor variant_index@(Type.ADT.VariantIndex _ adt_key _) = do

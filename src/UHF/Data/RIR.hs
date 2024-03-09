@@ -54,7 +54,7 @@ data Bindings = Bindings TopologicalSortStatus [Binding] deriving Show
 data Binding = Binding VariableKey Expr deriving Show
 
 data Expr
-    -- identifiers need explicit types in case there the identifiers form loops
+    -- identifiers need explicit types in case the identifiers form loops
     = Expr'Identifier ID.ExprID (Maybe Type.Type) Span (Maybe VariableKey)
     | Expr'Char ID.ExprID Span Char
     | Expr'String ID.ExprID Span Text
@@ -64,7 +64,7 @@ data Expr
 
     | Expr'Tuple ID.ExprID Span Expr Expr
 
-    | Expr'Lambda ID.ExprID Span VariableKey [VariableKey] Expr -- TODO: replace captures with a set
+    | Expr'Lambda ID.ExprID Span VariableKey (Set VariableKey) Expr
 
     | Expr'Let ID.ExprID Span Bindings [ADTKey] [TypeSynonymKey] Expr
 

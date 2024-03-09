@@ -74,6 +74,7 @@ library
       UHF.Parts.ToBackendIR
       UHF.Parts.ToRIR
       UHF.Parts.ToRIR.PatternCheck
+      UHF.Parts.ToRIR.TopologicalSort
       UHF.Parts.ToSIR
       UHF.Parts.TSBackend
       UHF.Parts.TSBackend.TS

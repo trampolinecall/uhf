@@ -134,7 +134,7 @@ convert_expr m_varid expr@(RIR.Expr'Bool id _ b) = lift (lift $ lift $ lift ask)
 
 convert_expr m_varid expr@(RIR.Expr'Tuple id _ a b) = lift (lift $ lift $ lift ask) >>= \ var_arena -> let ty = RIR.expr_type var_arena expr in convert_expr Nothing a >>= \ a -> convert_expr Nothing b >>= \ b -> new_binding (\ _ -> AlmostExpr'Tuple (choose_id m_varid id) ty a b)
 
-convert_expr m_varid expr@(RIR.Expr'Lambda id _ param_var body) =
+convert_expr m_varid expr@(RIR.Expr'Lambda id _ param_var _ body) = -- TODO: use captures
     lift (lift $ lift $ lift ask) >>= \ var_arena -> let ty = RIR.expr_type var_arena expr in
     lift (get_var param_var) >>= \ (RIR.Variable param_id param_ty _) ->
     new_param (ANFIR.Param param_id param_ty) >>= \ anfir_param ->

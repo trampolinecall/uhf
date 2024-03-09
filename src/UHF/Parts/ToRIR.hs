@@ -54,7 +54,7 @@ convert_module (SIR.Module _ bindings adts type_synonyms) = do
     let adt_constructor_map = Map.fromList $ map (\ (variant_index, (var_key, _)) -> (variant_index, var_key)) adt_constructors
 
     bindings <- concat <$> runReaderT (mapM (convert_binding) bindings) adt_constructor_map
-    pure (RIR.CU (bindings <> map (\ (_, (_, binding)) -> binding) adt_constructors) adts type_synonyms)
+    pure (RIR.CU (sort_bindings (bindings <> map (\ (_, (_, binding)) -> binding) adt_constructors)) adts type_synonyms)
 
 make_adt_constructor :: Type.ADT.VariantIndex -> ConvertState (RIR.VariableKey, RIR.Binding)
 make_adt_constructor variant_index@(Type.ADT.VariantIndex _ adt_key _) = do
@@ -126,11 +126,11 @@ convert_expr (SIR.Expr'Lambda id ty sp param_pat body) =
     -- '\ (...) -> body' becomes '\ (arg) -> let ... = arg; body'
     lift (new_variable param_ty (SIR.pattern_span param_pat)) >>= \ param_bk ->
     lift (assign_pattern (SIR.pattern_span param_pat) param_pat (RIR.Expr'Identifier id param_ty (SIR.pattern_span param_pat) (Just param_bk))) >>= \ bindings ->
-    RIR.Expr'Let id body_sp bindings [] [] <$> convert_expr body >>= \ body ->
+    RIR.Expr'Let id body_sp (sort_bindings bindings) [] [] <$> convert_expr body >>= \ body ->
     pure (RIR.Expr'Lambda id sp param_bk (get_captures body) body)
 
-convert_expr (SIR.Expr'Let id ty sp bindings adts type_synonyms body) = RIR.Expr'Let id sp <$> (concat <$> mapM convert_binding bindings) <*> pure adts <*> pure type_synonyms <*> convert_expr body -- TODO: define adt constructors for these
-convert_expr (SIR.Expr'LetRec id ty sp bindings adts type_synonyms body) = RIR.Expr'Let id sp <$> (concat <$> mapM convert_binding bindings) <*> pure adts <*> pure type_synonyms <*> convert_expr body -- TODO: define adt constructors for these
+convert_expr (SIR.Expr'Let id ty sp bindings adts type_synonyms body) = RIR.Expr'Let id sp <$> (sort_bindings . concat <$> mapM convert_binding bindings) <*> pure adts <*> pure type_synonyms <*> convert_expr body -- TODO: define adt constructors for these
+convert_expr (SIR.Expr'LetRec id ty sp bindings adts type_synonyms body) = RIR.Expr'Let id sp <$> (sort_bindings . concat <$> mapM convert_binding bindings) <*> pure adts <*> pure type_synonyms <*> convert_expr body -- TODO: define adt constructors for these
 convert_expr (SIR.Expr'BinaryOps _ void _ _ _ _) = absurd void
 convert_expr (SIR.Expr'Call id ty sp callee arg) = RIR.Expr'Call id sp <$> convert_expr callee <*> convert_expr arg
 convert_expr (SIR.Expr'If id ty sp _ cond true false) =
@@ -152,7 +152,7 @@ convert_expr (SIR.Expr'If id ty sp _ cond true false) =
     lift $ new_made_up_expr_id
         (\ let_id ->
             RIR.Expr'Let let_id sp
-                [RIR.Binding cond_var cond]
+                (sort_bindings [RIR.Binding cond_var cond])
                 []
                 []
                 (RIR.Expr'Match id ty sp
@@ -198,7 +198,7 @@ convert_expr (SIR.Expr'Match id ty sp match_tok_sp scrutinee arms) = do
     lift $ new_made_up_expr_id
         (\ let_id ->
             RIR.Expr'Let let_id sp
-                [RIR.Binding scrutinee_var scrutinee]
+                (sort_bindings [RIR.Binding scrutinee_var scrutinee])
                 []
                 []
                 (RIR.Expr'Match id ty sp (RIR.MatchTree arms))
@@ -314,3 +314,6 @@ assign_pattern incomplete_err_sp pat expr = do
 
 get_captures :: RIR.Expr -> [RIR.VariableKey]
 get_captures = todo
+
+sort_bindings :: [RIR.Binding] -> RIR.Bindings
+sort_bindings bindings = todo

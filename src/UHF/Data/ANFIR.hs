@@ -5,6 +5,7 @@ module UHF.Data.ANFIR
     , BindingKey
     , ParamKey
 
+    , TopologicalSortStatus (..)
     , BindingGroup (..)
     , Binding (..)
 
@@ -49,7 +50,8 @@ data CU = CU BindingGroup [ADTKey] [TypeSynonymKey]
 
 data Param = Param ID.VariableID (Maybe Type.Type) deriving Show
 
-data BindingGroup = BindingGroup { binding_group_chunks :: [BindingKey] } deriving Show
+data TopologicalSortStatus = TopologicallySorted | HasLoops deriving Show
+data BindingGroup = BindingGroup { binding_group_status :: TopologicalSortStatus, binding_group_bindings :: [BindingKey] } deriving Show
 data Binding = Binding { binding_initializer :: Expr } deriving Show
 
 data ID

@@ -12,7 +12,7 @@ iterate_over_bindings change (ANFIR.ANFIR adts type_synonyms vars bindings param
     where
         do_cu (ANFIR.CU group _ _) = do_group group
 
-        do_group (ANFIR.BindingGroup bs) = mapM_ do_binding bs
+        do_group (ANFIR.BindingGroup _ bs) = mapM_ do_binding bs
 
         -- ideally would use modifyM but that is not in the transformers package of this stackage snapshot
         do_binding bk =

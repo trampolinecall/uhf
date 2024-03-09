@@ -41,7 +41,7 @@ define_cu (RIR.CU bindings adts type_synonyms) =
     get_quant_var_arena >>= \ quant_var_arena ->
     mapM (fmap (Type.PP.define_adt quant_var_arena (\ ty -> runReader (refer_m_type ty) rir)) . get_adt) adts >>= \ adts ->
     mapM (fmap (Type.PP.define_type_synonym (\ ty -> runReader (refer_m_type ty) rir)) . get_type_synonym) type_synonyms >>= \ type_synonyms ->
-    mapM define_binding bindings >>= \ bindings ->
+    define_bindings bindings >>= \ bindings ->
     pure (PP.flat_block $ adts <> type_synonyms <> bindings)
 
 refer_m_type :: Maybe Type.Type -> IRReader PP.Token -- TODO: remove
@@ -51,6 +51,9 @@ refer_m_type (Just ty) =
     get_quant_var_arena >>= \ quant_var_arena ->
     pure (Type.PP.refer_type adt_arena type_synonym_arena quant_var_arena ty)
 refer_m_type Nothing = pure "<type error>"
+
+define_bindings :: RIR.Bindings -> IRReader [PP.Token]
+define_bindings (RIR.Bindings _ bindings) = mapM define_binding bindings
 
 define_binding :: RIR.Binding -> IRReader PP.Token
 define_binding (RIR.Binding var_key e) =
@@ -98,7 +101,7 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
                 rir <- ask
                 quant_var_arena <- get_quant_var_arena
                 res <- expr res
-                bindings <- mapM define_binding bindings
+                bindings <- define_bindings bindings
                 adts <- mapM (fmap (Type.PP.define_adt quant_var_arena (\ ty -> runReader (refer_m_type ty) rir)) . get_adt) adts
                 type_synonyms <- mapM (fmap (Type.PP.define_type_synonym (\ ty -> runReader (refer_m_type ty) rir)) . get_type_synonym) type_synonyms
                 let all_decls = adts ++ type_synonyms ++ bindings

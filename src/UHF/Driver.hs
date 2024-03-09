@@ -53,8 +53,8 @@ type InfixGroupedSIR = SIR.SIR (Maybe (SIR.Decl TypeSolver.Type), Maybe (SIR.Dec
 type TypedSIR = SIR.SIR (Maybe (SIR.Decl IR.Type.Type), Maybe (SIR.Decl IR.Type.Type), Maybe IR.Type.Type, Maybe SIR.BoundValue, Maybe SIR.BoundValue, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.Type, Void)
 type RIR = RIR.RIR
 type ANFIR = ANFIR.ANFIR
-type BackendIR = BackendIR.BackendIR (Maybe IR.Type.Type) ()
-type NoPoisonIR = BackendIR.BackendIR IR.Type.Type Void
+type BackendIR = BackendIR.BackendIR (Either BackendIR.HasLoops BackendIR.TopologicallySorted) (Maybe IR.Type.Type) ()
+type NoPoisonIR = BackendIR.BackendIR BackendIR.TopologicallySorted IR.Type.Type Void
 type TS = Text
 
 type WithDiagnosticsIO = Compiler.WithDiagnosticsT Diagnostic.Error Diagnostic.Warning IO

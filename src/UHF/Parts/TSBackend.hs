@@ -16,15 +16,15 @@ import qualified UHF.Parts.TSBackend.TS as TS
 import qualified UHF.Parts.TSBackend.TS.PP as TS.PP
 import qualified UHF.Util.Arena as Arena
 
-type CU = BackendIR.CU
+type CU = BackendIR.CU BackendIR.TopologicallySorted
 type Type = Type.Type
 type ADT = Type.ADT Type
 type TypeSynonym = Type.TypeSynonym Type
-type Binding = BackendIR.Binding Type Void
-type BindingGroup = BackendIR.BindingGroup
+type Binding = BackendIR.Binding BackendIR.TopologicallySorted Type Void
+type BindingGroup = BackendIR.BindingGroup BackendIR.TopologicallySorted
 type Param = BackendIR.Param Type
 
-type BackendIR = BackendIR.BackendIR Type Void
+type BackendIR = BackendIR.BackendIR BackendIR.TopologicallySorted Type Void
 
 type ADTArena = Arena.Arena ADT Type.ADTKey
 type TypeSynonymArena = Arena.Arena TypeSynonym Type.TypeSynonymKey
@@ -101,7 +101,7 @@ convert_ts_adt (TSADT key) =
             pure (TS.Type'Object $ name_field : fields)
 
 convert_ts_lambda :: TSLambda -> IRReader TS.Stmt
-convert_ts_lambda (TSLambda key captures group@(BackendIR.BindingGroup _) arg_ty result_ty body_key) =
+convert_ts_lambda (TSLambda key captures group arg_ty result_ty body_key) =
     refer_type_raw arg_ty >>= \ arg_type_raw ->
     refer_type arg_ty >>= \ arg_type ->
     refer_type_raw result_ty >>= \ result_type_raw ->
@@ -203,7 +203,7 @@ define_lambda_type key (BackendIR.Binding (BackendIR.Expr'Lambda _ _ param captu
 define_lambda_type _ _ = pure ()
 
 lower_binding_group :: BindingGroup -> IRReader [TS.Stmt]
-lower_binding_group (BackendIR.BindingGroup bindings) = concat <$> mapM lower_binding_key bindings
+lower_binding_group (BackendIR.BindingGroup BackendIR.TopologicallySorted bindings) = concat <$> mapM lower_binding_key bindings
     where
         lower_binding_key bk = get_binding bk >>= lower_binding
 

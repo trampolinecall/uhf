@@ -2,6 +2,8 @@ module UHF.Data.RIR
     ( RIR (..)
     , CU (..)
 
+    , TopologicalSortStatus (..)
+    , Bindings (..)
     , Binding (..)
 
     , VariableKey
@@ -36,7 +38,7 @@ data RIR
         CU
 
 -- "compilation unit"
-data CU = CU [Binding] [ADTKey] [TypeSynonymKey]
+data CU = CU Bindings [ADTKey] [TypeSynonymKey]
 
 data Variable
     = Variable
@@ -46,6 +48,9 @@ data Variable
         }
     deriving Show
 
+-- TODO: do not export TopologicallySorted so that it can only be constructed as a result of topologically sorting?
+data TopologicalSortStatus = TopologicallySorted | HasLoops deriving Show
+data Bindings = Bindings TopologicalSortStatus [Binding] deriving Show
 data Binding = Binding VariableKey Expr deriving Show
 
 data Expr
@@ -59,9 +64,9 @@ data Expr
 
     | Expr'Tuple ID.ExprID Span Expr Expr
 
-    | Expr'Lambda ID.ExprID Span VariableKey [VariableKey] Expr
+    | Expr'Lambda ID.ExprID Span VariableKey [VariableKey] Expr -- TODO: replace captures with a set
 
-    | Expr'Let ID.ExprID Span [Binding] [ADTKey] [TypeSynonymKey] Expr
+    | Expr'Let ID.ExprID Span Bindings [ADTKey] [TypeSynonymKey] Expr
 
     | Expr'Call ID.ExprID Span Expr Expr
 

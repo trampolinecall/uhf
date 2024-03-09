@@ -54,9 +54,9 @@ refer_binding :: ANFIR.BindingKey -> IRReader PP.Token
 refer_binding key = ANFIR.binding_id <$> get_binding key >>= \ id -> pure (PP.String (ANFIR.stringify_id id))
 
 define_binding_group_flat :: ANFIR.BindingGroup -> IRReader [PP.Token]
-define_binding_group_flat (ANFIR.BindingGroup bindings) = mapM define_binding bindings
+define_binding_group_flat (ANFIR.BindingGroup _ bindings) = mapM define_binding bindings
 define_binding_group :: ANFIR.BindingGroup -> IRReader PP.Token
-define_binding_group (ANFIR.BindingGroup bindings) = mapM define_binding bindings >>= \ bindings -> pure (PP.braced_block bindings)
+define_binding_group (ANFIR.BindingGroup _ bindings) = mapM define_binding bindings >>= \ bindings -> pure (PP.braced_block bindings)
 
 define_binding :: ANFIR.BindingKey -> IRReader PP.Token
 define_binding key =

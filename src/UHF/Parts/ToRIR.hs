@@ -328,6 +328,8 @@ assign_pattern incomplete_err_sp pat expr = do
         go (SIR.Pattern'Poison _ _) _ = pure []
 
 sort_bindings :: [RIR.Binding] -> ConvertState RIR.Bindings
-sort_bindings bindings = case TopologicalSort.sort_bindings bindings of
-    Right result -> pure result
-    Left (errs, result) -> mapM_ (lift . lift . lift . lift . Compiler.tell_error . HasLoops) errs >> pure result
+sort_bindings bindings = do
+    var_arena <- get
+    case TopologicalSort.sort_bindings var_arena bindings of
+        Right result -> pure result
+        Left (errs, result) -> mapM_ (lift . lift . lift . lift . Compiler.tell_error . HasLoops) errs >> pure result

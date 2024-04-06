@@ -12,16 +12,10 @@ import qualified Data.Set as Set
 import UHF.Source.Span (Span)
 import qualified UHF.Data.RIR as RIR
 import qualified UHF.Diagnostic as Diagnostic
+import qualified UHF.Util.Arena as Arena
 
 data Dependency = NeedsInitialized RIR.VariableKey | NeedsCallable RIR.VariableKey deriving (Eq, Ord)
 
--- TODO: make things point to the variables' names' spans, not their initializers' spans
---       i.e. don't do
---                x = abc(def);
---                    ^^^^^^^^-- this variable needs to have been initialized
---            do
---                x = abc(def);
---                ^-- this variable needs to have been initialized
 data BindingsHaveLoopError
     = BindingsHaveLoop (Map RIR.VariableKey Span) [Dependency]
 
@@ -180,7 +174,10 @@ get_call_dependencies = go
 
         -- these expressions are only callable if the expressions it refers to are also callable
         go (RIR.Expr'Identifier _ _ _ (Just i)) = [NeedsCallable i]
-        go (RIR.Expr'Call _ _ callee arg) = get_call_dependencies callee <> get_call_dependencies arg -- TODO: this is probably not correct
+        go (RIR.Expr'Call _ _ callee arg) =
+            -- the callee has to be callable because it is being called
+            -- the argument passed has to also be callable because the function that it is passed to can do arbitrary things to it, so we conservatively enforce that it is also callable in case the function does call it
+            get_call_dependencies callee <> get_call_dependencies arg
         go (RIR.Expr'Tuple _ _ a b) = get_call_dependencies a <> get_call_dependencies b
         -- go (RIR.Expr'TupleDestructure1 _ _ tup) = get_call_dependencies tup
         -- go (RIR.Expr'TupleDestructure2 _ _ tup) = get_call_dependencies tup
@@ -238,12 +235,18 @@ get_call_dependencies = go
             -- in order for a lambda to be callable, its result must be executable and its captures must be callable
             get_execute_dependencies result <> Set.map NeedsCallable captures
 
-sort_bindings :: [RIR.Binding] -> Either (NonEmpty BindingsHaveLoopError, RIR.Bindings) RIR.Bindings
-sort_bindings bindings =
+sort_bindings :: Arena.Arena RIR.Variable RIR.VariableKey -> [RIR.Binding] -> Either (NonEmpty BindingsHaveLoopError, RIR.Bindings) RIR.Bindings
+sort_bindings vars bindings =
     case find_loops bindings of
         [] -> Right $ RIR.Bindings RIR.TopologicallySorted (topological_sort [] bindings)
         a:more ->
-            let var_spans = Map.fromList $ map (\ (RIR.Binding vk expr) -> (vk, RIR.expr_span expr)) bindings
+            let var_spans =
+                    Map.fromList $
+                        map
+                            (\ (RIR.Binding vk expr) ->
+                                let (RIR.Variable _ _ var_sp) = Arena.get vars vk
+                                in (vk, var_sp))
+                            bindings
             in Left (NonEmpty.map (BindingsHaveLoop var_spans) (a:|more), RIR.Bindings RIR.HasLoops bindings)
     where
         binding_keys_from_bindings = Set.fromList . map (\ (RIR.Binding vk _) -> vk)
@@ -299,7 +302,7 @@ sort_bindings bindings =
                     -- TODO: this often outputs multiple slightly different errors for what is actually the same loop
                     tell [current]
                     case List.elemIndex current explored_stack of
-                         Just index -> pure [reverse $ current : take (index + 1) explored_stack] -- found loop; the returned value contains the same dependency as its first and last elements
+                         Just index -> pure [reverse $ current : take (index + 1) explored_stack] -- found loop; the returned value contains the loop with its first and last elements as the same dependency
                          _ -> do
                             let deps = case current of
                                     NeedsInitialized depvk -> exec_dependencies Map.! depvk

@@ -20,7 +20,6 @@ data BindingsHaveLoopError
     = BindingsHaveLoop (Map RIR.VariableKey Span) [Dependency]
 
 instance Diagnostic.ToError BindingsHaveLoopError where
-    -- TODO: improve spans: make them point to the variable and not the initializer
     to_error (BindingsHaveLoop spans deps@(loop_start:more)) =
         let middle_deps = init more
             last_dep = last more

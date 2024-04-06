@@ -15,6 +15,13 @@ import qualified UHF.Diagnostic as Diagnostic
 
 data Dependency = NeedsInitialized RIR.VariableKey | NeedsCallable RIR.VariableKey deriving (Eq, Ord)
 
+-- TODO: make things point to the variables' names' spans, not their initializers' spans
+--       i.e. don't do
+--                x = abc(def);
+--                    ^^^^^^^^-- this variable needs to have been initialized
+--            do
+--                x = abc(def);
+--                ^-- this variable needs to have been initialized
 data BindingsHaveLoopError
     = BindingsHaveLoop (Map RIR.VariableKey Span) [Dependency]
 
@@ -52,7 +59,59 @@ get_dependency_vk (NeedsInitialized vk) = vk
 get_dependency_vk (NeedsCallable vk) = vk
 
 get_captures :: RIR.Expr -> Set RIR.VariableKey
-get_captures = Set.map get_dependency_vk . get_execute_dependencies -- the captures of a lambda are the execute dependencies of its body
+get_captures = get_outside_references -- the captures of a lambda are just any variables that it references that it does not define
+--
+-- get all bindings that are not defined within this expression and that are referred to by identifier expressions
+-- "an outside reference" = a reference to some binding defined outside of this expression
+get_outside_references :: RIR.Expr -> Set RIR.VariableKey
+get_outside_references (RIR.Expr'Identifier _ _ _ (Just i)) = [i]
+get_outside_references (RIR.Expr'Identifier _ _ _ Nothing) = []
+get_outside_references (RIR.Expr'Char _ _ _) = []
+get_outside_references (RIR.Expr'String _ _ _) = []
+get_outside_references (RIR.Expr'Int _ _ _) = []
+get_outside_references (RIR.Expr'Float _ _ _) = []
+get_outside_references (RIR.Expr'Bool _ _ _) = []
+get_outside_references (RIR.Expr'Tuple _ _ a b) = get_outside_references a <> get_outside_references b
+get_outside_references (RIR.Expr'Lambda _ _ _ captures body) = captures <> get_outside_references body -- TODO: using captures is redundant, so remove? also double check if that is actually true
+get_outside_references (RIR.Expr'Let _ _ (RIR.Bindings _ bindings) _ _ result) =
+    -- a let has to be handled specially because it does define some bindings
+    -- get all the bindings that it refers to and then filter out the ones that are defined in this let because they are then not outside references
+    let bindings_defined_in_this = Set.fromList $ map (\ (RIR.Binding vk _) -> vk) bindings
+
+        binding_references = map (\ (RIR.Binding _ e) -> get_outside_references e) bindings
+        result_references = get_outside_references result
+    in Set.unions (binding_references <> [result_references]) & (Set.filter (not . (`Set.member` bindings_defined_in_this)))
+get_outside_references (RIR.Expr'Call _ _ callee arg) = get_outside_references callee <> get_outside_references arg
+get_outside_references (RIR.Expr'Match _ _ _ tree) = go_through_tree tree
+    where
+        go_through_tree (RIR.MatchTree arms) =
+            arms
+                & map
+                    (\ (clauses, result) ->
+                        let (clause_refs, defined_in_clauses) = clauses & map go_through_clause & unzip
+                            remove_defined_in_clauses = Set.filter (\ ref -> not $ Set.member ref (Set.unions defined_in_clauses))
+
+                            result_refs = case result of
+                                Left subtree -> go_through_tree subtree
+                                Right e -> get_outside_references e
+
+                        in remove_defined_in_clauses $ Set.unions clause_refs <> result_refs
+                    )
+                & Set.unions
+
+        -- first element is dependencies, second element is variables defined
+        go_through_clause (RIR.MatchClause'Match binding _) = ([binding], [])
+        go_through_clause (RIR.MatchClause'Assign vk rhs) = (go_match_assign_rhs rhs, [vk])
+
+        go_match_assign_rhs (RIR.MatchAssignRHS'OtherVar vk) = [vk]
+        go_match_assign_rhs (RIR.MatchAssignRHS'TupleDestructure1 _ vk) = [vk]
+        go_match_assign_rhs (RIR.MatchAssignRHS'TupleDestructure2 _ vk) = [vk]
+        go_match_assign_rhs (RIR.MatchAssignRHS'AnonADTVariantField _ vk _) = [vk]
+
+get_outside_references (RIR.Expr'Forall _ _ _ e) = get_outside_references e
+get_outside_references (RIR.Expr'TypeApply _ _ _ e _) = get_outside_references e
+get_outside_references (RIR.Expr'MakeADT _ _ _ _ args) = Set.unions $ map get_outside_references args
+get_outside_references (RIR.Expr'Poison _ _ _) = []
 
 -- get the dependencies needed to evaluate an expression
 get_execute_dependencies :: RIR.Expr -> Set Dependency

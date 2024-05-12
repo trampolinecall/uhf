@@ -1,4 +1,4 @@
-interface Lambda<A, R> {
+interface Callable<A, R> {
     call(arg: A): R;
 }
 
@@ -25,23 +25,45 @@ function istr_concat(a: UHFString, b: UHFString) {
     return new UHFString(a.value + b.value);
 }
 
-function iint_add(a: Int, b: Int) {
-    return new Int(a.value + b.value);
-}
-function iint_sub(a: Int, b: Int) {
-    return new Int(a.value - b.value);
-}
-function iint_mul(a: Int, b: Int) {
-    return new Int(a.value * b.value);
-}
-function iint_div(a: Int, b: Int) {
-    return new Int(Math.floor(a.value / b.value));
-}
-function iint_mod(a: Int, b: Int) {
-    return new Int(a.value % b.value);
-}
+let iint_add: Callable<Int, Callable<Int, Int>> = {
+    call: (a: Int) => {
+        return {
+            call: (b: Int) => new Int(a.value + b.value),
+        };
+    }
+};
+let iint_sub: Callable<Int, Callable<Int, Int>> = {
+    call: (a: Int) => {
+        return {
+            call: (b: Int) => new Int(a.value - b.value),
+        };
+    }
+};
+let iint_mul: Callable<Int, Callable<Int, Int>> = {
+    call: (a: Int) => {
+        return {
+            call: (b: Int) => new Int(a.value * b.value),
+        };
+    }
+};
+let iint_div: Callable<Int, Callable<Int, Int>> = {
+    call: (a: Int) => {
+        return {
+            call: (b: Int) => new Int(a.value / b.value),
+        };
+    }
+};
+let iint_mod: Callable<Int, Callable<Int, Int>> = {
+    call: (a: Int) => {
+        return {
+            call: (b: Int) => new Int(a.value % b.value),
+        };
+    }
+};
 
-function iimpure_print(a: UHFString) {
-    console.log(a.value);
-    return new Int(0);
+let iimpure_print: Callable<UHFString, Int> = {
+    call: (a: UHFString) => {
+        console.log(a.value);
+        return new Int(0);
+    }
 }

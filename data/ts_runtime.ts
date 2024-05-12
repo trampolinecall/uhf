@@ -21,9 +21,13 @@ class Tuple<A, B> {
     constructor(public first: A, public second: B) {}
 }
 
-function istr_concat(a: UHFString, b: UHFString) {
-    return new UHFString(a.value + b.value);
-}
+let istr_concat: Callable<UHFString, Callable<UHFString, UHFString>> = {
+    call: (a: UHFString) => {
+        return {
+            call: (b: UHFString) => new UHFString(a.value + b.value),
+        };
+    }
+};
 
 let iint_add: Callable<Int, Callable<Int, Int>> = {
     call: (a: Int) => {

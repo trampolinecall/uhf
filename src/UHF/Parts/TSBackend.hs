@@ -128,7 +128,7 @@ convert_ts_lambda (TSLambda key captures group@(BackendIR.BindingGroup _) arg_ty
     pure
         (TS.Stmt'Class
             lambda_mangled
-            [TS.TypeReference "Lambda" [arg_type_raw, result_type_raw]]
+            [TS.TypeReference "Callable" [arg_type_raw, result_type_raw]]
             [ TS.ClassMember'Constructor capture_constructor_params (Just [])
             , TS.ClassMember'MethodDecl "call" [TS.Parameter Nothing "param" (Just arg_type)] (Just result_type)
                 (Just $
@@ -152,7 +152,7 @@ refer_type_raw Type.Type'Float = pure $ TS.Type'Reference $ TS.TypeReference "Fl
 refer_type_raw Type.Type'Char = pure $ TS.Type'Reference $ TS.TypeReference "Char" []
 refer_type_raw Type.Type'String = pure $ TS.Type'Reference $ TS.TypeReference "UHFString" []
 refer_type_raw Type.Type'Bool = pure $ TS.Type'Reference $ TS.TypeReference "Bool" []
-refer_type_raw (Type.Type'Function a r) = refer_type_raw a >>= \ a -> refer_type_raw r >>= \ r -> pure (TS.Type'Reference $ TS.TypeReference "Lambda" [a, r])
+refer_type_raw (Type.Type'Function a r) = refer_type_raw a >>= \ a -> refer_type_raw r >>= \ r -> pure (TS.Type'Reference $ TS.TypeReference "Callable" [a, r])
 refer_type_raw (Type.Type'Tuple a b) = refer_type_raw a >>= \ a -> refer_type_raw b >>= \ b -> pure (TS.Type'Reference $ TS.TypeReference "Tuple" [a, b])
 refer_type_raw (Type.Type'QuantVar _) = pure $ TS.Type'Reference $ TS.TypeReference "any" [] -- best approximation
 refer_type_raw (Type.Type'Forall _ t) = refer_type_raw t
@@ -322,7 +322,7 @@ mangle_binding_as_lambda :: BackendIR.BindingKey -> IRReader Text
 mangle_binding_as_lambda key = BackendIR.binding_id <$> get_binding key >>= mangle_binding_id_as_lambda
 
 mangle_binding_id_as_lambda :: BackendIR.ID -> IRReader Text
-mangle_binding_id_as_lambda id = pure ("Lambda" <> BackendIR.mangle_id id)
+mangle_binding_id_as_lambda id = pure ("Callable" <> BackendIR.mangle_id id)
 
 mangle_binding_as_capture :: BackendIR.BindingKey -> IRReader Text
 mangle_binding_as_capture key = BackendIR.binding_id <$> get_binding key >>= \ id -> pure ("capture" <> BackendIR.mangle_id id)

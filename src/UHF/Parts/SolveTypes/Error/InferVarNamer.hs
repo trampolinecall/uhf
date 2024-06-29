@@ -1,6 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
 
-module UHF.Parts.SolveTypes.Error.InferVarNamer (InferVarNamer, run_infer_var_namer, name_infer_var) where
+module UHF.Parts.SolveTypes.Error.InferVarNamer (InferVarNamer, run_infer_var_namer, name_infer_var, tests) where
 
 import UHF.Prelude
 
@@ -9,15 +10,7 @@ import qualified Data.Map as Map
 import qualified Data.Text as Text
 import GHC.Enum (Enum (succ))
 
-import UHF.Parts.SolveTypes.Aliases
-import UHF.Source.Located (Located (..))
-import UHF.Source.Span (Span)
-import qualified UHF.Data.IR.Type as Type
-import qualified UHF.Data.IR.Type.PP as Type.PP
-import qualified UHF.Diagnostic as Diagnostic
-import qualified UHF.PP as PP
 import qualified UHF.Parts.TypeSolver as TypeSolver
-import qualified UHF.Util.Arena as Arena
 
 -- InferVarName's list is in reverse order to the order that the names are displayed
 -- this is because the logic in inc_name splits a name into the rightmost digit and the rest of the digits, which matches the structure of a linked list in reverse
@@ -96,3 +89,22 @@ inc_name (InferVarName n) = InferVarName (inc n)
         inc_char 'Z' = error "inc_char called with 'Z'"
         inc_char ch | isAsciiUpper ch = succ ch
         inc_char ch = error $ "inc_char should only be called with uppercase ascii letters; got " ++ show ch
+
+testcase :: [Char] -> [Char] -> Assertion
+testcase input expected =
+    let InferVarName result = inc_name (InferVarName input)
+    in expected @=? result
+
+case_normal_a, case_normal_b, case_z, case_normal_2_a, case_normal_2_b, case_rollover_a, case_rollover_b, case_rollover_z, case_all_zs :: Assertion
+case_normal_a = testcase "A" "B"
+case_normal_b = testcase "B" "C"
+case_z = testcase "Z" "AA"
+case_normal_2_a = testcase "AA" "BA"
+case_normal_2_b = testcase "BA" "CA"
+case_rollover_a = testcase "ZA" "AB"
+case_rollover_b = testcase "ZB" "AC"
+case_rollover_z = testcase "AZ" "BZ"
+case_all_zs = testcase "ZZ" "AAA"
+
+tests :: TestTree
+tests = $(testGroupGenerator)

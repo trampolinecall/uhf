@@ -69,6 +69,7 @@ library
       UHF.Parts.SolveTypes.AddTypes
       UHF.Parts.SolveTypes.Aliases
       UHF.Parts.SolveTypes.Error
+      UHF.Parts.SolveTypes.Error.InferVarNamer
       UHF.Parts.SolveTypes.RemoveInferVars
       UHF.Parts.ToANFIR
       UHF.Parts.ToBackendIR

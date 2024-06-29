@@ -10,6 +10,7 @@ import qualified UHF.Parts.Parser (tests)
 import qualified UHF.Parts.Parser.PEG (tests)
 import qualified UHF.Source.Location (tests)
 import qualified UHF.Util.Arena (tests)
+import qualified UHF.Parts.SolveTypes.Error.InferVarNamer (tests)
 
 main :: IO ()
 main =
@@ -24,4 +25,5 @@ main =
             , UHF.Parts.Parser.tests
             , UHF.Source.Location.tests
             , UHF.Util.Arena.tests
+            , UHF.Parts.SolveTypes.Error.InferVarNamer.tests
             ]

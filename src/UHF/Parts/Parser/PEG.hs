@@ -65,7 +65,7 @@ eval_parser p toks =
         Just (r, _) -> (errors, Just r)
         _ -> (errors, Nothing)
 
--- having an error for every Nothing result is enforced by the fact that in the public interface the only way to create a Nothing result is through these functions
+-- having an error for every Nothing result is enforced by the fact that in the public interface the only way to create a Nothing result is through this function
 fail :: Error.Error -> Parser a
 fail error = Parser $ \ errors _ -> (error : errors, Nothing)
 
@@ -82,6 +82,7 @@ consume make_err exp = Parser $
             then (errors, Just (tok, more_toks))
             else (make_err tok_i tok : errors, Nothing)
 
+-- TODO: phase out this function
 consume' :: Text -> Token.TokenType -> Parser Token.LToken
 consume' name exp = consume (\ tok_i tok -> Error.BadToken tok_i tok exp name) exp
 
@@ -130,8 +131,7 @@ delim_star = delim_star' []
             optional thing >>= \case
                 Just thing_res ->
                     optional delim >>= \case
-                        Just _ ->
-                            delim_star' (acc ++ [thing_res]) thing delim -- this may or may not add more elements, allowing for a trailing delimiter
+                        Just _ -> delim_star' (acc ++ [thing_res]) thing delim -- this may or may not add more elements, allowing for a trailing delimiter
 
                         Nothing -> pure (acc ++ [thing_res]) -- no delimiter, cannot continue
 
@@ -143,6 +143,7 @@ optional a = Parser $ \ errors toks ->
         (errors', Just (r, toks')) -> (errors', Just (Just r, toks'))
         (errors', Nothing) -> (errors', Just (Nothing, toks))
 
+-- these are not used in the grammar
 -- andpred :: Parser a -> Parser ()
 -- notpred :: Parser a -> Parser ()
 

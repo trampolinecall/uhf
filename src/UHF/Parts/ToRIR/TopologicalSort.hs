@@ -1,0 +1,341 @@
+{-# LANGUAGE OverloadedLists #-}
+
+module UHF.Parts.ToRIR.TopologicalSort (BindingsHaveLoopError, sort_bindings, get_captures) where
+
+import UHF.Prelude
+
+import qualified Data.List as List
+import qualified Data.List.NonEmpty as NonEmpty
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+
+import UHF.Source.Span (Span)
+import qualified UHF.Data.RIR as RIR
+import qualified UHF.Diagnostic as Diagnostic
+import qualified UHF.Util.Arena as Arena
+
+data Dependency = NeedsInitialized RIR.VariableKey | NeedsCallable RIR.VariableKey deriving (Eq, Ord)
+
+data BindingsHaveLoopError
+    = BindingsHaveLoop (Map RIR.VariableKey Span) [Dependency]
+
+instance Diagnostic.ToError BindingsHaveLoopError where
+    to_error (BindingsHaveLoop spans deps@(loop_start:more)) =
+        let middle_deps = init more
+            last_dep = last more
+        in Diagnostic.Error (Just (dep_span loop_start)) "illegal loop in bindings"
+            ( loop_start_message
+                : (middle_deps & zip [2..] & map (uncurry more_dep_message))
+                ++ [last_dep_message last_dep])
+            []
+        where
+            make_counter i = "(" <> show i <> "/" <> show (length deps) <> ")"
+
+            dep_span dep = spans Map.! get_dependency_vk dep
+
+            loop_start_message = (Just (dep_span loop_start), Diagnostic.MsgError, Just $ make_counter 1 <> " the " <> dep_word_first loop_start <> " of this variable requires that...")
+            more_dep_message i dep = (Just (dep_span dep), Diagnostic.MsgNote, Just $ make_counter i <> " this variable is " <> dep_word dep <> ", which further requires that...")
+            last_dep_message dep = (Just (dep_span dep), Diagnostic.MsgNote, Just $ make_counter (length deps) <> " this variable is " <> dep_word dep <> ", completing the cycle")
+            -- the last one completes the cycle because the same dependency is at the beginning and at the end
+
+            dep_word (NeedsInitialized _) = "already initialzied"
+            dep_word (NeedsCallable _) = "ready to be called"
+
+            dep_word_first (NeedsInitialized _) = "initialization"
+            dep_word_first (NeedsCallable _) = "callability"
+
+    to_error (BindingsHaveLoop _ []) = error "empty loop in BindingsHaveLoop error"
+
+-- TODO: remove?
+get_dependency_vk :: Dependency -> RIR.VariableKey
+get_dependency_vk (NeedsInitialized vk) = vk
+get_dependency_vk (NeedsCallable vk) = vk
+
+get_captures :: RIR.Expr -> Set RIR.VariableKey
+get_captures = get_outside_references -- the captures of a lambda are just any variables that it references that it does not define
+--
+-- get all bindings that are not defined within this expression and that are referred to by identifier expressions
+-- "an outside reference" = a reference to some binding defined outside of this expression
+get_outside_references :: RIR.Expr -> Set RIR.VariableKey
+get_outside_references (RIR.Expr'Identifier _ _ _ (Just i)) = [i]
+get_outside_references (RIR.Expr'Identifier _ _ _ Nothing) = []
+get_outside_references (RIR.Expr'Char _ _ _) = []
+get_outside_references (RIR.Expr'String _ _ _) = []
+get_outside_references (RIR.Expr'Int _ _ _) = []
+get_outside_references (RIR.Expr'Float _ _ _) = []
+get_outside_references (RIR.Expr'Bool _ _ _) = []
+get_outside_references (RIR.Expr'Tuple _ _ a b) = get_outside_references a <> get_outside_references b
+get_outside_references (RIR.Expr'Lambda _ _ _ captures body) = captures <> get_outside_references body -- TODO: using captures is redundant, so remove? also double check if that is actually true
+get_outside_references (RIR.Expr'Let _ _ (RIR.Bindings _ bindings) _ _ result) =
+    -- a let has to be handled specially because it does define some bindings
+    -- get all the bindings that it refers to and then filter out the ones that are defined in this let because they are then not outside references
+    let bindings_defined_in_this = Set.fromList $ map (\ (RIR.Binding vk _) -> vk) bindings
+
+        binding_references = map (\ (RIR.Binding _ e) -> get_outside_references e) bindings
+        result_references = get_outside_references result
+    in Set.unions (binding_references <> [result_references]) & (Set.filter (not . (`Set.member` bindings_defined_in_this)))
+get_outside_references (RIR.Expr'Call _ _ callee arg) = get_outside_references callee <> get_outside_references arg
+get_outside_references (RIR.Expr'Match _ _ _ tree) = go_through_tree tree
+    where
+        go_through_tree (RIR.MatchTree arms) =
+            arms
+                & map
+                    (\ (clauses, result) ->
+                        let (clause_refs, defined_in_clauses) = clauses & map go_through_clause & unzip
+                            remove_defined_in_clauses = Set.filter (\ ref -> not $ Set.member ref (Set.unions defined_in_clauses))
+
+                            result_refs = case result of
+                                Left subtree -> go_through_tree subtree
+                                Right e -> get_outside_references e
+
+                        in remove_defined_in_clauses $ Set.unions clause_refs <> result_refs
+                    )
+                & Set.unions
+
+        -- first element is dependencies, second element is variables defined
+        go_through_clause (RIR.MatchClause'Match binding _) = ([binding], [])
+        go_through_clause (RIR.MatchClause'Assign vk rhs) = (go_match_assign_rhs rhs, [vk])
+
+        go_match_assign_rhs (RIR.MatchAssignRHS'OtherVar vk) = [vk]
+        go_match_assign_rhs (RIR.MatchAssignRHS'TupleDestructure1 _ vk) = [vk]
+        go_match_assign_rhs (RIR.MatchAssignRHS'TupleDestructure2 _ vk) = [vk]
+        go_match_assign_rhs (RIR.MatchAssignRHS'AnonADTVariantField _ vk _) = [vk]
+
+get_outside_references (RIR.Expr'Forall _ _ _ e) = get_outside_references e
+get_outside_references (RIR.Expr'TypeApply _ _ _ e _) = get_outside_references e
+get_outside_references (RIR.Expr'MakeADT _ _ _ _ args) = Set.unions $ map get_outside_references args
+get_outside_references (RIR.Expr'Poison _ _ _) = []
+
+-- get the dependencies needed to evaluate an expression
+get_execute_dependencies :: RIR.Expr -> Set Dependency
+get_execute_dependencies = go
+    where
+        go (RIR.Expr'Identifier _ _ _ (Just i)) = [NeedsInitialized i]
+        go (RIR.Expr'Identifier _ _ _ Nothing) = []
+        go (RIR.Expr'Char _ _ _) = []
+        go (RIR.Expr'String _ _ _) = []
+        go (RIR.Expr'Int _ _ _) = []
+        go (RIR.Expr'Float _ _ _) = []
+        go (RIR.Expr'Bool _ _ _) = []
+        go (RIR.Expr'Tuple _ _ a b) = get_execute_dependencies a <> get_execute_dependencies b
+        go (RIR.Expr'Lambda _ _ _ _ _) =
+            -- to execute the lambda (not execute its body, just define the body), we dont have any dependencies
+            -- we dont require that the captures have been executed because that prevents recursive functions from working (because recursive functions capture themselves)
+            []
+
+        -- a let's execute dependencies is all of the execute dependencies of its result, and the execute dependencies of all of the bindings defined in the let
+        -- we filter out any dependencies that are defined in the let because those are not dependencies needed to execute the let expression
+        -- TODO: if there are any call dependencies on the bindings defined in this let, they are incorrectly filtered out; they should instead be replaced with the call dependencies of the sub bindings
+        --       for example, in the let expression
+        --           let a = ...
+        --           a(c)
+        --       the let has a dependency that a is callable, which is filtered out because a is defined in this let
+        --       the correct behavior would be for that dependency to be replaced with a's call dependencies
+        --       (this "replacement" behavior is similar to how call dependencies of lets should be handled below, so this probably will become a helper function)
+        go (RIR.Expr'Let _ _ (RIR.Bindings _ bindings) _ _ result) =
+            let bindings_defined_in_this = Set.fromList $ map (\ (RIR.Binding vk _) -> vk) bindings
+            in (Set.unions (map (\ (RIR.Binding _ e) -> get_execute_dependencies e) bindings) <> get_execute_dependencies result)
+                & Set.filter (not . (`Set.member` bindings_defined_in_this) . get_dependency_vk)
+
+        go (RIR.Expr'Call _ _ callee arg) = get_call_dependencies callee <> get_call_dependencies arg -- because a call expression calls an arbitrary function, it can do arbitrary things with the argument (including calling it), so we conservatively require that the argument is callable
+
+        -- TODO: this has the same bug as lets do above
+        --       call dependencies on variables defined in the clauses should be replaced with their call dependencies
+        go (RIR.Expr'Match _ _ _ tree) = go_through_tree tree
+            where
+                go_through_tree (RIR.MatchTree arms) =
+                    arms
+                        & map
+                            (\ (clauses, result) ->
+                                let vars_defined_in_clauses = clauses & map get_vars_defined_in_clause
+                                    remove_defined_in_clauses = Set.filter (\ dep -> not $ Set.member (get_dependency_vk dep) (Set.unions vars_defined_in_clauses))
+
+                                    clause_deps = clauses & map get_clause_deps
+
+                                    result_dependencies = case result of
+                                        Left subtree -> go_through_tree subtree
+                                        Right e -> get_execute_dependencies e
+
+                                in remove_defined_in_clauses $ Set.unions clause_deps <> result_dependencies
+                            )
+                        & Set.unions
+
+                get_vars_defined_in_clause (RIR.MatchClause'Match binding _) = []
+                get_vars_defined_in_clause (RIR.MatchClause'Assign vk rhs) = [vk]
+
+                get_clause_deps (RIR.MatchClause'Match binding _) = [NeedsInitialized binding]
+                get_clause_deps (RIR.MatchClause'Assign vk rhs) = match_rhs_deps rhs
+
+                match_rhs_deps (RIR.MatchAssignRHS'OtherVar vk) = [NeedsInitialized vk]
+                match_rhs_deps (RIR.MatchAssignRHS'TupleDestructure1 _ vk) = [NeedsInitialized vk]
+                match_rhs_deps (RIR.MatchAssignRHS'TupleDestructure2 _ vk) = [NeedsInitialized vk]
+                match_rhs_deps (RIR.MatchAssignRHS'AnonADTVariantField _ vk _) = [NeedsInitialized vk]
+
+        go (RIR.Expr'Forall _ _ _ e) = get_execute_dependencies e
+        go (RIR.Expr'TypeApply _ _ _ e _) = get_execute_dependencies e
+        go (RIR.Expr'MakeADT _ _ _ _ args) = Set.unions $ map get_execute_dependencies args
+        go (RIR.Expr'Poison _ _ _) = []
+
+get_call_dependencies :: RIR.Expr -> Set Dependency
+get_call_dependencies = go
+    where
+        -- these expressions do not store code and therefore have no call dependencies
+        go (RIR.Expr'Char _ _ _) = []
+        go (RIR.Expr'String _ _ _) = []
+        go (RIR.Expr'Int _ _ _) = []
+        go (RIR.Expr'Float _ _ _) = []
+        go (RIR.Expr'Bool _ _ _) = []
+        go (RIR.Expr'Poison _ _ _) = []
+        go (RIR.Expr'Identifier _ _ _ Nothing) = []
+
+        -- these expressions are only callable if the expressions it refers to are also callable
+        go (RIR.Expr'Identifier _ _ _ (Just i)) = [NeedsCallable i]
+        go (RIR.Expr'Call _ _ callee arg) =
+            -- the callee has to be callable because it is being called
+            -- the argument passed has to also be callable because the function that it is passed to can do arbitrary things to it, so we conservatively enforce that it is also callable in case the function does call it
+            get_call_dependencies callee <> get_call_dependencies arg
+        go (RIR.Expr'Tuple _ _ a b) = get_call_dependencies a <> get_call_dependencies b
+        -- go (RIR.Expr'TupleDestructure1 _ _ tup) = get_call_dependencies tup TODO: REMOVE (?)
+        -- go (RIR.Expr'TupleDestructure2 _ _ tup) = get_call_dependencies tup
+        -- go (RIR.Expr'ADTDestructure _ _ v _) = get_call_dependencies v
+        go (RIR.Expr'TypeApply _ _ _ e _) = get_call_dependencies e
+        go (RIR.Expr'MakeADT _ _ _ _ args) = Set.unions $ map get_call_dependencies args
+        go (RIR.Expr'Forall _ _ _ e) = get_call_dependencies e
+
+        -- a let is callable if its result is callable
+        -- ideally an algorithm to find this would take the call dependencies of the result and repeatedly replace any dependencies on the bindings defined in the let with their call dependencies
+        -- instead for right now we just require that all of the sub-bindings are callable and that the result is callable and filter out any dependencies on the sub-bindings
+        -- the better algorithm will be coming in the future hopefully
+        go (RIR.Expr'Let _ _ (RIR.Bindings _ bindings) _ _ result) =
+            let bindings_defined_in_this = Set.fromList $ map (\ (RIR.Binding vk _) -> vk) bindings
+            in (get_call_dependencies result <> Set.unions (map (\ (RIR.Binding _ e) -> get_call_dependencies e) bindings))
+                & Set.filter (not . (`Set.member` bindings_defined_in_this) . get_dependency_vk)
+        {-
+        go (RIR.Expr'Let _ _ (RIR.Bindings _ bindings) _ _ result) = get_call_dependencies result & rewrite_bindings_defined_in_this bindings_defined_in_this
+            where
+                bindings_defined_in_this = Set.fromList $ map (\ (RIR.Binding vk _) -> vk) bindings
+                exec_deps_of_bindings_defined_in_this = Map.fromList $ map (\ (RIR.Binding vk e) -> (vk, get_call_dependencies e)) bindings
+                call_deps_of_bindings_defined_in_this = Map.fromList $ map (\ (RIR.Binding vk e) -> (vk, get_call_dependencies e)) bindings
+
+                -- TODO: this needs to happen repeatedly to handle bindings that depend on other bindings, but this needs to also consider if the binding group has loops, because that can make this code infinitely loop
+                rewrite_bindings_defined_in_this =
+                    Set.map
+                        (\ dep ->
+                            if Set.member (get_dependency_vk dep) bindings_defined_in_this
+                                then case dep of
+                                        NeedsCallable dep_vk -> call_deps_of_bindings_defined_in_this Map.! dep_vk
+                                        NeedsInitialized _ -> [] -- the dependency is defined in this let binding, so it is already initialized because this let is assumed to already have been initialized
+                                else [dep]
+                        )
+        -}
+
+        -- a match is callable if all of its arm results are callable and all of the variables it references are also callable
+        -- TODO: this has the same bug as lets and matches do in all of the above code
+        go (RIR.Expr'Match _ _ _ tree) = go_through_tree tree
+            where
+                go_through_tree (RIR.MatchTree arms) =
+                    arms
+                        & map
+                            (\ (clauses, result) ->
+                                let vars_defined_in_clauses = clauses & map get_vars_defined_in_clause
+                                    remove_defined_in_clauses = Set.filter (\ dep -> not $ Set.member (get_dependency_vk dep) (Set.unions vars_defined_in_clauses))
+
+                                    clause_deps = clauses & map get_clause_deps
+
+                                    result_dependencies = case result of
+                                        Left subtree -> go_through_tree subtree
+                                        Right e -> get_call_dependencies e
+
+                                in remove_defined_in_clauses $ Set.unions clause_deps <> result_dependencies
+                            )
+                        & Set.unions
+
+                get_vars_defined_in_clause (RIR.MatchClause'Match binding _) = []
+                get_vars_defined_in_clause (RIR.MatchClause'Assign vk rhs) = [vk]
+
+                get_clause_deps (RIR.MatchClause'Match binding _) = [NeedsCallable binding]
+                get_clause_deps (RIR.MatchClause'Assign vk rhs) = match_rhs_deps rhs
+
+                match_rhs_deps (RIR.MatchAssignRHS'OtherVar vk) = [NeedsCallable vk]
+                match_rhs_deps (RIR.MatchAssignRHS'TupleDestructure1 _ vk) = [NeedsCallable vk]
+                match_rhs_deps (RIR.MatchAssignRHS'TupleDestructure2 _ vk) = [NeedsCallable vk]
+                match_rhs_deps (RIR.MatchAssignRHS'AnonADTVariantField _ vk _) = [NeedsCallable vk]
+
+        -- lambdas store code
+        go (RIR.Expr'Lambda _ _ _ captures body) =
+            -- in order for a lambda to be callable, its body must be executable and its captures must be callable
+            get_execute_dependencies body <> Set.map NeedsCallable captures
+
+sort_bindings :: Arena.Arena RIR.Variable RIR.VariableKey -> [RIR.Binding] -> Either (NonEmpty BindingsHaveLoopError, RIR.Bindings) RIR.Bindings
+sort_bindings vars bindings =
+    case find_loops bindings of
+        [] -> Right $ RIR.Bindings RIR.TopologicallySorted (topological_sort [] bindings)
+        a:more ->
+            let var_spans =
+                    Map.fromList $
+                        map
+                            (\ (RIR.Binding vk expr) ->
+                                let (RIR.Variable _ _ var_sp) = Arena.get vars vk
+                                in (vk, var_sp))
+                            bindings
+            in Left (NonEmpty.map (BindingsHaveLoop var_spans) (a:|more), RIR.Bindings RIR.HasLoops bindings)
+    where
+        binding_keys_from_bindings = Set.fromList . map (\ (RIR.Binding vk _) -> vk)
+        bindings_defined_here = binding_keys_from_bindings bindings
+
+        exec_dependencies :: Map.Map RIR.VariableKey (Set Dependency)
+        exec_dependencies =
+            bindings
+                & map
+                    (\ (RIR.Binding var_key initializer) ->
+                        ( var_key
+                        , get_execute_dependencies initializer
+                            & Set.filter (\ dep -> Set.member (get_dependency_vk dep) bindings_defined_here) -- filter to only dependencies that are defined here because this topological sort cant do anything about dependencies defined elsewhere
+                        )
+                    )
+                & Map.fromList
+        call_dependencies :: Map.Map RIR.VariableKey (Set Dependency)
+        call_dependencies =
+            bindings
+                & map
+                    (\ (RIR.Binding var_key initializer) ->
+                        ( var_key
+                        , get_call_dependencies initializer
+                            & Set.filter (\ dep -> Set.member (get_dependency_vk dep) bindings_defined_here) -- same comment as above
+                        )
+                    )
+                & Map.fromList
+
+        topological_sort done [] = done
+        topological_sort done left =
+            case List.partition (exec_dependencies_satisfied (binding_keys_from_bindings done)) left of
+                ([], _) -> error "topological sort called on bindings with loops"
+                (ready, waiting) -> topological_sort (done ++ ready) waiting
+
+        exec_dependencies_satisfied executed (RIR.Binding vk _) = and $ Set.map (dependency_satisfied executed) (exec_dependencies Map.! vk)
+        dependency_satisfied executed dep = case dep of
+            NeedsInitialized depvk -> depvk `List.elem` executed -- check if dep has been executed
+
+            -- dep needs to be callable, so check if all of its call dependencies are satisfied
+            -- also check that dep has been initialized because it needs to be initialized before it is callable
+            NeedsCallable depvk -> depvk `List.elem` executed && and (Set.map (dependency_satisfied executed) (call_dependencies Map.! depvk))
+
+        find_loops bindings = trace_from_first (Set.fromList $ map (\ (RIR.Binding vk _) -> NeedsInitialized vk) bindings)
+            where
+                trace_from_first deps
+                    | Set.null deps = []
+                    | otherwise =
+                        let first = Set.findMin deps
+                            (loops, explored) = runWriter $ trace [] first
+                        in loops ++ trace_from_first (deps Set.\\ explored)
+
+                trace explored_stack current = do
+                    -- TODO: this often outputs multiple slightly different errors for what is actually the same loop
+                    tell [current]
+                    case List.elemIndex current explored_stack of
+                         Just index -> pure [reverse $ current : take (index + 1) explored_stack] -- found loop; the returned value contains the loop with its first and last elements as the same dependency
+                         _ -> do
+                            let deps = case current of
+                                    NeedsInitialized depvk -> exec_dependencies Map.! depvk
+                                    NeedsCallable depvk -> exec_dependencies Map.! depvk <> call_dependencies Map.! depvk
+                            concat <$> mapM (trace (current:explored_stack)) (toList deps)

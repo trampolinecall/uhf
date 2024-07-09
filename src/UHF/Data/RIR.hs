@@ -1,7 +1,9 @@
 module UHF.Data.RIR
     ( RIR (..)
-    , Module (..)
+    , CU (..)
 
+    , TopologicalSortStatus (..)
+    , Bindings (..)
     , Binding (..)
 
     , VariableKey
@@ -29,12 +31,14 @@ import qualified UHF.Util.Arena as Arena
 -- not used a lot; serves mostly as a intermediary step where a lot of things get desugared to make the transition to anfir easier
 data RIR
     = RIR
-        (Arena.Arena Module ModuleKey)
         (Arena.Arena (Type.ADT (Maybe Type.Type)) ADTKey)
         (Arena.Arena (Type.TypeSynonym (Maybe Type.Type)) TypeSynonymKey)
         (Arena.Arena Type.QuantVar Type.QuantVarKey)
         (Arena.Arena Variable VariableKey)
-        ModuleKey
+        CU
+
+-- "compilation unit"
+data CU = CU Bindings [ADTKey] [TypeSynonymKey]
 
 data Variable
     = Variable
@@ -44,8 +48,9 @@ data Variable
         }
     deriving Show
 
-data Module = Module ID.ModuleID [Binding] [ADTKey] [TypeSynonymKey]
-
+-- TODO: do not export TopologicallySorted so that it can only be constructed as a result of topologically sorting?
+data TopologicalSortStatus = TopologicallySorted | HasLoops deriving Show
+data Bindings = Bindings TopologicalSortStatus [Binding] deriving Show
 data Binding = Binding VariableKey Expr deriving Show
 
 data Expr
@@ -59,9 +64,9 @@ data Expr
 
     | Expr'Tuple ID.ExprID Span Expr Expr
 
-    | Expr'Lambda ID.ExprID Span VariableKey Expr
+    | Expr'Lambda ID.ExprID Span VariableKey (Set VariableKey) Expr
 
-    | Expr'Let ID.ExprID Span [Binding] [ADTKey] [TypeSynonymKey] Expr
+    | Expr'Let ID.ExprID Span Bindings [ADTKey] [TypeSynonymKey] Expr
 
     | Expr'Call ID.ExprID Span Expr Expr
 
@@ -104,7 +109,7 @@ expr_type _ (Expr'Int _ _ _) = Just Type.Type'Int
 expr_type _ (Expr'Float _ _ _) = Just Type.Type'Float
 expr_type _ (Expr'Bool _ _ _) = Just Type.Type'Bool
 expr_type var_arena (Expr'Tuple _ _ a b) = Type.Type'Tuple <$> expr_type var_arena a <*> expr_type var_arena b
-expr_type var_arena (Expr'Lambda _ _ param_var body) = Type.Type'Function <$> var_ty (Arena.get var_arena param_var) <*> expr_type var_arena body
+expr_type var_arena (Expr'Lambda _ _ param_var _ body) = Type.Type'Function <$> var_ty (Arena.get var_arena param_var) <*> expr_type var_arena body
 expr_type var_arena (Expr'Let _ _ _ _ _ res) = expr_type var_arena res
 expr_type var_arena (Expr'Call _ _ callee _) =
     let callee_ty = expr_type var_arena callee
@@ -125,7 +130,7 @@ expr_span (Expr'Int _ sp _) = sp
 expr_span (Expr'Float _ sp _) = sp
 expr_span (Expr'Bool _ sp _) = sp
 expr_span (Expr'Tuple _ sp _ _) = sp
-expr_span (Expr'Lambda _ sp _ _) = sp
+expr_span (Expr'Lambda _ sp _ _ _) = sp
 expr_span (Expr'Let _ sp _ _ _ _) = sp
 expr_span (Expr'Call _ sp _ _) = sp
 expr_span (Expr'Match _ _ sp _) = sp

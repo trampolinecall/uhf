@@ -71,19 +71,17 @@ show_infer_var_name (InferVarName n) = Text.reverse $ Text.pack n
        if the last digit is 'Z', 'increment' it to 'A' and recursively roll over to the next places
        for example, given the name 'GBZ', change 'Z' to 'A' and recursively call the increment function on 'GB' to get 'GCA'
 
-       there are is a special case: when there is only 1 digit and that digit is 'Z', replace it with 'AA'
-       recursively incrementing will try to increment '', which is a case i will choose to ignore (it is possible to get the same sequence by making this result in 'A', however)
+       there are is a special case: incrementing an empty string results in 'A'
 
-       the case where there are multiple digits and they are all 'Z' is handled by the above logic because the above logic will recursively call increment on smaller sections of 'Z's until there is only 1 'Z' left, at which point it becomes 'AA'
-       for example, incrementing 'ZZZ' will try to increment 'ZZ', which will try to increment 'Z', which in turn becomes 'AA'
+       the case where there are multiple digits and they are all 'Z' is handled by the above logic because the above logic will recursively call increment on smaller sections of 'Z's until it tries to increment '', at which point it becomes 'A'
+       for example, incrementing 'ZZ' will try to increment 'Z', which will try to increment '', which in turn becomes 'A'
 -}
 inc_name :: InferVarName -> InferVarName
 inc_name (InferVarName n) = InferVarName (inc n)
     where
-        inc ('Z':[]) = "AA"
         inc ('Z':rest) = 'A' : inc rest
         inc (first:rest) = inc_char first : rest
-        inc [] = error "inc called with empty name"
+        inc [] = ['A']
 
         inc_char :: Char -> Char
         inc_char 'Z' = error "inc_char called with 'Z'"

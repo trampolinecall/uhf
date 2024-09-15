@@ -7,6 +7,9 @@ import qualified UHF.Data.AST as AST
 import qualified UHF.PP as PP
 import qualified UHF.PP.Precedence as PP.Precedence
 
+-- TODO: fix precedences after grammar is overhauled
+-- TODO: also fix precedences in every other PP module too
+
 pp_decls :: [AST.Decl] -> Text
 pp_decls = PP.render . pp_decls'
 

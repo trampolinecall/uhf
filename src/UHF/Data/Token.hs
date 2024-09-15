@@ -1,22 +1,23 @@
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveLift #-}
 {-# LANGUAGE FlexibleInstances #-}
 
 module UHF.Data.Token
-    ( BaseToken(..)
-    , SingleTypeToken(..)
-
+    ( BaseToken (..)
+    , SingleTypeToken (..)
     , LInternalToken
     , LToken
     , InternalToken
     , Token
     , TokenType
-
-    , IntBase(..)
-
+    , IntBase (..)
     , to_token_type
+    , is_tt
     ) where
 
 import UHF.Prelude
+
+import qualified Language.Haskell.TH.Syntax as TH.Syntax (Lift)
 
 import UHF.Source.EqIgnoringSpans
 import UHF.Source.Located (Located)
@@ -48,9 +49,7 @@ data SingleTypeToken
     | At
     | Question
     | Backslash
-
     | DoubleColon
-
     | Underscore
     | Root
     | Let
@@ -62,26 +61,22 @@ data SingleTypeToken
     | Then
     | Else
     | Match
-
     | OBrace
     | CBrace
     | Semicolon
-    deriving (Show, Eq, Generic, EqIgnoringSpans)
+    deriving (Show, Eq, Ord, Generic, EqIgnoringSpans, TH.Syntax.Lift) -- TH.Syntax.Lift is needed for LR1 parsing table generation
 
 data BaseToken identifier eof char_lit_data string_lit_data intlit_base int_lit_data float_lit_data bool_lit_data
     = SingleTypeToken SingleTypeToken
-
     | Char char_lit_data
     | String string_lit_data
     | Int intlit_base int_lit_data
     | Float float_lit_data
     | Bool bool_lit_data
-
     | SymbolIdentifier identifier
     | AlphaIdentifier identifier
-
     | EOF eof
-    deriving (Show, Eq, Generic, EqIgnoringSpans)
+    deriving (Show, Eq, Ord, Generic, EqIgnoringSpans, TH.Syntax.Lift) -- like with SingleTypeToken, TH.Syntax.Lift is needed for LR1 parsing table generation
 
 instance Format SingleTypeToken where
     format OParen = "'('"
@@ -97,7 +92,6 @@ instance Format SingleTypeToken where
     format At = "'@'"
     format Question = "'?'"
     format Backslash = "'\\'"
-
     format Underscore = "'_'"
     format Root = "'root'"
     format Let = "'let'"
@@ -109,49 +103,42 @@ instance Format SingleTypeToken where
     format Then = "'then'"
     format Else = "'else'"
     format Match = "'match'"
-
     format OBrace = "'{'"
     format CBrace = "'}'"
     format Semicolon = "';'"
 
 instance Format TokenType where
     format (SingleTypeToken s) = format s
-
     format (Char ()) = "character literal"
     format (String ()) = "string literal"
     format (Int () ()) = "integer literal"
     format (Float ()) = "floating point literal"
     format (Bool ()) = "bool literal"
-
     format (SymbolIdentifier ()) = "symbol identifier"
     format (AlphaIdentifier ()) = "alphabetic identifier"
-
     format (EOF ()) = "end of file"
 
 instance Format Token where
     format (SingleTypeToken s) = format s
-
     format (Char c) = "'" <> convert_str [c] <> "'"
     format (String s) = "'\"" <> convert_str s <> "\"'"
     format (Int _ i) = "'" <> show i <> "'"
     format (Float f) = "'" <> show f <> "'"
     format (Bool b) = "'" <> if b then "true" else "false" <> "'"
-
     format (SymbolIdentifier i) = convert_str $ "symbol identifier '" <> i <> "'"
     format (AlphaIdentifier i) = convert_str $ "alphabetic identifier '" <> i <> "'"
-
     format (EOF ()) = "end of file"
 
 to_token_type :: BaseToken identifier eof char_lit_data string_lit_data intlit_base int_lit_data float_lit_data bool_lit_data -> TokenType
 to_token_type (SingleTypeToken stt) = SingleTypeToken stt
-
 to_token_type (Char _) = Char ()
 to_token_type (String _) = String ()
 to_token_type (Int _ _) = Int () ()
 to_token_type (Float _) = Float ()
 to_token_type (Bool _) = Bool ()
-
 to_token_type (SymbolIdentifier _) = SymbolIdentifier ()
 to_token_type (AlphaIdentifier _) = AlphaIdentifier ()
-
 to_token_type (EOF _) = EOF ()
+
+is_tt :: TokenType -> Token -> Bool
+is_tt ty tok = ty == to_token_type tok

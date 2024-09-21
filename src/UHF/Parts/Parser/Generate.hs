@@ -324,14 +324,12 @@ make_parse_fn name res_ty (StateTable nt_ty_map reduce_fn_map table) = do
                         --     rule32_create_ast :: A -> B -> C -> AST
                         --     rule32_create_ast = [\ a b c -> AST a b c]
                         -- where the part in brackets is spliced in from the grammar
-                        create_ast_name <- do
-                            create_ast_name <- lift $ TH.newName $ "rule" ++ show rule_num ++ "_create_ast"
+                        create_ast_name <- lift $ TH.newName $ "rule" ++ show rule_num ++ "_create_ast"
+                        do
                             nt_result_ty <- lift $ nt_ty_map Map.! nt
                             create_ast_ty <- foldrM (\sym t -> lift [t|$(sym_ty sym) -> $(pure t)|]) nt_result_ty prod
 
                             tell [TH.SigD create_ast_name create_ast_ty, TH.FunD create_ast_name [TH.Clause [] (TH.NormalB body) []]]
-
-                            pure create_ast_name
 
                         -- reduce_rule function
                         -- ie. something like
@@ -344,43 +342,41 @@ make_parse_fn name res_ty (StateTable nt_ty_map reduce_fn_map table) = do
                         --             new_ast = rule32_create_ast (fromJust $ dynCast $ asts_popped !! 2) (fromJust $ dynCast $ asts_popped !! 1) (fromJust $ dynCast $ asts_popped !! 0)
                         --         in (next_state : state_stack_popped, new_ast : ast_stack_popped)
                         -- where any Dynamic values are the ast nodes currently on the stack
-                        reduce_rule_name <- do
-                            reduce_rule_name <- lift $ TH.newName $ "rule" ++ show rule_num ++ "_reduce"
+                        reduce_rule_name <- lift $ TH.newName $ "rule" ++ show rule_num ++ "_reduce"
+                        do
                             reduce_rule_type <- lift [t|[Int] -> [Dynamic.Dynamic] -> ([Int], [Dynamic.Dynamic])|]
 
                             state_stack_name <- lift $ TH.newName "state_stack"
                             ast_stack_name <- lift $ TH.newName "ast_stack"
-                            reduce_rule_dec <-
+                            reduce_rule_dec <- do
                                 let prod_len = length prod
-                                 in lift $
-                                        TH.funD
-                                            reduce_rule_name
-                                            [ TH.clause
-                                                [TH.varP state_stack_name, TH.varP ast_stack_name]
-                                                ( TH.normalB
-                                                    [|
-                                                        let state_stack_popped = drop $(TH.litE $ TH.IntegerL $ toInteger prod_len) $(TH.varE state_stack_name)
-                                                            last_state = if null state_stack_popped then error "empty state stack during parsing (this is a bug in the parser)" else head state_stack_popped
-                                                            (asts_popped, ast_stack_popped) = splitAt $(TH.litE $ TH.IntegerL $ toInteger prod_len) $(TH.varE ast_stack_name)
+                                lift $
+                                    TH.funD
+                                        reduce_rule_name
+                                        [ TH.clause
+                                            [TH.varP state_stack_name, TH.varP ast_stack_name]
+                                            ( TH.normalB
+                                                [|
+                                                    let state_stack_popped = drop $(TH.litE $ TH.IntegerL $ toInteger prod_len) $(TH.varE state_stack_name)
+                                                        last_state = if null state_stack_popped then error "empty state stack during parsing (this is a bug in the parser)" else head state_stack_popped
+                                                        (asts_popped, ast_stack_popped) = splitAt $(TH.litE $ TH.IntegerL $ toInteger prod_len) $(TH.varE ast_stack_name)
 
-                                                            next_state = $(TH.varE goto_table_name) Map.! last_state Map.! $(TH.Syntax.lift nt)
-                                                            new_ast =
-                                                                $( foldlM
-                                                                    ( \e (sym_i, _) ->
-                                                                        TH.AppE e <$> [|force_cast "popping ast node from stack to reduce" (asts_popped !! $(TH.litE $ TH.IntegerL sym_i))|]
-                                                                    )
-                                                                    (TH.VarE create_ast_name)
-                                                                    (zip (reverse [0 .. (toInteger prod_len - 1)]) prod)
-                                                                 )
-                                                        in (next_state : state_stack_popped, Dynamic.toDyn new_ast : ast_stack_popped)
-                                                        |]
-                                                )
-                                                []
-                                            ]
+                                                        next_state = $(TH.varE goto_table_name) Map.! last_state Map.! $(TH.Syntax.lift nt)
+                                                        new_ast =
+                                                            $( foldlM
+                                                                ( \e (sym_i, _) ->
+                                                                    TH.AppE e <$> [|force_cast "popping ast node from stack to reduce" (asts_popped !! $(TH.litE $ TH.IntegerL sym_i))|]
+                                                                )
+                                                                (TH.VarE create_ast_name)
+                                                                (zip (reverse [0 .. (toInteger prod_len - 1)]) prod)
+                                                             )
+                                                    in (next_state : state_stack_popped, Dynamic.toDyn new_ast : ast_stack_popped)
+                                                    |]
+                                            )
+                                            []
+                                        ]
 
                             tell [TH.SigD reduce_rule_name reduce_rule_type, reduce_rule_dec]
-
-                            pure reduce_rule_name
 
                         pure reduce_rule_name
                     )

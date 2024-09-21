@@ -303,50 +303,104 @@ from_just_with_message msg Nothing = error msg
 
 make_parse_fn :: String -> TH.Q TH.Type -> StateTable -> TH.Q [TH.Dec]
 make_parse_fn name res_ty (StateTable nt_ty_map reduce_fn_map table) = do
+    goto_table_name <- TH.newName "goto_table"
+    goto_table_decl <- [d|$(pure $ TH.VarP goto_table_name) = $(TH.Syntax.lift (Map.map snd table))|]
+
     let fn_name = TH.mkName name
     (reduce_fn_names, reduce_fn_decls) <-
         runWriterT $
             sequence $
                 Map.mapWithKey
                     ( \(Rule rule_num nt prod) body -> do
-                        body <- lift $ body
-                        result_ty <- lift $ nt_ty_map Map.! nt
+                        -- TODO: move all these declarations to the where clause of the parse function?
+                        body <- lift body
 
-                        fn_name <- lift $ TH.newName $ "rule" ++ show rule_num ++ "_create_ast"
-                        fn_ty <-
-                            foldrM
-                                ( \sym t -> do
-                                    st <- lift $ sym_ty sym
-                                    pure $ TH.ArrowT `TH.AppT` st `TH.AppT` t
-                                )
-                                result_ty
-                                prod
+                        -- create_ast function
+                        -- ie. something like
+                        --     rule32_create_ast :: A -> B -> C -> AST
+                        --     rule32_create_ast = [\ a b c -> AST a b c]
+                        -- where the part in brackets is spliced in from the grammar
+                        create_ast_name <- do
+                            create_ast_name <- lift $ TH.newName $ "rule" ++ show rule_num ++ "_create_ast"
+                            nt_result_ty <- lift $ nt_ty_map Map.! nt
+                            create_ast_ty <- foldrM (\sym t -> lift [t|$(sym_ty sym) -> $(pure t)|]) nt_result_ty prod
 
-                        tell [TH.SigD fn_name fn_ty]
-                        tell [TH.FunD fn_name [TH.Clause [] (TH.NormalB body) []]]
+                            tell [TH.SigD create_ast_name create_ast_ty, TH.FunD create_ast_name [TH.Clause [] (TH.NormalB body) []]]
 
-                        pure fn_name
+                            pure create_ast_name
+
+                        -- reduce_rule function
+                        -- ie. something like
+                        --     rule32_reduce :: [Int] -> [Dynamic] -> ([Int], [Dynamic])
+                        --     rule32_reduce state_stack ast_stack =
+                        --         let state_stack_poppsed@(last_state : _) = drop 3 state_stack
+                        --             (asts_popped, ast_stack_popped) = splitAt 3 ast_stack
+                        --
+                        --             next_state = goto_table Map.! last_state Map.! (Nonterminal "ast")
+                        --             new_ast = rule32_create_ast (fromJust $ dynCast $ asts_popped !! 2) (fromJust $ dynCast $ asts_popped !! 1) (fromJust $ dynCast $ asts_popped !! 0)
+                        --         in (next_state : state_stack_popped, new_ast : ast_stack_popped)
+                        -- where any Dynamic values are the ast nodes currently on the stack
+                        reduce_rule_name <- do
+                            reduce_rule_name <- lift $ TH.newName $ "rule" ++ show rule_num ++ "_reduce"
+                            reduce_rule_type <- lift [t|[Int] -> [Dynamic.Dynamic] -> ([Int], [Dynamic.Dynamic])|]
+
+                            state_stack_name <- lift $ TH.newName "state_stack"
+                            ast_stack_name <- lift $ TH.newName "ast_stack"
+                            reduce_rule_dec <- do
+                                let prod_len = length prod
+                                body <-
+                                    lift
+                                        [|
+                                            let state_stack_popped = drop $(pure $ TH.LitE $ TH.IntegerL $ toInteger prod_len) $(pure $ TH.VarE state_stack_name)
+                                                last_state = if null state_stack_popped then error "empty state stack during parsing (this is a bug in the parser)" else head state_stack_popped
+                                                (asts_popped, ast_stack_popped) = splitAt $(pure $ TH.LitE $ TH.IntegerL $ toInteger prod_len) $(pure $ TH.VarE ast_stack_name)
+
+                                                next_state = $(pure $ TH.VarE goto_table_name) Map.! last_state Map.! $(TH.Syntax.lift nt)
+                                                new_ast =
+                                                    $( foldlM
+                                                        ( \e (sym_i, sym) ->
+                                                            TH.AppE e
+                                                                <$> [|
+                                                                    let popped = asts_popped !! $(pure $ TH.LitE $ TH.IntegerL sym_i)
+                                                                    in from_just_with_message
+                                                                        ( "invalid cast when popping ast node from stack: expected "
+                                                                            ++ show (Typeable.typeRep (Nothing :: Maybe $(sym_ty sym)))
+                                                                            ++ " but got "
+                                                                            ++ show (Dynamic.dynTypeRep popped)
+                                                                        )
+                                                                        (Dynamic.fromDynamic popped)
+                                                                    |]
+                                                        )
+                                                        (TH.VarE create_ast_name)
+                                                        (zip (reverse [0 .. (toInteger prod_len - 1)]) prod)
+                                                     )
+                                            in (next_state : state_stack_popped, Dynamic.toDyn new_ast : ast_stack_popped)
+                                            |]
+                                pure $ TH.FunD reduce_rule_name [TH.Clause [TH.VarP state_stack_name, TH.VarP ast_stack_name] (TH.NormalB body) []]
+
+                            tell [TH.SigD reduce_rule_name reduce_rule_type, reduce_rule_dec]
+
+                            pure reduce_rule_name
+
+                        pure reduce_rule_name
                     )
                     reduce_fn_map
 
     top_sig <- TH.SigD fn_name <$> [t|InfList.InfList Token.LToken -> $(res_ty)|]
     top_decl <- do
-        goto_table_name <- TH.newName "goto_table"
-        goto_table_decl <- [d|$(pure $ TH.VarP goto_table_name) = $(TH.Syntax.lift (Map.map snd table))|]
-
         sub_name <- TH.newName "parse'"
         sub_decl <- do
-            sub_clauses <- mapM (make_function_clause reduce_fn_names goto_table_name sub_name) (Map.toAscList table) <&> concat
+            sub_clauses <- mapM (make_function_clause reduce_fn_names sub_name) (Map.toAscList table) <&> concat
             default_clause <- default_clause
             pure $ TH.FunD sub_name (sub_clauses ++ [default_clause])
 
         top_expr <- [e|$(pure $ TH.VarE sub_name) [0 :: Int] []|]
-        pure $ TH.FunD fn_name [TH.Clause [] (TH.NormalB top_expr) (sub_decl : goto_table_decl)]
+        pure $ TH.FunD fn_name [TH.Clause [] (TH.NormalB top_expr) [sub_decl]]
 
-    pure $ reduce_fn_decls ++ [top_sig, top_decl]
+    pure $ reduce_fn_decls ++ goto_table_decl ++ [top_sig, top_decl]
     where
-        make_function_clause :: Map Rule TH.Name -> TH.Name -> TH.Name -> (Int, (Map Terminal Action, Map Nonterminal Int)) -> TH.Q [TH.Clause]
-        make_function_clause reduce_fns goto_table_name recurse_name (state_number, (action_table, _)) =
+        make_function_clause :: Map Rule TH.Name -> TH.Name -> (Int, (Map Terminal Action, Map Nonterminal Int)) -> TH.Q [TH.Clause]
+        make_function_clause reduce_fns recurse_name (state_number, (action_table, _)) =
             action_table
                 & Map.toAscList
                 & mapM
@@ -358,40 +412,11 @@ make_parse_fn name res_ty (StateTable nt_ty_map reduce_fn_map table) = do
                                     (Dynamic.toDyn $(pure $ TH.VarE input_cur_tok_name) : $(pure $ TH.VarE ast_stack_name))
                                     $(pure $ TH.VarE input_more_name)
                                 |]
-                        (lookahead, Reduce rule@(Rule _ nt prod)) ->
-                            let prod_len = length prod
-                            in make_clause state_number lookahead $ \state_stack_name ast_stack_name input_stream_name _ _ ->
-                                [|
-                                    let state_stack_popped@(last_state : _) = drop $(pure $ TH.LitE $ TH.IntegerL $ toInteger prod_len) $(pure $ TH.VarE state_stack_name)
-                                        (asts_popped, ast_stack_popped) = splitAt $(pure $ TH.LitE $ TH.IntegerL $ toInteger prod_len) $(pure $ TH.VarE ast_stack_name)
-
-                                        next_state = $(pure $ TH.VarE goto_table_name) Map.! last_state Map.! $(TH.Syntax.lift nt)
-
-                                        new_ast :: $(nt_ty_map Map.! nt)
-                                        new_ast =
-                                            $( foldlM
-                                                ( \e (sym_i, sym) ->
-                                                    TH.AppE e
-                                                        <$> [|
-                                                            let popped = asts_popped !! $(pure $ TH.LitE $ TH.IntegerL sym_i)
-                                                            in from_just_with_message
-                                                                ( "invalid cast when popping ast node from stack: expected "
-                                                                    ++ show (Typeable.typeRep (Nothing :: Maybe $(sym_ty sym)))
-                                                                    ++ " but got "
-                                                                    ++ show (Dynamic.dynTypeRep popped)
-                                                                )
-                                                                (Dynamic.fromDynamic popped) ::
-                                                                $(sym_ty sym)
-                                                            |]
-                                                )
-                                                (TH.VarE $ reduce_fns Map.! rule)
-                                                (zip (reverse [0 .. (toInteger prod_len - 1)]) prod)
-                                             )
-                                    in $(pure $ TH.VarE recurse_name)
-                                        (next_state : state_stack_popped)
-                                        (Dynamic.toDyn new_ast : ast_stack_popped)
-                                        $(pure $ TH.VarE input_stream_name)
-                                    |]
+                        (lookahead, Reduce rule) -> make_clause state_number lookahead $ \state_stack_name ast_stack_name input_stream_name _ _ ->
+                            [|
+                                let (next_state_stack, next_ast_stack) = $(pure $ TH.VarE $ reduce_fns Map.! rule) $(pure $ TH.VarE state_stack_name) $(pure $ TH.VarE ast_stack_name)
+                                in $(pure $ TH.VarE recurse_name) next_state_stack next_ast_stack $(pure $ TH.VarE input_stream_name)
+                                |]
                         (lookahead, Accept) -> make_clause state_number lookahead $ \_ ast_stack_name _ _ _ ->
                             [|
                                 from_just_with_message "invalid cast when popping ast node from stack in accept action" (Dynamic.fromDynamic $ head $(pure $ TH.VarE ast_stack_name))

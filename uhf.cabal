@@ -33,6 +33,7 @@ library
       UHF.Data.SIR.PP
       UHF.Data.SIR.Stage
       UHF.Data.Token
+      UHF.Data.Token.TH
       UHF.Diagnostic
       UHF.Diagnostic.Diagnostic
       UHF.Diagnostic.Report

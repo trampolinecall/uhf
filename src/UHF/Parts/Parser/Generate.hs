@@ -26,6 +26,7 @@ import qualified Data.Map as Map
 import Data.Maybe (fromJust)
 import qualified Data.Set as Set
 import Data.String (String)
+import qualified Data.Text as Text
 import Data.Typeable (cast)
 import qualified Data.Typeable as Typeable
 import qualified Language.Haskell.TH as TH
@@ -82,6 +83,13 @@ repeat_until_unchanging change initial =
 data ItemSet = ItemSet Int (Set Item) (Set Item)
 data Item = Item Rule Int Terminal deriving (Eq, Ord)
 
+instance Format Item where
+    format (Item (Rule _ nt pr) i l) =
+        let (before, after) = splitAt i pr
+        in format nt <> " -> " <> Text.intercalate " " (map format before <> ["."] <> map format after) <> " {" <> format l <> "}"
+instance Format ItemSet where
+    format (ItemSet n k c) = "item set " <> show n <> " { " <> Text.intercalate ", " (map format (Set.toList k)) <> ";" <> Text.intercalate "," (map format (Set.toList c)) <> " }"
+
 new_item :: Rule -> Terminal -> Item
 new_item r l = Item r 0 l
 
@@ -124,6 +132,10 @@ find_closure grammar kernel = go Set.empty (Set.toList kernel)
 
 data StateTable = StateTable NTResultTypes ReduceFnMap (Map Int (Map Terminal Action, Map Nonterminal Int))
 data Action = Shift Int | Reduce Rule | Accept deriving Show
+instance Format Action where
+    format (Shift n) = "s" <> format n
+    format (Reduce (Rule n _ _)) = "r" <> format n
+    format Accept = "acc"
 
 data ActionOrConflict t = SingleAction t | Conflict [t] deriving Functor
 instance Semigroup (ActionOrConflict a) where
@@ -131,6 +143,10 @@ instance Semigroup (ActionOrConflict a) where
     (SingleAction as) <> (Conflict bs) = Conflict (as : bs)
     (Conflict as) <> (SingleAction bs) = Conflict (bs : as)
     (Conflict as) <> (Conflict bs) = Conflict (as ++ bs)
+
+instance Format a => Format (ActionOrConflict a) where
+    format (SingleAction a) = format a
+    format (Conflict as) = Text.intercalate "/" (map format as)
 
 find_sets ::
     Grammar ->
@@ -199,11 +215,11 @@ find_sets grammar item_set_tables (current_set_number : to_process) = do
                 remove_lookaheads (Item rule ind _) = (rule, ind)
 
                 modify_at :: Int -> (a -> a) -> [a] -> [a]
-                modify_at n _ [] = error $ "cannot modify at index " ++ show n ++ " in list of length 0 (this is a bug in the parser generator)"
+                modify_at n _ [] = error $ "cannot modify at index " <> show n <> " in list of length 0 (this is a bug in the parser generator)"
                 modify_at 0 change (first : more) = change first : more
                 modify_at n change l@(first : more)
                     | n >= length l =
-                        error $ "cannot modify at index " ++ show n ++ " in list of length " ++ show (length l) ++ " (this is a bug in the parser generator)"
+                        error $ "cannot modify at index " <> show n <> " in list of length " <> show (length l) <> " (this is a bug in the parser generator)"
                     | otherwise = first : (modify_at (n - 1) change more)
 
                 merge kernel closure (ItemSet number already_kernel already_closure) = ItemSet number (Set.union already_kernel kernel) (Set.union already_closure closure)
@@ -212,8 +228,8 @@ find_sets _ tables [] = do
     pure $ Map.toAscList tables & map (\(index, (shifts, gotos)) -> (sets !! index, shifts, gotos))
 
 convert_to_state_table :: NTResultTypes -> ReduceFnMap -> [(ItemSet, Map Terminal Int, Map Nonterminal Int)] -> StateTable
-convert_to_state_table nt_result_types reduce_fn_map states =
-    states
+convert_to_state_table nt_result_types reduce_fn_map item_sets =
+    item_sets
         & map to_state
         & foldl'
             ( \state_table (state_number, tables) -> case Map.lookup state_number state_table of
@@ -221,19 +237,13 @@ convert_to_state_table nt_result_types reduce_fn_map states =
                 Nothing -> Map.insert state_number tables state_table
             )
             Map.empty
+        & remove_conflicts
         & StateTable nt_result_types reduce_fn_map
     where
-        to_state :: (ItemSet, Map Terminal Int, Map Nonterminal Int) -> (Int, (Map Terminal Action, Map Nonterminal Int))
+        to_state :: (ItemSet, Map Terminal Int, Map Nonterminal Int) -> (Int, (ItemSet, Map Terminal (ActionOrConflict Action), Map Nonterminal Int))
         to_state (item_set@(ItemSet number _ _), shift_table, goto_table) =
-            (number, (report_conflicts $ Map.unionWith (<>) (Map.map (SingleAction . Shift) shift_table) reduce_actions, goto_table))
+            (number, (item_set, Map.unionWith (<>) (Map.map (SingleAction . Shift) shift_table) reduce_actions, goto_table))
             where
-                report_conflicts =
-                    Map.map
-                        ( \case
-                            SingleAction a -> a
-                            Conflict as -> error $ "conflict in parsing table: " ++ show as
-                        )
-
                 reduce_actions =
                     all_items item_set
                         & Set.toList
@@ -246,6 +256,36 @@ convert_to_state_table nt_result_types reduce_fn_map states =
                               )
                             )
                         & Map.unionsWith (<>)
+
+        remove_conflicts :: Map Int (ItemSet, Map Terminal (ActionOrConflict Action), Map Nonterminal Int) -> Map Int (Map Terminal Action, Map Nonterminal Int)
+        remove_conflicts states =
+            Map.map
+                ( \(item_set, action, goto) ->
+                    ( action
+                        & Map.map
+                            ( \case
+                                SingleAction a -> a
+                                as@(Conflict _) ->
+                                    error $
+                                        convert_str $
+                                            "conflict in parsing table: "
+                                                <> format as
+                                                <> "\nitem set: "
+                                                <> format item_set
+                                                <> "\nstates:\n"
+                                                <> Text.intercalate
+                                                    "\n"
+                                                    ( map
+                                                        (\(n, (item_set, actions, gotos)) -> show n <> " | " <> format item_set <> " | " <> format_map actions <> " " <> format_map gotos)
+                                                        (Map.toList states)
+                                                    )
+                            )
+                    , goto
+                    )
+                )
+                states
+
+        format_map m = "{ " <> Text.intercalate ", " (map (\(k, v) -> format k <> ": " <> format v) (Map.toList m)) <> " }"
 
 generate_table :: Grammar -> StateTable
 generate_table grammar =
@@ -273,7 +313,7 @@ make_parse_fn name res_ty (StateTable nt_ty_map reduce_fn_map table) = do
             default_clause <- default_clause
             pure $ TH.FunD sub_name (sub_clauses ++ [default_clause])
 
-        top_expr <- [e|$(pure $ TH.VarE sub_name) [0] []|]
+        top_expr <- [e|$(pure $ TH.VarE sub_name) [0 :: Int] []|]
         pure $ TH.FunD fn_name [TH.Clause [] (TH.NormalB top_expr) (sub_decl : goto_table_decl)]
 
     pure [top_sig, top_decl]

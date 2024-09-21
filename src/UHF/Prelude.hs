@@ -187,3 +187,5 @@ class Format a where
 
 instance Format Int where
     format = convert_str . Prelude.show
+instance Format Integer where
+    format = convert_str . Prelude.show

@@ -61,6 +61,7 @@ lex_one_token =
 -- Lexer {{{2
 type Lexer = StateT Location (Compiler.WithDiagnosticsT LexError.Error Void Maybe)
 -- lexing functions {{{2
+-- TODO: lex comment only if the // is not another operator
 lex_comment :: Lexer (Seq Token.LToken)
 lex_comment =
     get_loc >>= \ start_loc ->

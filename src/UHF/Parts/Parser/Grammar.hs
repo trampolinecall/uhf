@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveLift #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module UHF.Parts.Parser.Grammar
@@ -12,8 +13,12 @@ module UHF.Parts.Parser.Grammar
     , NTResultTypes
     , ReduceFnMap
     , nt
+    , get_nt_ty
     , toplevel
     , rule
+    , (-->)
+    , ToSymbol (..)
+    , prod_join
     , GrammarCreationError (..)
     , make_grammar
     , filter_rules_with_nt
@@ -37,7 +42,14 @@ type Terminal = Token.TokenType
 
 data Symbol = S'T Terminal | S'NT Nonterminal deriving (Show, Eq, Ord)
 
-type ReduceFnMap = Map Integer (TH.Q TH.Exp)
+instance Format Nonterminal where
+    format (Nonterminal t) = t
+    format Augment = "AUGMENT"
+instance Format Symbol where
+    format (S'T t) = format t
+    format (S'NT nt) = format nt
+
+type ReduceFnMap = Map Rule (TH.Q TH.Exp)
 data Rule = Rule Integer Nonterminal [Symbol] deriving (Show, Eq, Ord)
 
 newtype GrammarMonad a = GrammarMonad (State (GrammarMonadState) a) deriving (Functor, Applicative, Monad)
@@ -55,6 +67,11 @@ nt t ty = do
     GrammarMonad $ state $ (\gms -> ((), gms {gms_nt_result_tys = Map.insert nt ty (gms_nt_result_tys gms)}))
     pure $ Nonterminal t
 
+get_nt_ty :: Nonterminal -> GrammarMonad (TH.Q TH.Type)
+get_nt_ty nt = do
+    gms <- GrammarMonad get
+    pure (gms_nt_result_tys gms Map.! nt)
+
 toplevel :: Nonterminal -> GrammarMonad Nonterminal
 toplevel nt = GrammarMonad $ State.state $ \gms -> (nt, gms {gms_toplevel = Just nt})
 
@@ -66,12 +83,28 @@ rule nt production create_ast =
                 let rule_n = gms_cur_rule_number gms
                     rule = Rule rule_n nt production
                 in ( ()
-                   , gms {gms_reduce_fn_map = Map.insert rule_n create_ast (gms_reduce_fn_map gms), gms_rules = rule : (gms_rules gms), gms_cur_rule_number = rule_n + 1}
+                   , gms {gms_reduce_fn_map = Map.insert rule create_ast (gms_reduce_fn_map gms), gms_rules = rule : (gms_rules gms), gms_cur_rule_number = rule_n + 1}
                    )
 
 -- TODO: remove this?
--- (-->) :: Nonterminal ast -> [Symbol] -> GrammarMonad toplevel_ast (Rule ast)
--- (-->) = rule
+(-->) :: Nonterminal -> ([Symbol], TH.Q TH.Exp) -> GrammarMonad ()
+(-->) nt (prod, create_ast) = rule nt prod create_ast
+infix 2 -->
+
+class ToSymbol t where
+    to_symbol :: t -> [Symbol]
+instance ToSymbol Symbol where
+    to_symbol s = [s]
+instance ToSymbol [Symbol] where
+    to_symbol = identity
+instance ToSymbol Terminal where
+    to_symbol t = [S'T t]
+instance ToSymbol Token.SingleTypeToken where
+    to_symbol t = [S'T $ Token.SingleTypeToken t]
+instance ToSymbol Nonterminal where
+    to_symbol nt = [S'NT nt]
+prod_join :: (ToSymbol a, ToSymbol b) => a -> b -> [Symbol]
+prod_join a b = to_symbol a ++ to_symbol b
 
 data GrammarCreationError = NoToplevelNonterminal deriving Show
 make_grammar :: GrammarMonad () -> Either GrammarCreationError (Grammar)

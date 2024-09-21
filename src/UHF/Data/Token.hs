@@ -51,6 +51,8 @@ data SingleTypeToken
     | Backslash
     | DoubleColon
     | Underscore
+    | Caret -- TODO: implement lexing for this and remove this eventually
+    | Backtick -- TODO: implement lexing for this
     | Root
     | Let
     | LetRec
@@ -75,6 +77,7 @@ data BaseToken identifier eof char_lit_data string_lit_data intlit_base int_lit_
     | Bool bool_lit_data
     | SymbolIdentifier identifier
     | AlphaIdentifier identifier
+    | KeywordIdentifier identifier -- TODO: implement lexing for this
     | EOF eof
     deriving (Show, Eq, Ord, Generic, EqIgnoringSpans, TH.Syntax.Lift) -- like with SingleTypeToken, TH.Syntax.Lift is needed for LR1 parsing table generation
 
@@ -93,6 +96,8 @@ instance Format SingleTypeToken where
     format Question = "'?'"
     format Backslash = "'\\'"
     format Underscore = "'_'"
+    format Caret = "'^'"
+    format Backtick = "'`'"
     format Root = "'root'"
     format Let = "'let'"
     format LetRec = "'letrec'"
@@ -116,6 +121,7 @@ instance Format TokenType where
     format (Bool ()) = "bool literal"
     format (SymbolIdentifier ()) = "symbol identifier"
     format (AlphaIdentifier ()) = "alphabetic identifier"
+    format (KeywordIdentifier ()) = "keyword identifier"
     format (EOF ()) = "end of file"
 
 instance Format Token where
@@ -127,6 +133,7 @@ instance Format Token where
     format (Bool b) = "'" <> if b then "true" else "false" <> "'"
     format (SymbolIdentifier i) = convert_str $ "symbol identifier '" <> i <> "'"
     format (AlphaIdentifier i) = convert_str $ "alphabetic identifier '" <> i <> "'"
+    format (KeywordIdentifier i) = convert_str $ "keyword identifier '" <> i <> ":'"
     format (EOF ()) = "end of file"
 
 to_token_type :: BaseToken identifier eof char_lit_data string_lit_data intlit_base int_lit_data float_lit_data bool_lit_data -> TokenType
@@ -138,6 +145,7 @@ to_token_type (Float _) = Float ()
 to_token_type (Bool _) = Bool ()
 to_token_type (SymbolIdentifier _) = SymbolIdentifier ()
 to_token_type (AlphaIdentifier _) = AlphaIdentifier ()
+to_token_type (KeywordIdentifier _) = KeywordIdentifier ()
 to_token_type (EOF _) = EOF ()
 
 is_tt :: TokenType -> Token -> Bool

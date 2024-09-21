@@ -57,14 +57,14 @@ data Expr
     | Expr'Let Span [Decl] Expr
     | Expr'LetRec Span [Decl] Expr
 
-    | Expr'BinaryOps Span Expr [(Located PathOrSingleIden, Expr)]
+    | Expr'BinaryOps Span Expr [(Located PathOrSingleIden, Expr)] -- TODO: fix this
 
     | Expr'Call Span Expr [Expr]
 
     | Expr'If Span Span Expr Expr Expr
     | Expr'Match Span Span Expr [(Pattern, Expr)]
 
-    | Expr'Forall Span [Identifier] Expr -- TODO: add constraints like '#(T, U; Constraint#(T, U)) ...'
+    | Expr'Forall Span [Identifier] Expr -- TODO: add constraints like '#(T, U; Constraint#(T, U)) ...' (actually this todo is outdated with the syntax redesign in the lr1 overhaul)
     | Expr'TypeApply Span Expr [Type]
 
     | Expr'TypeAnnotation Span Type Expr

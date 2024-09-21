@@ -3,15 +3,20 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module UHF.Parts.Parser.Grammar
--- TODO: reorder these exports
     ( Grammar (..)
-    , Rule (..)
+    , filter_rules_with_nt
+
     , Nonterminal (..)
     , Terminal
     , Symbol (..)
-    , GrammarMonad
+
+    , Rule (..)
+
     , NTResultTypes
     , ReduceFnMap
+
+    , GrammarMonad
+    , GrammarCreationError (..)
     , nt
     , get_nt_ty
     , toplevel
@@ -19,9 +24,9 @@ module UHF.Parts.Parser.Grammar
     , (-->)
     , ToSymbol (..)
     , prod_join
-    , GrammarCreationError (..)
+
     , make_grammar
-    , filter_rules_with_nt
+
     ) where
 
 import UHF.Prelude
@@ -86,7 +91,6 @@ rule nt production create_ast =
                    , gms {gms_reduce_fn_map = Map.insert rule create_ast (gms_reduce_fn_map gms), gms_rules = rule : (gms_rules gms), gms_cur_rule_number = rule_n + 1}
                    )
 
--- TODO: remove this?
 (-->) :: Nonterminal -> ([Symbol], TH.Q TH.Exp) -> GrammarMonad ()
 (-->) nt (prod, create_ast) = rule nt prod create_ast
 infix 2 -->

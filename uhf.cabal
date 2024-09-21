@@ -63,8 +63,6 @@ library
       UHF.Parts.Parser.Error
       UHF.Parts.Parser.Generate
       UHF.Parts.Parser.Grammar
-      UHF.Parts.Parser.PEG
-      UHF.Parts.Parser.Test
       UHF.Parts.RemovePoison
       UHF.Parts.ReportHoles
       UHF.Parts.SolveTypes

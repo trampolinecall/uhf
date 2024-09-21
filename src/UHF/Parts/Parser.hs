@@ -40,10 +40,10 @@ $( let unwrap_right :: Show a => Either a b -> b
                 p |> m = (to_symbol p, m)
                 infix 4 |>
 
-                -- TODO: rename to star list
-                list :: Nonterminal -> GrammarMonad Nonterminal
-                list Augment = error "cannot make list of augment"
-                list thing@(Nonterminal name) = do
+                -- TODO: memoize these functions?
+                list_star :: Nonterminal -> GrammarMonad Nonterminal
+                list_star Augment = error "cannot make list of augment"
+                list_star thing@(Nonterminal name) = do
                     thing_ty <- get_nt_ty thing
 
                     thing_list <- nt ("list of " <> name) [t|[$thing_ty]|]
@@ -53,9 +53,9 @@ $( let unwrap_right :: Show a => Either a b -> b
 
                     pure thing_list
 
-                list_min_1 :: Nonterminal -> GrammarMonad Nonterminal
-                list_min_1 Augment = error "cannot make list of augment"
-                list_min_1 thing@(Nonterminal name) = do
+                list_plus :: Nonterminal -> GrammarMonad Nonterminal
+                list_plus Augment = error "cannot make list of augment"
+                list_plus thing@(Nonterminal name) = do
                     thing_ty <- get_nt_ty thing
 
                     thing_list <- nt ("list of " <> name) [t|[$thing_ty]|]
@@ -77,9 +77,9 @@ $( let unwrap_right :: Show a => Either a b -> b
 
                     pure opt
 
-                sep_list_allow_trailing :: ToSymbol sep => sep -> Nonterminal -> GrammarMonad Nonterminal
-                sep_list_allow_trailing _ Augment = error "cannot make separated list of augment"
-                sep_list_allow_trailing sep thing@(Nonterminal name) = do
+                list_sep_allow_trailing :: ToSymbol sep => sep -> Nonterminal -> GrammarMonad Nonterminal
+                list_sep_allow_trailing _ Augment = error "cannot make separated list of augment"
+                list_sep_allow_trailing sep thing@(Nonterminal name) = do
                     thing_ty <- get_nt_ty thing
 
                     list <- nt ("delimited list of " <> name) [t|[$thing_ty]|]
@@ -96,11 +96,11 @@ $( let unwrap_right :: Show a => Either a b -> b
 
             -- TODO: rename all nonterminals
             decl <- nt "decl" [t|AST.Decl|]
-            decl_list <- list decl >>= toplevel
+            decl_list <- list_star decl >>= toplevel
 
             decl_data <- nt "decl_data" [t|AST.Decl|]
             data_variant <- nt "data_variant" [t|AST.DataVariant|]
-            data_variant_list <- list data_variant
+            data_variant_list <- list_star data_variant
 
             decl_typesyn <- nt "decl_typesyn" [t|AST.Decl|]
             decl_binding <- nt "decl_binding" [t|AST.Decl|]
@@ -143,9 +143,9 @@ $( let unwrap_right :: Show a => Either a b -> b
             aiden <- nt "alpha iden" [t|AST.Identifier|]
 
             type_param_list <- nt "type parameter list" [t|[AST.Identifier]|] -- TODO: rename this?
-            comma_sep_expr_list <- sep_list_allow_trailing Comma expr
-            comma_sep_type_list <- sep_list_allow_trailing Comma type_
-            comma_sep_pattern_list <- sep_list_allow_trailing Comma pattern
+            comma_sep_expr_list <- list_sep_allow_trailing Comma expr
+            comma_sep_type_list <- list_sep_allow_trailing Comma type_
+            comma_sep_pattern_list <- list_sep_allow_trailing Comma pattern
 
             comma_sep_expr_list_at_least_one_comma <- nt "comma separated expression list with at least one comma" [t|[AST.Expr]|]
             comma_sep_type_list_at_least_one_comma <- nt "comma separated type list with at least one comma" [t|[AST.Type]|]
@@ -172,14 +172,14 @@ $( let unwrap_right :: Show a => Either a b -> b
             -- TODO: redesign fields to better match function application syntax
             do
                 anon_field <- nt "data declaration anonymous field" [t|AST.Type|]
-                field_list <- sep_list_allow_trailing Comma anon_field
+                field_list <- list_sep_allow_trailing Comma anon_field
 
                 anon_field --> type_ |> [|identity|]
                 data_variant --> (aiden . OParen . field_list . CParen . Semicolon) |> [|\name _ fields _ _ -> AST.DataVariant'Anon name fields|]
 
             do
                 named_field <- nt "data declaration named field" [t|(AST.Identifier, AST.Type)|]
-                field_list <- sep_list_allow_trailing Comma named_field
+                field_list <- list_sep_allow_trailing Comma named_field
 
                 named_field --> aiden . Colon . type_ |> [|\a _ t -> (a, t)|]
                 data_variant --> (aiden . OBrace . field_list . CBrace . Semicolon) |> [|\name _ fields _ _ -> AST.DataVariant'Named name fields|]
@@ -261,7 +261,7 @@ $( let unwrap_right :: Show a => Either a b -> b
                 |> [|\(Located o_sp _) parts (Located c_sp _) -> AST.Expr'Tuple (o_sp <> c_sp) parts|]
             do
                 match_arm <- nt "match arm" [t|(AST.Pattern, AST.Expr)|]
-                match_arm_list <- list match_arm
+                match_arm_list <- list_star match_arm
                 match_arm --> (pattern . Arrow . expr . Semicolon) |> [|\p _ e _ -> (p, e)|]
                 expr_match
                     --> (Match . expr . OBrace . match_arm_list . CBrace)
@@ -295,7 +295,7 @@ $( let unwrap_right :: Show a => Either a b -> b
             do
                 field_pattern <- nt "named variant pattern field" [t|(AST.Identifier, AST.Pattern)|]
                 field_pattern --> (aiden . Equal . pattern) |> [|\i _ p -> (i, p)|]
-                field_list <- sep_list_allow_trailing Comma field_pattern
+                field_list <- list_sep_allow_trailing Comma field_pattern
 
                 pattern_named_variant
                     --> (alpha_iden_path . OBrace . field_list . CBrace)

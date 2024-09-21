@@ -6,10 +6,9 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 module UHF.Parts.Parser.Generate
--- TODO: reorder these exports
     ( StateTable (..)
+    , State (..)
     , Action (..)
-    , ActionOrConflict (..)
     , generate_table
     , make_parse_fn
     ) where
@@ -89,7 +88,7 @@ instance Format Item where
         in format nt <> " -> " <> Text.intercalate " " (map format before <> ["."] <> map format after) <> " {" <> format l <> "}"
 instance Format ItemSet where
     format (ItemSet n k c) =
-        "item set " <> show n <> " { " <> Text.intercalate ", " (map format (Set.toList k)) <> ";" <> Text.intercalate "," (map format (Set.toList c)) <> " }"
+        "item set " <> show n <> " { " <> Text.intercalate ", " (map format (Set.toList k)) <> " ; " <> Text.intercalate "," (map format (Set.toList c)) <> " }"
 
 new_item :: Rule -> Terminal -> Item
 new_item r l = Item r 0 l
@@ -328,7 +327,6 @@ make_parse_fn name res_ty (StateTable nt_ty_map reduce_fn_map table) = do
             sequence $
                 Map.mapWithKey
                     ( \(Rule rule_num nt prod) body -> do
-                        -- TODO: move all these declarations to the where clause of the parse function?
                         body <- lift body
 
                         -- create_ast function

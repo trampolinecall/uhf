@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
-{-# OPTIONS_GHC -ddump-splices -fshow-error-context #-}
+{-# OPTIONS_GHC -ddump-splices -ddump-to-file -fshow-error-context #-}
 
 module UHF.Parts.Parser
     ( parse

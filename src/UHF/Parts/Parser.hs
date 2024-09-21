@@ -351,7 +351,7 @@ $( let unwrap_right :: Show a => Either a b -> b
 parse :: [Token.LToken] -> Token.LToken -> Compiler.WithDiagnostics (Error.Error) Void [AST.Decl]
 parse toks eof_tok =
     case parse' (toks InfList.+++ InfList.repeat eof_tok) of
-        Right ast -> pure (trace_show_id ast)
+        Right ast -> pure ast
         Left err -> do
             _ <- Compiler.tell_error err
             pure []

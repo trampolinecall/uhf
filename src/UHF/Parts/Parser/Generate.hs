@@ -79,8 +79,7 @@ repeat_until_unchanging change initial =
     let next = change initial
     in if initial == next then next else repeat_until_unchanging change next
 
--- state table generation {{{1
--- this is an lalr(1) parser generator
+-- items and item set things {{{1
 data ItemSet = ItemSet Int (Set Item) (Set Item)
 data Item = Item Rule Int Terminal deriving (Eq, Ord)
 
@@ -132,6 +131,7 @@ find_closure grammar kernel = go Set.empty (Set.toList kernel)
 
         first_sets = find_firsts grammar
 
+-- state table definition {{{1
 data StateTable = StateTable NTResultTypes ReduceFnMap (Map Int State)
 data State = State Int ItemSet (Map Terminal Action) (Map Nonterminal Int)
 data Action = Shift Int | Reduce Rule | Accept deriving Show
@@ -151,11 +151,16 @@ instance Format a => Format (ActionOrConflict a) where
     format (SingleAction a) = format a
     format (Conflict as) = Text.intercalate "/" (map format as)
 
+-- state table generation {{{1
+type TerminalTransitions = Map.Map Terminal Int
+type NonterminalTransitions = Map.Map Nonterminal Int
+type Transitions = (TerminalTransitions, NonterminalTransitions)
+type SetWithTransitions = (ItemSet, TerminalTransitions, NonterminalTransitions)
 find_sets ::
     Grammar ->
-    Map.Map Int (Map.Map Terminal Int, Map.Map Nonterminal Int) ->
+    Map.Map Int Transitions ->
     [Int] ->
-    StateMonad.State [ItemSet] ([(ItemSet, Map.Map Terminal Int, Map.Map Nonterminal Int)])
+    StateMonad.State [ItemSet] [SetWithTransitions]
 find_sets grammar item_set_tables (current_set_number : to_process) = do
     current_set <- (!! current_set_number) <$> get
 
@@ -170,12 +175,12 @@ find_sets grammar item_set_tables (current_set_number : to_process) = do
             & mapM
                 ( \(symbol_after_dot, items) ->
                     case symbol_after_dot of
-                        Just ((S'T term)) -> do
+                        Just (S'T term) -> do
                             -- fromJust should not error because there is a terminal after the dot
                             let new_kernel = Set.map (fromJust . move_forward) items
                             let closure = find_closure grammar new_kernel
-                            (next_set_number, set_is_new) <- intern new_kernel closure
-                            pure (Map.singleton term next_set_number, if set_is_new then [next_set_number] else [])
+                            (next_set_number, set_needs_tables) <- intern new_kernel closure
+                            pure (Map.singleton term next_set_number, if set_needs_tables then [next_set_number] else [])
                         _ -> pure (Map.empty, [])
                 )
             & fmap unzip
@@ -188,13 +193,12 @@ find_sets grammar item_set_tables (current_set_number : to_process) = do
             & mapM
                 ( \(symbol_after_dot, items) ->
                     case symbol_after_dot of
-                        Just ((S'NT nt)) -> do
+                        Just (S'NT nt) -> do
                             -- fromJust should not error because there is a terminal after the dot
                             let new_kernel = Set.map (fromJust . move_forward) items
                             let closure = find_closure grammar new_kernel
-                            (next_set_number, set_is_new) <- intern new_kernel closure
-
-                            pure (Map.singleton nt next_set_number, if set_is_new then [next_set_number] else [])
+                            (next_set_number, set_needs_tables) <- intern new_kernel closure
+                            pure (Map.singleton nt next_set_number, if set_needs_tables then [next_set_number] else [])
                         _ -> pure (Map.empty, [])
                 )
             & fmap unzip
@@ -207,9 +211,13 @@ find_sets grammar item_set_tables (current_set_number : to_process) = do
         (to_process ++ new_sets_from_shifts ++ new_sets_from_gotos)
     where
         intern kernel closure = state $ \sets ->
-            -- TODO: fix lalr interning (there is some bug somehwere)
             case findIndex (lalr_intern_check_equal kernel closure) sets of
-                Just found_set_index -> ((found_set_index, False), modify_at found_set_index (merge kernel closure) sets)
+                Just found_set_index ->
+                    let set_original = sets !! found_set_index
+                        set_merged = merge kernel closure set_original
+                        set_modified = all_items set_original /= all_items set_merged
+                        -- if the set was modified, we return True for set_needs_tables so that we recompute the shift and goto tables for that state
+                    in ((found_set_index, set_modified), replace_at found_set_index set_merged sets)
                 Nothing ->
                     let new_item_set = ItemSet (length sets) kernel closure
                     in ((length sets, True), (sets ++ [new_item_set]))
@@ -217,22 +225,22 @@ find_sets grammar item_set_tables (current_set_number : to_process) = do
                 remove_lookaheads (Item rule ind _) = (rule, ind)
 
                 lalr_intern_check_equal kernel closure (ItemSet _ f_kernel f_closure) = Set.map remove_lookaheads (f_kernel <> f_closure) == Set.map remove_lookaheads (kernel <> closure)
-                lr1_intern_check_equal kernel closure (ItemSet _ f_kernel f_closure) = (f_kernel <> f_closure) == (kernel <> closure)
+                -- lr1_intern_check_equal kernel closure (ItemSet _ f_kernel f_closure) = (f_kernel <> f_closure) == (kernel <> closure)
 
-                modify_at :: Int -> (a -> a) -> [a] -> [a]
-                modify_at n _ [] = error $ "cannot modify at index " <> show n <> " in list of length 0 (this is a bug in the parser generator)"
-                modify_at 0 change (first : more) = change first : more
-                modify_at n change l@(first : more)
+                replace_at :: Int -> a -> [a] -> [a]
+                replace_at n _ [] = error $ "cannot modify at index " <> show n <> " in list of length 0 (this is a bug in the parser generator)"
+                replace_at 0 new (_ : more) = new : more
+                replace_at n new l@(first : more)
                     | n >= length l =
                         error $ "cannot modify at index " <> show n <> " in list of length " <> show (length l) <> " (this is a bug in the parser generator)"
-                    | otherwise = first : (modify_at (n - 1) change more)
+                    | otherwise = first : (replace_at (n - 1) new more)
 
                 merge kernel closure (ItemSet number already_kernel already_closure) = ItemSet number (Set.union already_kernel kernel) (Set.union already_closure closure)
 find_sets _ tables [] = do
     sets <- get
     pure $ Map.toAscList tables & map (\(index, (shifts, gotos)) -> (sets !! index, shifts, gotos))
 
-convert_to_state_table :: NTResultTypes -> ReduceFnMap -> [(ItemSet, Map Terminal Int, Map Nonterminal Int)] -> StateTable
+convert_to_state_table :: NTResultTypes -> ReduceFnMap -> [SetWithTransitions] -> StateTable
 convert_to_state_table nt_result_types reduce_fn_map item_sets =
     item_sets
         & map to_state
@@ -429,12 +437,13 @@ make_parse_fn name res_ty (StateTable nt_ty_map reduce_fn_map table) = do
             table
                 & Map.elems
                 & map
-                    ( \(State state_number item_set action_table _) -> do
+                    ( \(State state_number _ action_table _) -> do
                         tok_name <- TH.newName "tok"
 
                         TH.clause
                             [[p|$(TH.litP $ TH.IntegerL $ toInteger state_number) : _|], TH.wildP, [p|$(TH.varP tok_name) InfList.::: _|]]
                             ( TH.normalB [|Left $ Error.BadToken $(TH.litE $ TH.IntegerL $ toInteger state_number) $(TH.Syntax.lift $ Map.keys action_table) $(TH.varE tok_name)|]
+                            -- TODO: improve these error messages
                             )
                             []
                     )

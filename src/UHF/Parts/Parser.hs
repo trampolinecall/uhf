@@ -275,7 +275,7 @@ $( let unwrap_right :: Show a => Either a b -> b
             type_apply_or_get --> type_primary |> [|identity|]
             type_apply_or_get --> type_apply_or_get . Hash . type_primary |> [|\a _ b -> AST.Type'Apply (AST.type_span a <> AST.type_span b) a [b]|] -- TODO: remove the list around b
             type_apply_or_get --> type_apply_or_get . DoubleColon . aiden |> [|\t _ i@(Located i_sp _) -> AST.Type'Get (AST.type_span t <> i_sp) t i|]
-            type_primary --> OParen . type_ . CParen |> [|\_ t _ _ -> t|] -- TODO: change this span?
+            type_primary --> OParen . type_ . CParen |> [|\_ t _ -> t|] -- TODO: change this span?
             type_primary --> aiden |> [|AST.Type'Refer|]
             type_primary --> Underscore |> [|\(Located sp _) -> AST.Type'Wild sp|]
             type_primary --> Question . aiden |> [|\(Located q_sp _) i@(Located i_sp _) -> AST.Type'Hole (q_sp <> i_sp) i|]
@@ -351,7 +351,7 @@ $( let unwrap_right :: Show a => Either a b -> b
 parse :: [Token.LToken] -> Token.LToken -> Compiler.WithDiagnostics (Error.Error) Void [AST.Decl]
 parse toks eof_tok =
     case parse' (toks InfList.+++ InfList.repeat eof_tok) of
-        Right ast -> pure ast
+        Right ast -> pure (trace_show_id ast)
         Left err -> do
             _ <- Compiler.tell_error err
             pure []

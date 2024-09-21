@@ -132,7 +132,7 @@ find_closure grammar kernel = go Set.empty (Set.toList kernel)
 
         first_sets = find_firsts grammar
 
-data StateTable = StateTable NTResultTypes ReduceFnMap (Map Int (Map Terminal Action, Map Nonterminal Int))
+data StateTable = StateTable NTResultTypes ReduceFnMap (Map Int (ItemSet, Map Terminal Action, Map Nonterminal Int))
 data Action = Shift Int | Reduce Rule | Accept deriving Show
 instance Format Action where
     format (Shift n) = "s" <> format n
@@ -262,11 +262,12 @@ convert_to_state_table nt_result_types reduce_fn_map item_sets =
                         & Map.unionsWith (<>)
 
         remove_conflicts ::
-            Map Int (ItemSet, Map Terminal (ActionOrConflict Action), Map Nonterminal Int) -> Map Int (Map Terminal Action, Map Nonterminal Int)
+            Map Int (ItemSet, Map Terminal (ActionOrConflict Action), Map Nonterminal Int) -> Map Int (ItemSet, Map Terminal Action, Map Nonterminal Int)
         remove_conflicts states =
             Map.map
                 ( \(item_set, action, goto) ->
-                    ( action
+                    ( item_set
+                    , action
                         & Map.map
                             ( \case
                                 SingleAction a -> a
@@ -308,7 +309,7 @@ force_cast when a = case Dynamic.fromDynamic a of
 make_parse_fn :: String -> TH.Q TH.Type -> StateTable -> TH.Q [TH.Dec]
 make_parse_fn name res_ty (StateTable nt_ty_map reduce_fn_map table) = do
     goto_table_name <- TH.newName "goto_table"
-    goto_table_decl <- [d|$(TH.varP goto_table_name) = $(TH.Syntax.lift (Map.map snd table))|]
+    goto_table_decl <- [d|$(TH.varP goto_table_name) = $(TH.Syntax.lift (Map.map (\(_, _, g) -> g) table))|]
 
     let fn_name = TH.mkName name
     (reduce_fn_names, reduce_fn_decls) <-
@@ -396,8 +397,8 @@ make_parse_fn name res_ty (StateTable nt_ty_map reduce_fn_map table) = do
 
     pure $ reduce_fn_decls ++ goto_table_decl ++ [top_sig, top_decl]
     where
-        make_function_clause :: Map Rule TH.Name -> TH.Name -> (Int, (Map Terminal Action, Map Nonterminal Int)) -> [TH.Q TH.Clause]
-        make_function_clause reduce_fns recurse_name (state_number, (action_table, _)) =
+        make_function_clause :: Map Rule TH.Name -> TH.Name -> (Int, (ItemSet, Map Terminal Action, Map Nonterminal Int)) -> [TH.Q TH.Clause]
+        make_function_clause reduce_fns recurse_name (state_number, (_, action_table, _)) =
             action_table
                 & Map.toAscList
                 & map
@@ -423,9 +424,9 @@ make_parse_fn name res_ty (StateTable nt_ty_map reduce_fn_map table) = do
         error_report_clauses :: [TH.Q TH.Clause]
         error_report_clauses =
             table
-                & Map.toAscList
+                & Map.elems
                 & map
-                    ( \(state_number, (action_table, _)) -> do
+                    ( \(State state_number item_set action_table _) -> do
                         tok_name <- TH.newName "tok"
 
                         TH.clause

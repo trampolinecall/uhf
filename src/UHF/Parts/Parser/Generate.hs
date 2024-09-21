@@ -14,11 +14,11 @@ module UHF.Parts.Parser.Generate
     , make_parse_fn
     ) where
 
-import UHF.Prelude
+import UHF.Prelude hiding (State)
 
 import Control.Arrow (first, second)
 import Control.Monad ()
-import qualified Control.Monad.State as State
+import qualified Control.Monad.State as StateMonad
 import qualified Data.Dynamic as Dynamic
 import qualified Data.InfList as InfList
 import Data.List (findIndex, (!!))
@@ -132,7 +132,8 @@ find_closure grammar kernel = go Set.empty (Set.toList kernel)
 
         first_sets = find_firsts grammar
 
-data StateTable = StateTable NTResultTypes ReduceFnMap (Map Int (ItemSet, Map Terminal Action, Map Nonterminal Int))
+data StateTable = StateTable NTResultTypes ReduceFnMap (Map Int State)
+data State = State Int ItemSet (Map Terminal Action) (Map Nonterminal Int)
 data Action = Shift Int | Reduce Rule | Accept deriving Show
 instance Format Action where
     format (Shift n) = "s" <> format n
@@ -154,7 +155,7 @@ find_sets ::
     Grammar ->
     Map.Map Int (Map.Map Terminal Int, Map.Map Nonterminal Int) ->
     [Int] ->
-    State [ItemSet] ([(ItemSet, Map.Map Terminal Int, Map.Map Nonterminal Int)])
+    StateMonad.State [ItemSet] ([(ItemSet, Map.Map Terminal Int, Map.Map Nonterminal Int)])
 find_sets grammar item_set_tables (current_set_number : to_process) = do
     current_set <- (!! current_set_number) <$> get
 
@@ -262,32 +263,34 @@ convert_to_state_table nt_result_types reduce_fn_map item_sets =
                         & Map.unionsWith (<>)
 
         remove_conflicts ::
-            Map Int (ItemSet, Map Terminal (ActionOrConflict Action), Map Nonterminal Int) -> Map Int (ItemSet, Map Terminal Action, Map Nonterminal Int)
+            Map Int (ItemSet, Map Terminal (ActionOrConflict Action), Map Nonterminal Int) -> Map Int State
         remove_conflicts states =
             Map.map
-                ( \(item_set, action, goto) ->
-                    ( item_set
-                    , action
-                        & Map.map
-                            ( \case
-                                SingleAction a -> a
-                                as@(Conflict _) ->
-                                    error $
-                                        convert_str $
-                                            "conflict in parsing table: "
-                                                <> format as
-                                                <> "\nitem set: "
-                                                <> format item_set
-                                                <> "\nstates:\n"
-                                                <> Text.intercalate
-                                                    "\n"
-                                                    ( map
-                                                        (\(n, (item_set, actions, gotos)) -> show n <> " | " <> format item_set <> " | " <> format_map actions <> " " <> format_map gotos)
-                                                        (Map.toList states)
-                                                    )
-                            )
-                    , goto
-                    )
+                ( \(item_set@(ItemSet set_number _ _), action, goto) ->
+                    State
+                        set_number
+                        item_set
+                        ( action
+                            & Map.map
+                                ( \case
+                                    SingleAction a -> a
+                                    as@(Conflict _) ->
+                                        error $
+                                            convert_str $
+                                                "conflict in parsing table: "
+                                                    <> format as
+                                                    <> "\nitem set: "
+                                                    <> format item_set
+                                                    <> "\nstates:\n"
+                                                    <> Text.intercalate
+                                                        "\n"
+                                                        ( map
+                                                            (\(n, (item_set, actions, gotos)) -> show n <> " | " <> format item_set <> " | " <> format_map actions <> " " <> format_map gotos)
+                                                            (Map.toList states)
+                                                        )
+                                )
+                        )
+                        goto
                 )
                 states
 
@@ -296,7 +299,7 @@ convert_to_state_table nt_result_types reduce_fn_map item_sets =
 generate_table :: Grammar -> StateTable
 generate_table grammar =
     convert_to_state_table (nt_result_types grammar) (reduce_fn_map grammar) $
-        State.evalState
+        StateMonad.evalState
             (find_sets grammar Map.empty [0])
             [new_item_set grammar 0 (Set.singleton $ new_item (augment_rule grammar) (Token.EOF ()))]
 
@@ -309,7 +312,7 @@ force_cast when a = case Dynamic.fromDynamic a of
 make_parse_fn :: String -> TH.Q TH.Type -> StateTable -> TH.Q [TH.Dec]
 make_parse_fn name res_ty (StateTable nt_ty_map reduce_fn_map table) = do
     goto_table_name <- TH.newName "goto_table"
-    goto_table_decl <- [d|$(TH.varP goto_table_name) = $(TH.Syntax.lift (Map.map (\(_, _, g) -> g) table))|]
+    goto_table_decl <- [d|$(TH.varP goto_table_name) = $(TH.Syntax.lift (Map.map (\(State _ _ _ g) -> g) table))|]
 
     let fn_name = TH.mkName name
     (reduce_fn_names, reduce_fn_decls) <-
@@ -391,14 +394,14 @@ make_parse_fn name res_ty (StateTable nt_ty_map reduce_fn_map table) = do
             [ TH.clause
                 []
                 (TH.normalB [|$(TH.varE sub_name) [0 :: Int] []|])
-                [ TH.funD sub_name (concatMap (make_function_clause reduce_fn_names sub_name) (Map.toAscList table) ++ error_report_clauses ++ [default_clause])
+                [ TH.funD sub_name (concatMap (make_function_clause reduce_fn_names sub_name) (Map.elems table) ++ error_report_clauses ++ [default_clause])
                 ]
             ]
 
     pure $ reduce_fn_decls ++ goto_table_decl ++ [top_sig, top_decl]
     where
-        make_function_clause :: Map Rule TH.Name -> TH.Name -> (Int, (ItemSet, Map Terminal Action, Map Nonterminal Int)) -> [TH.Q TH.Clause]
-        make_function_clause reduce_fns recurse_name (state_number, (_, action_table, _)) =
+        make_function_clause :: Map Rule TH.Name -> TH.Name -> State -> [TH.Q TH.Clause]
+        make_function_clause reduce_fns recurse_name (State state_number _ action_table _) =
             action_table
                 & Map.toAscList
                 & map

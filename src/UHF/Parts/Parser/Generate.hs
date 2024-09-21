@@ -34,6 +34,7 @@ import qualified Language.Haskell.TH.Syntax as TH.Syntax
 import qualified Safe
 
 import qualified UHF.Data.Token as Token
+import qualified UHF.Parts.Parser.Error as Error
 import UHF.Parts.Parser.Grammar
 import qualified UHF.Source.Located as Located
 
@@ -386,15 +387,16 @@ make_parse_fn name res_ty (StateTable nt_ty_map reduce_fn_map table) = do
                     )
                     reduce_fn_map
 
-    top_sig <- TH.SigD fn_name <$> [t|InfList.InfList Token.LToken -> $(res_ty)|]
+    top_sig <- TH.SigD fn_name <$> [t|InfList.InfList Token.LToken -> Either Error.Error $(res_ty)|]
     top_decl <- do
         sub_name <- TH.newName "parse'"
         sub_decl <- do
             sub_clauses <- mapM (make_function_clause reduce_fn_names sub_name) (Map.toAscList table) <&> concat
+            error_report_clauses <- error_report_clauses
             default_clause <- default_clause
-            pure $ TH.FunD sub_name (sub_clauses ++ [default_clause])
+            pure $ TH.FunD sub_name (sub_clauses ++ error_report_clauses ++ [default_clause])
 
-        top_expr <- [e|$(pure $ TH.VarE sub_name) [0 :: Int] []|]
+        top_expr <- [|$(pure $ TH.VarE sub_name) [0 :: Int] []|]
         pure $ TH.FunD fn_name [TH.Clause [] (TH.NormalB top_expr) [sub_decl]]
 
     pure $ reduce_fn_decls ++ goto_table_decl ++ [top_sig, top_decl]
@@ -405,31 +407,47 @@ make_parse_fn name res_ty (StateTable nt_ty_map reduce_fn_map table) = do
                 & Map.toAscList
                 & mapM
                     ( \case
-                        (lookahead, Shift new_state) -> make_clause state_number lookahead $ \state_stack_name ast_stack_name _ input_cur_tok_name input_more_name ->
+                        (lookahead, Shift new_state) -> make_clause_outline state_number lookahead $ \state_stack_name ast_stack_name _ input_cur_tok_name input_more_name ->
                             [|
                                 $(pure $ TH.VarE recurse_name)
                                     ($(pure $ TH.LitE $ TH.IntegerL $ toInteger new_state) : $(pure $ TH.VarE state_stack_name))
                                     (Dynamic.toDyn $(pure $ TH.VarE input_cur_tok_name) : $(pure $ TH.VarE ast_stack_name))
                                     $(pure $ TH.VarE input_more_name)
                                 |]
-                        (lookahead, Reduce rule) -> make_clause state_number lookahead $ \state_stack_name ast_stack_name input_stream_name _ _ ->
+                        (lookahead, Reduce rule) -> make_clause_outline state_number lookahead $ \state_stack_name ast_stack_name input_stream_name _ _ ->
                             [|
                                 let (next_state_stack, next_ast_stack) = $(pure $ TH.VarE $ reduce_fns Map.! rule) $(pure $ TH.VarE state_stack_name) $(pure $ TH.VarE ast_stack_name)
                                 in $(pure $ TH.VarE recurse_name) next_state_stack next_ast_stack $(pure $ TH.VarE input_stream_name)
                                 |]
-                        (lookahead, Accept) -> make_clause state_number lookahead $ \_ ast_stack_name _ _ _ ->
+                        (lookahead, Accept) -> make_clause_outline state_number lookahead $ \_ ast_stack_name _ _ _ ->
                             [|
                                 from_just_with_message "invalid cast when popping ast node from stack in accept action" (Dynamic.fromDynamic $ head $(pure $ TH.VarE ast_stack_name))
                                 |]
                     )
 
+        error_report_clauses :: TH.Q [TH.Clause]
+        error_report_clauses =
+            table
+                & Map.toAscList
+                & mapM
+                    ( \(state_number, (action_table, _)) -> do
+                        tok_name <- TH.newName "tok"
+
+                        state_stack_pat <- [p|$(pure $ TH.LitP $ TH.IntegerL $ toInteger state_number) : _|]
+                        input_pat <- [p|$(pure $ TH.VarP tok_name) InfList.::: _|]
+
+                        body <- [|Left $ Error.BadToken $(TH.Syntax.lift $ Map.keys action_table) $(pure $ TH.VarE tok_name)|]
+
+                        pure $ TH.Clause [state_stack_pat, TH.WildP, input_pat] (TH.NormalB body) []
+                    )
+
         default_clause :: TH.Q TH.Clause
         default_clause = do
-            body <- [|error "invalid state in parser / parse error"|] -- TODO: parse errors
+            body <- [|error "invalid state in parser"|]
             pure $ TH.Clause [TH.WildP, TH.WildP, TH.WildP] (TH.NormalB body) []
 
-        make_clause :: Int -> Terminal -> (TH.Name -> TH.Name -> TH.Name -> TH.Name -> TH.Name -> TH.Q TH.Exp) -> TH.Q TH.Clause
-        make_clause state_number lookahead body = do
+        make_clause_outline :: Int -> Terminal -> (TH.Name -> TH.Name -> TH.Name -> TH.Name -> TH.Name -> TH.Q TH.Exp) -> TH.Q TH.Clause
+        make_clause_outline state_number lookahead body = do
             state_stack_name <- TH.newName "state_stack"
             ast_stack_name <- TH.newName "ast_stack"
             input_stream_name <- TH.newName "input"
@@ -438,7 +456,7 @@ make_parse_fn name res_ty (StateTable nt_ty_map reduce_fn_map table) = do
 
             state_stack_pat <- [p|$(pure $ TH.LitP $ TH.IntegerL $ toInteger state_number) : _|]
             input_pat <- [p|$(pure $ TH.VarP input_cur_tok_name) InfList.::: $(pure $ TH.VarP input_more_name)|]
-            guard <- [e|Token.is_tt $(TH.Syntax.lift lookahead) (Located.unlocate $(pure $ TH.VarE input_cur_tok_name))|]
+            guard <- [|Token.is_tt $(TH.Syntax.lift lookahead) (Located.unlocate $(pure $ TH.VarE input_cur_tok_name))|]
             body <- body state_stack_name ast_stack_name input_stream_name input_cur_tok_name input_more_name
 
             pure $

@@ -1,5 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
+-- TODO: remove this module
 module UHF.Parts.Parser.PEG
     ( TokenStream
 
@@ -84,7 +85,7 @@ consume make_err exp = Parser $
 
 -- TODO: phase out this function
 consume' :: Text -> Token.TokenType -> Parser Token.LToken
-consume' name exp = consume (\ tok_i tok -> Error.BadToken tok_i tok exp name) exp
+consume' name exp = consume (\ tok_i tok -> error "PEG BadToken constructor is removed" tok_i tok exp name) exp
 
 advance :: Parser ()
 advance = Parser $ \ bt toks -> (bt, Just ((), InfList.tail toks))
@@ -152,13 +153,11 @@ dummy_eof :: IO Token.LToken
 dummy_eof = Located.dummy_locate (Token.EOF ())
 add_eofs :: [Token.LToken] -> IO TokenStream
 add_eofs t = dummy_eof >>= \ dummy_eof -> pure (InfList.zip (InfList.iterate (+1) 0) (t InfList.+++ InfList.repeat dummy_eof))
-
 case_peek :: Assertion
 case_peek =
     Located.dummy_locate (Token.SingleTypeToken Token.OParen) >>= \ t ->
     add_eofs [t] >>= \ tokstream ->
     ([], Just t) `expected_assert_eqis` eval_parser peek tokstream
-
 test_consume :: [TestTree]
 test_consume =
     let t = Located.dummy_locate (Token.SingleTypeToken Token.OParen)
@@ -166,134 +165,105 @@ test_consume =
         [ testCase "consume with True" $
             t >>= \ t -> add_eofs [t] >>= \ tokstream ->
             let expect = Token.SingleTypeToken Token.OParen
-            in ([], Just t) `expected_assert_eqis` eval_parser (consume (\ tok_i tok -> Error.BadToken tok_i tok expect "')'") expect) tokstream
+            in ([], Just t) `expected_assert_eqis` eval_parser (consume (\ tok_i tok -> error "PEG BadToken constructor is removed" tok_i tok expect "')'") expect) tokstream
         , testCase "consume with False" $
             t >>= \ t -> add_eofs [t] >>= \ tokstream ->
             let expect = Token.SingleTypeToken Token.CParen
-            in ([Error.BadToken 0 t expect "')'"], Nothing) `expected_assert_eqis` eval_parser (consume (\ tok_i tok -> Error.BadToken tok_i tok expect "')'") expect) tokstream
+            in ([error "PEG BadToken constructor is removed" 0 t expect "')'"], Nothing) `expected_assert_eqis` eval_parser (consume (\ tok_i tok -> error "PEG BadToken constructor is removed" tok_i tok expect "')'") expect) tokstream
         ]
-
 case_advance :: Assertion
 case_advance =
     Located.dummy_locate (Token.SingleTypeToken Token.OParen) >>= \ t1 ->
     Located.dummy_locate (Token.SingleTypeToken Token.CParen) >>= \ t2 ->
     dummy_eof >>= \ dummy_eof ->
-
     add_eofs [t1, t2] >>= \ tokstream ->
-
     case run_parser advance tokstream of
         ([], Just ((), tokstream'))
             | tokstream' InfList.!!! 0 `eqis` (1, t2) &&
               tokstream' InfList.!!! 1 `eqis` (2, dummy_eof) -> pure ()
-
         (errors, Just (r, tokstream')) ->
             assertFailure $ "did not advance correctly, got: " ++ show (errors, Just (r, InfList.take 5 tokstream')) ++ " (only 5 first tokens shown)"
-
         res@(_, Nothing) ->
             assertFailure $ "did not advance correctly, got: " ++ show res
-
 test_choice :: [TestTree]
 test_choice =
     let oparen_consume = consume' "oparen" (Token.SingleTypeToken Token.OParen)
         cparen_consume = consume' "cparen" (Token.SingleTypeToken Token.CParen)
-
         oparen = Located.dummy_locate $ Token.SingleTypeToken Token.OParen
         cparen = Located.dummy_locate $ Token.SingleTypeToken Token.CParen
-
         obrace = Located.dummy_locate $ Token.SingleTypeToken Token.OBrace
-
-        expect_oparen got_i got = Error.BadToken got_i got (Token.SingleTypeToken Token.OParen) "oparen"
-        expect_cparen got_i got = Error.BadToken got_i got (Token.SingleTypeToken Token.CParen) "cparen"
-
+        expect_oparen got_i got = error "PEG BadToken constructor is removed" got_i got (Token.SingleTypeToken Token.OParen) "oparen"
+        expect_cparen got_i got = error "PEG BadToken constructor is removed" got_i got (Token.SingleTypeToken Token.CParen) "cparen"
         parser = choice [oparen_consume, cparen_consume]
-
     in
         [ testCase "(" $
             oparen >>= \ oparen ->
             add_eofs [oparen] >>= \ toks ->
             ([], Just oparen) `expected_assert_eqis` eval_parser parser toks
-
         , testCase ")" $
             cparen >>= \ cparen ->
             add_eofs [cparen] >>= \ toks ->
             ([expect_oparen 0 cparen], Just cparen) `expected_assert_eqis` eval_parser parser toks
-
         , testCase "not matched" $
             obrace >>= \ obrace ->
             add_eofs [obrace] >>= \ toks ->
             ([expect_cparen 0 obrace, expect_oparen 0 obrace], Nothing) `expected_assert_eqis` eval_parser parser toks
         ]
-
 test_star :: [TestTree]
 test_star =
     let oparen = Located.dummy_locate $ Token.SingleTypeToken Token.OParen
         other = Located.dummy_locate $ Token.SingleTypeToken Token.OBrace
-
         oparen_consume = consume' "oparen" (Token.SingleTypeToken Token.OParen)
-
-        expect_oparen got_ind got = Error.BadToken got_ind got (Token.SingleTypeToken Token.OParen) "oparen"
-
+        expect_oparen got_ind got = error "PEG BadToken constructor is removed" got_ind got (Token.SingleTypeToken Token.OParen) "oparen"
         parser = star oparen_consume
-
     in
         [ testCase "none" $
             other >>= \ other ->
             add_eofs [other] >>= \ toks ->
             ([expect_oparen 0 other], Just []) `expected_assert_eqis` eval_parser parser toks
-
         , testCase "once" $
             oparen >>= \ oparen ->
             other >>= \ other ->
             add_eofs [oparen, other] >>= \ toks ->
             ([expect_oparen 1 other], Just [oparen]) `expected_assert_eqis` eval_parser parser toks
-
         , testCase "multiple" $
             oparen >>= \ oparen ->
             other >>= \ other ->
             add_eofs [oparen, oparen, other] >>= \ toks ->
             ([expect_oparen 2 other], Just [oparen, oparen]) `expected_assert_eqis` eval_parser parser toks
         ]
-
 test_delim_star :: [TestTree]
 test_delim_star =
     let oparen = Located.dummy_locate $ Token.SingleTypeToken Token.OParen
         delim = Located.dummy_locate $ Token.SingleTypeToken Token.Comma
         other = Located.dummy_locate $ Token.SingleTypeToken Token.OBrace
-
         oparen_consume = consume' "oparen" (Token.SingleTypeToken Token.OParen)
         delim_consume = consume' "delim" (Token.SingleTypeToken Token.Comma)
-
-        expect_oparen got_ind got = Error.BadToken got_ind got (Token.SingleTypeToken Token.OParen) "oparen"
-        expect_delim got_ind got = Error.BadToken got_ind got (Token.SingleTypeToken Token.Comma) "delim"
-
+        expect_oparen got_ind got = error "PEG BadToken constructor is removed" got_ind got (Token.SingleTypeToken Token.OParen) "oparen"
+        expect_delim got_ind got = error "PEG BadToken constructor is removed" got_ind got (Token.SingleTypeToken Token.Comma) "delim"
         parser = delim_star oparen_consume delim_consume
-
     in
         [ testCase "none" $
             other >>= \ other ->
             add_eofs [other] >>= \ toks ->
             ([expect_oparen 0 other], Just []) `expected_assert_eqis` eval_parser parser toks
-
         , testCase "once" $
             oparen >>= \ oparen ->
             other >>= \ other ->
             add_eofs [oparen, other] >>= \ toks ->
             ([expect_delim 1 other], Just [oparen]) `expected_assert_eqis` eval_parser parser toks
-
         , testCase "once trailing" $
             oparen >>= \ oparen ->
             delim >>= \ delim ->
             other >>= \ other ->
             add_eofs [oparen, delim, other] >>= \ toks ->
             ([expect_oparen 2 other], Just [oparen]) `expected_assert_eqis` eval_parser parser toks
-
         , testCase "multiple" $
             oparen >>= \ oparen ->
             delim >>= \ delim ->
             other >>= \ other ->
             add_eofs [oparen, delim, oparen, other] >>= \ toks ->
             ([expect_delim 3 other], Just [oparen, oparen]) `expected_assert_eqis` eval_parser parser toks
-
         , testCase "multiple trailing" $
             oparen >>= \ oparen ->
             delim >>= \ delim ->
@@ -301,64 +271,51 @@ test_delim_star =
             add_eofs [oparen, delim, oparen, delim, other] >>= \ toks ->
             ([expect_oparen 4 other], Just [oparen, oparen]) `expected_assert_eqis` eval_parser parser toks
         ]
-
 test_plus :: [TestTree]
 test_plus =
     let oparen = Located.dummy_locate $ Token.SingleTypeToken Token.OParen
         other = Located.dummy_locate $ Token.SingleTypeToken Token.OBrace
-
         oparen_consume = consume' "oparen" (Token.SingleTypeToken Token.OParen)
-
-        expect_oparen got_ind got = Error.BadToken got_ind got (Token.SingleTypeToken Token.OParen) "oparen"
-
+        expect_oparen got_ind got = error "PEG BadToken constructor is removed" got_ind got (Token.SingleTypeToken Token.OParen) "oparen"
         parser = plus oparen_consume
-
     in
         [ testCase "none" $
             other >>= \ other ->
             add_eofs [other] >>= \ toks ->
             ([expect_oparen 0 other], Nothing) `expected_assert_eqis` eval_parser parser toks
-
         , testCase "once" $
             oparen >>= \ oparen ->
             other >>= \ other ->
             add_eofs [oparen, other] >>= \ toks ->
             ([expect_oparen 1 other], Just [oparen]) `expected_assert_eqis` eval_parser parser toks
-
         , testCase "multiple" $
             oparen >>= \ oparen ->
             other >>= \ other ->
             add_eofs [oparen, oparen, other] >>= \ toks ->
             ([expect_oparen 2 other], Just [oparen, oparen]) `expected_assert_eqis` eval_parser parser toks
         ]
-
 test_optional :: [TestTree]
 test_optional =
     let oparen = Located.dummy_locate $ Token.SingleTypeToken Token.OParen
         other = Located.dummy_locate $ Token.SingleTypeToken Token.OBrace
         oparen_consume = consume' "oparen" (Token.SingleTypeToken Token.OParen)
-
-        expect_oparen got_ind got = Error.BadToken got_ind got (Token.SingleTypeToken Token.OParen) "oparen"
-
+        expect_oparen got_ind got = error "PEG BadToken constructor is removed" got_ind got (Token.SingleTypeToken Token.OParen) "oparen"
         parser = optional oparen_consume
     in
         [ testCase "none" $
             other >>= \ other ->
             add_eofs [other] >>= \ toks ->
             ([expect_oparen 0 other], Just Nothing) `expected_assert_eqis` eval_parser parser toks
-
         , testCase "once" $
             oparen >>= \ oparen ->
             other >>= \ other ->
             add_eofs [oparen, other] >>= \ toks ->
             ([], Just $ Just oparen) `expected_assert_eqis` eval_parser parser toks
-
         , testCase "multiple" $
             oparen >>= \ oparen ->
             other >>= \ other ->
             add_eofs [oparen, oparen, other] >>= \ toks ->
             ([], Just $ Just oparen) `expected_assert_eqis` eval_parser parser toks
         ]
-
 tests :: TestTree
 tests = $(testGroupGenerator)

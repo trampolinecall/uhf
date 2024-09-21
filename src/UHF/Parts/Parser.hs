@@ -99,8 +99,6 @@ $( let unwrap_right :: Show a => Either a b -> b
             decl_list <- list_star decl >>= toplevel
 
             decl_data <- nt "decl_data" [t|AST.Decl|]
-            data_variant <- nt "data_variant" [t|AST.DataVariant|]
-            data_variant_list <- list_star data_variant
 
             decl_typesyn <- nt "decl_typesyn" [t|AST.Decl|]
             decl_binding <- nt "decl_binding" [t|AST.Decl|]
@@ -163,26 +161,29 @@ $( let unwrap_right :: Show a => Either a b -> b
             decl --> decl_typesyn |> [|identity|]
             decl --> decl_binding |> [|identity|]
 
-            -- TODO: optional type params
-            decl_data
-                --> (Data . aiden . type_param_list . OBrace . data_variant_list . CBrace . Semicolon)
-                |> [|\_ name typarams _ variants _ _ -> AST.Decl'Data name typarams variants|]
-
-            -- TODO: fields
-            -- TODO: redesign fields to better match function application syntax
             do
-                anon_field <- nt "data declaration anonymous field" [t|AST.Type|]
-                field_list <- list_sep_allow_trailing Comma anon_field
+                data_variant <- nt "data_variant" [t|AST.DataVariant|]
+                data_variant_list <- list_star data_variant
 
-                anon_field --> type_ |> [|identity|]
-                data_variant --> (aiden . OParen . field_list . CParen . Semicolon) |> [|\name _ fields _ _ -> AST.DataVariant'Anon name fields|]
+                -- TODO: fields
+                -- TODO: redesign fields to better match function application syntax
+                do
+                    anon_field <- nt "data declaration anonymous field" [t|AST.Type|]
+                    field_list <- list_sep_allow_trailing Comma anon_field
 
-            do
-                named_field <- nt "data declaration named field" [t|(AST.Identifier, AST.Type)|]
-                field_list <- list_sep_allow_trailing Comma named_field
+                    anon_field --> type_ |> [|identity|]
+                    data_variant --> (aiden . OParen . field_list . CParen . Semicolon) |> [|\name _ fields _ _ -> AST.DataVariant'Anon name fields|]
 
-                named_field --> aiden . Colon . type_ |> [|\a _ t -> (a, t)|]
-                data_variant --> (aiden . OBrace . field_list . CBrace . Semicolon) |> [|\name _ fields _ _ -> AST.DataVariant'Named name fields|]
+                do
+                    named_field <- nt "data declaration named field" [t|(AST.Identifier, AST.Type)|]
+                    field_list <- list_sep_allow_trailing Comma named_field
+
+                    named_field --> aiden . Colon . type_ |> [|\a _ t -> (a, t)|]
+                    data_variant --> (aiden . OBrace . field_list . CBrace . Semicolon) |> [|\name _ fields _ _ -> AST.DataVariant'Named name fields|]
+
+                decl_data
+                    --> (Data . aiden . type_param_list . OBrace . data_variant_list . CBrace . Semicolon)
+                    |> [|\_ name typarams _ variants _ _ -> AST.Decl'Data name typarams variants|]
 
             decl_typesyn --> (TypeSyn . aiden . Equal . type_ . Semicolon) |> [|\_ name _ ty _ -> AST.Decl'TypeSyn name ty|]
 
@@ -212,13 +213,9 @@ $( let unwrap_right :: Show a => Either a b -> b
 
             -- TODO: reorganize these things
             -- TODO: these are probably wrong
-            expr_keyword_call
-                --> (kw_iden_paths . keyword_call_args . optional_kw_iden_paths)
-                |> [|\first_paths args more_path -> todo|]
+            expr_keyword_call --> (kw_iden_paths . keyword_call_args . optional_kw_iden_paths) |> [|\first_paths args more_path -> todo|]
             expr_keyword_call --> expr_binary_ops |> [|identity|]
-            keyword_call_args
-                --> (keyword_call_args . kw_iden_paths . expr_binary_ops)
-                |> [|\other_args next_path arg -> todo|]
+            keyword_call_args --> (keyword_call_args . kw_iden_paths . expr_binary_ops) |> [|\other_args next_path arg -> todo|]
             keyword_call_args --> expr_binary_ops |> [|todo|]
             kw_iden_paths --> (kw_iden_path . kw_iden_paths) |> [|\a b -> a : b|]
             kw_iden_paths --> kw_iden_path |> [|\a -> [a]|]
@@ -280,9 +277,7 @@ $( let unwrap_right :: Show a => Either a b -> b
             type_primary --> Underscore |> [|\(Located sp _) -> AST.Type'Wild sp|]
             type_primary --> Question . aiden |> [|\(Located q_sp _) i@(Located i_sp _) -> AST.Type'Hole (q_sp <> i_sp) i|]
             type_primary
-                --> OParen
-                . comma_sep_type_list_at_least_one_comma
-                . CParen
+                --> (OParen . comma_sep_type_list_at_least_one_comma . CParen)
                 |> [|\(Located o_sp _) parts (Located c_sp _) -> AST.Type'Tuple (o_sp <> c_sp) parts|]
 
             pattern --> pattern_toplevel |> [|identity|]

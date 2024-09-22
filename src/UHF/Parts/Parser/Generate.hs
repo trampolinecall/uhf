@@ -470,23 +470,23 @@ make_parse_fn name res_ty (StateTable nt_ty_map reduce_fn_map table) = do
             input_more_name <- TH.newName "input_more"
 
             state_stack_pat <- [p|$(TH.litP $ TH.IntegerL $ toInteger state_number) : _|]
-            input_pat <-
+            input_pat <- do
                 let ctor_name = "Token.T'" <> term_name lookahead
-                 in [p|
-                        Located.Located
-                            $(TH.varP cur_sp_name)
-                            $( TH.ConP
-                                <$> (from_just_with_message ("constructor name not in scope: " <> ctor_name) <$> TH.lookupValueName ctor_name)
-                                <*> pure []
-                                <*> pure [TH.VarP cur_unlocated_tok_name]
-                             )
-                            InfList.::: $(TH.varP input_more_name)
-                        |]
+                [p|
+                    Located.Located
+                        $(TH.varP cur_sp_name)
+                        $( TH.ConP
+                            <$> (from_just_with_message ("constructor name not in scope: " <> ctor_name) <$> TH.lookupValueName ctor_name)
+                            <*> pure []
+                            <*> pure [TH.VarP cur_unlocated_tok_name]
+                         )
+                        InfList.::: $(TH.varP input_more_name)
+                    |]
             body <-
                 [|
                     let $(TH.varP input_cur_tok_name) = Located.Located $(TH.varE cur_sp_name) $(TH.varE cur_unlocated_tok_name)
                     in $(body state_stack_name ast_stack_name input_stream_name input_cur_tok_name input_more_name)
-                |]
+                    |]
 
             pure $
                 TH.Clause

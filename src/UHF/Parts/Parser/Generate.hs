@@ -17,6 +17,7 @@ import UHF.Prelude hiding (State)
 import Control.Arrow (first, second)
 import Control.Monad ()
 import qualified Control.Monad.State as StateMonad
+import qualified Data.Data as Data
 import qualified Data.Dynamic as Dynamic
 import qualified Data.InfList as InfList
 import Data.List (findIndex, (!!))
@@ -87,7 +88,13 @@ instance Format Item where
         in format nt <> " -> " <> Text.intercalate " " (map format before <> ["."] <> map format after) <> " {" <> format l <> "}"
 instance Format ItemSet where
     format (ItemSet n k c) =
-        "item set " <> show n <> " { " <> Text.intercalate ", " (map format (Set.toList k)) <> " ; " <> Text.intercalate "," (map format (Set.toList c)) <> " }"
+        "item set "
+            <> show n
+            <> " { "
+            <> Text.intercalate ", " (map format (Set.toList k))
+            <> " ; "
+            <> Text.intercalate "," (map format (Set.toList c))
+            <> " }"
 
 new_item :: Rule -> Terminal -> Item
 new_item r l = Item r 0 l
@@ -214,8 +221,8 @@ find_sets grammar item_set_tables (current_set_number : to_process) = do
                     let set_original = sets !! found_set_index
                         set_merged = merge kernel closure set_original
                         set_modified = all_items set_original /= all_items set_merged
-                        -- if the set was modified, we return True for set_needs_tables so that we recompute the shift and goto tables for that state
-                    in ((found_set_index, set_modified), replace_at found_set_index set_merged sets)
+                    in -- if the set was modified, we return True for set_needs_tables so that we recompute the shift and goto tables for that state
+                       ((found_set_index, set_modified), replace_at found_set_index set_merged sets)
                 Nothing ->
                     let new_item_set = ItemSet (length sets) kernel closure
                     in ((length sets, True), (sets ++ [new_item_set]))
@@ -307,9 +314,13 @@ generate_table grammar =
     convert_to_state_table (nt_result_types grammar) (reduce_fn_map grammar) $
         StateMonad.evalState
             (find_sets grammar Map.empty [0])
-            [new_item_set grammar 0 (Set.singleton $ new_item (augment_rule grammar) (Token.EOF ()))]
+            [new_item_set grammar 0 (Set.singleton $ new_item (augment_rule grammar) Token.TT'EOF)]
 
 -- th function {{{1
+from_just_with_message :: String -> Maybe a -> a
+from_just_with_message _ (Just a) = a
+from_just_with_message msg Nothing = error msg
+
 force_cast :: forall a. Typeable.Typeable a => String -> Dynamic.Dynamic -> a
 force_cast when a = case Dynamic.fromDynamic a of
     Just a -> a
@@ -453,19 +464,40 @@ make_parse_fn name res_ty (StateTable nt_ty_map reduce_fn_map table) = do
             state_stack_name <- TH.newName "state_stack"
             ast_stack_name <- TH.newName "ast_stack"
             input_stream_name <- TH.newName "input"
+            cur_sp_name <- TH.newName "cur_sp"
+            cur_unlocated_tok_name <- TH.newName "cur_unlocated_tok"
             input_cur_tok_name <- TH.newName "input_cur"
             input_more_name <- TH.newName "input_more"
 
             state_stack_pat <- [p|$(TH.litP $ TH.IntegerL $ toInteger state_number) : _|]
-            input_pat <- [p|$(TH.varP input_cur_tok_name) InfList.::: $(TH.varP input_more_name)|]
-            guard <- [|Token.is_tt $(TH.Syntax.lift lookahead) (Located.unlocate $(TH.varE input_cur_tok_name))|]
-            body <- body state_stack_name ast_stack_name input_stream_name input_cur_tok_name input_more_name
+            input_pat <-
+                let ctor_name = "Token.T'" <> term_name lookahead
+                 in [p|
+                        Located.Located
+                            $(TH.varP cur_sp_name)
+                            $( TH.ConP
+                                <$> (from_just_with_message ("constructor name not in scope: " <> ctor_name) <$> TH.lookupValueName ctor_name)
+                                <*> pure []
+                                <*> pure [TH.VarP cur_unlocated_tok_name]
+                             )
+                            InfList.::: $(TH.varP input_more_name)
+                        |]
+            body <-
+                [|
+                    let $(TH.varP input_cur_tok_name) = Located.Located $(TH.varE cur_sp_name) $(TH.varE cur_unlocated_tok_name)
+                    in $(body state_stack_name ast_stack_name input_stream_name input_cur_tok_name input_more_name)
+                |]
 
             pure $
                 TH.Clause
                     [TH.AsP state_stack_name state_stack_pat, TH.VarP ast_stack_name, TH.AsP input_stream_name input_pat]
-                    (TH.GuardedB [(TH.NormalG guard, body)])
+                    (TH.NormalB body)
                     []
 
-        sym_ty (S'T _) = [t|Token.LToken|]
+        term_name t = drop 3 $ show $ Data.toConstr t -- drop 3 to drop "TT'"
+        term_ty t =
+            let type_name = "Token." ++ term_name t
+            in [t|Located.Located $(TH.ConT <$> from_just_with_message ("type '" <> type_name <> "' not in scope") <$> TH.lookupTypeName type_name)|]
+
+        sym_ty (S'T t) = term_ty t
         sym_ty (S'NT nt) = nt_ty_map Map.! nt

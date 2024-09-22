@@ -4,6 +4,7 @@ module UHF.Data.Token.TH (TokenSpec, tt, generate) where
 
 import UHF.Prelude
 
+import qualified Data.Data as Data
 import Data.String (String)
 import qualified Language.Haskell.TH as TH
 import qualified Language.Haskell.TH.Syntax as TH.Syntax (Lift)
@@ -64,7 +65,7 @@ generate token_specs = do
                         field_names <- mapM (\_ -> TH.newName "f") field_types
                         format_t <- format_t
                         TH.clause
-                            [ TH.conP (TH.mkName $ "T'" ++ name) [TH.conP (TH.mkName $ "" ++ name) (map TH.varP field_names)] ]
+                            [TH.conP (TH.mkName $ "T'" ++ name) [TH.conP (TH.mkName $ "" ++ name) (map TH.varP field_names)]]
                             (TH.normalB $ foldlM (\e a -> [|$(pure e) $(TH.varE a)|]) format_t field_names)
                             []
                     )
@@ -105,4 +106,4 @@ generate token_specs = do
 
     pure $ token_datatypes_decs ++ [token_dec, token_type_dec, format_token_inst, format_token_type_inst, to_token_type_sig, to_token_type_dec]
     where
-        deriving_clause = TH.derivClause Nothing [[t|Show|], [t|Eq|], [t|Ord|], [t|Generic|], [t|EqIgnoringSpans|], [t|TH.Syntax.Lift|]]
+        deriving_clause = TH.derivClause Nothing [[t|Show|], [t|Eq|], [t|Ord|], [t|Generic|], [t|Data.Data|], [t|EqIgnoringSpans|], [t|TH.Syntax.Lift|]]

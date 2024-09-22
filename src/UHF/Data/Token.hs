@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveLift #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -9,6 +10,7 @@ module UHF.Data.Token where
 import UHF.Prelude hiding (Bool, Char, Float, Int)
 import qualified UHF.Prelude
 
+import qualified Data.Data as Data
 import qualified Language.Haskell.TH.Syntax as TH.Syntax (Lift)
 
 import qualified UHF.Data.Token.TH as TH
@@ -20,7 +22,7 @@ data IntBase
     | Oct
     | Hex
     | Bin
-    deriving (Show, Eq, Ord, Generic, EqIgnoringSpans, TH.Syntax.Lift)
+    deriving (Show, Eq, Ord, Generic, Data.Data, EqIgnoringSpans, TH.Syntax.Lift)
 
 $( TH.generate
     [ TH.tt "OParen" [] "'('" [|"'('"|]

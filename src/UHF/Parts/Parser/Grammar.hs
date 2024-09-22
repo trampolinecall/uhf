@@ -103,8 +103,6 @@ instance ToSymbol [Symbol] where
     to_symbol = identity
 instance ToSymbol Terminal where
     to_symbol t = [S'T t]
-instance ToSymbol Token.SingleTypeToken where
-    to_symbol t = [S'T $ Token.SingleTypeToken t]
 instance ToSymbol Nonterminal where
     to_symbol nt = [S'NT nt]
 prod_join :: (ToSymbol a, ToSymbol b) => a -> b -> [Symbol]

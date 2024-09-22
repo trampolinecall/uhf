@@ -13,7 +13,7 @@ import qualified Data.InfList as InfList
 import Data.Maybe (maybeToList)
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.AST as AST
-import UHF.Data.Token (BaseToken (..), SingleTypeToken (..))
+import UHF.Data.Token
 import qualified UHF.Data.Token as Token
 import qualified UHF.Parts.Parser.Error as Error
 import qualified UHF.Parts.Parser.Generate as Generate
@@ -141,9 +141,9 @@ $( let unwrap_right :: Show a => Either a b -> b
             aiden <- nt "alpha iden" [t|AST.Identifier|]
 
             type_param_list <- nt "type parameter list" [t|[AST.Identifier]|] -- TODO: rename this?
-            comma_sep_expr_list <- list_sep_allow_trailing Comma expr
-            comma_sep_type_list <- list_sep_allow_trailing Comma type_
-            comma_sep_pattern_list <- list_sep_allow_trailing Comma pattern
+            comma_sep_expr_list <- list_sep_allow_trailing TT'Comma expr
+            comma_sep_type_list <- list_sep_allow_trailing TT'Comma type_
+            comma_sep_pattern_list <- list_sep_allow_trailing TT'Comma pattern
 
             comma_sep_expr_list_at_least_one_comma <- nt "comma separated expression list with at least one comma" [t|[AST.Expr]|]
             comma_sep_type_list_at_least_one_comma <- nt "comma separated type list with at least one comma" [t|[AST.Type]|]
@@ -169,25 +169,25 @@ $( let unwrap_right :: Show a => Either a b -> b
                 -- TODO: redesign fields to better match function application syntax
                 do
                     anon_field <- nt "data declaration anonymous field" [t|AST.Type|]
-                    field_list <- list_sep_allow_trailing Comma anon_field
+                    field_list <- list_sep_allow_trailing TT'Comma anon_field
 
                     anon_field --> type_ |> [|identity|]
-                    data_variant --> (aiden . OParen . field_list . CParen . Semicolon) |> [|\name _ fields _ _ -> AST.DataVariant'Anon name fields|]
+                    data_variant --> (aiden . TT'OParen . field_list . TT'CParen . TT'Semicolon) |> [|\name _ fields _ _ -> AST.DataVariant'Anon name fields|]
 
                 do
                     named_field <- nt "data declaration named field" [t|(AST.Identifier, AST.Type)|]
-                    field_list <- list_sep_allow_trailing Comma named_field
+                    field_list <- list_sep_allow_trailing TT'Comma named_field
 
-                    named_field --> aiden . Colon . type_ |> [|\a _ t -> (a, t)|]
-                    data_variant --> (aiden . OBrace . field_list . CBrace . Semicolon) |> [|\name _ fields _ _ -> AST.DataVariant'Named name fields|]
+                    named_field --> aiden . TT'Colon . type_ |> [|\a _ t -> (a, t)|]
+                    data_variant --> (aiden . TT'OBrace . field_list . TT'CBrace . TT'Semicolon) |> [|\name _ fields _ _ -> AST.DataVariant'Named name fields|]
 
                 decl_data
-                    --> (Data . aiden . type_param_list . OBrace . data_variant_list . CBrace . Semicolon)
+                    --> (TT'Data . aiden . type_param_list . TT'OBrace . data_variant_list . TT'CBrace . TT'Semicolon)
                     |> [|\_ name typarams _ variants _ _ -> AST.Decl'Data name typarams variants|]
 
-            decl_typesyn --> (TypeSyn . aiden . Equal . type_ . Semicolon) |> [|\_ name _ ty _ -> AST.Decl'TypeSyn name ty|]
+            decl_typesyn --> (TT'TypeSyn . aiden . TT'Equal . type_ . TT'Semicolon) |> [|\_ name _ ty _ -> AST.Decl'TypeSyn name ty|]
 
-            decl_binding --> (pattern . Equal . expr . Semicolon) |> [|\p (Located eq _) e _ -> AST.Decl'Value p eq e|]
+            decl_binding --> (pattern . TT'Equal . expr . TT'Semicolon) |> [|\p (Located eq _) e _ -> AST.Decl'Value p eq e|]
 
             expr --> expr_toplevel |> [|identity|]
 
@@ -198,17 +198,17 @@ $( let unwrap_right :: Show a => Either a b -> b
             expr_toplevel --> expr_lambda |> [|identity|]
             expr_toplevel --> expr_keyword_call |> [|identity|]
 
-            expr_forall --> Hash . aiden . expr_toplevel |> [|\(Located h_sp _) tv e -> AST.Expr'Forall (h_sp <> AST.expr_span e) [tv] e|] -- TODO: remove the list around tv
-            expr_let --> Let . OBrace . decl_list . CBrace . expr_toplevel |> [|\(Located ls _) _ ds _ e -> AST.Expr'Let (ls <> AST.expr_span e) ds e|]
-            expr_let --> Let . decl . expr_toplevel |> [|\(Located ls _) d e -> AST.Expr'Let (ls <> AST.expr_span e) [d] e|]
-            expr_let --> LetRec . OBrace . decl_list . CBrace . expr_toplevel |> [|\(Located ls _) _ ds _ e -> AST.Expr'LetRec (ls <> AST.expr_span e) ds e|]
-            expr_let --> LetRec . decl . expr_toplevel |> [|\(Located ls _) d e -> AST.Expr'LetRec (ls <> AST.expr_span e) [d] e|]
-            expr_type_annotation --> Colon . type_ . Colon . expr_toplevel |> [|\(Located cs _) t _ e -> AST.Expr'TypeAnnotation (cs <> AST.expr_span e) t e|]
+            expr_forall --> TT'Hash . aiden . expr_toplevel |> [|\(Located h_sp _) tv e -> AST.Expr'Forall (h_sp <> AST.expr_span e) [tv] e|] -- TODO: remove the list around tv
+            expr_let --> TT'Let . TT'OBrace . decl_list . TT'CBrace . expr_toplevel |> [|\(Located ls _) _ ds _ e -> AST.Expr'Let (ls <> AST.expr_span e) ds e|]
+            expr_let --> TT'Let . decl . expr_toplevel |> [|\(Located ls _) d e -> AST.Expr'Let (ls <> AST.expr_span e) [d] e|]
+            expr_let --> TT'LetRec . TT'OBrace . decl_list . TT'CBrace . expr_toplevel |> [|\(Located ls _) _ ds _ e -> AST.Expr'LetRec (ls <> AST.expr_span e) ds e|]
+            expr_let --> TT'LetRec . decl . expr_toplevel |> [|\(Located ls _) d e -> AST.Expr'LetRec (ls <> AST.expr_span e) [d] e|]
+            expr_type_annotation --> TT'Colon . type_ . TT'Colon . expr_toplevel |> [|\(Located cs _) t _ e -> AST.Expr'TypeAnnotation (cs <> AST.expr_span e) t e|]
             expr_if
-                --> (If . expr_toplevel . Then . expr_toplevel . Else . expr_toplevel)
+                --> (TT'If . expr_toplevel . TT'Then . expr_toplevel . TT'Else . expr_toplevel)
                 |> [|\(Located i_sp _) c _ t _ f -> AST.Expr'If (i_sp <> AST.expr_span f) i_sp c t f|]
             expr_lambda
-                --> (Backslash . pattern_named_list_at_least_once . Arrow . expr_toplevel)
+                --> (TT'Backslash . pattern_named_list_at_least_once . TT'Arrow . expr_toplevel)
                 |> [|\(Located bs_sp _) pats _ e -> AST.Expr'Lambda (bs_sp <> AST.expr_span e) pats e|]
 
             -- TODO: reorganize these things
@@ -228,56 +228,56 @@ $( let unwrap_right :: Show a => Either a b -> b
                 --> (expr_call . operator . expr_binary_ops)
                 |> [|\operand operator more -> AST.Expr'BinaryOps (AST.expr_span operand <> AST.expr_span more) todo todo|]
             operator
-                --> S'T (SymbolIdentifier ())
+                --> TT'SymbolIdentifier
                 |> [|
                     \case
-                        (Located sp (SymbolIdentifier n)) -> AST.PathOrSingleIden'Single $ Located sp n
+                        (Located sp (Token.SymbolIdentifier n)) -> AST.PathOrSingleIden'Single $ Located sp n
                         _ -> unreachable
                     |]
             operator --> symbol_iden_path |> [|todo|]
-            -- TODO: operator --> Backtick . alpha_iden_path . Backtick |> [|todo|]
+            -- TODO: operator --> TT'Backtick . alpha_iden_path . TT'Backtick |> [|todo|]
 
             expr_call --> expr_primary |> [|identity|]
             expr_call --> (expr_call . expr_primary) |> [|\c a -> AST.Expr'Call (AST.expr_span c <> AST.expr_span a) c [a]|] -- TODO: remove the list around a
-            expr_call --> (expr_call . Hash . type_primary) |> [|\c _ t -> AST.Expr'TypeApply (AST.expr_span c <> AST.type_span t) c [t]|] -- TODO: remove the list around t
+            expr_call --> (expr_call . TT'Hash . type_primary) |> [|\c _ t -> AST.Expr'TypeApply (AST.expr_span c <> AST.type_span t) c [t]|] -- TODO: remove the list around t
             expr_primary --> expr_identifier |> [|identity|]
             expr_primary --> expr_hole |> [|identity|]
             expr_primary --> expr_literal |> [|identity|]
             expr_primary --> expr_match |> [|identity|]
             expr_primary --> expr_tuple |> [|identity|]
-            expr_primary --> OParen . expr_toplevel . CParen |> [|\_ e _ -> e|] -- TODO: change span of this?
+            expr_primary --> TT'OParen . expr_toplevel . TT'CParen |> [|\_ e _ -> e|] -- TODO: change span of this?
             expr_identifier --> alpha_iden_path |> [|AST.Expr'Identifier todo|]
-            expr_hole --> (Question . aiden) |> [|\(Located q_span _) i@(Located i_span _) -> AST.Expr'Hole (q_span <> i_span) i|]
-            expr_literal --> S'T (Char ()) |> [|\(Located sp (Token.Char c)) -> AST.Expr'Char sp c|]
-            expr_literal --> S'T (String ()) |> [|\(Located sp (Token.String s)) -> AST.Expr'String sp s|]
-            expr_literal --> S'T (Int () ()) |> [|\(Located sp (Token.Int _ i)) -> AST.Expr'Int sp i|]
-            expr_literal --> S'T (Float ()) |> [|\(Located sp (Token.Float f)) -> AST.Expr'Float sp f|]
-            expr_literal --> S'T (Bool ()) |> [|\(Located sp (Token.Bool b)) -> AST.Expr'Bool sp b|]
+            expr_hole --> (TT'Question . aiden) |> [|\(Located q_span _) i@(Located i_span _) -> AST.Expr'Hole (q_span <> i_span) i|]
+            expr_literal --> (TT'Char) |> [|\(Located sp (Token.Char c)) -> AST.Expr'Char sp c|]
+            expr_literal --> (TT'String) |> [|\(Located sp (Token.String s)) -> AST.Expr'String sp s|]
+            expr_literal --> (TT'Int) |> [|\(Located sp (Token.Int _ i)) -> AST.Expr'Int sp i|]
+            expr_literal --> (TT'Float) |> [|\(Located sp (Token.Float f)) -> AST.Expr'Float sp f|]
+            expr_literal --> (TT'Bool) |> [|\(Located sp (Token.Bool b)) -> AST.Expr'Bool sp b|]
             expr_tuple
-                --> (OParen . comma_sep_expr_list_at_least_one_comma . CParen)
+                --> (TT'OParen . comma_sep_expr_list_at_least_one_comma . TT'CParen)
                 |> [|\(Located o_sp _) parts (Located c_sp _) -> AST.Expr'Tuple (o_sp <> c_sp) parts|]
             do
                 match_arm <- nt "match arm" [t|(AST.Pattern, AST.Expr)|]
                 match_arm_list <- list_star match_arm
-                match_arm --> (pattern . Arrow . expr . Semicolon) |> [|\p _ e _ -> (p, e)|]
+                match_arm --> (pattern . TT'Arrow . expr . TT'Semicolon) |> [|\p _ e _ -> (p, e)|]
                 expr_match
-                    --> (Match . expr . OBrace . match_arm_list . CBrace)
+                    --> (TT'Match . expr . TT'OBrace . match_arm_list . TT'CBrace)
                     |> [|\(Located m_sp _) scr _ arms (Located c_sp _) -> AST.Expr'Match (m_sp <> c_sp) m_sp scr arms|]
 
             type_ --> type_forall |> [|identity|]
             type_forall --> type_function |> [|identity|]
-            type_forall --> Hash . aiden . type_forall |> [|\(Located h_sp _) iden t -> AST.Type'Forall (h_sp <> AST.type_span t) [iden] t|] -- TODO: remove this list around iden
-            type_function --> type_apply_or_get . Arrow . type_function |> [|\a _ b -> AST.Type'Function (AST.type_span a <> AST.type_span b) a b|]
+            type_forall --> TT'Hash . aiden . type_forall |> [|\(Located h_sp _) iden t -> AST.Type'Forall (h_sp <> AST.type_span t) [iden] t|] -- TODO: remove this list around iden
+            type_function --> type_apply_or_get . TT'Arrow . type_function |> [|\a _ b -> AST.Type'Function (AST.type_span a <> AST.type_span b) a b|]
             type_function --> type_apply_or_get |> [|identity|]
             type_apply_or_get --> type_primary |> [|identity|]
-            type_apply_or_get --> type_apply_or_get . Hash . type_primary |> [|\a _ b -> AST.Type'Apply (AST.type_span a <> AST.type_span b) a [b]|] -- TODO: remove the list around b
-            type_apply_or_get --> type_apply_or_get . DoubleColon . aiden |> [|\t _ i@(Located i_sp _) -> AST.Type'Get (AST.type_span t <> i_sp) t i|]
-            type_primary --> OParen . type_ . CParen |> [|\_ t _ -> t|] -- TODO: change this span?
+            type_apply_or_get --> type_apply_or_get . TT'Hash . type_primary |> [|\a _ b -> AST.Type'Apply (AST.type_span a <> AST.type_span b) a [b]|] -- TODO: remove the list around b
+            type_apply_or_get --> type_apply_or_get . TT'DoubleColon . aiden |> [|\t _ i@(Located i_sp _) -> AST.Type'Get (AST.type_span t <> i_sp) t i|]
+            type_primary --> TT'OParen . type_ . TT'CParen |> [|\_ t _ -> t|] -- TODO: change this span?
             type_primary --> aiden |> [|AST.Type'Refer|]
-            type_primary --> Underscore |> [|\(Located sp _) -> AST.Type'Wild sp|]
-            type_primary --> Question . aiden |> [|\(Located q_sp _) i@(Located i_sp _) -> AST.Type'Hole (q_sp <> i_sp) i|]
+            type_primary --> TT'Underscore |> [|\(Located sp _) -> AST.Type'Wild sp|]
+            type_primary --> TT'Question . aiden |> [|\(Located q_sp _) i@(Located i_sp _) -> AST.Type'Hole (q_sp <> i_sp) i|]
             type_primary
-                --> (OParen . comma_sep_type_list_at_least_one_comma . CParen)
+                --> (TT'OParen . comma_sep_type_list_at_least_one_comma . TT'CParen)
                 |> [|\(Located o_sp _) parts (Located c_sp _) -> AST.Type'Tuple (o_sp <> c_sp) parts|]
 
             pattern --> pattern_toplevel |> [|identity|]
@@ -289,53 +289,53 @@ $( let unwrap_right :: Show a => Either a b -> b
             pattern_anon_variant --> (alpha_iden_path . pattern_named_list_at_least_once) |> [|\v p -> AST.Pattern'AnonADTVariant todo v p|]
             do
                 field_pattern <- nt "named variant pattern field" [t|(AST.Identifier, AST.Pattern)|]
-                field_pattern --> (aiden . Equal . pattern) |> [|\i _ p -> (i, p)|]
-                field_list <- list_sep_allow_trailing Comma field_pattern
+                field_pattern --> (aiden . TT'Equal . pattern) |> [|\i _ p -> (i, p)|]
+                field_list <- list_sep_allow_trailing TT'Comma field_pattern
 
                 pattern_named_variant
-                    --> (alpha_iden_path . OBrace . field_list . CBrace)
+                    --> (alpha_iden_path . TT'OBrace . field_list . TT'CBrace)
                     |> [|\v _ p (Located cb_sp _) -> AST.Pattern'NamedADTVariant (todo <> cb_sp) v p|]
 
             pattern_named
-                --> (aiden . At . pattern_named)
+                --> (aiden . TT'At . pattern_named)
                 |> [|\i@(Located i_sp _) (Located a_sp _) n -> AST.Pattern'Named (i_sp <> AST.pattern_span n) i a_sp n|]
             pattern_named --> pattern_primary |> [|identity|]
 
             pattern_primary --> pattern_iden |> [|identity|]
             pattern_primary --> pattern_wild |> [|identity|]
-            pattern_primary --> (OParen . pattern . CParen) |> [|\_ a _ -> a|] -- TODO: change this span?
+            pattern_primary --> (TT'OParen . pattern . TT'CParen) |> [|\_ a _ -> a|] -- TODO: change this span?
             pattern_primary --> pattern_tuple |> [|identity|]
             pattern_iden --> aiden |> [|AST.Pattern'Identifier|]
-            pattern_wild --> Underscore |> [|\(Located sp _) -> AST.Pattern'Wildcard sp|]
+            pattern_wild --> TT'Underscore |> [|\(Located sp _) -> AST.Pattern'Wildcard sp|]
             pattern_tuple
-                --> (OParen . comma_sep_pattern_list_at_least_one_comma . CParen)
+                --> (TT'OParen . comma_sep_pattern_list_at_least_one_comma . TT'CParen)
                 |> [|\(Located o_sp _) parts (Located c_sp _) -> AST.Pattern'Tuple (o_sp <> c_sp) parts|]
 
             -- TODO: clean this up
             alpha_iden_path --> aiden |> [|AST.PathOrSingleIden'Single|]
-            -- alpha_iden_path --> Root |> [|_|] TODO
-            alpha_iden_path --> (alpha_iden_path . DoubleColon . aiden) |> [|todo|]
-            alpha_iden_path --> (alpha_iden_path . DoubleColon . Hash . type_primary) |> [|todo|]
-            alpha_iden_path --> (OBrack . OBrack . type_ . CBrack . CBrack . DoubleColon . aiden) |> [|todo|]
+            -- alpha_iden_path --> TT'Root |> [|_|] TODO
+            alpha_iden_path --> (alpha_iden_path . TT'DoubleColon . aiden) |> [|todo|]
+            alpha_iden_path --> (alpha_iden_path . TT'DoubleColon . TT'Hash . type_primary) |> [|todo|]
+            alpha_iden_path --> (TT'OBrack . TT'OBrack . type_ . TT'CBrack . TT'CBrack . TT'DoubleColon . aiden) |> [|todo|]
 
-            kw_iden_path --> (Caret . alpha_iden_path . DoubleColon . S'T (KeywordIdentifier ())) |> [|todo|]
-            symbol_iden_path --> (Backtick . alpha_iden_path . DoubleColon . S'T (SymbolIdentifier ())) |> [|todo|]
+            kw_iden_path --> (TT'Caret . alpha_iden_path . TT'DoubleColon . TT'KeywordIdentifier) |> [|todo|]
+            symbol_iden_path --> (TT'Backtick . alpha_iden_path . TT'DoubleColon . TT'SymbolIdentifier) |> [|todo|]
 
-            type_param_list --> (type_param_list . Hash . aiden) |> [|\last _ i -> last ++ [i]|]
+            type_param_list --> (type_param_list . TT'Hash . aiden) |> [|\last _ i -> last ++ [i]|]
             type_param_list --> empty |> [|[]|]
 
             pattern_named_list_at_least_once --> (pattern_named_list_at_least_once . pattern_named) |> [|\ps p -> ps ++ [p]|]
             pattern_named_list_at_least_once --> pattern_named |> [|\p -> [p]|]
 
-            comma_sep_expr_list_at_least_one_comma --> (expr . Comma . comma_sep_expr_list) |> [|\e _ more -> e : more|]
-            comma_sep_type_list_at_least_one_comma --> (type_ . Comma . comma_sep_type_list) |> [|\t _ more -> t : more|]
-            comma_sep_pattern_list_at_least_one_comma --> (pattern . Comma . comma_sep_pattern_list) |> [|\p _ more -> p : more|]
+            comma_sep_expr_list_at_least_one_comma --> (expr . TT'Comma . comma_sep_expr_list) |> [|\e _ more -> e : more|]
+            comma_sep_type_list_at_least_one_comma --> (type_ . TT'Comma . comma_sep_type_list) |> [|\t _ more -> t : more|]
+            comma_sep_pattern_list_at_least_one_comma --> (pattern . TT'Comma . comma_sep_pattern_list) |> [|\p _ more -> p : more|]
 
             aiden
-                --> S'T (AlphaIdentifier ())
+                --> TT'AlphaIdentifier
                 |> [|
                     \case
-                        (Located sp (AlphaIdentifier n)) -> Located sp n
+                        (Located sp (Token.AlphaIdentifier n)) -> Located sp n
                         _ -> unreachable
                     |]
 

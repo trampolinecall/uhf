@@ -54,6 +54,25 @@ generate token_specs = do
             (map (\(name, _, _, _) -> TH.normalC (TH.mkName $ "TT'" ++ name) []) token_specs)
             [deriving_clause]
 
+    format_token_insts <-
+        mapM
+            ( \(name, field_types, _, format_t) ->
+                TH.instanceD
+                    (TH.cxt [])
+                    [t|Format $(TH.conT $ TH.mkName name)|]
+                    [ TH.funD
+                        (TH.mkName "format")
+                        [ do
+                            field_names <- mapM (\_ -> TH.newName "f") field_types
+                            format_t <- format_t
+                            TH.clause
+                                [TH.conP (TH.mkName $ "" ++ name) (map TH.varP field_names)]
+                                (TH.normalB $ foldlM (\e a -> [|$(pure e) $(TH.varE a)|]) format_t field_names)
+                                []
+                        ]
+                    ]
+            )
+            token_specs
     format_token_inst <-
         TH.instanceD
             (TH.cxt [])
@@ -61,12 +80,11 @@ generate token_specs = do
             [ TH.funD
                 (TH.mkName "format")
                 ( map
-                    ( \(name, field_types, _, format_t) -> do
-                        field_names <- mapM (\_ -> TH.newName "f") field_types
-                        format_t <- format_t
+                    ( \(name, _, _, _) -> do
+                        field_name <- TH.newName "t"
                         TH.clause
-                            [TH.conP (TH.mkName $ "T'" ++ name) [TH.conP (TH.mkName $ "" ++ name) (map TH.varP field_names)]]
-                            (TH.normalB $ foldlM (\e a -> [|$(pure e) $(TH.varE a)|]) format_t field_names)
+                            [TH.conP (TH.mkName $ "T'" ++ name) [TH.varP field_name]]
+                            (TH.normalB $ [|format $(TH.varE field_name)|])
                             []
                     )
                     token_specs
@@ -104,6 +122,10 @@ generate token_specs = do
                 token_specs
             )
 
-    pure $ token_datatypes_decs ++ [token_dec, token_type_dec, format_token_inst, format_token_type_inst, to_token_type_sig, to_token_type_dec]
+    pure $
+        token_datatypes_decs
+            ++ [token_dec, token_type_dec]
+            ++ format_token_insts
+            ++ [format_token_inst, format_token_type_inst, to_token_type_sig, to_token_type_dec]
     where
         deriving_clause = TH.derivClause Nothing [[t|Show|], [t|Eq|], [t|Ord|], [t|Generic|], [t|Data.Data|], [t|EqIgnoringSpans|], [t|TH.Syntax.Lift|]]

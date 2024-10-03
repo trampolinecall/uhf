@@ -5,6 +5,7 @@ import UHF.Prelude
 import qualified UHF.Util.Arena as Arena
 import qualified UHF.Data.ANFIR as ANFIR
 
+-- TODO: figure out how this is supposed to work (remove?)
 iterate_over_bindings :: Monad m => (ANFIR.Binding -> m ANFIR.Binding) -> ANFIR.ANFIR -> m ANFIR.ANFIR
 iterate_over_bindings change (ANFIR.ANFIR adts type_synonyms vars bindings params cu) =
     runStateT (do_cu cu) bindings >>= \ ((), bindings) ->
@@ -21,20 +22,21 @@ iterate_over_bindings change (ANFIR.ANFIR adts type_synonyms vars bindings param
         do_binding bk =
             StateT (\ bindings -> ((),) <$> Arena.modifyM bindings bk change) >>
             ANFIR.binding_initializer <$> (Arena.get <$> get <*> pure bk) >>= \case
-                    ANFIR.Expr'Lambda _ _ _ _ group _ -> do_group group
+                    ANFIR.Expr'Lambda _ _ _ _ _ -> pure () -- do_group group TODO: fix this (lambdas have an inline expression, so change doesnt work because there is no binding to change)
+                    ANFIR.Expr'Forall _ _ _ _ -> pure () -- do_group group TODO: same todo as above
                     ANFIR.Expr'Match _ _ tree -> do_tree tree
                         where
                             do_tree (ANFIR.MatchTree arms) = mapM_
                                 (\ (_, result) ->
                                     case result of
                                         Left subtree -> do_tree subtree
-                                        Right (group, _) -> do_group group
+                                        Right _ -> pure ()
                                 )
                                 arms
-                    ANFIR.Expr'Forall _ _ _ group _ -> do_group group
 
                     _ -> pure ()
 
+-- TODO: figure out how this is supposed to work (remove?)
 iterate_over_all_subexpressions :: Monad m => (ANFIR.BindingKey -> m ANFIR.BindingKey) -> ANFIR.ANFIR -> m ANFIR.ANFIR
 iterate_over_all_subexpressions modify = iterate_over_bindings do_binding
     where
@@ -50,8 +52,10 @@ iterate_over_all_subexpressions modify = iterate_over_bindings do_binding
         do_expr (ANFIR.Expr'Tuple id ty a b) = modify a >>= \ a -> modify b >>= \ b -> pure (ANFIR.Expr'Tuple id ty a b)
         do_expr (ANFIR.Expr'MakeADT id ty variant tyargs args) = mapM modify args >>= \ args -> pure (ANFIR.Expr'MakeADT id ty variant tyargs args)
 
-        do_expr (ANFIR.Expr'Lambda id ty param captures group res) = modify res >>= \ res -> pure (ANFIR.Expr'Lambda id ty param captures group res)
+        do_expr (ANFIR.Expr'Lambda id ty param captures res) = {- modify res >>= \ res -> TODO: figure this out -} pure (ANFIR.Expr'Lambda id ty param captures res)
         do_expr (ANFIR.Expr'Param id ty param) = pure (ANFIR.Expr'Param id ty param)
+
+        do_expr (ANFIR.Expr'Let id ty group result) = {- modify result >>= \ result -> TODO: figure this out -} pure (ANFIR.Expr'Let id ty group result)
 
         do_expr (ANFIR.Expr'Call id ty callee arg) = modify callee >>= \ callee -> modify arg >>= \ arg -> pure (ANFIR.Expr'Call id ty callee arg)
 
@@ -64,7 +68,7 @@ iterate_over_all_subexpressions modify = iterate_over_bindings do_binding
                                 mapM do_match_clause clauses >>= \ clauses ->
                                 (case result of
                                     Left subtree -> Left <$> do_tree subtree
-                                    Right (group, res) -> modify res >>= \ res -> pure (Right (group, res))) >>= \ result ->
+                                    Right res -> {- modify res >>= \ res -> TODO: figure this out -} pure (Right res)) >>= \ result ->
                                 pure (clauses, result))
                             arms
 
@@ -75,7 +79,7 @@ iterate_over_all_subexpressions modify = iterate_over_bindings do_binding
         do_expr (ANFIR.Expr'TupleDestructure2 id ty tup) = modify tup >>= \ tup -> pure (ANFIR.Expr'TupleDestructure2 id ty tup)
         do_expr (ANFIR.Expr'ADTDestructure id ty base field_idx) = modify base >>= \ base -> pure (ANFIR.Expr'ADTDestructure id ty base field_idx)
 
-        do_expr (ANFIR.Expr'Forall id ty tys group res) = modify res >>= \ res -> pure (ANFIR.Expr'Forall id ty tys group res)
+        do_expr (ANFIR.Expr'Forall id ty tys res) = {- modify res >>= \ res -> TODO: figure this out -} pure (ANFIR.Expr'Forall id ty tys res)
         do_expr (ANFIR.Expr'TypeApply id ty other argty) = modify other >>= \ other -> pure (ANFIR.Expr'TypeApply id ty other argty)
 
         do_expr (ANFIR.Expr'Poison id ty) = pure (ANFIR.Expr'Poison id ty)

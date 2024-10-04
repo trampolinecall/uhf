@@ -317,6 +317,9 @@ generate_table grammar =
             [new_item_set grammar 0 (Set.singleton $ new_item (augment_rule grammar) Token.TT'EOF)]
 
 -- th function {{{1
+type ReduceFunction = [Int] -> [Dynamic.Dynamic] -> ([Int], [Dynamic.Dynamic])
+data ParserAction = PA'Shift Int | PA'Reduce ReduceFunction | PA'Accept
+
 from_just_with_message :: String -> Maybe a -> a
 from_just_with_message _ (Just a) = a
 from_just_with_message msg Nothing = error msg
@@ -326,12 +329,37 @@ force_cast when a = case Dynamic.fromDynamic a of
     Just a -> a
     Nothing -> error $ "invalid cast " <> when <> ": expected " <> show (Typeable.typeRep (Nothing :: Maybe a)) <> " but got " <> show (Dynamic.dynTypeRep a)
 
+pop_from_stack :: Int -> [Int] -> [Dynamic.Dynamic] -> (Int, [Int], [Dynamic.Dynamic], [Dynamic.Dynamic])
+pop_from_stack n state_stack ast_stack =
+    let state_stack_popped = drop n state_stack
+        last_state = if null state_stack_popped then error "empty tate stack during parser (this is a bug in the parser)" else head state_stack_popped
+        (asts_popped, ast_stack_after_popping) = splitAt n ast_stack
+    in (last_state, state_stack_popped, asts_popped, ast_stack_after_popping)
+
+parse_loop ::
+    Typeable.Typeable a =>
+    (Token.LToken -> Int -> Token.TokenType -> Either Error.Error ParserAction) ->
+    [Int] ->
+    [Dynamic.Dynamic] ->
+    InfList.InfList Token.LToken ->
+    Either Error.Error a
+parse_loop action_table = helper
+    where
+        helper state_stack@(current_state : _) ast_stack tokens@(current_token InfList.::: more_tokens) =
+            case action_table current_token current_state (Token.to_token_type $ Located.unlocate current_token) of
+                Right (PA'Shift n) -> helper (n : state_stack) (Dynamic.toDyn current_token : ast_stack) more_tokens
+                Right (PA'Reduce reduce) ->
+                    let (next_state_stack, next_ast_stack) = reduce state_stack ast_stack
+                    in helper next_state_stack next_ast_stack tokens
+                Right PA'Accept -> Right $ force_cast "when popping last ast node from stack in accept action" (head ast_stack)
+                Left e -> Left e
+        helper [] _ _ = error "empty state stack while parsing (this is a bug in the parser)"
+
 make_parse_fn :: String -> TH.Q TH.Type -> StateTable -> TH.Q [TH.Dec]
 make_parse_fn name res_ty (StateTable nt_ty_map reduce_fn_map table) = do
     goto_table_name <- TH.newName "goto_table"
-    goto_table_decl <- [d|$(TH.varP goto_table_name) = $(TH.Syntax.lift (Map.map (\(State _ _ _ g) -> g) table))|]
+    goto_table_decl <- goto_table_function goto_table_name
 
-    let fn_name = TH.mkName name
     (reduce_fn_names, reduce_fn_decls) <-
         runWriterT $
             sequence $
@@ -355,8 +383,7 @@ make_parse_fn name res_ty (StateTable nt_ty_map reduce_fn_map table) = do
                         -- ie. something like
                         --     rule32_reduce :: [Int] -> [Dynamic] -> ([Int], [Dynamic])
                         --     rule32_reduce state_stack ast_stack =
-                        --         let state_stack_poppsed@(last_state : _) = drop 3 state_stack
-                        --             (asts_popped, ast_stack_popped) = splitAt 3 ast_stack
+                        --         let (last_state, state_stack_popped, asts_popped, ast_stack_popped) = pop_from_stack 3 state_stack ast_stack
                         --
                         --             next_state = goto_table Map.! last_state Map.! (Nonterminal "ast")
                         --             new_ast = rule32_create_ast (fromJust $ dynCast $ asts_popped !! 2) (fromJust $ dynCast $ asts_popped !! 1) (fromJust $ dynCast $ asts_popped !! 0)
@@ -364,7 +391,7 @@ make_parse_fn name res_ty (StateTable nt_ty_map reduce_fn_map table) = do
                         -- where any Dynamic values are the ast nodes currently on the stack
                         reduce_rule_name <- lift $ TH.newName $ "rule" ++ show rule_num ++ "_reduce"
                         do
-                            reduce_rule_type <- lift [t|[Int] -> [Dynamic.Dynamic] -> ([Int], [Dynamic.Dynamic])|]
+                            reduce_rule_type <- lift [t|ReduceFunction|]
 
                             state_stack_name <- lift $ TH.newName "state_stack"
                             ast_stack_name <- lift $ TH.newName "ast_stack"
@@ -377,11 +404,9 @@ make_parse_fn name res_ty (StateTable nt_ty_map reduce_fn_map table) = do
                                             [TH.varP state_stack_name, TH.varP ast_stack_name]
                                             ( TH.normalB
                                                 [|
-                                                    let state_stack_popped = drop $(TH.litE $ TH.IntegerL $ toInteger prod_len) $(TH.varE state_stack_name)
-                                                        last_state = if null state_stack_popped then error "empty state stack during parsing (this is a bug in the parser)" else head state_stack_popped
-                                                        (asts_popped, ast_stack_popped) = splitAt $(TH.litE $ TH.IntegerL $ toInteger prod_len) $(TH.varE ast_stack_name)
+                                                    let (last_state, state_stack_popped, asts_popped, ast_stack_popped) = pop_from_stack $(TH.litE $ TH.IntegerL $ toInteger prod_len) $(TH.varE state_stack_name) $(TH.varE ast_stack_name)
 
-                                                        next_state = $(TH.varE goto_table_name) Map.! last_state Map.! $(TH.Syntax.lift nt)
+                                                        next_state = $(TH.varE goto_table_name) last_state $(TH.Syntax.lift $ Text.unpack $ stringify_nt nt)
                                                         new_ast =
                                                             $( foldlM
                                                                 ( \e (sym_i, _) ->
@@ -402,97 +427,78 @@ make_parse_fn name res_ty (StateTable nt_ty_map reduce_fn_map table) = do
                     )
                     reduce_fn_map
 
+    action_table_name <- TH.newName "action_table"
+    action_table_decl <- action_table_function reduce_fn_names action_table_name
+
+    let fn_name = TH.mkName name
     top_sig <- TH.SigD fn_name <$> [t|InfList.InfList Token.LToken -> Either Error.Error $(res_ty)|]
-    top_decl <- do
-        sub_name <- TH.newName "parse'"
-        TH.funD
-            fn_name
-            [ TH.clause
-                []
-                (TH.normalB [|$(TH.varE sub_name) [0 :: Int] []|])
-                [ TH.funD sub_name (concatMap (make_function_clause reduce_fn_names sub_name) (Map.elems table) ++ error_report_clauses ++ [default_clause])
-                ]
-            ]
+    top_decl <- TH.funD fn_name [TH.clause [] (TH.normalB [|parse_loop $(TH.varE action_table_name) [0 :: Int] []|]) []]
 
-    pure $ reduce_fn_decls ++ goto_table_decl ++ [top_sig, top_decl]
+    pure $ reduce_fn_decls ++ goto_table_decl ++ action_table_decl ++ [top_sig, top_decl]
     where
-        make_function_clause :: Map Rule TH.Name -> TH.Name -> State -> [TH.Q TH.Clause]
-        make_function_clause reduce_fns recurse_name (State state_number _ action_table _) =
-            action_table
-                & Map.toAscList
-                & map
-                    ( \case
-                        (lookahead, Shift new_state) -> make_clause_outline state_number lookahead $ \state_stack_name ast_stack_name _ input_cur_tok_name input_more_name ->
-                            [|
-                                $(TH.varE recurse_name)
-                                    ($(TH.litE $ TH.IntegerL $ toInteger new_state) : $(TH.varE state_stack_name))
-                                    (Dynamic.toDyn $(TH.varE input_cur_tok_name) : $(TH.varE ast_stack_name))
-                                    $(TH.varE input_more_name)
-                                |]
-                        (lookahead, Reduce rule) -> make_clause_outline state_number lookahead $ \state_stack_name ast_stack_name input_stream_name _ _ ->
-                            [|
-                                let (next_state_stack, next_ast_stack) = $(TH.varE $ reduce_fns Map.! rule) $(TH.varE state_stack_name) $(TH.varE ast_stack_name)
-                                in $(TH.varE recurse_name) next_state_stack next_ast_stack $(TH.varE input_stream_name)
-                                |]
-                        (lookahead, Accept) -> make_clause_outline state_number lookahead $ \_ ast_stack_name _ _ _ ->
-                            [|
-                                Right $ force_cast "when popping last ast node from stack in accept action" (head $(TH.varE ast_stack_name))
-                                |]
+        map_flatten_map :: (k1 -> k2 -> v -> r) -> Map k1 (Map k2 v) -> [r]
+        map_flatten_map f m = concatMap (\(k1, submap) -> map (uncurry $ f k1) (Map.toAscList submap)) (Map.toAscList m)
+
+        goto_table_function :: TH.Name -> TH.Q [TH.Dec]
+        goto_table_function name = do
+            let goto_table = Map.map (\(State _ _ _ g) -> g) table
+
+            sig <- TH.sigD name [t|Int -> String -> Int|]
+            decl <-
+                TH.funD
+                    name
+                    ( map_flatten_map
+                        ( \state nt goto ->
+                            TH.clause
+                                [TH.litP $ TH.IntegerL $ toInteger state, TH.litP $ TH.StringL $ Text.unpack $ stringify_nt nt]
+                                (TH.normalB $ TH.litE $ TH.IntegerL $ toInteger goto)
+                                []
+                        )
+                        goto_table
                     )
 
-        error_report_clauses :: [TH.Q TH.Clause]
-        error_report_clauses =
-            table
-                & Map.elems
-                & map
-                    ( \(State state_number _ action_table _) -> do
-                        tok_name <- TH.newName "tok"
+            pure [sig, decl]
 
-                        TH.clause
-                            [[p|$(TH.litP $ TH.IntegerL $ toInteger state_number) : _|], TH.wildP, [p|$(TH.varP tok_name) InfList.::: _|]]
-                            ( TH.normalB [|Left $ Error.BadToken $(TH.litE $ TH.IntegerL $ toInteger state_number) $(TH.Syntax.lift $ Map.keys action_table) $(TH.varE tok_name)|]
-                            -- TODO: improve these error messages
+        action_table_function :: Map Rule TH.Name -> TH.Name -> TH.Q [TH.Dec]
+        action_table_function reduce_fn_names name = do
+            let action_table = Map.map (\(State _ _ a _) -> a) table
+
+            sig <- TH.sigD name [t|Token.LToken -> Int -> Token.TokenType -> Either Error.Error ParserAction|]
+            decl <-
+                TH.funD
+                    name
+                    ( Map.toAscList action_table
+                        & concatMap
+                            ( \(state, actions) -> do
+                                let state_pattern = TH.litP $ TH.IntegerL $ toInteger state
+
+                                let default_clause = do
+                                        tok_name <- TH.newName "tok"
+                                        TH.clause
+                                            [TH.varP tok_name, state_pattern, [p|_|]]
+                                            (TH.normalB [|Left (Error.BadToken $(TH.litE $ TH.IntegerL $ toInteger state) $(TH.Syntax.lift $ Map.keys actions) $(TH.varE tok_name))|])
+                                            []
+
+                                actions
+                                    & Map.toAscList
+                                    & map
+                                        ( \(terminal, action) -> do
+                                            let terminal_ctor_name_str = "Token.TT'" <> term_name terminal
+                                            terminal_ctor_name <-
+                                                from_just_with_message ("constructor name not in scope: " <> terminal_ctor_name_str) <$> TH.lookupValueName terminal_ctor_name_str
+
+                                            let action' = case action of
+                                                    Shift n -> [|Right (PA'Shift n)|]
+                                                    Reduce r -> [|Right (PA'Reduce $(TH.varE $ reduce_fn_names Map.! r))|]
+                                                    Accept -> [|Right (PA'Accept)|]
+
+                                            TH.clause [[p|_|], state_pattern, TH.conP terminal_ctor_name []] (TH.normalB action') []
+                                        )
+                                    & (++ [default_clause])
                             )
-                            []
                     )
 
-        default_clause :: TH.Q TH.Clause
-        default_clause = TH.clause [TH.wildP, TH.wildP, TH.wildP] (TH.normalB [|error "invalid state in parser"|]) []
-
-        make_clause_outline :: Int -> Terminal -> (TH.Name -> TH.Name -> TH.Name -> TH.Name -> TH.Name -> TH.Q TH.Exp) -> TH.Q TH.Clause
-        make_clause_outline state_number lookahead body = do
-            state_stack_name <- TH.newName "state_stack"
-            ast_stack_name <- TH.newName "ast_stack"
-            input_stream_name <- TH.newName "input"
-            cur_sp_name <- TH.newName "cur_sp"
-            cur_unlocated_tok_name <- TH.newName "cur_unlocated_tok"
-            input_cur_tok_name <- TH.newName "input_cur"
-            input_more_name <- TH.newName "input_more"
-
-            state_stack_pat <- [p|$(TH.litP $ TH.IntegerL $ toInteger state_number) : _|]
-            input_pat <- do
-                let ctor_name = "Token.T'" <> term_name lookahead
-                [p|
-                    Located.Located
-                        $(TH.varP cur_sp_name)
-                        $( TH.ConP
-                            <$> (from_just_with_message ("constructor name not in scope: " <> ctor_name) <$> TH.lookupValueName ctor_name)
-                            <*> pure []
-                            <*> pure [TH.VarP cur_unlocated_tok_name]
-                         )
-                        InfList.::: $(TH.varP input_more_name)
-                    |]
-            body <-
-                [|
-                    let $(TH.varP input_cur_tok_name) = Located.Located $(TH.varE cur_sp_name) $(TH.varE cur_unlocated_tok_name)
-                    in $(body state_stack_name ast_stack_name input_stream_name input_cur_tok_name input_more_name)
-                    |]
-
-            pure $
-                TH.Clause
-                    [TH.AsP state_stack_name state_stack_pat, TH.VarP ast_stack_name, TH.AsP input_stream_name input_pat]
-                    (TH.NormalB body)
-                    []
+            pure [sig, decl]
 
         term_name t = drop 3 $ show $ Data.toConstr t -- drop 3 to drop "TT'"
         term_ty t =
@@ -501,3 +507,7 @@ make_parse_fn name res_ty (StateTable nt_ty_map reduce_fn_map table) = do
 
         sym_ty (S'T t) = term_ty t
         sym_ty (S'NT nt) = nt_ty_map Map.! nt
+
+        stringify_nt :: Nonterminal -> Text
+        stringify_nt (Nonterminal nt) = "N" <> nt
+        stringify_nt Augment = "AUGMENT"

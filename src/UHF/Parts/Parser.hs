@@ -147,12 +147,10 @@ $( let unwrap_right :: Show a => Either a b -> b
             comma_sep_type_list_at_least_one_comma <- nt "comma separated type list with at least one comma" [t|[AST.Type]|]
             comma_sep_pattern_list_at_least_one_comma <- nt "comma separated pattern list with at least one comma" [t|[AST.Pattern]|]
 
-            -- type_name <- nt "type name" [t|AST.TypeName|]
-            -- var_name <- nt "variable name" [t|AST.VarName|]
-            -- variant_refer <- nt "variant_refer" [t|AST.VariantRef|]
+            -- alpha_iden_path <- nt "alpha identifier path" [t|AST.PathOrSingleIden|] -- TODO: remove this?
+            -- symbol_iden_path <- nt "symbol identifier path" [t|AST.PathOrSingleIden|] -- TODO: remove this?
+            -- keyword_iden_path <- nt "keyword identifier path" [t|AST.PathOrSingleIden|] -- TODO: remove this?
 
-            -- alpha_iden_path <- nt "alpha identifier path" [t|AST.PathOrSingleIden|] -- TODO: change this
-            -- symbol_iden_path <- nt "symbol identifier path" [t|AST.PathOrSingleIden|] -- TODO: also probably change this
             pattern_named_list_at_least_once <- nt "named pattern list" [t|[AST.Pattern]|]
 
             decl --> decl_data |> [|identity|]
@@ -163,16 +161,14 @@ $( let unwrap_right :: Show a => Either a b -> b
                 data_variant <- nt "data_variant" [t|AST.DataVariant|]
                 data_variant_list <- list_star data_variant
 
-                -- TODO: fields
-                -- TODO: redesign fields to better match function application syntax
                 do
                     anon_field <- nt "data declaration anonymous field" [t|AST.Type|]
-                    field_list <- list_sep_allow_trailing TT'Comma anon_field
+                    field_list <- list_star anon_field
 
-                    anon_field --> type_ |> [|identity|]
+                    anon_field --> type_apply_or_get |> [|identity|]
                     data_variant
-                        --> (TT'AlphaIdentifier . TT'OParen . field_list . TT'CParen . TT'Semicolon)
-                        |> [|\name _ fields _ _ -> AST.DataVariant'Anon name fields|]
+                        --> (TT'AlphaIdentifier . field_list . TT'Semicolon)
+                        |> [|\name fields _ -> AST.DataVariant'Anon name fields|]
 
                 do
                     named_field <- nt "data declaration named field" [t|(Located Token.AlphaIdentifier, AST.Type)|]
@@ -221,20 +217,21 @@ $( let unwrap_right :: Show a => Either a b -> b
                 --> (TT'Backslash . pattern_named_list_at_least_once . TT'Arrow . expr_toplevel)
                 |> [|\(Located bs_sp _) pats _ e -> AST.Expr'Lambda (bs_sp <> AST.expr_span e) pats e|]
 
-            -- TODO: reorganize these things
-            -- TODO: these are probably wrong
             do
                 kw_iden_path <- nt "keyword identifier path" [t|AST.KeywordRef|]
                 kw_iden_paths <- nt "keyword identifer paths" [t|[AST.KeywordRef]|]
                 optional_kw_iden_paths <- optional kw_iden_paths
 
-                kw_iden_path --> (TT'Caret . type_primary . TT'DoubleColon . TT'KeywordIdentifier) |> [|todo|]
+                kw_iden_path --> (TT'Caret . TT'KeywordIdentifier) |> [|\_ ki -> AST.KeywordRef'Single ki|]
+                kw_iden_path --> (TT'Caret . type_primary . TT'DoubleColon . TT'KeywordIdentifier) |> [|\_ t _ ki -> AST.KeywordRef'Path t ki|]
                 kw_iden_paths --> (kw_iden_path . kw_iden_paths) |> [|\a b -> a : b|]
                 kw_iden_paths --> kw_iden_path |> [|\a -> [a]|]
 
-                kw_call_middle <- nt "middle of keyword call" [t|[Either AST.KeywordRef AST.Expr]|] -- TODO: probably dont use Either
-                kw_call_middle --> (kw_call_middle . kw_iden_paths . expr_binary_ops) |> [|\other_args next_path arg -> todo|]
-                kw_call_middle --> expr_binary_ops |> [|todo|]
+                kw_call_middle <- nt "middle of keyword call" [t|(AST.Expr, [([AST.KeywordRef], AST.Expr)])|]
+                kw_call_middle
+                    --> (kw_call_middle . kw_iden_paths . expr_binary_ops)
+                    |> [|\(first_arg, prev_args) paths arg -> (first_arg, prev_args ++ [(paths, arg)])|]
+                kw_call_middle --> expr_binary_ops |> [|\e -> (e, [])|]
 
                 expr_keyword_call --> (kw_iden_paths . kw_call_middle . optional_kw_iden_paths) |> [|\first_paths args more_path -> todo|]
 
@@ -246,7 +243,9 @@ $( let unwrap_right :: Show a => Either a b -> b
                 --> (expr_call . operator . expr_binary_ops)
                 |> [|\operand operator more -> AST.Expr'BinaryOps (AST.expr_span operand <> AST.expr_span more) todo todo|]
             operator --> TT'SymbolIdentifier |> [|AST.Operator'Single|]
-            operator --> (TT'Backtick . type_primary . TT'DoubleColon . TT'SymbolIdentifier) |> [|todo|]
+            operator
+                --> (TT'Backtick . type_primary . TT'DoubleColon . TT'SymbolIdentifier)
+                |> [|\(Located backtick_sp _) t _ s -> AST.Operator'Path (backtick_sp <> Located.just_span s) t s|]
             -- TODO: operator --> TT'Backtick . alpha_iden_path . TT'Backtick |> [|todo|]
 
             expr_call --> expr_primary |> [|identity|]
@@ -305,17 +304,19 @@ $( let unwrap_right :: Show a => Either a b -> b
             pattern_toplevel --> pattern_named_variant |> [|identity|]
             pattern_toplevel --> pattern_named |> [|identity|]
 
-            -- TODO: add support for variant name path
-            pattern_anon_variant --> (TT'AlphaIdentifier . pattern_named_list_at_least_once) |> [|\v p -> AST.Pattern'AnonADTVariant todo Nothing v p|]
+            -- TODO: add support for paths in variant names
+            pattern_anon_variant
+                --> (TT'AlphaIdentifier . pattern_named_list_at_least_once)
+                |> [|\v p -> AST.Pattern'AnonADTVariant (Located.just_span v <> lastDef (Located.just_span v) (AST.pattern_span <$> p)) Nothing v p|]
             do
                 field_pattern <- nt "named variant pattern field" [t|(Located Token.AlphaIdentifier, AST.Pattern)|]
                 field_pattern --> (TT'AlphaIdentifier . TT'Equal . pattern) |> [|\i _ p -> (i, p)|]
                 field_list <- list_sep_allow_trailing TT'Comma field_pattern
 
-                -- TODO: add support for variant name path
+                -- TODO: add support for paths in variant names
                 pattern_named_variant
                     --> (TT'AlphaIdentifier . TT'OBrace . field_list . TT'CBrace)
-                    |> [|\v _ p (Located cb_sp _) -> AST.Pattern'NamedADTVariant (todo <> cb_sp) Nothing v p|]
+                    |> [|\v _ p (Located cb_sp _) -> AST.Pattern'NamedADTVariant (Located.just_span v <> cb_sp) Nothing v p|]
 
             pattern_named
                 --> (TT'AlphaIdentifier . TT'At . pattern_named)

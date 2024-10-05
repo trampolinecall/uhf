@@ -332,7 +332,7 @@ $( let unwrap_right :: Show a => Either a b -> b
                 --> (TT'OParen . comma_sep_pattern_list_at_least_one_comma . TT'CParen)
                 |> [|\(Located o_sp _) parts (Located c_sp _) -> AST.Pattern'Tuple (o_sp <> c_sp) parts|]
 
-            -- TODO: remove this?
+            -- TODO: remove this? this is only kept because it might be used in fixing issue #30
             -- alpha_iden_path --> TT'AlphaIdentifier |> [|AST.PathOrSingleIden'Single|]
             -- alpha_iden_path --> TT'Root |> [|_|] TODO
             -- alpha_iden_path --> (alpha_iden_path . TT'DoubleColon . TT'AlphaIdentifier) |> [|todo|]
@@ -348,15 +348,6 @@ $( let unwrap_right :: Show a => Either a b -> b
             comma_sep_expr_list_at_least_one_comma --> (expr . TT'Comma . comma_sep_expr_list) |> [|\e _ more -> e : more|]
             comma_sep_type_list_at_least_one_comma --> (type_ . TT'Comma . comma_sep_type_list) |> [|\t _ more -> t : more|]
             comma_sep_pattern_list_at_least_one_comma --> (pattern . TT'Comma . comma_sep_pattern_list) |> [|\p _ more -> p : more|]
-
-            -- type_name --> TT'AlphaIdentifier |> [|AST.TypeName'Alpha|]
-
-            -- var_name --> TT'AlphaIdentifier |> [|AST.VarName'Alpha|]
-            -- var_name --> TT'SymbolIdentifier |> [|AST.VarName'Symbol|]
-            -- var_name --> TT'KeywordIdentifier |> [|AST.VarName'Keyword|]
-
-            -- variant_refer --> (TT'OBrack . TT'OBrack . type_ . TT'CBrack . TT'CBrack . TT'DoubleColon . TT'AlphaIdentifier) |> [|todo|]
-            -- variant_refer --> TT'AlphaIdentifier |> [|todo|]
 
             pure ()
         )

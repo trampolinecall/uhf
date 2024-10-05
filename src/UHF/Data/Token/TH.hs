@@ -5,9 +5,11 @@ module UHF.Data.Token.TH (TokenSpec, tt, generate) where
 import UHF.Prelude
 
 import qualified Data.Data as Data
+import qualified Data.Dynamic as Dynamic
 import Data.String (String)
 import qualified Language.Haskell.TH as TH
 import qualified Language.Haskell.TH.Syntax as TH.Syntax (Lift)
+import UHF.Source.Located (Located (..))
 
 import UHF.Source.EqIgnoringSpans
 
@@ -122,10 +124,26 @@ generate token_specs = do
                 token_specs
             )
 
+    untoken_sig <- TH.sigD (TH.mkName "untoken") [t|Located $(TH.conT $ TH.mkName "Token") -> Dynamic.Dynamic|]
+    untoken_dec <-
+        TH.funD
+            (TH.mkName "untoken")
+            ( map
+                ( \(name, _, _, _) -> do
+                    sp <- TH.newName "sp"
+                    t <- TH.newName "t"
+                    TH.clause
+                        [[p|Located $(TH.varP sp) $(TH.conP (TH.mkName $ "T'" ++ name) [TH.varP t])|]]
+                        (TH.normalB $ [|Dynamic.toDyn $ Located $(TH.varE sp) $(TH.varE t)|])
+                        []
+                )
+                token_specs
+            )
+
     pure $
         token_datatypes_decs
             ++ [token_dec, token_type_dec]
             ++ format_token_insts
-            ++ [format_token_inst, format_token_type_inst, to_token_type_sig, to_token_type_dec]
+            ++ [format_token_inst, format_token_type_inst, to_token_type_sig, to_token_type_dec, untoken_sig, untoken_dec]
     where
         deriving_clause = TH.derivClause Nothing [[t|Show|], [t|Eq|], [t|Ord|], [t|Generic|], [t|Data.Data|], [t|EqIgnoringSpans|], [t|TH.Syntax.Lift|]]

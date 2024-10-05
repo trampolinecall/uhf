@@ -347,7 +347,7 @@ parse_loop action_table = helper
     where
         helper state_stack@(current_state : _) ast_stack tokens@(current_token InfList.::: more_tokens) =
             case action_table current_token current_state (Token.to_token_type $ Located.unlocate current_token) of
-                Right (PA'Shift n) -> helper (n : state_stack) (Dynamic.toDyn current_token : ast_stack) more_tokens
+                Right (PA'Shift n) -> helper (n : state_stack) (Token.untoken current_token : ast_stack) more_tokens
                 Right (PA'Reduce reduce) ->
                     let (next_state_stack, next_ast_stack) = reduce state_stack ast_stack
                     in helper next_state_stack next_ast_stack tokens

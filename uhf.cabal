@@ -16,7 +16,6 @@ library
       UHF.Data.ANFIR
       UHF.Data.ANFIR.PP
       UHF.Data.AST
-      UHF.Data.AST.Dump
       UHF.Data.AST.PP
       UHF.Data.BackendIR
       UHF.Data.BackendIR.PP

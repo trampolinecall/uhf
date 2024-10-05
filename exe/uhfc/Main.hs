@@ -37,7 +37,6 @@ argparser =
                     <*> (fromMaybe [Driver.TS] <$> optional (some (option
                             (reader_from_map
                                 [ ("ast", Driver.AST)
-                                , ("ast-dump", Driver.ASTDump)
                                 , ("sir", Driver.SIR)
                                 , ("name-resolved", Driver.NRSIR)
                                 , ("infix-grouped", Driver.InfixGroupedSIR)

@@ -16,7 +16,6 @@ import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.ANFIR as ANFIR
 import qualified UHF.Data.ANFIR.PP as ANFIR.PP
 import qualified UHF.Data.AST as AST
-import qualified UHF.Data.AST.Dump as AST.Dump
 import qualified UHF.Data.AST.PP as AST.PP
 import qualified UHF.Data.BackendIR as BackendIR
 import qualified UHF.Data.BackendIR.PP as BackendIR.PP
@@ -76,7 +75,7 @@ data PhaseResultsCache
         }
 type PhaseResultsState = StateT PhaseResultsCache WithDiagnosticsIO
 
-data OutputFormat = AST | ASTDump | SIR | NRSIR | InfixGroupedSIR | TypedSIR | RIR | ANFIR | OptimizedANFIR | BackendIR | TS
+data OutputFormat = AST | SIR | NRSIR | InfixGroupedSIR | TypedSIR | RIR | ANFIR | OptimizedANFIR | BackendIR | TS
 data CompileOptions
     = CompileOptions
         { input_file :: FilePath
@@ -95,7 +94,6 @@ print_outputs :: CompileOptions -> File -> WithDiagnosticsIO ()
 print_outputs compile_options file = evalStateT (mapM_ print_output_format (output_formats compile_options)) (PhaseResultsCache file Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing)
     where
         print_output_format AST = get_ast >>= output_if_outputable (\ ast -> lift (lift (putTextLn $ AST.PP.pp_decls ast)))
-        print_output_format ASTDump = get_ast >>= output_if_outputable (\ ast -> lift (lift (putTextLn $ AST.Dump.dump ast)))
         print_output_format SIR = get_first_sir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_sir" (SIR.PP.dump_main_module ir))))
         print_output_format NRSIR = get_nrsir >>= output_if_outputable (\ (ir, _) -> lift (lift (write_output_file "uhf_nrsir" (SIR.PP.dump_main_module ir))))
         print_output_format InfixGroupedSIR = get_infix_grouped >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_infix_grouped" (SIR.PP.dump_main_module ir))))

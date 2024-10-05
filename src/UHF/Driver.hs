@@ -8,6 +8,7 @@ import UHF.Prelude
 
 import qualified Data.Text.IO as Text.IO
 import qualified System.FilePath as FilePath
+import qualified Pipes
 
 import UHF.Source.File (File)
 import UHF.Source.Located (Located)
@@ -25,7 +26,6 @@ import qualified UHF.Data.RIR as RIR
 import qualified UHF.Data.RIR.PP as RIR.PP
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Data.SIR.PP as SIR.PP
-import qualified UHF.Data.Token as Token
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Settings as DiagnosticSettings
 import qualified UHF.Parts.TypeSolver as TypeSolver
@@ -45,7 +45,6 @@ import qualified UHF.Parts.ToSIR as ToSIR
 import qualified UHF.Source.File as File
 import qualified UHF.Source.FormattedString as FormattedString
 
-type Tokens = ([Token.LToken], Token.LToken)
 type AST = [AST.Decl]
 type FirstSIR = SIR.SIR (Located Text, (), (), Located Text, (), Located Text, (), (), ())
 type NRSIR = (SIR.SIR (Maybe (SIR.Decl TypeSolver.Type), Maybe (SIR.Decl TypeSolver.Type), TypeSolver.Type, Maybe SIR.BoundValue, Maybe SIR.BoundValue, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, (), ()), TypeSolver.SolverState)
@@ -63,7 +62,6 @@ type WithDiagnosticsIO = Compiler.WithDiagnosticsT Diagnostic.Error Diagnostic.W
 data PhaseResultsCache
     = PhaseResultsCache
         { _get_file :: File
-        , _get_tokens :: Maybe (Tokens, Outputable)
         , _get_ast :: Maybe (AST, Outputable)
         , _get_first_sir :: Maybe (FirstSIR, Outputable)
         , _get_nrsir :: Maybe (NRSIR, Outputable)
@@ -94,7 +92,7 @@ compile c_needed diagnostic_settings compile_options =
     pure (if Compiler.had_errors diagnostics then Left () else Right ())
 
 print_outputs :: CompileOptions -> File -> WithDiagnosticsIO ()
-print_outputs compile_options file = evalStateT (mapM_ print_output_format (output_formats compile_options)) (PhaseResultsCache file Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing)
+print_outputs compile_options file = evalStateT (mapM_ print_output_format (output_formats compile_options)) (PhaseResultsCache file Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing)
     where
         print_output_format AST = get_ast >>= output_if_outputable (\ ast -> lift (lift (putTextLn $ AST.PP.pp_decls ast)))
         print_output_format ASTDump = get_ast >>= output_if_outputable (\ ast -> lift (lift (putTextLn $ AST.Dump.dump ast)))
@@ -152,15 +150,16 @@ on_tuple_first f (a, b) = (f a, b)
 
 --- TODO: use template haskell for this?
 -- all of these functions return the result of a phase either by calculating it or retrieving it from the cache
-get_tokens :: PhaseResultsState (Tokens, Outputable)
-get_tokens = get_or_calculate _get_tokens (\ cache tokens -> cache { _get_tokens = tokens }) lex
-    where
-        lex = _get_file <$> get >>= \ file -> convert_errors (Lexer.lex file)
-
 get_ast :: PhaseResultsState (AST, Outputable)
 get_ast = get_or_calculate _get_ast (\ cache ast -> cache { _get_ast = ast }) parse_phase
     where
-        parse_phase = get_tokens >>= run_stage_on_previous_stage_output (\ (tokens, eof) -> convert_errors $ Parser.parse tokens eof)
+        parse_phase :: StateT PhaseResultsCache WithDiagnosticsIO (AST, Outputable)
+        parse_phase = do
+            file <- _get_file <$> get
+            let tokens = Lexer.lex file
+            let tokens_converted = Pipes.hoist Compiler.convert_diagnostics (absurd <$> tokens)
+            let parse = Pipes.hoist Compiler.convert_diagnostics Parser.parse
+            convert_errors $ Pipes.runEffect $ tokens_converted Pipes.>-> parse
 
 get_first_sir :: PhaseResultsState (FirstSIR, Outputable)
 get_first_sir = get_or_calculate _get_first_sir (\ cache first_sir -> cache { _get_first_sir = first_sir }) to_sir

@@ -8,7 +8,8 @@ module UHF.Parts.Parser
 
 import UHF.Prelude
 
-import qualified Data.InfList as InfList
+import qualified Pipes
+import qualified Pipes.Prelude
 
 import Data.Maybe (maybeToList)
 import qualified UHF.Compiler as Compiler
@@ -361,10 +362,18 @@ $( let unwrap_right :: Show a => Either a b -> b
         )
  )
 
-parse :: [Token.LToken] -> Token.LToken -> Compiler.WithDiagnostics (Error.Error) Void [AST.Decl]
-parse toks eof_tok =
-    case parse' (toks InfList.+++ InfList.repeat eof_tok) of
+parse :: Pipes.Consumer Token.LToken (Compiler.WithDiagnostics (Error.Error) Void) [AST.Decl]
+parse =
+    parse' >>= \case
         Right ast -> pure ast
         Left err -> do
-            _ <- Compiler.tell_error err
+            _ <- lift $ Compiler.tell_error err
+            consume_tokens_until_eof -- this is necessary because if the parser exits early it does not await any more tokens, meaning that any lexer errors produced after the parse error are not reported
             pure []
+
+    where
+        consume_tokens_until_eof = do
+            tok <- Pipes.await
+            case tok of
+                Located _ (Token.T'EOF _) -> pure ()
+                _ -> consume_tokens_until_eof

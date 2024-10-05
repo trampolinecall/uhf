@@ -25,7 +25,7 @@ import qualified UHF.Source.File as File
 
 -- TODO: test this entire module
 
--- TODO: count column numbers with tabs correctly
+-- TODO: count column numbers with tabs and unicode characters correctly
 
 data LineCol = LineCol { lc_ind :: !Int, lc_row :: !Int, lc_col :: !Int } deriving (Show, Eq)
 data Location = Location { loc_file :: File, lc :: !LineCol, loc_remaining_in_file :: Text } deriving (Show, Eq)

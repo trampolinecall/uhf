@@ -19,7 +19,6 @@ import Control.Monad ()
 import qualified Control.Monad.State as StateMonad
 import qualified Data.Data as Data
 import qualified Data.Dynamic as Dynamic
-import qualified Data.InfList as InfList
 import Data.List (findIndex, (!!))
 import qualified Data.Map as Map
 import Data.Maybe (fromJust)
@@ -31,6 +30,7 @@ import qualified Data.Typeable as Typeable
 import qualified Language.Haskell.TH as TH
 import qualified Language.Haskell.TH.Syntax as TH.Syntax
 import qualified Safe
+import qualified Pipes
 
 import qualified UHF.Data.Token as Token
 import qualified UHF.Parts.Parser.Error as Error
@@ -337,22 +337,24 @@ pop_from_stack n state_stack ast_stack =
     in (last_state, state_stack_popped, asts_popped, ast_stack_after_popping)
 
 parse_loop ::
+    Monad m =>
     Typeable.Typeable a =>
     (Token.LToken -> Int -> Token.TokenType -> Either Error.Error ParserAction) ->
-    [Int] ->
-    [Dynamic.Dynamic] ->
-    InfList.InfList Token.LToken ->
-    Either Error.Error a
-parse_loop action_table = helper
+    Pipes.Consumer Token.LToken m (Either Error.Error a)
+parse_loop action_table = do
+    first_token <- Pipes.await
+    helper [0] [] first_token
     where
-        helper state_stack@(current_state : _) ast_stack tokens@(current_token InfList.::: more_tokens) =
+        helper state_stack@(current_state : _) ast_stack current_token =
             case action_table current_token current_state (Token.to_token_type $ Located.unlocate current_token) of
-                Right (PA'Shift n) -> helper (n : state_stack) (Token.untoken current_token : ast_stack) more_tokens
+                Right (PA'Shift n) -> do
+                    next_token <- Pipes.await
+                    helper (n : state_stack) (Token.untoken current_token : ast_stack) next_token
                 Right (PA'Reduce reduce) ->
                     let (next_state_stack, next_ast_stack) = reduce state_stack ast_stack
-                    in helper next_state_stack next_ast_stack tokens
-                Right PA'Accept -> Right $ force_cast "when popping last ast node from stack in accept action" (head ast_stack)
-                Left e -> Left e
+                    in helper next_state_stack next_ast_stack current_token
+                Right PA'Accept -> pure $ Right $ force_cast "when popping last ast node from stack in accept action" (head ast_stack)
+                Left e -> pure $ Left e
         helper [] _ _ = error "empty state stack while parsing (this is a bug in the parser)"
 
 make_parse_fn :: String -> TH.Q TH.Type -> StateTable -> TH.Q [TH.Dec]
@@ -431,8 +433,8 @@ make_parse_fn name res_ty (StateTable nt_ty_map reduce_fn_map table) = do
     action_table_decl <- action_table_function reduce_fn_names action_table_name
 
     let fn_name = TH.mkName name
-    top_sig <- TH.SigD fn_name <$> [t|InfList.InfList Token.LToken -> Either Error.Error $(res_ty)|]
-    top_decl <- TH.funD fn_name [TH.clause [] (TH.normalB [|parse_loop $(TH.varE action_table_name) [0 :: Int] []|]) []]
+    top_sig <- TH.SigD fn_name <$> [t|forall m. Monad m => Pipes.Consumer Token.LToken m (Either Error.Error $(res_ty))|]
+    top_decl <- TH.funD fn_name [TH.clause [] (TH.normalB [|parse_loop $(TH.varE action_table_name)|]) []]
 
     pure $ reduce_fn_decls ++ goto_table_decl ++ action_table_decl ++ [top_sig, top_decl]
     where

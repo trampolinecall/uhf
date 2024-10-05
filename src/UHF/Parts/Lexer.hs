@@ -139,7 +139,11 @@ lex_alpha_identifier =
         , ("true", Token.T'Bool $ Token.Bool True)
         , ("false", Token.T'Bool $ Token.Bool False)
         ]
-        (Token.T'AlphaIdentifier . Token.AlphaIdentifier)
+        (\ t ->
+            if Text.last t == ':'
+                then Token.T'KeywordIdentifier $ Token.KeywordIdentifier $ Text.init t
+                else Token.T'AlphaIdentifier $ Token.AlphaIdentifier t
+        )
 
 lex_symbol_identifier :: MiniLexer [Either LexError.Error Token.LToken]
 lex_symbol_identifier =
@@ -153,8 +157,14 @@ lex_symbol_identifier =
         , ("@", Token.T'At $ Token.At)
         , ("?", Token.T'Question $ Token.Question)
         , ("\\", Token.T'Backslash $ Token.Backslash)
+        , ("^", Token.T'Caret $ Token.Caret)
+        , ("`", Token.T'Backtick $ Token.Backtick) -- TODO: backticks are delimiters?
         ]
-        (Token.T'SymbolIdentifier . Token.SymbolIdentifier)
+        (\ t ->
+            if Text.last t == ':'
+                then Token.T'KeywordIdentifier $ Token.KeywordIdentifier $ Text.init t
+                else Token.T'AlphaIdentifier $ Token.AlphaIdentifier t
+        )
 
 lex_str_or_char_lit :: MiniLexer [Either LexError.Error Token.LToken]
 lex_str_or_char_lit =

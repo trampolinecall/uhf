@@ -107,7 +107,8 @@ $( let unwrap_right :: Show a => Either a b -> b
             type_ <- nt "type" [t|AST.Type|]
             type_forall <- nt "forall type" [t|AST.Type|]
             type_function <- nt "function type" [t|AST.Type|]
-            type_apply_or_get <- nt "apply or get type" [t|AST.Type|]
+            type_apply <- nt "apply type" [t|AST.Type|]
+            type_get <- nt "get type" [t|AST.Type|]
             type_primary <- nt "primary type" [t|AST.Type|]
 
             expr <- nt "expr" [t|AST.Expr|]
@@ -166,7 +167,7 @@ $( let unwrap_right :: Show a => Either a b -> b
                     anon_field <- nt "data declaration anonymous field" [t|AST.Type|]
                     field_list <- list_star anon_field
 
-                    anon_field --> type_apply_or_get |> [|identity|]
+                    anon_field --> type_get |> [|identity|]
                     data_variant
                         --> (TT'AlphaIdentifier . field_list . TT'Semicolon)
                         |> [|\name fields _ -> AST.DataVariant'Anon name fields|]
@@ -258,7 +259,7 @@ $( let unwrap_right :: Show a => Either a b -> b
 
             expr_call --> expr_primary |> [|identity|]
             expr_call --> (expr_call . expr_primary) |> [|\c a -> AST.Expr'Call (AST.expr_span c <> AST.expr_span a) c [a]|] -- TODO: remove the list around a
-            expr_call --> (expr_call . TT'Hash . type_primary) |> [|\c _ t -> AST.Expr'TypeApply (AST.expr_span c <> AST.type_span t) c [t]|] -- TODO: remove the list around t
+            expr_call --> (expr_call . TT'Hash . type_get) |> [|\c _ t -> AST.Expr'TypeApply (AST.expr_span c <> AST.type_span t) c [t]|] -- TODO: remove the list around t
             expr_primary --> expr_refer |> [|identity|]
             expr_primary --> expr_hole |> [|identity|]
             expr_primary --> expr_literal |> [|identity|]
@@ -287,17 +288,19 @@ $( let unwrap_right :: Show a => Either a b -> b
                     |> [|\match scr _ arms (Located c_sp _) -> AST.Expr'Match (Located.just_span match <> c_sp) match scr arms|]
 
             type_ --> type_forall |> [|identity|]
+
             type_forall --> type_function |> [|identity|]
             type_forall --> TT'Hash . TT'AlphaIdentifier . type_forall |> [|\(Located h_sp _) iden t -> AST.Type'Forall (h_sp <> AST.type_span t) [iden] t|] -- TODO: remove this list around iden
-            type_function --> type_apply_or_get . TT'Arrow . type_function |> [|\a _ b -> AST.Type'Function (AST.type_span a <> AST.type_span b) a b|]
-            type_function --> type_apply_or_get |> [|identity|]
-            type_apply_or_get --> type_primary |> [|identity|]
-            type_apply_or_get --> type_apply_or_get . TT'Hash . type_primary |> [|\a _ b -> AST.Type'Apply (AST.type_span a <> AST.type_span b) a [b]|] -- TODO: remove the list around b
-            type_apply_or_get
-                --> type_apply_or_get
-                . TT'DoubleColon
-                . TT'AlphaIdentifier
-                |> [|\t _ i@(Located i_sp _) -> AST.Type'Get (AST.type_span t <> i_sp) t i|]
+
+            type_function --> type_apply . TT'Arrow . type_function |> [|\a _ b -> AST.Type'Function (AST.type_span a <> AST.type_span b) a b|]
+            type_function --> type_apply |> [|identity|]
+
+            type_apply --> type_get |> [|identity|]
+            type_apply --> (type_apply . TT'Hash . type_get) |> [|\a _ b -> AST.Type'Apply (AST.type_span a <> AST.type_span b) a [b]|] -- TODO: remove the list around b
+
+            type_get --> type_primary |> [|identity|]
+            type_get --> (type_get . TT'DoubleColon . TT'AlphaIdentifier) |> [|\t _ i@(Located i_sp _) -> AST.Type'Get (AST.type_span t <> i_sp) t i|]
+
             type_primary --> TT'OParen . type_ . TT'CParen |> [|\_ t _ -> t|] -- TODO: change this span?
             type_primary --> TT'AlphaIdentifier |> [|AST.Type'Refer|]
             type_primary --> TT'Underscore |> [|\(Located sp _) -> AST.Type'Wild sp|]
@@ -370,7 +373,6 @@ parse =
             _ <- lift $ Compiler.tell_error err
             consume_tokens_until_eof -- this is necessary because if the parser exits early it does not await any more tokens, meaning that any lexer errors produced after the parse error are not reported
             pure []
-
     where
         consume_tokens_until_eof = do
             tok <- Pipes.await

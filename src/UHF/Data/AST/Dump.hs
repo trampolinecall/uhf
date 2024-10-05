@@ -10,8 +10,9 @@ import qualified UHF.PP as PP
 -- TODO: automate this for every type?
 
 dump :: [AST.Decl] -> Text
-dump = PP.render . dump_decl_list
+dump = todo -- PP.render . dump_decl_list
 
+{- TODO: fix this
 dump_decl_list :: [AST.Decl] -> PP.Token
 dump_decl_list = PP.bracketed_comma_list PP.Consistent . map dump_decl
 
@@ -76,3 +77,4 @@ dump_struct name fields = PP.List [PP.String name, " ", PP.braced_comma_list PP.
 
 dump_list :: (d -> PP.Token) -> [d] -> PP.Token
 dump_list dump = PP.bracketed_comma_list PP.Inconsistent . map dump
+-}

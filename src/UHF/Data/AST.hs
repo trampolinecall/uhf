@@ -19,7 +19,7 @@ data KeywordRef
     deriving (Generic, EqIgnoringSpans, Show)
 
 data Operator
-    = Operator'Path Type (Located Token.SymbolIdentifier)
+    = Operator'Path WholeSpan Type (Located Token.SymbolIdentifier)
     | Operator'Single (Located Token.SymbolIdentifier)
     deriving (Generic, EqIgnoringSpans, Show)
 

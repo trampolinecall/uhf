@@ -47,6 +47,8 @@ import qualified UHF.Data.SIR.Stage as Stage
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 
+-- TODO: clean up SIR to match AST a little more
+
 -- "syntax based ir"
 data SIR stage
     = SIR

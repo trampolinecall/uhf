@@ -237,16 +237,23 @@ $( let unwrap_right :: Show a => Either a b -> b
 
             expr_keyword_call --> expr_binary_ops |> [|identity|]
 
-            -- TODO: this does not work correctly
-            expr_binary_ops --> expr_call |> [|identity|]
-            expr_binary_ops
-                --> (expr_call . operator . expr_binary_ops)
-                |> [|\operand operator more -> AST.Expr'BinaryOps (AST.expr_span operand <> AST.expr_span more) todo todo|]
-            operator --> TT'SymbolIdentifier |> [|AST.Operator'Single|]
-            operator
-                --> (TT'Backtick . type_primary . TT'DoubleColon . TT'SymbolIdentifier)
-                |> [|\(Located backtick_sp _) t _ s -> AST.Operator'Path (backtick_sp <> Located.just_span s) t s|]
-            -- TODO: operator --> TT'Backtick . alpha_iden_path . TT'Backtick |> [|todo|]
+            do
+                expr_binary_ops_helper <- nt "binary ops expression helper" [t|(AST.Expr, [(AST.Operator, AST.Expr)])|]
+
+                expr_binary_ops
+                    --> expr_binary_ops_helper
+                    |> [|\(first, more) -> if null more then first else AST.Expr'BinaryOps (AST.expr_span first <> AST.expr_span (snd $ last more)) first more|]
+
+                expr_binary_ops_helper
+                    --> (expr_call . operator . expr_binary_ops_helper)
+                    |> [|\left operator (first_of_more, more) -> (left, (operator, first_of_more) : more)|]
+                expr_binary_ops_helper --> expr_call |> [|\call -> (call, [])|]
+
+                -- TODO: operator --> TT'Backtick . alpha_iden_path . TT'Backtick |> [|todo|]
+                operator --> TT'SymbolIdentifier |> [|AST.Operator'Single|]
+                operator
+                    --> (TT'Backtick . type_primary . TT'DoubleColon . TT'SymbolIdentifier)
+                    |> [|\(Located backtick_sp _) t _ s -> AST.Operator'Path (backtick_sp <> Located.just_span s) t s|]
 
             expr_call --> expr_primary |> [|identity|]
             expr_call --> (expr_call . expr_primary) |> [|\c a -> AST.Expr'Call (AST.expr_span c <> AST.expr_span a) c [a]|] -- TODO: remove the list around a

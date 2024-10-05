@@ -21,4 +21,3 @@ trace_passthrough bk = trace [] bk
                     _ -> pure bk
 
         get_binding bk = ask >>= \ (ANFIR.ANFIR _ _ _ bindings _ _) -> pure (Arena.get bindings bk)
-

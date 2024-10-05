@@ -163,7 +163,7 @@ lex_symbol_identifier =
         (\ t ->
             if Text.last t == ':'
                 then Token.T'KeywordIdentifier $ Token.KeywordIdentifier $ Text.init t
-                else Token.T'AlphaIdentifier $ Token.AlphaIdentifier t
+                else Token.T'SymbolIdentifier $ Token.SymbolIdentifier t
         )
 
 lex_str_or_char_lit :: MiniLexer [Either LexError.Error Token.LToken]
@@ -281,7 +281,7 @@ take_token_stream_until_eof = go []
     where
         go acc producer =  do
             Pipes.next producer >>= \case
-                Right (tok@(Located _ (Token.T'EOF _)), _) -> pure $ acc ++ [tok]
+                Right (Located _ (Token.T'EOF _), _) -> pure acc
                 Right (tok, more) -> go (acc ++ [tok]) more
                 Left void -> absurd void
 

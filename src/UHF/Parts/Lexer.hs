@@ -29,7 +29,7 @@ import qualified UHF.Parts.Lexer.LexError as LexError
 -- lexing {{{1
 lex :: File -> Compiler.WithDiagnostics LexError.Error Void ([Token.LToken], Token.LToken)
 lex f =
-    let eof = Located (Span.end_of_file f) (Token.EOF ())
+    let eof = Located (Span.end_of_file f) (Token.T'EOF Token.EOF)
     in evalStateT (run []) (Location.new f) >>= \ toks ->
     pure (toList toks, eof)
 
@@ -98,15 +98,15 @@ lex_id_or_kw is_valid_start is_valid_char kws def =
 lex_delimiter :: Lexer (Seq Token.LToken)
 lex_delimiter =
     choice
-        [ consume (==':') >>= \ c1 -> consume (==':') >>= \ c2 -> pure [Located (Located.just_span c1 <> Located.just_span c2) (Token.SingleTypeToken Token.DoubleColon)]
-        , consume (=='(') >>= \ ch -> pure [Token.SingleTypeToken Token.OParen <$ ch]
-        , consume (==')') >>= \ ch -> pure [Token.SingleTypeToken Token.CParen <$ ch]
-        , consume (=='[') >>= \ ch -> pure [Token.SingleTypeToken Token.OBrack <$ ch]
-        , consume (==']') >>= \ ch -> pure [Token.SingleTypeToken Token.CBrack <$ ch]
-        , consume (=='{') >>= \ ch -> pure [Token.SingleTypeToken Token.OBrace <$ ch]
-        , consume (=='}') >>= \ ch -> pure [Token.SingleTypeToken Token.CBrace <$ ch]
-        , consume (==';') >>= \ ch -> pure [Token.SingleTypeToken Token.Semicolon <$ ch]
-        , consume (==',') >>= \ ch -> pure [Token.SingleTypeToken Token.Comma <$ ch]
+        [ consume (==':') >>= \ c1 -> consume (==':') >>= \ c2 -> pure [Located (Located.just_span c1 <> Located.just_span c2) (Token.T'DoubleColon Token.DoubleColon)]
+        , consume (=='(') >>= \ ch -> pure [Token.T'OParen <$> (Token.OParen <$ ch)]
+        , consume (==')') >>= \ ch -> pure [Token.T'CParen <$> (Token.CParen <$ ch)]
+        , consume (=='[') >>= \ ch -> pure [Token.T'OBrack <$> (Token.OBrack <$ ch)]
+        , consume (==']') >>= \ ch -> pure [Token.T'CBrack <$> (Token.CBrack <$ ch)]
+        , consume (=='{') >>= \ ch -> pure [Token.T'OBrace <$> (Token.OBrace <$ ch)]
+        , consume (=='}') >>= \ ch -> pure [Token.T'CBrace <$> (Token.CBrace <$ ch)]
+        , consume (==';') >>= \ ch -> pure [Token.T'Semicolon <$> (Token.Semicolon <$ ch)]
+        , consume (==',') >>= \ ch -> pure [Token.T'Comma <$> (Token.Comma <$ ch)]
         ]
 
 lex_alpha_identifier :: Lexer (Seq Token.LToken)
@@ -114,36 +114,36 @@ lex_alpha_identifier =
     lex_id_or_kw
         (\ ch -> isAlpha ch || ch == '_')
         (\ ch -> isAlpha ch || isDigit ch || ch == '_' || ch == '\'')
-        [ ("_", Token.SingleTypeToken Token.Underscore)
-        , ("root", Token.SingleTypeToken Token.Root)
-        , ("let", Token.SingleTypeToken Token.Let)
-        , ("letrec", Token.SingleTypeToken Token.LetRec)
-        , ("data", Token.SingleTypeToken Token.Data)
-        , ("impl", Token.SingleTypeToken Token.Impl)
-        , ("if", Token.SingleTypeToken Token.If)
-        , ("then", Token.SingleTypeToken Token.Then)
-        , ("else", Token.SingleTypeToken Token.Else)
-        , ("match", Token.SingleTypeToken Token.Match)
-        , ("typesyn", Token.SingleTypeToken Token.TypeSyn)
-        , ("true", Token.Bool True)
-        , ("false", Token.Bool False)
+        [ ("_", Token.T'Underscore $ Token.Underscore)
+        , ("root", Token.T'Root $ Token.Root)
+        , ("let", Token.T'Let $ Token.Let)
+        , ("letrec", Token.T'LetRec $ Token.LetRec)
+        , ("data", Token.T'Data $ Token.Data)
+        , ("impl", Token.T'Impl $ Token.Impl)
+        , ("if", Token.T'If $ Token.If)
+        , ("then", Token.T'Then $ Token.Then)
+        , ("else", Token.T'Else $ Token.Else)
+        , ("match", Token.T'Match $ Token.Match)
+        , ("typesyn", Token.T'TypeSyn $ Token.TypeSyn)
+        , ("true", Token.T'Bool $ Token.Bool True)
+        , ("false", Token.T'Bool $ Token.Bool False)
         ]
-        Token.AlphaIdentifier
+        (Token.T'AlphaIdentifier . Token.AlphaIdentifier)
 
 lex_symbol_identifier :: Lexer (Seq Token.LToken)
 lex_symbol_identifier =
     lex_id_or_kw
         (`elem` ("~!@#$%^&*+`-=|:./<>?\\" :: [Char]))
         (`elem` ("~!@#$%^&*+`-=|:./<>?\\" :: [Char]))
-        [ ("->", Token.SingleTypeToken Token.Arrow)
-        , ("#", Token.SingleTypeToken Token.Hash)
-        , ("=", Token.SingleTypeToken Token.Equal)
-        , (":", Token.SingleTypeToken Token.Colon)
-        , ("@", Token.SingleTypeToken Token.At)
-        , ("?", Token.SingleTypeToken Token.Question)
-        , ("\\", Token.SingleTypeToken Token.Backslash)
+        [ ("->", Token.T'Arrow $ Token.Arrow)
+        , ("#", Token.T'Hash $ Token.Hash)
+        , ("=", Token.T'Equal $ Token.Equal)
+        , (":", Token.T'Colon $ Token.Colon)
+        , ("@", Token.T'At $ Token.At)
+        , ("?", Token.T'Question $ Token.Question)
+        , ("\\", Token.T'Backslash $ Token.Backslash)
         ]
-        Token.SymbolIdentifier
+        (Token.T'SymbolIdentifier . Token.SymbolIdentifier)
 
 lex_str_or_char_lit :: Lexer (Seq Token.LToken)
 lex_str_or_char_lit =
@@ -156,9 +156,9 @@ lex_str_or_char_lit =
           let sp = new_span_start_and_end start_loc end_loc
           in if open == '\''
               then case contents of
-                    [c] -> pure [Located sp $ Token.Char c]
+                    [c] -> pure [Located sp $ Token.T'Char $ Token.Char c]
                     _ -> put_error (LexError.MulticharCharLit sp) >> pure []
-              else pure [Located sp $ Token.String $ Text.pack contents]
+              else pure [Located sp $ Token.T'String $ Token.String $ Text.pack contents]
 
         , get_loc >>= \ end_loc ->
           let sp = new_span_start_and_end start_loc end_loc
@@ -202,7 +202,7 @@ lex_number =
                 illegal_digits = check_digits digit_legal digits_no_underscore
 
             in if null illegal_digits
-                then pure [Located num_span (Token.Int tok_base (read_digits ((^) :: Integer -> Int -> Integer) base_num (zip [0..] (map Located.unlocate (reverse digits_no_underscore)))))]
+                then pure [Located num_span (Token.T'Int $ Token.Int tok_base (read_digits ((^) :: Integer -> Int -> Integer) base_num (zip [0..] (map Located.unlocate (reverse digits_no_underscore)))))]
                 else mapM_ put_error illegal_digits >> pure []
 
         (Right (tok_base, _), _) ->
@@ -210,7 +210,7 @@ lex_number =
                 base_is_dec = if tok_base == Token.Dec then [] else [LexError.NonDecimalFloat num_span]
 
             in if null illegal_digits && null base_is_dec
-                then pure [Located num_span (Token.Float $ read_digits ((^^) :: Rational -> Int -> Rational) 10 (zip [0..] (map Located.unlocate $ reverse digits_no_underscore) ++ zip [-1, -2..] (map Located.unlocate floats)))]
+                then pure [Located num_span (Token.T'Float $ Token.Float $ read_digits ((^^) :: Rational -> Int -> Rational) 10 (zip [0..] (map Located.unlocate $ reverse digits_no_underscore) ++ zip [-1, -2..] (map Located.unlocate floats)))]
                 else mapM_ put_error (illegal_digits ++ base_is_dec) >> pure []
 
         (Left err, _) -> put_error err >> pure []
@@ -263,7 +263,7 @@ case_lex =
     let src = "abc *&* ( \"adji\n"
     in File.new "a" src >>= \ f ->
     case runWriter $ lex f of
-        (([Located _ (Token.AlphaIdentifier "abc"), Located _ (Token.SymbolIdentifier "*&*"), Located _ (Token.SingleTypeToken Token.OParen)], _), Compiler.Diagnostics [LexError.UnclosedStrLit _] []) -> pure ()
+        (([Located _ (Token.T'AlphaIdentifier (Token.AlphaIdentifier "abc")), Located _ (Token.T'SymbolIdentifier (Token.SymbolIdentifier "*&*")), Located _ (Token.T'OParen (Token.OParen))], _), Compiler.Diagnostics [LexError.UnclosedStrLit _] []) -> pure ()
         x -> assertFailure $ "lex lexed incorrectly: returned '" ++ show x ++ "'"
 
 case_lex_empty :: Assertion
@@ -283,7 +283,7 @@ lex_test_fail fn_name res = assertFailure $ "'" ++ fn_name ++ "' lexed incorrect
 case_lex_one_token :: Assertion
 case_lex_one_token =
     lex_test (runWriter . runStateT lex_one_token) "abc" $ \case
-        (([Located _ (Token.AlphaIdentifier "abc")], l), Compiler.Diagnostics [] [])
+        (([Located _ (Token.T'AlphaIdentifier (Token.AlphaIdentifier "abc"))], l), Compiler.Diagnostics [] [])
             | remaining l == "" -> pure ()
 
         x -> lex_test_fail "lex_one_token" x
@@ -327,70 +327,70 @@ case_lex_comment_not_comment =
 case_lex_alpha_identifier :: Assertion
 case_lex_alpha_identifier =
     lex_test' lex_alpha_identifier "a" $ \case
-        Just (l, [], [Located _ (Token.AlphaIdentifier "a")])
+        Just (l, [], [Located _ (Token.T'AlphaIdentifier (Token.AlphaIdentifier "a"))])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_alpha_identifier" x
 case_lex_alpha_identifier_with_numbers :: Assertion
 case_lex_alpha_identifier_with_numbers =
     lex_test' lex_alpha_identifier "a12" $ \case
-        Just (l, [], [Located _ (Token.AlphaIdentifier "a12")])
+        Just (l, [], [Located _ (Token.T'AlphaIdentifier (Token.AlphaIdentifier "a12"))])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_alpha_identifier" x
 case_lex_alpha_identifier_apostrophes :: Assertion
 case_lex_alpha_identifier_apostrophes =
     lex_test' lex_alpha_identifier "a''" $ \case
-        Just (l, [], [Located _ (Token.AlphaIdentifier "a''")])
+        Just (l, [], [Located _ (Token.T'AlphaIdentifier (Token.AlphaIdentifier "a''"))])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_alpha_identifier" x
 case_lex_alpha_identifier_underscore :: Assertion
 case_lex_alpha_identifier_underscore =
     lex_test' lex_alpha_identifier "_a" $ \case
-        Just (l, [], [Located _ (Token.AlphaIdentifier "_a")])
+        Just (l, [], [Located _ (Token.T'AlphaIdentifier (Token.AlphaIdentifier "_a"))])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_alpha_identifier" x
 
 case_lex_symbol_identifier :: Assertion
 case_lex_symbol_identifier =
     lex_test' lex_symbol_identifier "*" $ \case
-        Just (l, [], [Located _ (Token.SymbolIdentifier "*")])
+        Just (l, [], [Located _ (Token.T'SymbolIdentifier (Token.SymbolIdentifier "*"))])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_symbol_identifier" x
 case_lex_symbol_identifier_multiple :: Assertion
 case_lex_symbol_identifier_multiple =
     lex_test' lex_symbol_identifier "*^&*&" $ \case
-        Just (l, [], [Located _ (Token.SymbolIdentifier "*^&*&")])
+        Just (l, [], [Located _ (Token.T'SymbolIdentifier (Token.SymbolIdentifier "*^&*&"))])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_symbol_identifier" x
 case_lex_symbol_identifier_kw :: Assertion
 case_lex_symbol_identifier_kw =
     lex_test' lex_symbol_identifier ":" $ \case
-        Just (l, [], [Located _ (Token.SingleTypeToken Token.Colon)])
+        Just (l, [], [Located _ (Token.T'Colon (Token.Colon))])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_symbol_identifier" x
 case_lex_symbol_identifier_long_kw :: Assertion
 case_lex_symbol_identifier_long_kw =
     lex_test' lex_symbol_identifier "->" $ \case
-        Just (l, [], [Located _ (Token.SingleTypeToken Token.Arrow)])
+        Just (l, [], [Located _ (Token.T'Arrow (Token.Arrow))])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_symbol_identifier" x
 
 case_lex_delimiter :: Assertion
 case_lex_delimiter =
     lex_test' lex_delimiter "((:))" $ \case
-        Just (l, [], [Located _ (Token.SingleTypeToken Token.OParen)])
+        Just (l, [], [Located _ (Token.T'OParen (Token.OParen))])
             | remaining l == "(:))" -> pure ()
         x -> lex_test_fail "lex_delimiter" x
 case_lex_delimiter_double_colon_then_symbol_identifier :: Assertion
 case_lex_delimiter_double_colon_then_symbol_identifier =
     lex_test' lex_delimiter "::*&" $ \case
-        Just (l, [], [Located _ (Token.SingleTypeToken Token.DoubleColon)])
+        Just (l, [], [Located _ (Token.T'DoubleColon (Token.DoubleColon))])
             | remaining l == "*&" -> pure ()
         x -> lex_test_fail "lex_delimiter" x
 
 case_lex_char_lit :: Assertion
 case_lex_char_lit =
     lex_test' lex_str_or_char_lit "'c'" $ \case
-        Just (l, [], [Located _ (Token.Char 'c')])
+        Just (l, [], [Located _ (Token.T'Char (Token.Char 'c'))])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_str_or_char_lit" x
 case_lex_char_lit_unclosed :: Assertion
@@ -409,7 +409,7 @@ case_lex_char_lit_multiple =
 case_lex_str_lit :: Assertion
 case_lex_str_lit =
     lex_test' lex_str_or_char_lit "\"abcde\"" $ \case
-        Just (l, [], [Located _ (Token.String "abcde")])
+        Just (l, [], [Located _ (Token.T'String (Token.String "abcde"))])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_str_or_char_lit" x
 case_lex_str_lit_unclosed :: Assertion
@@ -422,49 +422,49 @@ case_lex_str_lit_unclosed =
 case_lex_number_underscores :: Assertion
 case_lex_number_underscores =
     lex_test' lex_number "12_34__5" $ \case
-        Just (l, [], [Located _ (Token.Int Token.Dec 12345)])
+        Just (l, [], [Located _ (Token.T'Int (Token.Int Token.Dec 12345))])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_decimal :: Assertion
 case_lex_number_decimal =
     lex_test' lex_number "1234" $ \case
-        Just (l, [], [Located _ (Token.Int Token.Dec 1234)])
+        Just (l, [], [Located _ (Token.T'Int (Token.Int Token.Dec 1234))])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_decimal_leading_0 :: Assertion
 case_lex_number_decimal_leading_0 =
     lex_test' lex_number "01234" $ \case
-        Just (l, [], [Located _ (Token.Int Token.Dec 1234)])
+        Just (l, [], [Located _ (Token.T'Int (Token.Int Token.Dec 1234))])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_float :: Assertion
 case_lex_number_float =
     lex_test' lex_number "1234.1234" $ \case
-        Just (l, [], [Located _ (Token.Float 1234.1234)])
+        Just (l, [], [Located _ (Token.T'Float (Token.Float 1234.1234))])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_binary :: Assertion
 case_lex_number_binary =
     lex_test' lex_number "0b101" $ \case
-        Just (l, [], [Located _ (Token.Int Token.Bin 5)])
+        Just (l, [], [Located _ (Token.T'Int (Token.Int Token.Bin 5))])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_hex :: Assertion
 case_lex_number_hex =
     lex_test' lex_number "0xf1abcABC" $ \case
-        Just (l, [], [Located _ (Token.Int Token.Hex 4054567612)])
+        Just (l, [], [Located _ (Token.T'Int (Token.Int Token.Hex 4054567612))])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_octal :: Assertion
 case_lex_number_octal =
     lex_test' lex_number "0o765" $ \case
-        Just (l, [], [Located _ (Token.Int Token.Oct 501)])
+        Just (l, [], [Located _ (Token.T'Int (Token.Int Token.Oct 501))])
             | remaining l == "" -> pure ()
         x -> lex_test_fail "lex_number" x
 
@@ -477,14 +477,14 @@ case_lex_number_leading_point =
 case_lex_number_with_invalid_float :: Assertion
 case_lex_number_with_invalid_float =
     lex_test' lex_number "123.x" $ \case
-        Just (l, [], [Located _ (Token.Int Token.Dec 123)])
+        Just (l, [], [Located _ (Token.T'Int (Token.Int Token.Dec 123))])
             | remaining l == ".x" -> pure ()
         x -> lex_test_fail "lex_number" x
 
 case_lex_number_no_float_digits :: Assertion
 case_lex_number_no_float_digits =
     lex_test' lex_number "123." $ \case
-        Just (l, [], [Located _ (Token.Int Token.Dec 123)])
+        Just (l, [], [Located _ (Token.T'Int (Token.Int Token.Dec 123))])
             | remaining l == "." -> pure ()
         x -> lex_test_fail "lex_number" x
 

@@ -1,23 +1,19 @@
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveLift #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -ddump-splices -ddump-to-file -fshow-error-context #-}
 
-module UHF.Data.Token
-    ( BaseToken(..)
-    , SingleTypeToken(..)
+module UHF.Data.Token where
 
-    , LInternalToken
-    , LToken
-    , InternalToken
-    , Token
-    , TokenType
+import UHF.Prelude hiding (Bool, Char, Float, Int)
+import qualified UHF.Prelude
 
-    , IntBase(..)
+import qualified Data.Data as Data
+import qualified Language.Haskell.TH.Syntax as TH.Syntax (Lift)
 
-    , to_token_type
-    ) where
-
-import UHF.Prelude
-
+import qualified UHF.Data.Token.TH as TH
 import UHF.Source.EqIgnoringSpans
 import UHF.Source.Located (Located)
 
@@ -26,132 +22,51 @@ data IntBase
     | Oct
     | Hex
     | Bin
-    deriving (Show, Eq, Generic, EqIgnoringSpans)
+    deriving (Show, Eq, Ord, Generic, Data.Data, EqIgnoringSpans, TH.Syntax.Lift)
+
+$( TH.generate
+    [ TH.tt "OParen" [] "'('" [|"'('"|]
+    , TH.tt "CParen" [] "')'" [|"')'"|]
+    , TH.tt "OBrack" [] "'['" [|"'['"|]
+    , TH.tt "CBrack" [] "']'" [|"']'"|]
+    , TH.tt "OBrace" [] "'{'" [|"'{'"|]
+    , TH.tt "CBrace" [] "'}'" [|"'}'"|]
+    , TH.tt "Semicolon" [] "';'" [|"';'"|]
+    , TH.tt "Comma" [] "','" [|"','"|]
+    , TH.tt "Char" [[t|UHF.Prelude.Char|]] "character literal" [|\c -> "'" <> convert_str [c] <> "'"|]
+    , TH.tt "String" [[t|Text|]] "string literal" [|\s -> "'\"" <> convert_str s <> "\"'"|]
+    , TH.tt "Int" [[t|IntBase|], [t|Integer|]] "integer literal" [|\_ i -> "'" <> show i <> "'"|]
+    , TH.tt "Float" [[t|Rational|]] "floating point literal" [|\f -> "'" <> show f <> "'"|]
+    , TH.tt "Bool" [[t|UHF.Prelude.Bool|]] "bool literal" [|\b -> "'" <> if b then "true" else "false" <> "'"|]
+    , TH.tt "SymbolIdentifier" [[t|Text|]] "symbol identifier" [|\i -> convert_str $ "symbol identifier '" <> i <> "'"|]
+    , TH.tt "AlphaIdentifier" [[t|Text|]] "alphabetic identifier" [|\i -> convert_str $ "alphabetic identifier '" <> i <> "'"|]
+    , TH.tt "KeywordIdentifier" [[t|Text|]] "keyword identifier" [|\i -> convert_str $ "keyword identifier '" <> i <> ":'"|] -- TODO: implement lexing for this
+    , TH.tt "Equal" [] "'='" [|"'='"|]
+    , TH.tt "Colon" [] "':'" [|"':'"|]
+    , TH.tt "Arrow" [] "'->'" [|"'->'"|]
+    , TH.tt "Hash" [] "'#'" [|"'#'"|]
+    , TH.tt "At" [] "'@'" [|"'@'"|]
+    , TH.tt "Question" [] "'?'" [|"'?'"|]
+    , TH.tt "Backslash" [] "'\\'" [|"'\\'"|]
+    , TH.tt "DoubleColon" [] "'::'" [|"'::'"|]
+    , TH.tt "Caret" [] "'^'" [|"'^'"|] -- TODO: implement lexing for this and remove this eventually
+    , TH.tt "Backtick" [] "'`'" [|"'`'"|] -- TODO: implement lexing for this
+    , TH.tt "Underscore" [] "'_'" [|"'_'"|]
+    , TH.tt "Root" [] "'root'" [|"'root'"|]
+    , TH.tt "Let" [] "'let'" [|"'let'"|]
+    , TH.tt "LetRec" [] "'letrec'" [|"'letrec'"|]
+    , TH.tt "TypeSyn" [] "'typesyn'" [|"'typesyn'"|]
+    , TH.tt "Data" [] "'data'" [|"'data'"|]
+    , TH.tt "Impl" [] "'impl'" [|"'impl'"|]
+    , TH.tt "If" [] "'if'" [|"'if'"|]
+    , TH.tt "Then" [] "'then'" [|"'then'"|]
+    , TH.tt "Else" [] "'else'" [|"'else'"|]
+    , TH.tt "Match" [] "'match'" [|"'match'"|]
+    , TH.tt "EOF" [] "end of file" [|"end of file"|]
+    ]
+ )
 
 type LToken = Located Token
-type LInternalToken = Located InternalToken
 
-type InternalToken = BaseToken Text Void Char Text IntBase Integer Rational Bool
-type Token = BaseToken Text () Char Text IntBase Integer Rational Bool
-type TokenType = BaseToken () () () () () () () ()
-
-data SingleTypeToken
-    = OParen
-    | CParen
-    | OBrack
-    | CBrack
-    | Comma
-    | Equal
-    | Colon
-    | Arrow
-    | Hash
-    | At
-    | Question
-    | Backslash
-
-    | DoubleColon
-
-    | Underscore
-    | Root
-    | Let
-    | LetRec
-    | TypeSyn
-    | Data
-    | Impl
-    | If
-    | Then
-    | Else
-    | Match
-
-    | OBrace
-    | CBrace
-    | Semicolon
-    deriving (Show, Eq, Generic, EqIgnoringSpans)
-
-data BaseToken identifier eof char_lit_data string_lit_data intlit_base int_lit_data float_lit_data bool_lit_data
-    = SingleTypeToken SingleTypeToken
-
-    | Char char_lit_data
-    | String string_lit_data
-    | Int intlit_base int_lit_data
-    | Float float_lit_data
-    | Bool bool_lit_data
-
-    | SymbolIdentifier identifier
-    | AlphaIdentifier identifier
-
-    | EOF eof
-    deriving (Show, Eq, Generic, EqIgnoringSpans)
-
-instance Format SingleTypeToken where
-    format OParen = "'('"
-    format CParen = "')'"
-    format OBrack = "'['"
-    format CBrack = "']'"
-    format Comma = "','"
-    format Equal = "'='"
-    format Colon = "':'"
-    format Arrow = "'->'"
-    format Hash = "'#'"
-    format DoubleColon = "'::'"
-    format At = "'@'"
-    format Question = "'?'"
-    format Backslash = "'\\'"
-
-    format Underscore = "'_'"
-    format Root = "'root'"
-    format Let = "'let'"
-    format LetRec = "'letrec'"
-    format TypeSyn = "'typesyn'"
-    format Data = "'data'"
-    format Impl = "'impl'"
-    format If = "'if'"
-    format Then = "'then'"
-    format Else = "'else'"
-    format Match = "'match'"
-
-    format OBrace = "'{'"
-    format CBrace = "'}'"
-    format Semicolon = "';'"
-
-instance Format TokenType where
-    format (SingleTypeToken s) = format s
-
-    format (Char ()) = "character literal"
-    format (String ()) = "string literal"
-    format (Int () ()) = "integer literal"
-    format (Float ()) = "floating point literal"
-    format (Bool ()) = "bool literal"
-
-    format (SymbolIdentifier ()) = "symbol identifier"
-    format (AlphaIdentifier ()) = "alphabetic identifier"
-
-    format (EOF ()) = "end of file"
-
-instance Format Token where
-    format (SingleTypeToken s) = format s
-
-    format (Char c) = "'" <> convert_str [c] <> "'"
-    format (String s) = "'\"" <> convert_str s <> "\"'"
-    format (Int _ i) = "'" <> show i <> "'"
-    format (Float f) = "'" <> show f <> "'"
-    format (Bool b) = "'" <> if b then "true" else "false" <> "'"
-
-    format (SymbolIdentifier i) = convert_str $ "symbol identifier '" <> i <> "'"
-    format (AlphaIdentifier i) = convert_str $ "alphabetic identifier '" <> i <> "'"
-
-    format (EOF ()) = "end of file"
-
-to_token_type :: BaseToken identifier eof char_lit_data string_lit_data intlit_base int_lit_data float_lit_data bool_lit_data -> TokenType
-to_token_type (SingleTypeToken stt) = SingleTypeToken stt
-
-to_token_type (Char _) = Char ()
-to_token_type (String _) = String ()
-to_token_type (Int _ _) = Int () ()
-to_token_type (Float _) = Float ()
-to_token_type (Bool _) = Bool ()
-
-to_token_type (SymbolIdentifier _) = SymbolIdentifier ()
-to_token_type (AlphaIdentifier _) = AlphaIdentifier ()
-
-to_token_type (EOF _) = EOF ()
+is_tt :: TokenType -> Token -> UHF.Prelude.Bool
+is_tt ty tok = ty == to_token_type tok

@@ -1,507 +1,370 @@
 {-# LANGUAGE TemplateHaskell #-}
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-} -- TODO: remove this
+{-# OPTIONS_GHC -ddump-splices -ddump-to-file -fshow-error-context #-}
 
 module UHF.Parts.Parser
     ( parse
-
     , Error.Error
-
-    , tests
-   ) where
+    ) where
 
 import UHF.Prelude
 
 import qualified Data.InfList as InfList
 
-import UHF.Source.Located (Located (Located))
+import Data.Maybe (maybeToList)
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.AST as AST
+import UHF.Data.Token
 import qualified UHF.Data.Token as Token
-import qualified UHF.Source.Located as Located
 import qualified UHF.Parts.Parser.Error as Error
-import qualified UHF.Parts.Parser.PEG as PEG
--- import qualified UHF.Parts.Parser.Test as Test
+import qualified UHF.Parts.Parser.Generate as Generate
+import UHF.Parts.Parser.Grammar
+import UHF.Source.Located (Located (Located))
+import qualified UHF.Source.Located as Located
 
--- TODO: write tests
 -- TODO: improve parser errors
 
--- parse {{{1
-parse :: [Token.LToken] -> Token.LToken -> Compiler.WithDiagnostics (Located [Error.Error]) Void [AST.Decl]
-parse toks eof_tok =
-    case PEG.run_parser parse' (InfList.zip (InfList.iterate (1+) 0) (toks InfList.+++ InfList.repeat eof_tok)) of
-        (_, Just (res, _)) -> pure res
-        (bt_errors, _) ->
-            choose_error bt_errors >>
-            pure []
-    where
-        parse' :: PEG.Parser [AST.Decl]
-        parse' = PEG.star decl >>= \ ds -> PEG.consume' "end of file" (Token.EOF ()) >> pure ds
+$( let unwrap_right :: Show a => Either a b -> b
+       unwrap_right (Left a) = error $ "unwrap_right on Left " ++ show a
+       unwrap_right (Right a) = a
+   in Generate.make_parse_fn
+        "parse'"
+        [t|[AST.Decl]|]
+        ( Generate.generate_table $ unwrap_right $ make_grammar $ do
+            let (.) :: (ToSymbol a, ToSymbol b) => a -> b -> [Symbol]
+                (.) = prod_join
+                infixr 6 .
 
-        -- TODO: remove duplicate clauses
-        choose_error :: [Error.Error] -> Compiler.WithDiagnostics (Located [Error.Error]) Void ()
-        choose_error [] = pure ()
-        choose_error errs =
-            let max_ind = maximum $ map (\ (Error.BadToken ind _ _ _) -> ind) errs -- TODO: make this work
-                latest_errors = filter (\ (Error.BadToken ind _ _ _) -> ind == max_ind) errs
-                (Error.BadToken _ (Located latest_span _) _ _) = head latest_errors
-            in Compiler.tell_error (Located latest_span latest_errors) >> pure ()
--- decl {{{1
-decl :: PEG.Parser AST.Decl
-decl =
-    PEG.choice
-        [ decl_data
-        , decl_typesyn
-        , decl_binding
-        ]
+                empty :: [Symbol]
+                empty = []
 
-decl_data :: PEG.Parser AST.Decl
-decl_data =
-    PEG.consume' "data declaration" (Token.SingleTypeToken Token.Data) >>
-    PEG.consume' "datatype name" (Token.AlphaIdentifier ()) >>= \ (Located name_sp (Token.AlphaIdentifier name)) ->
-    PEG.optional (
-        PEG.consume' "'#'" (Token.SingleTypeToken Token.Hash) >>
-        PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>
-        PEG.delim_star
-            (
-                PEG.consume' "type variable name" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
-                pure (Located iden_sp iden)
-            )
-            (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ vars ->
-        PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>
-        pure vars
-    ) >>= \ type_params ->
-    PEG.consume' "'{'" (Token.SingleTypeToken Token.OBrace) >>
-    PEG.star variant >>= \ variants ->
-    PEG.consume' "'}'" (Token.SingleTypeToken Token.CBrace) >>
-    PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>
-    pure (AST.Decl'Data (Located name_sp name) (fromMaybe [] type_params) variants)
-    where
-        variant =
-            PEG.consume' "variant name" (Token.AlphaIdentifier ()) >>= \ (Located name_sp (Token.AlphaIdentifier name)) ->
-            PEG.choice [anon_variant $ Located name_sp name, named_variant $ Located name_sp name]
+                p |> m = (to_symbol p, m)
+                infix 4 |>
 
-        anon_variant name =
-            PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>
-            PEG.delim_star type_ (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ field_types ->
-            PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>
-            PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>
-            pure (AST.DataVariant'Anon name field_types)
+                -- TODO: memoize these functions?
+                list_star :: Nonterminal -> GrammarMonad Nonterminal
+                list_star Augment = error "cannot make list of augment"
+                list_star thing@(Nonterminal name) = do
+                    thing_ty <- get_nt_ty thing
 
-        named_variant name =
-            PEG.consume' "'{'" (Token.SingleTypeToken Token.OBrace) >>
-            PEG.star (
-                PEG.consume' "field name" (Token.AlphaIdentifier ()) >>= \ (Located field_name_sp (Token.AlphaIdentifier field_name)) ->
-                PEG.consume' "':'" (Token.SingleTypeToken Token.Colon) >>
-                type_ >>= \ field_ty ->
-                PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>
-                pure (Located field_name_sp field_name, field_ty)
-            ) >>= \ fields ->
-            PEG.consume' "'}'" (Token.SingleTypeToken Token.CBrace) >>
-            PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>
-            pure (AST.DataVariant'Named name fields)
+                    thing_list <- nt ("list of " <> name) [t|[$thing_ty]|]
 
-decl_binding :: PEG.Parser AST.Decl
-decl_binding =
-    pattern >>= \ target ->
-    PEG.consume' "'='" (Token.SingleTypeToken Token.Equal) >>= \ (Located eq_sp _) ->
-    expr >>= \ val ->
-    PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>
-    pure (AST.Decl'Value target eq_sp val)
+                    thing_list --> thing_list . thing |> [|\l t -> l ++ [t]|]
+                    thing_list --> empty |> [|[]|]
 
-decl_typesyn :: PEG.Parser AST.Decl
-decl_typesyn =
-    PEG.consume' "type synonym" (Token.SingleTypeToken Token.TypeSyn) >>
-    PEG.consume' "type synonym name" (Token.AlphaIdentifier ()) >>= \ (Located name_sp (Token.AlphaIdentifier name)) ->
-    PEG.consume' "'='" (Token.SingleTypeToken Token.Equal) >>
-    type_ >>= \ ty ->
-    PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>
-    pure (AST.Decl'TypeSyn (Located name_sp name) ty)
--- expr {{{1
--- TODO: fix precedence
-expr :: PEG.Parser AST.Expr
-expr = expr_binary_ops
+                    pure thing_list
 
-expr_binary_ops :: PEG.Parser AST.Expr
-expr_binary_ops =
-    expr_call >>= \ first ->
-    PEG.star (
-        path_or_single_symbol_iden >>= \ op ->
-        expr_call >>= \ second ->
-        pure (op, second)
-    ) >>= \ ops ->
-    if null ops
-        then pure first
-        else pure (AST.Expr'BinaryOps (AST.expr_span first <> AST.expr_span (snd $ last ops)) first ops)
+                list_plus :: Nonterminal -> GrammarMonad Nonterminal
+                list_plus Augment = error "cannot make list of augment"
+                list_plus thing@(Nonterminal name) = do
+                    thing_ty <- get_nt_ty thing
 
-expr_call :: PEG.Parser AST.Expr
-expr_call = expr_primary >>= calls
-    where
-        calls callee =
-            PEG.choice [normal_call callee, type_application callee, pure callee]
+                    thing_list <- nt ("list of " <> name) [t|[$thing_ty]|]
 
-        normal_call callee =
-            PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>
-            PEG.delim_star expr (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ args ->
-            PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ (Located cp_sp _) ->
-            calls (AST.Expr'Call (AST.expr_span callee <> cp_sp) callee args)
+                    thing_list --> thing_list . thing |> [|\l t -> l ++ [t]|]
+                    thing_list --> thing |> [|\t -> [t]|]
 
-        type_application callee =
-            PEG.consume' "'#'" (Token.SingleTypeToken Token.Hash) >>
-            PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>
-            PEG.delim_star type_ (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ args ->
-            PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ (Located cp_sp _) ->
-            calls (AST.Expr'TypeApply (AST.expr_span callee <> cp_sp) callee args)
+                    pure thing_list
 
-expr_primary :: PEG.Parser AST.Expr
-expr_primary =
-    PEG.choice
-        [ expr_parenthesized
+                optional :: Nonterminal -> GrammarMonad Nonterminal
+                optional Augment = error "cannot make optional augment"
+                optional thing@(Nonterminal name) = do
+                    thing_ty <- get_nt_ty thing
 
-        , expr_identifier
-        , expr_hole
-        , expr_char_lit
-        , expr_string_lit
-        , expr_int_lit
-        , expr_float_lit
-        , expr_bool_lit
+                    opt <- nt ("optional " <> name) [t|Maybe $thing_ty|]
 
-        , expr_if
-        , expr_match
+                    opt --> thing |> [|Just|]
+                    opt --> empty |> [|Nothing|]
 
-        , expr_forall
+                    pure opt
 
-        , expr_type_annotation
+                list_sep_allow_trailing :: ToSymbol sep => sep -> Nonterminal -> GrammarMonad Nonterminal
+                list_sep_allow_trailing _ Augment = error "cannot make separated list of augment"
+                list_sep_allow_trailing sep thing@(Nonterminal name) = do
+                    thing_ty <- get_nt_ty thing
 
-        , expr_tuple
-        , expr_lambda
+                    list <- nt ("delimited list of " <> name) [t|[$thing_ty]|]
+                    helper_list <- nt ("delimited list of " <> name <> " helper") [t|[$thing_ty]|]
 
-        , expr_let
-        ]
+                    list --> helper_list |> [|identity|]
+                    list --> helper_list . sep |> [|\l _ -> l|]
+                    list --> empty |> [|[]|]
 
-expr_identifier :: PEG.Parser AST.Expr
-expr_identifier =
-    path_or_single_iden >>= \ (Located sp pi) ->
-    pure (AST.Expr'Identifier sp pi)
+                    helper_list --> helper_list . sep . thing |> [|\l _ t -> l ++ [t]|]
+                    helper_list --> thing |> [|\x -> [x]|]
 
-expr_hole :: PEG.Parser AST.Expr
-expr_hole =
-    PEG.consume' "'?'" (Token.SingleTypeToken Token.Question) >>= \ (Located question_sp _) ->
-    PEG.consume' "identifier" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
-    pure (AST.Expr'Hole (question_sp <> iden_sp) (Located iden_sp iden))
+                    pure list
 
-expr_char_lit :: PEG.Parser AST.Expr
-expr_char_lit =
-    PEG.consume' "character literal" (Token.Char ()) >>= \ (Located sp (Token.Char ch)) ->
-    pure (AST.Expr'Char sp ch)
+            -- TODO: rename all nonterminals
+            decl <- nt "decl" [t|AST.Decl|]
+            decl_list <- list_star decl >>= toplevel
 
-expr_string_lit :: PEG.Parser AST.Expr
-expr_string_lit =
-    PEG.consume' "string literal" (Token.String ()) >>= \ (Located sp (Token.String s)) ->
-    pure (AST.Expr'String sp s)
+            decl_data <- nt "decl_data" [t|AST.Decl|]
 
-expr_int_lit :: PEG.Parser AST.Expr
-expr_int_lit =
-    PEG.consume' "integer literal" (Token.Int () ()) >>= \ (Located sp (Token.Int _ i)) ->
-    pure (AST.Expr'Int sp i)
+            decl_typesyn <- nt "decl_typesyn" [t|AST.Decl|]
+            decl_binding <- nt "decl_binding" [t|AST.Decl|]
 
-expr_float_lit :: PEG.Parser AST.Expr
-expr_float_lit =
-    PEG.consume' "float literal" (Token.Float ()) >>= \ (Located sp (Token.Float f)) ->
-    pure (AST.Expr'Float sp f)
+            type_ <- nt "type" [t|AST.Type|]
+            type_forall <- nt "forall type" [t|AST.Type|]
+            type_function <- nt "function type" [t|AST.Type|]
+            type_apply_or_get <- nt "apply or get type" [t|AST.Type|]
+            type_primary <- nt "primary type" [t|AST.Type|]
 
-expr_bool_lit :: PEG.Parser AST.Expr
-expr_bool_lit =
-    PEG.consume' "bool literal" (Token.Bool ()) >>= \ (Located sp (Token.Bool b)) ->
-    pure (AST.Expr'Bool sp b)
+            expr <- nt "expr" [t|AST.Expr|]
+            expr_toplevel <- nt "toplevel expr" [t|AST.Expr|]
+            expr_forall <- nt "forall expr" [t|AST.Expr|]
+            expr_let <- nt "let expr" [t|AST.Expr|]
+            expr_if <- nt "if expression" [t|AST.Expr|]
+            expr_type_annotation <- nt "type annotation expression" [t|AST.Expr|]
+            expr_lambda <- nt "lambda expression" [t|AST.Expr|]
+            expr_keyword_call <- nt "keyword call expression" [t|AST.Expr|]
+            expr_binary_ops <- nt "binary ops expression" [t|AST.Expr|]
+            expr_call <- nt "call expression" [t|AST.Expr|]
+            expr_primary <- nt "primary expression" [t|AST.Expr|]
+            expr_refer <- nt "identifier expression" [t|AST.Expr|]
+            expr_hole <- nt "hole expression" [t|AST.Expr|]
+            expr_literal <- nt "literal expression" [t|AST.Expr|]
+            expr_match <- nt "match expression" [t|AST.Expr|]
+            expr_tuple <- nt "tuple expression" [t|AST.Expr|]
 
-expr_forall :: PEG.Parser AST.Expr
-expr_forall =
-    PEG.consume' "'#'" (Token.SingleTypeToken Token.Hash) >>= \ (Located sp _) ->
-    PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>
-    PEG.delim_star
-        (
-            PEG.consume' "type variable name" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
-            pure (Located iden_sp iden)
+            operator <- nt "operator" [t|AST.Operator|]
+
+            pattern <- nt "pattern" [t|AST.Pattern|]
+            pattern_anon_variant <- nt "anonymous variant pattern" [t|AST.Pattern|]
+            pattern_alpha_var <- nt "alpha variable pattern" [t|AST.Pattern|]
+            pattern_named <- nt "named pattern" [t|AST.Pattern|] -- TODO: rename this to at-pattern?
+            pattern_named_variant <- nt "named variant pattern" [t|AST.Pattern|]
+            pattern_primary <- nt "primary pattern" [t|AST.Pattern|]
+            pattern_toplevel <- nt "toplevel pattern" [t|AST.Pattern|]
+            pattern_tuple <- nt "tuple pattern" [t|AST.Pattern|]
+            pattern_wild <- nt "wild pattern" [t|AST.Pattern|]
+
+            type_param_list <- nt "type parameter list" [t|[Located Token.AlphaIdentifier]|] -- TODO: rename this?
+            comma_sep_expr_list <- list_sep_allow_trailing TT'Comma expr
+            comma_sep_type_list <- list_sep_allow_trailing TT'Comma type_
+            comma_sep_pattern_list <- list_sep_allow_trailing TT'Comma pattern
+
+            comma_sep_expr_list_at_least_one_comma <- nt "comma separated expression list with at least one comma" [t|[AST.Expr]|]
+            comma_sep_type_list_at_least_one_comma <- nt "comma separated type list with at least one comma" [t|[AST.Type]|]
+            comma_sep_pattern_list_at_least_one_comma <- nt "comma separated pattern list with at least one comma" [t|[AST.Pattern]|]
+
+            -- alpha_iden_path <- nt "alpha identifier path" [t|AST.PathOrSingleIden|] -- TODO: remove this?
+            -- symbol_iden_path <- nt "symbol identifier path" [t|AST.PathOrSingleIden|] -- TODO: remove this?
+            -- keyword_iden_path <- nt "keyword identifier path" [t|AST.PathOrSingleIden|] -- TODO: remove this?
+
+            pattern_named_list_at_least_once <- nt "named pattern list" [t|[AST.Pattern]|]
+
+            decl --> decl_data |> [|identity|]
+            decl --> decl_typesyn |> [|identity|]
+            decl --> decl_binding |> [|identity|]
+
+            do
+                data_variant <- nt "data_variant" [t|AST.DataVariant|]
+                data_variant_list <- list_star data_variant
+
+                do
+                    anon_field <- nt "data declaration anonymous field" [t|AST.Type|]
+                    field_list <- list_star anon_field
+
+                    anon_field --> type_apply_or_get |> [|identity|]
+                    data_variant
+                        --> (TT'AlphaIdentifier . field_list . TT'Semicolon)
+                        |> [|\name fields _ -> AST.DataVariant'Anon name fields|]
+
+                do
+                    named_field <- nt "data declaration named field" [t|(Located Token.AlphaIdentifier, AST.Type)|]
+                    field_list <- list_sep_allow_trailing TT'Comma named_field
+
+                    named_field --> TT'AlphaIdentifier . TT'Colon . type_ |> [|\a _ t -> (a, t)|]
+                    data_variant
+                        --> (TT'AlphaIdentifier . TT'OBrace . field_list . TT'CBrace . TT'Semicolon)
+                        |> [|\name _ fields _ _ -> AST.DataVariant'Named name fields|]
+
+                decl_data
+                    --> (TT'Data . TT'AlphaIdentifier . type_param_list . TT'OBrace . data_variant_list . TT'CBrace . TT'Semicolon)
+                    |> [|\data_ name typarams _ variants _ semi -> AST.Decl'Data (Located.just_span data_ <> Located.just_span semi) name typarams variants|]
+
+            decl_typesyn
+                --> (TT'TypeSyn . TT'AlphaIdentifier . TT'Equal . type_ . TT'Semicolon)
+                |> [|\ts name _ ty semi -> AST.Decl'TypeSyn (Located.just_span ts <> Located.just_span semi) name ty|]
+
+            decl_binding
+                --> (pattern . TT'Equal . expr . TT'Semicolon)
+                |> [|\p eq e semi -> AST.Decl'Value (AST.pattern_span p <> Located.just_span semi) p eq e|]
+
+            expr --> expr_toplevel |> [|identity|]
+
+            expr_toplevel --> expr_forall |> [|identity|]
+            expr_toplevel --> expr_let |> [|identity|]
+            expr_toplevel --> expr_if |> [|identity|]
+            expr_toplevel --> expr_type_annotation |> [|identity|]
+            expr_toplevel --> expr_lambda |> [|identity|]
+            expr_toplevel --> expr_keyword_call |> [|identity|]
+
+            expr_forall --> (TT'Hash . TT'AlphaIdentifier . expr_toplevel) |> [|\(Located h_sp _) tv e -> AST.Expr'Forall (h_sp <> AST.expr_span e) [tv] e|] -- TODO: remove the list around tv
+            expr_let --> (TT'Let . TT'OBrace . decl_list . TT'CBrace . expr_toplevel) |> [|\(Located ls _) _ ds _ e -> AST.Expr'Let (ls <> AST.expr_span e) ds e|]
+            expr_let --> (TT'Let . decl . expr_toplevel) |> [|\(Located ls _) d e -> AST.Expr'Let (ls <> AST.expr_span e) [d] e|]
+            expr_let
+                --> (TT'LetRec . TT'OBrace . decl_list . TT'CBrace . expr_toplevel)
+                |> [|\(Located ls _) _ ds _ e -> AST.Expr'LetRec (ls <> AST.expr_span e) ds e|]
+            expr_let --> (TT'LetRec . decl . expr_toplevel) |> [|\(Located ls _) d e -> AST.Expr'LetRec (ls <> AST.expr_span e) [d] e|]
+            expr_type_annotation
+                --> (TT'Colon . type_ . TT'Colon . expr_toplevel)
+                |> [|\(Located cs _) t _ e -> AST.Expr'TypeAnnotation (cs <> AST.expr_span e) t e|]
+            expr_if
+                --> (TT'If . expr_toplevel . TT'Then . expr_toplevel . TT'Else . expr_toplevel)
+                |> [|\if_ c _ t _ f -> AST.Expr'If (Located.just_span if_ <> AST.expr_span f) if_ c t f|]
+            expr_lambda
+                --> (TT'Backslash . pattern_named_list_at_least_once . TT'Arrow . expr_toplevel)
+                |> [|\(Located bs_sp _) pats _ e -> AST.Expr'Lambda (bs_sp <> AST.expr_span e) pats e|]
+
+            do
+                kw_iden_path <- nt "keyword identifier path" [t|AST.KeywordRef|]
+                kw_iden_paths <- nt "keyword identifer paths" [t|[AST.KeywordRef]|]
+                optional_kw_iden_paths <- optional kw_iden_paths
+
+                kw_iden_path --> (TT'Caret . TT'KeywordIdentifier) |> [|\_ ki -> AST.KeywordRef'Single ki|]
+                kw_iden_path --> (TT'Caret . type_primary . TT'DoubleColon . TT'KeywordIdentifier) |> [|\_ t _ ki -> AST.KeywordRef'Path t ki|]
+                kw_iden_paths --> (kw_iden_path . kw_iden_paths) |> [|\a b -> a : b|]
+                kw_iden_paths --> kw_iden_path |> [|\a -> [a]|]
+
+                kw_call_middle <- nt "middle of keyword call" [t|(AST.Expr, [([AST.KeywordRef], AST.Expr)])|]
+                kw_call_middle
+                    --> (kw_call_middle . kw_iden_paths . expr_binary_ops)
+                    |> [|\(first_arg, prev_args) paths arg -> (first_arg, prev_args ++ [(paths, arg)])|]
+                kw_call_middle --> expr_binary_ops |> [|\e -> (e, [])|]
+
+                expr_keyword_call --> (kw_iden_paths . kw_call_middle . optional_kw_iden_paths) |> [|\first_paths args more_path -> todo|]
+
+            expr_keyword_call --> expr_binary_ops |> [|identity|]
+
+            do
+                expr_binary_ops_helper <- nt "binary ops expression helper" [t|(AST.Expr, [(AST.Operator, AST.Expr)])|]
+
+                expr_binary_ops
+                    --> expr_binary_ops_helper
+                    |> [|\(first, more) -> if null more then first else AST.Expr'BinaryOps (AST.expr_span first <> AST.expr_span (snd $ last more)) first more|]
+
+                expr_binary_ops_helper
+                    --> (expr_call . operator . expr_binary_ops_helper)
+                    |> [|\left operator (first_of_more, more) -> (left, (operator, first_of_more) : more)|]
+                expr_binary_ops_helper --> expr_call |> [|\call -> (call, [])|]
+
+                -- TODO: operator --> TT'Backtick . alpha_iden_path . TT'Backtick |> [|todo|]
+                operator --> TT'SymbolIdentifier |> [|AST.Operator'Single|]
+                operator
+                    --> (TT'Backtick . type_primary . TT'DoubleColon . TT'SymbolIdentifier)
+                    |> [|\(Located backtick_sp _) t _ s -> AST.Operator'Path (backtick_sp <> Located.just_span s) t s|]
+
+            expr_call --> expr_primary |> [|identity|]
+            expr_call --> (expr_call . expr_primary) |> [|\c a -> AST.Expr'Call (AST.expr_span c <> AST.expr_span a) c [a]|] -- TODO: remove the list around a
+            expr_call --> (expr_call . TT'Hash . type_primary) |> [|\c _ t -> AST.Expr'TypeApply (AST.expr_span c <> AST.type_span t) c [t]|] -- TODO: remove the list around t
+            expr_primary --> expr_refer |> [|identity|]
+            expr_primary --> expr_hole |> [|identity|]
+            expr_primary --> expr_literal |> [|identity|]
+            expr_primary --> expr_match |> [|identity|]
+            expr_primary --> expr_tuple |> [|identity|]
+            expr_primary --> TT'OParen . expr_toplevel . TT'CParen |> [|\_ e _ -> e|] -- TODO: change span of this?
+            expr_refer --> TT'AlphaIdentifier |> [|\a@(Located a_sp _) -> AST.Expr'ReferAlpha a_sp Nothing a|]
+            expr_refer
+                --> (TT'OBrack . TT'OBrack . type_ . TT'CBrack . TT'CBrack . TT'DoubleColon . TT'AlphaIdentifier)
+                |> [|\(Located obrack1_sp _) _ t _ _ _ a -> AST.Expr'ReferAlpha (obrack1_sp <> Located.just_span a) (Just t) a|]
+            expr_hole --> (TT'Question . TT'AlphaIdentifier) |> [|\(Located q_span _) i@(Located i_span _) -> AST.Expr'Hole (q_span <> i_span) i|]
+            expr_literal --> (TT'Char) |> [|\(Located sp (Token.Char c)) -> AST.Expr'Char sp c|]
+            expr_literal --> (TT'String) |> [|\(Located sp (Token.String s)) -> AST.Expr'String sp s|]
+            expr_literal --> (TT'Int) |> [|\(Located sp (Token.Int _ i)) -> AST.Expr'Int sp i|]
+            expr_literal --> (TT'Float) |> [|\(Located sp (Token.Float f)) -> AST.Expr'Float sp f|]
+            expr_literal --> (TT'Bool) |> [|\(Located sp (Token.Bool b)) -> AST.Expr'Bool sp b|]
+            expr_tuple
+                --> (TT'OParen . comma_sep_expr_list_at_least_one_comma . TT'CParen)
+                |> [|\(Located o_sp _) parts (Located c_sp _) -> AST.Expr'Tuple (o_sp <> c_sp) parts|]
+            do
+                match_arm <- nt "match arm" [t|(AST.Pattern, AST.Expr)|]
+                match_arm_list <- list_star match_arm
+                match_arm --> (pattern . TT'Arrow . expr . TT'Semicolon) |> [|\p _ e _ -> (p, e)|]
+                expr_match
+                    --> (TT'Match . expr . TT'OBrace . match_arm_list . TT'CBrace)
+                    |> [|\match scr _ arms (Located c_sp _) -> AST.Expr'Match (Located.just_span match <> c_sp) match scr arms|]
+
+            type_ --> type_forall |> [|identity|]
+            type_forall --> type_function |> [|identity|]
+            type_forall --> TT'Hash . TT'AlphaIdentifier . type_forall |> [|\(Located h_sp _) iden t -> AST.Type'Forall (h_sp <> AST.type_span t) [iden] t|] -- TODO: remove this list around iden
+            type_function --> type_apply_or_get . TT'Arrow . type_function |> [|\a _ b -> AST.Type'Function (AST.type_span a <> AST.type_span b) a b|]
+            type_function --> type_apply_or_get |> [|identity|]
+            type_apply_or_get --> type_primary |> [|identity|]
+            type_apply_or_get --> type_apply_or_get . TT'Hash . type_primary |> [|\a _ b -> AST.Type'Apply (AST.type_span a <> AST.type_span b) a [b]|] -- TODO: remove the list around b
+            type_apply_or_get
+                --> type_apply_or_get
+                . TT'DoubleColon
+                . TT'AlphaIdentifier
+                |> [|\t _ i@(Located i_sp _) -> AST.Type'Get (AST.type_span t <> i_sp) t i|]
+            type_primary --> TT'OParen . type_ . TT'CParen |> [|\_ t _ -> t|] -- TODO: change this span?
+            type_primary --> TT'AlphaIdentifier |> [|AST.Type'Refer|]
+            type_primary --> TT'Underscore |> [|\(Located sp _) -> AST.Type'Wild sp|]
+            type_primary --> TT'Question . TT'AlphaIdentifier |> [|\(Located q_sp _) i@(Located i_sp _) -> AST.Type'Hole (q_sp <> i_sp) i|]
+            type_primary
+                --> (TT'OParen . comma_sep_type_list_at_least_one_comma . TT'CParen)
+                |> [|\(Located o_sp _) parts (Located c_sp _) -> AST.Type'Tuple (o_sp <> c_sp) parts|]
+
+            pattern --> pattern_toplevel |> [|identity|]
+
+            pattern_toplevel --> pattern_anon_variant |> [|identity|]
+            pattern_toplevel --> pattern_named_variant |> [|identity|]
+            pattern_toplevel --> pattern_named |> [|identity|]
+
+            -- TODO: add support for paths in variant names
+            pattern_anon_variant
+                --> (TT'AlphaIdentifier . pattern_named_list_at_least_once)
+                |> [|\v p -> AST.Pattern'AnonADTVariant (Located.just_span v <> lastDef (Located.just_span v) (AST.pattern_span <$> p)) Nothing v p|]
+            do
+                field_pattern <- nt "named variant pattern field" [t|(Located Token.AlphaIdentifier, AST.Pattern)|]
+                field_pattern --> (TT'AlphaIdentifier . TT'Equal . pattern) |> [|\i _ p -> (i, p)|]
+                field_list <- list_sep_allow_trailing TT'Comma field_pattern
+
+                -- TODO: add support for paths in variant names
+                pattern_named_variant
+                    --> (TT'AlphaIdentifier . TT'OBrace . field_list . TT'CBrace)
+                    |> [|\v _ p (Located cb_sp _) -> AST.Pattern'NamedADTVariant (Located.just_span v <> cb_sp) Nothing v p|]
+
+            pattern_named
+                --> (TT'AlphaIdentifier . TT'At . pattern_named)
+                |> [|\name at n -> AST.Pattern'NamedAlpha (Located.just_span name <> AST.pattern_span n) name at n|]
+            pattern_named --> pattern_primary |> [|identity|]
+
+            pattern_primary --> pattern_alpha_var |> [|identity|]
+            pattern_primary --> pattern_wild |> [|identity|]
+            pattern_primary --> (TT'OParen . pattern . TT'CParen) |> [|\_ a _ -> a|] -- TODO: change this span?
+            pattern_primary --> pattern_tuple |> [|identity|]
+            pattern_alpha_var --> TT'AlphaIdentifier |> [|AST.Pattern'AlphaVar|]
+            pattern_wild --> TT'Underscore |> [|AST.Pattern'Wildcard|]
+            pattern_tuple
+                --> (TT'OParen . comma_sep_pattern_list_at_least_one_comma . TT'CParen)
+                |> [|\(Located o_sp _) parts (Located c_sp _) -> AST.Pattern'Tuple (o_sp <> c_sp) parts|]
+
+            -- TODO: remove this? this is only kept because it might be used in fixing issue #30
+            -- alpha_iden_path --> TT'AlphaIdentifier |> [|AST.PathOrSingleIden'Single|]
+            -- alpha_iden_path --> TT'Root |> [|_|] TODO
+            -- alpha_iden_path --> (alpha_iden_path . TT'DoubleColon . TT'AlphaIdentifier) |> [|todo|]
+            -- alpha_iden_path --> (alpha_iden_path . TT'DoubleColon . TT'Hash . type_primary) |> [|todo|]
+            -- alpha_iden_path --> (TT'OBrack . TT'OBrack . type_ . TT'CBrack . TT'CBrack . TT'DoubleColon . TT'AlphaIdentifier) |> [|todo|]
+
+            type_param_list --> (type_param_list . TT'Hash . TT'AlphaIdentifier) |> [|\last _ i -> last ++ [i]|]
+            type_param_list --> empty |> [|[]|]
+
+            pattern_named_list_at_least_once --> (pattern_named_list_at_least_once . pattern_named) |> [|\ps p -> ps ++ [p]|]
+            pattern_named_list_at_least_once --> pattern_named |> [|\p -> [p]|]
+
+            comma_sep_expr_list_at_least_one_comma --> (expr . TT'Comma . comma_sep_expr_list) |> [|\e _ more -> e : more|]
+            comma_sep_type_list_at_least_one_comma --> (type_ . TT'Comma . comma_sep_type_list) |> [|\t _ more -> t : more|]
+            comma_sep_pattern_list_at_least_one_comma --> (pattern . TT'Comma . comma_sep_pattern_list) |> [|\p _ more -> p : more|]
+
+            pure ()
         )
-        (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ tys ->
-    PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>
-    expr >>= \ e ->
-    pure (AST.Expr'Forall (sp <> AST.expr_span e) tys e)
+ )
 
-expr_parenthesized :: PEG.Parser AST.Expr
-expr_parenthesized =
-    PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ (Located _ _) ->
-    expr >>= \ e ->
-    PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ (Located _ _) ->
-    pure e
-
-expr_tuple :: PEG.Parser AST.Expr
-expr_tuple =
-    PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ (Located o_sp _) ->
-    PEG.delim_star expr (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ items ->
-    PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ (Located c_sp _) ->
-    pure (AST.Expr'Tuple (o_sp <> c_sp) items)
-
-expr_lambda :: PEG.Parser AST.Expr
-expr_lambda =
-    PEG.consume' "'\\'" (Token.SingleTypeToken Token.Backslash) >>= \ (Located backslash_sp _) ->
-    PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>
-    PEG.delim_star pattern (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ params ->
-    PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>
-    PEG.consume' "'->'" (Token.SingleTypeToken Token.Arrow) >>
-    expr >>= \ body ->
-    pure (AST.Expr'Lambda (backslash_sp <> AST.expr_span body) params body)
-
-expr_let :: PEG.Parser AST.Expr
-expr_let =
-    PEG.choice
-        [ PEG.consume' "'let'" (Token.SingleTypeToken Token.Let)
-        , PEG.consume' "'letrec'" (Token.SingleTypeToken Token.LetRec)
-        ] >>= \ let_tok ->
-    PEG.choice
-        [ (:[]) <$> decl
-        , PEG.consume' "'{'" (Token.SingleTypeToken Token.OBrace) >>
-            PEG.star decl >>= \ decls ->
-            PEG.consume' "'}'" (Token.SingleTypeToken Token.CBrace) >>
-            pure decls
-        ] >>= \ decls ->
-    -- TODO: 'in'?
-    expr >>= \ subexpr ->
-    case Located.unlocate let_tok of
-        Token.SingleTypeToken Token.Let -> pure $ AST.Expr'Let (Located.just_span let_tok <> AST.expr_span subexpr) decls subexpr
-        Token.SingleTypeToken Token.LetRec -> pure $ AST.Expr'LetRec (Located.just_span let_tok <> AST.expr_span subexpr) decls subexpr
-        _ -> unreachable
-
-expr_if :: PEG.Parser AST.Expr
-expr_if =
-    PEG.consume' "'if'" (Token.SingleTypeToken Token.If) >>= \ (Located if_sp _) ->
-    expr >>= \ cond ->
-    PEG.consume' "'then'" (Token.SingleTypeToken Token.Then) >>
-    expr >>= \ true_choice ->
-    PEG.consume' "'else'" (Token.SingleTypeToken Token.Else) >>
-    expr >>= \ false_choice ->
-    pure (AST.Expr'If (if_sp <> AST.expr_span false_choice) if_sp cond true_choice false_choice)
-
-expr_match :: PEG.Parser AST.Expr
-expr_match =
-    PEG.consume' "match" (Token.SingleTypeToken Token.Match) >>= \ (Located match_sp _) ->
-    expr >>= \ e ->
-    PEG.consume' "'{'" (Token.SingleTypeToken Token.OBrace) >>
-    PEG.star (
-        pattern >>= \ pat ->
-        PEG.consume' "'->'" (Token.SingleTypeToken Token.Arrow) >>
-        expr >>= \ choice ->
-        PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>
-        pure (pat, choice)
-    ) >>= \ arms ->
-    PEG.consume' "'}'" (Token.SingleTypeToken Token.CBrace) >>= \ (Located cb_sp _) ->
-    pure (AST.Expr'Match (match_sp <> cb_sp) match_sp e arms)
-
-expr_type_annotation :: PEG.Parser AST.Expr
-expr_type_annotation =
-    PEG.consume' "':'" (Token.SingleTypeToken Token.Colon) >>= \ (Located colon_sp _) ->
-    type_ >>= \ ty ->
-    PEG.consume' "':'" (Token.SingleTypeToken Token.Colon) >>
-    expr >>= \ e ->
-    pure (AST.Expr'TypeAnnotation (colon_sp <> AST.expr_span e) ty e)
--- type {{{1
-type_ :: PEG.Parser AST.Type
-type_ = type_forall
-
-type_forall :: PEG.Parser AST.Type
-type_forall = PEG.choice [forall_, type_function]
-    where
-        forall_ =
-            PEG.consume' "'#'" (Token.SingleTypeToken Token.Hash) >>= \ (Located hash_sp _) ->
-            PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>
-            PEG.delim_star (PEG.consume' "type variable" (Token.AlphaIdentifier ()) >>= \ (Located sp (Token.AlphaIdentifier a)) -> pure (Located sp a)) (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ vars ->
-            PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>
-            type_forall >>= \ subty ->
-            pure (AST.Type'Forall (hash_sp <> AST.type_span subty) vars subty)
-
-type_function :: PEG.Parser AST.Type
-type_function = type_apply >>= m_function
-    where
-        m_function first = PEG.choice [function first, pure first]
-        function arg =
-            PEG.consume' "'->'" (Token.SingleTypeToken Token.Arrow) >>
-            type_function >>= \ res ->
-            pure (AST.Type'Function (AST.type_span arg <> AST.type_span res) arg res)
-
-type_apply :: PEG.Parser AST.Type
-type_apply = type_primary >>= m_applys
-    where
-        m_applys base = PEG.choice [applys base, get base, pure base]
-        applys base =
-            PEG.consume' "'#'" (Token.SingleTypeToken Token.Hash) >>
-            PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>
-            PEG.delim_star type_ (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ tys ->
-            PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ (Located cp_sp _) ->
-            m_applys (AST.Type'Apply (AST.type_span base <> cp_sp) base tys)
-        get base =
-            PEG.consume' "'::'" (Token.SingleTypeToken Token.DoubleColon) >>
-            PEG.consume' "identifier" (Token.AlphaIdentifier ()) >>= \ (Located next_sp (Token.AlphaIdentifier next)) ->
-            m_applys (AST.Type'Get (AST.type_span base <> next_sp) base (Located next_sp next))
-
-type_primary :: PEG.Parser AST.Type
-type_primary = PEG.choice [type_parenthesized, type_refer, type_wild, type_hole, type_tuple]
-
-type_refer :: PEG.Parser AST.Type
-type_refer =
-    PEG.consume' "type" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
-    pure (AST.Type'Refer (Located iden_sp iden))
-
-type_wild :: PEG.Parser AST.Type
-type_wild =
-    PEG.consume' "'_'" (Token.SingleTypeToken Token.Underscore) >>= \ (Located sp _) ->
-    pure (AST.Type'Wild sp)
-
-type_hole :: PEG.Parser AST.Type
-type_hole =
-    PEG.consume' "'?'" (Token.SingleTypeToken Token.Question) >>= \ (Located question_sp _) ->
-    PEG.consume' "identifier" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
-    pure (AST.Type'Hole (question_sp <> iden_sp) (Located iden_sp iden))
-
-type_parenthesized :: PEG.Parser AST.Type
-type_parenthesized =
-    PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>
-    type_ >>= \ ty ->
-    PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>
-    pure ty
-
-type_tuple :: PEG.Parser AST.Type
-type_tuple =
-    PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ (Located op_sp _) ->
-    PEG.delim_star type_ (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ field_types ->
-    PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ (Located cp_sp _) ->
-    pure (AST.Type'Tuple (op_sp <> cp_sp) field_types)
--- pattern {{{1
-pattern :: PEG.Parser AST.Pattern
-pattern = PEG.choice [pattern_tuple, pattern_named, pattern_anon_variant, pattern_named_variant, pattern_iden, pattern_wild]
-
-pattern_iden :: PEG.Parser AST.Pattern
-pattern_iden =
-    PEG.consume' "pattern" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
-    pure (AST.Pattern'Identifier (Located iden_sp iden))
-
-pattern_anon_variant :: PEG.Parser AST.Pattern
-pattern_anon_variant =
-    path_or_single_iden >>= \ (Located variant_sp variant) ->
-    PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>
-    PEG.delim_star pattern (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ fields ->
-    PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ (Located cp_sp _) ->
-    pure (AST.Pattern'AnonADTVariant (variant_sp <> cp_sp) variant fields)
-
-pattern_named_variant :: PEG.Parser AST.Pattern
-pattern_named_variant =
-    path_or_single_iden >>= \ (Located variant_sp variant) ->
-    PEG.consume' "'{'" (Token.SingleTypeToken Token.OBrace) >>
-    PEG.star (
-        PEG.consume' "field name" (Token.AlphaIdentifier ()) >>= \ (Located field_name_sp (Token.AlphaIdentifier field_name)) ->
-        PEG.consume' "'='" (Token.SingleTypeToken Token.Equal) >>
-        pattern >>= \ field_ty ->
-        PEG.consume' "';'" (Token.SingleTypeToken Token.Semicolon) >>
-        pure (Located field_name_sp field_name, field_ty)
-    ) >>= \ fields ->
-    PEG.consume' "'}'" (Token.SingleTypeToken Token.CBrace) >>= \ (Located cp_sp _) ->
-    pure (AST.Pattern'NamedADTVariant (variant_sp <> cp_sp) variant fields)
-
-pattern_wild :: PEG.Parser AST.Pattern
-pattern_wild =
-    PEG.consume' "pattern" (Token.SingleTypeToken Token.Underscore) >>= \ (Located sp _) ->
-    pure (AST.Pattern'Wildcard sp)
-
-pattern_tuple :: PEG.Parser AST.Pattern
-pattern_tuple =
-    PEG.consume' "'('" (Token.SingleTypeToken Token.OParen) >>= \ (Located o_sp _) ->
-    PEG.delim_star pattern (PEG.consume' "','" (Token.SingleTypeToken Token.Comma)) >>= \ fields ->
-    PEG.consume' "')'" (Token.SingleTypeToken Token.CParen) >>= \ (Located c_sp _) ->
-    pure (AST.Pattern'Tuple (o_sp <> c_sp) fields)
-
-pattern_named :: PEG.Parser AST.Pattern
-pattern_named =
-    PEG.consume' "pattern" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
-    PEG.consume' "'@'" (Token.SingleTypeToken Token.At) >>= \ (Located at_sp _) ->
-    pattern >>= \ more ->
-    pure (AST.Pattern'Named (iden_sp <> AST.pattern_span more) (Located iden_sp iden) at_sp more)
--- utilities {{{1
-path_or_single_iden :: PEG.Parser (Located AST.PathOrSingleIden)
-path_or_single_iden = PEG.choice [path, single_iden]
-    where
-        -- a hack to make paths work: let the type parse the path and then afterwards, pick out the topmost Get portion and turn that into a AST.PathOrSingleIden'Path node
-        path = do
-            ty <- type_
-            case ty of
-                AST.Type'Get whole_span ty (Located next_sp next) ->
-                    pure (Located whole_span (AST.PathOrSingleIden'Path ty (Located next_sp next)))
-                _ -> PEG.fail (Error.NotAPath (AST.type_span ty))
-        single_iden =
-            PEG.consume' "identifier" (Token.AlphaIdentifier ()) >>= \ (Located iden_sp (Token.AlphaIdentifier iden)) ->
-            pure (Located iden_sp (AST.PathOrSingleIden'Single (Located iden_sp iden)))
-
-path_or_single_symbol_iden :: PEG.Parser (Located AST.PathOrSingleIden)
-path_or_single_symbol_iden = PEG.choice [path, single_iden]
-    where
-        -- this does not need the hack from above because ::<symbol identifier> wont be consumed by type_
-        path =
-            type_ >>= \ ty ->
-            PEG.consume' "'::'" (Token.SingleTypeToken Token.DoubleColon) >>
-            PEG.consume' "symbol identifier" (Token.SymbolIdentifier ()) >>= \ (Located next_sp (Token.SymbolIdentifier next)) ->
-            pure (Located (AST.type_span ty <> next_sp) (AST.PathOrSingleIden'Path ty (Located next_sp next)))
-        single_iden =
-            PEG.consume' "operator" (Token.SymbolIdentifier ()) >>= \ (Located iden_sp (Token.SymbolIdentifier iden)) ->
-            pure (Located iden_sp (AST.PathOrSingleIden'Single (Located iden_sp iden)))
-
--- tests {{{1
-{- TODO
--- test_decls :: [TestTree]
--- test_decls = map Test.run_test $
-    let dsp = Span.dummy
-        l = Located.dummy_locate
-        iden1 t = [l t]
-        liden1 = l . iden1
-        alpha_iden1 = Token.AlphaIdentifier . iden1
-        stt = Token.SingleTypeToken
-    in
-    [ Test.ParsingTest "binding"
-        (Test.make_token_stream [(alpha_iden1 "x"), (stt Token.Equal), (Token.Char 'c')])
-        (AST.Decl'Value (AST.Pattern'Identifier (liden1 "x")) dsp (AST.Expr'Char dsp 'c'))
-        [("decl", decl), ("decl_binding", decl_binding)]
-
-    , Test.ParsingTest "type synonym"
-        (Test.make_token_stream [stt Token.Type, alpha_iden1 "Syn", stt Token.Equal, alpha_iden1 "OtherType"])
-        (AST.Decl'TypeSyn (liden1 "Syn") (AST.Type'Identifier $ liden1 "OtherType"))
-        [("decl", decl), ("decl_typesyn", decl_typesyn)]
-
-    , Test.ParsingTest "data decl"
-        (Test.make_token_stream
-            [ (stt Token.Data), (alpha_iden1 "Thingy"), (stt Token.OBrace)
-
-                , (alpha_iden1 "Constr1"), (stt Token.OParen)
-                    , (alpha_iden1 "string"), (stt Token.Comma), (alpha_iden1 "int")
-                , (stt Token.CParen), (stt Token.Semicolon)
-
-                , (alpha_iden1 "Constr2"), (stt Token.OBrace)
-                    , (alpha_iden1 "field1"), (stt Token.Colon), (alpha_iden1 "X"), (stt Token.Semicolon)
-                    , (alpha_iden1 "field2"), (stt Token.Colon), (alpha_iden1 "Y"), (stt Token.Semicolon)
-                , (stt Token.CBrace), (stt Token.Semicolon)
-
-            , (stt Token.CBrace)
-            ])
-
-        (AST.Decl'Data (liden1 "Thingy")
-            [ AST.DataVariant'Anon (liden1 "Constr1")
-                [ AST.Type'Identifier (liden1 "string")
-                , AST.Type'Identifier (liden1 "int")
-                ]
-            , AST.DataVariant'Named (liden1 "Constr2")
-                [ (liden1 "field1", AST.Type'Identifier (liden1 "X"))
-                , (liden1 "field2", AST.Type'Identifier (liden1 "Y"))
-                ]
-            ])
-        [("decl", decl), ("decl_data", decl_data)]
-    ]
--}
-
-tests :: TestTree
-tests = $(testGroupGenerator)
+parse :: [Token.LToken] -> Token.LToken -> Compiler.WithDiagnostics (Error.Error) Void [AST.Decl]
+parse toks eof_tok =
+    case parse' (toks InfList.+++ InfList.repeat eof_tok) of
+        Right ast -> pure ast
+        Left err -> do
+            _ <- Compiler.tell_error err
+            pure []

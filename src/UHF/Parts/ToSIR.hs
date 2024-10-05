@@ -12,6 +12,7 @@ import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
+import qualified UHF.Data.Token as Token
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Util.Arena as Arena
 
@@ -96,18 +97,18 @@ convert_decls var_parent decl_parent decls =
     pure (concat bindings, concat adts, concat type_synonyms)
     where
         convert_decl :: Int -> AST.Decl -> MakeIRState ([Binding], [Type.ADTKey], [Type.TypeSynonymKey])
-        convert_decl ind (AST.Decl'Value target eq_sp expr) =
+        convert_decl ind (AST.Decl'Value _ target (Located eq_sp _) expr) =
             convert_expr (ID.ExprID'InitializerOf decl_parent ind) expr >>= \ expr' ->
             convert_pattern var_parent target >>= \ target' ->
             pure ([SIR.Binding target' eq_sp expr'], [], [])
 
-        convert_decl _ (AST.Decl'Data l_data_name@(Located _ data_name) type_params variants) =
+        convert_decl _ (AST.Decl'Data _ l_data_name@(Located _ data_name) type_params variants) =
             runMaybeT (
-                mapM (lift . new_type_var) type_params >>= \ ty_param_vars ->
+                mapM (lift . new_type_var . fmap convert_aiden_tok) type_params >>= \ ty_param_vars ->
 
-                let adt_id = ID.DeclID decl_parent data_name
+                let adt_id = ID.DeclID decl_parent (convert_aiden_tok data_name)
                 in mapM (convert_variant adt_id) variants >>= \ variants_converted ->
-                let adt = Type.ADT adt_id l_data_name ty_param_vars variants_converted
+                let adt = Type.ADT adt_id (convert_aiden_tok <$> l_data_name) ty_param_vars variants_converted
                 in
 
                 lift (new_adt adt) >>= \ adt_key ->
@@ -117,36 +118,36 @@ convert_decls var_parent decl_parent decls =
                 Just adt_key -> pure ([], [adt_key], [])
                 Nothing -> pure ([], [], [])
 
-        convert_decl _ (AST.Decl'TypeSyn l_name@(Located _ name) expansion) =
+        convert_decl _ (AST.Decl'TypeSyn _ l_name@(Located _ name) expansion) =
             runMaybeT (
                 lift (convert_type expansion) >>= \ expansion' ->
-                lift (new_type_synonym (Type.TypeSynonym (ID.DeclID decl_parent name) l_name (expansion', ())))
+                lift (new_type_synonym (Type.TypeSynonym (ID.DeclID decl_parent (convert_aiden_tok name)) (convert_aiden_tok <$> l_name) (expansion', ())))
             ) >>= \case
                 Just syn_key -> pure ([], [], [syn_key])
                 Nothing -> pure ([], [], [])
 
-        convert_variant adt_id (AST.DataVariant'Anon variant_name fields) =
-            let variant_id = ID.ADTVariantID adt_id (unlocate variant_name)
-            in Type.ADT.Variant'Anon variant_name variant_id
+        convert_variant adt_id (AST.DataVariant'Anon (Located variant_name_sp (Token.AlphaIdentifier variant_name)) fields) =
+            let variant_id = ID.ADTVariantID adt_id variant_name
+            in Type.ADT.Variant'Anon (Located variant_name_sp variant_name) variant_id
                 <$> zipWithM
                     (\ field_idx ty_ast ->
                         lift (convert_type ty_ast) >>= \ ty ->
                         pure (ID.ADTFieldID variant_id (show (field_idx :: Int)), (ty, ())))
                     [0..]
                     fields
-        convert_variant adt_id (AST.DataVariant'Named variant_name fields) =
-            let variant_id = ID.ADTVariantID adt_id (unlocate variant_name)
-            in Type.ADT.Variant'Named variant_name variant_id
+        convert_variant adt_id (AST.DataVariant'Named (Located variant_name_sp (Token.AlphaIdentifier variant_name)) fields) =
+            let variant_id = ID.ADTVariantID adt_id variant_name
+            in Type.ADT.Variant'Named (Located variant_name_sp variant_name) variant_id
             -- TODO: check no duplicate field names
                 <$> mapM
-                    (\ (field_name, ty_ast) ->
+                    (\ ((Located _ (Token.AlphaIdentifier field_name)), ty_ast) ->
                         lift (convert_type ty_ast) >>= \ ty ->
-                        pure (ID.ADTFieldID variant_id (unlocate field_name), unlocate field_name, (ty, ())))
+                        pure (ID.ADTFieldID variant_id field_name, field_name, (ty, ())))
                     fields
 
 convert_type :: AST.Type -> MakeIRState TypeExpr
-convert_type (AST.Type'Refer id) = pure $ SIR.TypeExpr'Refer () (just_span id) id
-convert_type (AST.Type'Get sp prev name) = convert_type prev >>= \ prev -> pure (SIR.TypeExpr'Get () sp prev name)
+convert_type (AST.Type'Refer id) = pure $ SIR.TypeExpr'Refer () (just_span id) (convert_aiden_tok <$> id)
+convert_type (AST.Type'Get sp prev name) = convert_type prev >>= \ prev -> pure (SIR.TypeExpr'Get () sp prev (convert_aiden_tok <$> name))
 convert_type (AST.Type'Tuple sp items) = mapM convert_type items >>= group_items
     where
         -- TODO: better spans for this
@@ -154,10 +155,10 @@ convert_type (AST.Type'Tuple sp items) = mapM convert_type items >>= group_items
         group_items (a:b:more) = SIR.TypeExpr'Tuple () sp a <$> group_items (b:more)
         group_items [_] = tell_error (Tuple1 sp) >> pure (SIR.TypeExpr'Poison () sp)
         group_items [] = tell_error (Tuple0 sp) >> pure (SIR.TypeExpr'Poison () sp)
-convert_type (AST.Type'Hole sp id) = pure $ SIR.TypeExpr'Hole () () sp id
+convert_type (AST.Type'Hole sp id) = pure $ SIR.TypeExpr'Hole () () sp (convert_aiden_tok <$> id)
 convert_type (AST.Type'Function sp arg res) = SIR.TypeExpr'Function () sp <$> convert_type arg <*> convert_type res
 convert_type (AST.Type'Forall sp tys ty) =
-    mapM new_type_var tys >>= \case
+    mapM (new_type_var . fmap convert_aiden_tok) tys >>= \case
         [] -> convert_type ty -- can happen if the user passed none
         tyv1:tyv_more -> SIR.TypeExpr'Forall () sp (tyv1 :| tyv_more) <$> convert_type ty
 
@@ -167,7 +168,7 @@ convert_type (AST.Type'Apply sp ty args) =
 convert_type (AST.Type'Wild sp) = pure $ SIR.TypeExpr'Wild () sp
 
 convert_expr :: ID.ExprID -> AST.Expr -> MakeIRState Expr
-convert_expr cur_id (AST.Expr'Identifier sp iden) = SIR.Expr'Identifier cur_id () sp <$> convert_path_or_single_iden iden <*> pure ()
+convert_expr cur_id (AST.Expr'ReferAlpha sp t iden) = SIR.Expr'Identifier cur_id () sp <$> make_split_identifier t (convert_aiden_tok <$> iden) <*> pure ()
 convert_expr cur_id (AST.Expr'Char sp c) = pure (SIR.Expr'Char cur_id () sp c)
 convert_expr cur_id (AST.Expr'String sp s) = pure (SIR.Expr'String cur_id () sp s)
 convert_expr cur_id (AST.Expr'Int sp i) = pure (SIR.Expr'Int cur_id () sp i)
@@ -203,10 +204,10 @@ convert_expr cur_id (AST.Expr'BinaryOps sp first ops) =
     SIR.Expr'BinaryOps cur_id () () sp
         <$> convert_expr (ID.ExprID'BinaryOperand cur_id 0) first
         <*> zipWithM
-            (\ ind (op, right) ->
-                convert_expr (ID.ExprID'BinaryOperand cur_id ind) right >>= \ right' ->
-                convert_path_or_single_iden (unlocate op) >>= \ op_split_iden ->
-                pure (just_span op, op_split_iden, (), right'))
+            (\ ind (op, right) -> do
+                right' <- convert_expr (ID.ExprID'BinaryOperand cur_id ind) right
+                (op_span, op_split_iden) <- convert_operator op
+                pure (op_span, op_split_iden, (), right'))
             [1..]
             ops
 
@@ -219,8 +220,8 @@ convert_expr cur_id (AST.Expr'Call sp callee args) =
         (ID.ExprID'CallEnclosing cur_id, callee)
         args -- TODO: fix span for this
 
-convert_expr cur_id (AST.Expr'If sp if_sp cond t f) = SIR.Expr'If cur_id () sp if_sp <$> convert_expr (ID.ExprID'IfCond cur_id) cond <*> convert_expr (ID.ExprID'IfTrue cur_id) t <*> convert_expr (ID.ExprID'IfFalse cur_id) f
-convert_expr cur_id (AST.Expr'Match sp match_tok_sp e arms) =
+convert_expr cur_id (AST.Expr'If sp (Located if_sp _) cond t f) = SIR.Expr'If cur_id () sp if_sp <$> convert_expr (ID.ExprID'IfCond cur_id) cond <*> convert_expr (ID.ExprID'IfTrue cur_id) t <*> convert_expr (ID.ExprID'IfFalse cur_id) f
+convert_expr cur_id (AST.Expr'Match sp (Located match_tok_sp _) e arms) =
     convert_expr (ID.ExprID'MatchScrutinee cur_id) e >>= \ e ->
     zipWithM
         (\ ind (pat, choice) ->
@@ -234,7 +235,7 @@ convert_expr cur_id (AST.Expr'Match sp match_tok_sp e arms) =
 
 convert_expr cur_id (AST.Expr'TypeAnnotation sp ty e) = SIR.Expr'TypeAnnotation cur_id () sp <$> ((,()) <$> convert_type ty) <*> convert_expr (ID.ExprID'TypeAnnotationSubject cur_id) e
 convert_expr cur_id (AST.Expr'Forall sp tys e) =
-    mapM new_type_var tys >>= \case
+    mapM (new_type_var . fmap convert_aiden_tok) tys >>= \case
         [] -> convert_expr (ID.ExprID'ForallResult cur_id) e
         tyv1:tyv_more -> SIR.Expr'Forall cur_id () sp (tyv1 :| tyv_more) <$> convert_expr (ID.ExprID'ForallResult cur_id) e
 
@@ -246,13 +247,13 @@ convert_expr cur_id (AST.Expr'TypeApply sp e args) =
             pure (ID.ExprID'TypeApplyOn apply_id, SIR.Expr'TypeApply apply_id () sp e (arg, ())))
         (ID.ExprID'TypeApplyOn cur_id, e)
         args -- TODO: fix span for this
-convert_expr cur_id (AST.Expr'Hole sp hid) = pure (SIR.Expr'Hole cur_id () sp hid)
+convert_expr cur_id (AST.Expr'Hole sp hid) = pure (SIR.Expr'Hole cur_id () sp (convert_aiden_tok <$> hid))
 
 convert_pattern :: ID.VariableParent -> AST.Pattern -> MakeIRState Pattern
-convert_pattern parent (AST.Pattern'Identifier located_name@(Located name_sp name)) =
-    new_variable (SIR.Variable (ID.VariableID parent name) () located_name) >>= \ bn ->
+convert_pattern parent (AST.Pattern'AlphaVar located_name@(Located name_sp (Token.AlphaIdentifier name))) =
+    new_variable (SIR.Variable (ID.VariableID parent name) () (convert_aiden_tok <$> located_name)) >>= \ bn ->
     pure (SIR.Pattern'Identifier () name_sp bn)
-convert_pattern _ (AST.Pattern'Wildcard sp) = pure (SIR.Pattern'Wildcard () sp)
+convert_pattern _ (AST.Pattern'Wildcard (Located underscore_sp _)) = pure (SIR.Pattern'Wildcard () underscore_sp)
 convert_pattern parent (AST.Pattern'Tuple sp subpats) =
     mapM (convert_pattern parent) subpats >>= \ subpats' ->
     go subpats' >>= \ subpats_grouped ->
@@ -262,22 +263,35 @@ convert_pattern parent (AST.Pattern'Tuple sp subpats) =
         go (a:b:more) = SIR.Pattern'Tuple () sp a <$> go (b:more)
         go [_] = tell_error (Tuple1 sp) >> pure (SIR.Pattern'Poison () sp)
         go [] = tell_error (Tuple0 sp) >> pure (SIR.Pattern'Poison () sp)
-convert_pattern parent (AST.Pattern'Named sp located_name@(Located name_sp name) at_sp subpat) =
+convert_pattern parent (AST.Pattern'NamedAlpha sp located_name@(Located name_sp name) (Located at_sp _) subpat) =
     convert_pattern parent subpat >>= \ subpat' ->
-    new_variable (SIR.Variable (ID.VariableID parent name) () located_name) >>= \ bn ->
+    new_variable (SIR.Variable (ID.VariableID parent (convert_aiden_tok name)) () (convert_aiden_tok <$> located_name)) >>= \ bn ->
     pure (SIR.Pattern'Named () sp at_sp (Located name_sp bn) subpat')
-convert_pattern parent (AST.Pattern'AnonADTVariant sp variant fields) =
+convert_pattern parent (AST.Pattern'AnonADTVariant sp v_ty variant fields) =
     mapM (convert_pattern parent) fields >>= \ fields ->
-    convert_path_or_single_iden variant >>= \ variant_split_iden ->
+    make_split_identifier v_ty (convert_aiden_tok <$> variant) >>= \ variant_split_iden ->
     pure (SIR.Pattern'AnonADTVariant () sp variant_split_iden () [] fields)
-convert_pattern parent (AST.Pattern'NamedADTVariant sp variant fields) =
+convert_pattern parent (AST.Pattern'NamedADTVariant sp v_ty variant fields) =
     mapM (\ (field_name, field_pat) ->
             convert_pattern parent field_pat >>= \ field_pat ->
-            pure (field_name, field_pat)
+            pure ((convert_aiden_tok <$> field_name), field_pat)
         ) fields >>= \ fields ->
-    convert_path_or_single_iden variant >>= \ variant_split_iden ->
+    make_split_identifier v_ty (convert_aiden_tok <$> variant) >>= \ variant_split_iden ->
     pure (SIR.Pattern'NamedADTVariant () sp variant_split_iden () [] fields)
 
-convert_path_or_single_iden :: AST.PathOrSingleIden -> MakeIRState (SIR.SplitIdentifier SIRStage (Located Text))
-convert_path_or_single_iden (AST.PathOrSingleIden'Single i) = pure $ SIR.SplitIdentifier'Single i
-convert_path_or_single_iden (AST.PathOrSingleIden'Path ty i) = convert_type ty >>= \ ty -> pure (SIR.SplitIdentifier'Get ty i)
+convert_operator :: AST.Operator -> MakeIRState (Span, SIR.SplitIdentifier SIRStage (Located Text))
+convert_operator (AST.Operator'Path sp t i) = (sp,) <$> make_split_identifier (Just t) (convert_siden_tok <$> i)
+convert_operator (AST.Operator'Single i@(Located sp _)) = (sp,) <$> make_split_identifier Nothing (convert_siden_tok <$> i)
+
+make_split_identifier :: Maybe AST.Type -> Located Text -> MakeIRState (SIR.SplitIdentifier SIRStage (Located Text))
+make_split_identifier Nothing i = pure $ SIR.SplitIdentifier'Single i
+make_split_identifier (Just ty) i = do
+    ty <- convert_type ty
+    pure $ SIR.SplitIdentifier'Get ty i
+
+convert_aiden_tok :: Token.AlphaIdentifier -> Text
+convert_aiden_tok (Token.AlphaIdentifier i) = i
+convert_siden_tok :: Token.SymbolIdentifier -> Text
+convert_siden_tok (Token.SymbolIdentifier i) = i
+convert_kiden_tok :: Token.KeywordIdentifier -> Text
+convert_kiden_tok (Token.KeywordIdentifier i) = i

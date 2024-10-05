@@ -2,34 +2,24 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 module UHF.Parts.Parser.Error
-    ( Error(..)
+    ( Error (..)
     ) where
 
 import UHF.Prelude
 
-import UHF.Source.EqIgnoringSpans
-import UHF.Source.Span (Span)
-import UHF.Source.Located (Located (Located))
+import qualified Data.Text as Text
 import qualified UHF.Data.Token as Token
 import qualified UHF.Diagnostic as Diagnostic
+import UHF.Source.EqIgnoringSpans
+import UHF.Source.Located (Located (Located))
 import qualified UHF.Source.Located as Located
+import UHF.Source.Span (Span)
 
-data Error
-    = BadToken Int Token.LToken Token.TokenType Text
-    | NotAPath Span
-    -- | NoneMatched Token.LToken [Error]
+data Error = BadToken Int [Token.TokenType] Token.LToken
     deriving (Generic, EqIgnoringSpans, Show, Eq)
 
-instance Diagnostic.ToError (Located [Error]) where
-    to_error (Located sp bits) =
-        Diagnostic.Error
-            (Just sp)
-            "parse error" -- TODO
-            (map
-                (\case
-                    BadToken _ tok expectation construct -> Located.just_span tok `Diagnostic.msg_error_at` convert_str (construct <> " expects " <> format expectation <> " but got " <> format (Located.unlocate tok))
-                    NotAPath sp -> sp `Diagnostic.msg_error_at` "not a path"
-                )
-                bits
-            ) -- TODO: make this better
-            []
+instance Diagnostic.ToError Error where
+    to_error (BadToken state_number expected got) =
+        let sp = Located.just_span got
+            msg = "expected one of " <> Text.intercalate ", " (map format expected) <> " but got " <> format (Located.unlocate got)
+        in Diagnostic.Error (Just sp) ("parse error (in state " <> format state_number <> "): " <> msg) [sp `Diagnostic.msg_error_at` msg] [] -- TODO: make message better

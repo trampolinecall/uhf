@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.36.0.
+-- This file has been generated from package.yaml by hpack version 0.37.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -33,6 +33,7 @@ library
       UHF.Data.SIR.PP
       UHF.Data.SIR.Stage
       UHF.Data.Token
+      UHF.Data.Token.TH
       UHF.Diagnostic
       UHF.Diagnostic.Diagnostic
       UHF.Diagnostic.Report
@@ -61,8 +62,8 @@ library
       UHF.Parts.OptimizeANFIR.Utils
       UHF.Parts.Parser
       UHF.Parts.Parser.Error
-      UHF.Parts.Parser.PEG
-      UHF.Parts.Parser.Test
+      UHF.Parts.Parser.Generate
+      UHF.Parts.Parser.Grammar
       UHF.Parts.RemovePoison
       UHF.Parts.ReportHoles
       UHF.Parts.SolveTypes

@@ -9,7 +9,6 @@ module UHF.Parts.Parser
 import UHF.Prelude
 
 import qualified Pipes
-import qualified Pipes.Prelude
 
 import Data.Maybe (maybeToList)
 import qualified UHF.Compiler as Compiler

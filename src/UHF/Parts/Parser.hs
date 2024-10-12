@@ -10,7 +10,6 @@ import UHF.Prelude
 
 import qualified Pipes
 
-import Data.Maybe (maybeToList)
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.AST as AST
 import UHF.Data.Token

@@ -47,7 +47,7 @@ data BackendIR ty poison_allowed
         CU
 
 -- "compilation unit"
-data CU = CU BindingGroup [ADTKey] [TypeSynonymKey]
+data CU = CU { cu_main_function :: Maybe BindingKey, cu_bindings :: BindingGroup, cu_adts :: [ADTKey], cu_type_synonyms :: [TypeSynonymKey] }
 
 data Param ty = Param ID.VariableID ty deriving Show
 

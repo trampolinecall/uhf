@@ -48,7 +48,7 @@ data ANFIR
         CU
 
 -- "compilation unit"
-data CU = CU BindingGroup [ADTKey] [TypeSynonymKey]
+data CU = CU { cu_main_function :: Maybe BindingKey, cu_bindings :: BindingGroup, cu_adts :: [ADTKey], cu_type_synonyms :: [TypeSynonymKey] }
 
 data Param = Param ID.VariableID (Maybe Type.Type) deriving Show
 

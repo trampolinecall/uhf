@@ -31,7 +31,7 @@ type DumpableConstraints stage =
     )
 
 dump_main_module :: DumpableConstraints stage => SIR.SIR stage -> Text
-dump_main_module ir@(SIR.SIR modules _ _ _ _ mod) = PP.render $ runReader (define_module $ Arena.get modules mod) ir
+dump_main_module ir@(SIR.SIR modules _ _ _ _ (SIR.CU root_module _)) = PP.render $ runReader (define_module $ Arena.get modules root_module) ir
 
 get_adt_arena :: IRReader stage (Arena.Arena (Type.ADT (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage)) Type.ADTKey)
 get_adt_arena = reader (\ (SIR.SIR _ adts _ _ _ _) -> adts)

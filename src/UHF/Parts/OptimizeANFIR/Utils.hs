@@ -10,7 +10,7 @@ iterate_over_bindings change (ANFIR.ANFIR adts type_synonyms vars bindings param
     runStateT (do_cu cu) bindings >>= \ ((), bindings) ->
     pure (ANFIR.ANFIR adts type_synonyms vars bindings params cu)
     where
-        do_cu (ANFIR.CU group _ _) = do_group group
+        do_cu (ANFIR.CU _ group _ _) = do_group group
 
         do_group (ANFIR.BindingGroup chunks) = mapM_ do_chunk chunks
 

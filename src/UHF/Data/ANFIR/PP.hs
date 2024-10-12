@@ -40,7 +40,7 @@ dump_cu :: ANFIR.ANFIR -> Text
 dump_cu ir@(ANFIR.ANFIR _ _ _ _ _ cu) = PP.render $ runReader (define_cu cu) ir
 
 define_cu :: ANFIR.CU -> IRReader PP.Token
-define_cu (ANFIR.CU bindings adts type_synonyms) =
+define_cu (ANFIR.CU _ bindings adts type_synonyms) =
     ask >>= \ anfir ->
     get_quant_var_arena >>= \ quant_var_arena ->
     mapM (fmap (Type.PP.define_adt quant_var_arena (\ ty -> runReader (refer_type ty) anfir)) . get_adt) adts >>= \ adts ->

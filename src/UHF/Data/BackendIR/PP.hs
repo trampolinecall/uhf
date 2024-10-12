@@ -42,7 +42,7 @@ dump_cu :: (DumpableType ty) => BackendIR.BackendIR ty poison_allowed -> Text
 dump_cu ir@(BackendIR.BackendIR _ _ _ _ _ cu) = PP.render $ runReader (define_cu cu) ir
 
 define_cu :: (DumpableType ty) => BackendIR.CU -> IRReader ty poison_allowed PP.Token
-define_cu (BackendIR.CU bindings adts type_synonyms) =
+define_cu (BackendIR.CU _ bindings adts type_synonyms) =
     ask >>= \ ir ->
     get_quant_var_arena >>= \ quant_var_arena ->
     mapM (fmap (Type.PP.define_adt quant_var_arena (\ ty -> runReader (refer_type ty) ir)) . get_adt) adts >>= \ adts ->

@@ -72,20 +72,21 @@ data AlmostMatchTree
     = AlmostMatchTree [([ANFIR.MatchClause], Either AlmostMatchTree ([ANFIR.BindingKey], ANFIR.BindingKey))]
 
 convert :: RIR.RIR -> ANFIR
-convert (RIR.RIR modules adts type_synonyms type_vars variables mod) =
-    let (bindings_step_1, params, cu_step_1) = convert_step_1 variables (Arena.get modules mod)
+convert (RIR.RIR modules adts type_synonyms type_vars variables (RIR.CU root_module main_function)) =
+    let (bindings_step_1, params, cu_step_1) = convert_step_1 variables (Arena.get modules root_module) main_function
         (bindings_step_2, cu_step_2) = convert_step_2 bindings_step_1 cu_step_1
     in ANFIR.ANFIR adts type_synonyms type_vars bindings_step_2 params cu_step_2
 
 -- step 1: converting from rir to almost anfir {{{1
-convert_step_1 :: VariableArena -> RIR.Module -> (BindingArena AlmostExpr, ANFIRParamArena, NeedsTopoSort ANFIR.CU)
-convert_step_1 variables mod =
-    let ((cu_needs_deps, var_map), (bindings_needs_var_map, params)) = runReader (IDGen.run_id_gen_t ID.ExprID'ANFIRGen (runStateT (runWriterT (make_cu mod)) (Arena.new, Arena.new))) variables
+convert_step_1 :: VariableArena -> RIR.Module -> Maybe RIR.VariableKey -> (BindingArena AlmostExpr, ANFIRParamArena, NeedsTopoSort ANFIR.CU)
+convert_step_1 variables mod main_function =
+    let ((cu_needs_deps_and_var_map, var_map), (bindings_needs_var_map, params)) = runReader (IDGen.run_id_gen_t ID.ExprID'ANFIRGen (runStateT (runWriterT (make_cu main_function mod)) (Arena.new, Arena.new))) variables
         bindings_needs_deps = Arena.transform ($ var_map) bindings_needs_var_map
+        cu_needs_deps = cu_needs_deps_and_var_map var_map
     in (bindings_needs_deps, params, cu_needs_deps)
 
-make_cu :: RIR.Module -> MakeGraphState (NeedsVarMap AlmostExpr) (NeedsTopoSort ANFIR.CU)
-make_cu (RIR.Module _ bindings adts type_synonyms) = concat <$> mapM convert_binding bindings >>= \ bindings -> pure (make_binding_group bindings >>= \ group -> pure (ANFIR.CU group adts type_synonyms))
+make_cu :: Maybe RIR.VariableKey -> RIR.Module -> MakeGraphState (NeedsVarMap AlmostExpr) (NeedsVarMap (NeedsTopoSort ANFIR.CU))
+make_cu main_function (RIR.Module _ bindings adts type_synonyms) = concat <$> mapM convert_binding bindings >>= \ bindings -> pure (\ var_map -> make_binding_group bindings >>= \ group -> pure (ANFIR.CU ((var_map Map.!) <$> main_function) group adts type_synonyms))
 
 map_variable :: RIR.VariableKey -> ANFIR.BindingKey -> MakeGraphState binding ()
 map_variable k binding = tell $ Map.singleton k binding
@@ -221,7 +222,6 @@ convert_step_2 bindings cu =
     let bindings' = runReader (Arena.transformM (\ x -> ANFIR.Binding <$> convert_almost_expr x) bindings) bindings
         cu' = runReader cu bindings
     in (bindings', cu')
-
 convert_almost_expr :: AlmostExpr -> Reader (BindingArena AlmostExpr) ANFIR.Expr
 convert_almost_expr (AlmostExpr'Refer id ty bk) = pure $ ANFIR.Expr'Refer id ty bk
 convert_almost_expr (AlmostExpr'Intrinsic id ty i) = pure $ ANFIR.Expr'Intrinsic id ty i
@@ -247,19 +247,16 @@ convert_almost_expr (AlmostExpr'Match id ty tree) = ANFIR.Expr'Match id ty <$> c
                         pure (clauses, result)
                     )
                     arms
-
 convert_almost_expr (AlmostExpr'TupleDestructure1 id ty tup) = pure $ ANFIR.Expr'TupleDestructure1 id ty tup
 convert_almost_expr (AlmostExpr'TupleDestructure2 id ty tup) = pure $ ANFIR.Expr'TupleDestructure2 id ty tup
 convert_almost_expr (AlmostExpr'ADTDestructure id ty base field_idx) = pure $ ANFIR.Expr'ADTDestructure id ty base field_idx
 convert_almost_expr (AlmostExpr'Forall id ty qvar bindings result) = ANFIR.Expr'Forall id ty qvar <$> make_binding_group bindings <*> pure result
 convert_almost_expr (AlmostExpr'TypeApply id ty e tyarg) = pure $ ANFIR.Expr'TypeApply id ty e tyarg
 convert_almost_expr (AlmostExpr'Poison id ty) = pure $ ANFIR.Expr'Poison id ty
-
 get_dependencies_of_binding_list_and_expr :: [ANFIR.BindingKey] -> ANFIR.BindingKey -> Reader (BindingArena AlmostExpr) (Set ANFIR.BindingKey)
 get_dependencies_of_binding_list_and_expr bindings e =
     Set.unions <$> mapM get_dependencies_of_almost_expr bindings >>= \ bindings_dependencies ->
     pure ((bindings_dependencies <> [e]) `Set.difference` Set.fromList bindings)
-
 get_dependencies_of_almost_expr :: ANFIR.BindingKey -> Reader (BindingArena AlmostExpr) (Set.Set ANFIR.BindingKey)
 get_dependencies_of_almost_expr bk =
     ask >>= \ binding_arena ->
@@ -285,18 +282,15 @@ get_dependencies_of_almost_expr bk =
                                         & map go_through_clause
                                         & unzip
                                 in
-
                                 (case result of
                                     Left subtree -> go_through_tree subtree
                                     Right (bindings, e) -> get_dependencies_of_binding_list_and_expr bindings e) >>= \ result_dependencies ->
                                 pure ((Set.unions referenced_in_clauses <> result_dependencies) `Set.difference` Set.unions bindings_defined_in_clauses)
                             )
                         <&> Set.unions
-
                 -- first element is bindings referenced, second element is bindings defined
                 go_through_clause (ANFIR.MatchClause'Match binding _) = ([binding], [])
                 go_through_clause (ANFIR.MatchClause'Binding b) = ([], [b])
-
         AlmostExpr'TupleDestructure1 _ _ tup -> pure [tup]
         AlmostExpr'TupleDestructure2 _ _ tup -> pure [tup]
         AlmostExpr'ADTDestructure _ _ base _ -> pure [base]
@@ -304,7 +298,6 @@ get_dependencies_of_almost_expr bk =
         AlmostExpr'TypeApply _ _ e _ -> pure [e]
         AlmostExpr'MakeADT _ _ _ _ args -> pure $ Set.fromList args
         AlmostExpr'Poison _ _ -> pure []
-
 make_binding_group :: [ANFIR.BindingKey] -> Reader (BindingArena AlmostExpr) ANFIRBindingGroup
 make_binding_group bindings =
     Map.fromList <$> mapM (\ b -> (b,) <$> get_dependencies_of_almost_expr b) bindings >>= \ binding_dependencies ->
@@ -319,11 +312,9 @@ make_binding_group bindings =
                     let (loops, not_loop) = find_loops waiting
                     in mapM deal_with_loop loops >>= \ loops ->
                     topological_sort binding_dependencies (done ++ loops) not_loop
-
                 (ready, waiting) -> topological_sort binding_dependencies (done ++ map ANFIR.SingleBinding ready) waiting
             where
                 dependencies_satisfied bk = and $ Set.map (`List.elem` concatMap ANFIR.chunk_bindings done) (binding_dependencies Map.! bk)
-
                 find_loops = find [] []
                     where
                         find loops not_in_loop [] = (loops, not_in_loop)
@@ -343,7 +334,6 @@ make_binding_group bindings =
                                                 mapMaybe
                                                     (\ neighbor -> trace_single_loop (current:visited_stack) neighbor (filter (/=neighbor) unvisited))
                                                     (toList $ Set.filter (`elem` searching_for_loops_in) current_dependencies)
-
                 deal_with_loop loop =
                     ask >>= \ binding_arena ->
                     if all (allowed_in_loop . Arena.get binding_arena) loop

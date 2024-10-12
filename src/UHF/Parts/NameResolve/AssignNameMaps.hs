@@ -41,11 +41,11 @@ type AssignedTypeSynonymArena = Arena.Arena (SIR.TypeSynonym Assigned) Type.Type
 
 -- assign entry point {{{1
 assign :: NameMaps.SIRChildMaps -> SIR.SIR Unassigned -> Error.WithErrors (SIR.SIR Assigned)
-assign sir_child_maps (SIR.SIR mods adts type_synonyms type_vars variables mod) =
+assign sir_child_maps (SIR.SIR mods adts type_synonyms type_vars variables (SIR.CU root_module main_function)) =
     runReaderT (assign_in_mods mods) (adts, variables, type_vars, sir_child_maps) >>= \ (mods, adt_parents, type_synonym_parents) ->
     runReaderT (assign_in_adts adt_parents adts) ((), (), type_vars, sir_child_maps) >>= \ adts ->
     runReaderT (assign_in_type_synonyms type_synonym_parents type_synonyms) ((), (), type_vars, sir_child_maps) >>= \ synonyms ->
-    pure (SIR.SIR mods adts synonyms type_vars (Arena.transform change_variable variables) mod)
+    pure (SIR.SIR mods adts synonyms type_vars (Arena.transform change_variable variables) (SIR.CU root_module main_function))
     where
         change_variable (SIR.Variable varid tyinfo n) = SIR.Variable varid tyinfo n
 

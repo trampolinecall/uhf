@@ -45,11 +45,11 @@ type ResolvedTypeSynonymArena = Arena.Arena ResolvedTypeSynonym Type.TypeSynonym
 
 -- resolve entry point {{{1
 resolve :: NameMaps.SIRChildMaps -> SIR.SIR Unresolved -> Error.WithErrors (SIR.SIR Resolved)
-resolve sir_child_maps (SIR.SIR mods adts type_synonyms type_vars variables mod) =
+resolve sir_child_maps (SIR.SIR mods adts type_synonyms type_vars variables (SIR.CU root_module main_function)) =
     runReaderT (resolve_in_mods mods) (adts, variables, (), sir_child_maps) >>= \ mods ->
     runReaderT (resolve_in_adts adts) ((), (), (), sir_child_maps) >>= \ adts ->
     runReaderT (resolve_in_type_synonyms type_synonyms) ((), (), (), sir_child_maps) >>= \ synonyms ->
-    pure (SIR.SIR mods adts synonyms type_vars (Arena.transform change_variable variables) mod)
+    pure (SIR.SIR mods adts synonyms type_vars (Arena.transform change_variable variables) (SIR.CU root_module main_function))
     where
         change_variable (SIR.Variable varid tyinfo n) = SIR.Variable varid tyinfo n
 
@@ -155,13 +155,11 @@ resolve_in_expr (SIR.Expr'Poison id type_info sp) = pure $ SIR.Expr'Poison id ty
 resolve_split_iden :: SIR.SplitIdentifier Unresolved start -> NRReader.NRReader adt_arena var_arena type_var_arena NameMaps.SIRChildMaps Error.WithErrors (SIR.SplitIdentifier Resolved start)
 resolve_split_iden (SIR.SplitIdentifier'Get texpr next) = resolve_in_type_expr texpr >>= \ texpr -> pure (SIR.SplitIdentifier'Get texpr next)
 resolve_split_iden (SIR.SplitIdentifier'Single start) = pure (SIR.SplitIdentifier'Single start)
-
 -- TODO: remove this?
 resolve_iden_in_monad :: Monad under => (NameMaps.SIRChildMaps -> iden -> under resolved) -> iden -> NRReader.NRReader adt_arena var_arena type_var_arena NameMaps.SIRChildMaps under resolved
 resolve_iden_in_monad f iden =
     NRReader.ask_sir_child_maps >>= \ sir_child_maps ->
     lift (f sir_child_maps iden)
-
 -- TODO: factor out repeated code?
 resolve_expr_iden :: NameMaps.SIRChildMaps -> UnresolvedVIden -> Error.WithErrors ResolvedVIden
 resolve_expr_iden sir_child_maps (SIR.SplitIdentifier'Get type_part name) =
@@ -170,7 +168,6 @@ resolve_expr_iden sir_child_maps (SIR.SplitIdentifier'Get type_part name) =
         Just (Left e) -> Compiler.tell_error e >> pure Nothing
         Nothing -> pure Nothing
 resolve_expr_iden _ (SIR.SplitIdentifier'Single iden) = pure iden
-
 resolve_pat_iden :: NameMaps.SIRChildMaps -> UnresolvedPIden -> Error.WithErrors ResolvedPIden
 resolve_pat_iden sir_child_maps (SIR.SplitIdentifier'Get type_part name) =
     case NameMaps.get_variant_child sir_child_maps <$> SIR.type_expr_evaled type_part <*> pure name of

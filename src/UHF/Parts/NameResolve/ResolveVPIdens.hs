@@ -21,7 +21,7 @@ type DIden = Maybe (SIR.Decl TypeSolver.Type)
 type UnresolvedVIden = SIR.SplitIdentifier Unresolved ResolvedVIden
 type UnresolvedPIden = SIR.SplitIdentifier Unresolved ResolvedPIden
 
-type ResolvedVIden = Maybe SIR.BoundValue
+type ResolvedVIden = Maybe SIR.ValueRef
 type ResolvedPIden = Maybe Type.ADT.VariantIndex
 
 type Unresolved = (DIden, DIden, TypeSolver.Type, ResolvedVIden, (), ResolvedPIden, (), (), ())

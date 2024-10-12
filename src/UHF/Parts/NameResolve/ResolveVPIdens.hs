@@ -90,7 +90,7 @@ resolve_in_type_expr (SIR.TypeExpr'Wild evaled sp) = pure $ SIR.TypeExpr'Wild ev
 resolve_in_type_expr (SIR.TypeExpr'Poison evaled sp) = pure $ SIR.TypeExpr'Poison evaled sp
 
 resolve_in_pat :: SIR.Pattern Unresolved -> (NRReader.NRReader adt_arena var_arena type_var_arena NameMaps.SIRChildMaps Error.WithErrors) (SIR.Pattern Resolved)
-resolve_in_pat (SIR.Pattern'Identifier type_info sp bnk) = pure $ SIR.Pattern'Identifier type_info sp bnk
+resolve_in_pat (SIR.Pattern'Variable type_info sp bnk) = pure $ SIR.Pattern'Variable type_info sp bnk
 resolve_in_pat (SIR.Pattern'Wildcard type_info sp) = pure $ SIR.Pattern'Wildcard type_info sp
 resolve_in_pat (SIR.Pattern'Tuple type_info sp a b) = SIR.Pattern'Tuple type_info sp <$> resolve_in_pat a <*> resolve_in_pat b
 resolve_in_pat (SIR.Pattern'Named type_info sp at_sp bnk subpat) = SIR.Pattern'Named type_info sp at_sp bnk <$> resolve_in_pat subpat
@@ -99,7 +99,7 @@ resolve_in_pat (SIR.Pattern'NamedADTVariant type_info sp variant_iden () tyargs 
 resolve_in_pat (SIR.Pattern'Poison type_info sp) = pure $ SIR.Pattern'Poison type_info sp
 
 resolve_in_expr :: SIR.Expr Unresolved -> (NRReader.NRReader UnresolvedADTArena UnresolvedVariableArena type_var_arena NameMaps.SIRChildMaps Error.WithErrors) (SIR.Expr Resolved)
-resolve_in_expr (SIR.Expr'Identifier id type_info sp split_iden ()) = SIR.Expr'Identifier id type_info sp <$> resolve_split_iden split_iden <*> resolve_iden_in_monad resolve_expr_iden split_iden
+resolve_in_expr (SIR.Expr'Refer id type_info sp split_iden ()) = SIR.Expr'Refer id type_info sp <$> resolve_split_iden split_iden <*> resolve_iden_in_monad resolve_expr_iden split_iden
 resolve_in_expr (SIR.Expr'Char id type_info sp c) = pure $ SIR.Expr'Char id type_info sp c
 resolve_in_expr (SIR.Expr'String id type_info sp s) = pure $ SIR.Expr'String id type_info sp s
 resolve_in_expr (SIR.Expr'Int id type_info sp i) = pure $ SIR.Expr'Int id type_info sp i

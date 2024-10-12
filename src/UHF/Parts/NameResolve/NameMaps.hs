@@ -101,7 +101,7 @@ make_name_maps_from_decls already_decls already_vals already_variants type_synon
                             (variant_constructors, variant_patterns) = Type.ADT.variant_idxs adt_arena adt
                                 & map (\ variant_index ->
                                     case Type.ADT.get_variant adt_arena variant_index of
-                                        Type.ADT.Variant'Anon (Located variant_name_sp variant_name) _ _ -> ((variant_name, DeclAt variant_name_sp, SIR.BoundValue'ADTVariant variant_index), (variant_name, DeclAt variant_name_sp, variant_index))
+                                        Type.ADT.Variant'Anon (Located variant_name_sp variant_name) _ _ -> ((variant_name, DeclAt variant_name_sp, SIR.BoundValue'ADTVariantConstructor variant_index), (variant_name, DeclAt variant_name_sp, variant_index))
                                         Type.ADT.Variant'Named _ _ _ -> todo
                                 )
                                 & unzip
@@ -148,12 +148,12 @@ binding_children :: Monad under => SIR.Binding stage -> NRReader (Arena.Arena (T
 binding_children (SIR.Binding pat _ _) = ([],, []) <$> pattern_vars pat
 
 pattern_vars :: Monad under => SIR.Pattern stage -> NRReader (Arena.Arena (Type.ADT (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage)) Type.ADTKey) (Arena.Arena (SIR.Variable stage) SIR.VariableKey) quant_var_arena sir_child_maps under ValueList
-pattern_vars (SIR.Pattern'Identifier _ sp var_key) = var_name var_key >>= \ name -> pure [(name, DeclAt sp, SIR.BoundValue'Variable var_key)]
+pattern_vars (SIR.Pattern'Variable _ sp var_key) = var_name var_key >>= \ name -> pure [(name, DeclAt sp, SIR.BoundValue'Variable var_key)]
 pattern_vars (SIR.Pattern'Wildcard _ _) = pure []
 pattern_vars (SIR.Pattern'Tuple _ _ a b) = pattern_vars a >>= \ a -> pattern_vars b >>= \ b -> pure (a ++ b)
 pattern_vars (SIR.Pattern'Named _ _ _ (Located var_span var_key) subpat) = var_name var_key >>= \ name -> pattern_vars subpat >>= \ subpat -> pure ((name, DeclAt var_span, SIR.BoundValue'Variable var_key) : subpat)
-pattern_vars (SIR.Pattern'AnonADTVariant _ _ _ _ _ fields) = concat <$> mapM pattern_vars fields
-pattern_vars (SIR.Pattern'NamedADTVariant _ _ _ _ _ fields) = concat <$> mapM (pattern_vars . snd) fields
+pattern_vars (SIR.Pattern'AnonADTVariant _ _ _ _ _ _ fields) = concat <$> mapM pattern_vars fields
+pattern_vars (SIR.Pattern'NamedADTVariant _ _ _ _ _ _ fields) = concat <$> mapM (pattern_vars . snd) fields
 pattern_vars (SIR.Pattern'Poison _ _) = pure []
 
 var_name :: Monad under => SIR.VariableKey -> NRReader (Arena.Arena (Type.ADT (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage)) Type.ADTKey) (Arena.Arena (SIR.Variable stage) SIR.VariableKey) quant_var_arena sir_child_maps under Text
@@ -178,7 +178,6 @@ get_decl_child sir_child_maps decl name =
             SIR.Decl'Module m ->
                 let ChildMaps d_children _ _ = get_module_child_maps sir_child_maps m
                 in Map.lookup (unlocate name) d_children
-
             SIR.Decl'Type _ -> Nothing
 
             SIR.Decl'ExternPackage SIR.ExternPackage'IntrinsicsPackage ->
@@ -188,14 +187,12 @@ get_decl_child sir_child_maps decl name =
     in case res of
         Just res -> Right res
         Nothing -> Left $ Error'CouldNotFindIn Nothing name -- TODO: put previous
-
 get_value_child :: SIRChildMaps -> SIR.Decl TypeWithInferVar.Type -> Located Text -> Either Error SIR.BoundValue
 get_value_child sir_child_maps decl name =
     let res = case decl of
             SIR.Decl'Module m ->
                 let ChildMaps _ v_children _ = get_module_child_maps sir_child_maps m
                 in Map.lookup (unlocate name) v_children
-
             SIR.Decl'Type _ -> Nothing
 
             SIR.Decl'ExternPackage SIR.ExternPackage'IntrinsicsPackage ->
@@ -204,14 +201,12 @@ get_value_child sir_child_maps decl name =
     in case res of
         Just res -> Right res
         Nothing -> Left $ Error'CouldNotFindIn Nothing name -- TODO: put previous
-
 get_variant_child :: SIRChildMaps -> SIR.Decl TypeWithInferVar.Type -> Located Text -> Either Error Type.ADT.VariantIndex
 get_variant_child sir_child_maps decl name =
     let res = case decl of
             SIR.Decl'Module m ->
                 let ChildMaps _ _ adtv_children = get_module_child_maps sir_child_maps m
                 in Map.lookup (unlocate name) adtv_children
-
             SIR.Decl'Type _ -> Nothing
 
             SIR.Decl'ExternPackage SIR.ExternPackage'IntrinsicsPackage ->

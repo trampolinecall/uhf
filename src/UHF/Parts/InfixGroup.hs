@@ -29,14 +29,14 @@ type Convertible ungrouped grouped =
     )
 
 group :: Convertible ungrouped grouped => SIR.SIR ungrouped -> SIR.SIR grouped
-group (SIR.SIR modules adts type_synonyms type_vars variables mod) =
+group (SIR.SIR modules adts type_synonyms type_vars variables (SIR.CU root_module main_function)) =
     SIR.SIR
         (IDGen.run_id_gen ID.ExprID'InfixGroupGen (Arena.transformM group_module modules))
         (Arena.transform convert_adt adts)
         (Arena.transform convert_type_synonym type_synonyms)
         type_vars
         (Arena.transform convert_variable variables)
-        mod
+        (SIR.CU root_module main_function)
     where
         -- TODO: automate these functions too?
         convert_adt (Type.ADT did name tyvars variants) = Type.ADT did name tyvars (map convert_variant variants)

@@ -34,7 +34,7 @@ get_quant_var :: Type.QuantVarKey -> IRReader Type.QuantVar
 get_quant_var k = reader (\ (RIR.RIR _ _ _ quant_vars _ _) -> Arena.get quant_vars k)
 
 dump_main_module :: RIR.RIR -> Text
-dump_main_module ir@(RIR.RIR modules _ _ _ _ mod) = PP.render $ runReader (define_module $ Arena.get modules mod) ir
+dump_main_module ir@(RIR.RIR modules _ _ _ _ (RIR.CU main_module _)) = PP.render $ runReader (define_module $ Arena.get modules main_module) ir
 
 define_module :: RIR.Module -> IRReader PP.Token
 define_module (RIR.Module _ bindings adts type_synonyms) =

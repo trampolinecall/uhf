@@ -5,6 +5,7 @@
 module UHF.Data.SIR
     ( SIR (..)
     , Stage.Stage (..)
+    , CU (..)
 
     , ADT
     , TypeSynonym
@@ -60,7 +61,10 @@ data SIR stage
         (Arena.Arena (TypeSynonym stage) TypeSynonymKey)
         (Arena.Arena Type.QuantVar QuantVarKey)
         (Arena.Arena (Variable stage) VariableKey)
-        ModuleKey
+        (CU stage)
+
+ -- TODO: when support for compiling libraries that should not need a main function, a field should be added that identifies whether or not the compilation unit is a library or an executable or this should be split into 2 constructors for libraries or executables
+data CU stage = CU { cu_root_module :: ModuleKey, cu_main_function :: Maybe VariableKey }
 
 type ADT stage = Type.ADT (TypeExpr stage, Stage.TypeExprEvaledAsType stage)
 type TypeSynonym stage = Type.TypeSynonym (TypeExpr stage, Stage.TypeExprEvaledAsType stage)

@@ -26,7 +26,7 @@ instance Diagnostic.ToError (Error stage) where
         in Diagnostic.Error (Just sp) message [] []
 
 report_holes :: (SIR.TypeInfo stage ~ Maybe Type.Type, SIR.TypeExprEvaledAsType stage ~ Maybe Type.Type) => SIR.SIR stage -> Compiler.WithDiagnostics (Error stage) Void ()
-report_holes sir@(SIR.SIR _ _ _ _ _ mod) = runReaderT (module_ mod) sir
+report_holes sir@(SIR.SIR _ _ _ _ _ (SIR.CU root_module main_function)) = runReaderT (module_ root_module) sir
 
 module_ :: (SIR.TypeInfo stage ~ Maybe Type.Type, SIR.TypeExprEvaledAsType stage ~ Maybe Type.Type) => SIR.ModuleKey -> ReaderT (SIR.SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
 module_ key =

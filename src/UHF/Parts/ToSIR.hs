@@ -19,12 +19,16 @@ import qualified UHF.Util.Arena as Arena
 data Error
     = Tuple1 Span
     | Tuple0 Span
+    | NoMain -- TODO: add a span to this? span of the whole module?
+    | MultipleMains [Span]
 
 data DeclAt = DeclAt Span | ImplicitPrim deriving Show
 
 instance Diagnostic.ToError Error where
     to_error (Tuple1 sp) = Diagnostic.Error (Just sp) "tuple of 1 element" [] []
     to_error (Tuple0 sp) = Diagnostic.Error (Just sp) "tuple of 0 elements" [] []
+    to_error NoMain = Diagnostic.Error Nothing "no main function" [] []
+    to_error (MultipleMains sps) = Diagnostic.Error (Just $ head sps) "multiple main functions" (map (\ sp -> (Just sp, Diagnostic.MsgError, Nothing)) sps) []
 
 type SIRStage = (Located Text, (), (), Located Text, (), Located Text, (), (), ())
 
@@ -81,15 +85,48 @@ tell_error :: Error -> MakeIRState Compiler.ErrorReportedPromise
 tell_error = lift . Compiler.tell_error
 
 convert :: [AST.Decl] -> Compiler.WithDiagnostics Error Void SIR
-convert decls =
-    runStateT
-        (
-            let module_id = ID.ModuleID'Root
-            in convert_decls (ID.VarParent'Module module_id) (ID.DeclParent'Module module_id) decls >>= \ (bindings, adts, type_synonyms) ->
-            new_module (SIR.Module module_id bindings adts type_synonyms)
-        )
-        (Arena.new, Arena.new, Arena.new, Arena.new, Arena.new) >>= \ (mod, (mods, adts, type_synonyms, type_vars, variables)) ->
-    pure (SIR.SIR mods adts type_synonyms type_vars variables mod)
+convert decls = do
+    (root_module, (mods, adts, type_synonyms, type_vars, variables)) <-
+        runStateT
+            (
+                let module_id = ID.ModuleID'Root
+                in convert_decls (ID.VarParent'Module module_id) (ID.DeclParent'Module module_id) decls >>= \ (bindings, adts, type_synonyms) ->
+                new_module (SIR.Module module_id bindings adts type_synonyms)
+            )
+            (Arena.new, Arena.new, Arena.new, Arena.new, Arena.new)
+    main_function <- search_for_main_function mods variables root_module
+    pure (SIR.SIR mods adts type_synonyms type_vars variables (SIR.CU root_module main_function))
+
+search_for_main_function :: ModuleArena -> VariableArena -> SIR.ModuleKey -> Compiler.WithDiagnostics Error Void (Maybe SIR.VariableKey)
+search_for_main_function mods variables mod =
+    let (SIR.Module _ bindings _ _) = Arena.get mods mod
+        variables_called_main = bindings &
+            concatMap (\ (SIR.Binding pat _ _) -> go_pat pat)
+    in case variables_called_main of
+        [] -> do
+            _ <- Compiler.tell_error NoMain
+            pure Nothing
+        [main] -> pure $ Just main
+        multiple -> do
+            _ <- Compiler.tell_error $ MultipleMains $ map get_var_span multiple
+            pure Nothing
+    where
+        go_pat :: SIR.Pattern stage -> [SIR.VariableKey]
+        go_pat (SIR.Pattern'Identifier _ _ vk) = go_var vk
+        go_pat (SIR.Pattern'Wildcard _ _) = []
+        go_pat (SIR.Pattern'Tuple _ _ a b) = go_pat a ++ go_pat b
+        go_pat (SIR.Pattern'Named _ _ _ (Located _ vk) subpat) = go_var vk ++ go_pat subpat
+        go_pat (SIR.Pattern'AnonADTVariant _ _ _ _ _ field_pats) = concatMap go_pat field_pats
+        go_pat (SIR.Pattern'NamedADTVariant _ _ _ _ _ field_pats) = concatMap (go_pat . snd) field_pats
+        go_pat (SIR.Pattern'Poison _ _) = []
+
+        go_var vk =
+            let (SIR.Variable _ _ (Located _ name)) = Arena.get variables vk
+            in if name == "main" then [vk] else []
+
+        get_var_span vk =
+            let (SIR.Variable _ _ (Located sp _)) = Arena.get variables vk
+            in sp
 
 convert_decls :: ID.VariableParent -> ID.DeclParent -> [AST.Decl] -> MakeIRState ([Binding], [Type.ADTKey], [Type.TypeSynonymKey])
 convert_decls var_parent decl_parent decls =

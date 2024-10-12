@@ -1,5 +1,6 @@
 module UHF.Data.RIR
     ( RIR (..)
+    , CU (..)
     , Module (..)
 
     , Binding (..)
@@ -35,7 +36,10 @@ data RIR
         (Arena.Arena (Type.TypeSynonym (Maybe Type.Type)) TypeSynonymKey)
         (Arena.Arena Type.QuantVar Type.QuantVarKey)
         (Arena.Arena Variable VariableKey)
-        ModuleKey
+        CU
+
+-- TODO: same todo as for SIR.CU; see there for more details
+data CU = CU { cu_root_module :: ModuleKey, cu_main_function :: Maybe VariableKey }
 
 data Variable
     = Variable

@@ -36,8 +36,8 @@ convert (ANFIR.ANFIR adts type_synonyms type_vars bindings params cu) =
         cu' = convert_cu cu
     in BackendIR.BackendIR adts type_synonyms type_vars bindings' params' cu'
 
-convert_cu :: ANFIR.CU -> BackendIR.CU
-convert_cu (ANFIR.CU group adts type_synonyms) = BackendIR.CU (convert_binding_group group) adts type_synonyms
+convert_cu :: ANFIR.CU -> BackendIR.CU ()
+convert_cu (ANFIR.CU main_function group adts type_synonyms) = BackendIR.CU (maybe (Left ()) Right main_function) (convert_binding_group group) adts type_synonyms
 
 convert_binding :: ANFIRBinding -> BackendIRBinding
 convert_binding (ANFIR.Binding initializer) = BackendIR.Binding $ convert_expr initializer

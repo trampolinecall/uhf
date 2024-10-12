@@ -1,5 +1,5 @@
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module UHF.Data.SIR
@@ -27,8 +27,10 @@ module UHF.Data.SIR
     , HoleIdentifier
 
     , TypeExpr (..)
-    , SplitIdentifier (..)
+    , ExprIdentifierRef (..)
+    , OperatorRef (..)
     , Expr (..)
+    , PatternADTVariantRef (..)
     , Pattern (..)
     , expr_type
     , pattern_type
@@ -50,8 +52,6 @@ import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR.Stage as Stage
 import qualified UHF.Util.Arena as Arena
-
--- TODO: clean up SIR to match AST a little more
 
 -- "syntax based ir"
 data SIR stage
@@ -89,7 +89,7 @@ deriving instance Stage.AllShowable stage => Show (Variable stage)
 
 data BoundValue
     = BoundValue'Variable VariableKey
-    | BoundValue'ADTVariant Type.ADT.VariantIndex
+    | BoundValue'ADTVariantConstructor Type.ADT.VariantIndex
     | BoundValue'Intrinsic Intrinsics.IntrinsicBoundValue
     deriving Show
 
@@ -111,14 +111,16 @@ data TypeExpr stage
     | TypeExpr'Poison (Stage.TypeExprEvaled stage) Span
 deriving instance Stage.AllShowable stage => Show (TypeExpr stage)
 
--- TODO: rename all Identifier to Refer
-data SplitIdentifier stage start
-    = SplitIdentifier'Get (TypeExpr stage) (Located Text)
-    | SplitIdentifier'Single start
-deriving instance (Stage.AllShowable stage, Show start) => Show (SplitIdentifier stage start)
+data ExprIdentifierRef stage
+    = ExprIdentifierRef (Maybe (TypeExpr stage)) (Located Text)
+deriving instance (Stage.AllShowable stage) => Show (ExprIdentifierRef stage)
+
+data OperatorRef stage
+    = OperatorRef (Maybe (TypeExpr stage)) (Located Text)
+deriving instance (Stage.AllShowable stage) => Show (OperatorRef stage)
 
 data Expr stage
-    = Expr'Identifier ID.ExprID (Stage.TypeInfo stage) Span (SplitIdentifier stage (Stage.VIdenStart stage)) (Stage.VIdenResolved stage)
+    = Expr'Refer ID.ExprID (Stage.TypeInfo stage) Span (ExprIdentifierRef stage) (Stage.VIdenResolved stage)
     | Expr'Char ID.ExprID (Stage.TypeInfo stage) Span Char
     | Expr'String ID.ExprID (Stage.TypeInfo stage) Span Text
     | Expr'Int ID.ExprID (Stage.TypeInfo stage) Span Integer
@@ -132,7 +134,7 @@ data Expr stage
     | Expr'Let ID.ExprID (Stage.TypeInfo stage) Span [Binding stage] [ADTKey] [TypeSynonymKey] (Expr stage)
     | Expr'LetRec ID.ExprID (Stage.TypeInfo stage) Span [Binding stage] [ADTKey] [TypeSynonymKey] (Expr stage)
 
-    | Expr'BinaryOps ID.ExprID (Stage.BinaryOpsAllowed stage) (Stage.TypeInfo stage) Span (Expr stage) [(Span, SplitIdentifier stage (Stage.VIdenStart stage), Stage.VIdenResolved stage, Expr stage)]
+    | Expr'BinaryOps ID.ExprID (Stage.BinaryOpsAllowed stage) (Stage.TypeInfo stage) Span (Expr stage) [(Span, OperatorRef stage, Stage.VIdenResolved stage, Expr stage)]
 
     | Expr'Call ID.ExprID (Stage.TypeInfo stage) Span (Expr stage) (Expr stage)
 
@@ -149,13 +151,17 @@ data Expr stage
     | Expr'Poison ID.ExprID (Stage.TypeInfo stage) Span
 deriving instance Stage.AllShowable stage => Show (Expr stage)
 
+data PatternADTVariantRef stage
+    = PatternADTVariantRef (Maybe (TypeExpr stage)) (Located Text)
+deriving instance (Stage.AllShowable stage) => Show (PatternADTVariantRef stage)
+
 data Pattern stage
-    = Pattern'Identifier (Stage.TypeInfo stage) Span VariableKey
+    = Pattern'Variable (Stage.TypeInfo stage) Span VariableKey
     | Pattern'Wildcard (Stage.TypeInfo stage) Span
     | Pattern'Tuple (Stage.TypeInfo stage) Span (Pattern stage) (Pattern stage)
     | Pattern'Named (Stage.TypeInfo stage) Span Span (Located VariableKey) (Pattern stage)
-    | Pattern'AnonADTVariant (Stage.TypeInfo stage) Span (SplitIdentifier stage (Stage.PIdenStart stage)) (Stage.PIdenResolved stage) [Stage.TypeInfo stage] [Pattern stage]
-    | Pattern'NamedADTVariant (Stage.TypeInfo stage) Span (SplitIdentifier stage (Stage.PIdenStart stage)) (Stage.PIdenResolved stage) [Stage.TypeInfo stage] [(Located Text, Pattern stage)]
+    | Pattern'AnonADTVariant (Stage.TypeInfo stage) Span (PatternADTVariantRef stage) (Stage.PIdenResolved stage) [Stage.TypeInfo stage] [Pattern stage]
+    | Pattern'NamedADTVariant (Stage.TypeInfo stage) Span (PatternADTVariantRef stage) (Stage.PIdenResolved stage) [Stage.TypeInfo stage] [(Located Text, Pattern stage)]
 
     | Pattern'Poison (Stage.TypeInfo stage) Span
 deriving instance Stage.AllShowable stage => Show (Pattern stage)
@@ -183,7 +189,7 @@ type_expr_span (TypeExpr'Wild _ span) = span
 type_expr_span (TypeExpr'Poison _ span) = span
 
 expr_type :: Expr stage -> Stage.TypeInfo stage
-expr_type (Expr'Identifier _ type_info _ _ _) = type_info
+expr_type (Expr'Refer _ type_info _ _ _) = type_info
 expr_type (Expr'Char _ type_info _ _) = type_info
 expr_type (Expr'String _ type_info _ _) = type_info
 expr_type (Expr'Int _ type_info _ _) = type_info
@@ -204,7 +210,7 @@ expr_type (Expr'TypeApply _ type_info _ _ _) = type_info
 expr_type (Expr'TypeAnnotation _ type_info _ _ _) = type_info
 
 expr_span :: Expr stage -> Span
-expr_span (Expr'Identifier _ _ sp _ _) = sp
+expr_span (Expr'Refer _ _ sp _ _) = sp
 expr_span (Expr'Char _ _ sp _) = sp
 expr_span (Expr'String _ _ sp _) = sp
 expr_span (Expr'Int _ _ sp _) = sp
@@ -225,7 +231,7 @@ expr_span (Expr'TypeApply _ _ sp _ _) = sp
 expr_span (Expr'TypeAnnotation _ _ sp _ _) = sp
 
 pattern_type :: Pattern stage -> Stage.TypeInfo stage
-pattern_type (Pattern'Identifier type_info _ _) = type_info
+pattern_type (Pattern'Variable type_info _ _) = type_info
 pattern_type (Pattern'Wildcard type_info _) = type_info
 pattern_type (Pattern'Tuple type_info _ _ _) = type_info
 pattern_type (Pattern'Named type_info _ _ _ _) = type_info
@@ -234,7 +240,7 @@ pattern_type (Pattern'AnonADTVariant type_info _ _ _ _ _) = type_info
 pattern_type (Pattern'NamedADTVariant type_info _ _ _ _ _) = type_info
 
 pattern_span :: Pattern stage -> Span
-pattern_span (Pattern'Identifier _ sp _) = sp
+pattern_span (Pattern'Variable _ sp _) = sp
 pattern_span (Pattern'Wildcard _ sp) = sp
 pattern_span (Pattern'Tuple _ sp _ _) = sp
 pattern_span (Pattern'Named _ sp _ _ _) = sp

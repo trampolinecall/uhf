@@ -16,7 +16,7 @@ solve :: TypeSolver.SolverState -> UntypedSIR -> Compiler.WithDiagnostics Error 
 solve nr_solver_state (SIR.SIR mods adts type_synonyms quant_vars variables (SIR.CU root_module main_function)) = -- TODO: do not destructure ir?
     TypeSolver.run_solve_monad_with
         (
-            runWriterT (AddTypes.add mods adts type_synonyms quant_vars variables) >>= \ ((mods, adts, type_synonyms, variables), constraints) ->
+            runWriterT (AddTypes.add main_function mods adts type_synonyms quant_vars variables) >>= \ ((mods, adts, type_synonyms, variables), constraints) ->
             let get_type_synonym ts_key = pure $ Arena.get type_synonyms ts_key
             in
             mapM_ (\ constraint -> do

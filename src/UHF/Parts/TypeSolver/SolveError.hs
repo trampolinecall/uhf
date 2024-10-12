@@ -76,6 +76,7 @@ instance Diagnostic.ToError (SolveError t) where
                 InTypeApplication -> "type application"
                 InADTVariantPatternField -> "ADT variant pattern field"
                 InADTFieldType -> "ADT field type"
+                InMainFunction -> "main function"
 
             sp = just_span got_whole
 

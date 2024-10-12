@@ -6,7 +6,7 @@ import UHF.Parts.TypeSolver.TypeWithInferVar
 
 -- TODO: maybe dont have InWhat
 data EqInWhat = InAssignment | InNamedPattern | InIfBranches | InMatchPatterns | InMatchArms
-data ExpectInWhat = InTypeAnnotation | InCallExpr | InIfCondition | InTypeApplication | InADTVariantPatternField | InADTFieldType
+data ExpectInWhat = InTypeAnnotation | InCallExpr | InIfCondition | InTypeApplication | InADTVariantPatternField | InADTFieldType | InMainFunction
 
 data Constraint
     = Eq EqInWhat Span (Located Type) (Located Type)

@@ -79,8 +79,8 @@ apply_type for_what sp ty arg = do
 -- but it really should produce an error at `thing(0)` saying that thing takes a string and not an int
 -- (this happens because bindings are processed in order and the constraint from 'thing(0)' is processed before the constraint from 'thing = ...')
 
-add :: UntypedModuleArena -> UntypedADTArena -> UntypedTypeSynonymArena -> QuantVarArena -> UntypedVariableArena -> WriterT [TypeSolver.Constraint] (TypeSolver.SolveMonad (Compiler.WithDiagnostics Error Void)) (TypedWithInferVarsModuleArena, TypedWithInferVarsADTArena, TypedWithInferVarsTypeSynonymArena, TypedWithInferVarsVariableArena)
-add mods adts type_synonyms quant_vars variables =
+add :: Maybe SIR.VariableKey -> UntypedModuleArena -> UntypedADTArena -> UntypedTypeSynonymArena -> QuantVarArena -> UntypedVariableArena -> WriterT [TypeSolver.Constraint] (TypeSolver.SolveMonad (Compiler.WithDiagnostics Error Void)) (TypedWithInferVarsModuleArena, TypedWithInferVarsADTArena, TypedWithInferVarsTypeSynonymArena, TypedWithInferVarsVariableArena)
+add main_function mods adts type_synonyms quant_vars variables =
     runReaderT (
         Arena.transformM type_synonym type_synonyms
     ) ((), (), (), ()) >>= \ type_synonyms ->
@@ -90,10 +90,20 @@ add mods adts type_synonyms quant_vars variables =
     runReaderT (
         Arena.transformM variable variables
     ) (adts, (), (), ()) >>= \ variables ->
+    runReaderT (case main_function of
+        Just main_function -> add_main_function_constraint main_function
+        Nothing -> pure () -- missing main function error is reported in ToSIR phase
+    ) ((), (), (), variables) >>
     runReaderT (
         Arena.transformM module_ mods >>= \ mods ->
         pure (mods, adts, type_synonyms, variables)
     ) (adts, type_synonyms, quant_vars, variables)
+
+add_main_function_constraint :: SIR.VariableKey -> ContextReader adts type_synonyms quant_vars TypedWithInferVarsVariableArena ()
+add_main_function_constraint main_function = do
+    (_, _, _, vars) <- ask
+    let SIR.Variable _ ty (Located var_sp _) = Arena.get vars main_function
+    lift $ tell [TypeSolver.Expect TypeSolver.InMainFunction (Located var_sp ty) TypeSolver.Type'String]
 
 variable :: UntypedVariable -> ContextReader TypedWithInferVarsADTArena type_synonyms quant_vars vars TypedWithInferVarsVariable
 variable (SIR.Variable id () name@(Located def_span _)) = SIR.Variable id <$> lift (lift $ TypeSolver.Type'InferVar <$> TypeSolver.new_infer_var (TypeSolver.Variable def_span)) <*> pure name

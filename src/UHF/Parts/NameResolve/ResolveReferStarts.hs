@@ -20,7 +20,7 @@ import qualified UHF.Util.Arena as Arena
 type UnresolvedIdenStart = (NameMaps.NameMapStack, Located Text)
 
 type ResolvedDIdenStart = Maybe (SIR.Decl TypeSolver.Type)
-type ResolvedVIdenStart = Maybe SIR.BoundValue
+type ResolvedVIdenStart = Maybe SIR.ValueRef
 type ResolvedPIdenStart = Maybe Type.ADT.VariantIndex
 
 type Unresolved = (UnresolvedIdenStart, (), (), UnresolvedIdenStart, (), UnresolvedIdenStart, (), (), ())

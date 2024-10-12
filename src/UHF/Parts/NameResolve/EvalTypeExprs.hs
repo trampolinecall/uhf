@@ -20,7 +20,7 @@ import qualified UHF.Util.Arena as Arena
 -- TODO: change errors, clean up this whole module
 
 type EvaledDIden = Maybe (SIR.Decl TypeSolver.Type)
-type VIdenStart = Maybe SIR.BoundValue
+type VIdenStart = Maybe SIR.ValueRef
 type PIdenStart = Maybe Type.ADT.VariantIndex
 
 type Unevaled = (EvaledDIden, (), (), VIdenStart, (), PIdenStart, (), (), ())

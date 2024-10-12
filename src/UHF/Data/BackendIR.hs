@@ -44,10 +44,10 @@ data BackendIR ty poison_allowed
         (Arena.Arena Type.QuantVar Type.QuantVarKey)
         (Arena.Arena (Binding ty poison_allowed) BindingKey)
         (Arena.Arena (Param ty) ParamKey)
-        CU
+        (CU poison_allowed)
 
 -- "compilation unit"
-data CU = CU { cu_main_function :: Maybe BindingKey, cu_bindings :: BindingGroup, cu_adts :: [ADTKey], cu_type_synonyms :: [TypeSynonymKey] }
+data CU poison_allowed = CU { cu_main_function :: Either poison_allowed BindingKey, cu_bindings :: BindingGroup, cu_adts :: [ADTKey], cu_type_synonyms :: [TypeSynonymKey] }
 
 data Param ty = Param ID.VariableID ty deriving Show
 

@@ -31,7 +31,11 @@ remove_poison (BackendIR.BackendIR adts type_synonyms type_vars bindings params 
         <*> pure type_vars
         <*> Arena.transformM rp_binding bindings
         <*> Arena.transformM rp_param params
-        <*> pure cu
+        <*> rp_cu cu
+
+rp_cu :: BackendIR.CU () -> Maybe (BackendIR.CU Void)
+rp_cu (BackendIR.CU (Right main_function) bindings adts type_synonyms) = Just (BackendIR.CU (Right main_function) bindings adts type_synonyms)
+rp_cu (BackendIR.CU (Left ()) _ _ _) = Nothing
 
 -- rp short for remove poison
 

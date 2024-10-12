@@ -17,7 +17,7 @@ import qualified UHF.Parts.TSBackend.TS as TS
 import qualified UHF.Parts.TSBackend.TS.PP as TS.PP
 import qualified UHF.Util.Arena as Arena
 
-type CU = BackendIR.CU
+type CU = BackendIR.CU Void
 type Type = Type.Type
 type ADT = Type.ADT Type
 type TypeSynonym = Type.TypeSynonym Type
@@ -190,11 +190,18 @@ lower (BackendIR.BackendIR adts type_synonyms type_vars bindings params cu) =
         (adts, type_synonyms, bindings, params)
 
 define_cu :: CU -> TSWriter ()
-define_cu (BackendIR.CU _ global_group adts _) =
+define_cu (BackendIR.CU (Right main_function) global_group adts _) =
     mapM_ (tell_adt . TSADT) adts >>
     lift (lower_binding_group global_group) >>= \ global_init_stmts ->
     mapM_ tell_global_stmt global_init_stmts >>
+    invoke_main_function main_function >>
     pure ()
+define_cu (BackendIR.CU (Left void) _ _ _) = absurd void
+
+invoke_main_function :: BackendIR.BindingKey -> TSWriter ()
+invoke_main_function main_function = do
+    main_function_mangled <- lift $ mangle_binding_as_var main_function
+    tell_global_stmt $ TS.Stmt'Expr $ TS.Expr'Call (TS.Expr'Get (TS.Expr'Identifier "console") "log") [TS.Expr'Get (TS.Expr'Identifier main_function_mangled) "value"]
 
 define_lambda_type :: BackendIR.BindingKey -> Binding -> TSWriter ()
 define_lambda_type key (BackendIR.Binding (BackendIR.Expr'Lambda _ _ param captures group body)) =

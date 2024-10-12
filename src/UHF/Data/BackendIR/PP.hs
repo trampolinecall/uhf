@@ -41,7 +41,7 @@ get_quant_var k = reader (\ (BackendIR.BackendIR _ _ quant_vars _ _ _) -> Arena.
 dump_cu :: (DumpableType ty) => BackendIR.BackendIR ty poison_allowed -> Text
 dump_cu ir@(BackendIR.BackendIR _ _ _ _ _ cu) = PP.render $ runReader (define_cu cu) ir
 
-define_cu :: (DumpableType ty) => BackendIR.CU -> IRReader ty poison_allowed PP.Token
+define_cu :: (DumpableType ty) => BackendIR.CU poison_allowed -> IRReader ty poison_allowed PP.Token
 define_cu (BackendIR.CU _ bindings adts type_synonyms) =
     ask >>= \ ir ->
     get_quant_var_arena >>= \ quant_var_arena ->

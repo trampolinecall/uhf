@@ -140,7 +140,7 @@ instance Mangle GeneralID where
     mangle' (GV var) = "v" <> mangle' var
     mangle' (GADTV adtv) = "a" <> mangle' adtv
     mangle' (GADTF adtf) = "f" <> mangle' adtf
-    mangle' (GIBVID i) = "i" <> mangle' i
+    mangle' (GIBVID i) = "__uhf_intrinsic_" <> mangle' i
 
 instance Mangle ModuleID where
     mangle' ModuleID'Root = "r"

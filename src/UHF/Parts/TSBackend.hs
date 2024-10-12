@@ -10,6 +10,7 @@ import qualified Data.Set as Set
 
 import qualified UHF.Data.BackendIR as BackendIR
 import qualified UHF.Data.IR.ID as ID
+import qualified UHF.Data.IR.Intrinsics as Intrinsics
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Parts.TSBackend.TS as TS
@@ -127,7 +128,7 @@ convert_ts_lambda (TSLambda key captures group@(BackendIR.BindingGroup _) arg_ty
     pure
         (TS.Stmt'Class
             lambda_mangled
-            [TS.TypeReference "Lambda" [arg_type_raw, result_type_raw]]
+            [TS.TypeReference "Callable" [arg_type_raw, result_type_raw]]
             [ TS.ClassMember'Constructor capture_constructor_params (Just [])
             , TS.ClassMember'MethodDecl "call" [TS.Parameter Nothing "param" (Just arg_type)] (Just result_type)
                 (Just $
@@ -151,7 +152,7 @@ refer_type_raw Type.Type'Float = pure $ TS.Type'Reference $ TS.TypeReference "Fl
 refer_type_raw Type.Type'Char = pure $ TS.Type'Reference $ TS.TypeReference "Char" []
 refer_type_raw Type.Type'String = pure $ TS.Type'Reference $ TS.TypeReference "UHFString" []
 refer_type_raw Type.Type'Bool = pure $ TS.Type'Reference $ TS.TypeReference "Bool" []
-refer_type_raw (Type.Type'Function a r) = refer_type_raw a >>= \ a -> refer_type_raw r >>= \ r -> pure (TS.Type'Reference $ TS.TypeReference "Lambda" [a, r])
+refer_type_raw (Type.Type'Function a r) = refer_type_raw a >>= \ a -> refer_type_raw r >>= \ r -> pure (TS.Type'Reference $ TS.TypeReference "Callable" [a, r])
 refer_type_raw (Type.Type'Tuple a b) = refer_type_raw a >>= \ a -> refer_type_raw b >>= \ b -> pure (TS.Type'Reference $ TS.TypeReference "Tuple" [a, b])
 refer_type_raw (Type.Type'QuantVar _) = pure $ TS.Type'Reference $ TS.TypeReference "any" [] -- best approximation
 refer_type_raw (Type.Type'Forall _ t) = refer_type_raw t
@@ -218,6 +219,7 @@ lower_binding :: Binding -> IRReader ([TS.Stmt], [TS.Stmt])
 lower_binding (BackendIR.Binding init) = l init
     where
         l (BackendIR.Expr'Refer id _ other) = mangle_binding_as_var other >>= \ other -> let_current id (TS.Expr'Identifier other) >>= \ let_stmt -> pure ([let_stmt], [])
+        l (BackendIR.Expr'Intrinsic id _ i) = mangle_intrinsic_bv i >>= \ i -> let_current id (TS.Expr'Identifier i) >>= \ let_stmt -> pure ([let_stmt], [])
         l (BackendIR.Expr'Int id _ i) = let_current id (TS.Expr'New (TS.Expr'Identifier "Int") [TS.Expr'Int i]) >>= \ let_stmt -> pure ([let_stmt], [])
         l (BackendIR.Expr'Float id _ (n :% d)) = let_current id (TS.Expr'New (TS.Expr'Identifier "Float") [TS.Expr'Div (TS.Expr'Int n) (TS.Expr'Int d)]) >>= \ let_stmt -> pure ([let_stmt], [])
         l (BackendIR.Expr'Bool id _ b) = let_current id (TS.Expr'New (TS.Expr'Identifier "Bool") [TS.Expr'Bool b]) >>= \ let_stmt -> pure ([let_stmt], [])
@@ -320,7 +322,7 @@ mangle_binding_as_lambda :: BackendIR.BindingKey -> IRReader Text
 mangle_binding_as_lambda key = BackendIR.binding_id <$> get_binding key >>= mangle_binding_id_as_lambda
 
 mangle_binding_id_as_lambda :: BackendIR.ID -> IRReader Text
-mangle_binding_id_as_lambda id = pure ("Lambda" <> BackendIR.mangle_id id)
+mangle_binding_id_as_lambda id = pure ("Callable" <> BackendIR.mangle_id id)
 
 mangle_binding_as_capture :: BackendIR.BindingKey -> IRReader Text
 mangle_binding_as_capture key = BackendIR.binding_id <$> get_binding key >>= \ id -> pure ("capture" <> BackendIR.mangle_id id)
@@ -330,3 +332,6 @@ mangle_binding_as_var key = BackendIR.binding_id <$> get_binding key >>= mangle_
 
 mangle_binding_id_as_var :: BackendIR.ID -> IRReader Text
 mangle_binding_id_as_var id = pure ("var" <> BackendIR.mangle_id id)
+
+mangle_intrinsic_bv :: Intrinsics.IntrinsicBoundValue -> IRReader Text
+mangle_intrinsic_bv i = pure $ ID.mangle $ Intrinsics.intrinsic_bv_id i

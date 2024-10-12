@@ -49,6 +49,7 @@ rp_binding (BackendIR.Binding initializer) = BackendIR.Binding <$> rp_expr initi
 
 rp_expr :: PoisonedExpr -> Maybe NoPoisonExpr
 rp_expr (BackendIR.Expr'Refer id ty b) = ty >>= \ ty -> pure (BackendIR.Expr'Refer id ty b)
+rp_expr (BackendIR.Expr'Intrinsic id ty i) = ty >>= \ ty -> pure (BackendIR.Expr'Intrinsic id ty i)
 rp_expr (BackendIR.Expr'Int id ty i) = ty >>= \ ty -> pure (BackendIR.Expr'Int id ty i)
 rp_expr (BackendIR.Expr'Float id ty f) = ty >>= \ ty -> pure (BackendIR.Expr'Float id ty f)
 rp_expr (BackendIR.Expr'Bool id ty b) = ty >>= \ ty -> pure (BackendIR.Expr'Bool id ty b)

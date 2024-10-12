@@ -11,6 +11,7 @@ import qualified Data.Set as Set
 
 import qualified UHF.Data.ANFIR as ANFIR
 import qualified UHF.Data.IR.ID as ID
+import qualified UHF.Data.IR.Intrinsics as Intrinsics
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.RIR as RIR
@@ -41,6 +42,7 @@ type MakeGraphState binding = WriterT VariableMap (StateT (BindingArena binding,
 -- the same thing as ANFIR.Expr except lambdas dont have captures and all the binding groups are actually just [BindingKey]
 data AlmostExpr
     = AlmostExpr'Refer ANFIR.ID (Maybe Type.Type) ANFIR.BindingKey
+    | AlmostExpr'Intrinsic ANFIR.ID (Maybe Type.Type) Intrinsics.IntrinsicBoundValue
 
     | AlmostExpr'Int ANFIR.ID (Maybe Type.Type) Integer
     | AlmostExpr'Float ANFIR.ID (Maybe Type.Type) Rational
@@ -116,6 +118,9 @@ convert_expr m_varid expr@(RIR.Expr'Identifier id _ _ varkey) =
     case varkey of
         Just varkey -> new_binding $ \ var_map -> AlmostExpr'Refer (choose_id m_varid id) ty (var_map Map.! varkey)
         Nothing -> new_binding $ \ _ -> AlmostExpr'Poison (choose_id m_varid id) ty
+convert_expr m_varid expr@(RIR.Expr'Intrinsic id _ _ i) =
+    lift (lift $ lift $ lift ask) >>= \ var_arena -> let ty = RIR.expr_type var_arena expr in
+    new_binding $ \ var_map -> AlmostExpr'Intrinsic (choose_id m_varid id) ty i
 convert_expr m_varid expr@(RIR.Expr'Char id _ c) = lift (lift $ lift $ lift ask) >>= \ var_arena -> let ty = RIR.expr_type var_arena expr in new_binding (\ _ -> AlmostExpr'Char (choose_id m_varid id) ty c)
 
 convert_expr m_varid expr@(RIR.Expr'String id _ s) = lift (lift $ lift $ lift ask) >>= \ var_arena -> let ty = RIR.expr_type var_arena expr in new_binding (\ _ -> AlmostExpr'String (choose_id m_varid id) ty s)
@@ -219,6 +224,7 @@ convert_step_2 bindings cu =
 
 convert_almost_expr :: AlmostExpr -> Reader (BindingArena AlmostExpr) ANFIR.Expr
 convert_almost_expr (AlmostExpr'Refer id ty bk) = pure $ ANFIR.Expr'Refer id ty bk
+convert_almost_expr (AlmostExpr'Intrinsic id ty i) = pure $ ANFIR.Expr'Intrinsic id ty i
 convert_almost_expr (AlmostExpr'Int id ty i) = pure $ ANFIR.Expr'Int id ty i
 convert_almost_expr (AlmostExpr'Float id ty f) = pure $ ANFIR.Expr'Float id ty f
 convert_almost_expr (AlmostExpr'Bool id ty b) = pure $ ANFIR.Expr'Bool id ty b
@@ -259,6 +265,7 @@ get_dependencies_of_almost_expr bk =
     ask >>= \ binding_arena ->
     case Arena.get binding_arena bk of
         AlmostExpr'Refer _ _ i -> pure [i]
+        AlmostExpr'Intrinsic _ _ _ -> pure []
         AlmostExpr'Char _ _ _ -> pure []
         AlmostExpr'String _ _ _ -> pure []
         AlmostExpr'Int _ _ _ -> pure []

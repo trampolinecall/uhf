@@ -32,6 +32,7 @@ import qualified Data.Set as Set
 
 import UHF.Data.IR.Keys
 import qualified UHF.Data.IR.ID as ID
+import qualified UHF.Data.IR.Intrinsics as Intrinsics
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Util.Arena as Arena
@@ -70,6 +71,7 @@ stringify_id (VarID id) = ID.stringify id
 
 data Expr
     = Expr'Refer ID (Maybe Type.Type) BindingKey
+    | Expr'Intrinsic ID (Maybe Type.Type) Intrinsics.IntrinsicBoundValue
 
     | Expr'Int ID (Maybe Type.Type) Integer
     | Expr'Float ID (Maybe Type.Type) Rational
@@ -111,6 +113,7 @@ data MatchMatcher
 
 expr_type :: Expr -> Maybe Type.Type
 expr_type (Expr'Refer _ ty _) = ty
+expr_type (Expr'Intrinsic _ ty _) = ty
 expr_type (Expr'Int _ ty _) = ty
 expr_type (Expr'Float _ ty _) = ty
 expr_type (Expr'Bool _ ty _) = ty
@@ -131,6 +134,7 @@ expr_type (Expr'Poison _ ty) = ty
 
 expr_id :: Expr -> ID
 expr_id (Expr'Refer id _ _) = id
+expr_id (Expr'Intrinsic id _ _) = id
 expr_id (Expr'Int id _ _) = id
 expr_id (Expr'Float id _ _) = id
 expr_id (Expr'Bool id _ _) = id

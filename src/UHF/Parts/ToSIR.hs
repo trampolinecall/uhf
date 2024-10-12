@@ -177,7 +177,7 @@ convert_decls var_parent decl_parent decls =
             in Type.ADT.Variant'Named (Located variant_name_sp variant_name) variant_id
             -- TODO: check no duplicate field names
                 <$> mapM
-                    (\ ((Located _ (Token.AlphaIdentifier field_name)), ty_ast) ->
+                    (\ (Located _ (Token.AlphaIdentifier field_name), ty_ast) ->
                         lift (convert_type ty_ast) >>= \ ty ->
                         pure (ID.ADTFieldID variant_id field_name, field_name, (ty, ())))
                     fields
@@ -311,7 +311,7 @@ convert_pattern parent (AST.Pattern'AnonADTVariant sp v_ty variant fields) =
 convert_pattern parent (AST.Pattern'NamedADTVariant sp v_ty variant fields) =
     mapM (\ (field_name, field_pat) ->
             convert_pattern parent field_pat >>= \ field_pat ->
-            pure ((convert_aiden_tok <$> field_name), field_pat)
+            pure (convert_aiden_tok <$> field_name, field_pat)
         ) fields >>= \ fields ->
     make_split_identifier v_ty (convert_aiden_tok <$> variant) >>= \ variant_split_iden ->
     pure (SIR.Pattern'NamedADTVariant () sp variant_split_iden () [] fields)

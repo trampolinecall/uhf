@@ -93,15 +93,15 @@ compile c_needed diagnostic_settings compile_options =
 print_outputs :: CompileOptions -> File -> WithDiagnosticsIO ()
 print_outputs compile_options file = evalStateT (mapM_ print_output_format (output_formats compile_options)) (PhaseResultsCache file Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing)
     where
-        print_output_format AST = get_ast >>= output_if_outputable (\ ast -> lift (lift (putTextLn $ AST.PP.pp_decls ast)))
-        print_output_format SIR = get_first_sir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_sir" (SIR.PP.dump_main_module ir))))
+        print_output_format AST = get_ast >>= output_if_outputable (lift . lift . putTextLn . AST.PP.pp_decls)
+        print_output_format SIR = get_first_sir >>= output_if_outputable (lift . lift . write_output_file "uhf_sir" . SIR.PP.dump_main_module)
         print_output_format NRSIR = get_nrsir >>= output_if_outputable (\ (ir, _) -> lift (lift (write_output_file "uhf_nrsir" (SIR.PP.dump_main_module ir))))
-        print_output_format InfixGroupedSIR = get_infix_grouped >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_infix_grouped" (SIR.PP.dump_main_module ir))))
-        print_output_format TypedSIR = get_typed_sir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_typed_sir" (SIR.PP.dump_main_module ir))))
-        print_output_format RIR = get_rir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_rir" (RIR.PP.dump_main_module ir))))
-        print_output_format ANFIR = get_anfir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_anfir" (ANFIR.PP.dump_cu ir))))
-        print_output_format OptimizedANFIR = get_optimized_anfir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_anfir_optimized" (ANFIR.PP.dump_cu ir))))
-        print_output_format BackendIR = get_backend_ir >>= output_if_outputable (\ ir -> lift (lift (write_output_file "uhf_backend_ir" (BackendIR.PP.dump_cu ir))))
+        print_output_format InfixGroupedSIR = get_infix_grouped >>= output_if_outputable (lift . lift . write_output_file "uhf_infix_grouped" . SIR.PP.dump_main_module)
+        print_output_format TypedSIR = get_typed_sir >>= output_if_outputable (lift . lift . write_output_file "uhf_typed_sir" . SIR.PP.dump_main_module)
+        print_output_format RIR = get_rir >>= output_if_outputable (lift . lift . write_output_file "uhf_rir" . RIR.PP.dump_main_module)
+        print_output_format ANFIR = get_anfir >>= output_if_outputable (lift . lift . write_output_file "uhf_anfir" . ANFIR.PP.dump_cu)
+        print_output_format OptimizedANFIR = get_optimized_anfir >>= output_if_outputable (lift . lift . write_output_file "uhf_anfir_optimized" . ANFIR.PP.dump_cu)
+        print_output_format BackendIR = get_backend_ir >>= output_if_outputable (lift . lift . write_output_file "uhf_backend_ir" . BackendIR.PP.dump_cu)
         print_output_format TS = get_ts >>= output_when_right (lift . lift . write_output_file "ts")
 
         output_if_outputable output (s, Outputable) = output s

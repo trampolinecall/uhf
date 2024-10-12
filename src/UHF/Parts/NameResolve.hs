@@ -21,4 +21,3 @@ resolve sir =
     EvalTypeExprs.eval child_maps sir >>= \ (sir, solver_state) ->
     ResolveVPIdens.resolve child_maps sir >>= \ sir ->
     pure (sir, solver_state)
-

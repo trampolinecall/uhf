@@ -69,7 +69,7 @@ assign_in_module mod_key (SIR.Module id bindings adts type_synonyms) =
     mapM (\ synonym -> lift $ tell $ Map.singleton synonym (NameMaps.NameMapStack (NameMaps.child_maps_to_name_maps cur_map) Nothing)) type_synonyms >>
     SIR.Module id <$> mapM (lift . lift . assign_in_binding (NameMaps.NameMapStack (NameMaps.child_maps_to_name_maps cur_map) Nothing)) bindings <*> pure adts <*> pure type_synonyms
 
-assign_in_adt :: Map.Map Type.ADTKey NameMaps.NameMapStack -> Type.ADTKey -> (SIR.ADT Unassigned) -> (NRReader.NRReader adt_arena var_arena QuantVarArena NameMaps.SIRChildMaps Error.WithErrors) (SIR.ADT Assigned)
+assign_in_adt :: Map.Map Type.ADTKey NameMaps.NameMapStack -> Type.ADTKey -> SIR.ADT Unassigned -> (NRReader.NRReader adt_arena var_arena QuantVarArena NameMaps.SIRChildMaps Error.WithErrors) (SIR.ADT Assigned)
 assign_in_adt adt_parent_name_maps adt_key (Type.ADT id name type_vars variants) =
     let parent = adt_parent_name_maps Map.! adt_key
     in
@@ -85,7 +85,7 @@ assign_in_adt adt_parent_name_maps adt_key (Type.ADT id name type_vars variants)
         assign_in_variant nc_stack (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id <$> mapM (\ (id, name, (ty, ())) -> assign_in_type_expr nc_stack ty >>= \ ty -> pure (id, name, (ty, ()))) fields
         assign_in_variant nc_stack (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id <$> mapM (\ (id, (ty, ())) -> assign_in_type_expr nc_stack ty >>= \ ty -> pure (id, (ty, ()))) fields
 
-assign_in_type_synonym :: Map.Map Type.TypeSynonymKey NameMaps.NameMapStack -> Type.TypeSynonymKey -> (SIR.TypeSynonym Unassigned) -> (NRReader.NRReader adt_arena var_arena QuantVarArena NameMaps.SIRChildMaps Error.WithErrors) (SIR.TypeSynonym Assigned)
+assign_in_type_synonym :: Map.Map Type.TypeSynonymKey NameMaps.NameMapStack -> Type.TypeSynonymKey -> SIR.TypeSynonym Unassigned -> (NRReader.NRReader adt_arena var_arena QuantVarArena NameMaps.SIRChildMaps Error.WithErrors) (SIR.TypeSynonym Assigned)
 assign_in_type_synonym parent_maps synonym_key (Type.TypeSynonym id name (expansion, ())) =
     let parent = parent_maps Map.! synonym_key
     in assign_in_type_expr parent expansion >>= \ expansion ->

@@ -31,7 +31,7 @@ group_by_spans get_span = Map.map (group_by (Span.start_row . get_span)) . group
                 Map.empty
 
 context_lines :: Map FileCmpByPath (Map Int [a]) -> Map FileCmpByPath (Map Int [a])
-context_lines = Map.mapWithKey (\ (FileCmpByPath fl) -> Map.unionsWith (<>) . map Map.fromList . map (:[]) . concatMap (\ (ln, msgs) -> (ln, msgs) : map (,[]) (filter (can_be_context_line fl) [ln-1..ln+1])) . Map.toAscList)
+context_lines = Map.mapWithKey (\ (FileCmpByPath fl) -> Map.unionsWith (<>) . map (Map.fromList . (:[])) . concatMap (\ (ln, msgs) -> (ln, msgs) : map (,[]) (filter (can_be_context_line fl) [ln-1..ln+1])) . Map.toAscList)
     where
         can_be_context_line fl nr = exists fl nr && not_empty fl nr
 
@@ -61,6 +61,5 @@ case_file_and_elipsis_lines =
     ([Line.file_line Options.ascii_options f2] @=? file_and_elipsis_lines Options.ascii_options Nothing (f2, 12)) >>
     ([] @=? file_and_elipsis_lines Options.ascii_options (Just (f2, 12)) (f2, 13)) >>
     ([Line.elipsis_line Options.ascii_options] @=? file_and_elipsis_lines Options.ascii_options (Just (f2, 13)) (f2, 20))
-
 tests :: TestTree
 tests = $(testGroupGenerator)

@@ -42,7 +42,7 @@ data Type
     | Type'Tuple WholeSpan [Type] -- TODO: anonymous named products? (ie field names, but no datatype name)
     | Type'Hole WholeSpan (Located Token.AlphaIdentifier)
     | Type'Function WholeSpan Type Type
-    | Type'Forall WholeSpan [(Located Token.AlphaIdentifier)] Type
+    | Type'Forall WholeSpan [Located Token.AlphaIdentifier] Type
     | Type'Apply WholeSpan Type [Type]
     | Type'Wild WholeSpan -- TODO: come up with better name for this
     deriving (Generic, EqIgnoringSpans, Show)
@@ -69,7 +69,7 @@ data Expr
     | Expr'If WholeSpan (Located Token.If) Expr Expr Expr
     | Expr'Match WholeSpan (Located Token.Match) Expr [(Pattern, Expr)]
 
-    | Expr'Forall WholeSpan [(Located Token.AlphaIdentifier)] Expr -- TODO: add constraints like '#(T, U; Constraint#(T, U)) ...' (actually this todo is outdated with the syntax redesign in the lr1 overhaul)
+    | Expr'Forall WholeSpan [Located Token.AlphaIdentifier] Expr -- TODO: add constraints like '#(T, U; Constraint#(T, U)) ...' (actually this todo is outdated with the syntax redesign in the lr1 overhaul)
     | Expr'TypeApply WholeSpan Expr [Type]
 
     | Expr'TypeAnnotation WholeSpan Type Expr

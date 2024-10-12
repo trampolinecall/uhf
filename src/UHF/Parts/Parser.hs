@@ -61,7 +61,7 @@ $( let unwrap_right :: Show a => Either a b -> b
                     thing_list <- nt ("list of " <> name) [t|[$thing_ty]|]
 
                     thing_list --> thing_list . thing |> [|\l t -> l ++ [t]|]
-                    thing_list --> thing |> [|\t -> [t]|]
+                    thing_list --> thing |> [|(:[])|]
 
                     pure thing_list
 
@@ -90,7 +90,7 @@ $( let unwrap_right :: Show a => Either a b -> b
                     list --> empty |> [|[]|]
 
                     helper_list --> helper_list . sep . thing |> [|\l _ t -> l ++ [t]|]
-                    helper_list --> thing |> [|\x -> [x]|]
+                    helper_list --> thing |> [|(:[])|]
 
                     pure list
 
@@ -225,14 +225,14 @@ $( let unwrap_right :: Show a => Either a b -> b
 
                 kw_iden_path --> (TT'Caret . TT'KeywordIdentifier) |> [|\_ ki -> AST.KeywordRef'Single ki|]
                 kw_iden_path --> (TT'Caret . type_primary . TT'DoubleColon . TT'KeywordIdentifier) |> [|\_ t _ ki -> AST.KeywordRef'Path t ki|]
-                kw_iden_paths --> (kw_iden_path . kw_iden_paths) |> [|\a b -> a : b|]
-                kw_iden_paths --> kw_iden_path |> [|\a -> [a]|]
+                kw_iden_paths --> (kw_iden_path . kw_iden_paths) |> [|(:)|]
+                kw_iden_paths --> kw_iden_path |> [|(:[])|]
 
                 kw_call_middle <- nt "middle of keyword call" [t|(AST.Expr, [([AST.KeywordRef], AST.Expr)])|]
                 kw_call_middle
                     --> (kw_call_middle . kw_iden_paths . expr_binary_ops)
                     |> [|\(first_arg, prev_args) paths arg -> (first_arg, prev_args ++ [(paths, arg)])|]
-                kw_call_middle --> expr_binary_ops |> [|\e -> (e, [])|]
+                kw_call_middle --> expr_binary_ops |> [|(, [])|]
 
                 expr_keyword_call --> (kw_iden_paths . kw_call_middle . optional_kw_iden_paths) |> [|\first_paths args more_path -> todo|]
 
@@ -248,7 +248,7 @@ $( let unwrap_right :: Show a => Either a b -> b
                 expr_binary_ops_helper
                     --> (expr_call . operator . expr_binary_ops_helper)
                     |> [|\left operator (first_of_more, more) -> (left, (operator, first_of_more) : more)|]
-                expr_binary_ops_helper --> expr_call |> [|\call -> (call, [])|]
+                expr_binary_ops_helper --> expr_call |> [|(, [])|]
 
                 -- TODO: operator --> TT'Backtick . alpha_iden_path . TT'Backtick |> [|todo|]
                 operator --> TT'SymbolIdentifier |> [|AST.Operator'Single|]
@@ -270,11 +270,11 @@ $( let unwrap_right :: Show a => Either a b -> b
                 --> (TT'OBrack . TT'OBrack . type_ . TT'CBrack . TT'CBrack . TT'DoubleColon . TT'AlphaIdentifier)
                 |> [|\(Located obrack1_sp _) _ t _ _ _ a -> AST.Expr'ReferAlpha (obrack1_sp <> Located.just_span a) (Just t) a|]
             expr_hole --> (TT'Question . TT'AlphaIdentifier) |> [|\(Located q_span _) i@(Located i_span _) -> AST.Expr'Hole (q_span <> i_span) i|]
-            expr_literal --> (TT'Char) |> [|\(Located sp (Token.Char c)) -> AST.Expr'Char sp c|]
-            expr_literal --> (TT'String) |> [|\(Located sp (Token.String s)) -> AST.Expr'String sp s|]
-            expr_literal --> (TT'Int) |> [|\(Located sp (Token.Int _ i)) -> AST.Expr'Int sp i|]
-            expr_literal --> (TT'Float) |> [|\(Located sp (Token.Float f)) -> AST.Expr'Float sp f|]
-            expr_literal --> (TT'Bool) |> [|\(Located sp (Token.Bool b)) -> AST.Expr'Bool sp b|]
+            expr_literal --> TT'Char |> [|\(Located sp (Token.Char c)) -> AST.Expr'Char sp c|]
+            expr_literal --> TT'String |> [|\(Located sp (Token.String s)) -> AST.Expr'String sp s|]
+            expr_literal --> TT'Int |> [|\(Located sp (Token.Int _ i)) -> AST.Expr'Int sp i|]
+            expr_literal --> TT'Float |> [|\(Located sp (Token.Float f)) -> AST.Expr'Float sp f|]
+            expr_literal --> TT'Bool |> [|\(Located sp (Token.Bool b)) -> AST.Expr'Bool sp b|]
             expr_tuple
                 --> (TT'OParen . comma_sep_expr_list_at_least_one_comma . TT'CParen)
                 |> [|\(Located o_sp _) parts (Located c_sp _) -> AST.Expr'Tuple (o_sp <> c_sp) parts|]
@@ -354,7 +354,7 @@ $( let unwrap_right :: Show a => Either a b -> b
             type_param_list --> empty |> [|[]|]
 
             pattern_named_list_at_least_once --> (pattern_named_list_at_least_once . pattern_named) |> [|\ps p -> ps ++ [p]|]
-            pattern_named_list_at_least_once --> pattern_named |> [|\p -> [p]|]
+            pattern_named_list_at_least_once --> pattern_named |> [|(:[])|]
 
             comma_sep_expr_list_at_least_one_comma --> (expr . TT'Comma . comma_sep_expr_list) |> [|\e _ more -> e : more|]
             comma_sep_type_list_at_least_one_comma --> (type_ . TT'Comma . comma_sep_type_list) |> [|\t _ more -> t : more|]
@@ -364,7 +364,7 @@ $( let unwrap_right :: Show a => Either a b -> b
         )
  )
 
-parse :: Pipes.Consumer Token.LToken (Compiler.WithDiagnostics (Error.Error) Void) [AST.Decl]
+parse :: Pipes.Consumer Token.LToken (Compiler.WithDiagnostics Error.Error Void) [AST.Decl]
 parse =
     parse' >>= \case
         Right ast -> pure ast

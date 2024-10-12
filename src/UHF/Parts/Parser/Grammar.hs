@@ -57,9 +57,9 @@ instance Format Symbol where
 type ReduceFnMap = Map Rule (TH.Q TH.Exp)
 data Rule = Rule Integer Nonterminal [Symbol] deriving (Show, Eq, Ord)
 
-newtype GrammarMonad a = GrammarMonad (State (GrammarMonadState) a) deriving (Functor, Applicative, Monad)
+newtype GrammarMonad a = GrammarMonad (State GrammarMonadState a) deriving (Functor, Applicative, Monad)
 data GrammarMonadState = GrammarMonadState
-    { gms_toplevel :: (Maybe Nonterminal)
+    { gms_toplevel :: Maybe Nonterminal
     , gms_nt_result_tys :: NTResultTypes
     , gms_reduce_fn_map :: ReduceFnMap
     , gms_rules :: [Rule]
@@ -69,7 +69,7 @@ data GrammarMonadState = GrammarMonadState
 nt :: Text -> TH.Q TH.Type -> GrammarMonad Nonterminal
 nt t ty = do
     let nt = Nonterminal t
-    GrammarMonad $ state $ (\gms -> ((), gms {gms_nt_result_tys = Map.insert nt ty (gms_nt_result_tys gms)}))
+    GrammarMonad $ state $ \gms -> ((), gms {gms_nt_result_tys = Map.insert nt ty (gms_nt_result_tys gms)})
     pure $ Nonterminal t
 
 get_nt_ty :: Nonterminal -> GrammarMonad (TH.Q TH.Type)
@@ -88,7 +88,7 @@ rule nt production create_ast =
                 let rule_n = gms_cur_rule_number gms
                     rule = Rule rule_n nt production
                 in ( ()
-                   , gms {gms_reduce_fn_map = Map.insert rule create_ast (gms_reduce_fn_map gms), gms_rules = rule : (gms_rules gms), gms_cur_rule_number = rule_n + 1}
+                   , gms {gms_reduce_fn_map = Map.insert rule create_ast (gms_reduce_fn_map gms), gms_rules = rule : gms_rules gms, gms_cur_rule_number = rule_n + 1}
                    )
 
 (-->) :: Nonterminal -> ([Symbol], TH.Q TH.Exp) -> GrammarMonad ()
@@ -109,7 +109,7 @@ prod_join :: (ToSymbol a, ToSymbol b) => a -> b -> [Symbol]
 prod_join a b = to_symbol a ++ to_symbol b
 
 data GrammarCreationError = NoToplevelNonterminal deriving Show
-make_grammar :: GrammarMonad () -> Either GrammarCreationError (Grammar)
+make_grammar :: GrammarMonad () -> Either GrammarCreationError Grammar
 make_grammar (GrammarMonad g) =
     let (GrammarMonadState toplevel_nonterminal ntrtys rfm rules _) = State.execState g (GrammarMonadState Nothing Map.empty Map.empty [] 1)
     in case toplevel_nonterminal of

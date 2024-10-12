@@ -57,11 +57,11 @@ refer_type adts type_synonyms vars = go
                 Type.Type'Function a r ->
                     let a_shown = go a
                         r_shown = go r
-                    in (PP.List [a_shown, " -> ", r_shown])
+                    in PP.List [a_shown, " -> ", r_shown]
                 Type.Type'Tuple a b ->
                     let a_shown = go a
                         b_shown = go b
-                    in (PP.parenthesized_comma_list PP.Inconsistent [a_shown, b_shown])
+                    in PP.parenthesized_comma_list PP.Inconsistent [a_shown, b_shown]
                 Type.Type'QuantVar var ->
                     let (Type.QuantVar (Located _ name)) = Arena.get vars var
                     in PP.String name -- TODO: write id

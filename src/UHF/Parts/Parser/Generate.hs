@@ -1,5 +1,4 @@
 {-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -67,7 +66,7 @@ firsts_of_sequence firsts sequence =
                     )
 
         (has_epsilon_prefix, after) = span (Set.member ToE'Epsilon) sequence_firsts
-    in (Set.unions has_epsilon_prefix)
+    in Set.unions has_epsilon_prefix
         -- include the first symbol that does not have epsilon in its first set.
         -- if it does not exist, that means that all of the symbols in the sequence have epsilon in their first set, so the overall first set of the
         -- sequence has to also include epsilon.
@@ -128,7 +127,7 @@ find_closure grammar kernel = go Set.empty (Set.toList kernel)
                                         ToE'Terminal t -> t
                                         ToE'Epsilon -> current_item_lookahead
                                     )
-                        to_add_to_closure = (Set.fromList $ filter_rules_with_nt nt_after_dot grammar) & Set.map (\r -> Set.map (\l -> new_item r l) lookaheads) & Set.unions
+                        to_add_to_closure = Set.fromList (filter_rules_with_nt nt_after_dot grammar) & Set.map (\r -> Set.map (new_item r) lookaheads) & Set.unions
                     in go
                         (current_closure <> to_add_to_closure)
                         (more ++ filter (\i -> not (Set.member i kernel) && not (Set.member i current_closure)) (Set.toList to_add_to_closure))
@@ -147,7 +146,7 @@ instance Format Action where
 
 data ActionOrConflict t = SingleAction t | Conflict [t] deriving Functor
 instance Semigroup (ActionOrConflict a) where
-    (SingleAction a) <> (SingleAction b) = Conflict ([a, b])
+    (SingleAction a) <> (SingleAction b) = Conflict [a, b]
     (SingleAction as) <> (Conflict bs) = Conflict (as : bs)
     (Conflict as) <> (SingleAction bs) = Conflict (bs : as)
     (Conflict as) <> (Conflict bs) = Conflict (as ++ bs)
@@ -225,7 +224,7 @@ find_sets grammar item_set_tables (current_set_number : to_process) = do
                        ((found_set_index, set_modified), replace_at found_set_index set_merged sets)
                 Nothing ->
                     let new_item_set = ItemSet (length sets) kernel closure
-                    in ((length sets, True), (sets ++ [new_item_set]))
+                    in ((length sets, True), sets ++ [new_item_set])
             where
                 remove_lookaheads (Item rule ind _) = (rule, ind)
 
@@ -238,7 +237,7 @@ find_sets grammar item_set_tables (current_set_number : to_process) = do
                 replace_at n new l@(first : more)
                     | n >= length l =
                         error $ "cannot modify at index " <> show n <> " in list of length " <> show (length l) <> " (this is a bug in the parser generator)"
-                    | otherwise = first : (replace_at (n - 1) new more)
+                    | otherwise = first : replace_at (n - 1) new more
 
                 merge kernel closure (ItemSet number already_kernel already_closure) = ItemSet number (Set.union already_kernel kernel) (Set.union already_closure closure)
 find_sets _ tables [] = do
@@ -267,11 +266,10 @@ convert_to_state_table nt_result_types reduce_fn_map item_sets =
                         & Set.toList
                         & filter (isNothing . symbol_after_dot)
                         & map
-                            ( ( \(Item rule@((Rule _ r_nt _)) _ lookahead) ->
+                            (  \(Item rule@((Rule _ r_nt _)) _ lookahead) ->
                                     if cast r_nt == Just Augment
                                         then Map.singleton lookahead (SingleAction Accept)
                                         else Map.singleton lookahead (SingleAction $ Reduce rule)
-                              )
                             )
                         & Map.unionsWith (<>)
 
@@ -433,7 +431,7 @@ make_parse_fn name res_ty (StateTable nt_ty_map reduce_fn_map table) = do
     action_table_decl <- action_table_function reduce_fn_names action_table_name
 
     let fn_name = TH.mkName name
-    top_sig <- TH.SigD fn_name <$> [t|forall m. Monad m => Pipes.Consumer Token.LToken m (Either Error.Error $(res_ty))|]
+    top_sig <- TH.SigD fn_name <$> [t|forall m. Monad m => Pipes.Consumer Token.LToken m (Either Error.Error $res_ty)|]
     top_decl <- TH.funD fn_name [TH.clause [] (TH.normalB [|parse_loop $(TH.varE action_table_name)|]) []]
 
     pure $ reduce_fn_decls ++ goto_table_decl ++ action_table_decl ++ [top_sig, top_decl]
@@ -492,7 +490,7 @@ make_parse_fn name res_ty (StateTable nt_ty_map reduce_fn_map table) = do
                                             let action' = case action of
                                                     Shift n -> [|Right (PA'Shift n)|]
                                                     Reduce r -> [|Right (PA'Reduce $(TH.varE $ reduce_fn_names Map.! r))|]
-                                                    Accept -> [|Right (PA'Accept)|]
+                                                    Accept -> [|Right PA'Accept|]
 
                                             TH.clause [[p|_|], state_pattern, TH.conP terminal_ctor_name []] (TH.normalB action') []
                                         )

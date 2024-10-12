@@ -38,7 +38,7 @@ type ResolvedTypeSynonymArena = Arena.Arena (SIR.TypeSynonym Resolved) Type.Type
 -- resolve entry point {{{1
 resolve :: SIR.SIR Unresolved -> Error.WithErrors (SIR.SIR Resolved)
 resolve (SIR.SIR mods adts type_synonyms type_vars variables (SIR.CU root_module main_function)) =
-    resolve_in_mods mods >>= \ (mods) ->
+    resolve_in_mods mods >>= \ mods ->
     resolve_in_adts adts >>= \ adts ->
     resolve_in_type_synonyms type_synonyms >>= \ synonyms ->
     pure (SIR.SIR mods adts synonyms type_vars (Arena.transform change_variable variables) (SIR.CU root_module main_function))
@@ -58,13 +58,13 @@ resolve_in_type_synonyms = Arena.transformM resolve_in_type_synonym
 resolve_in_module :: SIR.Module Unresolved -> Error.WithErrors (SIR.Module Resolved)
 resolve_in_module (SIR.Module id bindings adts type_synonyms) = SIR.Module id <$> mapM resolve_in_binding bindings <*> pure adts <*> pure type_synonyms
 
-resolve_in_adt :: (SIR.ADT Unresolved) -> Error.WithErrors (SIR.ADT Resolved)
+resolve_in_adt :: SIR.ADT Unresolved -> Error.WithErrors (SIR.ADT Resolved)
 resolve_in_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM resolve_in_variant variants
     where
         resolve_in_variant (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id <$> mapM (\ (id, name, (ty, ())) -> resolve_in_type_expr ty >>= \ ty -> pure (id, name, (ty, ()))) fields
         resolve_in_variant (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id <$> mapM (\ (id, (ty, ())) -> resolve_in_type_expr ty >>= \ ty -> pure (id, (ty, ()))) fields
 
-resolve_in_type_synonym :: (SIR.TypeSynonym Unresolved) -> Error.WithErrors (SIR.TypeSynonym Resolved)
+resolve_in_type_synonym :: SIR.TypeSynonym Unresolved -> Error.WithErrors (SIR.TypeSynonym Resolved)
 resolve_in_type_synonym (Type.TypeSynonym id name (expansion, ())) =
     resolve_in_type_expr expansion >>= \ expansion ->
     pure (Type.TypeSynonym id name (expansion, ()))

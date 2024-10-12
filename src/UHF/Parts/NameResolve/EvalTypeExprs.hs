@@ -78,12 +78,12 @@ data TypeExpr
     | TypeExpr'Wild Span
     | TypeExpr'Poison Span
 -- eval {{{1
-eval :: NameMaps.SIRChildMaps -> (SIR.SIR Unevaled) -> Compiler.WithDiagnostics Error.Error Void (EvaledSIR, TypeSolver.SolverState)
+eval :: NameMaps.SIRChildMaps -> SIR.SIR Unevaled -> Compiler.WithDiagnostics Error.Error Void (EvaledSIR, TypeSolver.SolverState)
 eval sir_child_maps sir =
     let (sir', type_expr_arena) = extract sir
     in put_back sir_child_maps type_expr_arena sir'
 -- extract {{{1
-extract :: (SIR.SIR Unevaled) -> ((SIR.SIR Extracted), Arena.Arena TypeExpr TypeExprKey)
+extract :: SIR.SIR Unevaled -> (SIR.SIR Extracted, Arena.Arena TypeExpr TypeExprKey)
 extract (SIR.SIR mods adts type_synonyms quant_vars variables (SIR.CU root_module main_function)) =
     let ((mods', adts', type_synonyms'), d_iden_arena) =
             runState
@@ -107,24 +107,24 @@ extract_in_adts = Arena.transformM extract_in_adt
 extract_in_type_synonyms :: UnevaledTypeSynonymArena -> ExtractMonad ExtractedTypeSynonymArena
 extract_in_type_synonyms = Arena.transformM extract_in_type_synonym
 
-extract_in_module :: (SIR.Module Unevaled) -> ExtractMonad (SIR.Module Extracted)
+extract_in_module :: SIR.Module Unevaled -> ExtractMonad (SIR.Module Extracted)
 extract_in_module (SIR.Module id bindings adts type_synonyms) = SIR.Module id <$> mapM extract_in_binding bindings <*> pure adts <*> pure type_synonyms
 
-extract_in_adt :: (SIR.ADT Unevaled) -> ExtractMonad (SIR.ADT Extracted)
+extract_in_adt :: SIR.ADT Unevaled -> ExtractMonad (SIR.ADT Extracted)
 extract_in_adt (Type.ADT id name quant_vars variants) = Type.ADT id name quant_vars <$> mapM extract_in_variant variants
     where
         extract_in_variant (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id <$> mapM (\ (id, name, (ty, ())) -> extract_in_type_expr ty >>= \ (_, ty) -> pure (id, name, (ty, ()))) fields
         extract_in_variant (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id <$> mapM (\ (id, (ty, ())) -> extract_in_type_expr ty >>= \ (_, ty) -> pure (id, (ty, ()))) fields
 
-extract_in_type_synonym :: (SIR.TypeSynonym Unevaled) -> ExtractMonad (SIR.TypeSynonym Extracted)
+extract_in_type_synonym :: SIR.TypeSynonym Unevaled -> ExtractMonad (SIR.TypeSynonym Extracted)
 extract_in_type_synonym (Type.TypeSynonym id name (expansion, ())) =
     extract_in_type_expr expansion >>= \ (_, expansion) ->
     pure (Type.TypeSynonym id name (expansion, ()))
 
-extract_in_binding :: (SIR.Binding Unevaled) -> ExtractMonad (SIR.Binding Extracted)
+extract_in_binding :: SIR.Binding Unevaled -> ExtractMonad (SIR.Binding Extracted)
 extract_in_binding (SIR.Binding target eq_sp expr) = SIR.Binding <$> extract_in_pat target <*> pure eq_sp <*> extract_in_expr expr
 
-extract_in_type_expr :: (SIR.TypeExpr Unevaled) -> ExtractMonad (TypeExprKey, (SIR.TypeExpr Extracted))
+extract_in_type_expr :: SIR.TypeExpr Unevaled -> ExtractMonad (TypeExprKey, SIR.TypeExpr Extracted)
 extract_in_type_expr (SIR.TypeExpr'Refer () sp iden) = do
     k <- make_type_expr_entry (TypeExpr'Refer sp iden)
     pure (k, SIR.TypeExpr'Refer k sp iden)
@@ -161,7 +161,7 @@ extract_in_type_expr (SIR.TypeExpr'Poison () sp) =
     make_type_expr_entry (TypeExpr'Poison sp) >>= \ k ->
     pure (k, SIR.TypeExpr'Poison k sp)
 
-extract_in_pat :: (SIR.Pattern Unevaled) -> ExtractMonad (SIR.Pattern Extracted)
+extract_in_pat :: SIR.Pattern Unevaled -> ExtractMonad (SIR.Pattern Extracted)
 extract_in_pat (SIR.Pattern'Identifier type_info sp bnk) = pure $ SIR.Pattern'Identifier type_info sp bnk
 extract_in_pat (SIR.Pattern'Wildcard type_info sp) = pure $ SIR.Pattern'Wildcard type_info sp
 extract_in_pat (SIR.Pattern'Tuple type_info sp a b) = SIR.Pattern'Tuple type_info sp <$> extract_in_pat a <*> extract_in_pat b
@@ -170,7 +170,7 @@ extract_in_pat (SIR.Pattern'AnonADTVariant type_info sp variant_split_iden () ty
 extract_in_pat (SIR.Pattern'NamedADTVariant type_info sp variant_split_iden () tyargs subpat) = SIR.Pattern'NamedADTVariant type_info sp <$> extract_in_split_iden variant_split_iden <*> pure () <*> pure tyargs <*> mapM (\ (field_name, field_pat) -> (field_name,) <$> extract_in_pat field_pat) subpat
 extract_in_pat (SIR.Pattern'Poison type_info sp) = pure $ SIR.Pattern'Poison type_info sp
 
-extract_in_expr :: (SIR.Expr Unevaled) -> ExtractMonad (SIR.Expr Extracted)
+extract_in_expr :: SIR.Expr Unevaled -> ExtractMonad (SIR.Expr Extracted)
 extract_in_expr (SIR.Expr'Identifier id type_info sp iden_split ()) = SIR.Expr'Identifier id type_info sp <$> extract_in_split_iden iden_split <*> pure ()
 extract_in_expr (SIR.Expr'Char id type_info sp c) = pure $ SIR.Expr'Char id type_info sp c
 extract_in_expr (SIR.Expr'String id type_info sp s) = pure $ SIR.Expr'String id type_info sp s
@@ -240,25 +240,25 @@ put_back_in_adts = Arena.transformM put_back_in_adt
 put_back_in_type_synonyms :: ExtractedTypeSynonymArena -> EvalMonad (Arena.Arena (SIR.ADT Extracted) Type.ADTKey) (Arena.Arena (SIR.TypeSynonym Extracted) Type.TypeSynonymKey) QuantVarArena EvaledTypeSynonymArena
 put_back_in_type_synonyms = Arena.transformM put_back_in_type_synonym
 
-put_back_in_module :: (SIR.Module Extracted) -> EvalMonad (Arena.Arena (SIR.ADT Extracted) Type.ADTKey) (Arena.Arena (SIR.TypeSynonym Extracted) Type.TypeSynonymKey) QuantVarArena EvaledModule
+put_back_in_module :: SIR.Module Extracted -> EvalMonad (Arena.Arena (SIR.ADT Extracted) Type.ADTKey) (Arena.Arena (SIR.TypeSynonym Extracted) Type.TypeSynonymKey) QuantVarArena EvaledModule
 put_back_in_module (SIR.Module id bindings adts type_synonyms) = SIR.Module id <$> mapM put_back_in_binding bindings <*> pure adts <*> pure type_synonyms
 
-put_back_in_adt :: (SIR.ADT Extracted) -> EvalMonad (Arena.Arena (SIR.ADT Extracted) Type.ADTKey) (Arena.Arena (SIR.TypeSynonym Extracted) Type.TypeSynonymKey) QuantVarArena EvaledADT
+put_back_in_adt :: SIR.ADT Extracted -> EvalMonad (Arena.Arena (SIR.ADT Extracted) Type.ADTKey) (Arena.Arena (SIR.TypeSynonym Extracted) Type.TypeSynonymKey) QuantVarArena EvaledADT
 put_back_in_adt (Type.ADT id name quant_vars variants) = Type.ADT id name quant_vars <$> mapM put_back_in_variant variants
     where
         put_back_in_variant (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id <$> mapM (\ (id, name, (ty, ())) -> put_back_in_type_expr ty >>= \ ty -> type_expr_evaled_as_type ty >>= \ ty_as_type -> pure (id, name, (ty, ty_as_type))) fields
         put_back_in_variant (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id <$> mapM (\ (id, (ty, ())) -> put_back_in_type_expr ty >>= \ ty -> type_expr_evaled_as_type ty >>= \ ty_as_type -> pure (id, (ty, ty_as_type))) fields
 
-put_back_in_type_synonym :: (SIR.TypeSynonym Extracted) -> EvalMonad (Arena.Arena (SIR.ADT Extracted) Type.ADTKey) (Arena.Arena (SIR.TypeSynonym Extracted) Type.TypeSynonymKey) QuantVarArena EvaledTypeSynonym
+put_back_in_type_synonym :: SIR.TypeSynonym Extracted -> EvalMonad (Arena.Arena (SIR.ADT Extracted) Type.ADTKey) (Arena.Arena (SIR.TypeSynonym Extracted) Type.TypeSynonymKey) QuantVarArena EvaledTypeSynonym
 put_back_in_type_synonym (Type.TypeSynonym id name (expansion, ())) =
     put_back_in_type_expr expansion >>= \ expansion ->
     type_expr_evaled_as_type expansion >>= \ expansion_as_type ->
     pure (Type.TypeSynonym id name (expansion, expansion_as_type))
 
-put_back_in_binding :: (SIR.Binding Extracted) -> EvalMonad (Arena.Arena (SIR.ADT Extracted) Type.ADTKey) (Arena.Arena (SIR.TypeSynonym Extracted) Type.TypeSynonymKey) QuantVarArena EvaledBinding
+put_back_in_binding :: SIR.Binding Extracted -> EvalMonad (Arena.Arena (SIR.ADT Extracted) Type.ADTKey) (Arena.Arena (SIR.TypeSynonym Extracted) Type.TypeSynonymKey) QuantVarArena EvaledBinding
 put_back_in_binding (SIR.Binding target eq_sp expr) = SIR.Binding <$> put_back_in_pat target <*> pure eq_sp <*> put_back_in_expr expr
 
-put_back_in_type_expr :: (SIR.TypeExpr Extracted) -> EvalMonad (Arena.Arena (SIR.ADT Extracted) Type.ADTKey) (Arena.Arena (SIR.TypeSynonym Extracted) Type.TypeSynonymKey) QuantVarArena EvaledTypeExpr
+put_back_in_type_expr :: SIR.TypeExpr Extracted -> EvalMonad (Arena.Arena (SIR.ADT Extracted) Type.ADTKey) (Arena.Arena (SIR.TypeSynonym Extracted) Type.TypeSynonymKey) QuantVarArena EvaledTypeExpr
 put_back_in_type_expr te = case te of
     SIR.TypeExpr'Refer te_k sp iden -> eval_type_expr te_k >>= \ evaled -> pure (SIR.TypeExpr'Refer evaled sp iden)
     SIR.TypeExpr'Get te_k sp parent name -> eval_type_expr te_k >>= \ evaled -> put_back_in_type_expr parent >>= \ parent -> pure (SIR.TypeExpr'Get evaled sp parent name)
@@ -270,7 +270,7 @@ put_back_in_type_expr te = case te of
     SIR.TypeExpr'Wild te_k sp -> eval_type_expr te_k >>= \ evaled -> pure (SIR.TypeExpr'Wild evaled sp)
     SIR.TypeExpr'Poison te_k sp -> eval_type_expr te_k >>= \ evaled -> pure (SIR.TypeExpr'Poison evaled sp)
 
-put_back_in_pat :: (SIR.Pattern Extracted) -> EvalMonad (Arena.Arena (SIR.ADT Extracted) Type.ADTKey) (Arena.Arena (SIR.TypeSynonym Extracted) Type.TypeSynonymKey) QuantVarArena EvaledPattern
+put_back_in_pat :: SIR.Pattern Extracted -> EvalMonad (Arena.Arena (SIR.ADT Extracted) Type.ADTKey) (Arena.Arena (SIR.TypeSynonym Extracted) Type.TypeSynonymKey) QuantVarArena EvaledPattern
 put_back_in_pat (SIR.Pattern'Identifier type_info sp bnk) = pure $ SIR.Pattern'Identifier type_info sp bnk
 put_back_in_pat (SIR.Pattern'Wildcard type_info sp) = pure $ SIR.Pattern'Wildcard type_info sp
 put_back_in_pat (SIR.Pattern'Tuple type_info sp a b) = SIR.Pattern'Tuple type_info sp <$> put_back_in_pat a <*> put_back_in_pat b
@@ -279,7 +279,7 @@ put_back_in_pat (SIR.Pattern'AnonADTVariant type_info sp variant_split_iden () t
 put_back_in_pat (SIR.Pattern'NamedADTVariant type_info sp variant_split_iden () tyargs subpat) = SIR.Pattern'NamedADTVariant type_info sp <$> put_back_split_iden variant_split_iden <*> pure () <*> pure tyargs <*> mapM (\ (field_name, field_pat) -> (field_name,) <$> put_back_in_pat field_pat) subpat
 put_back_in_pat (SIR.Pattern'Poison type_info sp) = pure $ SIR.Pattern'Poison type_info sp
 
-put_back_in_expr :: (SIR.Expr Extracted) -> EvalMonad (Arena.Arena (SIR.ADT Extracted) Type.ADTKey) (Arena.Arena (SIR.TypeSynonym Extracted) Type.TypeSynonymKey) QuantVarArena EvaledExpr
+put_back_in_expr :: SIR.Expr Extracted -> EvalMonad (Arena.Arena (SIR.ADT Extracted) Type.ADTKey) (Arena.Arena (SIR.TypeSynonym Extracted) Type.TypeSynonymKey) QuantVarArena EvaledExpr
 put_back_in_expr (SIR.Expr'Identifier id type_info sp iden_split ()) = SIR.Expr'Identifier id type_info sp <$> put_back_split_iden iden_split <*> pure ()
 put_back_in_expr (SIR.Expr'Char id type_info sp c) = pure $ SIR.Expr'Char id type_info sp c
 put_back_in_expr (SIR.Expr'String id type_info sp s) = pure $ SIR.Expr'String id type_info sp s
@@ -353,13 +353,11 @@ eval_type_expr tek = do
         go (TypeExpr'Get _ parent name) = do
             (_, _, _, sir_child_maps) <- lift $ lift ask
             parent_evaled <- eval_type_expr parent
-            result <- case parent_evaled of
+            case parent_evaled of
                 Just parent -> case NameMaps.get_decl_child sir_child_maps parent name of
                     Right r -> pure $ Just r
                     Left e -> lift (lift $ lift $ Compiler.tell_error e) >> pure Nothing
                 Nothing -> pure Nothing
-
-            pure result
 
         go (TypeExpr'Tuple _ a b) =
             eval_type_expr a >>= \ a_evaled ->

@@ -1,4 +1,3 @@
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 
 module UHF.Diagnostic.Styles.JSON (JSON (..)) where
@@ -37,7 +36,7 @@ instance ToJSON Text where
 instance ToJSON a => ToJSON (Maybe a) where
     to_json (Just a) =
         JSON.JSObject $ JSON.toJSObject [("maybe", JSON.JSBool True), ("data", to_json a)]
-    to_json (Nothing) =
+    to_json Nothing =
         JSON.JSObject $ JSON.toJSObject [("maybe", JSON.JSBool False)]
 
 instance ToJSON File where

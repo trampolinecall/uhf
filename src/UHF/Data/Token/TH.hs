@@ -68,7 +68,7 @@ generate token_specs = do
                             field_names <- mapM (\_ -> TH.newName "f") field_types
                             format_t <- format_t
                             TH.clause
-                                [TH.conP (TH.mkName $ "" ++ name) (map TH.varP field_names)]
+                                [TH.conP (TH.mkName name) (map TH.varP field_names)]
                                 (TH.normalB $ foldlM (\e a -> [|$(pure e) $(TH.varE a)|]) format_t field_names)
                                 []
                         ]
@@ -86,7 +86,7 @@ generate token_specs = do
                         field_name <- TH.newName "t"
                         TH.clause
                             [TH.conP (TH.mkName $ "T'" ++ name) [TH.varP field_name]]
-                            (TH.normalB $ [|format $(TH.varE field_name)|])
+                            (TH.normalB [|format $(TH.varE field_name)|])
                             []
                     )
                     token_specs
@@ -134,7 +134,7 @@ generate token_specs = do
                     t <- TH.newName "t"
                     TH.clause
                         [[p|Located $(TH.varP sp) $(TH.conP (TH.mkName $ "T'" ++ name) [TH.varP t])|]]
-                        (TH.normalB $ [|Dynamic.toDyn $ Located $(TH.varE sp) $(TH.varE t)|])
+                        (TH.normalB [|Dynamic.toDyn $ Located $(TH.varE sp) $(TH.varE t)|])
                         []
                 )
                 token_specs

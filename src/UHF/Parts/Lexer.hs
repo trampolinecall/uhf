@@ -125,17 +125,17 @@ lex_alpha_identifier =
     lex_id_or_kw
         (\ ch -> isAlpha ch || ch == '_')
         (\ ch -> isAlpha ch || isDigit ch || ch == '_' || ch == '\'')
-        [ ("_", Token.T'Underscore $ Token.Underscore)
-        , ("root", Token.T'Root $ Token.Root)
-        , ("let", Token.T'Let $ Token.Let)
-        , ("letrec", Token.T'LetRec $ Token.LetRec)
-        , ("data", Token.T'Data $ Token.Data)
-        , ("impl", Token.T'Impl $ Token.Impl)
-        , ("if", Token.T'If $ Token.If)
-        , ("then", Token.T'Then $ Token.Then)
-        , ("else", Token.T'Else $ Token.Else)
-        , ("match", Token.T'Match $ Token.Match)
-        , ("typesyn", Token.T'TypeSyn $ Token.TypeSyn)
+        [ ("_", Token.T'Underscore Token.Underscore)
+        , ("root", Token.T'Root Token.Root)
+        , ("let", Token.T'Let Token.Let)
+        , ("letrec", Token.T'LetRec Token.LetRec)
+        , ("data", Token.T'Data Token.Data)
+        , ("impl", Token.T'Impl Token.Impl)
+        , ("if", Token.T'If Token.If)
+        , ("then", Token.T'Then Token.Then)
+        , ("else", Token.T'Else Token.Else)
+        , ("match", Token.T'Match Token.Match)
+        , ("typesyn", Token.T'TypeSyn Token.TypeSyn)
         , ("true", Token.T'Bool $ Token.Bool True)
         , ("false", Token.T'Bool $ Token.Bool False)
         ]
@@ -150,15 +150,15 @@ lex_symbol_identifier =
     lex_id_or_kw
         (`elem` ("~!@#$%^&*+`-=|:./<>?\\" :: [Char]))
         (`elem` ("~!@#$%^&*+`-=|:./<>?\\" :: [Char]))
-        [ ("->", Token.T'Arrow $ Token.Arrow)
-        , ("#", Token.T'Hash $ Token.Hash)
-        , ("=", Token.T'Equal $ Token.Equal)
-        , (":", Token.T'Colon $ Token.Colon)
-        , ("@", Token.T'At $ Token.At)
-        , ("?", Token.T'Question $ Token.Question)
-        , ("\\", Token.T'Backslash $ Token.Backslash)
-        , ("^", Token.T'Caret $ Token.Caret)
-        , ("`", Token.T'Backtick $ Token.Backtick) -- TODO: backticks are delimiters?
+        [ ("->", Token.T'Arrow Token.Arrow)
+        , ("#", Token.T'Hash Token.Hash)
+        , ("=", Token.T'Equal Token.Equal)
+        , (":", Token.T'Colon Token.Colon)
+        , ("@", Token.T'At Token.At)
+        , ("?", Token.T'Question Token.Question)
+        , ("\\", Token.T'Backslash Token.Backslash)
+        , ("^", Token.T'Caret Token.Caret)
+        , ("`", Token.T'Backtick Token.Backtick) -- TODO: backticks are delimiters?
         ]
         (\ t ->
             if Text.last t == ':'
@@ -303,7 +303,7 @@ case_lex_empty =
 minilex_test :: (Location -> r) -> Text -> (r -> IO ()) -> IO ()
 minilex_test fn input check = File.new "a" input >>= \ f -> check $ fn $ Location.new f
 minilex_test' :: MiniLexer r -> Text -> (Maybe (Location, r) -> IO ()) -> IO ()
-minilex_test' fn = minilex_test ((fmap (\ ((r, loc)) -> (loc, r))) . runStateT fn)
+minilex_test' fn = minilex_test (fmap (\ (r, loc) -> (loc, r)) . runStateT fn)
 minilex_test_fail :: Show r => [Char] -> r -> IO a
 minilex_test_fail fn_name res = assertFailure $ "'" ++ fn_name ++ "' lexed incorrectly: returned '" ++ show res ++ "'"
 
@@ -391,26 +391,26 @@ case_lex_symbol_identifier_multiple =
 case_lex_symbol_identifier_kw :: Assertion
 case_lex_symbol_identifier_kw =
     minilex_test' lex_symbol_identifier ":" $ \case
-        Just (l, [Right (Located _ (Token.T'Colon (Token.Colon)))])
+        Just (l, [Right (Located _ (Token.T'Colon Token.Colon))])
             | remaining l == "" -> pure ()
         x -> minilex_test_fail "lex_symbol_identifier" x
 case_lex_symbol_identifier_long_kw :: Assertion
 case_lex_symbol_identifier_long_kw =
     minilex_test' lex_symbol_identifier "->" $ \case
-        Just (l, [Right (Located _ (Token.T'Arrow (Token.Arrow)))])
+        Just (l, [Right (Located _ (Token.T'Arrow Token.Arrow))])
             | remaining l == "" -> pure ()
         x -> minilex_test_fail "lex_symbol_identifier" x
 
 case_lex_delimiter :: Assertion
 case_lex_delimiter =
     minilex_test' lex_delimiter "((:))" $ \case
-        Just (l, [Right (Located _ (Token.T'OParen (Token.OParen)))])
+        Just (l, [Right (Located _ (Token.T'OParen Token.OParen))])
             | remaining l == "(:))" -> pure ()
         x -> minilex_test_fail "lex_delimiter" x
 case_lex_delimiter_double_colon_then_symbol_identifier :: Assertion
 case_lex_delimiter_double_colon_then_symbol_identifier =
     minilex_test' lex_delimiter "::*&" $ \case
-        Just (l, [Right (Located _ (Token.T'DoubleColon (Token.DoubleColon)))])
+        Just (l, [Right (Located _ (Token.T'DoubleColon Token.DoubleColon))])
             | remaining l == "*&" -> pure ()
         x -> minilex_test_fail "lex_delimiter" x
 

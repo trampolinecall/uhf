@@ -185,7 +185,7 @@ pattern (SIR.Pattern'AnonADTVariant () sp variant_iden (Just variant_index@(Type
 
     mapM (\ var -> TypeSolver.Type'InferVar <$> lift (lift $ TypeSolver.new_infer_var $ TypeSolver.ImplicitTyParam sp {- var TODO -})) type_params >>= \ type_param_unks -> -- TODO: declared span
 
-    let substitute_adt_params = lift . lift . foldl' (>=>) pure (zipWith (TypeSolver.substitute_quant_var) type_params type_param_unks)
+    let substitute_adt_params = lift . lift . foldl' (>=>) pure (zipWith TypeSolver.substitute_quant_var type_params type_param_unks)
         whole_pat_type = TypeSolver.Type'ADT adt_key type_param_unks
 
     in case variant of

@@ -47,12 +47,12 @@ convert_module (SIR.Module id bindings adts type_synonyms) = do
         & mapM ( \ adt_key -> do
             (adts, _) <- ask
             let variants = Type.ADT.variant_idxs adts adt_key
-            mapM (\ variant_idx -> (variant_idx,) <$> (make_adt_constructor variant_idx)) variants
+            mapM (\ variant_idx -> (variant_idx,) <$> make_adt_constructor variant_idx) variants
         )
         & fmap concat
     let adt_constructor_map = Map.fromList $ map (\ (variant_index, (var_key, _)) -> (variant_index, var_key)) adt_constructors
 
-    bindings <- concat <$> runReaderT (mapM (convert_binding) bindings) adt_constructor_map
+    bindings <- concat <$> runReaderT (mapM convert_binding bindings) adt_constructor_map
     pure (RIR.Module id (bindings <> map (\ (_, (_, binding)) -> binding) adt_constructors) adts type_synonyms)
 
 make_adt_constructor :: Type.ADT.VariantIndex -> ConvertState (RIR.VariableKey, RIR.Binding)

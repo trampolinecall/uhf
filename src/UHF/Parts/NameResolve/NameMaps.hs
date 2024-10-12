@@ -167,9 +167,9 @@ var_name var_key =
 intrinsics_package_child_maps :: ChildMaps
 intrinsics_package_child_maps =
     ChildMaps
-        (Map.fromList [])
+        Map.empty
         (Map.fromList $ map (\ intrinsic -> (Intrinsics.intrinsic_bv_name intrinsic, SIR.BoundValue'Intrinsic intrinsic)) (Enum.enumFromTo Enum.minBound Enum.maxBound))
-        (Map.fromList [])
+        Map.empty
 -- getting from child maps {{{1
 -- TODO: remove duplication from these
 get_decl_child :: SIRChildMaps -> SIR.Decl TypeWithInferVar.Type -> Located Text -> Either Error (SIR.Decl TypeWithInferVar.Type)

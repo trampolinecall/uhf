@@ -50,7 +50,6 @@ data Variable
         }
     deriving Show
 
--- TODO: do not export TopologicallySorted so that it can only be constructed as a result of topologically sorting?
 data TopologicalSortStatus = TopologicallySorted | HasLoops deriving Show
 data Bindings = Bindings TopologicalSortStatus [Binding] deriving Show
 data Binding = Binding VariableKey Expr deriving Show

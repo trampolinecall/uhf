@@ -5,41 +5,28 @@ module UHF.Parts.ToANFIR (convert) where
 
 import UHF.Prelude
 
-import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 import qualified UHF.Data.ANFIR as ANFIR
 import qualified UHF.Data.IR.ID as ID
-import qualified UHF.Data.IR.Intrinsics as Intrinsics
 import qualified UHF.Data.IR.Type as Type
-import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.RIR as RIR
 import qualified UHF.Util.Arena as Arena
 import qualified UHF.Util.IDGen as IDGen
 
--- TODO: remove these type synonyms
-type RIRExpr = RIR.Expr
-type RIRBinding = RIR.Binding
-
--- TODO: remove these type synonyms
-type ANFIR = ANFIR.ANFIR
-type ANFIRExpr = ANFIR.Expr
-type ANFIRParam = ANFIR.Param
-type ANFIRBinding = ANFIR.Binding
-type ANFIRBindingGroup = ANFIR.BindingGroup
-
 type VariableArena = Arena.Arena RIR.Variable RIR.VariableKey
 
 type BindingArena b = Arena.Arena b ANFIR.BindingKey
-type ANFIRParamArena = Arena.Arena ANFIRParam ANFIR.ParamKey
+-- TODO: remove this
+type ParamArena = Arena.Arena ANFIR.Param ANFIR.ParamKey
 
 -- TODO: turn this into a monad transformer like ReaderT?
 type NeedsVarMap e = VariableMap -> e
 
 type VariableMap = Map.Map RIR.VariableKey ANFIR.BindingKey
 
-type MakeGraphState binding = WriterT VariableMap (StateT (BindingArena binding, ANFIRParamArena) (IDGen.IDGenT ID.ExprID (Reader VariableArena)))
+type MakeGraphState binding = WriterT VariableMap (StateT (BindingArena binding, ParamArena) (IDGen.IDGenT ID.ExprID (Reader VariableArena)))
 
 newtype AccumBindingGroup = AccumBindingGroup { un_accum_bg :: ANFIR.BindingGroup }
 instance Semigroup AccumBindingGroup where
@@ -48,7 +35,7 @@ instance Semigroup AccumBindingGroup where
 instance Monoid AccumBindingGroup where
     mempty = AccumBindingGroup $ ANFIR.BindingGroup ANFIR.TopologicallySorted []
 
-convert :: RIR.RIR -> ANFIR
+convert :: RIR.RIR -> ANFIR.ANFIR
 convert (RIR.RIR adts type_synonyms type_vars variables cu) =
     let ((cu', var_map), (bindings_needs_var_map, params)) = runReader (IDGen.run_id_gen_t ID.ExprID'ANFIRGen (runStateT (runWriterT (make_cu cu)) (Arena.new, Arena.new))) variables
         cu'' = cu' var_map
@@ -74,7 +61,7 @@ convert_bindings (RIR.Bindings topological_sort_status bindings) = do
         convert_topological_sort_status ANFIR.TopologicallySorted RIR.TopologicallySorted = ANFIR.TopologicallySorted
         convert_topological_sort_status _ _ = ANFIR.HasLoops
 
-convert_binding :: RIRBinding -> WriterT AccumBindingGroup (MakeGraphState (NeedsVarMap ANFIR.Expr)) ANFIR.BindingKey
+convert_binding :: RIR.Binding -> WriterT AccumBindingGroup (MakeGraphState (NeedsVarMap ANFIR.Expr)) ANFIR.BindingKey
 convert_binding (RIR.Binding target expr) =
     lift (get_var target) >>= \ (RIR.Variable varid _ _) ->
     convert_expr (Just varid) expr >>= \ expr_result_binding ->
@@ -83,7 +70,7 @@ convert_binding (RIR.Binding target expr) =
 
 new_binding :: binding -> WriterT AccumBindingGroup (MakeGraphState binding) ANFIR.BindingKey
 new_binding binding = lift (lift $ state $ \ (bindings, params) -> let (i, bindings') = Arena.put binding bindings in (i, (bindings', params))) >>= \ binding_key -> tell (AccumBindingGroup $ ANFIR.BindingGroup ANFIR.TopologicallySorted [binding_key]) >> pure binding_key
-new_param :: ANFIRParam -> WriterT AccumBindingGroup (MakeGraphState binding) ANFIR.ParamKey
+new_param :: ANFIR.Param -> WriterT AccumBindingGroup (MakeGraphState binding) ANFIR.ParamKey
 new_param param = lift (lift $ state $ \ (bindings, params) -> let (i, params') = Arena.put param params in (i, (bindings, params')))
 
 new_expr_id :: MakeGraphState binding ID.ExprID

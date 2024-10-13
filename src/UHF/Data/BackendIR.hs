@@ -5,7 +5,8 @@ module UHF.Data.BackendIR
     , BindingKey
     , ParamKey
 
-    , BindingChunk (..)
+    , TopologicallySorted (..)
+    , HasLoops (..)
     , BindingGroup (..)
     , Binding (..)
 
@@ -23,7 +24,6 @@ module UHF.Data.BackendIR
     , expr_id
     , binding_type
     , binding_id
-    , chunk_bindings
     ) where
 
 import UHF.Prelude
@@ -37,26 +37,25 @@ import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Util.Arena as Arena
 
-data BackendIR ty poison_allowed
+data BackendIR topological_sort_status ty poison_allowed
     = BackendIR
         (Arena.Arena (Type.ADT ty) ADTKey)
         (Arena.Arena (Type.TypeSynonym ty) TypeSynonymKey)
         (Arena.Arena Type.QuantVar Type.QuantVarKey)
-        (Arena.Arena (Binding ty poison_allowed) BindingKey)
+        (Arena.Arena (Binding topological_sort_status ty poison_allowed) BindingKey)
         (Arena.Arena (Param ty) ParamKey)
-        (CU poison_allowed)
+        (CU topological_sort_status poison_allowed)
 
 -- "compilation unit"
-data CU poison_allowed = CU { cu_main_function :: Either poison_allowed BindingKey, cu_bindings :: BindingGroup, cu_adts :: [ADTKey], cu_type_synonyms :: [TypeSynonymKey] }
+data CU topological_sort_status poison_allowed = CU { cu_main_function :: Either poison_allowed BindingKey, cu_bindings :: BindingGroup topological_sort_status, cu_adts :: [ADTKey], cu_type_synonyms :: [TypeSynonymKey] }
 
 data Param ty = Param ID.VariableID ty deriving Show
 
-data BindingChunk
-    = SingleBinding BindingKey
-    | MutuallyRecursiveBindings [BindingKey] deriving Show
-data BindingGroup = BindingGroup { binding_group_chunks :: [BindingChunk] } deriving Show
+data HasLoops = HasLoops deriving Show
+data TopologicallySorted = TopologicallySorted deriving Show
+data BindingGroup topological_sort_status = BindingGroup { binding_group_status :: topological_sort_status, binding_group_bindings :: [BindingKey] } deriving Show
 
-data Binding ty poison_allowed = Binding { binding_initializer :: Expr ty poison_allowed }
+data Binding topological_sort_status ty poison_allowed = Binding { binding_initializer :: Expr topological_sort_status ty poison_allowed }
 
 data ID
     = ExprID ID.ExprID
@@ -69,7 +68,7 @@ stringify_id :: ID -> Text
 stringify_id (ExprID id) = ID.stringify id
 stringify_id (VarID id) = ID.stringify id
 
-data Expr ty poison_allowed
+data Expr topological_sort_status ty poison_allowed
     = Expr'Refer ID ty BindingKey
     | Expr'Intrinsic ID ty Intrinsics.IntrinsicBoundValue
 
@@ -81,25 +80,25 @@ data Expr ty poison_allowed
     | Expr'Tuple ID ty BindingKey BindingKey
     | Expr'MakeADT ID ty Type.ADT.VariantIndex [ty] [BindingKey]
 
-    | Expr'Lambda ID ty ParamKey (Set.Set BindingKey) BindingGroup BindingKey
+    | Expr'Lambda ID ty ParamKey (Set.Set BindingKey) (BindingGroup topological_sort_status) BindingKey
     | Expr'Param ID ty ParamKey
 
     | Expr'Call ID ty BindingKey BindingKey
 
-    | Expr'Match ID ty (MatchTree poison_allowed)
+    | Expr'Match ID ty (MatchTree topological_sort_status poison_allowed)
 
     | Expr'TupleDestructure1 ID ty BindingKey
     | Expr'TupleDestructure2 ID ty BindingKey
     | Expr'ADTDestructure ID ty BindingKey (Either poison_allowed Type.ADT.FieldIndex)
 
-    | Expr'Forall ID ty QuantVarKey BindingGroup BindingKey
+    | Expr'Forall ID ty QuantVarKey (BindingGroup topological_sort_status) BindingKey
     | Expr'TypeApply ID ty BindingKey ty
 
     | Expr'Poison ID ty poison_allowed
     deriving Show
 
-data MatchTree poison_allowed
-    = MatchTree [([MatchClause poison_allowed], Either (MatchTree poison_allowed) (BindingGroup, BindingKey))]
+data MatchTree topological_sort_status poison_allowed
+    = MatchTree [([MatchClause poison_allowed], Either (MatchTree topological_sort_status poison_allowed) (BindingGroup topological_sort_status, BindingKey))]
     deriving Show
 data MatchClause poison_allowed
     = MatchClause'Match BindingKey (MatchMatcher poison_allowed)
@@ -111,7 +110,7 @@ data MatchMatcher poison_allowed
     | Match'AnonADTVariant (Either poison_allowed Type.ADT.VariantIndex)
     deriving Show
 
-expr_type :: Expr ty poison_allowed -> ty
+expr_type :: Expr topological_sort_status ty poison_allowed -> ty
 expr_type (Expr'Refer _ ty _) = ty
 expr_type (Expr'Intrinsic _ ty _) = ty
 expr_type (Expr'Int _ ty _) = ty
@@ -132,7 +131,7 @@ expr_type (Expr'TypeApply _ ty _ _) = ty
 expr_type (Expr'MakeADT _ ty _ _ _) = ty
 expr_type (Expr'Poison _ ty _) = ty
 
-expr_id :: Expr ty poison_allowed -> ID
+expr_id :: Expr topological_sort_status ty poison_allowed -> ID
 expr_id (Expr'Refer id _ _) = id
 expr_id (Expr'Intrinsic id _ _) = id
 expr_id (Expr'Int id _ _) = id
@@ -153,11 +152,7 @@ expr_id (Expr'TypeApply id _ _ _) = id
 expr_id (Expr'MakeADT id _ _ _ _) = id
 expr_id (Expr'Poison id _ _) = id
 
-binding_type :: Binding ty poison_allowed -> ty
+binding_type :: Binding topological_sort_status ty poison_allowed -> ty
 binding_type = expr_type . binding_initializer
-binding_id :: Binding ty poison_allowed -> ID
+binding_id :: Binding topological_sort_status ty poison_allowed -> ID
 binding_id = expr_id . binding_initializer
-
-chunk_bindings :: BindingChunk -> [BindingKey]
-chunk_bindings (SingleBinding b) = [b]
-chunk_bindings (MutuallyRecursiveBindings bs) = bs

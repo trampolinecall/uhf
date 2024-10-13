@@ -17,15 +17,15 @@ import qualified UHF.Parts.TSBackend.TS as TS
 import qualified UHF.Parts.TSBackend.TS.PP as TS.PP
 import qualified UHF.Util.Arena as Arena
 
-type CU = BackendIR.CU Void
+type CU = BackendIR.CU BackendIR.TopologicallySorted Void
 type Type = Type.Type
 type ADT = Type.ADT Type
 type TypeSynonym = Type.TypeSynonym Type
-type Binding = BackendIR.Binding Type Void
-type BindingGroup = BackendIR.BindingGroup
+type Binding = BackendIR.Binding BackendIR.TopologicallySorted Type Void
+type BindingGroup = BackendIR.BindingGroup BackendIR.TopologicallySorted
 type Param = BackendIR.Param Type
 
-type BackendIR = BackendIR.BackendIR Type Void
+type BackendIR = BackendIR.BackendIR BackendIR.TopologicallySorted Type Void
 
 type ADTArena = Arena.Arena ADT Type.ADTKey
 type TypeSynonymArena = Arena.Arena TypeSynonym Type.TypeSynonymKey
@@ -102,7 +102,7 @@ convert_ts_adt (TSADT key) =
             pure (TS.Type'Object $ name_field : fields)
 
 convert_ts_lambda :: TSLambda -> IRReader TS.Stmt
-convert_ts_lambda (TSLambda key captures group@(BackendIR.BindingGroup _) arg_ty result_ty body_key) =
+convert_ts_lambda (TSLambda key captures group arg_ty result_ty body_key) =
     refer_type_raw arg_ty >>= \ arg_type_raw ->
     refer_type arg_ty >>= \ arg_type ->
     refer_type_raw result_ty >>= \ result_type_raw ->
@@ -211,36 +211,29 @@ define_lambda_type key (BackendIR.Binding (BackendIR.Expr'Lambda _ _ param captu
 define_lambda_type _ _ = pure ()
 
 lower_binding_group :: BindingGroup -> IRReader [TS.Stmt]
-lower_binding_group (BackendIR.BindingGroup chunks) = concat <$> mapM chunk chunks
+lower_binding_group (BackendIR.BindingGroup BackendIR.TopologicallySorted bindings) = concat <$> mapM lower_binding_key bindings
     where
-        chunk (BackendIR.SingleBinding bk) =
-            lower_binding_key bk >>= \ (early, late) ->
-            pure (early ++ late)
-        chunk (BackendIR.MutuallyRecursiveBindings bks) =
-            unzip <$> mapM lower_binding_key bks >>= \ (early, late) ->
-            pure (concat early ++ concat late)
-
         lower_binding_key bk = get_binding bk >>= lower_binding
 
-lower_binding :: Binding -> IRReader ([TS.Stmt], [TS.Stmt])
+lower_binding :: Binding -> IRReader [TS.Stmt]
 lower_binding (BackendIR.Binding init) = l init
     where
-        l (BackendIR.Expr'Refer id _ other) = mangle_binding_as_var other >>= \ other -> let_current id (TS.Expr'Identifier other) >>= \ let_stmt -> pure ([let_stmt], [])
-        l (BackendIR.Expr'Intrinsic id _ i) = mangle_intrinsic_bv i >>= \ i -> let_current id (TS.Expr'Identifier i) >>= \ let_stmt -> pure ([let_stmt], [])
-        l (BackendIR.Expr'Int id _ i) = let_current id (TS.Expr'New (TS.Expr'Identifier "Int") [TS.Expr'Int i]) >>= \ let_stmt -> pure ([let_stmt], [])
-        l (BackendIR.Expr'Float id _ (n :% d)) = let_current id (TS.Expr'New (TS.Expr'Identifier "Float") [TS.Expr'Div (TS.Expr'Int n) (TS.Expr'Int d)]) >>= \ let_stmt -> pure ([let_stmt], [])
-        l (BackendIR.Expr'Bool id _ b) = let_current id (TS.Expr'New (TS.Expr'Identifier "Bool") [TS.Expr'Bool b]) >>= \ let_stmt -> pure ([let_stmt], [])
-        l (BackendIR.Expr'Char id _ c) = let_current id (TS.Expr'New (TS.Expr'Identifier "Char") [TS.Expr'Char c]) >>= \ let_stmt -> pure ([let_stmt], [])
-        l (BackendIR.Expr'String id _ s) = let_current id (TS.Expr'New (TS.Expr'Identifier "UHFString") [TS.Expr'String s]) >>= \ let_stmt -> pure ([let_stmt], [])
+        l (BackendIR.Expr'Refer id _ other) = mangle_binding_as_var other >>= \ other -> let_current id (TS.Expr'Identifier other) >>= \ let_stmt -> pure [let_stmt]
+        l (BackendIR.Expr'Intrinsic id _ i) = mangle_intrinsic_bv i >>= \ i -> let_current id (TS.Expr'Identifier i) >>= \ let_stmt -> pure [let_stmt]
+        l (BackendIR.Expr'Int id _ i) = let_current id (TS.Expr'New (TS.Expr'Identifier "Int") [TS.Expr'Int i]) >>= \ let_stmt -> pure [let_stmt]
+        l (BackendIR.Expr'Float id _ (n :% d)) = let_current id (TS.Expr'New (TS.Expr'Identifier "Float") [TS.Expr'Div (TS.Expr'Int n) (TS.Expr'Int d)]) >>= \ let_stmt -> pure [let_stmt]
+        l (BackendIR.Expr'Bool id _ b) = let_current id (TS.Expr'New (TS.Expr'Identifier "Bool") [TS.Expr'Bool b]) >>= \ let_stmt -> pure [let_stmt]
+        l (BackendIR.Expr'Char id _ c) = let_current id (TS.Expr'New (TS.Expr'Identifier "Char") [TS.Expr'Char c]) >>= \ let_stmt -> pure [let_stmt]
+        l (BackendIR.Expr'String id _ s) = let_current id (TS.Expr'New (TS.Expr'Identifier "UHFString") [TS.Expr'String s]) >>= \ let_stmt -> pure [let_stmt]
 
-        l (BackendIR.Expr'Tuple id _ a b) = mangle_binding_as_var a >>= \ a -> mangle_binding_as_var b >>= \ b -> let_current id (TS.Expr'New (TS.Expr'Identifier "Tuple") [TS.Expr'Identifier a, TS.Expr'Identifier b]) >>= \ let_stmt -> pure ([let_stmt], [])
+        l (BackendIR.Expr'Tuple id _ a b) = mangle_binding_as_var a >>= \ a -> mangle_binding_as_var b >>= \ b -> let_current id (TS.Expr'New (TS.Expr'Identifier "Tuple") [TS.Expr'Identifier a, TS.Expr'Identifier b]) >>= \ let_stmt -> pure [let_stmt]
         l (BackendIR.Expr'MakeADT id _ variant_index@(Type.ADT.VariantIndex _ adt_key _) _ args) =
             mangle_adt adt_key >>= \ adt_mangled ->
             Type.ADT.get_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
             let variant_id = Type.ADT.variant_id variant
             in zipWithM (\ field_id arg -> mangle_binding_as_var arg >>= \ arg -> pure (ID.mangle field_id, Just $ TS.Expr'Identifier arg)) (Type.ADT.variant_field_ids variant) args >>= \ object_fields ->
             let_current id (TS.Expr'New (TS.Expr'Identifier adt_mangled) [TS.Expr'Object $ ("discriminant", Just $ TS.Expr'StrLit $ ID.mangle variant_id) : object_fields]) >>= \ let_stmt ->
-            pure ([let_stmt], [])
+            pure [let_stmt]
 
         l (BackendIR.Expr'Lambda id _ _ captures _ _) =
             mangle_binding_id_as_var id >>= \ current_var ->
@@ -252,9 +245,9 @@ lower_binding (BackendIR.Binding init) = l init
                     pure (TS.Stmt'Expr $ TS.Expr'Assign (TS.Expr'Get (TS.Expr'Identifier current_var) capt_capt) (TS.Expr'Identifier capt_var)))
                 (toList captures) >>= \ set_captures ->
             let_current id (TS.Expr'New (TS.Expr'Identifier lambda) (map (const (TS.Expr'Identifier "undefined")) (toList captures))) >>= \ let_stmt ->
-            pure ([let_stmt], set_captures)
-        l (BackendIR.Expr'Param id _ _) = let_current id (TS.Expr'Identifier "param") >>= \ let_stmt -> pure ([let_stmt], [])
-        l (BackendIR.Expr'Call id _ callee arg) = mangle_binding_as_var callee >>= \ callee -> mangle_binding_as_var arg >>= \ arg -> let_current id (TS.Expr'Call (TS.Expr'Get (TS.Expr'Identifier callee) "call") [TS.Expr'Identifier arg]) >>= \ let_stmt -> pure ([let_stmt], [])
+            pure (let_stmt : set_captures) -- TODO: figure this out because this does not work (if the captures are undefined, then this will just set the captures inthe lambda object to be also undefined; the captures in the lambda object will not be updated when the captures are defined)
+        l (BackendIR.Expr'Param id _ _) = let_current id (TS.Expr'Identifier "param") >>= \ let_stmt -> pure [let_stmt]
+        l (BackendIR.Expr'Call id _ callee arg) = mangle_binding_as_var callee >>= \ callee -> mangle_binding_as_var arg >>= \ arg -> let_current id (TS.Expr'Call (TS.Expr'Get (TS.Expr'Identifier callee) "call") [TS.Expr'Identifier arg]) >>= \ let_stmt -> pure [let_stmt]
 
         l (BackendIR.Expr'Match id _ tree) =
             mangle_binding_id_as_var id >>= \ result_var ->
@@ -266,7 +259,7 @@ lower_binding (BackendIR.Binding init) = l init
 
             lower_tree set_result tree >>= \ lowered_tree ->
 
-            pure ([TS.Stmt'Let result_var Nothing Nothing, TS.Stmt'Label label_name lowered_tree], []) -- TODO: check if result is undefined for sanity check even though that should not be possible once exhaustiveness checking is implemented
+            pure [TS.Stmt'Let result_var Nothing Nothing, TS.Stmt'Label label_name lowered_tree] -- TODO: check if result is undefined for sanity check even though that should not be possible once exhaustiveness checking is implemented
 
             where
                 lower_tree set_result (BackendIR.MatchTree arms) =
@@ -288,8 +281,8 @@ lower_binding (BackendIR.Binding init) = l init
                     convert_matcher (TS.Expr'Identifier b) matcher >>= \ check ->
                     pure (TS.Stmt'If check result Nothing)
                 lower_clause (BackendIR.MatchClause'Binding b) result =
-                    get_binding b >>= lower_binding >>= \ (early, late) ->
-                    pure (TS.Stmt'Block $ early <> late <> [result])
+                    get_binding b >>= lower_binding >>= \ lowering ->
+                    pure (TS.Stmt'Block $ lowering <> [result])
 
                 convert_matcher checking (BackendIR.Match'BoolLiteral b) = pure $ TS.Expr'Eq checking (TS.Expr'Bool b)
                 convert_matcher _ BackendIR.Match'Tuple = pure $ TS.Expr'Bool True -- tuple always matches because there is only 1 constructor
@@ -299,13 +292,13 @@ lower_binding (BackendIR.Binding init) = l init
                     pure (TS.Expr'Eq (TS.Expr'Get (TS.Expr'Get checking "data") "discriminant") (TS.Expr'String $ ID.mangle variant_id))
                 convert_matcher _ (BackendIR.Match'AnonADTVariant (Left void)) = absurd void
 
-        l (BackendIR.Expr'TupleDestructure1 id _ tup) = mangle_binding_as_var tup >>= \ tup -> let_current id (TS.Expr'Get (TS.Expr'Identifier tup) "first") >>= \ let_stmt -> pure ([let_stmt], [])
-        l (BackendIR.Expr'TupleDestructure2 id _ tup) = mangle_binding_as_var tup >>= \ tup -> let_current id (TS.Expr'Get (TS.Expr'Identifier tup) "second") >>= \ let_stmt -> pure ([let_stmt], [])
+        l (BackendIR.Expr'TupleDestructure1 id _ tup) = mangle_binding_as_var tup >>= \ tup -> let_current id (TS.Expr'Get (TS.Expr'Identifier tup) "first") >>= \ let_stmt -> pure [let_stmt]
+        l (BackendIR.Expr'TupleDestructure2 id _ tup) = mangle_binding_as_var tup >>= \ tup -> let_current id (TS.Expr'Get (TS.Expr'Identifier tup) "second") >>= \ let_stmt -> pure [let_stmt]
         l (BackendIR.Expr'ADTDestructure id _ b (Right field_idx)) =
             mangle_binding_as_var b >>= \ b ->
             Type.ADT.get_field_id <$> get_adt_arena <*> pure field_idx >>= \ field_id ->
             let_current id (TS.Expr'Get (TS.Expr'Get (TS.Expr'Identifier b) "data") (ID.mangle field_id)) >>= \ let_stmt ->
-            pure ([let_stmt], [])
+            pure [let_stmt]
         l (BackendIR.Expr'ADTDestructure _ _ _ (Left void)) = absurd void
 
         -- TODO: lower these 2 properly
@@ -314,8 +307,8 @@ lower_binding (BackendIR.Binding init) = l init
             mangle_binding_as_var result >>= \ result ->
             lower_binding_group group >>= \ group_lowered ->
             let final_assign = TS.Stmt'Expr $ TS.Expr'Assign (TS.Expr'Identifier current_var) (TS.Expr'Identifier result)
-            in pure ([TS.Stmt'Let current_var Nothing Nothing, TS.Stmt'Block (group_lowered ++ [final_assign])], [])
-        l (BackendIR.Expr'TypeApply id _ expr _) = mangle_binding_as_var expr >>= \ expr -> let_current id (TS.Expr'Identifier expr) >>= \ let_stmt -> pure ([let_stmt], [])
+            in pure [TS.Stmt'Let current_var Nothing Nothing, TS.Stmt'Block (group_lowered ++ [final_assign])]
+        l (BackendIR.Expr'TypeApply id _ expr _) = mangle_binding_as_var expr >>= \ expr -> let_current id (TS.Expr'Identifier expr) >>= \ let_stmt -> pure [let_stmt]
 
         l (BackendIR.Expr'Poison _ _ void) = absurd void
 

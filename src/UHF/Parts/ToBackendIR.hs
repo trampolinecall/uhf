@@ -14,17 +14,16 @@ type ANFIRExpr = ANFIR.Expr
 type ANFIRParam = ANFIR.Param
 type ANFIRBinding = ANFIR.Binding
 type ANFIRBindingGroup = ANFIR.BindingGroup
-type ANFIRBindingChunk = ANFIR.BindingChunk
 
 type ANFIRBindingArena = Arena.Arena ANFIRBinding ANFIR.BindingKey
 type ANFIRParamArena = Arena.Arena ANFIRParam ANFIR.ParamKey
 
-type BackendIR = BackendIR.BackendIR Type ()
-type BackendIRExpr = BackendIR.Expr Type ()
+type TopologicalSortStatus = Either BackendIR.HasLoops BackendIR.TopologicallySorted
+type BackendIR = BackendIR.BackendIR TopologicalSortStatus Type ()
+type BackendIRExpr = BackendIR.Expr TopologicalSortStatus Type ()
 type BackendIRParam = BackendIR.Param Type
-type BackendIRBinding = BackendIR.Binding Type ()
-type BackendIRBindingGroup = BackendIR.BindingGroup
-type BackendIRBindingChunk = BackendIR.BindingChunk
+type BackendIRBinding = BackendIR.Binding TopologicalSortStatus Type ()
+type BackendIRBindingGroup = BackendIR.BindingGroup TopologicalSortStatus
 
 type BackendIRBindingArena = Arena.Arena BackendIRBinding BackendIR.BindingKey
 type BackendIRParamArena = Arena.Arena BackendIRParam BackendIR.ParamKey
@@ -36,18 +35,17 @@ convert (ANFIR.ANFIR adts type_synonyms type_vars bindings params cu) =
         cu' = convert_cu cu
     in BackendIR.BackendIR adts type_synonyms type_vars bindings' params' cu'
 
-convert_cu :: ANFIR.CU -> BackendIR.CU ()
+convert_cu :: ANFIR.CU -> BackendIR.CU TopologicalSortStatus ()
 convert_cu (ANFIR.CU main_function group adts type_synonyms) = BackendIR.CU (maybe (Left ()) Right main_function) (convert_binding_group group) adts type_synonyms
 
 convert_binding :: ANFIRBinding -> BackendIRBinding
 convert_binding (ANFIR.Binding initializer) = BackendIR.Binding $ convert_expr initializer
 
 convert_binding_group :: ANFIRBindingGroup -> BackendIRBindingGroup
-convert_binding_group (ANFIR.BindingGroup chunks) = BackendIR.BindingGroup (map convert_binding_chunk chunks)
-
-convert_binding_chunk :: ANFIRBindingChunk -> BackendIRBindingChunk
-convert_binding_chunk (ANFIR.SingleBinding bk) = BackendIR.SingleBinding bk
-convert_binding_chunk (ANFIR.MutuallyRecursiveBindings bs) = BackendIR.MutuallyRecursiveBindings bs
+convert_binding_group (ANFIR.BindingGroup topological_sort_status bindings) = BackendIR.BindingGroup (convert_topological_sort_status topological_sort_status) bindings
+    where
+        convert_topological_sort_status ANFIR.TopologicallySorted = Right BackendIR.TopologicallySorted
+        convert_topological_sort_status ANFIR.HasLoops = Left BackendIR.HasLoops
 
 convert_param :: ANFIRParam -> BackendIRParam
 convert_param (ANFIR.Param varid ty) = BackendIR.Param varid ty

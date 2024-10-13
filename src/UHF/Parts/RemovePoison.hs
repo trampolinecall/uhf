@@ -7,20 +7,22 @@ import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Util.Arena as Arena
 
-type PoisonedBackendIR = BackendIR.BackendIR PoisonedType ()
+type PoisonedTopologicalSortStatus = Either BackendIR.HasLoops BackendIR.TopologicallySorted
+type PoisonedBackendIR = BackendIR.BackendIR PoisonedTopologicalSortStatus PoisonedType ()
 type PoisonedType = Maybe Type.Type
 type PoisonedADT = Type.ADT PoisonedType
 type PoisonedTypeSynonym = Type.TypeSynonym PoisonedType
-type PoisonedExpr = BackendIR.Expr PoisonedType ()
-type PoisonedBinding = BackendIR.Binding PoisonedType ()
+type PoisonedExpr = BackendIR.Expr PoisonedTopologicalSortStatus PoisonedType ()
+type PoisonedBinding = BackendIR.Binding PoisonedTopologicalSortStatus PoisonedType ()
 type PoisonedParam = BackendIR.Param PoisonedType
 
-type NoPoisonBackendIR = BackendIR.BackendIR NoPoisonType Void
+type NoPoisonTopologicalSortStatus = BackendIR.TopologicallySorted
+type NoPoisonBackendIR = BackendIR.BackendIR NoPoisonTopologicalSortStatus NoPoisonType Void
 type NoPoisonType = Type.Type
 type NoPoisonADT = Type.ADT NoPoisonType
 type NoPoisonTypeSynonym = Type.TypeSynonym NoPoisonType
-type NoPoisonExpr = BackendIR.Expr NoPoisonType Void
-type NoPoisonBinding = BackendIR.Binding NoPoisonType Void
+type NoPoisonExpr = BackendIR.Expr NoPoisonTopologicalSortStatus NoPoisonType Void
+type NoPoisonBinding = BackendIR.Binding NoPoisonTopologicalSortStatus NoPoisonType Void
 type NoPoisonParam = BackendIR.Param NoPoisonType
 
 remove_poison :: PoisonedBackendIR -> Maybe NoPoisonBackendIR
@@ -33,11 +35,11 @@ remove_poison (BackendIR.BackendIR adts type_synonyms type_vars bindings params 
         <*> Arena.transformM rp_param params
         <*> rp_cu cu
 
-rp_cu :: BackendIR.CU () -> Maybe (BackendIR.CU Void)
-rp_cu (BackendIR.CU (Right main_function) bindings adts type_synonyms) = Just (BackendIR.CU (Right main_function) bindings adts type_synonyms)
-rp_cu (BackendIR.CU (Left ()) _ _ _) = Nothing
-
 -- rp short for remove poison
+
+rp_cu :: BackendIR.CU PoisonedTopologicalSortStatus () -> Maybe (BackendIR.CU NoPoisonTopologicalSortStatus Void)
+rp_cu (BackendIR.CU (Right main_function) bindings adts type_synonyms) = BackendIR.CU (Right main_function) <$> rp_group bindings <*> pure adts <*> pure type_synonyms
+rp_cu (BackendIR.CU (Left ()) _ _ _) = Nothing
 
 rp_adt :: PoisonedADT -> Maybe NoPoisonADT
 rp_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM rp_variant variants
@@ -47,6 +49,10 @@ rp_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> ma
 
 rp_type_synonym :: PoisonedTypeSynonym -> Maybe NoPoisonTypeSynonym
 rp_type_synonym (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name <$> expansion
+
+rp_group :: BackendIR.BindingGroup PoisonedTopologicalSortStatus -> Maybe (BackendIR.BindingGroup NoPoisonTopologicalSortStatus)
+rp_group (BackendIR.BindingGroup (Right BackendIR.TopologicallySorted) bindings) = Just (BackendIR.BindingGroup BackendIR.TopologicallySorted bindings)
+rp_group (BackendIR.BindingGroup (Left BackendIR.HasLoops) _) = Nothing
 
 rp_binding :: PoisonedBinding -> Maybe NoPoisonBinding
 rp_binding (BackendIR.Binding initializer) = BackendIR.Binding <$> rp_expr initializer
@@ -61,7 +67,7 @@ rp_expr (BackendIR.Expr'Char id ty c) = ty >>= \ ty -> pure (BackendIR.Expr'Char
 rp_expr (BackendIR.Expr'String id ty t) = ty >>= \ ty -> pure (BackendIR.Expr'String id ty t)
 rp_expr (BackendIR.Expr'Tuple id ty a b) = ty >>= \ ty -> pure (BackendIR.Expr'Tuple id ty a b)
 
-rp_expr (BackendIR.Expr'Lambda id ty a c g r) = ty >>= \ ty -> pure (BackendIR.Expr'Lambda id ty a c g r)
+rp_expr (BackendIR.Expr'Lambda id ty a c g r) = ty >>= \ ty -> rp_group g >>= \ g -> pure (BackendIR.Expr'Lambda id ty a c g r)
 rp_expr (BackendIR.Expr'Param id ty p) = ty >>= \ ty -> pure (BackendIR.Expr'Param id ty p)
 
 rp_expr (BackendIR.Expr'Call id ty c a) = ty >>= \ ty -> pure (BackendIR.Expr'Call id ty c a)
@@ -75,7 +81,7 @@ rp_expr (BackendIR.Expr'Match id ty t) = ty >>= \ ty -> rp_tree t >>= \ t -> pur
                         (,)
                             <$> mapM rp_clause clauses
                             <*> case result of
-                                    Right e -> Just $ Right e
+                                    Right (group, e) -> rp_group group >>= \ group -> Just (Right (group, e))
                                     Left subtree -> Left <$> rp_tree subtree
                     )
                     arms
@@ -93,7 +99,7 @@ rp_expr (BackendIR.Expr'TupleDestructure2 id ty t) = ty >>= \ ty -> pure (Backen
 rp_expr (BackendIR.Expr'ADTDestructure id ty b (Right field)) = ty >>= \ ty -> pure (BackendIR.Expr'ADTDestructure id ty b (Right field))
 rp_expr (BackendIR.Expr'ADTDestructure _ _ _ (Left ())) = Nothing
 
-rp_expr (BackendIR.Expr'Forall id ty vars group e) = ty >>= \ ty -> pure (BackendIR.Expr'Forall id ty vars group e)
+rp_expr (BackendIR.Expr'Forall id ty vars group e) = ty >>= \ ty -> rp_group group >>= \ group -> pure (BackendIR.Expr'Forall id ty vars group e)
 rp_expr (BackendIR.Expr'TypeApply id ty e arg) = ty >>= \ ty -> arg >>= \ arg -> pure (BackendIR.Expr'TypeApply id ty e arg)
 
 rp_expr (BackendIR.Expr'MakeADT id ty variant tyargs args) = ty >>= \ ty -> sequence tyargs >>= \ tyargs -> pure (BackendIR.Expr'MakeADT id ty variant tyargs args)

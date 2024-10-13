@@ -18,31 +18,31 @@ import qualified UHF.Util.Arena as Arena
 type IRReader = Reader RIR.RIR
 
 get_adt_arena :: IRReader (Arena.Arena (Type.ADT (Maybe Type.Type)) Type.ADTKey)
-get_adt_arena = reader (\ (RIR.RIR _ adts _ _ _ _) -> adts)
+get_adt_arena = reader (\ (RIR.RIR adts _ _ _ _) -> adts)
 get_type_synonym_arena :: IRReader (Arena.Arena (Type.TypeSynonym (Maybe Type.Type)) Type.TypeSynonymKey)
-get_type_synonym_arena = reader (\ (RIR.RIR _ _ syns _ _ _) -> syns)
+get_type_synonym_arena = reader (\ (RIR.RIR _ syns _ _ _) -> syns)
 get_quant_var_arena :: IRReader (Arena.Arena Type.QuantVar Type.QuantVarKey)
-get_quant_var_arena = reader (\ (RIR.RIR _ _ _ vars _ _) -> vars)
+get_quant_var_arena = reader (\ (RIR.RIR _ _ vars _ _) -> vars)
 
 get_adt :: Type.ADTKey -> IRReader (Type.ADT (Maybe Type.Type))
-get_adt k = reader (\ (RIR.RIR _ adts _ _ _ _) -> Arena.get adts k)
+get_adt k = reader (\ (RIR.RIR adts _ _ _ _) -> Arena.get adts k)
 get_type_synonym :: Type.TypeSynonymKey -> IRReader (Type.TypeSynonym (Maybe Type.Type))
-get_type_synonym k = reader (\ (RIR.RIR _ _ type_synonyms _ _ _) -> Arena.get type_synonyms k)
+get_type_synonym k = reader (\ (RIR.RIR _ type_synonyms _ _ _) -> Arena.get type_synonyms k)
 get_var :: RIR.VariableKey -> IRReader RIR.Variable
-get_var k = reader (\ (RIR.RIR _ _ _ _ vars _) -> Arena.get vars k)
+get_var k = reader (\ (RIR.RIR _ _ _ vars _) -> Arena.get vars k)
 get_quant_var :: Type.QuantVarKey -> IRReader Type.QuantVar
-get_quant_var k = reader (\ (RIR.RIR _ _ _ quant_vars _ _) -> Arena.get quant_vars k)
+get_quant_var k = reader (\ (RIR.RIR _ _ quant_vars _ _) -> Arena.get quant_vars k)
 
 dump_main_module :: RIR.RIR -> Text
-dump_main_module ir@(RIR.RIR modules _ _ _ _ (RIR.CU main_module _)) = PP.render $ runReader (define_module $ Arena.get modules main_module) ir
+dump_main_module ir@(RIR.RIR _ _ _ _ cu) = PP.render $ runReader (define_cu cu) ir
 
-define_module :: RIR.Module -> IRReader PP.Token
-define_module (RIR.Module _ bindings adts type_synonyms) =
+define_cu :: RIR.CU -> IRReader PP.Token
+define_cu (RIR.CU bindings adts type_synonyms _) =
     ask >>= \ rir ->
     get_quant_var_arena >>= \ quant_var_arena ->
     mapM (fmap (Type.PP.define_adt quant_var_arena (\ ty -> runReader (refer_m_type ty) rir)) . get_adt) adts >>= \ adts ->
     mapM (fmap (Type.PP.define_type_synonym (\ ty -> runReader (refer_m_type ty) rir)) . get_type_synonym) type_synonyms >>= \ type_synonyms ->
-    mapM define_binding bindings >>= \ bindings ->
+    define_bindings bindings >>= \ bindings ->
     pure (PP.flat_block $ adts <> type_synonyms <> bindings)
 
 refer_m_type :: Maybe Type.Type -> IRReader PP.Token -- TODO: remove
@@ -52,6 +52,9 @@ refer_m_type (Just ty) =
     get_quant_var_arena >>= \ quant_var_arena ->
     pure (Type.PP.refer_type adt_arena type_synonym_arena quant_var_arena ty)
 refer_m_type Nothing = pure "<type error>"
+
+define_bindings :: RIR.Bindings -> IRReader [PP.Token]
+define_bindings (RIR.Bindings _ bindings) = mapM define_binding bindings
 
 define_binding :: RIR.Binding -> IRReader PP.Token
 define_binding (RIR.Binding var_key e) =
@@ -93,14 +96,14 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
                 in pure $ PP.FirstOnLineIfMultiline $ PP.List ["adt ", adt_refer, " ", PP.String $ unlocate variant_name, "#", PP.parenthesized_comma_list PP.Inconsistent tyargs, PP.bracketed_comma_list PP.Inconsistent args]
             )
 
-        levels (RIR.Expr'Lambda _ _ param body) = (1, \ _ _ -> refer_var param >>= \ param -> expr body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, " -> ", body]))
+        levels (RIR.Expr'Lambda _ _ param _ body) = (1, \ _ _ -> refer_var param >>= \ param -> expr body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, " -> ", body])) -- TODO: show captures
         levels (RIR.Expr'Let _ _ bindings adts type_synonyms res) =
             ( 1
             , \ _ _ -> do
                 rir <- ask
                 quant_var_arena <- get_quant_var_arena
                 res <- expr res
-                bindings <- mapM define_binding bindings
+                bindings <- define_bindings bindings
                 adts <- mapM (fmap (Type.PP.define_adt quant_var_arena (\ ty -> runReader (refer_m_type ty) rir)) . get_adt) adts
                 type_synonyms <- mapM (fmap (Type.PP.define_type_synonym (\ ty -> runReader (refer_m_type ty) rir)) . get_type_synonym) type_synonyms
                 let all_decls = adts ++ type_synonyms ++ bindings

@@ -87,7 +87,7 @@ make_adt_constructor variant_index@(Type.ADT.VariantIndex _ adt_key _) = do
             new_made_up_expr_id (\ id -> RIR.Expr'Identifier id cur_field_ty variant_name_sp (Just param_var_key)) >>= \ refer_expr ->
 
             make_lambdas type_params variant_index (refer_to_params <> [refer_expr]) more_field_tys >>= \ lambda_result ->
-            new_made_up_expr_id (\ id -> RIR.Expr'Lambda id variant_name_sp param_var_key (TopologicalSort.get_captures lambda_result) lambda_result)
+            new_made_up_expr_id (\ id -> RIR.Expr'Lambda id variant_name_sp param_var_key (TopologicalSort.get_captures param_var_key lambda_result) lambda_result)
 
     lambdas <- make_lambdas adt_quant_vars variant_index [] (Type.ADT.variant_field_types variant) >>= wrap_in_forall
 
@@ -136,7 +136,7 @@ convert_expr (SIR.Expr'Lambda id ty sp param_pat body) =
     lift (new_variable param_ty (SIR.pattern_span param_pat)) >>= \ param_bk ->
     lift (assign_pattern (SIR.pattern_span param_pat) param_pat (RIR.Expr'Identifier id param_ty (SIR.pattern_span param_pat) (Just param_bk))) >>= \ bindings ->
     RIR.Expr'Let id body_sp <$> lift (sort_bindings bindings) <*> pure [] <*> pure [] <*> convert_expr body >>= \ body ->
-    pure (RIR.Expr'Lambda id sp param_bk (TopologicalSort.get_captures body) body)
+    pure (RIR.Expr'Lambda id sp param_bk (TopologicalSort.get_captures param_bk body) body)
 
 convert_expr (SIR.Expr'Let id ty sp bindings adts type_synonyms body) = RIR.Expr'Let id sp <$> (concat <$> mapM convert_binding bindings >>= lift . sort_bindings) <*> pure adts <*> pure type_synonyms <*> convert_expr body -- TODO: define adt constructors for these
 convert_expr (SIR.Expr'LetRec id ty sp bindings adts type_synonyms body) = RIR.Expr'Let id sp <$> (concat <$> mapM convert_binding bindings >>= lift . sort_bindings) <*> pure adts <*> pure type_synonyms <*> convert_expr body -- TODO: define adt constructors for these

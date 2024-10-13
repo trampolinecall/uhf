@@ -59,8 +59,10 @@ get_dependency_vk :: Dependency -> RIR.VariableKey
 get_dependency_vk (NeedsInitialized vk) = vk
 get_dependency_vk (NeedsCallable vk) = vk
 
-get_captures :: RIR.Expr -> Set RIR.VariableKey
-get_captures = get_outside_references -- the captures of a lambda are just any variables that it references that it does not define
+get_captures :: RIR.VariableKey -> RIR.Expr -> Set RIR.VariableKey
+-- the captures of a lambda are just any variables that it references that it does not define
+-- we have to make sure to exclude the parameter that the lambda has because it also defines that
+get_captures param expr = get_outside_references expr Set.\\ Set.singleton param
 
 -- get all variables that are not defined within this expression and that are referred to by identifier expressions
 -- "an outside reference" = a reference to some variable defined outside of this expression

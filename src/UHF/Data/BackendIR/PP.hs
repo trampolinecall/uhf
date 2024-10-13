@@ -4,8 +4,6 @@ module UHF.Data.BackendIR.PP (dump_cu) where
 
 import UHF.Prelude
 
-import qualified Data.Set as Set
-
 import UHF.Source.Located (Located (Located, unlocate))
 import qualified UHF.Data.BackendIR as BackendIR
 import qualified UHF.Data.IR.ID as ID

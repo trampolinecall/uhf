@@ -1,4 +1,4 @@
-module UHF.Parts.ToRIR (PatternCheck.CompletenessError, PatternCheck.NotUseful, convert) where
+module UHF.Parts.ToRIR (Error, convert) where
 
 import UHF.Prelude
 
@@ -12,7 +12,9 @@ import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.RIR as RIR
 import qualified UHF.Data.SIR as SIR
+import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Parts.ToRIR.PatternCheck as PatternCheck
+import qualified UHF.Parts.ToRIR.TopologicalSort as TopologicalSort
 import qualified UHF.Util.Arena as Arena
 import qualified UHF.Util.IDGen as IDGen
 
@@ -26,23 +28,31 @@ type LastSIR = (DIden, DIden, Type, VIden, VIden, PIden, PIden, Type, Void)
 
 type VariableArena = Arena.Arena RIR.Variable RIR.VariableKey
 
-type ConvertState = ReaderT (Arena.Arena (Type.ADT Type) Type.ADTKey, Arena.Arena (Type.TypeSynonym Type) Type.TypeSynonymKey) (StateT VariableArena (IDGen.IDGenT ID.VariableID (IDGen.IDGenT ID.ExprID (Compiler.WithDiagnostics (PatternCheck.CompletenessError LastSIR) (PatternCheck.NotUseful LastSIR)))))
+data Error
+    = CompletenessError (PatternCheck.CompletenessError LastSIR)
+    | HasLoops TopologicalSort.BindingsHaveLoopError
+
+instance Diagnostic.ToError Error where
+    to_error (CompletenessError c) = Diagnostic.to_error c
+    to_error (HasLoops h) = Diagnostic.to_error h
+
+type ConvertState = ReaderT (Arena.Arena (Type.ADT Type) Type.ADTKey, Arena.Arena (Type.TypeSynonym Type) Type.TypeSynonymKey) (StateT VariableArena (IDGen.IDGenT ID.VariableID (IDGen.IDGenT ID.ExprID (Compiler.WithDiagnostics Error (PatternCheck.NotUseful LastSIR)))))
 
 new_made_up_expr_id :: (ID.ExprID -> a) -> ConvertState a
 new_made_up_expr_id make =
     lift (lift $ lift IDGen.gen_id) >>= \ id ->
     pure (make id)
 
-convert :: SIR.SIR LastSIR -> Compiler.WithDiagnostics (PatternCheck.CompletenessError LastSIR) (PatternCheck.NotUseful LastSIR) RIR.RIR
+convert :: SIR.SIR LastSIR -> Compiler.WithDiagnostics Error (PatternCheck.NotUseful LastSIR) RIR.RIR
 convert (SIR.SIR modules adts type_synonyms quant_vars vars (SIR.CU root_module main_function)) = do
     let adts_converted = Arena.transform convert_adt adts
     let type_synonyms_converted = Arena.transform convert_type_synonym type_synonyms
     let vars_converted = Arena.transform (\ (SIR.Variable id ty (Located sp _)) -> RIR.Variable id ty sp) vars
-    (modules, vars_with_new) <- IDGen.run_id_gen_t ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.VariableID'RIRMadeUp $ runStateT (runReaderT (Arena.transformM convert_module modules) (adts_converted, type_synonyms_converted)) vars_converted
-    pure (RIR.RIR modules adts_converted type_synonyms_converted quant_vars vars_with_new (RIR.CU root_module main_function))
+    (cu, vars_with_new) <- IDGen.run_id_gen_t ID.ExprID'RIRGen $ IDGen.run_id_gen_t ID.VariableID'RIRMadeUp $ runStateT (runReaderT (convert_root_module main_function (Arena.get modules root_module)) (adts_converted, type_synonyms_converted)) vars_converted
+    pure (RIR.RIR adts_converted type_synonyms_converted quant_vars vars_with_new cu)
 
-convert_module :: SIR.Module LastSIR -> ConvertState RIR.Module
-convert_module (SIR.Module id bindings adts type_synonyms) = do
+convert_root_module :: Maybe SIR.VariableKey -> SIR.Module LastSIR -> ConvertState RIR.CU
+convert_root_module main_function (SIR.Module _ bindings adts type_synonyms) = do
     adt_constructors <- adts
         & mapM ( \ adt_key -> do
             (adts, _) <- ask
@@ -53,7 +63,8 @@ convert_module (SIR.Module id bindings adts type_synonyms) = do
     let adt_constructor_map = Map.fromList $ map (\ (variant_index, (var_key, _)) -> (variant_index, var_key)) adt_constructors
 
     bindings <- concat <$> runReaderT (mapM convert_binding bindings) adt_constructor_map
-    pure (RIR.Module id (bindings <> map (\ (_, (_, binding)) -> binding) adt_constructors) adts type_synonyms)
+    bindings_sorted <- sort_bindings (bindings <> map (\ (_, (_, binding)) -> binding) adt_constructors)
+    pure (RIR.CU bindings_sorted adts type_synonyms main_function)
 
 make_adt_constructor :: Type.ADT.VariantIndex -> ConvertState (RIR.VariableKey, RIR.Binding)
 make_adt_constructor variant_index@(Type.ADT.VariantIndex _ adt_key _) = do
@@ -76,7 +87,7 @@ make_adt_constructor variant_index@(Type.ADT.VariantIndex _ adt_key _) = do
             new_made_up_expr_id (\ id -> RIR.Expr'Identifier id cur_field_ty variant_name_sp (Just param_var_key)) >>= \ refer_expr ->
 
             make_lambdas type_params variant_index (refer_to_params <> [refer_expr]) more_field_tys >>= \ lambda_result ->
-            new_made_up_expr_id (\ id -> RIR.Expr'Lambda id variant_name_sp param_var_key lambda_result)
+            new_made_up_expr_id (\ id -> RIR.Expr'Lambda id variant_name_sp param_var_key (TopologicalSort.get_captures lambda_result) lambda_result)
 
     lambdas <- make_lambdas adt_quant_vars variant_index [] (Type.ADT.variant_field_types variant) >>= wrap_in_forall
 
@@ -124,10 +135,11 @@ convert_expr (SIR.Expr'Lambda id ty sp param_pat body) =
     -- '\ (...) -> body' becomes '\ (arg) -> let ... = arg; body'
     lift (new_variable param_ty (SIR.pattern_span param_pat)) >>= \ param_bk ->
     lift (assign_pattern (SIR.pattern_span param_pat) param_pat (RIR.Expr'Identifier id param_ty (SIR.pattern_span param_pat) (Just param_bk))) >>= \ bindings ->
-    RIR.Expr'Lambda id sp param_bk <$> (RIR.Expr'Let id body_sp bindings [] [] <$> convert_expr body)
+    RIR.Expr'Let id body_sp <$> lift (sort_bindings bindings) <*> pure [] <*> pure [] <*> convert_expr body >>= \ body ->
+    pure (RIR.Expr'Lambda id sp param_bk (TopologicalSort.get_captures body) body)
 
-convert_expr (SIR.Expr'Let id ty sp bindings adts type_synonyms body) = RIR.Expr'Let id sp <$> (concat <$> mapM convert_binding bindings) <*> pure adts <*> pure type_synonyms <*> convert_expr body -- TODO: define adt constructors for these
-convert_expr (SIR.Expr'LetRec id ty sp bindings adts type_synonyms body) = RIR.Expr'Let id sp <$> (concat <$> mapM convert_binding bindings) <*> pure adts <*> pure type_synonyms <*> convert_expr body -- TODO: define adt constructors for these
+convert_expr (SIR.Expr'Let id ty sp bindings adts type_synonyms body) = RIR.Expr'Let id sp <$> (concat <$> mapM convert_binding bindings >>= lift . sort_bindings) <*> pure adts <*> pure type_synonyms <*> convert_expr body -- TODO: define adt constructors for these
+convert_expr (SIR.Expr'LetRec id ty sp bindings adts type_synonyms body) = RIR.Expr'Let id sp <$> (concat <$> mapM convert_binding bindings >>= lift . sort_bindings) <*> pure adts <*> pure type_synonyms <*> convert_expr body -- TODO: define adt constructors for these
 convert_expr (SIR.Expr'BinaryOps _ void _ _ _ _) = absurd void
 convert_expr (SIR.Expr'Call id ty sp callee arg) = RIR.Expr'Call id sp <$> convert_expr callee <*> convert_expr arg
 convert_expr (SIR.Expr'If id ty sp _ cond true false) =
@@ -146,10 +158,11 @@ convert_expr (SIR.Expr'If id ty sp _ cond true false) =
     lift (lift get) >>= \ var_arena ->
     lift (new_variable (RIR.expr_type var_arena cond) (RIR.expr_span cond)) >>= \ cond_var ->
 
+    lift (sort_bindings [RIR.Binding cond_var cond]) >>= \ cond_bindings ->
     lift $ new_made_up_expr_id
         (\ let_id ->
             RIR.Expr'Let let_id sp
-                [RIR.Binding cond_var cond]
+                cond_bindings
                 []
                 []
                 (RIR.Expr'Match id ty sp
@@ -180,7 +193,7 @@ convert_expr (SIR.Expr'Match id ty sp match_tok_sp scrutinee arms) = do
     (adt_arena, type_synonym_arena) <- lift ask
     case PatternCheck.check_complete adt_arena type_synonym_arena match_tok_sp (map fst arms) of
         Right () -> pure ()
-        Left err -> lift (lift $ lift $ lift $ lift $ Compiler.tell_error err) >> pure ()
+        Left err -> lift (lift $ lift $ lift $ lift $ Compiler.tell_error $ CompletenessError err) >> pure ()
     case PatternCheck.check_useful adt_arena type_synonym_arena (map fst arms) of
         Right () -> pure ()
         Left warns -> lift $ lift $ lift $ lift $ lift $ Compiler.tell_warnings warns
@@ -192,10 +205,11 @@ convert_expr (SIR.Expr'Match id ty sp match_tok_sp scrutinee arms) = do
             pure (clauses, Right result)
         )
 
+    scrutinee_bindings <- lift $ sort_bindings [RIR.Binding scrutinee_var scrutinee]
     lift $ new_made_up_expr_id
         (\ let_id ->
             RIR.Expr'Let let_id sp
-                [RIR.Binding scrutinee_var scrutinee]
+                scrutinee_bindings
                 []
                 []
                 (RIR.Expr'Match id ty sp (RIR.MatchTree arms))
@@ -262,7 +276,7 @@ assign_pattern incomplete_err_sp pat expr = do
     (adt_arena, type_synonym_arena) <- ask
     case PatternCheck.check_complete adt_arena type_synonym_arena incomplete_err_sp [pat] of
         Right () -> pure ()
-        Left err -> lift $ lift $ lift $ lift $ Compiler.tell_error err >> pure ()
+        Left err -> lift $ lift $ lift $ lift $ Compiler.tell_error (CompletenessError err) >> pure ()
 
     go pat expr
     where
@@ -308,3 +322,10 @@ assign_pattern incomplete_err_sp pat expr = do
         go (SIR.Pattern'NamedADTVariant ty sp _ variant tyargs fields) expr = todo
 
         go (SIR.Pattern'Poison _ _) _ = pure []
+
+sort_bindings :: [RIR.Binding] -> ConvertState RIR.Bindings
+sort_bindings bindings = do
+    var_arena <- get
+    case TopologicalSort.sort_bindings var_arena bindings of
+        Right result -> pure result
+        Left (errs, result) -> mapM_ (lift . lift . lift . lift . Compiler.tell_error . HasLoops) errs >> pure result

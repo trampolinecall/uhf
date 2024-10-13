@@ -96,7 +96,7 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
                 in pure $ PP.FirstOnLineIfMultiline $ PP.List ["adt ", adt_refer, " ", PP.String $ unlocate variant_name, "#", PP.parenthesized_comma_list PP.Inconsistent tyargs, PP.bracketed_comma_list PP.Inconsistent args]
             )
 
-        levels (RIR.Expr'Lambda _ _ param _ body) = (1, \ _ _ -> refer_var param >>= \ param -> expr body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, " -> ", body])) -- TODO: show captures
+        levels (RIR.Expr'Lambda _ _ param captures body) = (1, \ _ _ -> refer_var param >>= \ param -> mapM refer_var (toList captures) >>= \ captures -> expr body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, "[", PP.comma_separated PP.Inconsistent captures, "] -> ", body]))
         levels (RIR.Expr'Let _ _ bindings adts type_synonyms res) =
             ( 1
             , \ _ _ -> do

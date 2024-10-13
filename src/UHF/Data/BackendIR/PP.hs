@@ -56,9 +56,6 @@ refer_param key = get_param key >>= \ (BackendIR.Param id _) -> pure (PP.String 
 refer_binding :: BackendIR.BindingKey -> IRReader topological_sort_status ty poison_allowed PP.Token
 refer_binding key = BackendIR.binding_id <$> get_binding key >>= \ id -> pure (PP.String (BackendIR.stringify_id id))
 
-dump_captures :: Set.Set BackendIR.BindingKey -> IRReader topological_sort_status ty poison_allowed [PP.Token]
-dump_captures = mapM refer_binding . toList
-
 define_binding_group_flat :: (DumpableType ty) => BackendIR.BindingGroup topological_sort_status -> IRReader topological_sort_status ty poison_allowed [PP.Token]
 define_binding_group_flat (BackendIR.BindingGroup _ bindings) = mapM define_binding bindings
 define_binding_group :: (DumpableType ty) => BackendIR.BindingGroup topological_sort_status -> IRReader topological_sort_status ty poison_allowed PP.Token
@@ -97,7 +94,7 @@ expr (BackendIR.Expr'Bool _ _ b) = pure $ PP.String $ if b then "true" else "fal
 expr (BackendIR.Expr'Char _ _ c) = pure $ PP.String $ show c
 expr (BackendIR.Expr'String _ _ s) = pure $ PP.String $ show s
 expr (BackendIR.Expr'Tuple _ _ a b) = refer_binding a >>= \ a -> refer_binding b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b])
-expr (BackendIR.Expr'Lambda _ _ param captures group body) = refer_param param >>= \ param -> define_binding_group group >>= \ group -> refer_binding body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, " ->", PP.indented_block [group, body]]) -- TODO: show captures
+expr (BackendIR.Expr'Lambda _ _ param captures group body) = refer_param param >>= \ param -> mapM refer_binding (toList captures) >>= \ captures -> define_binding_group group >>= \ group -> refer_binding body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, "[", PP.comma_separated PP.Inconsistent captures, "] ->", PP.indented_block [group, body]])
 expr (BackendIR.Expr'Param _ _ pk) = refer_param pk
 expr (BackendIR.Expr'Call _ _ callee arg) = refer_binding callee >>= \ callee -> refer_binding arg >>= \ arg -> pure (PP.List [callee, "(", arg, ")"])
 expr (BackendIR.Expr'Match _ _ t) = tree t >>= \ t -> pure (PP.List ["match ", t])

@@ -97,13 +97,16 @@ check adt_arena type_synonym_arena = mapAccumL check_one_pattern [Any]
                 Tuple _ _ -> ([uncovered_value], []) -- like above: not illegal state; treat like a poison pattern
 
             where
-                enumerate_adt_ctors_and_fields (Type.Type'ADT adt_key _) =
-                    Type.ADT.variant_idxs adt_arena adt_key &
-                        map (\ variant_idx ->
-                            let variant = Type.ADT.get_variant adt_arena variant_idx
-                                fields = Type.ADT.variant_field_types variant
-                            in (variant_idx, map (const Any) fields)
-                        )
+                enumerate_adt_ctors_and_fields (Type.Type'ADT adt_key params) =
+                    let (Type.ADT _ _ qvars _) = Arena.get adt_arena adt_key
+                    in if length params == length qvars
+                        then Type.ADT.variant_idxs adt_arena adt_key &
+                                map (\ variant_idx ->
+                                    let variant = Type.ADT.get_variant adt_arena variant_idx
+                                        fields = Type.ADT.variant_field_types variant
+                                    in (variant_idx, map (const Any) fields)
+                                )
+                        else []
                 enumerate_adt_ctors_and_fields (Type.Type'Synonym ts_key) =
                     let (Type.TypeSynonym _ _ expansion) = Arena.get type_synonym_arena ts_key
                     in maybe [] enumerate_adt_ctors_and_fields expansion -- in the case that the type synonym had a type error and is Nothing, treat it like it has no constructors / like an uninhabited type

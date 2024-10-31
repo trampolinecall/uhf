@@ -236,6 +236,9 @@ convert_expr cur_id (AST.Expr'Let sp decls subexpr) = go cur_id decls
 convert_expr cur_id (AST.Expr'LetRec sp decls subexpr) =
     convert_decls (ID.VarParent'Let cur_id) (ID.DeclParent'Let cur_id) decls >>= \ (bindings, adts, type_synonyms) ->
     SIR.Expr'LetRec cur_id () sp bindings adts type_synonyms <$> convert_expr (ID.ExprID'LetResultOf cur_id) subexpr
+convert_expr cur_id (AST.Expr'Where sp subexpr decls) =
+    convert_decls (ID.VarParent'Where cur_id) (ID.DeclParent'Where cur_id) decls >>= \ (bindings, adts, type_synonyms) ->
+    SIR.Expr'LetRec cur_id () sp bindings adts type_synonyms <$> convert_expr (ID.ExprID'WhereResultOf cur_id) subexpr
 
 convert_expr cur_id (AST.Expr'BinaryOps sp first ops) =
     SIR.Expr'BinaryOps cur_id () () sp

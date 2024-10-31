@@ -111,6 +111,7 @@ $( let unwrap_right :: Show a => Either a b -> b
 
             expr <- nt "expr" [t|AST.Expr|]
             expr_toplevel <- nt "toplevel expr" [t|AST.Expr|]
+            expr_where <- nt "where expr" [t|AST.Expr|]
             expr_forall <- nt "forall expr" [t|AST.Expr|]
             expr_let <- nt "let expr" [t|AST.Expr|]
             expr_if <- nt "if expression" [t|AST.Expr|]
@@ -191,7 +192,11 @@ $( let unwrap_right :: Show a => Either a b -> b
                 --> (pattern . TT'Equal . expr . TT'Semicolon)
                 |> [|\p eq e semi -> AST.Decl'Value (AST.pattern_span p <> Located.just_span semi) p eq e|]
 
-            expr --> expr_toplevel |> [|identity|]
+            expr --> expr_where |> [|identity|]
+
+            expr_where --> expr_toplevel |> [|identity|]
+            expr_where --> (expr_toplevel . TT'Where . decl) |> [|\e _ d -> AST.Expr'Where (AST.expr_span e <> AST.decl_span d) e [d]|]
+            expr_where --> (expr_toplevel . TT'Where . TT'OBrace . decl_list . TT'CBrace) |> [|\e _ _ d (Located cb_sp _) -> AST.Expr'Where (AST.expr_span e <> cb_sp) e d|]
 
             expr_toplevel --> expr_forall |> [|identity|]
             expr_toplevel --> expr_let |> [|identity|]

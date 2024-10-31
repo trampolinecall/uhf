@@ -24,7 +24,7 @@ import qualified Numeric
 data ModuleID = ModuleID [Text] | ModuleID'Root deriving Show
 
 data DeclID = DeclID DeclParent Text deriving Show
-data DeclParent = DeclParent'Module ModuleID | DeclParent'Let ExprID deriving Show
+data DeclParent = DeclParent'Module ModuleID | DeclParent'Let ExprID | DeclParent'Where ExprID deriving Show
 
 data ExprID
     = ExprID'ANFIRGen Int
@@ -40,6 +40,7 @@ data ExprID
     | ExprID'InitializerOf DeclParent Int
     | ExprID'LambdaBodyOf ExprID
     | ExprID'LetResultOf ExprID
+    | ExprID'WhereResultOf ExprID
     | ExprID'MatchArm ExprID Int
     | ExprID'MatchScrutinee ExprID
     | ExprID'RIRGen Int
@@ -52,7 +53,7 @@ data ExprID
 
 data IntrinsicBVID = IntrinsicBVID Text
 
-data VariableParent = VarParent'Module ModuleID | VarParent'LambdaParam ExprID | VarParent'Let ExprID | VarParent'MatchArm ExprID Int deriving Show
+data VariableParent = VarParent'Module ModuleID | VarParent'LambdaParam ExprID | VarParent'Let ExprID | VarParent'Where ExprID | VarParent'MatchArm ExprID Int deriving Show
 data VariableID = VariableID VariableParent Text | VariableID'RIRMadeUp Int deriving Show
 
 data ADTVariantID = ADTVariantID DeclID Text deriving Show
@@ -112,6 +113,7 @@ stringify = stringify' . to_general_id
         stringify_expr_id (ExprID'IfTrue e) = "iftrue_" <> stringify_expr_id e
         stringify_expr_id (ExprID'LambdaBodyOf e) = "lbody_" <> stringify_expr_id e
         stringify_expr_id (ExprID'LetResultOf e) = "letres_" <> stringify_expr_id e
+        stringify_expr_id (ExprID'WhereResultOf e) = "whereres_" <> stringify_expr_id e
         stringify_expr_id (ExprID'TupleFirstOf e) = "tuple1_" <> stringify_expr_id e
         stringify_expr_id (ExprID'TupleSecondOf e) = "tuple2_" <> stringify_expr_id e
         stringify_expr_id (ExprID'TypeAnnotationSubject e) = "tann_" <> stringify_expr_id e
@@ -124,11 +126,13 @@ stringify = stringify' . to_general_id
 
         stringify_var_parent (VarParent'Module mod) = stringify' (GM mod)
         stringify_var_parent (VarParent'Let e) = stringify' (GE e)
+        stringify_var_parent (VarParent'Where e) = stringify' (GE e)
         stringify_var_parent (VarParent'LambdaParam e) = stringify' (GE e)
         stringify_var_parent (VarParent'MatchArm e i) = stringify' (GE e) <> "::arm" <> show i
 
         stringify_decl_parent (DeclParent'Module mod) = stringify' (GM mod)
         stringify_decl_parent (DeclParent'Let e) = stringify' (GE e)
+        stringify_decl_parent (DeclParent'Where e) = stringify' (GE e)
 
 class Mangle m where
     mangle' :: m -> Text
@@ -151,6 +155,7 @@ instance Mangle DeclID where
 instance Mangle DeclParent where
     mangle' (DeclParent'Module m) = "m" <> mangle' m
     mangle' (DeclParent'Let e) = "l" <> mangle' e
+    mangle' (DeclParent'Where e) = "w" <> mangle' e
 
 instance Mangle ExprID where
     mangle' (ExprID'ANFIRGen i) = "a" <> mangle' i
@@ -174,6 +179,7 @@ instance Mangle ExprID where
     mangle' (ExprID'TypeAnnotationSubject e) = "v" <> mangle' e
     mangle' (ExprID'TypeApplyFirst e) = "w" <> mangle' e
     mangle' (ExprID'TypeApplyOn e) = "x" <> mangle' e
+    mangle' (ExprID'WhereResultOf e) = "y" <> mangle' e
 
 instance Mangle IntrinsicBVID where
     mangle' (IntrinsicBVID name) = name -- this cannot be ambiguous because there are only a number of hardcoded names for intrinsics
@@ -187,6 +193,7 @@ instance Mangle VariableParent where
     mangle' (VarParent'Let e) = "m" <> mangle' e
     mangle' (VarParent'MatchArm e ind) = "n" <> mangle' e <> mangle' ind
     mangle' (VarParent'Module mod) = "o" <> mangle' mod
+    mangle' (VarParent'Where e) = "w" <> mangle' e
 
 instance Mangle ADTVariantID where
     mangle' (ADTVariantID adt_decl variant_name) = mangle' adt_decl <> mangle' variant_name

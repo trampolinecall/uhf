@@ -61,6 +61,7 @@ data Expr
 
     | Expr'Let WholeSpan [Decl] Expr
     | Expr'LetRec WholeSpan [Decl] Expr
+    | Expr'Where WholeSpan Expr [Decl]
 
     | Expr'BinaryOps WholeSpan Expr [(Operator, Expr)] -- TODO: fix this
 
@@ -88,6 +89,11 @@ data Pattern
     | Pattern'NamedADTVariant WholeSpan (Maybe Type) (Located Token.AlphaIdentifier) [(Located Token.AlphaIdentifier, Pattern)]
     deriving (Generic, EqIgnoringSpans, Show)
 
+decl_span :: Decl -> WholeSpan
+decl_span (Decl'Data sp _ _ _) = sp
+decl_span (Decl'TypeSyn sp _ _) = sp
+decl_span (Decl'Value sp _ _ _) = sp
+
 type_span :: Type -> WholeSpan
 type_span (Type'Refer iden) = just_span iden
 type_span (Type'Get sp _ _) = sp
@@ -109,6 +115,7 @@ expr_span (Expr'Tuple sp _) = sp
 expr_span (Expr'Lambda sp _ _) = sp
 expr_span (Expr'Let sp _ _) = sp
 expr_span (Expr'LetRec sp _ _) = sp
+expr_span (Expr'Where sp _ _) = sp
 expr_span (Expr'BinaryOps sp _ _) = sp
 expr_span (Expr'Call sp _ _) = sp
 expr_span (Expr'If sp _ _ _ _) = sp

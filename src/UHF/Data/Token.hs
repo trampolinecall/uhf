@@ -55,6 +55,7 @@ $( TH.generate
     , TH.tt "Root" [] "'root'" [|"'root'"|]
     , TH.tt "Let" [] "'let'" [|"'let'"|]
     , TH.tt "LetRec" [] "'letrec'" [|"'letrec'"|]
+    , TH.tt "Where" [] "'where'" [|"'where'"|]
     , TH.tt "TypeSyn" [] "'typesyn'" [|"'typesyn'"|]
     , TH.tt "Data" [] "'data'" [|"'data'"|]
     , TH.tt "Impl" [] "'impl'" [|"'impl'"|]

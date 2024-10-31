@@ -64,6 +64,7 @@ pp_expr = PP.Precedence.pp_precedence levels PP.Precedence.parenthesize
 
         levels (AST.Expr'Let _ decls res) = (2, \ _ _ -> pp_let "let" decls res)
         levels (AST.Expr'LetRec _ decls res) = (2, \ _ _ -> pp_let "letrec" decls res)
+        levels (AST.Expr'Where _ res decls) = (2, \ _ _ -> pp_where res decls)
 
         levels (AST.Expr'If _ _ cond true false) = (2, \ _ _ -> PP.FirstOnLineIfMultiline $ PP.List ["if ", pp_expr cond, " then ", pp_expr true, " else ", pp_expr false])
         levels (AST.Expr'Match _ _ e arms) = (2, \ _ _ -> PP.List ["match ", pp_expr e, " ", PP.braced_block $ map (\ (pat, expr) -> PP.List [pp_pattern pat, " -> ", pp_expr expr, ";"]) arms])
@@ -75,6 +76,10 @@ pp_expr = PP.Precedence.pp_precedence levels PP.Precedence.parenthesize
 pp_let :: Text -> [AST.Decl] -> AST.Expr -> PP.Token
 pp_let let_str [decl] res = PP.FirstOnLineIfMultiline $ PP.List [PP.String let_str, " ", pp_decl decl, "\n", pp_expr res]
 pp_let let_str decls res = PP.FirstOnLineIfMultiline $ PP.List [PP.String let_str, " ", PP.braced_block $ map pp_decl decls, "\n", pp_expr res]
+
+pp_where :: AST.Expr -> [AST.Decl] -> PP.Token
+pp_where res [decl] = PP.FirstOnLineIfMultiline $ PP.List [pp_expr res, "\n", PP.indented_block [PP.List ["where ", pp_decl decl]]]
+pp_where res decls = PP.FirstOnLineIfMultiline $ PP.List [pp_expr res, "\n", PP.indented_block [PP.List ["where ", PP.braced_block $ map pp_decl decls]]]
 
 pp_pattern :: AST.Pattern -> PP.Token
 pp_pattern (AST.Pattern'AlphaVar i) = PP.List [pp_aiden i]

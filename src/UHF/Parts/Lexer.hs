@@ -129,6 +129,7 @@ lex_alpha_identifier =
         , ("root", Token.T'Root Token.Root)
         , ("let", Token.T'Let Token.Let)
         , ("letrec", Token.T'LetRec Token.LetRec)
+        , ("where", Token.T'Where Token.Where)
         , ("data", Token.T'Data Token.Data)
         , ("impl", Token.T'Impl Token.Impl)
         , ("if", Token.T'If Token.If)

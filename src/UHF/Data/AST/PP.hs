@@ -78,8 +78,8 @@ pp_let let_str [decl] res = PP.FirstOnLineIfMultiline $ PP.List [PP.String let_s
 pp_let let_str decls res = PP.FirstOnLineIfMultiline $ PP.List [PP.String let_str, " ", PP.braced_block $ map pp_decl decls, "\n", pp_expr res]
 
 pp_where :: AST.Expr -> [AST.Decl] -> PP.Token
-pp_where res [decl] = PP.FirstOnLineIfMultiline $ PP.List [pp_expr res, "\n", PP.indented_block [PP.List ["where ", pp_decl decl]]]
-pp_where res decls = PP.FirstOnLineIfMultiline $ PP.List [pp_expr res, "\n", PP.indented_block [PP.List ["where ", PP.braced_block $ map pp_decl decls]]]
+pp_where res [decl] = PP.indented_block [pp_expr res, PP.List ["where ", pp_decl decl]]
+pp_where res decls = PP.indented_block [pp_expr res, PP.List ["where ", PP.braced_block $ map pp_decl decls]]
 
 pp_pattern :: AST.Pattern -> PP.Token
 pp_pattern (AST.Pattern'AlphaVar i) = PP.List [pp_aiden i]

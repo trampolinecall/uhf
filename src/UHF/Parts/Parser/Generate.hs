@@ -28,8 +28,8 @@ import Data.Typeable (cast)
 import qualified Data.Typeable as Typeable
 import qualified Language.Haskell.TH as TH
 import qualified Language.Haskell.TH.Syntax as TH.Syntax
-import qualified Safe
 import qualified Pipes
+import qualified Safe
 
 import qualified UHF.Data.Token as Token
 import qualified UHF.Parts.Parser.Error as Error
@@ -266,15 +266,14 @@ convert_to_state_table nt_result_types reduce_fn_map item_sets =
                         & Set.toList
                         & filter (isNothing . symbol_after_dot)
                         & map
-                            (  \(Item rule@((Rule _ r_nt _)) _ lookahead) ->
-                                    if cast r_nt == Just Augment
-                                        then Map.singleton lookahead (SingleAction Accept)
-                                        else Map.singleton lookahead (SingleAction $ Reduce rule)
+                            ( \(Item rule@((Rule _ r_nt _)) _ lookahead) ->
+                                if cast r_nt == Just Augment
+                                    then Map.singleton lookahead (SingleAction Accept)
+                                    else Map.singleton lookahead (SingleAction $ Reduce rule)
                             )
                         & Map.unionsWith (<>)
 
-        remove_conflicts ::
-            Map Int (ItemSet, Map Terminal (ActionOrConflict Action), Map Nonterminal Int) -> Map Int State
+        remove_conflicts :: Map Int (ItemSet, Map Terminal (ActionOrConflict Action), Map Nonterminal Int) -> Map Int State
         remove_conflicts states =
             Map.map
                 ( \(item_set@(ItemSet set_number _ _), action, goto) ->
@@ -282,14 +281,16 @@ convert_to_state_table nt_result_types reduce_fn_map item_sets =
                         set_number
                         item_set
                         ( action
-                            & Map.map
-                                ( \case
-                                    SingleAction a -> a
-                                    as@(Conflict _) ->
+                            & Map.mapWithKey
+                                ( \cases
+                                    _ (SingleAction a) -> a
+                                    lookahead as@(Conflict _) ->
                                         error $
                                             convert_str $
                                                 "conflict in parsing table: "
                                                     <> format as
+                                                    <> " on lookahead "
+                                                    <> format lookahead
                                                     <> "\nitem set: "
                                                     <> format item_set
                                                     <> "\nstates:\n"

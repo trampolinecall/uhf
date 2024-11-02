@@ -171,7 +171,7 @@ lex_str_or_char_lit :: MiniLexer [Either LexError.Error Token.LToken]
 lex_str_or_char_lit =
     get_loc >>= \ start_loc ->
     consume (\ c -> c == '\'' || c == '"') >>= \ (Located _ open) ->
-    one_or_more (Located.unlocate <$> consume (\ ch -> ch /= open && ch /= '\n')) >>= \ contents ->
+    zero_or_more (Located.unlocate <$> consume (\ ch -> ch /= open && ch /= '\n')) >>= \ contents ->
     choice
         [ consume (==open) >>
           get_loc >>= \ end_loc ->
@@ -179,7 +179,7 @@ lex_str_or_char_lit =
           in if open == '\''
               then case contents of
                     [c] -> pure [Right $ Located sp $ Token.T'Char $ Token.Char c]
-                    _ -> pure [Left $ LexError.MulticharCharLit sp]
+                    _ -> pure [Left $ LexError.Non1CharLit sp]
               else pure [Right $ Located sp $ Token.T'String $ Token.String $ Text.pack contents]
 
         , get_loc >>= \ end_loc ->
@@ -275,6 +275,9 @@ get_loc = get
 
 one_or_more :: MiniLexer a -> MiniLexer [a]
 one_or_more a = a >>= \ res -> (res:) <$> choice [one_or_more a, pure []]
+
+zero_or_more :: MiniLexer a -> MiniLexer [a]
+zero_or_more a = choice [one_or_more a, pure []]
 -- tests {{{1
 -- TODO: update tests
 take_token_stream_until_eof :: Monad m => Pipes.Producer Token.LToken m Void -> m [Token.LToken]
@@ -430,7 +433,7 @@ case_lex_char_lit_unclosed =
 case_lex_char_lit_multiple :: Assertion
 case_lex_char_lit_multiple =
     minilex_test' lex_str_or_char_lit "'cab'" $ \case
-        Just (l, [Left (LexError.MulticharCharLit _)])
+        Just (l, [Left (LexError.Non1CharLit _)])
             | remaining l == "" -> pure ()
         x -> minilex_test_fail "lex_str_or_char_lit" x
 

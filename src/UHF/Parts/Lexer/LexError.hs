@@ -13,7 +13,7 @@ data Error
     | UnclosedMComment Span
     | UnclosedStrLit Span
     | UnclosedCharLit Span
-    | MulticharCharLit Span
+    | Non1CharLit Span
     | InvalidIntBase Char Span
     | InvalidIntDigit Char Span
     | NonDecimalFloat Span
@@ -30,7 +30,7 @@ instance Diagnostic.ToError Error where
 
     to_error (UnclosedCharLit sp) = Diagnostic.Error (Just sp) "unclosed character literal" [] []
 
-    to_error (MulticharCharLit sp) = Diagnostic.Error (Just sp) "character literal not exactly 1 character long" [] []
+    to_error (Non1CharLit sp) = Diagnostic.Error (Just sp) "character literal is not exactly 1 character long" [] []
 
     to_error (InvalidIntBase ch sp) = Diagnostic.Error (Just sp) ("invalid base '" <> Text.singleton ch <> "'") [] []
 

@@ -436,6 +436,12 @@ case_lex_char_lit_multiple =
         Just (l, [Left (LexError.Non1CharLit _)])
             | remaining l == "" -> pure ()
         x -> minilex_test_fail "lex_str_or_char_lit" x
+case_lex_char_lit_empty :: Assertion
+case_lex_char_lit_empty =
+    minilex_test' lex_str_or_char_lit "\'\'" $ \case
+        Just (l, [Left (LexError.Non1CharLit _)])
+            | remaining l == "" -> pure ()
+        x -> minilex_test_fail "lex_str_or_char_lit" x
 
 case_lex_str_lit :: Assertion
 case_lex_str_lit =

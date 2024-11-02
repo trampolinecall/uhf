@@ -67,3 +67,7 @@ tests:
 
     dependencies:
       - uhf
+      - Glob
+      - directory
+      - template-haskell
+      - filepath

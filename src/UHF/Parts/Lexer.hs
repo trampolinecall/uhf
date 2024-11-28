@@ -455,6 +455,12 @@ case_lex_str_lit_unclosed =
         Just (l, [Left (LexError.UnclosedStrLit _)])
             | remaining l == "" -> pure ()
         x -> minilex_test_fail "lex_str_or_char_lit" x
+case_lex_str_lit_empty :: Assertion
+case_lex_str_lit_empty =
+    minilex_test' lex_str_or_char_lit "\"\"" $ \case
+        Just (l, [Right (Located _ (Token.T'String (Token.String "")))])
+            | remaining l == "" -> pure ()
+        x -> minilex_test_fail "lex_str_or_char_lit" x
 
 case_lex_number_underscores :: Assertion
 case_lex_number_underscores =

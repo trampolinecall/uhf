@@ -67,3 +67,10 @@ tests:
 
     dependencies:
       - uhf
+      - Glob
+      - directory
+      - template-haskell
+      - filepath
+      - text
+      - regex-pcre
+      - array

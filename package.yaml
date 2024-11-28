@@ -71,3 +71,6 @@ tests:
       - directory
       - template-haskell
       - filepath
+      - text
+      - regex-pcre
+      - array

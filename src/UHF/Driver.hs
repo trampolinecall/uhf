@@ -2,6 +2,7 @@ module UHF.Driver
     ( CompileOptions(..)
     , OutputFormat(..)
     , compile
+    , compile_returning_diagnostics
     ) where
 
 import UHF.Prelude
@@ -75,7 +76,7 @@ data PhaseResultsCache
         }
 type PhaseResultsState = StateT PhaseResultsCache WithDiagnosticsIO
 
-data OutputFormat = AST | SIR | NRSIR | InfixGroupedSIR | TypedSIR | RIR | ANFIR | OptimizedANFIR | BackendIR | TS
+data OutputFormat = AST | SIR | NRSIR | InfixGroupedSIR | TypedSIR | RIR | ANFIR | OptimizedANFIR | BackendIR | TS | Check
 data CompileOptions
     = CompileOptions
         { input_file :: FilePath
@@ -90,6 +91,12 @@ compile c_needed diagnostic_settings compile_options =
     Compiler.report_diagnostics c_needed diagnostic_settings diagnostics >>
     pure (if Compiler.had_errors diagnostics then Left () else Right ())
 
+compile_returning_diagnostics :: CompileOptions -> IO (Either (Compiler.Diagnostics Diagnostic.Error Diagnostic.Warning) ())
+compile_returning_diagnostics compile_options =
+    File.open (input_file compile_options) >>= \ file ->
+    runWriterT (print_outputs compile_options file) >>= \ ((), diagnostics) ->
+    pure (if Compiler.had_errors diagnostics then Left diagnostics else Right ())
+
 print_outputs :: CompileOptions -> File -> WithDiagnosticsIO ()
 print_outputs compile_options file = evalStateT (mapM_ print_output_format (output_formats compile_options)) (PhaseResultsCache file Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing)
     where
@@ -103,6 +110,7 @@ print_outputs compile_options file = evalStateT (mapM_ print_output_format (outp
         print_output_format OptimizedANFIR = get_optimized_anfir >>= output_if_outputable (lift . lift . write_output_file "uhf_anfir_optimized" . ANFIR.PP.dump_cu)
         print_output_format BackendIR = get_backend_ir >>= output_if_outputable (lift . lift . write_output_file "uhf_backend_ir" . BackendIR.PP.dump_cu)
         print_output_format TS = get_ts >>= output_when_right (lift . lift . write_output_file "ts")
+        print_output_format Check = get_ts >> pure () -- TODO: this probably doesnt need to go all the way to TS
 
         output_if_outputable output (s, Outputable) = output s
         output_if_outputable _ (_, HadError) = pure ()

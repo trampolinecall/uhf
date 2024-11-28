@@ -127,7 +127,7 @@ trace = Debug.Trace.trace
 trace_show_id :: Show a => a -> a
 trace_show_id = Debug.Trace.traceShowId
 
-{-# WARNING trace_with_message "'trace_show_id'" #-}
+{-# WARNING trace_with_message "'trace_with_message'" #-}
 trace_with_message :: Show a => Prelude.String -> a -> a
 trace_with_message msg a = Debug.Trace.trace (msg ++ ": " ++ show a) a
 

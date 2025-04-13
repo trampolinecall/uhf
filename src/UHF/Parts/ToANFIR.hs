@@ -81,7 +81,7 @@ choose_id (Just varid) _ = ANFIR.VarID varid
 choose_id Nothing eid = ANFIR.ExprID eid
 
 convert_expr :: Maybe ID.VariableID -> RIR.Expr -> WriterT AccumBindingGroup (MakeGraphState (NeedsVarMap ANFIR.Expr)) ANFIR.BindingKey
-convert_expr m_varid expr@(RIR.Expr'Identifier id _ _ varkey) =
+convert_expr m_varid expr@(RIR.Expr'Refer id _ _ varkey) =
     lift (lift $ lift $ lift ask) >>= \ var_arena -> let ty = RIR.expr_type var_arena expr in
     case varkey of
         Just varkey -> new_binding $ \ var_map -> ANFIR.Expr'Refer (choose_id m_varid id) ty (var_map Map.! varkey)

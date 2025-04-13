@@ -67,8 +67,8 @@ get_captures param expr = get_outside_references expr Set.\\ Set.singleton param
 -- get all variables that are not defined within this expression and that are referred to by identifier expressions
 -- "an outside reference" = a reference to some variable defined outside of this expression
 get_outside_references :: RIR.Expr -> Set RIR.VariableKey
-get_outside_references (RIR.Expr'Identifier _ _ _ (Just i)) = [i]
-get_outside_references (RIR.Expr'Identifier _ _ _ Nothing) = []
+get_outside_references (RIR.Expr'Refer _ _ _ (Just i)) = [i]
+get_outside_references (RIR.Expr'Refer _ _ _ Nothing) = []
 get_outside_references (RIR.Expr'Intrinsic _ _ _ _) = []
 get_outside_references (RIR.Expr'Char _ _ _) = []
 get_outside_references (RIR.Expr'String _ _ _) = []
@@ -118,8 +118,8 @@ get_outside_references (RIR.Expr'Poison _ _ _) = []
 get_execute_dependencies :: RIR.Expr -> Set Dependency
 get_execute_dependencies = go
     where
-        go (RIR.Expr'Identifier _ _ _ (Just i)) = [NeedsInitialized i]
-        go (RIR.Expr'Identifier _ _ _ Nothing) = []
+        go (RIR.Expr'Refer _ _ _ (Just i)) = [NeedsInitialized i]
+        go (RIR.Expr'Refer _ _ _ Nothing) = []
         go (RIR.Expr'Intrinsic _ _ _ _) = []
         go (RIR.Expr'Char _ _ _) = []
         go (RIR.Expr'String _ _ _) = []
@@ -180,10 +180,10 @@ get_call_dependencies = go
         go (RIR.Expr'Float _ _ _) = []
         go (RIR.Expr'Bool _ _ _) = []
         go (RIR.Expr'Poison _ _ _) = []
-        go (RIR.Expr'Identifier _ _ _ Nothing) = []
+        go (RIR.Expr'Refer _ _ _ Nothing) = []
         go (RIR.Expr'Intrinsic _ _ _ _) = []
         -- these expressions are only callable if the expressions it refers to are also callable
-        go (RIR.Expr'Identifier _ _ _ (Just i)) = [NeedsCallable i]
+        go (RIR.Expr'Refer _ _ _ (Just i)) = [NeedsCallable i]
         go (RIR.Expr'Call _ _ callee arg) =
             -- the callee has to be callable because it is being called
             -- the argument passed has to also be callable because the function that it is passed to can do arbitrary things to it, so we conservatively enforce that it is also callable in case the function does call it

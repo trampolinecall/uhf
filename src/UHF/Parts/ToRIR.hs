@@ -84,7 +84,7 @@ make_adt_constructor variant_index@(Type.ADT.VariantIndex _ adt_key _) = do
 
         make_lambdas type_params variant_index refer_to_params (cur_field_ty:more_field_tys) =
             new_variable cur_field_ty variant_name_sp >>= \ param_var_key ->
-            new_made_up_expr_id (\ id -> RIR.Expr'Identifier id cur_field_ty variant_name_sp (Just param_var_key)) >>= \ refer_expr ->
+            new_made_up_expr_id (\ id -> RIR.Expr'Refer id cur_field_ty variant_name_sp (Just param_var_key)) >>= \ refer_expr ->
 
             make_lambdas type_params variant_index (refer_to_params <> [refer_expr]) more_field_tys >>= \ lambda_result ->
             new_made_up_expr_id (\ id -> RIR.Expr'Lambda id variant_name_sp param_var_key (TopologicalSort.get_captures param_var_key lambda_result) lambda_result)
@@ -115,13 +115,13 @@ new_variable ty sp =
     lift (state $ Arena.put (RIR.Variable id ty sp))
 
 convert_expr :: SIR.Expr LastSIR -> ReaderT (Map Type.ADT.VariantIndex RIR.VariableKey) ConvertState RIR.Expr
-convert_expr (SIR.Expr'Identifier id ty sp _ bv) = do
+convert_expr (SIR.Expr'Refer id ty sp _ bv) = do
     adt_constructor_map <- ask
     case bv of
-        Just (SIR.BoundValue'Variable var) -> pure $ RIR.Expr'Identifier id ty sp (Just var)
-        Just (SIR.BoundValue'ADTVariant variant) -> pure $ RIR.Expr'Identifier id ty sp (Just $ adt_constructor_map Map.! variant) -- TODO: lower these on demand to really ensure that this cannot be partial?
+        Just (SIR.BoundValue'Variable var) -> pure $ RIR.Expr'Refer id ty sp (Just var)
+        Just (SIR.BoundValue'ADTVariantConstructor variant) -> pure $ RIR.Expr'Refer id ty sp (Just $ adt_constructor_map Map.! variant) -- TODO: lower these on demand to really ensure that this cannot be partial?
         Just (SIR.BoundValue'Intrinsic i) -> pure $ RIR.Expr'Intrinsic id ty sp i
-        Nothing -> pure $ RIR.Expr'Identifier id ty sp Nothing
+        Nothing -> pure $ RIR.Expr'Refer id ty sp Nothing
 convert_expr (SIR.Expr'Char id ty sp c) = pure $ RIR.Expr'Char id sp c
 convert_expr (SIR.Expr'String id ty sp s) = pure $ RIR.Expr'String id sp s
 convert_expr (SIR.Expr'Int id ty sp i) = pure $ RIR.Expr'Int id sp i
@@ -134,7 +134,7 @@ convert_expr (SIR.Expr'Lambda id ty sp param_pat body) =
     in
     -- '\ (...) -> body' becomes '\ (arg) -> let ... = arg; body'
     lift (new_variable param_ty (SIR.pattern_span param_pat)) >>= \ param_bk ->
-    lift (assign_pattern (SIR.pattern_span param_pat) param_pat (RIR.Expr'Identifier id param_ty (SIR.pattern_span param_pat) (Just param_bk))) >>= \ bindings ->
+    lift (assign_pattern (SIR.pattern_span param_pat) param_pat (RIR.Expr'Refer id param_ty (SIR.pattern_span param_pat) (Just param_bk))) >>= \ bindings ->
     RIR.Expr'Let id body_sp <$> lift (sort_bindings bindings) <*> pure [] <*> pure [] <*> convert_expr body >>= \ body ->
     pure (RIR.Expr'Lambda id sp param_bk (TopologicalSort.get_captures param_bk body) body)
 
@@ -219,7 +219,7 @@ convert_expr (SIR.Expr'Match id ty sp match_tok_sp scrutinee arms) = do
             SIR.VariableKey
                       -> SIR.Pattern LastSIR
                       -> ConvertState [RIR.MatchClause]
-        pattern_to_clauses scrutinee_var (SIR.Pattern'Identifier _ _ var_key) = pure [RIR.MatchClause'Assign var_key (RIR.MatchAssignRHS'OtherVar scrutinee_var)]
+        pattern_to_clauses scrutinee_var (SIR.Pattern'Variable _ _ var_key) = pure [RIR.MatchClause'Assign var_key (RIR.MatchAssignRHS'OtherVar scrutinee_var)]
         pattern_to_clauses _ (SIR.Pattern'Wildcard _ _) = pure []
         pattern_to_clauses scrutinee_var (SIR.Pattern'Tuple _ _ a b) =
             -- scrutinee -> (A, B) becomes [scrutinee -> (,), a = scrutinee.tuple_l, b = scrutinee.tuple_r, a -> A, b -> B]
@@ -280,7 +280,7 @@ assign_pattern incomplete_err_sp pat expr = do
 
     go pat expr
     where
-        go (SIR.Pattern'Identifier _ _ var) expr = pure [RIR.Binding var expr]
+        go (SIR.Pattern'Variable _ _ var) expr = pure [RIR.Binding var expr]
         go (SIR.Pattern'Wildcard _ _) _ = pure []
         go (SIR.Pattern'Tuple whole_ty whole_sp a b) expr =
             let a_sp = SIR.pattern_span a
@@ -301,8 +301,8 @@ assign_pattern incomplete_err_sp pat expr = do
             new_made_up_expr_id identity >>= \ l_extract_id ->
             new_made_up_expr_id identity >>= \ r_extract_id ->
 
-            new_made_up_expr_id (\ id -> RIR.Expr'Match id a_ty a_sp (RIR.MatchTree [([RIR.MatchClause'Match whole_var RIR.Match'Tuple, RIR.MatchClause'Assign a_var (RIR.MatchAssignRHS'TupleDestructure1 (SIR.pattern_type a) whole_var)], Right $ RIR.Expr'Identifier l_extract_id a_ty a_sp (Just a_var))])) >>= \ extract_a  ->
-            new_made_up_expr_id (\ id -> RIR.Expr'Match id b_ty b_sp (RIR.MatchTree [([RIR.MatchClause'Match whole_var RIR.Match'Tuple, RIR.MatchClause'Assign b_var (RIR.MatchAssignRHS'TupleDestructure2 (SIR.pattern_type b) whole_var)], Right $ RIR.Expr'Identifier r_extract_id b_ty b_sp (Just b_var))])) >>= \ extract_b ->
+            new_made_up_expr_id (\ id -> RIR.Expr'Match id a_ty a_sp (RIR.MatchTree [([RIR.MatchClause'Match whole_var RIR.Match'Tuple, RIR.MatchClause'Assign a_var (RIR.MatchAssignRHS'TupleDestructure1 (SIR.pattern_type a) whole_var)], Right $ RIR.Expr'Refer l_extract_id a_ty a_sp (Just a_var))])) >>= \ extract_a  ->
+            new_made_up_expr_id (\ id -> RIR.Expr'Match id b_ty b_sp (RIR.MatchTree [([RIR.MatchClause'Match whole_var RIR.Match'Tuple, RIR.MatchClause'Assign b_var (RIR.MatchAssignRHS'TupleDestructure2 (SIR.pattern_type b) whole_var)], Right $ RIR.Expr'Refer r_extract_id b_ty b_sp (Just b_var))])) >>= \ extract_b ->
 
             go a extract_a >>= \ assign_a ->
             go b extract_b >>= \ assign_b ->
@@ -314,7 +314,7 @@ assign_pattern incomplete_err_sp pat expr = do
             --  becomes
             --      a = e
             --      ... = a
-            new_made_up_expr_id (\ id -> RIR.Expr'Identifier id ty sp (Just $ unlocate var)) >>= \ refer ->
+            new_made_up_expr_id (\ id -> RIR.Expr'Refer id ty sp (Just $ unlocate var)) >>= \ refer ->
             go other refer >>= \ other_assignments ->
             pure (RIR.Binding (unlocate var) expr : other_assignments)
 

@@ -66,16 +66,16 @@ binding :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> TypedWithInferVars
 binding infer_vars (SIR.Binding p eq_sp e) = SIR.Binding (pattern infer_vars p) eq_sp (expr infer_vars e)
 
 pattern :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> TypedWithInferVarsPattern -> TypedPattern
-pattern infer_vars (SIR.Pattern'Identifier ty sp bn) = SIR.Pattern'Identifier (type_ infer_vars ty) sp bn
+pattern infer_vars (SIR.Pattern'Variable ty sp bn) = SIR.Pattern'Variable (type_ infer_vars ty) sp bn
 pattern infer_vars (SIR.Pattern'Wildcard ty sp) = SIR.Pattern'Wildcard (type_ infer_vars ty) sp
 pattern infer_vars (SIR.Pattern'Tuple ty sp l r) = SIR.Pattern'Tuple (type_ infer_vars ty) sp (pattern infer_vars l) (pattern infer_vars r)
 pattern infer_vars (SIR.Pattern'Named ty sp at_sp bnk subpat) = SIR.Pattern'Named (type_ infer_vars ty) sp at_sp bnk (pattern infer_vars subpat)
-pattern infer_vars (SIR.Pattern'AnonADTVariant ty sp variant_iden variant_resolved tyargs fields) = SIR.Pattern'AnonADTVariant (type_ infer_vars ty) sp (split_identifier infer_vars variant_iden) variant_resolved (map (type_ infer_vars) tyargs) (map (pattern infer_vars) fields)
-pattern infer_vars (SIR.Pattern'NamedADTVariant ty sp variant_iden variant_resolved tyargs fields) = SIR.Pattern'NamedADTVariant (type_ infer_vars ty) sp (split_identifier infer_vars variant_iden) variant_resolved (map (type_ infer_vars) tyargs) (map (\ (field_name, field_pat) -> (field_name, pattern infer_vars field_pat)) fields)
+pattern infer_vars (SIR.Pattern'AnonADTVariant ty sp variant_ty variant_iden variant_resolved tyargs fields) = SIR.Pattern'AnonADTVariant (type_ infer_vars ty) sp (type_expr infer_vars <$> variant_ty) variant_iden variant_resolved (map (type_ infer_vars) tyargs) (map (pattern infer_vars) fields)
+pattern infer_vars (SIR.Pattern'NamedADTVariant ty sp variant_ty variant_iden variant_resolved tyargs fields) = SIR.Pattern'NamedADTVariant (type_ infer_vars ty) sp (type_expr infer_vars <$> variant_ty) variant_iden variant_resolved (map (type_ infer_vars) tyargs) (map (\ (field_name, field_pat) -> (field_name, pattern infer_vars field_pat)) fields)
 pattern infer_vars (SIR.Pattern'Poison ty sp) = SIR.Pattern'Poison (type_ infer_vars ty) sp
 
 expr :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> TypedWithInferVarsExpr -> TypedExpr
-expr infer_vars (SIR.Expr'Identifier id ty sp iden_split iden_resolved) = SIR.Expr'Identifier id (type_ infer_vars ty) sp (split_identifier infer_vars iden_split) iden_resolved
+expr infer_vars (SIR.Expr'Refer id ty sp iden_ty iden iden_resolved) = SIR.Expr'Refer id (type_ infer_vars ty) sp (type_expr infer_vars <$> iden_ty) iden iden_resolved
 expr infer_vars (SIR.Expr'Char id ty sp c) = SIR.Expr'Char id (type_ infer_vars ty) sp c
 expr infer_vars (SIR.Expr'String id ty sp t) = SIR.Expr'String id (type_ infer_vars ty) sp t
 expr infer_vars (SIR.Expr'Int id ty sp i) = SIR.Expr'Int id (type_ infer_vars ty) sp i
@@ -109,9 +109,9 @@ type_expr infer_vars (SIR.TypeExpr'Poison evaled sp) = SIR.TypeExpr'Poison (m_de
 type_expr_and_type :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> (TypedWithInferVarsTypeExpr, TypeWithInferVars) -> (TypedTypeExpr, Maybe Type)
 type_expr_and_type infer_vars (te, t) = (type_expr infer_vars te, type_ infer_vars t)
 
-split_identifier :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> SIR.SplitIdentifier TypedWithInferVars start -> SIR.SplitIdentifier Typed start
-split_identifier infer_vars (SIR.SplitIdentifier'Get texpr next) = SIR.SplitIdentifier'Get (type_expr infer_vars texpr) next
-split_identifier _ (SIR.SplitIdentifier'Single name) = SIR.SplitIdentifier'Single name
+-- split_identifier :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> SIR.SplitIdentifier TypedWithInferVars start -> SIR.SplitIdentifier Typed start
+-- split_identifier infer_vars (SIR.SplitIdentifier'Get texpr next) = SIR.SplitIdentifier'Get (type_expr infer_vars texpr) next
+-- split_identifier _ (SIR.SplitIdentifier'Single name) = SIR.SplitIdentifier'Single name
 
 m_decl :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> Maybe (SIR.Decl TypeWithInferVars) -> Maybe (SIR.Decl Type)
 m_decl infer_vars d = d >>= decl infer_vars

@@ -32,11 +32,12 @@ import qualified UHF.Util.Arena as Arena
 -- not used a lot; serves mostly as a intermediary step where a lot of things get desugared to make the transition to anfir easier
 data RIR
     = RIR
-        (Arena.Arena (Type.ADT (Maybe Type.Type)) ADTKey)
-        (Arena.Arena (Type.TypeSynonym (Maybe Type.Type)) TypeSynonymKey)
-        (Arena.Arena Type.QuantVar Type.QuantVarKey)
-        (Arena.Arena Variable VariableKey)
-        CU
+        { rir_adts :: Arena.Arena (Type.ADT (Maybe Type.Type)) ADTKey
+        , rir_type_synonyms :: Arena.Arena (Type.TypeSynonym (Maybe Type.Type)) TypeSynonymKey
+        , rir_quant_vars :: Arena.Arena Type.QuantVar Type.QuantVarKey
+        , rir_variables :: Arena.Arena Variable VariableKey
+        , rir_cu :: CU
+        }
 
 -- TODO: same todo as for SIR.CU; see there for more details
 -- "compilation unit"
@@ -56,8 +57,8 @@ data Binding = Binding VariableKey Expr deriving Show
 
 data Expr
     -- identifiers need explicit types in case the identifiers form loops
-    = Expr'Identifier ID.ExprID (Maybe Type.Type) Span (Maybe VariableKey)
-    | Expr'Intrinsic ID.ExprID (Maybe Type.Type) Span Intrinsics.IntrinsicBoundValue
+    = Expr'Refer ID.ExprID (Maybe Type.Type) Span (Maybe VariableKey)
+    | Expr'Intrinsic ID.ExprID (Maybe Type.Type) Span Intrinsics.Intrinsic
     | Expr'Char ID.ExprID Span Char
     | Expr'String ID.ExprID Span Text
     | Expr'Int ID.ExprID Span Integer
@@ -104,7 +105,7 @@ data MatchAssignRHS
     deriving Show
 
 expr_type :: Arena.Arena Variable VariableKey -> Expr -> Maybe Type.Type
-expr_type _ (Expr'Identifier _ ty _ _) = ty
+expr_type _ (Expr'Refer _ ty _ _) = ty
 expr_type _ (Expr'Intrinsic _ ty _ _) = ty
 expr_type _ (Expr'Char _ _ _) = Just Type.Type'Char
 expr_type _ (Expr'String _ _ _) = Just Type.Type'String
@@ -126,7 +127,7 @@ expr_type _ (Expr'MakeADT _ _ (Type.ADT.VariantIndex _ adt_key _) vars _) = Type
 expr_type _ (Expr'Poison _ ty _) = ty
 
 expr_span :: Expr -> Span
-expr_span (Expr'Identifier _ _ sp _) = sp
+expr_span (Expr'Refer _ _ sp _) = sp
 expr_span (Expr'Intrinsic _ _ sp _) = sp
 expr_span (Expr'Char _ sp _) = sp
 expr_span (Expr'String _ sp _) = sp

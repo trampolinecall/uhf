@@ -327,5 +327,5 @@ mangle_binding_as_var :: BackendIR.BindingKey -> IRReader Text
 mangle_binding_as_var key = BackendIR.binding_id <$> get_binding key >>= mangle_binding_id_as_var
 mangle_binding_id_as_var :: BackendIR.ID -> IRReader Text
 mangle_binding_id_as_var id = pure ("var" <> BackendIR.mangle_id id)
-mangle_intrinsic_bv :: Intrinsics.IntrinsicBoundValue -> IRReader Text
+mangle_intrinsic_bv :: Intrinsics.Intrinsic -> IRReader Text
 mangle_intrinsic_bv i = pure $ ID.mangle $ Intrinsics.intrinsic_bv_id i

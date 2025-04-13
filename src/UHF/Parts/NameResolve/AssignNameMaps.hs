@@ -118,12 +118,12 @@ assign_in_pat _ (SIR.Pattern'Variable type_info sp bnk) = pure $ SIR.Pattern'Var
 assign_in_pat _ (SIR.Pattern'Wildcard type_info sp) = pure $ SIR.Pattern'Wildcard type_info sp
 assign_in_pat nc_stack (SIR.Pattern'Tuple type_info sp a b) = SIR.Pattern'Tuple type_info sp <$> assign_in_pat nc_stack a <*> assign_in_pat nc_stack b
 assign_in_pat nc_stack (SIR.Pattern'Named type_info sp at_sp bnk subpat) = SIR.Pattern'Named type_info sp at_sp bnk <$> assign_in_pat nc_stack subpat
-assign_in_pat nc_stack (SIR.Pattern'AnonADTVariant type_info sp variant_iden_split variant_assigned tyargs subpat) = SIR.Pattern'AnonADTVariant type_info sp <$> assign_split_iden assign_iden nc_stack variant_iden_split <*> pure variant_assigned <*> pure tyargs <*> mapM (assign_in_pat nc_stack) subpat
-assign_in_pat nc_stack (SIR.Pattern'NamedADTVariant type_info sp variant_iden_split variant_assigned tyargs subpat) = SIR.Pattern'NamedADTVariant type_info sp <$> assign_split_iden assign_iden nc_stack variant_iden_split <*> pure variant_assigned <*> pure tyargs <*> mapM (\ (field_name, field_pat) -> (field_name,) <$> assign_in_pat nc_stack field_pat) subpat
+assign_in_pat nc_stack (SIR.Pattern'AnonADTVariant type_info sp variant_iden variant_assigned tyargs subpat) = SIR.Pattern'AnonADTVariant type_info sp <$> assign_split_iden assign_iden nc_stack variant_iden <*> pure variant_assigned <*> pure tyargs <*> mapM (assign_in_pat nc_stack) subpat
+assign_in_pat nc_stack (SIR.Pattern'NamedADTVariant type_info sp variant_iden variant_assigned tyargs subpat) = SIR.Pattern'NamedADTVariant type_info sp <$> assign_split_iden assign_iden nc_stack variant_iden <*> pure variant_assigned <*> pure tyargs <*> mapM (\ (field_name, field_pat) -> (field_name,) <$> assign_in_pat nc_stack field_pat) subpat
 assign_in_pat _ (SIR.Pattern'Poison type_info sp) = pure $ SIR.Pattern'Poison type_info sp
 
 assign_in_expr :: NameMaps.NameMapStack -> SIR.Expr Unassigned -> (NRReader.NRReader UnassignedADTArena UnassignedVariableArena QuantVarArena NameMaps.SIRChildMaps Error.WithErrors) (SIR.Expr Assigned)
-assign_in_expr nc_stack (SIR.Expr'Refer id type_info sp iden_split ()) = SIR.Expr'Refer id type_info sp <$> assign_split_iden assign_iden nc_stack iden_split <*> pure ()
+assign_in_expr nc_stack (SIR.Expr'Refer id type_info sp iden ()) = SIR.Expr'Refer id type_info sp <$> assign_split_iden assign_iden nc_stack iden <*> pure ()
 assign_in_expr _ (SIR.Expr'Char id type_info sp c) = pure $ SIR.Expr'Char id type_info sp c
 assign_in_expr _ (SIR.Expr'String id type_info sp s) = pure $ SIR.Expr'String id type_info sp s
 assign_in_expr _ (SIR.Expr'Int id type_info sp i) = pure $ SIR.Expr'Int id type_info sp i

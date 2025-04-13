@@ -21,7 +21,7 @@ import qualified UHF.Util.IDGen as IDGen
 type Type = Maybe Type.Type
 
 type DIden = Maybe (SIR.Decl Type.Type)
-type VIden = Maybe SIR.BoundValue
+type VIden = Maybe SIR.ValueRef
 type PIden = Maybe Type.ADT.VariantIndex
 
 type LastSIR = (DIden, DIden, Type, VIden, VIden, PIden, PIden, Type, Void)
@@ -118,9 +118,9 @@ convert_expr :: SIR.Expr LastSIR -> ReaderT (Map Type.ADT.VariantIndex RIR.Varia
 convert_expr (SIR.Expr'Refer id ty sp _ bv) = do
     adt_constructor_map <- ask
     case bv of
-        Just (SIR.BoundValue'Variable var) -> pure $ RIR.Expr'Refer id ty sp (Just var)
-        Just (SIR.BoundValue'ADTVariantConstructor variant) -> pure $ RIR.Expr'Refer id ty sp (Just $ adt_constructor_map Map.! variant) -- TODO: lower these on demand to really ensure that this cannot be partial?
-        Just (SIR.BoundValue'Intrinsic i) -> pure $ RIR.Expr'Intrinsic id ty sp i
+        Just (SIR.ValueRef'Variable var) -> pure $ RIR.Expr'Refer id ty sp (Just var)
+        Just (SIR.ValueRef'ADTVariantConstructor variant) -> pure $ RIR.Expr'Refer id ty sp (Just $ adt_constructor_map Map.! variant) -- TODO: lower these on demand to really ensure that this cannot be partial?
+        Just (SIR.ValueRef'Intrinsic i) -> pure $ RIR.Expr'Intrinsic id ty sp i
         Nothing -> pure $ RIR.Expr'Refer id ty sp Nothing
 convert_expr (SIR.Expr'Char id ty sp c) = pure $ RIR.Expr'Char id sp c
 convert_expr (SIR.Expr'String id ty sp s) = pure $ RIR.Expr'String id sp s

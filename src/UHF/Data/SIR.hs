@@ -17,7 +17,7 @@ module UHF.Data.SIR
     , ModuleKey
     , Module (..)
 
-    , BoundValue (..)
+    , ValueRef (..)
 
     , VariableKey
     , Variable (..)
@@ -88,12 +88,6 @@ data Variable stage
     = Variable ID.VariableID (Stage.TypeInfo stage) (Located Text)
 deriving instance Stage.AllShowable stage => Show (Variable stage)
 
-data BoundValue
-    = BoundValue'Variable VariableKey
-    | BoundValue'ADTVariantConstructor Type.ADT.VariantIndex
-    | BoundValue'Intrinsic Intrinsics.IntrinsicBoundValue
-    deriving Show
-
 data Binding stage
     = Binding (Pattern stage) Span (Expr stage)
 deriving instance Stage.AllShowable stage => Show (Binding stage)
@@ -119,6 +113,12 @@ deriving instance (Stage.AllShowable stage, Show single) => Show (SplitIdentifie
 
 type ExprIdentifierRef stage = SplitIdentifier (Stage.VIdenStart stage) stage
 type OperatorRef stage = SplitIdentifier (Stage.VIdenStart stage) stage
+
+data ValueRef
+    = ValueRef'Variable VariableKey
+    | ValueRef'ADTVariantConstructor Type.ADT.VariantIndex
+    | ValueRef'Intrinsic Intrinsics.Intrinsic
+    deriving Show
 
 data Expr stage
     = Expr'Refer ID.ExprID (Stage.TypeInfo stage) Span (ExprIdentifierRef stage) (Stage.VIdenResolved stage)

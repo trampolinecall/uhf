@@ -47,13 +47,13 @@ import qualified UHF.Util.Arena as Arena
 
 -- these are very similar datatypes; the difference between them is conceptual: ChildMaps is a map that tells what the children of a certain entity are, whereas a NameMap just stores what names are currently in scope (and is only used for resolving roots)
 -- this is also why there is a NameMapStack but not a ChildMapStack
-data ChildMaps = ChildMaps (Map.Map Text (SIR.Decl TypeWithInferVar.Type)) (Map.Map Text SIR.BoundValue) (Map.Map Text Type.ADT.VariantIndex) deriving Show
-data NameMaps = NameMaps (Map.Map Text (SIR.Decl TypeWithInferVar.Type)) (Map.Map Text SIR.BoundValue) (Map.Map Text Type.ADT.VariantIndex) deriving Show
+data ChildMaps = ChildMaps (Map.Map Text (SIR.Decl TypeWithInferVar.Type)) (Map.Map Text SIR.ValueRef) (Map.Map Text Type.ADT.VariantIndex) deriving Show
+data NameMaps = NameMaps (Map.Map Text (SIR.Decl TypeWithInferVar.Type)) (Map.Map Text SIR.ValueRef) (Map.Map Text Type.ADT.VariantIndex) deriving Show
 data NameMapStack = NameMapStack NameMaps (Maybe NameMapStack)
 
 -- TODO: do not export these
 type DeclChildrenList = [(Text, DeclAt, SIR.Decl TypeWithInferVar.Type)]
-type ValueList = [(Text, DeclAt, SIR.BoundValue)]
+type ValueList = [(Text, DeclAt, SIR.ValueRef)]
 type ADTVariantList = [(Text, DeclAt, Type.ADT.VariantIndex)]
 
 -- SIRChildMaps {{{1
@@ -101,7 +101,7 @@ make_name_maps_from_decls already_decls already_vals already_variants type_synon
                             (variant_constructors, variant_patterns) = Type.ADT.variant_idxs adt_arena adt
                                 & map (\ variant_index ->
                                     case Type.ADT.get_variant adt_arena variant_index of
-                                        Type.ADT.Variant'Anon (Located variant_name_sp variant_name) _ _ -> ((variant_name, DeclAt variant_name_sp, SIR.BoundValue'ADTVariantConstructor variant_index), (variant_name, DeclAt variant_name_sp, variant_index))
+                                        Type.ADT.Variant'Anon (Located variant_name_sp variant_name) _ _ -> ((variant_name, DeclAt variant_name_sp, SIR.ValueRef'ADTVariantConstructor variant_index), (variant_name, DeclAt variant_name_sp, variant_index))
                                         Type.ADT.Variant'Named _ _ _ -> todo
                                 )
                                 & unzip
@@ -148,10 +148,10 @@ binding_children :: Monad under => SIR.Binding stage -> NRReader (Arena.Arena (T
 binding_children (SIR.Binding pat _ _) = ([],, []) <$> pattern_vars pat
 
 pattern_vars :: Monad under => SIR.Pattern stage -> NRReader (Arena.Arena (Type.ADT (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage)) Type.ADTKey) (Arena.Arena (SIR.Variable stage) SIR.VariableKey) quant_var_arena sir_child_maps under ValueList
-pattern_vars (SIR.Pattern'Variable _ sp var_key) = var_name var_key >>= \ name -> pure [(name, DeclAt sp, SIR.BoundValue'Variable var_key)]
+pattern_vars (SIR.Pattern'Variable _ sp var_key) = var_name var_key >>= \ name -> pure [(name, DeclAt sp, SIR.ValueRef'Variable var_key)]
 pattern_vars (SIR.Pattern'Wildcard _ _) = pure []
 pattern_vars (SIR.Pattern'Tuple _ _ a b) = pattern_vars a >>= \ a -> pattern_vars b >>= \ b -> pure (a ++ b)
-pattern_vars (SIR.Pattern'Named _ _ _ (Located var_span var_key) subpat) = var_name var_key >>= \ name -> pattern_vars subpat >>= \ subpat -> pure ((name, DeclAt var_span, SIR.BoundValue'Variable var_key) : subpat)
+pattern_vars (SIR.Pattern'Named _ _ _ (Located var_span var_key) subpat) = var_name var_key >>= \ name -> pattern_vars subpat >>= \ subpat -> pure ((name, DeclAt var_span, SIR.ValueRef'Variable var_key) : subpat)
 pattern_vars (SIR.Pattern'AnonADTVariant _ _ _ _ _ fields) = concat <$> mapM pattern_vars fields
 pattern_vars (SIR.Pattern'NamedADTVariant _ _ _ _ _ fields) = concat <$> mapM (pattern_vars . snd) fields
 pattern_vars (SIR.Pattern'Poison _ _) = pure []
@@ -168,7 +168,7 @@ intrinsics_package_child_maps :: ChildMaps
 intrinsics_package_child_maps =
     ChildMaps
         Map.empty
-        (Map.fromList $ map (\ intrinsic -> (Intrinsics.intrinsic_bv_name intrinsic, SIR.BoundValue'Intrinsic intrinsic)) (Enum.enumFromTo Enum.minBound Enum.maxBound))
+        (Map.fromList $ map (\ intrinsic -> (Intrinsics.intrinsic_bv_name intrinsic, SIR.ValueRef'Intrinsic intrinsic)) (Enum.enumFromTo Enum.minBound Enum.maxBound))
         Map.empty
 -- getting from child maps {{{1
 -- TODO: remove duplication from these
@@ -189,7 +189,7 @@ get_decl_child sir_child_maps decl name =
         Just res -> Right res
         Nothing -> Left $ Error'CouldNotFindIn Nothing name -- TODO: put previous
 
-get_value_child :: SIRChildMaps -> SIR.Decl TypeWithInferVar.Type -> Located Text -> Either Error SIR.BoundValue
+get_value_child :: SIRChildMaps -> SIR.Decl TypeWithInferVar.Type -> Located Text -> Either Error SIR.ValueRef
 get_value_child sir_child_maps decl name =
     let res = case decl of
             SIR.Decl'Module m ->

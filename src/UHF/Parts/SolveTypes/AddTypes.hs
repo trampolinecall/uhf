@@ -19,11 +19,11 @@ type ContextReader adts type_synonyms quant_vars vars = ReaderT (adts, type_syno
 
 -- TODO: make helper functions to not use lift
 
-get_bv_type :: SIR.BoundValue -> ContextReader TypedWithInferVarsADTArena type_synonyms quant_vars TypedWithInferVarsVariableArena TypeWithInferVars
+get_bv_type :: SIR.ValueRef -> ContextReader TypedWithInferVarsADTArena type_synonyms quant_vars TypedWithInferVarsVariableArena TypeWithInferVars
 get_bv_type bv =
     case bv of
-        SIR.BoundValue'Variable var -> get_var_type var
-        SIR.BoundValue'ADTVariantConstructor variant_index@(Type.ADT.VariantIndex _ adt_key _) -> do
+        SIR.ValueRef'Variable var -> get_var_type var
+        SIR.ValueRef'ADTVariantConstructor variant_index@(Type.ADT.VariantIndex _ adt_key _) -> do
             (adts, _, _, _) <- ask
             let (Type.ADT _ _ adt_type_params _) = Arena.get adts adt_key
             let variant = Type.ADT.get_variant adts variant_index
@@ -36,7 +36,7 @@ get_bv_type bv =
                                 [] -> identity
                                 param:more -> TypeSolver.Type'Forall (param :| more)
                         in pure $ wrap_in_forall $ foldr TypeSolver.Type'Function (TypeSolver.Type'ADT adt_key (map TypeSolver.Type'QuantVar adt_type_params)) arg_tys -- function type that takes all the field types and then results in the adt type
-        SIR.BoundValue'Intrinsic i -> pure $ TypeSolver.from_ir_type $ Intrinsics.intrinsic_bv_type i
+        SIR.ValueRef'Intrinsic i -> pure $ TypeSolver.from_ir_type $ Intrinsics.intrinsic_bv_type i
 
 get_var_type :: SIR.VariableKey -> ContextReader adts type_synonyms quant_vars TypedWithInferVarsVariableArena TypeWithInferVars
 get_var_type var = do

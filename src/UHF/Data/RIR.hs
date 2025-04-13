@@ -57,7 +57,7 @@ data Binding = Binding VariableKey Expr deriving Show
 data Expr
     -- refer expressions need explicit types in case the refer expressions form loops
     = Expr'Refer ID.ExprID (Maybe Type.Type) Span (Maybe VariableKey)
-    | Expr'Intrinsic ID.ExprID (Maybe Type.Type) Span Intrinsics.IntrinsicBoundValue
+    | Expr'Intrinsic ID.ExprID (Maybe Type.Type) Span Intrinsics.Intrinsic
     | Expr'Char ID.ExprID Span Char
     | Expr'String ID.ExprID Span Text
     | Expr'Int ID.ExprID Span Integer

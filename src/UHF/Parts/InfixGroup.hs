@@ -7,8 +7,6 @@ import UHF.Prelude
 
 import UHF.Source.Span (Span)
 import qualified UHF.Data.IR.ID as ID
-import qualified UHF.Data.IR.Type as Type
-import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Util.Arena as Arena
 import qualified UHF.Util.IDGen as IDGen
@@ -39,11 +37,11 @@ group (SIR.SIR modules adts type_synonyms type_vars variables (SIR.CU root_modul
         (SIR.CU root_module main_function)
     where
         -- TODO: automate these functions too?
-        convert_adt (Type.ADT did name tyvars variants) = Type.ADT did name tyvars (map convert_variant variants)
+        convert_adt (SIR.ADT did name tyvars variants) = SIR.ADT did name tyvars (map convert_variant variants)
             where
-                convert_variant (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id (map (\ (i, (t, teat)) -> (i, (convert_type_expr t, teat))) fields) -- 'teat' is short for 'type evaluated as type'
-                convert_variant (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id (map (\ (i, n, (t, teat)) -> (i, n, (convert_type_expr t, teat))) fields)
-        convert_type_synonym (Type.TypeSynonym did name (exp, expeat)) = Type.TypeSynonym did name (convert_type_expr exp, expeat)
+                convert_variant (SIR.ADTVariant'Anon name id fields) = SIR.ADTVariant'Anon name id (map (\ (i, t) -> (i, convert_type_expr t)) fields)
+                convert_variant (SIR.ADTVariant'Named name id fields) = SIR.ADTVariant'Named name id (map (\ (i, n, t) -> (i, n, convert_type_expr t)) fields)
+        convert_type_synonym (SIR.TypeSynonym did name exp) = SIR.TypeSynonym did name (convert_type_expr exp)
         convert_variable (SIR.Variable varid tyinfo n) = SIR.Variable varid tyinfo n
 
 group_module :: Convertible ungrouped grouped => SIR.Module ungrouped -> IDGen.IDGen ID.ExprID (SIR.Module grouped)

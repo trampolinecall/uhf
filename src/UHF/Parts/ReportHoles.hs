@@ -50,7 +50,7 @@ pattern :: SIR.Pattern stage -> ReaderT (SIR.SIR stage) (Compiler.WithDiagnostic
 pattern _ = pure () -- TODO: remove or keep for symmetry?
 
 expr :: (SIR.TypeInfo stage ~ Maybe Type.Type, SIR.TypeExprEvaledAsType stage ~ Maybe Type.Type) => SIR.Expr stage -> ReaderT (SIR.SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
-expr (SIR.Expr'Identifier _ _ _ _ _) = pure ()
+expr (SIR.Expr'Refer _ _ _ _ _) = pure ()
 expr (SIR.Expr'Char _ _ _ _) = pure ()
 expr (SIR.Expr'String _ _ _ _) = pure ()
 expr (SIR.Expr'Int _ _ _ _) = pure ()

@@ -84,7 +84,7 @@ resolve_in_type_expr (SIR.TypeExpr'Wild resolved sp) = pure $ SIR.TypeExpr'Wild 
 resolve_in_type_expr (SIR.TypeExpr'Poison resolved sp) = pure $ SIR.TypeExpr'Poison resolved sp
 
 resolve_in_pat :: SIR.Pattern Unresolved -> Error.WithErrors (SIR.Pattern Resolved)
-resolve_in_pat (SIR.Pattern'Identifier type_info sp bnk) = pure $ SIR.Pattern'Identifier type_info sp bnk
+resolve_in_pat (SIR.Pattern'Variable type_info sp bnk) = pure $ SIR.Pattern'Variable type_info sp bnk
 resolve_in_pat (SIR.Pattern'Wildcard type_info sp) = pure $ SIR.Pattern'Wildcard type_info sp
 resolve_in_pat (SIR.Pattern'Tuple type_info sp a b) = SIR.Pattern'Tuple type_info sp <$> resolve_in_pat a <*> resolve_in_pat b
 resolve_in_pat (SIR.Pattern'Named type_info sp at_sp bnk subpat) = SIR.Pattern'Named type_info sp at_sp bnk <$> resolve_in_pat subpat
@@ -93,7 +93,7 @@ resolve_in_pat (SIR.Pattern'NamedADTVariant type_info sp variant_iden_split vari
 resolve_in_pat (SIR.Pattern'Poison type_info sp) = pure $ SIR.Pattern'Poison type_info sp
 
 resolve_in_expr :: SIR.Expr Unresolved -> Error.WithErrors (SIR.Expr Resolved)
-resolve_in_expr (SIR.Expr'Identifier id type_info sp iden_split ()) = SIR.Expr'Identifier id type_info sp <$> resolve_split_iden resolve_expr_iden iden_split <*> pure ()
+resolve_in_expr (SIR.Expr'Refer id type_info sp iden_split ()) = SIR.Expr'Refer id type_info sp <$> resolve_split_iden resolve_expr_iden iden_split <*> pure ()
 resolve_in_expr (SIR.Expr'Char id type_info sp c) = pure $ SIR.Expr'Char id type_info sp c
 resolve_in_expr (SIR.Expr'String id type_info sp s) = pure $ SIR.Expr'String id type_info sp s
 resolve_in_expr (SIR.Expr'Int id type_info sp i) = pure $ SIR.Expr'Int id type_info sp i
@@ -137,9 +137,9 @@ resolve_in_expr (SIR.Expr'Hole id type_info sp hid) = pure $ SIR.Expr'Hole id ty
 resolve_in_expr (SIR.Expr'Poison id type_info sp) = pure $ SIR.Expr'Poison id type_info sp
 
 -- resolving identifiers {{{1
-resolve_split_iden :: (UnresolvedIdenStart -> Error.WithErrors resolved_iden) -> SIR.SplitIdentifier Unresolved UnresolvedIdenStart -> Error.WithErrors (SIR.SplitIdentifier Resolved resolved_iden)
+resolve_split_iden :: (UnresolvedIdenStart -> Error.WithErrors resolved_iden) -> SIR.SplitIdentifier UnresolvedIdenStart Unresolved -> Error.WithErrors (SIR.SplitIdentifier resolved_iden Resolved)
 resolve_split_iden _ (SIR.SplitIdentifier'Get texpr next) = SIR.SplitIdentifier'Get <$> resolve_in_type_expr texpr <*> pure next
-resolve_split_iden resolve_start (SIR.SplitIdentifier'Single i) = SIR.SplitIdentifier'Single <$> resolve_start i
+resolve_split_iden resolve_single (SIR.SplitIdentifier'Single s) = SIR.SplitIdentifier'Single <$> resolve_single s
 
 resolve_iden_start :: (NameMaps.NameMaps -> Map Text resolved) -> UnresolvedIdenStart -> Error.WithErrors (Maybe resolved)
 resolve_iden_start which_map (name_map_stack, iden) =

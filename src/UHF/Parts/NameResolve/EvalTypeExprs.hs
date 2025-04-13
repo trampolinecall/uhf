@@ -162,7 +162,7 @@ extract_in_type_expr (SIR.TypeExpr'Poison () sp) =
     pure (k, SIR.TypeExpr'Poison k sp)
 
 extract_in_pat :: SIR.Pattern Unevaled -> ExtractMonad (SIR.Pattern Extracted)
-extract_in_pat (SIR.Pattern'Identifier type_info sp bnk) = pure $ SIR.Pattern'Identifier type_info sp bnk
+extract_in_pat (SIR.Pattern'Variable type_info sp bnk) = pure $ SIR.Pattern'Variable type_info sp bnk
 extract_in_pat (SIR.Pattern'Wildcard type_info sp) = pure $ SIR.Pattern'Wildcard type_info sp
 extract_in_pat (SIR.Pattern'Tuple type_info sp a b) = SIR.Pattern'Tuple type_info sp <$> extract_in_pat a <*> extract_in_pat b
 extract_in_pat (SIR.Pattern'Named type_info sp at_sp bnk subpat) = SIR.Pattern'Named type_info sp at_sp bnk <$> extract_in_pat subpat
@@ -171,7 +171,7 @@ extract_in_pat (SIR.Pattern'NamedADTVariant type_info sp variant_split_iden () t
 extract_in_pat (SIR.Pattern'Poison type_info sp) = pure $ SIR.Pattern'Poison type_info sp
 
 extract_in_expr :: SIR.Expr Unevaled -> ExtractMonad (SIR.Expr Extracted)
-extract_in_expr (SIR.Expr'Identifier id type_info sp iden_split ()) = SIR.Expr'Identifier id type_info sp <$> extract_in_split_iden iden_split <*> pure ()
+extract_in_expr (SIR.Expr'Refer id type_info sp iden_split ()) = SIR.Expr'Refer id type_info sp <$> extract_in_split_iden iden_split <*> pure ()
 extract_in_expr (SIR.Expr'Char id type_info sp c) = pure $ SIR.Expr'Char id type_info sp c
 extract_in_expr (SIR.Expr'String id type_info sp s) = pure $ SIR.Expr'String id type_info sp s
 extract_in_expr (SIR.Expr'Int id type_info sp i) = pure $ SIR.Expr'Int id type_info sp i
@@ -211,9 +211,9 @@ extract_in_expr (SIR.Expr'Hole id type_info sp hid) = pure $ SIR.Expr'Hole id ty
 
 extract_in_expr (SIR.Expr'Poison id type_info sp) = pure $ SIR.Expr'Poison id type_info sp
 
-extract_in_split_iden :: SIR.SplitIdentifier Unevaled iden_start -> ExtractMonad (SIR.SplitIdentifier Extracted iden_start)
+extract_in_split_iden :: SIR.SplitIdentifier single Unevaled -> ExtractMonad (SIR.SplitIdentifier single Extracted)
 extract_in_split_iden (SIR.SplitIdentifier'Get texpr next) = extract_in_type_expr texpr >>= \ (_, texpr) -> pure (SIR.SplitIdentifier'Get texpr next)
-extract_in_split_iden (SIR.SplitIdentifier'Single start) = pure (SIR.SplitIdentifier'Single start)
+extract_in_split_iden (SIR.SplitIdentifier'Single single) = pure (SIR.SplitIdentifier'Single single)
 -- put back {{{1
 put_back :: NameMaps.SIRChildMaps -> Arena.Arena TypeExpr TypeExprKey -> SIR.SIR Extracted  -> Error.WithErrors (SIR.SIR Evaled, TypeSolver.SolverState, [TypeSolver.Constraint])
 put_back sir_child_maps type_expr_arena (SIR.SIR mods adts type_synonyms quant_vars variables (SIR.CU root_module main_function)) = do
@@ -275,7 +275,7 @@ put_back_in_type_expr te = case te of
     SIR.TypeExpr'Poison te_k sp -> eval_type_expr te_k >>= \ evaled -> pure (SIR.TypeExpr'Poison evaled sp)
 
 put_back_in_pat :: SIR.Pattern Extracted -> EvalMonad (Arena.Arena (SIR.ADT Extracted) Type.ADTKey) (Arena.Arena (SIR.TypeSynonym Extracted) Type.TypeSynonymKey) QuantVarArena EvaledPattern
-put_back_in_pat (SIR.Pattern'Identifier type_info sp bnk) = pure $ SIR.Pattern'Identifier type_info sp bnk
+put_back_in_pat (SIR.Pattern'Variable type_info sp bnk) = pure $ SIR.Pattern'Variable type_info sp bnk
 put_back_in_pat (SIR.Pattern'Wildcard type_info sp) = pure $ SIR.Pattern'Wildcard type_info sp
 put_back_in_pat (SIR.Pattern'Tuple type_info sp a b) = SIR.Pattern'Tuple type_info sp <$> put_back_in_pat a <*> put_back_in_pat b
 put_back_in_pat (SIR.Pattern'Named type_info sp at_sp bnk subpat) = SIR.Pattern'Named type_info sp at_sp bnk <$> put_back_in_pat subpat
@@ -284,7 +284,7 @@ put_back_in_pat (SIR.Pattern'NamedADTVariant type_info sp variant_split_iden () 
 put_back_in_pat (SIR.Pattern'Poison type_info sp) = pure $ SIR.Pattern'Poison type_info sp
 
 put_back_in_expr :: SIR.Expr Extracted -> EvalMonad (Arena.Arena (SIR.ADT Extracted) Type.ADTKey) (Arena.Arena (SIR.TypeSynonym Extracted) Type.TypeSynonymKey) QuantVarArena EvaledExpr
-put_back_in_expr (SIR.Expr'Identifier id type_info sp iden_split ()) = SIR.Expr'Identifier id type_info sp <$> put_back_split_iden iden_split <*> pure ()
+put_back_in_expr (SIR.Expr'Refer id type_info sp iden_split ()) = SIR.Expr'Refer id type_info sp <$> put_back_split_iden iden_split <*> pure ()
 put_back_in_expr (SIR.Expr'Char id type_info sp c) = pure $ SIR.Expr'Char id type_info sp c
 put_back_in_expr (SIR.Expr'String id type_info sp s) = pure $ SIR.Expr'String id type_info sp s
 put_back_in_expr (SIR.Expr'Int id type_info sp i) = pure $ SIR.Expr'Int id type_info sp i
@@ -325,9 +325,9 @@ put_back_in_expr (SIR.Expr'Hole id type_info sp hid) = pure $ SIR.Expr'Hole id t
 
 put_back_in_expr (SIR.Expr'Poison id type_info sp) = pure $ SIR.Expr'Poison id type_info sp
 
-put_back_split_iden :: SIR.SplitIdentifier Extracted start -> EvalMonad (Arena.Arena (SIR.ADT Extracted) Type.ADTKey) (Arena.Arena (SIR.TypeSynonym Extracted) Type.TypeSynonymKey) QuantVarArena (SIR.SplitIdentifier Evaled start)
+put_back_split_iden :: SIR.SplitIdentifier single Extracted -> EvalMonad (Arena.Arena (SIR.ADT Extracted) Type.ADTKey) (Arena.Arena (SIR.TypeSynonym Extracted) Type.TypeSynonymKey) QuantVarArena (SIR.SplitIdentifier single Evaled)
 put_back_split_iden (SIR.SplitIdentifier'Get texpr next) = put_back_in_type_expr texpr >>= \ texpr -> pure (SIR.SplitIdentifier'Get texpr next)
-put_back_split_iden (SIR.SplitIdentifier'Single start) = pure (SIR.SplitIdentifier'Single start)
+put_back_split_iden (SIR.SplitIdentifier'Single single) = pure (SIR.SplitIdentifier'Single single)
 
 make_infer_var :: TypeSolver.InferVarForWhat -> EvalMonad adts type_synonyms quant_vars TypeSolver.Type
 make_infer_var for_what = TypeSolver.Type'InferVar <$> TypeSolver.new_infer_var for_what

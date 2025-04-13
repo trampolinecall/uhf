@@ -101,7 +101,7 @@ make_name_maps_from_decls already_decls already_vals already_variants type_synon
                             (variant_constructors, variant_patterns) = Type.ADT.variant_idxs adt_arena adt
                                 & map (\ variant_index ->
                                     case Type.ADT.get_variant adt_arena variant_index of
-                                        Type.ADT.Variant'Anon (Located variant_name_sp variant_name) _ _ -> ((variant_name, DeclAt variant_name_sp, SIR.BoundValue'ADTVariant variant_index), (variant_name, DeclAt variant_name_sp, variant_index))
+                                        Type.ADT.Variant'Anon (Located variant_name_sp variant_name) _ _ -> ((variant_name, DeclAt variant_name_sp, SIR.BoundValue'ADTVariantConstructor variant_index), (variant_name, DeclAt variant_name_sp, variant_index))
                                         Type.ADT.Variant'Named _ _ _ -> todo
                                 )
                                 & unzip
@@ -148,7 +148,7 @@ binding_children :: Monad under => SIR.Binding stage -> NRReader (Arena.Arena (T
 binding_children (SIR.Binding pat _ _) = ([],, []) <$> pattern_vars pat
 
 pattern_vars :: Monad under => SIR.Pattern stage -> NRReader (Arena.Arena (Type.ADT (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage)) Type.ADTKey) (Arena.Arena (SIR.Variable stage) SIR.VariableKey) quant_var_arena sir_child_maps under ValueList
-pattern_vars (SIR.Pattern'Identifier _ sp var_key) = var_name var_key >>= \ name -> pure [(name, DeclAt sp, SIR.BoundValue'Variable var_key)]
+pattern_vars (SIR.Pattern'Variable _ sp var_key) = var_name var_key >>= \ name -> pure [(name, DeclAt sp, SIR.BoundValue'Variable var_key)]
 pattern_vars (SIR.Pattern'Wildcard _ _) = pure []
 pattern_vars (SIR.Pattern'Tuple _ _ a b) = pattern_vars a >>= \ a -> pattern_vars b >>= \ b -> pure (a ++ b)
 pattern_vars (SIR.Pattern'Named _ _ _ (Located var_span var_key) subpat) = var_name var_key >>= \ name -> pattern_vars subpat >>= \ subpat -> pure ((name, DeclAt var_span, SIR.BoundValue'Variable var_key) : subpat)

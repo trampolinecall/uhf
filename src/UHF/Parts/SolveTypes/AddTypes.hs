@@ -23,7 +23,7 @@ get_bv_type :: SIR.BoundValue -> ContextReader TypedWithInferVarsADTArena type_s
 get_bv_type bv =
     case bv of
         SIR.BoundValue'Variable var -> get_var_type var
-        SIR.BoundValue'ADTVariant variant_index@(Type.ADT.VariantIndex _ adt_key _) -> do
+        SIR.BoundValue'ADTVariantConstructor variant_index@(Type.ADT.VariantIndex _ adt_key _) -> do
             (adts, _, _, _) <- ask
             let (Type.ADT _ _ adt_type_params _) = Arena.get adts adt_key
             let variant = Type.ADT.get_variant adts variant_index
@@ -153,9 +153,9 @@ loc_expr_type :: SIR.Expr stage -> Located (SIR.TypeInfo stage)
 loc_expr_type expr = Located (SIR.expr_span expr) (SIR.expr_type expr)
 
 pattern :: UntypedPattern -> ContextReader TypedWithInferVarsADTArena type_synonyms quant_vars TypedWithInferVarsVariableArena TypedWithInferVarsPattern
-pattern (SIR.Pattern'Identifier () sp var) =
+pattern (SIR.Pattern'Variable () sp var) =
     get_var_type var >>= \ ty ->
-    pure (SIR.Pattern'Identifier ty sp var)
+    pure (SIR.Pattern'Variable ty sp var)
 
 pattern (SIR.Pattern'Wildcard () sp) =
     TypeSolver.Type'InferVar <$> lift (lift $ TypeSolver.new_infer_var (TypeSolver.WildcardPattern sp)) >>= \ ty ->
@@ -222,14 +222,14 @@ pattern (SIR.Pattern'NamedADTVariant () _ _ (Just _) _ _) = todo
 pattern (SIR.Pattern'Poison () sp) = SIR.Pattern'Poison <$> (TypeSolver.Type'InferVar <$> lift (lift $ TypeSolver.new_infer_var $ TypeSolver.PoisonPattern sp)) <*> pure sp
 
 expr :: UntypedExpr -> ContextReader TypedWithInferVarsADTArena TypedWithInferVarsTypeSynonymArena QuantVarArena TypedWithInferVarsVariableArena TypedWithInferVarsExpr
-expr (SIR.Expr'Identifier id () sp iden bv) =
-    (case bv of
+expr (SIR.Expr'Refer id () sp iden bv) = do
+    ty <- case bv of
         Just bv -> get_bv_type bv
-        Nothing -> TypeSolver.Type'InferVar <$> lift (lift $ TypeSolver.new_infer_var (TypeSolver.UnresolvedIdenExpr sp))) >>= \ ty ->
+        Nothing -> TypeSolver.Type'InferVar <$> lift (lift $ TypeSolver.new_infer_var (TypeSolver.UnresolvedIdenExpr sp))
 
-    split_iden iden >>= \ iden ->
+    iden <- split_iden iden
 
-    pure (SIR.Expr'Identifier id ty sp iden bv)
+    pure (SIR.Expr'Refer id ty sp iden bv)
 
 expr (SIR.Expr'Char id () sp c) = pure (SIR.Expr'Char id TypeSolver.Type'Char sp c)
 expr (SIR.Expr'String id () sp t) = pure (SIR.Expr'String id TypeSolver.Type'String sp t)
@@ -311,6 +311,6 @@ expr (SIR.Expr'TypeAnnotation id () sp (annotation, annotation_ty) e) =
     lift (tell [TypeSolver.Expect TypeSolver.InTypeAnnotation (Located (SIR.type_expr_span annotation) (SIR.expr_type e)) annotation_ty]) >>
     pure (SIR.Expr'TypeAnnotation id annotation_ty sp (annotation, annotation_ty) e)
 
-split_iden :: SIR.SplitIdentifier Untyped start -> ContextReader TypedWithInferVarsADTArena type_synonyms quant_vars vars (SIR.SplitIdentifier TypedWithInferVars start)
+split_iden :: SIR.SplitIdentifier single Untyped -> ContextReader TypedWithInferVarsADTArena type_synonyms quant_vars vars (SIR.SplitIdentifier single TypedWithInferVars)
 split_iden (SIR.SplitIdentifier'Get texpr name) = type_expr texpr >>= \ texpr -> pure (SIR.SplitIdentifier'Get texpr name)
-split_iden (SIR.SplitIdentifier'Single start) = pure $ SIR.SplitIdentifier'Single start
+split_iden (SIR.SplitIdentifier'Single single) = pure $ SIR.SplitIdentifier'Single single

@@ -53,6 +53,8 @@ import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR.Stage as Stage
 import qualified UHF.Util.Arena as Arena
 
+-- TODO: transpose grouping of these? ie restructure as files for ast, type synonyms, intrinsics, ..., and all related operations like child maps, getting children, ... together in thesdecls with all related thing in the same file
+
 -- "syntax based ir"
 data SIR stage
     = SIR
@@ -67,13 +69,14 @@ data SIR stage
  -- TODO: when support for compiling libraries that should not need a main function, a field should be added that identifies whether or not the compilation unit is a library or an executable or this should be split into 2 constructors for libraries or executables
 data CU stage = CU { cu_root_module :: ModuleKey, cu_main_function :: Maybe VariableKey }
 
+-- TODO: make these into their own datatypes and do not share representation with types
 type ADT stage = Type.ADT (TypeExpr stage, Stage.TypeExprEvaledAsType stage)
 type TypeSynonym stage = Type.TypeSynonym (TypeExpr stage, Stage.TypeExprEvaledAsType stage)
 
 data Decl ty
     = Decl'Module ModuleKey
     | Decl'Type ty
-    | Decl'ExternPackage ExternPackage
+    | Decl'ExternPackage ExternPackage -- TODO: change this to ExternModule? because referring to an external package would just refer to its root module
     deriving Show
 
 data ExternPackage

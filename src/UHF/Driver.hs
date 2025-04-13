@@ -47,9 +47,9 @@ import qualified UHF.Source.FormattedString as FormattedString
 
 type AST = [AST.Decl]
 type FirstSIR = SIR.SIR (Located Text, (), (), Located Text, (), Located Text, (), (), ())
-type NRSIR = (SIR.SIR (Maybe (SIR.Decl TypeSolver.Type), Maybe (SIR.Decl TypeSolver.Type), TypeSolver.Type, Maybe SIR.BoundValue, Maybe SIR.BoundValue, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, (), ()), TypeSolver.SolverState, [TypeSolver.Constraint])
-type InfixGroupedSIR = SIR.SIR (Maybe (SIR.Decl TypeSolver.Type), Maybe (SIR.Decl TypeSolver.Type), TypeSolver.Type, Maybe SIR.BoundValue, Maybe SIR.BoundValue, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, (), Void)
-type TypedSIR = SIR.SIR (Maybe (SIR.Decl IR.Type.Type), Maybe (SIR.Decl IR.Type.Type), Maybe IR.Type.Type, Maybe SIR.BoundValue, Maybe SIR.BoundValue, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.Type, Void)
+type NRSIR = (SIR.SIR (Maybe (SIR.Decl TypeSolver.Type), Maybe (SIR.Decl TypeSolver.Type), TypeSolver.Type, Maybe SIR.ValueRef, Maybe SIR.ValueRef, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, (), ()), TypeSolver.SolverState, [TypeSolver.Constraint])
+type InfixGroupedSIR = SIR.SIR (Maybe (SIR.Decl TypeSolver.Type), Maybe (SIR.Decl TypeSolver.Type), TypeSolver.Type, Maybe SIR.ValueRef, Maybe SIR.ValueRef, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, (), Void)
+type TypedSIR = SIR.SIR (Maybe (SIR.Decl IR.Type.Type), Maybe (SIR.Decl IR.Type.Type), Maybe IR.Type.Type, Maybe SIR.ValueRef, Maybe SIR.ValueRef, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.Type, Void)
 type RIR = RIR.RIR
 type ANFIR = ANFIR.ANFIR
 type BackendIR = BackendIR.BackendIR (Either BackendIR.HasLoops BackendIR.TopologicallySorted) (Maybe IR.Type.Type) ()

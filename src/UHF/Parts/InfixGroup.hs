@@ -13,7 +13,7 @@ import qualified UHF.Data.SIR as SIR
 import qualified UHF.Util.Arena as Arena
 import qualified UHF.Util.IDGen as IDGen
 
-type VIden = Maybe SIR.BoundValue
+type VIden = Maybe SIR.ValueRef
 
 type IsUngrouped s = (SIR.VIdenResolved s ~ VIden, SIR.TypeInfo s ~ (), SIR.BinaryOpsAllowed s ~ ())
 type IsGrouped s = (SIR.VIdenResolved s ~ VIden, SIR.TypeInfo s ~ (), SIR.BinaryOpsAllowed s ~ Void)
@@ -73,7 +73,7 @@ group_expr (SIR.Expr'BinaryOps _ () () _ first ops) =
     if null a then pure r else error "internal error: still operations to group after grouping binary ops"
     where
         -- TODO: test this
-        g :: Convertible ungrouped grouped => SIR.Expr grouped -> [(Span, SIR.OperatorRef ungrouped, Maybe SIR.BoundValue, SIR.Expr ungrouped)] -> Int -> IDGen.IDGen ID.ExprID (SIR.Expr grouped, [(Span, SIR.OperatorRef ungrouped, Maybe SIR.BoundValue, SIR.Expr ungrouped)])
+        g :: Convertible ungrouped grouped => SIR.Expr grouped -> [(Span, SIR.OperatorRef ungrouped, Maybe SIR.ValueRef, SIR.Expr ungrouped)] -> Int -> IDGen.IDGen ID.ExprID (SIR.Expr grouped, [(Span, SIR.OperatorRef ungrouped, Maybe SIR.ValueRef, SIR.Expr ungrouped)])
         g left more@((first_op_span, first_op_iden, first_op, first_rhs):after_first_op) cur_precedence =
             let op_prec = const 1 first_op -- TODO: precedence
             -- for example if the current precedence level is that for +, and first_op is *, this will consume the * and incorporate it into left

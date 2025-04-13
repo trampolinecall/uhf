@@ -65,10 +65,10 @@ refer_var :: SIR.VariableKey -> IRReader stage PP.Token
 refer_var k = get_var k >>= \case
     SIR.Variable id _ _ -> pure $ PP.String (ID.stringify id)
 
-refer_bv :: SIR.BoundValue -> IRReader stage PP.Token
-refer_bv (SIR.BoundValue'Variable v) = refer_var v
-refer_bv (SIR.BoundValue'ADTVariantConstructor var) = refer_iden var
-refer_bv (SIR.BoundValue'Intrinsic i) = pure $ PP.String $ Intrinsics.intrinsic_bv_name i
+refer_bv :: SIR.ValueRef -> IRReader stage PP.Token
+refer_bv (SIR.ValueRef'Variable v) = refer_var v
+refer_bv (SIR.ValueRef'ADTVariantConstructor var) = refer_iden var
+refer_bv (SIR.ValueRef'Intrinsic i) = pure $ PP.String $ Intrinsics.intrinsic_bv_name i
 
 refer_decl :: DumpableType stage t => SIR.Decl t -> IRReader stage PP.Token
 refer_decl d = case d of
@@ -115,7 +115,7 @@ instance DumpableIdentifier stage Text where
 
 instance DumpableType stage t => DumpableIdentifier stage (SIR.Decl t) where
     refer_iden = refer_decl
-instance DumpableIdentifier stage SIR.BoundValue where
+instance DumpableIdentifier stage SIR.ValueRef where
     refer_iden = refer_bv
 instance DumpableIdentifier stage Type.ADT.VariantIndex where
     refer_iden = refer_adt_variant

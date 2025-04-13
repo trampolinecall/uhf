@@ -68,7 +68,7 @@ stringify_id (VarID id) = ID.stringify id
 
 data Expr
     = Expr'Refer ID (Maybe Type.Type) BindingKey
-    | Expr'Intrinsic ID (Maybe Type.Type) Intrinsics.IntrinsicBoundValue
+    | Expr'Intrinsic ID (Maybe Type.Type) Intrinsics.Intrinsic
 
     | Expr'Int ID (Maybe Type.Type) Integer
     | Expr'Float ID (Maybe Type.Type) Rational

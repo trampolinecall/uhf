@@ -70,7 +70,7 @@ stringify_id (VarID id) = ID.stringify id
 
 data Expr topological_sort_status ty poison_allowed
     = Expr'Refer ID ty BindingKey
-    | Expr'Intrinsic ID ty Intrinsics.IntrinsicBoundValue
+    | Expr'Intrinsic ID ty Intrinsics.Intrinsic
 
     | Expr'Int ID ty Integer
     | Expr'Float ID ty Rational

@@ -39,12 +39,13 @@ import qualified UHF.Util.Arena as Arena
 
 data BackendIR topological_sort_status ty poison_allowed
     = BackendIR
-        (Arena.Arena (Type.ADT ty) ADTKey)
-        (Arena.Arena (Type.TypeSynonym ty) TypeSynonymKey)
-        (Arena.Arena Type.QuantVar Type.QuantVarKey)
-        (Arena.Arena (Binding topological_sort_status ty poison_allowed) BindingKey)
-        (Arena.Arena (Param ty) ParamKey)
-        (CU topological_sort_status poison_allowed)
+        { backend_ir_adts :: Arena.Arena (Type.ADT ty) ADTKey
+        , backend_ir_type_synonyms :: Arena.Arena (Type.TypeSynonym ty) TypeSynonymKey
+        , backend_ir_quant_vars :: Arena.Arena Type.QuantVar Type.QuantVarKey
+        , backend_ir_bindings :: Arena.Arena (Binding topological_sort_status ty poison_allowed) BindingKey
+        , backend_ir_params :: Arena.Arena (Param ty) ParamKey
+        , backend_ir_cu :: CU topological_sort_status poison_allowed
+        }
 
 -- "compilation unit"
 data CU topological_sort_status poison_allowed = CU { cu_main_function :: Either poison_allowed BindingKey, cu_bindings :: BindingGroup topological_sort_status, cu_adts :: [ADTKey], cu_type_synonyms :: [TypeSynonymKey] }

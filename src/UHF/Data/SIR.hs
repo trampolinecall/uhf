@@ -39,7 +39,6 @@ module UHF.Data.SIR
     , expr_span
     , pattern_span
     , type_expr_span
-
     ) where
 
 import UHF.Prelude
@@ -57,12 +56,13 @@ import qualified UHF.Util.Arena as Arena
 -- "syntax based ir"
 data SIR stage
     = SIR
-        (Arena.Arena (Module stage) ModuleKey)
-        (Arena.Arena (ADT stage) ADTKey)
-        (Arena.Arena (TypeSynonym stage) TypeSynonymKey)
-        (Arena.Arena Type.QuantVar QuantVarKey)
-        (Arena.Arena (Variable stage) VariableKey)
-        (CU stage)
+        { sir_modules :: Arena.Arena (Module stage) ModuleKey
+        , sir_adts :: Arena.Arena (ADT stage) ADTKey
+        , sir_type_synonyms :: Arena.Arena (TypeSynonym stage) TypeSynonymKey
+        , sir_quant_vars :: Arena.Arena Type.QuantVar QuantVarKey
+        , sir_variables :: Arena.Arena (Variable stage) VariableKey
+        , sir_cu :: CU stage
+        }
 
  -- TODO: when support for compiling libraries that should not need a main function, a field should be added that identifies whether or not the compilation unit is a library or an executable or this should be split into 2 constructors for libraries or executables
 data CU stage = CU { cu_root_module :: ModuleKey, cu_main_function :: Maybe VariableKey }

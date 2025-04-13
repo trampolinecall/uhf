@@ -71,7 +71,7 @@ make_name_maps decls values adt_variants =
     in report_dups decl_dups >> report_dups bn_dups >> report_dups variant_dups >>
     pure (NameMaps (make_map decls) (make_map values) (make_map adt_variants))
     where
-        -- separate finding duplicates from making maps so that if there is a duplicate the whole name contexet doesnt just disappear
+        -- separate finding duplicates from making maps so that if there is a duplicate the whole name context doesnt just disappear
         -- duplicates will just take the last bound name in the last, because of the how Map.fromList is implemented
         find_dups x =
             let grouped = List.groupBy ((==) `on` get_name) $ List.sortBy (compare `on` get_name) x -- compare names of bound names only

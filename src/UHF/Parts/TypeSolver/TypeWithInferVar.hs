@@ -19,6 +19,7 @@ import UHF.Prelude
 import UHF.Source.Span (Span)
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Util.Arena as Arena
+import qualified UHF.Data.SIR as SIR
 
 data Type
     = Type'ADT Type.ADTKey [Type]
@@ -38,7 +39,7 @@ data Type
     | Type'Kind'Kind
     deriving Show
 
-kind_of :: Arena.Arena (Type.ADT adt_t) Type.ADTKey -> Arena.Arena (Type.TypeSynonym (t, Type)) Type.TypeSynonymKey -> Arena.Arena Type.QuantVar Type.QuantVarKey -> Type -> Type
+kind_of :: Arena.Arena (SIR.ADT stage) Type.ADTKey -> Arena.Arena (Type.TypeSynonym (t, Type)) Type.TypeSynonymKey -> Arena.Arena Type.QuantVar Type.QuantVarKey -> Type -> Type
 kind_of adt_arena type_synonym_arena quant_var_arena = go
     where
         go :: Type -> Type

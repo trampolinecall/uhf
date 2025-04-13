@@ -7,8 +7,9 @@ module UHF.Data.SIR
     , Stage.Stage (..)
     , CU (..)
 
-    , ADT
-    , TypeSynonym
+    , ADT (..)
+    , ADTVariant (..)
+    , TypeSynonym (..)
 
     , Decl (..)
 
@@ -69,10 +70,6 @@ data SIR stage
  -- TODO: when support for compiling libraries that should not need a main function, a field should be added that identifies whether or not the compilation unit is a library or an executable or this should be split into 2 constructors for libraries or executables
 data CU stage = CU { cu_root_module :: ModuleKey, cu_main_function :: Maybe VariableKey }
 
--- TODO: make these into their own datatypes and do not share representation with types
-type ADT stage = Type.ADT (TypeExpr stage, Stage.TypeExprEvaledAsType stage)
-type TypeSynonym stage = Type.TypeSynonym (TypeExpr stage, Stage.TypeExprEvaledAsType stage)
-
 data Decl ty
     = Decl'Module ModuleKey
     | Decl'Type ty
@@ -86,6 +83,13 @@ data ExternPackage
 data Module stage
     = Module ID.ModuleID [Binding stage] [ADTKey] [TypeSynonymKey]
 deriving instance Stage.AllShowable stage => Show (Module stage)
+
+data ADT stage = ADT ID.DeclID (Located Text) [QuantVarKey] [ADTVariant stage]
+data ADTVariant stage
+    = ADTVariant'Named (Located Text) ID.ADTVariantID [(ID.ADTFieldID, Text, TypeExpr stage)]
+    | ADTVariant'Anon (Located Text) ID.ADTVariantID [(ID.ADTFieldID, TypeExpr stage)]
+
+data TypeSynonym stage = TypeSynonym ID.DeclID (Located Text) (TypeExpr stage)
 
 data Variable stage
     = Variable ID.VariableID (Stage.TypeInfo stage) (Located Text)

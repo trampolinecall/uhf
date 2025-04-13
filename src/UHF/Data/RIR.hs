@@ -32,11 +32,12 @@ import qualified UHF.Util.Arena as Arena
 -- not used a lot; serves mostly as a intermediary step where a lot of things get desugared to make the transition to anfir easier
 data RIR
     = RIR
-        (Arena.Arena (Type.ADT (Maybe Type.Type)) ADTKey)
-        (Arena.Arena (Type.TypeSynonym (Maybe Type.Type)) TypeSynonymKey)
-        (Arena.Arena Type.QuantVar Type.QuantVarKey)
-        (Arena.Arena Variable VariableKey)
-        CU
+        { rir_adts :: Arena.Arena (Type.ADT (Maybe Type.Type)) ADTKey
+        , rir_type_synonyms :: Arena.Arena (Type.TypeSynonym (Maybe Type.Type)) TypeSynonymKey
+        , rir_quant_vars :: Arena.Arena Type.QuantVar Type.QuantVarKey
+        , rir_variables :: Arena.Arena Variable VariableKey
+        , rir_cu :: CU
+        }
 
 -- TODO: same todo as for SIR.CU; see there for more details
 -- "compilation unit"

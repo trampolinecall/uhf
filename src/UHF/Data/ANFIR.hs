@@ -39,12 +39,13 @@ import qualified UHF.Util.Arena as Arena
 -- "a-normal form ir" even though this isnt actually a-normal form but it is the same idea
 data ANFIR
     = ANFIR
-        (Arena.Arena (Type.ADT (Maybe Type.Type)) ADTKey)
-        (Arena.Arena (Type.TypeSynonym (Maybe Type.Type)) TypeSynonymKey)
-        (Arena.Arena Type.QuantVar Type.QuantVarKey)
-        (Arena.Arena Binding BindingKey)
-        (Arena.Arena Param ParamKey)
-        CU
+        { anfir_adts :: Arena.Arena (Type.ADT (Maybe Type.Type)) ADTKey
+        , anfir_type_synonyms :: Arena.Arena (Type.TypeSynonym (Maybe Type.Type)) TypeSynonymKey
+        , anfir_quant_vars :: Arena.Arena Type.QuantVar Type.QuantVarKey
+        , anfir_bindings :: Arena.Arena Binding BindingKey
+        , anfir_params :: Arena.Arena Param ParamKey
+        , anfir_cu :: CU
+        }
 
 -- "compilation unit"
 data CU = CU { cu_main_function :: Maybe BindingKey, cu_bindings :: BindingGroup, cu_adts :: [ADTKey], cu_type_synonyms :: [TypeSynonymKey] }

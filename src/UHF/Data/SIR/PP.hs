@@ -26,8 +26,6 @@ type DumpableConstraints stage =
     ( DumpableIdentifier stage (SIR.DIdenStart stage)
     , DumpableIdentifier stage (SIR.VIdenStart stage)
     , DumpableIdentifier stage (SIR.PIdenStart stage)
-    , DumpableIdentifier stage (SIR.SplitIdentifier stage (SIR.VIdenStart stage), SIR.VIdenResolved stage)
-    , DumpableIdentifier stage (SIR.SplitIdentifier stage (SIR.PIdenStart stage), SIR.PIdenResolved stage)
     )
 
 dump_main_module :: DumpableConstraints stage => SIR.SIR stage -> Text
@@ -69,7 +67,7 @@ refer_var k = get_var k >>= \case
 
 refer_bv :: SIR.BoundValue -> IRReader stage PP.Token
 refer_bv (SIR.BoundValue'Variable v) = refer_var v
-refer_bv (SIR.BoundValue'ADTVariant var) = refer_iden var
+refer_bv (SIR.BoundValue'ADTVariantConstructor var) = refer_iden var
 refer_bv (SIR.BoundValue'Intrinsic i) = pure $ PP.String $ Intrinsics.intrinsic_bv_name i
 
 refer_decl :: DumpableType stage t => SIR.Decl t -> IRReader stage PP.Token
@@ -112,13 +110,6 @@ instance DumpableIdentifier stage t => DumpableIdentifier stage (Maybe t) where 
     refer_iden (Just t) = refer_iden t
     refer_iden Nothing = pure $ PP.String "<name resolution error>"
 
-instance (DumpableConstraints stage, DumpableIdentifier stage start) => DumpableIdentifier stage (SIR.SplitIdentifier stage start) where
-    refer_iden (SIR.SplitIdentifier'Get texpr next) = type_expr texpr >>= \ texpr -> pure (PP.List [texpr, "::", PP.String $ unlocate next])
-    refer_iden (SIR.SplitIdentifier'Single start) = refer_iden start
-
-instance (DumpableConstraints stage, DumpableIdentifier stage start) => DumpableIdentifier stage (SIR.SplitIdentifier stage start, resolved) where
-    refer_iden (a, _) = refer_iden a -- TODO: figure out how to use resolved but only if it is not ()
-
 instance DumpableIdentifier stage Text where
     refer_iden = pure . PP.String
 
@@ -128,6 +119,11 @@ instance DumpableIdentifier stage SIR.BoundValue where
     refer_iden = refer_bv
 instance DumpableIdentifier stage Type.ADT.VariantIndex where
     refer_iden = refer_adt_variant
+
+-- TODO: figure out how to overload this for if resolved is not ()
+refer_split_iden_and_resolved :: (DumpableConstraints stage, DumpableIdentifier stage single) => SIR.SplitIdentifier single stage -> resolved -> IRReader stage PP.Token
+refer_split_iden_and_resolved (SIR.SplitIdentifier'Get texpr next) _ = type_expr texpr >>= \ texpr -> pure (PP.List [texpr, "::", PP.String $ unlocate next])
+refer_split_iden_and_resolved (SIR.SplitIdentifier'Single single) _ = refer_iden single
 
 -- TODO: dump type info too
 
@@ -154,8 +150,8 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
             (0, \ _ next ->
                 next first >>= \ first ->
                 mapM
-                    (\ (_, op_split_iden, op_resolved, rhs) ->
-                        refer_iden (op_split_iden, op_resolved) >>= \ op ->
+                    (\ (_, op_iden, op_resolved, rhs) ->
+                        refer_split_iden_and_resolved op_iden op_resolved >>= \ op ->
                         next rhs >>= \ rhs ->
                         pure (PP.List [op, " ", rhs]))
                     ops >>= \ ops ->
@@ -164,7 +160,7 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
         levels (SIR.Expr'Call _ _ _ callee arg) = (1, \ cur _ -> cur callee >>= \ callee -> expr arg >>= \ arg -> pure (PP.FirstOnLineIfMultiline $ PP.List [callee, "(", arg, ")"]))
         levels (SIR.Expr'TypeApply _ _ _ e (arg, _)) = (1, \ cur _ -> cur e >>= \ e -> type_expr arg >>= \ arg -> pure (PP.List [e, "#(", arg, ")"]))
 
-        levels (SIR.Expr'Identifier _ _ _ split resolved) = (2, \ _ _ -> PP.FirstOnLineIfMultiline <$> refer_iden (split, resolved))
+        levels (SIR.Expr'Refer _ _ _ iden resolved) = (2, \ _ _ -> PP.FirstOnLineIfMultiline <$> refer_split_iden_and_resolved iden resolved)
         levels (SIR.Expr'Hole _ _ _ hid) = (2, \ _ _ -> pure $ PP.List ["?", PP.String $ unlocate hid])
         levels (SIR.Expr'Poison _ _ _) = (2, \ _ _ -> pure $ PP.String "poison")
         levels (SIR.Expr'Char _ _ _ c) = (2, \ _ _ -> pure $ PP.FirstOnLineIfMultiline $ PP.String $ show c)
@@ -203,10 +199,10 @@ pp_let let_kw bindings adts type_synonyms body = do
             _ -> PP.FirstOnLineIfMultiline $ PP.List [PP.String let_kw, " ", PP.braced_block all_decls, "\n", body]
 
 pattern :: DumpableConstraints stage => SIR.Pattern stage -> IRReader stage PP.Token
-pattern (SIR.Pattern'Identifier _ _ var_key) = refer_var var_key
+pattern (SIR.Pattern'Variable _ _ var_key) = refer_var var_key
 pattern (SIR.Pattern'Wildcard _ _) = pure $ PP.String "_"
 pattern (SIR.Pattern'Tuple _ _ a b) = pattern a >>= \ a -> pattern b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b])
 pattern (SIR.Pattern'Named _ _ _ var_key subpat) = refer_var (unlocate var_key) >>= \ var_key -> pattern subpat >>= \ subpat -> pure (PP.List ["@", var_key, " ", subpat])
-pattern (SIR.Pattern'AnonADTVariant _ _ variant_split_iden variant_resolved_iden _ fields) = refer_iden (variant_split_iden, variant_resolved_iden) >>= \ variant -> mapM pattern fields >>= \ fields -> pure (PP.List [variant, PP.parenthesized_comma_list PP.Inconsistent fields])
-pattern (SIR.Pattern'NamedADTVariant _ _ variant_split_iden variant_resolved_iden _ fields) = refer_iden (variant_split_iden, variant_resolved_iden) >>= \ variant -> mapM (\ (field_name, field_pat) -> pattern field_pat >>= \ field_pat -> pure (PP.List [PP.String $ unlocate field_name, " = ", field_pat, ";"])) fields >>= \ fields -> pure (PP.List [variant, PP.braced_block fields])
+pattern (SIR.Pattern'AnonADTVariant _ _ variant_iden variant_resolved_iden _ fields) = refer_split_iden_and_resolved variant_iden variant_resolved_iden >>= \ variant -> mapM pattern fields >>= \ fields -> pure (PP.List [variant, PP.parenthesized_comma_list PP.Inconsistent fields])
+pattern (SIR.Pattern'NamedADTVariant _ _ variant_iden variant_resolved_iden _ fields) = refer_split_iden_and_resolved variant_iden variant_resolved_iden >>= \ variant -> mapM (\ (field_name, field_pat) -> pattern field_pat >>= \ field_pat -> pure (PP.List [PP.String $ unlocate field_name, " = ", field_pat, ";"])) fields >>= \ fields -> pure (PP.List [variant, PP.braced_block fields])
 pattern (SIR.Pattern'Poison _ _) = pure $ PP.String "poison"

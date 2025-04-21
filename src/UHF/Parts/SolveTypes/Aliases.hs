@@ -12,7 +12,7 @@ type TypeWithInferVars = TypeWithInferVar.Type
 type Type = Type.Type
 
 type UntypedDIden = Maybe (SIR.Decl TypeWithInferVars)
-type VIden = Maybe SIR.BoundValue
+type VIden = Maybe SIR.ValueRef
 type PIden = Maybe Type.ADT.VariantIndex
 
 type QuantVarArena = Arena.Arena Type.QuantVar Type.QuantVarKey

@@ -66,7 +66,7 @@ check adt_arena type_synonym_arena = mapAccumL check_one_pattern [Any]
         -- first list of tuple is all of the unmatched values
         -- second list of tuple is all of the matched values
         check_against_one_uncovered_value :: SIR.Pattern stage -> MatchValue -> ([MatchValue], [MatchValue])
-        check_against_one_uncovered_value (SIR.Pattern'Identifier ty _ _) uncovered_value = check_wild ty uncovered_value
+        check_against_one_uncovered_value (SIR.Pattern'Variable ty _ _) uncovered_value = check_wild ty uncovered_value
         check_against_one_uncovered_value (SIR.Pattern'Wildcard ty _) uncovered_value = check_wild ty uncovered_value
 
         check_against_one_uncovered_value (SIR.Pattern'Named _ _ _ _ subpat) uncovered_value = check_against_one_uncovered_value subpat uncovered_value

@@ -19,7 +19,7 @@ import qualified UHF.Util.Arena as Arena
 
 -- TODO: change errors, clean up this whole module
 
-type EvaledDIden = Maybe (SIR.Decl TypeSolver.Type)
+type EvaledDIden = Maybe (SIR.DeclRef TypeSolver.Type)
 type VIdenStart = Maybe SIR.ValueRef
 type PIdenStart = Maybe Type.ADT.VariantIndex
 
@@ -369,20 +369,20 @@ eval_type_expr tek = do
             eval_type_expr b >>= \ b_evaled ->
             evaled_as_type' a a_evaled >>= \ a_as_type ->
             evaled_as_type' b b_evaled >>= \ b_as_type ->
-            pure (Just $ SIR.Decl'Type $ TypeSolver.Type'Tuple a_as_type b_as_type)
+            pure (Just $ SIR.DeclRef'Type $ TypeSolver.Type'Tuple a_as_type b_as_type)
         go (TypeExpr'Hole sp _) =
             make_infer_var (TypeSolver.TypeHole sp) >>= \ infer_var ->
-            pure (Just $ SIR.Decl'Type infer_var)
+            pure (Just $ SIR.DeclRef'Type infer_var)
         go (TypeExpr'Function _ arg res) =
             eval_type_expr arg >>= \ arg_evaled ->
             eval_type_expr res >>= \ res_evaled ->
             evaled_as_type' arg arg_evaled >>= \ arg_as_type ->
             evaled_as_type' res res_evaled >>= \ res_as_type ->
-            pure (Just $ SIR.Decl'Type $ TypeSolver.Type'Function arg_as_type res_as_type)
+            pure (Just $ SIR.DeclRef'Type $ TypeSolver.Type'Function arg_as_type res_as_type)
         go (TypeExpr'Forall _ vars inner) =
             eval_type_expr inner >>= \ inner_evaled ->
             evaled_as_type' inner inner_evaled >>= \ inner_as_type ->
-            pure (Just $ SIR.Decl'Type $ TypeSolver.Type'Forall vars inner_as_type)
+            pure (Just $ SIR.DeclRef'Type $ TypeSolver.Type'Forall vars inner_as_type)
         go (TypeExpr'Apply sp ty arg) =
             eval_type_expr ty >>= \ ty_evaled ->
             eval_type_expr arg >>= \ arg_evaled ->
@@ -399,13 +399,13 @@ eval_type_expr tek = do
                     lift $ tell [constraint]
                     pure ty) >>= \ result_ty ->
 
-            pure (Just $ SIR.Decl'Type result_ty)
+            pure (Just $ SIR.DeclRef'Type result_ty)
         go (TypeExpr'Wild sp) =
             make_infer_var (TypeSolver.TypeExpr sp) >>= \ infer_var ->
-            pure (Just $ SIR.Decl'Type infer_var)
+            pure (Just $ SIR.DeclRef'Type infer_var)
         go (TypeExpr'Poison sp) =
             make_infer_var (TypeSolver.TypeExpr sp) >>= \ infer_var ->
-            pure (Just $ SIR.Decl'Type infer_var)
+            pure (Just $ SIR.DeclRef'Type infer_var)
 
         get_type_synonym ts_arena ts_k =
             let type_synonym = Arena.get ts_arena ts_k
@@ -430,10 +430,10 @@ eval_type_expr tek = do
 type_expr_evaled_as_type :: SIR.TypeExpr Evaled -> EvalMonad adts type_synonyms quant_vars TypeSolver.Type
 type_expr_evaled_as_type te = evaled_as_type (SIR.type_expr_span te) (SIR.type_expr_evaled te)
 
-evaled_as_type :: Span -> Maybe (SIR.Decl TypeSolver.Type) -> EvalMonad adts type_synonyms quant_vars TypeSolver.Type
+evaled_as_type :: Span -> Maybe (SIR.DeclRef TypeSolver.Type) -> EvalMonad adts type_synonyms quant_vars TypeSolver.Type
 evaled_as_type sp decl =
     case decl of
-        Just (SIR.Decl'Module _) -> lift (lift $ lift $ lift $ Compiler.tell_error (Error.Error'NotAType sp "a module")) >> make_infer_var (TypeSolver.TypeExpr sp) -- TODO: don't make variables for these?
-        Just (SIR.Decl'Type ty) -> pure ty
-        Just (SIR.Decl'ExternPackage _) -> lift (lift $ lift $ lift $ Compiler.tell_error (Error.Error'NotAType sp "external package")) >> make_infer_var (TypeSolver.TypeExpr sp) -- TODO: don't make variables for these?
+        Just (SIR.DeclRef'Module _) -> lift (lift $ lift $ lift $ Compiler.tell_error (Error.Error'NotAType sp "a module")) >> make_infer_var (TypeSolver.TypeExpr sp) -- TODO: don't make variables for these?
+        Just (SIR.DeclRef'Type ty) -> pure ty
+        Just (SIR.DeclRef'ExternPackage _) -> lift (lift $ lift $ lift $ Compiler.tell_error (Error.Error'NotAType sp "external package")) >> make_infer_var (TypeSolver.TypeExpr sp) -- TODO: don't make variables for these?
         Nothing -> make_infer_var (TypeSolver.TypeExpr sp) -- TODO: make this message better

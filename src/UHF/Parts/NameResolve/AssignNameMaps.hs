@@ -77,7 +77,7 @@ assign_in_adt adt_parent_name_maps adt_key (Type.ADT id name type_vars variants)
         (\ var ->
             NRReader.ask_quant_var_arena >>= \ quant_var_arena ->
             let (Type.QuantVar (Located name_sp name)) = Arena.get quant_var_arena var
-            in pure (name, DeclAt.DeclAt name_sp, SIR.Decl'Type $ TypeSolver.Type'QuantVar var))
+            in pure (name, DeclAt.DeclAt name_sp, SIR.DeclRef'Type $ TypeSolver.Type'QuantVar var))
         type_vars >>= \ type_vars' ->
     lift (NameMaps.make_name_maps type_vars' [] []) >>= \ new_nc ->
     Type.ADT id name type_vars <$> mapM (assign_in_variant (NameMaps.NameMapStack new_nc (Just parent))) variants
@@ -105,7 +105,7 @@ assign_in_type_expr nc_stack (SIR.TypeExpr'Forall assigned sp vars ty) =
         (\ var ->
             NRReader.ask_quant_var_arena >>= \ quant_var_arena ->
             let (Type.QuantVar (Located name_sp name)) = Arena.get quant_var_arena var
-            in pure (name, DeclAt.DeclAt name_sp, SIR.Decl'Type $ TypeSolver.Type'QuantVar var))
+            in pure (name, DeclAt.DeclAt name_sp, SIR.DeclRef'Type $ TypeSolver.Type'QuantVar var))
         (toList vars) >>= \ vars' ->
     lift (NameMaps.make_name_maps vars' [] []) >>= \ new_nc ->
     SIR.TypeExpr'Forall assigned sp vars <$> assign_in_type_expr (NameMaps.NameMapStack new_nc (Just nc_stack)) ty
@@ -180,7 +180,7 @@ assign_in_expr nc_stack (SIR.Expr'Forall id type_info sp vars e) =
         (\ var ->
             NRReader.ask_quant_var_arena >>= \ quant_var_arena ->
             let (Type.QuantVar (Located name_sp name)) = Arena.get quant_var_arena var
-            in pure (name, DeclAt.DeclAt name_sp, SIR.Decl'Type $ TypeSolver.Type'QuantVar var))
+            in pure (name, DeclAt.DeclAt name_sp, SIR.DeclRef'Type $ TypeSolver.Type'QuantVar var))
         (toList vars) >>= \ vars' ->
     lift (NameMaps.make_name_maps vars' [] []) >>= \ new_nc ->
     SIR.Expr'Forall id type_info sp vars <$> assign_in_expr (NameMaps.NameMapStack new_nc (Just nc_stack)) e
@@ -194,6 +194,5 @@ assign_in_expr _ (SIR.Expr'Poison id type_info sp) = pure $ SIR.Expr'Poison id t
 assign_split_iden :: (NameMaps.NameMapStack -> IdenStart -> Error.WithErrors assigned_iden) -> NameMaps.NameMapStack -> SIR.SplitIdentifier IdenStart Unassigned -> (NRReader.NRReader adt_arena var_arena QuantVarArena NameMaps.SIRChildMaps Error.WithErrors) (SIR.SplitIdentifier assigned_iden Assigned)
 assign_split_iden _ name_map_stack (SIR.SplitIdentifier'Get texpr next) = SIR.SplitIdentifier'Get <$> assign_in_type_expr name_map_stack texpr <*> pure next
 assign_split_iden assign_single name_map_stack (SIR.SplitIdentifier'Single i) = SIR.SplitIdentifier'Single <$> lift (assign_single name_map_stack i)
-
 assign_iden :: NameMaps.NameMapStack -> IdenStart -> Error.WithErrors AssignedIdenStart
 assign_iden nms i = pure (nms, i)

@@ -19,7 +19,7 @@ import qualified UHF.Util.Arena as Arena
 
 type UnresolvedIdenStart = (NameMaps.NameMapStack, Located Text)
 
-type ResolvedDIdenStart = Maybe (SIR.Decl TypeSolver.Type)
+type ResolvedDIdenStart = Maybe (SIR.DeclRef TypeSolver.Type)
 type ResolvedVIdenStart = Maybe SIR.ValueRef
 type ResolvedPIdenStart = Maybe Type.ADT.VariantIndex
 
@@ -140,7 +140,6 @@ resolve_in_expr (SIR.Expr'Poison id type_info sp) = pure $ SIR.Expr'Poison id ty
 resolve_split_iden :: (UnresolvedIdenStart -> Error.WithErrors resolved_iden) -> SIR.SplitIdentifier UnresolvedIdenStart Unresolved -> Error.WithErrors (SIR.SplitIdentifier resolved_iden Resolved)
 resolve_split_iden _ (SIR.SplitIdentifier'Get texpr next) = SIR.SplitIdentifier'Get <$> resolve_in_type_expr texpr <*> pure next
 resolve_split_iden resolve_single (SIR.SplitIdentifier'Single s) = SIR.SplitIdentifier'Single <$> resolve_single s
-
 resolve_iden_start :: (NameMaps.NameMaps -> Map Text resolved) -> UnresolvedIdenStart -> Error.WithErrors (Maybe resolved)
 resolve_iden_start which_map (name_map_stack, iden) =
     case go name_map_stack of
@@ -154,12 +153,9 @@ resolve_iden_start which_map (name_map_stack, iden) =
                     case parent of
                         Just parent -> go parent
                         Nothing -> Left $ Error.Error'CouldNotFind iden
-
 resolve_type_iden :: UnresolvedIdenStart -> Error.WithErrors ResolvedDIdenStart
 resolve_type_iden = resolve_iden_start (\ (NameMaps.NameMaps d_children _ _) -> d_children)
-
 resolve_expr_iden :: UnresolvedIdenStart -> Error.WithErrors ResolvedVIdenStart
 resolve_expr_iden = resolve_iden_start (\ (NameMaps.NameMaps _ var_children _) -> var_children)
-
 resolve_pat_iden :: UnresolvedIdenStart -> Error.WithErrors ResolvedPIdenStart
 resolve_pat_iden = resolve_iden_start (\ (NameMaps.NameMaps _ _ adtv_children) -> adtv_children)

@@ -47,12 +47,12 @@ import qualified UHF.Util.Arena as Arena
 
 -- these are very similar datatypes; the difference between them is conceptual: ChildMaps is a map that tells what the children of a certain entity are, whereas a NameMap just stores what names are currently in scope (and is only used for resolving roots)
 -- this is also why there is a NameMapStack but not a ChildMapStack
-data ChildMaps = ChildMaps (Map.Map Text (SIR.Decl TypeWithInferVar.Type)) (Map.Map Text SIR.ValueRef) (Map.Map Text Type.ADT.VariantIndex) deriving Show
-data NameMaps = NameMaps (Map.Map Text (SIR.Decl TypeWithInferVar.Type)) (Map.Map Text SIR.ValueRef) (Map.Map Text Type.ADT.VariantIndex) deriving Show
+data ChildMaps = ChildMaps (Map.Map Text (SIR.DeclRef TypeWithInferVar.Type)) (Map.Map Text SIR.ValueRef) (Map.Map Text Type.ADT.VariantIndex) deriving Show
+data NameMaps = NameMaps (Map.Map Text (SIR.DeclRef TypeWithInferVar.Type)) (Map.Map Text SIR.ValueRef) (Map.Map Text Type.ADT.VariantIndex) deriving Show
 data NameMapStack = NameMapStack NameMaps (Maybe NameMapStack)
 
 -- TODO: do not export these
-type DeclChildrenList = [(Text, DeclAt, SIR.Decl TypeWithInferVar.Type)]
+type DeclChildrenList = [(Text, DeclAt, SIR.DeclRef TypeWithInferVar.Type)]
 type ValueList = [(Text, DeclAt, SIR.ValueRef)]
 type ADTVariantList = [(Text, DeclAt, Type.ADT.VariantIndex)]
 
@@ -106,7 +106,7 @@ make_name_maps_from_decls already_decls already_vals already_variants type_synon
                                 )
                                 & unzip
 
-                        in ([(adt_name, DeclAt adt_name_sp, SIR.Decl'Type $ TypeWithInferVar.Type'ADT adt [])], variant_constructors, variant_patterns)) -- TODO: make this deal with named variants too; also TODO: move variants to inside their types
+                        in ([(adt_name, DeclAt adt_name_sp, SIR.DeclRef'Type $ TypeWithInferVar.Type'ADT adt [])], variant_constructors, variant_patterns)) -- TODO: make this deal with named variants too; also TODO: move variants to inside their types
                 & unzip3
 
         (type_synonym_decl_entries, type_synonym_val_entries, type_synonym_variant_entries) =
@@ -114,7 +114,7 @@ make_name_maps_from_decls already_decls already_vals already_variants type_synon
                 & map
                     (\ synonym ->
                         let (Type.TypeSynonym _ (Located name_sp name) _) = Arena.get type_synonym_arena synonym
-                            synonym_decl_key = SIR.Decl'Type $ TypeWithInferVar.Type'Synonym synonym
+                            synonym_decl_key = SIR.DeclRef'Type $ TypeWithInferVar.Type'Synonym synonym
                         in ([(name, DeclAt name_sp, synonym_decl_key)], [], [])
                     )
                 & unzip3
@@ -127,12 +127,12 @@ collect_child_maps :: SIR.SIR stage -> WithErrors SIRChildMaps
 collect_child_maps (SIR.SIR mod_arena adt_arena type_synonym_arena _ variable_arena _) = SIRChildMaps <$> Arena.transformM go mod_arena
     where
         primitive_decls =
-                [ ("int", ImplicitPrim, SIR.Decl'Type TypeWithInferVar.Type'Int)
-                , ("float", ImplicitPrim, SIR.Decl'Type TypeWithInferVar.Type'Float)
-                , ("char", ImplicitPrim, SIR.Decl'Type TypeWithInferVar.Type'Char)
-                , ("string", ImplicitPrim, SIR.Decl'Type TypeWithInferVar.Type'String)
-                , ("bool", ImplicitPrim, SIR.Decl'Type TypeWithInferVar.Type'Bool)
-                , ("uhf_intrinsics", ImplicitPrim, SIR.Decl'ExternPackage SIR.ExternPackage'IntrinsicsPackage)
+                [ ("int", ImplicitPrim, SIR.DeclRef'Type TypeWithInferVar.Type'Int)
+                , ("float", ImplicitPrim, SIR.DeclRef'Type TypeWithInferVar.Type'Float)
+                , ("char", ImplicitPrim, SIR.DeclRef'Type TypeWithInferVar.Type'Char)
+                , ("string", ImplicitPrim, SIR.DeclRef'Type TypeWithInferVar.Type'String)
+                , ("bool", ImplicitPrim, SIR.DeclRef'Type TypeWithInferVar.Type'Bool)
+                , ("uhf_intrinsics", ImplicitPrim, SIR.DeclRef'ExternPackage SIR.ExternPackage'IntrinsicsPackage)
                 ]
         primitive_vals = []
 
@@ -172,49 +172,40 @@ intrinsics_package_child_maps =
         Map.empty
 -- getting from child maps {{{1
 -- TODO: remove duplication from these
-get_decl_child :: SIRChildMaps -> SIR.Decl TypeWithInferVar.Type -> Located Text -> Either Error (SIR.Decl TypeWithInferVar.Type)
+get_decl_child :: SIRChildMaps -> SIR.DeclRef TypeWithInferVar.Type -> Located Text -> Either Error (SIR.DeclRef TypeWithInferVar.Type)
 get_decl_child sir_child_maps decl name =
     let res = case decl of
-            SIR.Decl'Module m ->
+            SIR.DeclRef'Module m ->
                 let ChildMaps d_children _ _ = get_module_child_maps sir_child_maps m
                 in Map.lookup (unlocate name) d_children
-
-            SIR.Decl'Type _ -> Nothing
-
-            SIR.Decl'ExternPackage SIR.ExternPackage'IntrinsicsPackage ->
+            SIR.DeclRef'Type _ -> Nothing
+            SIR.DeclRef'ExternPackage SIR.ExternPackage'IntrinsicsPackage ->
                 let ChildMaps d_children _ _ = intrinsics_package_child_maps
                 in Map.lookup (unlocate name) d_children
-
     in case res of
         Just res -> Right res
         Nothing -> Left $ Error'CouldNotFindIn Nothing name -- TODO: put previous
-
-get_value_child :: SIRChildMaps -> SIR.Decl TypeWithInferVar.Type -> Located Text -> Either Error SIR.ValueRef
+get_value_child :: SIRChildMaps -> SIR.DeclRef TypeWithInferVar.Type -> Located Text -> Either Error SIR.ValueRef
 get_value_child sir_child_maps decl name =
     let res = case decl of
-            SIR.Decl'Module m ->
+            SIR.DeclRef'Module m ->
                 let ChildMaps _ v_children _ = get_module_child_maps sir_child_maps m
                 in Map.lookup (unlocate name) v_children
-
-            SIR.Decl'Type _ -> Nothing
-
-            SIR.Decl'ExternPackage SIR.ExternPackage'IntrinsicsPackage ->
+            SIR.DeclRef'Type _ -> Nothing
+            SIR.DeclRef'ExternPackage SIR.ExternPackage'IntrinsicsPackage ->
                 let ChildMaps _ v_children _ = intrinsics_package_child_maps
                 in Map.lookup (unlocate name) v_children
     in case res of
         Just res -> Right res
         Nothing -> Left $ Error'CouldNotFindIn Nothing name -- TODO: put previous
-
-get_variant_child :: SIRChildMaps -> SIR.Decl TypeWithInferVar.Type -> Located Text -> Either Error Type.ADT.VariantIndex
+get_variant_child :: SIRChildMaps -> SIR.DeclRef TypeWithInferVar.Type -> Located Text -> Either Error Type.ADT.VariantIndex
 get_variant_child sir_child_maps decl name =
     let res = case decl of
-            SIR.Decl'Module m ->
+            SIR.DeclRef'Module m ->
                 let ChildMaps _ _ adtv_children = get_module_child_maps sir_child_maps m
                 in Map.lookup (unlocate name) adtv_children
-
-            SIR.Decl'Type _ -> Nothing
-
-            SIR.Decl'ExternPackage SIR.ExternPackage'IntrinsicsPackage ->
+            SIR.DeclRef'Type _ -> Nothing
+            SIR.DeclRef'ExternPackage SIR.ExternPackage'IntrinsicsPackage ->
                 let ChildMaps _ _ adtv_children = intrinsics_package_child_maps
                 in Map.lookup (unlocate name) adtv_children
     in case res of

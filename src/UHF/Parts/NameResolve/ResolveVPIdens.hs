@@ -16,7 +16,7 @@ import qualified UHF.Parts.NameResolve.NRReader as NRReader
 import qualified UHF.Parts.NameResolve.NameMaps as NameMaps
 import qualified UHF.Util.Arena as Arena
 
-type DIden = Maybe (SIR.Decl TypeSolver.Type)
+type DIden = Maybe (SIR.DeclRef TypeSolver.Type)
 
 type UnresolvedVIden = SIR.SplitIdentifier ResolvedVIden Unresolved
 type UnresolvedPIden = SIR.SplitIdentifier ResolvedPIden Unresolved

@@ -20,7 +20,7 @@ import qualified UHF.Util.IDGen as IDGen
 
 type Type = Maybe Type.Type
 
-type DIden = Maybe (SIR.Decl Type.Type)
+type DIden = Maybe (SIR.DeclRef Type.Type)
 type VIden = Maybe SIR.ValueRef
 type PIden = Maybe Type.ADT.VariantIndex
 

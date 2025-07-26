@@ -11,7 +11,7 @@ import qualified UHF.Util.Arena as Arena
 type TypeWithInferVars = TypeWithInferVar.Type
 type Type = Type.Type
 
-type UntypedDIden = Maybe (SIR.Decl TypeWithInferVars)
+type UntypedDIden = Maybe (SIR.DeclRef TypeWithInferVars)
 type VIden = Maybe SIR.ValueRef
 type PIden = Maybe Type.ADT.VariantIndex
 
@@ -34,7 +34,7 @@ type UntypedTypeSynonymArena = Arena.Arena UntypedTypeSynonym Type.TypeSynonymKe
 type UntypedVariableArena = Arena.Arena UntypedVariable SIR.VariableKey
 type UntypedModuleArena = Arena.Arena UntypedModule SIR.ModuleKey
 
-type TypedWithInferVarsDIden = Maybe (SIR.Decl TypeWithInferVars)
+type TypedWithInferVarsDIden = Maybe (SIR.DeclRef TypeWithInferVars)
 
 type TypedWithInferVars = (TypedWithInferVarsDIden, TypedWithInferVarsDIden, TypeWithInferVars, VIden, VIden, PIden, PIden, TypeWithInferVars, Void)
 
@@ -55,7 +55,7 @@ type TypedWithInferVarsModuleArena = Arena.Arena TypedWithInferVarsModule SIR.Mo
 
 type Typed = (TypedDIden, TypedDIden, Maybe Type, VIden, VIden, PIden, PIden, Maybe Type, Void)
 
-type TypedDIden = Maybe (SIR.Decl Type)
+type TypedDIden = Maybe (SIR.DeclRef Type)
 
 type TypedSIR = SIR.SIR Typed
 type TypedModule = SIR.Module Typed

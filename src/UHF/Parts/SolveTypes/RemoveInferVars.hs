@@ -113,13 +113,13 @@ split_identifier :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> SIR.Split
 split_identifier infer_vars (SIR.SplitIdentifier'Get texpr next) = SIR.SplitIdentifier'Get (type_expr infer_vars texpr) next
 split_identifier _ (SIR.SplitIdentifier'Single single) = SIR.SplitIdentifier'Single single
 
-m_decl :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> Maybe (SIR.Decl TypeWithInferVars) -> Maybe (SIR.Decl Type)
+m_decl :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> Maybe (SIR.DeclRef TypeWithInferVars) -> Maybe (SIR.DeclRef Type)
 m_decl infer_vars d = d >>= decl infer_vars
 
-decl :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> SIR.Decl TypeWithInferVars -> Maybe (SIR.Decl Type)
-decl _ (SIR.Decl'Module m) = Just $ SIR.Decl'Module m
-decl infer_vars (SIR.Decl'Type t) = SIR.Decl'Type <$> type_ infer_vars t
-decl _ (SIR.Decl'ExternPackage ep) = Just $ SIR.Decl'ExternPackage ep
+decl :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> SIR.DeclRef TypeWithInferVars -> Maybe (SIR.DeclRef Type)
+decl _ (SIR.DeclRef'Module m) = Just $ SIR.DeclRef'Module m
+decl infer_vars (SIR.DeclRef'Type t) = SIR.DeclRef'Type <$> type_ infer_vars t
+decl _ (SIR.DeclRef'ExternPackage ep) = Just $ SIR.DeclRef'ExternPackage ep
 
 type_ :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> TypeWithInferVars -> Maybe Type
 type_ infer_vars = r

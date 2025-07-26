@@ -65,18 +65,20 @@ refer_var :: SIR.VariableKey -> IRReader stage PP.Token
 refer_var k = get_var k >>= \case
     SIR.Variable id _ _ -> pure $ PP.String (ID.stringify id)
 
+-- TODO: rename this to something better
 refer_bv :: SIR.ValueRef -> IRReader stage PP.Token
 refer_bv (SIR.ValueRef'Variable v) = refer_var v
 refer_bv (SIR.ValueRef'ADTVariantConstructor var) = refer_iden var
 refer_bv (SIR.ValueRef'Intrinsic i) = pure $ PP.String $ Intrinsics.intrinsic_bv_name i
 
-refer_decl :: DumpableType stage t => SIR.Decl t -> IRReader stage PP.Token
+-- TODO: rename this to something better
+refer_decl :: DumpableType stage t => SIR.DeclRef t -> IRReader stage PP.Token
 refer_decl d = case d of
-    SIR.Decl'Module m ->
+    SIR.DeclRef'Module m ->
         get_module m >>= \ (SIR.Module id _ _ _) ->
         pure (PP.String $ ID.stringify id)
-    SIR.Decl'Type ty -> refer_type ty
-    SIR.Decl'ExternPackage SIR.ExternPackage'IntrinsicsPackage -> pure "uhf_intrinsics"
+    SIR.DeclRef'Type ty -> refer_type ty
+    SIR.DeclRef'ExternPackage SIR.ExternPackage'IntrinsicsPackage -> pure "uhf_intrinsics"
 
 refer_adt_variant :: Type.ADT.VariantIndex -> IRReader stage PP.Token
 refer_adt_variant variant_index@(Type.ADT.VariantIndex _ adt_key _) =
@@ -113,7 +115,7 @@ instance DumpableIdentifier stage t => DumpableIdentifier stage (Maybe t) where 
 instance DumpableIdentifier stage Text where
     refer_iden = pure . PP.String
 
-instance DumpableType stage t => DumpableIdentifier stage (SIR.Decl t) where
+instance DumpableType stage t => DumpableIdentifier stage (SIR.DeclRef t) where
     refer_iden = refer_decl
 instance DumpableIdentifier stage SIR.ValueRef where
     refer_iden = refer_bv

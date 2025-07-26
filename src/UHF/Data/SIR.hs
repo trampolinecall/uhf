@@ -10,7 +10,7 @@ module UHF.Data.SIR
     , ADT
     , TypeSynonym
 
-    , Decl (..)
+    , DeclRef (..)
 
     , ExternPackage (..)
 
@@ -73,10 +73,10 @@ data CU stage = CU { cu_root_module :: ModuleKey, cu_main_function :: Maybe Vari
 type ADT stage = Type.ADT (TypeExpr stage, Stage.TypeExprEvaledAsType stage)
 type TypeSynonym stage = Type.TypeSynonym (TypeExpr stage, Stage.TypeExprEvaledAsType stage)
 
-data Decl ty
-    = Decl'Module ModuleKey
-    | Decl'Type ty
-    | Decl'ExternPackage ExternPackage -- TODO: change this to ExternModule? because referring to an external package would just refer to its root module
+data DeclRef ty
+    = DeclRef'Module ModuleKey
+    | DeclRef'Type ty
+    | DeclRef'ExternPackage ExternPackage -- TODO: change this to ExternModule? because referring to an external package would just refer to its root module
     deriving Show
 
 data ExternPackage

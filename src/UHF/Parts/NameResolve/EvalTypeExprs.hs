@@ -65,7 +65,7 @@ make_type_expr_entry te = state $ \ d_iden_arena ->
     in (k, d_iden_arena')
 -- eval monad {{{1
 -- TODO: remove these type parameters?
-type EvalMonad adts type_synonyms quant_vars = TypeSolver.SolveMonad (StateT (Arena.Arena (TypeExpr, Maybe EvaledDIden) TypeExprKey) (ReaderT (adts, type_synonyms, quant_vars, NameMaps.SIRChildMaps) Error.WithErrors))
+type EvalMonad adts type_synonyms quant_vars = TypeSolver.SolveMonad (StateT (Arena.Arena (TypeExpr, Maybe EvaledDIden) TypeExprKey) (ReaderT (adts, type_synonyms, quant_vars, NameMaps.SIRChildMaps) (WriterT [TypeSolver.Constraint] Error.WithErrors)))
 -- type expr data in arena {{{1
 data TypeExpr
     = TypeExpr'Refer Span EvaledDIden
@@ -78,7 +78,7 @@ data TypeExpr
     | TypeExpr'Wild Span
     | TypeExpr'Poison Span
 -- eval {{{1
-eval :: NameMaps.SIRChildMaps -> SIR.SIR Unevaled -> Compiler.WithDiagnostics Error.Error Void (EvaledSIR, TypeSolver.SolverState)
+eval :: NameMaps.SIRChildMaps -> SIR.SIR Unevaled -> Compiler.WithDiagnostics Error.Error Void (EvaledSIR, TypeSolver.SolverState, [TypeSolver.Constraint])
 eval sir_child_maps sir =
     let (sir', type_expr_arena) = extract sir
     in put_back sir_child_maps type_expr_arena sir'
@@ -215,19 +215,23 @@ extract_in_split_iden :: SIR.SplitIdentifier Unevaled iden_start -> ExtractMonad
 extract_in_split_iden (SIR.SplitIdentifier'Get texpr next) = extract_in_type_expr texpr >>= \ (_, texpr) -> pure (SIR.SplitIdentifier'Get texpr next)
 extract_in_split_iden (SIR.SplitIdentifier'Single start) = pure (SIR.SplitIdentifier'Single start)
 -- put back {{{1
-put_back :: NameMaps.SIRChildMaps -> Arena.Arena TypeExpr TypeExprKey -> SIR.SIR Extracted  -> Error.WithErrors (SIR.SIR Evaled, TypeSolver.SolverState)
-put_back sir_child_maps type_expr_arena (SIR.SIR mods adts type_synonyms quant_vars variables (SIR.CU root_module main_function)) =
-    runReaderT (
-        evalStateT (
-            TypeSolver.run_solve_monad (
-                -- just put identifiers from arena back into the sir - that process will evaluate (on demand) the type exprs in the arena
-                put_back_in_mods mods >>= \ mods ->
-                put_back_in_adts adts >>= \ adts ->
-                put_back_in_type_synonyms type_synonyms >>= \ synonyms ->
-                pure (SIR.SIR mods adts synonyms quant_vars (Arena.transform change_variable variables) (SIR.CU root_module main_function))
+put_back :: NameMaps.SIRChildMaps -> Arena.Arena TypeExpr TypeExprKey -> SIR.SIR Extracted  -> Error.WithErrors (SIR.SIR Evaled, TypeSolver.SolverState, [TypeSolver.Constraint])
+put_back sir_child_maps type_expr_arena (SIR.SIR mods adts type_synonyms quant_vars variables (SIR.CU root_module main_function)) = do
+    ((sir, solver_state), constraints) <-
+            runWriterT (
+                runReaderT (
+                    evalStateT (
+                        TypeSolver.run_solve_monad (
+                            -- just put identifiers from arena back into the sir - that process will evaluate (on demand) the type exprs in the arena
+                            put_back_in_mods mods >>= \ mods ->
+                            put_back_in_adts adts >>= \ adts ->
+                            put_back_in_type_synonyms type_synonyms >>= \ synonyms ->
+                            pure (SIR.SIR mods adts synonyms quant_vars (Arena.transform change_variable variables) (SIR.CU root_module main_function))
+                        )
+                    ) (Arena.transform (,Nothing) type_expr_arena)
+                ) (adts, type_synonyms, quant_vars, sir_child_maps)
             )
-        ) (Arena.transform (,Nothing) type_expr_arena)
-    ) (adts, type_synonyms, quant_vars, sir_child_maps)
+    pure (sir, solver_state, constraints)
     where
         change_variable (SIR.Variable varid tyinfo n) = SIR.Variable varid tyinfo n
 
@@ -349,6 +353,7 @@ eval_type_expr tek = do
                 )
             pure evaled
     where
+        go :: TypeExpr -> EvalMonad (Arena.Arena (Type.ADT.ADT (SIR.TypeExpr Extracted, ())) Type.ADT.ADTKey) (Arena.Arena (Type.TypeSynonym (SIR.TypeExpr Extracted, ())) Type.TypeSynonymKey) QuantVarArena EvaledDIden
         go (TypeExpr'Refer _ iden) = pure iden
         go (TypeExpr'Get _ parent name) = do
             (_, _, _, sir_child_maps) <- lift $ lift ask
@@ -356,7 +361,7 @@ eval_type_expr tek = do
             case parent_evaled of
                 Just parent -> case NameMaps.get_decl_child sir_child_maps parent name of
                     Right r -> pure $ Just r
-                    Left e -> lift (lift $ lift $ Compiler.tell_error e) >> pure Nothing
+                    Left e -> lift (lift $ lift $ lift $ Compiler.tell_error e) >> pure Nothing
                 Nothing -> pure Nothing
 
         go (TypeExpr'Tuple _ a b) =
@@ -384,12 +389,15 @@ eval_type_expr tek = do
             evaled_as_type' ty ty_evaled >>= \ ty_as_type ->
             evaled_as_type' arg arg_evaled >>= \ arg_as_type ->
             lift (lift ask) >>= \ (adts, type_synonyms, quant_vars, _) ->
-            TypeSolver.apply_type adts type_synonyms (get_type_synonym type_synonyms) quant_vars (TypeSolver.TypeExpr sp) sp ty_as_type arg_as_type >>= \ (solve_result, result_ty) ->
-
-            (case solve_result of
-                Just (Left e) -> lift (lift $ lift $ Compiler.tell_error (Error.Error'SolveError e)) >> pure ()
-                Just (Right ()) -> pure ()
-                Nothing -> pure ()) >>
+            TypeSolver.apply_type adts type_synonyms (get_type_synonym type_synonyms) quant_vars (TypeSolver.TypeExpr sp) sp ty_as_type arg_as_type >>= (\case
+                TypeSolver.AppliedResult res -> pure res
+                TypeSolver.AppliedError err -> do
+                    _ <- lift $ lift $ lift $ lift $ Compiler.tell_error (Error.Error'SolveError err)
+                    result_ifv <- make_infer_var (TypeSolver.TypeExpr sp) -- TODO: fix duplication of this for_what
+                    pure $ result_ifv
+                TypeSolver.Inconclusive ty constraint -> do
+                    lift $ tell [constraint]
+                    pure ty) >>= \ result_ty ->
 
             pure (Just $ SIR.Decl'Type result_ty)
         go (TypeExpr'Wild sp) =
@@ -425,7 +433,7 @@ type_expr_evaled_as_type te = evaled_as_type (SIR.type_expr_span te) (SIR.type_e
 evaled_as_type :: Span -> Maybe (SIR.Decl TypeSolver.Type) -> EvalMonad adts type_synonyms quant_vars TypeSolver.Type
 evaled_as_type sp decl =
     case decl of
-        Just (SIR.Decl'Module _) -> lift (lift $ lift $ Compiler.tell_error (Error.Error'NotAType sp "a module")) >> make_infer_var (TypeSolver.TypeExpr sp) -- TODO: don't make variables for these?
+        Just (SIR.Decl'Module _) -> lift (lift $ lift $ lift $ Compiler.tell_error (Error.Error'NotAType sp "a module")) >> make_infer_var (TypeSolver.TypeExpr sp) -- TODO: don't make variables for these?
         Just (SIR.Decl'Type ty) -> pure ty
-        Just (SIR.Decl'ExternPackage _) -> lift (lift $ lift $ Compiler.tell_error (Error.Error'NotAType sp "external package")) >> make_infer_var (TypeSolver.TypeExpr sp) -- TODO: don't make variables for these?
+        Just (SIR.Decl'ExternPackage _) -> lift (lift $ lift $ lift $ Compiler.tell_error (Error.Error'NotAType sp "external package")) >> make_infer_var (TypeSolver.TypeExpr sp) -- TODO: don't make variables for these?
         Nothing -> make_infer_var (TypeSolver.TypeExpr sp) -- TODO: make this message better

@@ -12,8 +12,8 @@ import qualified UHF.Parts.SolveTypes.RemoveInferVars as RemoveInferVars
 import qualified UHF.Util.Arena as Arena
 
 -- this does both type inference and type checking
-solve :: TypeSolver.SolverState -> UntypedSIR -> Compiler.WithDiagnostics Error Void TypedSIR
-solve nr_solver_state (SIR.SIR mods adts type_synonyms quant_vars variables (SIR.CU root_module main_function)) = -- TODO: do not destructure ir?
+solve :: TypeSolver.SolverState -> [TypeSolver.Constraint] -> UntypedSIR -> Compiler.WithDiagnostics Error Void TypedSIR
+solve nr_solver_state backlog (SIR.SIR mods adts type_synonyms quant_vars variables (SIR.CU root_module main_function)) = -- TODO: do not destructure ir?
     TypeSolver.run_solve_monad_with
         (
             runWriterT (AddTypes.add main_function mods adts type_synonyms quant_vars variables) >>= \ ((mods, adts, type_synonyms, variables), constraints) ->
@@ -25,11 +25,11 @@ solve nr_solver_state (SIR.SIR mods adts type_synonyms quant_vars variables (SIR
                     Just (Right ()) -> pure ()
                     Nothing -> pure ()
             ) constraints >>
-            TypeSolver.solve_constraint_backlog adts type_synonyms get_type_synonym quant_vars >>= \ (backlog_errors, backlog_progress_made) -> -- TODO: not sure what to do with backlog_progress_made
+            TypeSolver.solve_constraint_backlog adts type_synonyms get_type_synonym quant_vars backlog >>= \ (backlog_errors, new_backlog) -> -- TODO: not sure what to do with new_backlog
             mapM (lift . Compiler.tell_error . SolveError) backlog_errors >>
             pure (mods, adts, type_synonyms, variables)
         )
-        nr_solver_state >>= \ ((mods, adts, type_synonyms, variables), TypeSolver.SolverState _ infer_vars) ->
+        nr_solver_state >>= \ ((mods, adts, type_synonyms, variables), TypeSolver.SolverState infer_vars) ->
 
     RemoveInferVars.remove infer_vars mods adts type_synonyms variables >>= \ (mods, adts, type_synonyms, variables) ->
 

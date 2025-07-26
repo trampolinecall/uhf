@@ -22,6 +22,7 @@ module UHF.Parts.TypeSolver
     , run_solve_monad
     , run_solve_monad_with
     , new_infer_var
+    , ApplyTypeResult (..)
     , apply_type
 
     , solve_constraint

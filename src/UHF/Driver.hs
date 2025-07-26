@@ -47,7 +47,7 @@ import qualified UHF.Source.FormattedString as FormattedString
 
 type AST = [AST.Decl]
 type FirstSIR = SIR.SIR (Located Text, (), (), Located Text, (), Located Text, (), (), ())
-type NRSIR = (SIR.SIR (Maybe (SIR.Decl TypeSolver.Type), Maybe (SIR.Decl TypeSolver.Type), TypeSolver.Type, Maybe SIR.BoundValue, Maybe SIR.BoundValue, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, (), ()), TypeSolver.SolverState)
+type NRSIR = (SIR.SIR (Maybe (SIR.Decl TypeSolver.Type), Maybe (SIR.Decl TypeSolver.Type), TypeSolver.Type, Maybe SIR.BoundValue, Maybe SIR.BoundValue, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, (), ()), TypeSolver.SolverState, [TypeSolver.Constraint])
 type InfixGroupedSIR = SIR.SIR (Maybe (SIR.Decl TypeSolver.Type), Maybe (SIR.Decl TypeSolver.Type), TypeSolver.Type, Maybe SIR.BoundValue, Maybe SIR.BoundValue, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, (), Void)
 type TypedSIR = SIR.SIR (Maybe (SIR.Decl IR.Type.Type), Maybe (SIR.Decl IR.Type.Type), Maybe IR.Type.Type, Maybe SIR.BoundValue, Maybe SIR.BoundValue, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.Type, Void)
 type RIR = RIR.RIR
@@ -102,7 +102,7 @@ print_outputs compile_options file = evalStateT (mapM_ print_output_format (outp
     where
         print_output_format AST = get_ast >>= output_if_outputable (lift . lift . putTextLn . AST.PP.pp_decls)
         print_output_format SIR = get_first_sir >>= output_if_outputable (lift . lift . write_output_file "uhf_sir" . SIR.PP.dump_main_module)
-        print_output_format NRSIR = get_nrsir >>= output_if_outputable (\ (ir, _) -> lift (lift (write_output_file "uhf_nrsir" (SIR.PP.dump_main_module ir))))
+        print_output_format NRSIR = get_nrsir >>= output_if_outputable (\ (ir, _, _) -> lift (lift (write_output_file "uhf_nrsir" (SIR.PP.dump_main_module ir))))
         print_output_format InfixGroupedSIR = get_infix_grouped >>= output_if_outputable (lift . lift . write_output_file "uhf_infix_grouped" . SIR.PP.dump_main_module)
         print_output_format TypedSIR = get_typed_sir >>= output_if_outputable (lift . lift . write_output_file "uhf_typed_sir" . SIR.PP.dump_main_module)
         print_output_format RIR = get_rir >>= output_if_outputable (lift . lift . write_output_file "uhf_rir" . RIR.PP.dump_main_module)
@@ -180,15 +180,15 @@ get_nrsir = get_or_calculate _get_nrsir (\ cache nrsir -> cache { _get_nrsir = n
 get_infix_grouped :: PhaseResultsState (InfixGroupedSIR, Outputable)
 get_infix_grouped = get_or_calculate _get_infix_grouped (\ cache infix_grouped -> cache { _get_infix_grouped = infix_grouped }) group_infix
     where
-        group_infix = get_nrsir >>= \ ((nrsir, _), outputable) -> pure (on_tuple_first InfixGroup.group (nrsir, outputable))
+        group_infix = get_nrsir >>= \ ((nrsir, _, _), outputable) -> pure (on_tuple_first InfixGroup.group (nrsir, outputable))
 
 get_typed_sir :: PhaseResultsState (TypedSIR, Outputable)
 get_typed_sir = get_or_calculate _get_typed_sir (\ cache typed_sir -> cache { _get_typed_sir = typed_sir }) solve_types
     where
         solve_types =
-            get_nrsir >>= \ ((_, solver_state), _) ->
+            get_nrsir >>= \ ((_, solver_state, constraint_backlog), _) ->
             get_infix_grouped >>= \ infix_grouped ->
-            run_stage_on_previous_stage_output (convert_errors . SolveTypes.solve solver_state) infix_grouped >>= \ typed_ir ->
+            run_stage_on_previous_stage_output (convert_errors . SolveTypes.solve solver_state constraint_backlog) infix_grouped >>= \ typed_ir -> -- TODO:
             run_stage_on_previous_stage_output (convert_errors . ReportHoles.report_holes) typed_ir >>
             pure typed_ir
 

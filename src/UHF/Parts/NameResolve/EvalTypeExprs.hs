@@ -394,7 +394,7 @@ eval_type_expr tek = do
                 TypeSolver.AppliedError err -> do
                     _ <- lift $ lift $ lift $ lift $ Compiler.tell_error (Error.Error'SolveError err)
                     result_ifv <- make_infer_var (TypeSolver.TypeExpr sp) -- TODO: fix duplication of this for_what
-                    pure $ result_ifv
+                    pure result_ifv
                 TypeSolver.Inconclusive ty constraint -> do
                     lift $ tell [constraint]
                     pure ty) >>= \ result_ty ->

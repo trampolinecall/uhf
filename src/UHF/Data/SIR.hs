@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -6,26 +7,17 @@ module UHF.Data.SIR
     ( SIR (..)
     , Stage.Stage (..)
     , CU (..)
-
     , ADT
     , TypeSynonym
-
     , DeclRef (..)
-
     , ExternPackage (..)
-
     , ModuleKey
     , Module (..)
-
     , ValueRef (..)
-
     , VariableKey
     , Variable (..)
-
     , Binding (..)
-
     , HoleIdentifier
-
     , TypeExpr (..)
     , SplitIdentifier (..)
     , ExprIdentifierRef
@@ -43,41 +35,42 @@ module UHF.Data.SIR
 
 import UHF.Prelude
 
-import UHF.Data.IR.Keys
-import UHF.Source.Located (Located)
-import UHF.Source.Span (Span)
 import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.Intrinsics as Intrinsics
+import UHF.Data.IR.Keys
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR.Stage as Stage
+import UHF.Source.Located (Located)
+import UHF.Source.Span (Span)
 import qualified UHF.Util.Arena as Arena
 
 -- TODO: transpose grouping of these? ie restructure as files for ast, type synonyms, intrinsics, ..., and all related operations like child maps, getting children, ... together in thesdecls with all related thing in the same file
 
+type AllShowable stage =
+    ( Stage.AllShowable stage
+    , Stage.IdenResolvedFunctorHasInstance (DeclRef (Stage.TypeExprEvaledAsType stage)) Show stage
+    , Stage.IdenResolvedFunctorHasInstance ValueRef Show stage
+    , Stage.IdenResolvedFunctorHasInstance Type.ADT.VariantIndex Show stage
+    )
+
 -- "syntax based ir"
 data SIR stage
     = SIR
-        { sir_modules :: Arena.Arena (Module stage) ModuleKey
-        , sir_adts :: Arena.Arena (ADT stage) ADTKey
-        , sir_type_synonyms :: Arena.Arena (TypeSynonym stage) TypeSynonymKey
-        , sir_quant_vars :: Arena.Arena Type.QuantVar QuantVarKey
-        , sir_variables :: Arena.Arena (Variable stage) VariableKey
-        , sir_cu :: CU stage
-        }
+    { sir_modules :: Arena.Arena (Module stage) ModuleKey
+    , sir_adts :: Arena.Arena (ADT stage) ADTKey
+    , sir_type_synonyms :: Arena.Arena (TypeSynonym stage) TypeSynonymKey
+    , sir_quant_vars :: Arena.Arena Type.QuantVar QuantVarKey
+    , sir_variables :: Arena.Arena (Variable stage) VariableKey
+    , sir_cu :: CU stage
+    }
 
- -- TODO: when support for compiling libraries that should not need a main function, a field should be added that identifies whether or not the compilation unit is a library or an executable or this should be split into 2 constructors for libraries or executables
-data CU stage = CU { cu_root_module :: ModuleKey, cu_main_function :: Maybe VariableKey }
+-- TODO: when support for compiling libraries that should not need a main function, a field should be added that identifies whether or not the compilation unit is a library or an executable or this should be split into 2 constructors for libraries or executables
+data CU stage = CU {cu_root_module :: ModuleKey, cu_main_function :: Maybe VariableKey}
 
 -- TODO: make these into their own datatypes and do not share representation with types
 type ADT stage = Type.ADT (TypeExpr stage, Stage.TypeExprEvaledAsType stage)
 type TypeSynonym stage = Type.TypeSynonym (TypeExpr stage, Stage.TypeExprEvaledAsType stage)
-
-data DeclRef ty
-    = DeclRef'Module ModuleKey
-    | DeclRef'Type ty
-    | DeclRef'ExternPackage ExternPackage -- TODO: change this to ExternModule? because referring to an external package would just refer to its root module
-    deriving Show
 
 data ExternPackage
     = ExternPackage'IntrinsicsPackage
@@ -85,20 +78,31 @@ data ExternPackage
 
 data Module stage
     = Module ID.ModuleID (Stage.NameMapIndex stage) [Binding stage] [ADTKey] [TypeSynonymKey]
-deriving instance Stage.AllShowable stage => Show (Module stage)
+deriving instance AllShowable stage => Show (Module stage)
 
 data Variable stage
     = Variable ID.VariableID (Stage.TypeInfo stage) (Located Text)
-deriving instance Stage.AllShowable stage => Show (Variable stage)
+deriving instance AllShowable stage => Show (Variable stage)
 
 data Binding stage
     = Binding (Pattern stage) Span (Expr stage)
-deriving instance Stage.AllShowable stage => Show (Binding stage)
+deriving instance AllShowable stage => Show (Binding stage)
 
 type HoleIdentifier = Located Text
 
+data DeclRef ty
+    = DeclRef'Module ModuleKey
+    | DeclRef'Type ty
+    | DeclRef'ExternPackage ExternPackage -- TODO: change this to ExternModule? because referring to an external package would just refer to its root module
+    deriving Show
+
 data TypeExpr stage
-    = TypeExpr'Refer (Stage.TypeExprEvaled stage) Span (Stage.NameMapIndex stage) (Located Text) (Stage.DIdenStart stage)
+    = TypeExpr'Refer
+        (Stage.TypeExprEvaled stage)
+        Span
+        (Stage.NameMapIndex stage)
+        (Located Text)
+        (Stage.IdenResolvedFunctor stage (DeclRef (Stage.TypeExprEvaledAsType stage)))
     | TypeExpr'Get (Stage.TypeExprEvaled stage) Span (TypeExpr stage) (Located Text)
     | TypeExpr'Tuple (Stage.TypeExprEvaled stage) Span (TypeExpr stage) (TypeExpr stage)
     | TypeExpr'Hole (Stage.TypeExprEvaled stage) (Stage.TypeExprEvaledAsType stage) Span HoleIdentifier
@@ -107,15 +111,15 @@ data TypeExpr stage
     | TypeExpr'Apply (Stage.TypeExprEvaled stage) Span (TypeExpr stage) (TypeExpr stage)
     | TypeExpr'Wild (Stage.TypeExprEvaled stage) Span
     | TypeExpr'Poison (Stage.TypeExprEvaled stage) Span
-deriving instance Stage.AllShowable stage => Show (TypeExpr stage)
+deriving instance AllShowable stage => Show (TypeExpr stage)
 
-data SplitIdentifier single stage
+data SplitIdentifier resolved stage
     = SplitIdentifier'Get (TypeExpr stage) (Located Text)
-    | SplitIdentifier'Single (Stage.NameMapIndex stage) (Located Text) single
-deriving instance (Stage.AllShowable stage, Show single) => Show (SplitIdentifier single stage)
+    | SplitIdentifier'Single (Stage.NameMapIndex stage) (Located Text) (Stage.IdenResolvedFunctor stage resolved)
+deriving instance (AllShowable stage, Stage.IdenResolvedFunctorHasInstance resolved Show stage) => Show (SplitIdentifier resolved stage)
 
-type ExprIdentifierRef stage = SplitIdentifier (Stage.VIdenStart stage) stage
-type OperatorRef stage = SplitIdentifier (Stage.VIdenStart stage) stage
+type ExprIdentifierRef stage = SplitIdentifier ValueRef stage
+type OperatorRef stage = SplitIdentifier ValueRef stage
 
 data ValueRef
     = ValueRef'Variable VariableKey
@@ -124,49 +128,56 @@ data ValueRef
     deriving Show
 
 data Expr stage
-    = Expr'Refer ID.ExprID (Stage.TypeInfo stage) Span (ExprIdentifierRef stage) (Stage.VIdenResolved stage)
+    = Expr'Refer ID.ExprID (Stage.TypeInfo stage) Span (ExprIdentifierRef stage) (Stage.IdenResolvedFunctor stage ValueRef)
     | Expr'Char ID.ExprID (Stage.TypeInfo stage) Span Char
     | Expr'String ID.ExprID (Stage.TypeInfo stage) Span Text
     | Expr'Int ID.ExprID (Stage.TypeInfo stage) Span Integer
     | Expr'Float ID.ExprID (Stage.TypeInfo stage) Span Rational
     | Expr'Bool ID.ExprID (Stage.TypeInfo stage) Span Bool -- TODO: replace with identifier exprs
-
     | Expr'Tuple ID.ExprID (Stage.TypeInfo stage) Span (Expr stage) (Expr stage)
-
     | Expr'Lambda ID.ExprID (Stage.TypeInfo stage) Span (Pattern stage) (Expr stage)
-
-    | Expr'Let ID.ExprID (Stage.TypeInfo stage) Span (Stage.NameMapIndex stage) [Binding stage] [ADTKey] [TypeSynonymKey]  (Expr stage)
+    | Expr'Let ID.ExprID (Stage.TypeInfo stage) Span (Stage.NameMapIndex stage) [Binding stage] [ADTKey] [TypeSynonymKey] (Expr stage)
     | Expr'LetRec ID.ExprID (Stage.TypeInfo stage) Span (Stage.NameMapIndex stage) [Binding stage] [ADTKey] [TypeSynonymKey] (Expr stage)
-
-    | Expr'BinaryOps ID.ExprID (Stage.BinaryOpsAllowed stage) (Stage.TypeInfo stage) Span (Expr stage) [(Span, OperatorRef stage, Stage.VIdenResolved stage, Expr stage)]
-
+    | Expr'BinaryOps
+        ID.ExprID
+        (Stage.BinaryOpsAllowed stage)
+        (Stage.TypeInfo stage)
+        Span
+        (Expr stage)
+        [(Span, OperatorRef stage, Stage.IdenResolvedFunctor stage ValueRef, Expr stage)]
     | Expr'Call ID.ExprID (Stage.TypeInfo stage) Span (Expr stage) (Expr stage)
-
     | Expr'If ID.ExprID (Stage.TypeInfo stage) Span Span (Expr stage) (Expr stage) (Expr stage)
     | Expr'Match ID.ExprID (Stage.TypeInfo stage) Span Span (Expr stage) [(Stage.NameMapIndex stage, Pattern stage, Expr stage)]
-
-    | Expr'Forall ID.ExprID (Stage.TypeInfo stage) Span (Stage.NameMapIndex stage) (NonEmpty QuantVarKey)  (Expr stage)
+    | Expr'Forall ID.ExprID (Stage.TypeInfo stage) Span (Stage.NameMapIndex stage) (NonEmpty QuantVarKey) (Expr stage)
     | Expr'TypeApply ID.ExprID (Stage.TypeInfo stage) Span (Expr stage) (TypeExpr stage, Stage.TypeExprEvaledAsType stage)
-
     | Expr'TypeAnnotation ID.ExprID (Stage.TypeInfo stage) Span (TypeExpr stage, Stage.TypeExprEvaledAsType stage) (Expr stage)
-
     | Expr'Hole ID.ExprID (Stage.TypeInfo stage) Span HoleIdentifier
-
     | Expr'Poison ID.ExprID (Stage.TypeInfo stage) Span
-deriving instance Stage.AllShowable stage => Show (Expr stage)
+deriving instance AllShowable stage => Show (Expr stage)
 
-type PatternADTVariantRef stage = SplitIdentifier (Stage.PIdenStart stage) stage
+type PatternADTVariantRef stage = SplitIdentifier Type.ADT.VariantIndex stage
 
 data Pattern stage
     = Pattern'Variable (Stage.TypeInfo stage) Span VariableKey
     | Pattern'Wildcard (Stage.TypeInfo stage) Span
     | Pattern'Tuple (Stage.TypeInfo stage) Span (Pattern stage) (Pattern stage)
     | Pattern'Named (Stage.TypeInfo stage) Span Span (Located VariableKey) (Pattern stage)
-    | Pattern'AnonADTVariant (Stage.TypeInfo stage) Span (PatternADTVariantRef stage) (Stage.PIdenResolved stage) [Stage.TypeInfo stage] [Pattern stage]
-    | Pattern'NamedADTVariant (Stage.TypeInfo stage) Span (PatternADTVariantRef stage) (Stage.PIdenResolved stage) [Stage.TypeInfo stage] [(Located Text, Pattern stage)]
-
+    | Pattern'AnonADTVariant
+        (Stage.TypeInfo stage)
+        Span
+        (PatternADTVariantRef stage)
+        (Stage.IdenResolvedFunctor stage Type.ADT.VariantIndex)
+        [Stage.TypeInfo stage]
+        [Pattern stage]
+    | Pattern'NamedADTVariant
+        (Stage.TypeInfo stage)
+        Span
+        (PatternADTVariantRef stage)
+        (Stage.IdenResolvedFunctor stage Type.ADT.VariantIndex)
+        [Stage.TypeInfo stage]
+        [(Located Text, Pattern stage)]
     | Pattern'Poison (Stage.TypeInfo stage) Span
-deriving instance Stage.AllShowable stage => Show (Pattern stage)
+deriving instance AllShowable stage => Show (Pattern stage)
 
 type_expr_evaled :: TypeExpr stage -> Stage.TypeExprEvaled stage
 type_expr_evaled (TypeExpr'Refer evaled _ _ _ _) = evaled

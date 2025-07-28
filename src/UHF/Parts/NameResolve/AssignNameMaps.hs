@@ -14,20 +14,21 @@ import qualified UHF.Parts.NameResolve.Error as Error
 import qualified UHF.Parts.NameResolve.NRReader as NRReader
 import qualified UHF.Parts.NameResolve.NameMaps as NameMaps
 import qualified UHF.Util.Arena as Arena
+import Data.Functor.Const (Const(Const))
 
 -- TODO: figure out a better solution than to have adt_parents and type_synonym_parents
 
 type QuantVarArena = Arena.Arena Type.QuantVar Type.QuantVarKey
 type NameMapStackArena = Arena.Arena NameMaps.NameMapStack NameMaps.NameMapStackKey
 
-type Unassigned = ((), (), (), (), (), (), (), (), (), (), ())
+type Unassigned = ((), Const () (), (), (), (), ())
 
 type UnassignedModuleArena = Arena.Arena (SIR.Module Unassigned) SIR.ModuleKey
 type UnassignedADTArena = Arena.Arena (SIR.ADT Unassigned) Type.ADTKey
 type UnassignedTypeSynonymArena = Arena.Arena (SIR.TypeSynonym Unassigned) Type.TypeSynonymKey
 type UnassignedVariableArena = Arena.Arena (SIR.Variable Unassigned) SIR.VariableKey
 
-type Assigned = (NameMaps.NameMapStackKey, (), (), (), (), (), (), (), (), (), ())
+type Assigned = (NameMaps.NameMapStackKey, Const () (), (), (), (), ())
 
 type AssignedModuleArena = Arena.Arena (SIR.Module Assigned) SIR.ModuleKey
 type AssignedADTArena = Arena.Arena (SIR.ADT Assigned) Type.ADTKey
@@ -209,7 +210,7 @@ assign_in_type_expr ::
         sir_child_maps
         (StateT (NameMapStackArena, NameMaps.SIRChildMaps) Error.WithErrors)
         (SIR.TypeExpr Assigned)
-assign_in_type_expr nc_stack (SIR.TypeExpr'Refer evaled sp () id ()) = pure $ SIR.TypeExpr'Refer evaled sp nc_stack id ()
+assign_in_type_expr nc_stack (SIR.TypeExpr'Refer evaled sp () id (Const ())) = pure $ SIR.TypeExpr'Refer evaled sp nc_stack id (Const ())
 assign_in_type_expr nc_stack (SIR.TypeExpr'Get evaled sp parent name) = SIR.TypeExpr'Get evaled sp <$> assign_in_type_expr nc_stack parent <*> pure name
 assign_in_type_expr nc_stack (SIR.TypeExpr'Tuple evaled sp a b) = SIR.TypeExpr'Tuple evaled sp <$> assign_in_type_expr nc_stack a <*> assign_in_type_expr nc_stack b
 assign_in_type_expr _ (SIR.TypeExpr'Hole evaled type_info sp hid) = pure $ SIR.TypeExpr'Hole evaled type_info sp hid
@@ -237,7 +238,7 @@ assign_in_expr ::
         (StateT (NameMapStackArena, NameMaps.SIRChildMaps) Error.WithErrors)
     )
         (SIR.Expr Assigned)
-assign_in_expr nc_stack (SIR.Expr'Refer id type_info sp iden ()) = SIR.Expr'Refer id type_info sp <$> assign_split_iden nc_stack iden <*> pure ()
+assign_in_expr nc_stack (SIR.Expr'Refer id type_info sp iden (Const ())) = SIR.Expr'Refer id type_info sp <$> assign_split_iden nc_stack iden <*> pure (Const ())
 assign_in_expr _ (SIR.Expr'Char id type_info sp c) = pure $ SIR.Expr'Char id type_info sp c
 assign_in_expr _ (SIR.Expr'String id type_info sp s) = pure $ SIR.Expr'String id type_info sp s
 assign_in_expr _ (SIR.Expr'Int id type_info sp i) = pure $ SIR.Expr'Int id type_info sp i
@@ -277,8 +278,8 @@ assign_in_expr nc_stack (SIR.Expr'BinaryOps id allowed type_info sp first ops) =
     SIR.Expr'BinaryOps id allowed type_info sp
         <$> assign_in_expr nc_stack first
         <*> mapM
-            ( \(sp, iden, (), rhs) ->
-                (sp,,(),)
+            ( \(sp, iden, Const (), rhs) ->
+                (sp,,Const (),)
                     <$> assign_split_iden nc_stack iden
                     <*> assign_in_expr nc_stack rhs
             )
@@ -343,7 +344,7 @@ assign_in_pat _ (SIR.Pattern'Poison type_info sp) = pure $ SIR.Pattern'Poison ty
 -- assigning identifiers {{{1
 assign_split_iden ::
     NameMaps.NameMapStackKey ->
-    SIR.SplitIdentifier () Unassigned ->
+    SIR.SplitIdentifier resolved Unassigned ->
     NRReader.NRReader
         adt_arena
         type_synonym_arena
@@ -351,6 +352,6 @@ assign_split_iden ::
         QuantVarArena
         sir_child_maps
         (StateT (NameMapStackArena, NameMaps.SIRChildMaps) Error.WithErrors)
-        (SIR.SplitIdentifier () Assigned)
+        (SIR.SplitIdentifier resolved Assigned)
 assign_split_iden name_map_stack (SIR.SplitIdentifier'Get texpr next) = SIR.SplitIdentifier'Get <$> assign_in_type_expr name_map_stack texpr <*> pure next
-assign_split_iden name_map_stack (SIR.SplitIdentifier'Single () i ()) = pure $ SIR.SplitIdentifier'Single name_map_stack i ()
+assign_split_iden name_map_stack (SIR.SplitIdentifier'Single () i (Const ())) = pure $ SIR.SplitIdentifier'Single name_map_stack i (Const ())

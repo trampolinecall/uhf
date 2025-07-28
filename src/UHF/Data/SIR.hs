@@ -98,7 +98,7 @@ deriving instance Stage.AllShowable stage => Show (Binding stage)
 type HoleIdentifier = Located Text
 
 data TypeExpr stage
-    = TypeExpr'Refer (Stage.TypeExprEvaled stage) Span (Stage.DIdenStart stage)
+    = TypeExpr'Refer (Stage.TypeExprEvaled stage) Span (Stage.NameMapIndex stage) (Located Text) (Stage.DIdenStart stage)
     | TypeExpr'Get (Stage.TypeExprEvaled stage) Span (TypeExpr stage) (Located Text)
     | TypeExpr'Tuple (Stage.TypeExprEvaled stage) Span (TypeExpr stage) (TypeExpr stage)
     | TypeExpr'Hole (Stage.TypeExprEvaled stage) (Stage.TypeExprEvaledAsType stage) Span HoleIdentifier
@@ -111,7 +111,7 @@ deriving instance Stage.AllShowable stage => Show (TypeExpr stage)
 
 data SplitIdentifier single stage
     = SplitIdentifier'Get (TypeExpr stage) (Located Text)
-    | SplitIdentifier'Single single
+    | SplitIdentifier'Single (Stage.NameMapIndex stage) (Located Text) single
 deriving instance (Stage.AllShowable stage, Show single) => Show (SplitIdentifier single stage)
 
 type ExprIdentifierRef stage = SplitIdentifier (Stage.VIdenStart stage) stage
@@ -169,7 +169,7 @@ data Pattern stage
 deriving instance Stage.AllShowable stage => Show (Pattern stage)
 
 type_expr_evaled :: TypeExpr stage -> Stage.TypeExprEvaled stage
-type_expr_evaled (TypeExpr'Refer evaled _ _) = evaled
+type_expr_evaled (TypeExpr'Refer evaled _ _ _ _) = evaled
 type_expr_evaled (TypeExpr'Get evaled _ _ _) = evaled
 type_expr_evaled (TypeExpr'Tuple evaled _ _ _) = evaled
 type_expr_evaled (TypeExpr'Hole evaled _ _ _) = evaled
@@ -180,7 +180,7 @@ type_expr_evaled (TypeExpr'Wild evaled _) = evaled
 type_expr_evaled (TypeExpr'Poison evaled _) = evaled
 
 type_expr_span :: TypeExpr stage -> Span
-type_expr_span (TypeExpr'Refer _ span _) = span
+type_expr_span (TypeExpr'Refer _ span _ _ _) = span
 type_expr_span (TypeExpr'Get _ span _ _) = span
 type_expr_span (TypeExpr'Tuple _ span _ _) = span
 type_expr_span (TypeExpr'Hole _ _ span _) = span

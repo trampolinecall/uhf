@@ -30,7 +30,7 @@ instance Diagnostic.ToError Error where
     to_error NoMain = Diagnostic.Error Nothing "no main function" [] []
     to_error (MultipleMains sps) = Diagnostic.Error (Just $ head sps) "multiple main functions" (map (\ sp -> (Just sp, Diagnostic.MsgError, Nothing)) sps) []
 
-type SIRStage = (Located Text, (), (), Located Text, (), Located Text, (), (), ())
+type SIRStage = ((), (), (), (), (), (), (), (), (), (), ())
 
 type SIR = SIR.SIR SIRStage
 
@@ -183,7 +183,7 @@ convert_decls var_parent decl_parent decls =
                     fields
 
 convert_type :: AST.Type -> MakeIRState TypeExpr
-convert_type (AST.Type'Refer id) = pure $ SIR.TypeExpr'Refer () (just_span id) (convert_aiden_tok <$> id)
+convert_type (AST.Type'Refer id) = pure $ SIR.TypeExpr'Refer () (just_span id) () (convert_aiden_tok <$> id) ()
 convert_type (AST.Type'Get sp prev name) = convert_type prev >>= \ prev -> pure (SIR.TypeExpr'Get () sp prev (convert_aiden_tok <$> name))
 convert_type (AST.Type'Tuple sp items) = mapM convert_type items >>= group_items
     where
@@ -250,7 +250,7 @@ convert_expr cur_id (AST.Expr'BinaryOps sp first ops) =
                     AST.Operator'Path op_sp op_ty op_last -> do
                         op_ty <- convert_type op_ty
                         pure (op_sp, SIR.SplitIdentifier'Get op_ty (convert_siden_tok <$> op_last), (), right')
-                    AST.Operator'Single op_iden@(Located op_sp _) -> pure (op_sp, SIR.SplitIdentifier'Single (convert_siden_tok <$> op_iden), (), right'))
+                    AST.Operator'Single op_iden@(Located op_sp _) -> pure (op_sp, SIR.SplitIdentifier'Single () (convert_siden_tok <$> op_iden) (), (), right'))
             [1..]
             ops
 
@@ -322,8 +322,8 @@ convert_pattern parent (AST.Pattern'NamedADTVariant sp v_ty variant fields) = do
     variant_split_iden <- make_split_identifier v_ty (convert_aiden_tok <$> variant)
     pure (SIR.Pattern'NamedADTVariant () sp variant_split_iden () [] fields)
 
-make_split_identifier :: Maybe AST.Type -> Located Text -> MakeIRState (SIR.SplitIdentifier (Located Text) SIRStage)
-make_split_identifier Nothing i = pure $ SIR.SplitIdentifier'Single i
+make_split_identifier :: Maybe AST.Type -> Located Text -> MakeIRState (SIR.SplitIdentifier () SIRStage)
+make_split_identifier Nothing i = pure $ SIR.SplitIdentifier'Single () i ()
 make_split_identifier (Just ty) i = do
     ty <- convert_type ty
     pure $ SIR.SplitIdentifier'Get ty i

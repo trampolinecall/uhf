@@ -12,6 +12,10 @@ import UHF.Prelude
 import Data.Kind (Type, Constraint)
 
 class Stage s where
+    type NameMapIndex s
+
+    type IdenResolvedFunctor s
+
     type DIdenStart s
     type TypeExprEvaled s
     type TypeExprEvaledAsType s
@@ -25,22 +29,29 @@ class Stage s where
 
     type BinaryOpsAllowed s
 
-instance Stage (d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) where
-    type DIdenStart (d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = d_iden_start
-    type TypeExprEvaled (d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = type_expr_evaled
-    type TypeExprEvaledAsType (d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = type_expr_evaled_as_type
+instance Stage (name_map_index, iden_resolved_functor, d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) where
+    type NameMapIndex (name_map_index, iden_resolved_functor, d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = name_map_index
 
-    type VIdenStart (d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = v_iden_start
-    type VIdenResolved (d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = v_iden_resolved
-    type PIdenStart (d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = p_iden_start
-    type PIdenResolved (d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = p_iden_resolved
+    type IdenResolvedFunctor (name_map_index, iden_resolved_functor, d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = iden_resolved_functor
 
-    type TypeInfo (d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = type_info
+    -- TODO: remove DIdenStart, VIdenStart, VIdenResolved, PIdenStart, PIdenResolved
+    -- TODO: see if it is possible to remove TypeExprEvaled and TypeExprEvaledAsType
+    type DIdenStart (name_map_index, iden_resolved_functor, d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = d_iden_start
+    type TypeExprEvaled (name_map_index, iden_resolved_functor, d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = type_expr_evaled
+    type TypeExprEvaledAsType (name_map_index, iden_resolved_functor, d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = type_expr_evaled_as_type
 
-    type BinaryOpsAllowed (d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = binary_ops_allowed
+    type VIdenStart (name_map_index, iden_resolved_functor, d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = v_iden_start
+    type VIdenResolved (name_map_index, iden_resolved_functor, d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = v_iden_resolved
+    type PIdenStart (name_map_index, iden_resolved_functor, d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = p_iden_start
+    type PIdenResolved (name_map_index, iden_resolved_functor, d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = p_iden_resolved
+
+    type TypeInfo (name_map_index, iden_resolved_functor, d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = type_info
+
+    type BinaryOpsAllowed (name_map_index, iden_resolved_functor, d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = binary_ops_allowed
 
 type AllHaveInstance (c :: Type -> Constraint) s =
-    ( c (DIdenStart s)
+    ( c (NameMapIndex s)
+    , c (DIdenStart s)
     , c (TypeExprEvaled s)
     , c (TypeExprEvaledAsType s)
     , c (VIdenStart s)

@@ -72,7 +72,7 @@ assign sir@(SIR.SIR mods adts type_synonyms type_vars variables (SIR.CU root_mod
     where
         change_variable (SIR.Variable varid tyinfo n) = SIR.Variable varid tyinfo n
 
--- assigning through sir
+-- assigning through sir {{{1
 type ADTParentAndTypeSynonymParentWriter m =
     WriterT (Map Type.ADTKey NameMaps.NameMapStackKey) (WriterT (Map Type.TypeSynonymKey NameMaps.NameMapStackKey) m)
 assign_in_mods ::

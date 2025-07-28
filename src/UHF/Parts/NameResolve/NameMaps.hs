@@ -19,6 +19,9 @@ module UHF.Parts.NameResolve.NameMaps
     , get_module_child_maps
     , add_to_module_child_maps
     , add_tuple_to_module_child_maps
+    , look_up_decl
+    , look_up_value
+    , look_up_variant
     , get_decl_child
     , get_value_child
     , get_variant_child
@@ -142,8 +145,28 @@ add_to_module_child_maps ds vs as mod_key (SIRChildMaps module_child_maps) = SIR
 add_tuple_to_module_child_maps :: ([DeclChild], [ValueChild], [ADTVariantChild]) -> SIR.ModuleKey -> SIRChildMaps -> WithErrors SIRChildMaps
 add_tuple_to_module_child_maps (ds, vs, as) mod_key (SIRChildMaps module_child_maps) = SIRChildMaps <$> Arena.modifyM module_child_maps mod_key (add_to_child_maps ds vs as)
 
--- getting from child maps {{{2
--- TODO: remove duplication from these
+-- getting from name maps and child maps {{{1
+look_up_decl :: Arena.Arena NameMapStack NameMapStackKey -> NameMapStackKey -> Located Text -> Either Error (SIR.DeclRef TypeWithInferVar.Type)
+look_up_decl = look_up (\ (NameMaps (Maps d _ _)) -> d)
+look_up_value :: Arena.Arena NameMapStack NameMapStackKey -> NameMapStackKey -> Located Text -> Either Error SIR.ValueRef
+look_up_value = look_up (\ (NameMaps (Maps _ val _)) -> val)
+look_up_variant :: Arena.Arena NameMapStack NameMapStackKey -> NameMapStackKey -> Located Text -> Either Error Type.ADT.VariantIndex
+look_up_variant = look_up (\ (NameMaps (Maps _ _ var)) -> var)
+
+-- TODO: make this able to return inconclusive results (because macros)
+look_up :: (NameMaps -> Map Text (DeclAt, result)) -> Arena.Arena NameMapStack NameMapStackKey -> NameMapStackKey -> Located Text -> Either Error result
+look_up which_map arena name_map_stack iden =
+    go name_map_stack
+    where
+        go current_name_map_stack_key =
+            let NameMapStack current_name_maps parent = Arena.get arena current_name_map_stack_key
+            in case Map.lookup (unlocate iden) (which_map current_name_maps) of
+                Just (_, decl) -> Right decl
+                Nothing ->
+                    case parent of
+                        Just parent -> go parent
+                        Nothing -> Left $ Error'CouldNotFind iden
+
 get_decl_child :: SIRChildMaps -> SIR.DeclRef TypeWithInferVar.Type -> Located Text -> Either Error (SIR.DeclRef TypeWithInferVar.Type)
 get_decl_child sir_child_maps decl name =
     let res = case decl of

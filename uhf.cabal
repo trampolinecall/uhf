@@ -55,6 +55,7 @@ library
       UHF.Parts.NameResolve.EvalTypeExprs
       UHF.Parts.NameResolve.NameMaps
       UHF.Parts.NameResolve.NRReader
+      UHF.Parts.NameResolve.Resolve
       UHF.Parts.NameResolve.ResolveReferStarts
       UHF.Parts.NameResolve.ResolveVPIdens
       UHF.Parts.OptimizeANFIR

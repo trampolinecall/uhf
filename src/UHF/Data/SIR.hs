@@ -49,6 +49,8 @@ import qualified UHF.Util.Arena as Arena
 
 type AllShowable stage =
     ( Stage.AllShowable stage
+    , Stage.IdenResolvedFunctorHasInstance (Stage.TypeExprEvaled stage) Show stage
+    , Stage.IdenResolvedFunctorHasInstance (Stage.TypeExprEvaledAsType stage) Show stage
     , Stage.IdenResolvedFunctorHasInstance (DeclRef (Stage.TypeExprEvaledAsType stage)) Show stage
     , Stage.IdenResolvedFunctorHasInstance ValueRef Show stage
     , Stage.IdenResolvedFunctorHasInstance Type.ADT.VariantIndex Show stage
@@ -69,8 +71,8 @@ data SIR stage
 data CU stage = CU {cu_root_module :: ModuleKey, cu_main_function :: Maybe VariableKey}
 
 -- TODO: make these into their own datatypes and do not share representation with types
-type ADT stage = Type.ADT (TypeExpr stage, Stage.TypeExprEvaledAsType stage)
-type TypeSynonym stage = Type.TypeSynonym (TypeExpr stage, Stage.TypeExprEvaledAsType stage)
+type ADT stage = Type.ADT (TypeExpr stage, Stage.IdenResolvedFunctor stage (Stage.TypeExprEvaledAsType stage))
+type TypeSynonym stage = Type.TypeSynonym (TypeExpr stage, Stage.IdenResolvedFunctor stage (Stage.TypeExprEvaledAsType stage))
 
 data ExternPackage
     = ExternPackage'IntrinsicsPackage
@@ -98,19 +100,19 @@ data DeclRef ty
 
 data TypeExpr stage
     = TypeExpr'Refer
-        (Stage.TypeExprEvaled stage)
+        (Stage.IdenResolvedFunctor stage (Stage.TypeExprEvaled stage))
         Span
         (Stage.NameMapIndex stage)
         (Located Text)
         (Stage.IdenResolvedFunctor stage (DeclRef (Stage.TypeExprEvaledAsType stage)))
-    | TypeExpr'Get (Stage.TypeExprEvaled stage) Span (TypeExpr stage) (Located Text)
-    | TypeExpr'Tuple (Stage.TypeExprEvaled stage) Span (TypeExpr stage) (TypeExpr stage)
-    | TypeExpr'Hole (Stage.TypeExprEvaled stage) (Stage.TypeExprEvaledAsType stage) Span HoleIdentifier
-    | TypeExpr'Function (Stage.TypeExprEvaled stage) Span (TypeExpr stage) (TypeExpr stage)
-    | TypeExpr'Forall (Stage.TypeExprEvaled stage) Span (Stage.NameMapIndex stage) (NonEmpty QuantVarKey) (TypeExpr stage)
-    | TypeExpr'Apply (Stage.TypeExprEvaled stage) Span (TypeExpr stage) (TypeExpr stage)
-    | TypeExpr'Wild (Stage.TypeExprEvaled stage) Span
-    | TypeExpr'Poison (Stage.TypeExprEvaled stage) Span
+    | TypeExpr'Get (Stage.IdenResolvedFunctor stage (Stage.TypeExprEvaled stage)) Span (TypeExpr stage) (Located Text)
+    | TypeExpr'Tuple (Stage.IdenResolvedFunctor stage (Stage.TypeExprEvaled stage)) Span (TypeExpr stage) (TypeExpr stage)
+    | TypeExpr'Hole (Stage.IdenResolvedFunctor stage (Stage.TypeExprEvaled stage)) (Stage.IdenResolvedFunctor stage (Stage.TypeExprEvaledAsType stage)) Span HoleIdentifier
+    | TypeExpr'Function (Stage.IdenResolvedFunctor stage (Stage.TypeExprEvaled stage)) Span (TypeExpr stage) (TypeExpr stage)
+    | TypeExpr'Forall (Stage.IdenResolvedFunctor stage (Stage.TypeExprEvaled stage)) Span (Stage.NameMapIndex stage) (NonEmpty QuantVarKey) (TypeExpr stage)
+    | TypeExpr'Apply (Stage.IdenResolvedFunctor stage (Stage.TypeExprEvaled stage)) Span (TypeExpr stage) (TypeExpr stage)
+    | TypeExpr'Wild (Stage.IdenResolvedFunctor stage (Stage.TypeExprEvaled stage)) Span
+    | TypeExpr'Poison (Stage.IdenResolvedFunctor stage (Stage.TypeExprEvaled stage)) Span
 deriving instance AllShowable stage => Show (TypeExpr stage)
 
 data SplitIdentifier resolved stage
@@ -149,8 +151,8 @@ data Expr stage
     | Expr'If ID.ExprID (Stage.TypeInfo stage) Span Span (Expr stage) (Expr stage) (Expr stage)
     | Expr'Match ID.ExprID (Stage.TypeInfo stage) Span Span (Expr stage) [(Stage.NameMapIndex stage, Pattern stage, Expr stage)]
     | Expr'Forall ID.ExprID (Stage.TypeInfo stage) Span (Stage.NameMapIndex stage) (NonEmpty QuantVarKey) (Expr stage)
-    | Expr'TypeApply ID.ExprID (Stage.TypeInfo stage) Span (Expr stage) (TypeExpr stage, Stage.TypeExprEvaledAsType stage)
-    | Expr'TypeAnnotation ID.ExprID (Stage.TypeInfo stage) Span (TypeExpr stage, Stage.TypeExprEvaledAsType stage) (Expr stage)
+    | Expr'TypeApply ID.ExprID (Stage.TypeInfo stage) Span (Expr stage) (TypeExpr stage, Stage.IdenResolvedFunctor stage (Stage.TypeExprEvaledAsType stage))
+    | Expr'TypeAnnotation ID.ExprID (Stage.TypeInfo stage) Span (TypeExpr stage, Stage.IdenResolvedFunctor stage (Stage.TypeExprEvaledAsType stage)) (Expr stage)
     | Expr'Hole ID.ExprID (Stage.TypeInfo stage) Span HoleIdentifier
     | Expr'Poison ID.ExprID (Stage.TypeInfo stage) Span
 deriving instance AllShowable stage => Show (Expr stage)
@@ -179,7 +181,7 @@ data Pattern stage
     | Pattern'Poison (Stage.TypeInfo stage) Span
 deriving instance AllShowable stage => Show (Pattern stage)
 
-type_expr_evaled :: TypeExpr stage -> Stage.TypeExprEvaled stage
+type_expr_evaled :: TypeExpr stage -> Stage.IdenResolvedFunctor stage (Stage.TypeExprEvaled stage)
 type_expr_evaled (TypeExpr'Refer evaled _ _ _ _) = evaled
 type_expr_evaled (TypeExpr'Get evaled _ _ _) = evaled
 type_expr_evaled (TypeExpr'Tuple evaled _ _ _) = evaled

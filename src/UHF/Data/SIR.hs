@@ -84,7 +84,7 @@ data ExternPackage
     deriving Show
 
 data Module stage
-    = Module ID.ModuleID [Binding stage] [ADTKey] [TypeSynonymKey]
+    = Module ID.ModuleID (Stage.NameMapIndex stage) [Binding stage] [ADTKey] [TypeSynonymKey]
 deriving instance Stage.AllShowable stage => Show (Module stage)
 
 data Variable stage
@@ -103,7 +103,7 @@ data TypeExpr stage
     | TypeExpr'Tuple (Stage.TypeExprEvaled stage) Span (TypeExpr stage) (TypeExpr stage)
     | TypeExpr'Hole (Stage.TypeExprEvaled stage) (Stage.TypeExprEvaledAsType stage) Span HoleIdentifier
     | TypeExpr'Function (Stage.TypeExprEvaled stage) Span (TypeExpr stage) (TypeExpr stage)
-    | TypeExpr'Forall (Stage.TypeExprEvaled stage) Span (NonEmpty QuantVarKey) (TypeExpr stage)
+    | TypeExpr'Forall (Stage.TypeExprEvaled stage) Span (Stage.NameMapIndex stage) (NonEmpty QuantVarKey) (TypeExpr stage)
     | TypeExpr'Apply (Stage.TypeExprEvaled stage) Span (TypeExpr stage) (TypeExpr stage)
     | TypeExpr'Wild (Stage.TypeExprEvaled stage) Span
     | TypeExpr'Poison (Stage.TypeExprEvaled stage) Span
@@ -135,17 +135,17 @@ data Expr stage
 
     | Expr'Lambda ID.ExprID (Stage.TypeInfo stage) Span (Pattern stage) (Expr stage)
 
-    | Expr'Let ID.ExprID (Stage.TypeInfo stage) Span [Binding stage] [ADTKey] [TypeSynonymKey] (Expr stage)
-    | Expr'LetRec ID.ExprID (Stage.TypeInfo stage) Span [Binding stage] [ADTKey] [TypeSynonymKey] (Expr stage)
+    | Expr'Let ID.ExprID (Stage.TypeInfo stage) Span (Stage.NameMapIndex stage) [Binding stage] [ADTKey] [TypeSynonymKey]  (Expr stage)
+    | Expr'LetRec ID.ExprID (Stage.TypeInfo stage) Span (Stage.NameMapIndex stage) [Binding stage] [ADTKey] [TypeSynonymKey] (Expr stage)
 
     | Expr'BinaryOps ID.ExprID (Stage.BinaryOpsAllowed stage) (Stage.TypeInfo stage) Span (Expr stage) [(Span, OperatorRef stage, Stage.VIdenResolved stage, Expr stage)]
 
     | Expr'Call ID.ExprID (Stage.TypeInfo stage) Span (Expr stage) (Expr stage)
 
     | Expr'If ID.ExprID (Stage.TypeInfo stage) Span Span (Expr stage) (Expr stage) (Expr stage)
-    | Expr'Match ID.ExprID (Stage.TypeInfo stage) Span Span (Expr stage) [(Pattern stage, Expr stage)]
+    | Expr'Match ID.ExprID (Stage.TypeInfo stage) Span Span (Expr stage) [(Stage.NameMapIndex stage, Pattern stage, Expr stage)]
 
-    | Expr'Forall ID.ExprID (Stage.TypeInfo stage) Span (NonEmpty QuantVarKey) (Expr stage)
+    | Expr'Forall ID.ExprID (Stage.TypeInfo stage) Span (Stage.NameMapIndex stage) (NonEmpty QuantVarKey)  (Expr stage)
     | Expr'TypeApply ID.ExprID (Stage.TypeInfo stage) Span (Expr stage) (TypeExpr stage, Stage.TypeExprEvaledAsType stage)
 
     | Expr'TypeAnnotation ID.ExprID (Stage.TypeInfo stage) Span (TypeExpr stage, Stage.TypeExprEvaledAsType stage) (Expr stage)
@@ -174,7 +174,7 @@ type_expr_evaled (TypeExpr'Get evaled _ _ _) = evaled
 type_expr_evaled (TypeExpr'Tuple evaled _ _ _) = evaled
 type_expr_evaled (TypeExpr'Hole evaled _ _ _) = evaled
 type_expr_evaled (TypeExpr'Function evaled _ _ _) = evaled
-type_expr_evaled (TypeExpr'Forall evaled _ _ _) = evaled
+type_expr_evaled (TypeExpr'Forall evaled _ _ _ _) = evaled
 type_expr_evaled (TypeExpr'Apply evaled _ _ _) = evaled
 type_expr_evaled (TypeExpr'Wild evaled _) = evaled
 type_expr_evaled (TypeExpr'Poison evaled _) = evaled
@@ -185,7 +185,7 @@ type_expr_span (TypeExpr'Get _ span _ _) = span
 type_expr_span (TypeExpr'Tuple _ span _ _) = span
 type_expr_span (TypeExpr'Hole _ _ span _) = span
 type_expr_span (TypeExpr'Function _ span _ _) = span
-type_expr_span (TypeExpr'Forall _ span _ _) = span
+type_expr_span (TypeExpr'Forall _ span _ _ _) = span
 type_expr_span (TypeExpr'Apply _ span _ _) = span
 type_expr_span (TypeExpr'Wild _ span) = span
 type_expr_span (TypeExpr'Poison _ span) = span
@@ -199,15 +199,15 @@ expr_type (Expr'Float _ type_info _ _) = type_info
 expr_type (Expr'Bool _ type_info _ _) = type_info
 expr_type (Expr'Tuple _ type_info _ _ _) = type_info
 expr_type (Expr'Lambda _ type_info _ _ _) = type_info
-expr_type (Expr'Let _ type_info _ _ _ _ _) = type_info
-expr_type (Expr'LetRec _ type_info _ _ _ _ _) = type_info
+expr_type (Expr'Let _ type_info _ _ _ _ _ _) = type_info
+expr_type (Expr'LetRec _ type_info _ _ _ _ _ _) = type_info
 expr_type (Expr'BinaryOps _ _ type_info _ _ _) = type_info
 expr_type (Expr'Call _ type_info _ _ _) = type_info
 expr_type (Expr'If _ type_info _ _ _ _ _) = type_info
 expr_type (Expr'Match _ type_info _ _ _ _) = type_info
 expr_type (Expr'Poison _ type_info _) = type_info
 expr_type (Expr'Hole _ type_info _ _) = type_info
-expr_type (Expr'Forall _ type_info _ _ _) = type_info
+expr_type (Expr'Forall _ type_info _ _ _ _) = type_info
 expr_type (Expr'TypeApply _ type_info _ _ _) = type_info
 expr_type (Expr'TypeAnnotation _ type_info _ _ _) = type_info
 
@@ -220,15 +220,15 @@ expr_span (Expr'Float _ _ sp _) = sp
 expr_span (Expr'Bool _ _ sp _) = sp
 expr_span (Expr'Tuple _ _ sp _ _) = sp
 expr_span (Expr'Lambda _ _ sp _ _) = sp
-expr_span (Expr'Let _ _ sp _ _ _ _) = sp
-expr_span (Expr'LetRec _ _ sp _ _ _ _) = sp
+expr_span (Expr'Let _ _ sp _ _ _ _ _) = sp
+expr_span (Expr'LetRec _ _ sp _ _ _ _ _) = sp
 expr_span (Expr'BinaryOps _ _ _ sp _ _) = sp
 expr_span (Expr'Call _ _ sp _ _) = sp
 expr_span (Expr'If _ _ sp _ _ _ _) = sp
 expr_span (Expr'Match _ _ sp _ _ _) = sp
 expr_span (Expr'Poison _ _ sp) = sp
 expr_span (Expr'Hole _ _ sp _) = sp
-expr_span (Expr'Forall _ _ sp _ _) = sp
+expr_span (Expr'Forall _ _ sp _ _ _) = sp
 expr_span (Expr'TypeApply _ _ sp _ _) = sp
 expr_span (Expr'TypeAnnotation _ _ sp _ _) = sp
 

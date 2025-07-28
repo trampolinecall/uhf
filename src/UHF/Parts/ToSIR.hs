@@ -91,7 +91,7 @@ convert decls = do
             (
                 let module_id = ID.ModuleID'Root
                 in convert_decls (ID.VarParent'Module module_id) (ID.DeclParent'Module module_id) decls >>= \ (bindings, adts, type_synonyms) ->
-                new_module (SIR.Module module_id bindings adts type_synonyms)
+                new_module (SIR.Module module_id () bindings adts type_synonyms)
             )
             (Arena.new, Arena.new, Arena.new, Arena.new, Arena.new)
     main_function <- search_for_main_function mods variables root_module
@@ -99,7 +99,7 @@ convert decls = do
 
 search_for_main_function :: ModuleArena -> VariableArena -> SIR.ModuleKey -> Compiler.WithDiagnostics Error Void (Maybe SIR.VariableKey)
 search_for_main_function mods variables mod =
-    let (SIR.Module _ bindings _ _) = Arena.get mods mod
+    let (SIR.Module _ _ bindings _ _) = Arena.get mods mod
         variables_called_main = bindings &
             concatMap (\ (SIR.Binding pat _ _) -> go_pat pat)
     in case variables_called_main of
@@ -197,7 +197,7 @@ convert_type (AST.Type'Function sp arg res) = SIR.TypeExpr'Function () sp <$> co
 convert_type (AST.Type'Forall sp tys ty) =
     mapM (new_type_var . fmap convert_aiden_tok) tys >>= \case
         [] -> convert_type ty -- can happen if the user passed none
-        tyv1:tyv_more -> SIR.TypeExpr'Forall () sp (tyv1 :| tyv_more) <$> convert_type ty
+        tyv1:tyv_more -> SIR.TypeExpr'Forall () sp () (tyv1 :| tyv_more) <$> convert_type ty
 
 convert_type (AST.Type'Apply sp ty args) =
     convert_type ty >>= \ ty ->
@@ -232,13 +232,13 @@ convert_expr cur_id (AST.Expr'Let sp decls subexpr) = go cur_id decls
         go cur_id [] = convert_expr cur_id subexpr
         go cur_id (first:more) =
             convert_decls (ID.VarParent'Let cur_id) (ID.DeclParent'Let cur_id) [first] >>= \ (bindings, adts, type_synonyms) ->
-            SIR.Expr'Let cur_id () sp bindings adts type_synonyms <$> go (ID.ExprID'LetResultOf cur_id) more
+            SIR.Expr'Let cur_id () sp () bindings adts type_synonyms <$> go (ID.ExprID'LetResultOf cur_id) more
 convert_expr cur_id (AST.Expr'LetRec sp decls subexpr) =
     convert_decls (ID.VarParent'Let cur_id) (ID.DeclParent'Let cur_id) decls >>= \ (bindings, adts, type_synonyms) ->
-    SIR.Expr'LetRec cur_id () sp bindings adts type_synonyms <$> convert_expr (ID.ExprID'LetResultOf cur_id) subexpr
+    SIR.Expr'LetRec cur_id () sp () bindings adts type_synonyms <$> convert_expr (ID.ExprID'LetResultOf cur_id) subexpr
 convert_expr cur_id (AST.Expr'Where sp subexpr decls) =
     convert_decls (ID.VarParent'Where cur_id) (ID.DeclParent'Where cur_id) decls >>= \ (bindings, adts, type_synonyms) ->
-    SIR.Expr'LetRec cur_id () sp bindings adts type_synonyms <$> convert_expr (ID.ExprID'WhereResultOf cur_id) subexpr
+    SIR.Expr'LetRec cur_id () sp () bindings adts type_synonyms <$> convert_expr (ID.ExprID'WhereResultOf cur_id) subexpr
 
 convert_expr cur_id (AST.Expr'BinaryOps sp first ops) =
     SIR.Expr'BinaryOps cur_id () () sp
@@ -270,7 +270,7 @@ convert_expr cur_id (AST.Expr'Match sp (Located match_tok_sp _) e arms) =
         (\ ind (pat, choice) ->
             convert_pattern (ID.VarParent'MatchArm cur_id ind) pat >>= \ pat ->
             convert_expr (ID.ExprID'MatchArm cur_id ind) choice >>= \ choice ->
-            pure (pat, choice))
+            pure ((), pat, choice))
         [0..]
         arms
         >>= \ arms ->
@@ -280,7 +280,7 @@ convert_expr cur_id (AST.Expr'TypeAnnotation sp ty e) = SIR.Expr'TypeAnnotation 
 convert_expr cur_id (AST.Expr'Forall sp tys e) =
     mapM (new_type_var . fmap convert_aiden_tok) tys >>= \case
         [] -> convert_expr (ID.ExprID'ForallResult cur_id) e
-        tyv1:tyv_more -> SIR.Expr'Forall cur_id () sp (tyv1 :| tyv_more) <$> convert_expr (ID.ExprID'ForallResult cur_id) e
+        tyv1:tyv_more -> SIR.Expr'Forall cur_id () sp () (tyv1 :| tyv_more) <$> convert_expr (ID.ExprID'ForallResult cur_id) e
 
 convert_expr cur_id (AST.Expr'TypeApply sp e args) =
     convert_expr (ID.ExprID'TypeApplyFirst cur_id) e >>= \ e ->

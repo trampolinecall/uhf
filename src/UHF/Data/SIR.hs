@@ -28,6 +28,7 @@ module UHF.Data.SIR
     , expr_type
     , pattern_type
     , type_expr_evaled
+    , split_identifier_resolved
     , expr_span
     , pattern_span
     , type_expr_span
@@ -116,7 +117,7 @@ data TypeExpr stage
 deriving instance AllShowable stage => Show (TypeExpr stage)
 
 data SplitIdentifier resolved stage
-    = SplitIdentifier'Get (TypeExpr stage) (Located Text)
+    = SplitIdentifier'Get (TypeExpr stage) (Located Text) (Stage.IdenResolvedFunctor stage resolved)
     | SplitIdentifier'Single (Stage.NameMapIndex stage) (Located Text) (Stage.IdenResolvedFunctor stage resolved)
 deriving instance (AllShowable stage, Stage.IdenResolvedFunctorHasInstance resolved Show stage) => Show (SplitIdentifier resolved stage)
 
@@ -130,7 +131,7 @@ data ValueRef
     deriving Show
 
 data Expr stage
-    = Expr'Refer ID.ExprID (Stage.TypeInfo stage) Span (ExprIdentifierRef stage) (Stage.IdenResolvedFunctor stage ValueRef)
+    = Expr'Refer ID.ExprID (Stage.TypeInfo stage) Span (ExprIdentifierRef stage) (Stage.IdenResolvedFunctor stage ValueRef) -- TODO: remove this last field?
     | Expr'Char ID.ExprID (Stage.TypeInfo stage) Span Char
     | Expr'String ID.ExprID (Stage.TypeInfo stage) Span Text
     | Expr'Int ID.ExprID (Stage.TypeInfo stage) Span Integer
@@ -146,7 +147,7 @@ data Expr stage
         (Stage.TypeInfo stage)
         Span
         (Expr stage)
-        [(Span, OperatorRef stage, Stage.IdenResolvedFunctor stage ValueRef, Expr stage)]
+        [(Span, OperatorRef stage, Stage.IdenResolvedFunctor stage ValueRef, Expr stage)] -- TODO: remove IdenResolvedFunctor stage ValueRef because it's already in OperatorRef?
     | Expr'Call ID.ExprID (Stage.TypeInfo stage) Span (Expr stage) (Expr stage)
     | Expr'If ID.ExprID (Stage.TypeInfo stage) Span Span (Expr stage) (Expr stage) (Expr stage)
     | Expr'Match ID.ExprID (Stage.TypeInfo stage) Span Span (Expr stage) [(Stage.NameMapIndex stage, Pattern stage, Expr stage)]
@@ -168,14 +169,14 @@ data Pattern stage
         (Stage.TypeInfo stage)
         Span
         (PatternADTVariantRef stage)
-        (Stage.IdenResolvedFunctor stage Type.ADT.VariantIndex)
+        (Stage.IdenResolvedFunctor stage Type.ADT.VariantIndex) -- TODO: remove this field because it's already in PatternADTVariantRef?
         [Stage.TypeInfo stage]
         [Pattern stage]
     | Pattern'NamedADTVariant
         (Stage.TypeInfo stage)
         Span
         (PatternADTVariantRef stage)
-        (Stage.IdenResolvedFunctor stage Type.ADT.VariantIndex)
+        (Stage.IdenResolvedFunctor stage Type.ADT.VariantIndex) -- TODO: remove this field because it's already in PatternADTVariantRef?
         [Stage.TypeInfo stage]
         [(Located Text, Pattern stage)]
     | Pattern'Poison (Stage.TypeInfo stage) Span
@@ -202,6 +203,10 @@ type_expr_span (TypeExpr'Forall _ span _ _ _) = span
 type_expr_span (TypeExpr'Apply _ span _ _) = span
 type_expr_span (TypeExpr'Wild _ span) = span
 type_expr_span (TypeExpr'Poison _ span) = span
+
+split_identifier_resolved :: SplitIdentifier resolved stage -> Stage.IdenResolvedFunctor stage resolved
+split_identifier_resolved (SplitIdentifier'Get _ _ resolved) = resolved
+split_identifier_resolved (SplitIdentifier'Single _ _ resolved) = resolved
 
 expr_type :: Expr stage -> Stage.TypeInfo stage
 expr_type (Expr'Refer _ type_info _ _ _) = type_info

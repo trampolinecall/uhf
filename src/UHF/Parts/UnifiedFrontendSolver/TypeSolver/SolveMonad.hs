@@ -1,6 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module UHF.Parts.TypeSolver.SolveMonad
+module UHF.Parts.UnifiedFrontendSolver.TypeSolver.SolveMonad
     ( SolveMonad (..)
     , SolverState (..)
     , run_solve_monad

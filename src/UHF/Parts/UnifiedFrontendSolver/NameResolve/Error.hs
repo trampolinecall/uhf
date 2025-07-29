@@ -1,6 +1,6 @@
 {-# LANGUAGE ExistentialQuantification #-}
 
-module UHF.Parts.NameResolve.Error
+module UHF.Parts.UnifiedFrontendSolver.NameResolve.Error
     ( Error (..)
     , WithErrors
     ) where
@@ -11,8 +11,8 @@ import UHF.Prelude
 
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Diagnostic as Diagnostic
-import UHF.Parts.NameResolve.DeclAt
-import qualified UHF.Parts.TypeSolver as TypeSolver
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.DeclAt
+import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver as TypeSolver
 import UHF.Source.Located (Located (Located))
 import UHF.Source.Span (Span)
 

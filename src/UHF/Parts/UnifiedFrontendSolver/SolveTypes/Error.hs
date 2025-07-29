@@ -1,10 +1,10 @@
-module UHF.Parts.SolveTypes.Error (Error(..)) where
+module UHF.Parts.UnifiedFrontendSolver.SolveTypes.Error (Error (..)) where
 
 import UHF.Prelude
 
-import UHF.Parts.SolveTypes.Aliases
+import UHF.Parts.UnifiedFrontendSolver.SolveTypes.Aliases
 import qualified UHF.Diagnostic as Diagnostic
-import qualified UHF.Parts.TypeSolver as TypeSolver
+import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver as TypeSolver
 
 data Error
     = AmbiguousType TypeSolver.InferVarForWhat

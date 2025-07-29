@@ -1,4 +1,4 @@
-module UHF.Parts.NameResolve.AssignNameMaps
+module UHF.Parts.UnifiedFrontendSolver.NameResolve.AssignNameMaps
     ( Unassigned
     , Assigned
     , assign
@@ -11,11 +11,11 @@ import qualified Data.Map as Map
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
-import qualified UHF.Parts.NameResolve.Error as Error
-import qualified UHF.Parts.NameResolve.NRReader as NRReader
-import qualified UHF.Parts.NameResolve.NameMaps as NameMaps
+import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Error as Error
+import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.NRReader as NRReader
+import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.NameMaps as NameMaps
 import qualified UHF.Util.Arena as Arena
-import qualified UHF.Parts.TypeSolver.TypeWithInferVar as TypeWithInferVar
+import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar as TypeWithInferVar
 
 -- TODO: figure out a better solution than to have adt_parents and type_synonym_parents
 

@@ -1,4 +1,4 @@
-module UHF.Parts.TypeSolver
+module UHF.Parts.UnifiedFrontendSolver.TypeSolver
     ( Constraint (..)
     , EqInWhat (..)
     , ExpectInWhat (..)
@@ -34,10 +34,10 @@ module UHF.Parts.TypeSolver
 
 -- TODO: clean up SolveTypes modules so that they import this instead of the submodules here
 
-import UHF.Parts.TypeSolver.Constraint
-import UHF.Parts.TypeSolver.Solve
-import UHF.Parts.TypeSolver.SolveError
-import UHF.Parts.TypeSolver.SolveMonad
-import UHF.Parts.TypeSolver.TypeWithInferVar
-import UHF.Parts.TypeSolver.TypeWithInferVar.PP
-import UHF.Parts.TypeSolver.Utils
+import UHF.Parts.UnifiedFrontendSolver.TypeSolver.Constraint
+import UHF.Parts.UnifiedFrontendSolver.TypeSolver.Solve
+import UHF.Parts.UnifiedFrontendSolver.TypeSolver.SolveError
+import UHF.Parts.UnifiedFrontendSolver.TypeSolver.SolveMonad
+import UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar
+import UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar.PP
+import UHF.Parts.UnifiedFrontendSolver.TypeSolver.Utils

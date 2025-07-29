@@ -1,4 +1,4 @@
-module UHF.Parts.NameResolve.Finalize (finalize) where
+module UHF.Parts.UnifiedFrontendSolver.NameResolve.Finalize (finalize) where
 
 import UHF.Prelude
 
@@ -9,10 +9,10 @@ import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
-import qualified UHF.Parts.NameResolve.Error as Error
-import qualified UHF.Parts.NameResolve.NameMaps as NameMaps
-import UHF.Parts.NameResolve.ResolveResult
-import qualified UHF.Parts.TypeSolver as TypeSolver
+import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Error as Error
+import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.NameMaps as NameMaps
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.ResolveResult
+import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver as TypeSolver
 import UHF.Source.Located (Located)
 import qualified UHF.Util.Arena as Arena
 

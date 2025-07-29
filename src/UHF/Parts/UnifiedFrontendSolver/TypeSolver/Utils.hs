@@ -1,9 +1,9 @@
-module UHF.Parts.TypeSolver.Utils (substitute_quant_var) where
+module UHF.Parts.UnifiedFrontendSolver.TypeSolver.Utils (substitute_quant_var) where
 
 import UHF.Prelude
 
-import UHF.Parts.TypeSolver.TypeWithInferVar
-import qualified UHF.Parts.TypeSolver.SolveMonad as SolveMonad
+import UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar
+import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver.SolveMonad as SolveMonad
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Util.Arena as Arena
 

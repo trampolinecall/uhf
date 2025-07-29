@@ -1,4 +1,4 @@
-module UHF.Parts.NameResolve.ResolveResult (ResolveResult (..), if_inconclusive) where
+module UHF.Parts.UnifiedFrontendSolver.NameResolve.ResolveResult (ResolveResult (..), if_inconclusive) where
 
 import UHF.Prelude
 

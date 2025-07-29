@@ -1,4 +1,4 @@
-module UHF.Parts.NameResolve.ResolveReferStarts
+module UHF.Parts.UnifiedFrontendSolver.NameResolve.ResolveReferStarts
     ( resolve
     , Unresolved
     , Resolved
@@ -12,9 +12,9 @@ import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
-import qualified UHF.Parts.TypeSolver as TypeSolver
-import qualified UHF.Parts.NameResolve.Error as Error
-import qualified UHF.Parts.NameResolve.NameMaps as NameMaps
+import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver as TypeSolver
+import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Error as Error
+import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.NameMaps as NameMaps
 import qualified UHF.Util.Arena as Arena
 
 type UnresolvedIdenStart = (NameMaps.NameMapStack, Located Text)

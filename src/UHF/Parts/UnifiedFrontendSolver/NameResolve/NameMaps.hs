@@ -1,4 +1,4 @@
-module UHF.Parts.NameResolve.NameMaps
+module UHF.Parts.UnifiedFrontendSolver.NameResolve.NameMaps
     ( NameMapStackKey
     , NameMapStack (..)
     , NameMaps
@@ -44,11 +44,11 @@ import qualified UHF.Data.IR.Intrinsics as Intrinsics
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
-import UHF.Parts.NameResolve.DeclAt
-import UHF.Parts.NameResolve.Error
-import UHF.Parts.NameResolve.NRReader
-import UHF.Parts.NameResolve.ResolveResult
-import qualified UHF.Parts.TypeSolver.TypeWithInferVar as TypeWithInferVar
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.DeclAt
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Error
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.NRReader
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.ResolveResult
+import qualified UHF.Data.SIR.Type as SIR.Type
 import UHF.Source.Located (Located (Located, unlocate))
 import qualified UHF.Util.Arena as Arena
 

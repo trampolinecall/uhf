@@ -1,4 +1,4 @@
-module UHF.Parts.NameResolve.Prepare (prepare) where
+module UHF.Parts.UnifiedFrontendSolver.NameResolve.Prepare (prepare) where
 
 import UHF.Prelude
 
@@ -7,8 +7,8 @@ import Data.Functor.Const (Const (Const))
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
-import UHF.Parts.NameResolve.ResolveResult
-import qualified UHF.Parts.NameResolve.NameMaps as NameMaps
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.ResolveResult
+import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.NameMaps as NameMaps
 import qualified UHF.Util.Arena as Arena
 
 type Unprepared = (NameMaps.NameMapStackKey, Const () (), (), (), (), ())

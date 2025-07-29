@@ -1,4 +1,4 @@
-module UHF.Parts.NameResolve.ResolveVPIdens
+module UHF.Parts.UnifiedFrontendSolver.NameResolve.ResolveVPIdens
     ( resolve
     , Unresolved
     , Resolved
@@ -10,10 +10,10 @@ import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
-import qualified UHF.Parts.TypeSolver as TypeSolver
-import qualified UHF.Parts.NameResolve.Error as Error
-import qualified UHF.Parts.NameResolve.NRReader as NRReader
-import qualified UHF.Parts.NameResolve.NameMaps as NameMaps
+import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver as TypeSolver
+import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Error as Error
+import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.NRReader as NRReader
+import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.NameMaps as NameMaps
 import qualified UHF.Util.Arena as Arena
 
 type DIden = Maybe (SIR.DeclRef TypeSolver.Type)

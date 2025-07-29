@@ -17,7 +17,7 @@ import qualified UHF.Data.IR.Type.PP as Type.PP
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.PP as PP
 import qualified UHF.PP.Precedence as PP.Precedence
-import qualified UHF.Parts.TypeSolver as TypeSolver
+import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver as TypeSolver
 import qualified UHF.Util.Arena as Arena
 
 type IRReader stage = Reader (SIR.SIR stage)

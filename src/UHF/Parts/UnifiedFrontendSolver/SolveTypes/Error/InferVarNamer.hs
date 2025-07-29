@@ -1,7 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module UHF.Parts.SolveTypes.Error.InferVarNamer (InferVarNamer, run_infer_var_namer, name_infer_var, tests) where
+module UHF.Parts.UnifiedFrontendSolver.SolveTypes.Error.InferVarNamer (InferVarNamer, run_infer_var_namer, name_infer_var, tests) where
 
 import UHF.Prelude
 
@@ -10,7 +10,7 @@ import qualified Data.Map as Map
 import qualified Data.Text as Text
 import GHC.Enum (Enum (succ))
 
-import qualified UHF.Parts.TypeSolver as TypeSolver
+import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver as TypeSolver
 
 -- InferVarName's list is in reverse order to the order that the names are displayed
 -- this is because the logic in inc_name splits a name into the rightmost digit and the rest of the digits, which matches the structure of a linked list in reverse

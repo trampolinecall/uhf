@@ -1,13 +1,13 @@
-module UHF.Parts.TypeSolver.SolveError
+module UHF.Parts.UnifiedFrontendSolver.TypeSolver.SolveError
     ( ErrorTypeContext(..) -- TODO: remove?
     , SolveError (..)
     ) where
 
 import UHF.Prelude
 
-import UHF.Parts.TypeSolver.Constraint
-import UHF.Parts.TypeSolver.TypeWithInferVar
-import UHF.Parts.TypeSolver.TypeWithInferVar.PP
+import UHF.Parts.UnifiedFrontendSolver.TypeSolver.Constraint
+import UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar
+import UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar.PP
 import UHF.Source.Located (Located (..))
 import UHF.Source.Span (Span)
 import qualified UHF.Util.Arena as Arena

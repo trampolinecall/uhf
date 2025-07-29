@@ -1,10 +1,10 @@
-module UHF.Parts.SolveTypes.AddTypes (add) where
+module UHF.Parts.UnifiedFrontendSolver.SolveTypes.AddTypes (add) where
 
 import UHF.Prelude
 
 import Control.Monad ((>=>))
-import UHF.Parts.SolveTypes.Aliases
-import UHF.Parts.SolveTypes.Error
+import UHF.Parts.UnifiedFrontendSolver.SolveTypes.Aliases
+import UHF.Parts.UnifiedFrontendSolver.SolveTypes.Error
 import UHF.Source.Located (Located (..))
 import UHF.Source.Span (Span)
 import qualified UHF.Compiler as Compiler
@@ -12,7 +12,7 @@ import qualified UHF.Data.IR.Intrinsics as Intrinsics
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
-import qualified UHF.Parts.TypeSolver as TypeSolver
+import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver as TypeSolver
 import qualified UHF.Util.Arena as Arena
 
 type ContextReader adts type_synonyms quant_vars vars = ReaderT (adts, type_synonyms, quant_vars, vars) (WriterT [TypeSolver.Constraint] (TypeSolver.SolveMonad (Compiler.WithDiagnostics Error Void)))

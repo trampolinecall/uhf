@@ -1,8 +1,8 @@
-module UHF.Parts.TypeSolver.Constraint where
+module UHF.Parts.UnifiedFrontendSolver.TypeSolver.Constraint where
 
+import UHF.Data.SIR.Type
 import UHF.Source.Located (Located)
 import UHF.Source.Span (Span)
-import UHF.Data.SIR.Type
 
 -- TODO: maybe dont have InWhat
 data EqInWhat = InAssignment | InNamedPattern | InIfBranches | InMatchPatterns | InMatchArms

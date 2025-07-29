@@ -1,4 +1,4 @@
-module UHF.Parts.NameResolve.NRReader
+module UHF.Parts.UnifiedFrontendSolver.NameResolve.NRReader
     ( NRReader
 
     , ask_adt_arena -- TODO: remove

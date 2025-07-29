@@ -1,16 +1,16 @@
-module UHF.Parts.SolveTypes.RemoveInferVars (remove) where
+module UHF.Parts.UnifiedFrontendSolver.SolveTypes.RemoveInferVars (remove) where
 
 import UHF.Prelude
 
 import qualified Data.List.NonEmpty as NonEmpty
 
-import UHF.Parts.SolveTypes.Aliases
-import UHF.Parts.SolveTypes.Error
+import UHF.Parts.UnifiedFrontendSolver.SolveTypes.Aliases
+import UHF.Parts.UnifiedFrontendSolver.SolveTypes.Error
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
-import qualified UHF.Parts.TypeSolver as TypeSolver
+import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver as TypeSolver
 import qualified UHF.Util.Arena as Arena
 
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)

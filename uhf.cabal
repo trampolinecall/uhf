@@ -47,22 +47,8 @@ library
       UHF.Diagnostic.Styles.Default.Utils
       UHF.Diagnostic.Styles.JSON
       UHF.Driver
-      UHF.Parts.InfixGroup
       UHF.Parts.Lexer
       UHF.Parts.Lexer.LexError
-      UHF.Parts.NameResolve
-      UHF.Parts.NameResolve.AssignNameMaps
-      UHF.Parts.NameResolve.DeclAt
-      UHF.Parts.NameResolve.Error
-      UHF.Parts.NameResolve.EvalTypeExprs
-      UHF.Parts.NameResolve.Finalize
-      UHF.Parts.NameResolve.NameMaps
-      UHF.Parts.NameResolve.NRReader
-      UHF.Parts.NameResolve.Prepare
-      UHF.Parts.NameResolve.Resolve
-      UHF.Parts.NameResolve.ResolveReferStarts
-      UHF.Parts.NameResolve.ResolveResult
-      UHF.Parts.NameResolve.ResolveVPIdens
       UHF.Parts.OptimizeANFIR
       UHF.Parts.OptimizeANFIR.RemoveRefers
       UHF.Parts.OptimizeANFIR.Utils
@@ -72,12 +58,6 @@ library
       UHF.Parts.Parser.Grammar
       UHF.Parts.RemovePoison
       UHF.Parts.ReportHoles
-      UHF.Parts.SolveTypes
-      UHF.Parts.SolveTypes.AddTypes
-      UHF.Parts.SolveTypes.Aliases
-      UHF.Parts.SolveTypes.Error
-      UHF.Parts.SolveTypes.Error.InferVarNamer
-      UHF.Parts.SolveTypes.RemoveInferVars
       UHF.Parts.ToANFIR
       UHF.Parts.ToBackendIR
       UHF.Parts.ToRIR
@@ -87,12 +67,32 @@ library
       UHF.Parts.TSBackend
       UHF.Parts.TSBackend.TS
       UHF.Parts.TSBackend.TS.PP
-      UHF.Parts.TypeSolver
-      UHF.Parts.TypeSolver.Constraint
-      UHF.Parts.TypeSolver.Solve
-      UHF.Parts.TypeSolver.SolveError
-      UHF.Parts.TypeSolver.SolveMonad
-      UHF.Parts.TypeSolver.Utils
+      UHF.Parts.UnifiedFrontendSolver.InfixGroup
+      UHF.Parts.UnifiedFrontendSolver.NameResolve
+      UHF.Parts.UnifiedFrontendSolver.NameResolve.AssignNameMaps
+      UHF.Parts.UnifiedFrontendSolver.NameResolve.DeclAt
+      UHF.Parts.UnifiedFrontendSolver.NameResolve.Error
+      UHF.Parts.UnifiedFrontendSolver.NameResolve.EvalTypeExprs
+      UHF.Parts.UnifiedFrontendSolver.NameResolve.Finalize
+      UHF.Parts.UnifiedFrontendSolver.NameResolve.NameMaps
+      UHF.Parts.UnifiedFrontendSolver.NameResolve.NRReader
+      UHF.Parts.UnifiedFrontendSolver.NameResolve.Prepare
+      UHF.Parts.UnifiedFrontendSolver.NameResolve.Resolve
+      UHF.Parts.UnifiedFrontendSolver.NameResolve.ResolveReferStarts
+      UHF.Parts.UnifiedFrontendSolver.NameResolve.ResolveResult
+      UHF.Parts.UnifiedFrontendSolver.NameResolve.ResolveVPIdens
+      UHF.Parts.UnifiedFrontendSolver.SolveTypes
+      UHF.Parts.UnifiedFrontendSolver.SolveTypes.AddTypes
+      UHF.Parts.UnifiedFrontendSolver.SolveTypes.Aliases
+      UHF.Parts.UnifiedFrontendSolver.SolveTypes.Error
+      UHF.Parts.UnifiedFrontendSolver.SolveTypes.Error.InferVarNamer
+      UHF.Parts.UnifiedFrontendSolver.SolveTypes.RemoveInferVars
+      UHF.Parts.UnifiedFrontendSolver.TypeSolver
+      UHF.Parts.UnifiedFrontendSolver.TypeSolver.Constraint
+      UHF.Parts.UnifiedFrontendSolver.TypeSolver.Solve
+      UHF.Parts.UnifiedFrontendSolver.TypeSolver.SolveError
+      UHF.Parts.UnifiedFrontendSolver.TypeSolver.SolveMonad
+      UHF.Parts.UnifiedFrontendSolver.TypeSolver.Utils
       UHF.PP
       UHF.PP.IndentationMonad
       UHF.PP.Precedence

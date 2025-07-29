@@ -1,7 +1,7 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE TypeOperators #-}
 
-module UHF.Parts.InfixGroup (group) where
+module UHF.Parts.UnifiedFrontendSolver.InfixGroup (group) where
 
 import UHF.Prelude
 

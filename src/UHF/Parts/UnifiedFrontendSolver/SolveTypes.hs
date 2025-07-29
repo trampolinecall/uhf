@@ -1,14 +1,14 @@
-module UHF.Parts.SolveTypes (solve) where
+module UHF.Parts.UnifiedFrontendSolver.SolveTypes (solve) where
 
 import UHF.Prelude
 
-import UHF.Parts.SolveTypes.Aliases
-import UHF.Parts.SolveTypes.Error
+import UHF.Parts.UnifiedFrontendSolver.SolveTypes.Aliases
+import UHF.Parts.UnifiedFrontendSolver.SolveTypes.Error
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.SIR as SIR
-import qualified UHF.Parts.TypeSolver as TypeSolver
-import qualified UHF.Parts.SolveTypes.AddTypes as AddTypes
-import qualified UHF.Parts.SolveTypes.RemoveInferVars as RemoveInferVars
+import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver as TypeSolver
+import qualified UHF.Parts.UnifiedFrontendSolver.SolveTypes.AddTypes as AddTypes
+import qualified UHF.Parts.UnifiedFrontendSolver.SolveTypes.RemoveInferVars as RemoveInferVars
 import qualified UHF.Util.Arena as Arena
 
 -- this does both type inference and type checking

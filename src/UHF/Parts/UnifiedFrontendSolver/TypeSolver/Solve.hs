@@ -1,6 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module UHF.Parts.TypeSolver.Solve
+module UHF.Parts.UnifiedFrontendSolver.TypeSolver.Solve
     ( solve -- TODO: remove?
 
     , ApplyTypeResult (..)
@@ -14,14 +14,14 @@ import UHF.Prelude
 
 import qualified Data.Map as Map
 
-import UHF.Parts.TypeSolver.Constraint
-import UHF.Parts.TypeSolver.SolveError
-import UHF.Parts.TypeSolver.TypeWithInferVar
-import UHF.Parts.TypeSolver.Utils
+import UHF.Parts.UnifiedFrontendSolver.TypeSolver.Constraint
+import UHF.Parts.UnifiedFrontendSolver.TypeSolver.SolveError
+import UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar
+import UHF.Parts.UnifiedFrontendSolver.TypeSolver.Utils
 import UHF.Source.Located (Located (..))
 import UHF.Source.Span (Span)
 import qualified UHF.Data.IR.Type as Type
-import qualified UHF.Parts.TypeSolver.SolveMonad as SolveMonad
+import qualified UHF.Parts.UnifiedFrontendSolver.SolveMonad as SolveMonad
 import qualified UHF.Util.Arena as Arena
 
 -- e_t for error type - the type of the type expressions in the things that will be passed to error messages

@@ -157,7 +157,7 @@ convert_decls var_parent decl_parent decls =
         convert_decl _ (AST.Decl'TypeSyn _ l_name@(Located _ name) expansion) =
             runMaybeT (
                 lift (convert_type expansion) >>= \ expansion' ->
-                lift (new_type_synonym (SIR.TypeSynonym (ID.DeclID decl_parent (convert_aiden_tok name)) (convert_aiden_tok <$> l_name) (expansion', ())))
+                lift (new_type_synonym (SIR.TypeSynonym (ID.DeclID decl_parent (convert_aiden_tok name)) (convert_aiden_tok <$> l_name) expansion'))
             ) >>= \case
                 Just syn_key -> pure ([], [], [syn_key])
                 Nothing -> pure ([], [], [])
@@ -168,7 +168,7 @@ convert_decls var_parent decl_parent decls =
                 <$> zipWithM
                     (\ field_idx ty_ast ->
                         lift (convert_type ty_ast) >>= \ ty ->
-                        pure (ID.ADTFieldID variant_id (show (field_idx :: Int)), (ty, ())))
+                        pure (ID.ADTFieldID variant_id (show (field_idx :: Int)), ty))
                     [0..]
                     fields
         convert_variant adt_id (AST.DataVariant'Named (Located variant_name_sp (Token.AlphaIdentifier variant_name)) fields) =
@@ -178,7 +178,7 @@ convert_decls var_parent decl_parent decls =
                 <$> mapM
                     (\ (Located _ (Token.AlphaIdentifier field_name), ty_ast) ->
                         lift (convert_type ty_ast) >>= \ ty ->
-                        pure (ID.ADTFieldID variant_id field_name, field_name, (ty, ())))
+                        pure (ID.ADTFieldID variant_id field_name, field_name, ty))
                     fields
 
 convert_type :: AST.Type -> MakeIRState TypeExpr

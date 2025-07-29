@@ -73,6 +73,7 @@ library
       UHF.Parts.UnifiedFrontendSolver.NameResolve.EvalTypeExprs
       UHF.Parts.UnifiedFrontendSolver.NameResolve.Finalize
       UHF.Parts.UnifiedFrontendSolver.NameResolve.NameMaps
+      UHF.Parts.UnifiedFrontendSolver.NameResolve.NameResolveResultArena
       UHF.Parts.UnifiedFrontendSolver.NameResolve.NRReader
       UHF.Parts.UnifiedFrontendSolver.NameResolve.Prepare
       UHF.Parts.UnifiedFrontendSolver.NameResolve.Resolve

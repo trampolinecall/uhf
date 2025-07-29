@@ -32,17 +32,45 @@ type PostResolve =
 type PrevStep prev_bee =
     (NameMaps.NameMapStackKey, ResolveResult prev_bee Compiler.ErrorReportedPromise (), SIR.DeclRef TypeSolver.Type, TypeSolver.Type, (), ())
 
--- TODO: remove these
-type QuantVarArena = Arena.Arena Type.QuantVar Type.QuantVarKey
-type ModuleArena prev_bee = Arena.Arena (SIR.Module (PrevStep prev_bee)) SIR.ModuleKey
-type ADTArena prev_bee = Arena.Arena (SIR.ADT (PrevStep prev_bee)) Type.ADTKey
-type TypeSynonymArena prev_bee = Arena.Arena (SIR.TypeSynonym (PrevStep prev_bee)) Type.TypeSynonymKey
-type VariableArena prev_bee = Arena.Arena (SIR.Variable (PrevStep prev_bee)) SIR.VariableKey
+type NameMapStackArena = Arena.Arena NameMaps.NameMapStack NameMaps.NameMapStackKey
+type ResolveMonad =
+    WriterT
+        ProgressMade
+        ( ReaderT
+            NameMapStackArena
+            ( NRReader.NRReader
+                (Arena.Arena (SIR.ADT PreResolve) Type.ADTKey)
+                (Arena.Arena (SIR.TypeSynonym PreResolve) Type.TypeSynonymKey)
+                ()
+                (Arena.Arena Type.QuantVar Type.QuantVarKey)
+                NameMaps.SIRChildMaps
+                (WriterT [TypeSolver.Constraint] (TypeSolver.SolveMonad Error.WithErrors))
+            )
+        )
 
-resolve :: SIR.SIR PreResolve -> Error.WithErrors (SIR.SIR PostResolve)
-resolve = go
+resolve ::
+    Arena.Arena NameMaps.NameMapStack NameMaps.NameMapStackKey ->
+    NameMaps.SIRChildMaps ->
+    SIR.SIR PreResolve ->
+    Error.WithErrors (SIR.SIR PostResolve, [TypeSolver.Constraint], TypeSolver.SolverState)
+resolve name_map_stack_arena sir_child_maps sir@(SIR.SIR _ adts type_synonyms type_vars _ (SIR.CU _ _)) = do
+    ((sir, constraints), solver_state) <-
+        TypeSolver.run_solve_monad $ runWriterT $ runReaderT (runReaderT (go sir) name_map_stack_arena) (adts, type_synonyms, (), type_vars, sir_child_maps)
+    pure (sir, constraints, solver_state)
     where
-        go :: SIR.SIR (PrevStep prev_bee) -> Writer (Compiler.Diagnostics Error.Error Void) (SIR.SIR PostResolve)
+        go ::
+            SIR.SIR (PrevStep prev_bee) ->
+            ReaderT
+                NameMapStackArena
+                ( NRReader.NRReader
+                    (Arena.Arena (SIR.ADT PreResolve) Type.ADTKey)
+                    (Arena.Arena (SIR.TypeSynonym PreResolve) Type.TypeSynonymKey)
+                    ()
+                    (Arena.Arena Type.QuantVar Type.QuantVarKey)
+                    NameMaps.SIRChildMaps
+                    (WriterT [TypeSolver.Constraint] (TypeSolver.SolveMonad Error.WithErrors))
+                )
+                (SIR.SIR PostResolve)
         go sir = do
             (sir', progress_made) <- runWriterT $ resolve_single_step sir
             case progress_made of
@@ -58,49 +86,28 @@ instance Semigroup ProgressMade where
 instance Monoid ProgressMade where
     mempty = NoProgressMade
 
-resolve_single_step :: SIR.SIR (PrevStep prev_bee) -> WriterT ProgressMade Error.WithErrors (SIR.SIR PostResolve)
+resolve_single_step ::
+    SIR.SIR (PrevStep prev_bee) ->
+    ResolveMonad (SIR.SIR PostResolve)
 resolve_single_step (SIR.SIR mods adts type_synonyms type_vars variables (SIR.CU root_module main_function)) = do
-    mods <- runReaderT (Arena.transformM resolve_in_module mods) (adts, type_synonyms, variables, type_vars, ())
-    adts <- runReaderT (Arena.transformM resolve_in_adt adts) ((), (), (), type_vars, ())
-    type_synonyms <- runReaderT (Arena.transformM resolve_in_type_synonym type_synonyms) ((), (), (), type_vars, ())
+    mods <- Arena.transformM resolve_in_module mods
+    adts <- Arena.transformM resolve_in_adt adts
+    type_synonyms <- Arena.transformM resolve_in_type_synonym type_synonyms
     pure (SIR.SIR mods adts type_synonyms type_vars (Arena.transform change_variable variables) (SIR.CU root_module main_function))
     where
         change_variable (SIR.Variable varid tyinfo n) = SIR.Variable varid tyinfo n
 
-resolve_in_module ::
-    SIR.Module (PrevStep prev_bee) ->
-    ( NRReader.NRReader
-        (ADTArena prev_bee)
-        (TypeSynonymArena prev_bee)
-        (VariableArena prev_bee)
-        QuantVarArena
-        sir_child_maps
-        (WriterT ProgressMade Error.WithErrors)
-    )
-        (SIR.Module PostResolve)
+resolve_in_module :: SIR.Module (PrevStep prev_bee) -> ResolveMonad (SIR.Module PostResolve)
 resolve_in_module (SIR.Module id name_maps bindings adts type_synonyms) = do
     bindings <- mapM resolve_in_binding bindings
     pure $ SIR.Module id name_maps bindings adts type_synonyms
 
-resolve_in_adt ::
-    SIR.ADT (PrevStep prev_bee) ->
-    NRReader.NRReader
-        adt_arena
-        type_synonym_arena
-        var_arena
-        QuantVarArena
-        sir_child_maps
-        (WriterT ProgressMade Error.WithErrors)
-        (SIR.ADT PostResolve)
+resolve_in_adt :: SIR.ADT (PrevStep prev_bee) -> ResolveMonad (SIR.ADT PostResolve)
 resolve_in_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM resolve_in_variant variants
     where
         resolve_in_variant ::
-            Type.ADT.Variant
-                (SIR.TypeExpr (PrevStep prev_bee1), ResolveResult prev_bee1 Compiler.ErrorReportedPromise TypeSolver.Type) ->
-            ReaderT
-                (adt_arena1, type_synonym_arena1, var_arena1, QuantVarArena, sir_child_maps1)
-                (WriterT ProgressMade Error.WithErrors)
-                (Type.ADT.Variant (SIR.TypeExpr PostResolve, ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise TypeSolver.Type))
+            Type.ADT.Variant (SIR.TypeExpr (PrevStep prev_bee1), ResolveResult prev_bee1 Compiler.ErrorReportedPromise TypeSolver.Type) ->
+            ResolveMonad (Type.ADT.Variant (SIR.TypeExpr PostResolve, ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise TypeSolver.Type))
         resolve_in_variant (Type.ADT.Variant'Named name id fields) =
             Type.ADT.Variant'Named name id
                 <$> mapM
@@ -120,43 +127,16 @@ resolve_in_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_var
                     )
                     fields
 
-resolve_in_type_synonym ::
-    SIR.TypeSynonym (PrevStep prev_bee) ->
-    NRReader.NRReader
-        adt_arena
-        type_synonym_arena
-        var_arena
-        QuantVarArena
-        sir_child_maps
-        (WriterT ProgressMade Error.WithErrors)
-        (SIR.TypeSynonym PostResolve)
+resolve_in_type_synonym :: SIR.TypeSynonym (PrevStep prev_bee) -> ResolveMonad (SIR.TypeSynonym PostResolve)
 resolve_in_type_synonym (Type.TypeSynonym id name (expansion, expansion_as_type)) = do
     expansion <- resolve_in_type_expr expansion
     expansion_as_type <- if_inconclusive expansion_as_type (type_expr_evaled_as_type expansion)
     pure $ Type.TypeSynonym id name (expansion, expansion_as_type)
 
-resolve_in_binding ::
-    SIR.Binding (PrevStep prev_bee) ->
-    NRReader.NRReader
-        (ADTArena prev_bee)
-        (TypeSynonymArena prev_bee)
-        (VariableArena prev_bee)
-        QuantVarArena
-        sir_child_maps
-        (WriterT ProgressMade Error.WithErrors)
-        (SIR.Binding PostResolve)
+resolve_in_binding :: SIR.Binding (PrevStep prev_bee) -> ResolveMonad (SIR.Binding PostResolve)
 resolve_in_binding (SIR.Binding target eq_sp expr) = SIR.Binding <$> resolve_in_pat target <*> pure eq_sp <*> resolve_in_expr expr
 
-resolve_in_type_expr ::
-    SIR.TypeExpr (PrevStep prev_bee) ->
-    NRReader.NRReader
-        adt_arena
-        type_synonym_arena
-        var_arena
-        QuantVarArena
-        sir_child_maps
-        (WriterT ProgressMade Error.WithErrors)
-        (SIR.TypeExpr PostResolve)
+resolve_in_type_expr :: SIR.TypeExpr (PrevStep prev_bee) -> ResolveMonad (SIR.TypeExpr PostResolve)
 resolve_in_type_expr (SIR.TypeExpr'Refer _ sp nc_stack id resolved) = do
     resolved <- if_inconclusive resolved (look_up_decl nc_stack id)
     pure $ SIR.TypeExpr'Refer resolved sp nc_stack id resolved
@@ -184,7 +164,7 @@ resolve_in_type_expr (SIR.TypeExpr'Tuple evaled sp a b) = do
             )
     pure $ SIR.TypeExpr'Tuple evaled sp a b
 resolve_in_type_expr (SIR.TypeExpr'Hole evaled evaled_as_type sp hid) = do
-    evaled_as_type <- if_inconclusive evaled_as_type (make_infer_var (TypeSolver.TypeHole sp))
+    evaled_as_type <- if_inconclusive evaled_as_type (Resolved <$> make_infer_var (TypeSolver.TypeHole sp))
     evaled <- if_inconclusive evaled (pure $ SIR.DeclRef'Type <$> evaled_as_type)
     pure $ SIR.TypeExpr'Hole evaled evaled_as_type sp hid
 resolve_in_type_expr (SIR.TypeExpr'Function evaled sp arg res) = do
@@ -219,7 +199,26 @@ resolve_in_type_expr (SIR.TypeExpr'Apply evaled sp ty arg) = do
                 ty' <- type_expr_evaled_as_type ty
                 arg' <- type_expr_evaled_as_type arg
 
-                todo -- TODO: applying type requires you to interact with the type solver
+                result_ty <- case (ty', arg') of
+                    (Resolved ty', Resolved arg') -> do
+                        adts <- lift $ lift NRReader.ask_adt_arena
+                        type_synonyms <- lift $ lift NRReader.ask_type_synonym_arena
+                        quant_vars <- lift $ lift NRReader.ask_quant_var_arena
+                        lift (lift $ lift $ lift $ TypeSolver.apply_type adts type_synonyms todo quant_vars (TypeSolver.TypeExpr sp) sp ty' arg') -- TODO: figure this out
+                            >>= \case
+                                TypeSolver.AppliedResult res -> pure $ Resolved res
+                                TypeSolver.AppliedError err -> do
+                                    _ <- lift $ lift $ lift $ lift $ lift $ Compiler.tell_error (Error.Error'SolveError err)
+                                    Resolved <$> make_infer_var (TypeSolver.TypeExpr sp) -- TODO: fix duplication of this for_what
+                                TypeSolver.Inconclusive ty constraint -> do
+                                    lift $ tell [constraint]
+                                    pure $ Resolved ty
+                    (Inconclusive _, _) -> pure $ Inconclusive Nothing
+                    (_, Inconclusive _) -> pure $ Inconclusive Nothing
+                    (Errored e, _) -> pure $ Errored e
+                    (_, Errored e) -> pure $ Errored e
+
+                pure $ SIR.DeclRef'Type <$> result_ty
             )
     pure $ SIR.TypeExpr'Apply evaled sp ty arg
 resolve_in_type_expr (SIR.TypeExpr'Wild evaled sp) = do
@@ -228,7 +227,7 @@ resolve_in_type_expr (SIR.TypeExpr'Wild evaled sp) = do
             evaled
             ( do
                 infer_var <- make_infer_var (TypeSolver.TypeExpr sp)
-                pure $ SIR.DeclRef'Type <$> infer_var
+                pure $ SIR.DeclRef'Type <$> Resolved infer_var
             )
     pure $ SIR.TypeExpr'Wild evaled sp
 resolve_in_type_expr (SIR.TypeExpr'Poison evaled sp) = do
@@ -237,41 +236,27 @@ resolve_in_type_expr (SIR.TypeExpr'Poison evaled sp) = do
             evaled
             ( do
                 infer_var <- make_infer_var (TypeSolver.TypeExpr sp)
-                pure $ SIR.DeclRef'Type <$> infer_var
+                pure $ SIR.DeclRef'Type <$> Resolved infer_var
             )
     pure $ SIR.TypeExpr'Poison evaled sp
 
 type_expr_evaled_as_type ::
-    SIR.TypeExpr (PrevStep prev_bee) ->
-    ReaderT
-        (adt_arena, type_synonym_arena, var_arena, QuantVarArena, sir_child_maps)
-        (WriterT ProgressMade Error.WithErrors)
-        (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise TypeSolver.Type)
+    SIR.TypeExpr (PrevStep prev_bee) -> ResolveMonad (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise TypeSolver.Type)
 type_expr_evaled_as_type te =
     let sp = SIR.type_expr_span te
         d = SIR.type_expr_evaled te
     in case d of
         Resolved (SIR.DeclRef'Module _) -> do
-            _ <- lift $ lift $ Compiler.tell_error (Error.Error'NotAType sp "a module")
-            make_infer_var (TypeSolver.TypeExpr sp) -- TODO: don't make variables for these?
+            _ <- lift $ lift $ lift $ lift $ lift $ Compiler.tell_error (Error.Error'NotAType sp "a module")
+            Resolved <$> make_infer_var (TypeSolver.TypeExpr sp) -- TODO: don't make variables for these?
         Resolved (SIR.DeclRef'Type ty) -> pure $ Resolved ty
         Resolved (SIR.DeclRef'ExternPackage _) -> do
-            _ <- lift $ lift $ Compiler.tell_error (Error.Error'NotAType sp "external package")
-            make_infer_var (TypeSolver.TypeExpr sp) -- TODO: don't make variables for these?
-        Errored _ -> make_infer_var (TypeSolver.TypeExpr sp) -- TODO: make this message better
+            _ <- lift $ lift $ lift $ lift $ lift $ Compiler.tell_error (Error.Error'NotAType sp "external package")
+            Resolved <$> make_infer_var (TypeSolver.TypeExpr sp) -- TODO: don't make variables for these?
+        Errored _ -> Resolved <$> make_infer_var (TypeSolver.TypeExpr sp) -- TODO: make this message better
         Inconclusive _ -> pure (Inconclusive Nothing)
 
-resolve_in_expr ::
-    SIR.Expr (PrevStep prev_bee) ->
-    ( NRReader.NRReader
-        (ADTArena prev_bee)
-        (TypeSynonymArena prev_bee)
-        (VariableArena prev_bee)
-        QuantVarArena
-        sir_child_maps
-        (WriterT ProgressMade Error.WithErrors)
-    )
-        (SIR.Expr PostResolve)
+resolve_in_expr :: SIR.Expr (PrevStep prev_bee) -> ResolveMonad (SIR.Expr PostResolve)
 resolve_in_expr (SIR.Expr'Refer id type_info sp iden resolved) = do
     iden <- resolve_split_iden look_up_value get_value_child iden
     result <- if_inconclusive resolved (pure $ SIR.split_identifier_resolved iden)
@@ -332,16 +317,7 @@ resolve_in_expr (SIR.Expr'TypeApply id type_info sp e (arg, arg_as_type)) = do
 resolve_in_expr (SIR.Expr'Hole id type_info sp hid) = pure $ SIR.Expr'Hole id type_info sp hid
 resolve_in_expr (SIR.Expr'Poison id type_info sp) = pure $ SIR.Expr'Poison id type_info sp
 
-resolve_in_pat ::
-    SIR.Pattern (PrevStep prev_bee) ->
-    NRReader.NRReader
-        adt_arena
-        type_synonym_arena
-        var_arena
-        QuantVarArena
-        sir_child_maps
-        (WriterT ProgressMade Error.WithErrors)
-        (SIR.Pattern PostResolve)
+resolve_in_pat :: SIR.Pattern (PrevStep prev_bee) -> ResolveMonad (SIR.Pattern PostResolve)
 resolve_in_pat (SIR.Pattern'Variable type_info sp bnk) = pure $ SIR.Pattern'Variable type_info sp bnk
 resolve_in_pat (SIR.Pattern'Wildcard type_info sp) = pure $ SIR.Pattern'Wildcard type_info sp
 resolve_in_pat (SIR.Pattern'Tuple type_info sp a b) = SIR.Pattern'Tuple type_info sp <$> resolve_in_pat a <*> resolve_in_pat b
@@ -359,37 +335,10 @@ resolve_in_pat (SIR.Pattern'NamedADTVariant type_info sp variant_iden resolved t
 resolve_in_pat (SIR.Pattern'Poison type_info sp) = pure $ SIR.Pattern'Poison type_info sp
 
 resolve_split_iden ::
-    ( NameMaps.NameMapStackKey ->
-      Located Text ->
-      NRReader.NRReader
-        adt_arena
-        type_synonym_arena
-        var_arena
-        QuantVarArena
-        sir_child_maps
-        (WriterT ProgressMade Error.WithErrors)
-        (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise resolved)
-    ) ->
-    ( SIR.DeclRef TypeSolver.Type ->
-      Located Text ->
-      NRReader.NRReader
-        adt_arena
-        type_synonym_arena
-        var_arena
-        QuantVarArena
-        sir_child_maps
-        (WriterT ProgressMade Error.WithErrors)
-        (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise resolved)
-    ) ->
+    (NameMaps.NameMapStackKey -> Located Text -> ResolveMonad (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise resolved)) ->
+    (SIR.DeclRef TypeSolver.Type -> Located Text -> ResolveMonad (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise resolved)) ->
     SIR.SplitIdentifier resolved (PrevStep prev_bee) ->
-    NRReader.NRReader
-        adt_arena
-        type_synonym_arena
-        var_arena
-        QuantVarArena
-        sir_child_maps
-        (WriterT ProgressMade Error.WithErrors)
-        (SIR.SplitIdentifier resolved PostResolve)
+    ResolveMonad (SIR.SplitIdentifier resolved PostResolve)
 resolve_split_iden _ resolve_get (SIR.SplitIdentifier'Get texpr next resolved) = do
     texpr' <- resolve_in_type_expr texpr
     let texpr_evaled = SIR.type_expr_evaled texpr'
@@ -409,62 +358,33 @@ resolve_split_iden resolve_single _ (SIR.SplitIdentifier'Single name_maps name r
 look_up_decl ::
     NameMaps.NameMapStackKey ->
     Located Text ->
-    ReaderT
-        whatever_figure_this_out_later_TODO
-        (WriterT ProgressMade Error.WithErrors)
-        (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise (SIR.DeclRef TypeSolver.Type))
-look_up_decl name_maps_stack_key name = todo >>= \name_maps_arena -> lift $ lift $ report_errored $ NameMaps.look_up_decl name_maps_arena name_maps_stack_key name
+    ResolveMonad (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise (SIR.DeclRef TypeSolver.Type))
+look_up_decl name_maps_stack_key name = lift ask >>= \name_maps_arena -> report_errored $ NameMaps.look_up_decl name_maps_arena name_maps_stack_key name
 look_up_value ::
-    NameMaps.NameMapStackKey ->
-    Located Text ->
-    ReaderT
-        whatever_figure_this_out_later_TODO
-        (WriterT ProgressMade Error.WithErrors)
-        (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise SIR.ValueRef)
-look_up_value name_maps_stack_key name = todo >>= \name_maps_arena -> lift $ lift $ report_errored $ NameMaps.look_up_value name_maps_arena name_maps_stack_key name
+    NameMaps.NameMapStackKey -> Located Text -> ResolveMonad (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise SIR.ValueRef)
+look_up_value name_maps_stack_key name = lift ask >>= \name_maps_arena -> report_errored $ NameMaps.look_up_value name_maps_arena name_maps_stack_key name
 look_up_variant ::
-    NameMaps.NameMapStackKey ->
-    Located Text ->
-    ReaderT
-        whatever_figure_this_out_later_TODO
-        (WriterT ProgressMade Error.WithErrors)
-        (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise Type.ADT.VariantIndex)
-look_up_variant name_maps_stack_key name = todo >>= \name_maps_arena -> lift $ lift $ report_errored $ NameMaps.look_up_variant name_maps_arena name_maps_stack_key name
+    NameMaps.NameMapStackKey -> Located Text -> ResolveMonad (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise Type.ADT.VariantIndex)
+look_up_variant name_maps_stack_key name = lift ask >>= \name_maps_arena -> report_errored $ NameMaps.look_up_variant name_maps_arena name_maps_stack_key name
 
 get_decl_child ::
     SIR.DeclRef TypeSolver.Type ->
     Located Text ->
-    ReaderT
-        whatever_figure_this_out_later_TODO
-        (WriterT ProgressMade Error.WithErrors)
-        (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise (SIR.DeclRef TypeSolver.Type))
-get_decl_child parent name = todo >>= \sir_child_maps -> lift $ lift $ report_errored $ NameMaps.get_decl_child sir_child_maps parent name
+    ResolveMonad (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise (SIR.DeclRef TypeSolver.Type))
+get_decl_child parent name = lift (lift $ NRReader.ask_sir_child_maps) >>= \sir_child_maps -> report_errored $ NameMaps.get_decl_child sir_child_maps parent name
 get_value_child ::
-    SIR.DeclRef TypeSolver.Type ->
-    Located Text ->
-    ReaderT
-        whatever_figure_this_out_later_TODO
-        (WriterT ProgressMade Error.WithErrors)
-        (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise SIR.ValueRef)
-get_value_child parent name = todo >>= \sir_child_maps -> lift $ lift $ report_errored $ NameMaps.get_value_child sir_child_maps parent name
+    SIR.DeclRef TypeSolver.Type -> Located Text -> ResolveMonad (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise SIR.ValueRef)
+get_value_child parent name = lift (lift $ NRReader.ask_sir_child_maps) >>= \sir_child_maps -> report_errored $ NameMaps.get_value_child sir_child_maps parent name
 get_variant_child ::
-    SIR.DeclRef TypeSolver.Type ->
-    Located Text ->
-    ReaderT
-        whatever_figure_this_out_later_TODO
-        (WriterT ProgressMade Error.WithErrors)
-        (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise Type.ADT.VariantIndex)
-get_variant_child parent name = todo >>= \sir_child_maps -> lift $ lift $ report_errored $ NameMaps.get_variant_child sir_child_maps parent name
+    SIR.DeclRef TypeSolver.Type -> Located Text -> ResolveMonad (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise Type.ADT.VariantIndex)
+get_variant_child parent name = lift (lift $ NRReader.ask_sir_child_maps) >>= \sir_child_maps -> report_errored $ NameMaps.get_variant_child sir_child_maps parent name
 
-report_errored :: ResolveResult Error.Error Error.Error res -> Error.WithErrors (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise res)
+report_errored :: ResolveResult Error.Error Error.Error res -> ResolveMonad (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise res)
 report_errored (Resolved res) = pure $ Resolved res
-report_errored (Errored err) = Errored <$> Compiler.tell_error err
+report_errored (Errored err) = Errored <$> lift (lift $ lift $ lift $ lift $ Compiler.tell_error err)
 report_errored (Inconclusive bee) = pure $ Inconclusive (Just bee)
 
-make_infer_var ::
-    TypeSolver.InferVarForWhat ->
-    ReaderT
-        (adt_arena, type_synonym_arena, var_arena, QuantVarArena, sir_child_maps)
-        (WriterT ProgressMade Error.WithErrors)
-        (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise TypeSolver.Type)
-make_infer_var for_what = todo -- TODO: TypeSolver.Type'InferVar <$> TypeSolver.new_infer_var for_what
+make_infer_var :: TypeSolver.InferVarForWhat -> ResolveMonad TypeSolver.Type
+make_infer_var for_what = do
+    ifv <- lift $ lift $ lift $ lift $ TypeSolver.new_infer_var for_what
+    pure $ TypeSolver.Type'InferVar ifv

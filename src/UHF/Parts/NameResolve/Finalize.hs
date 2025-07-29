@@ -10,7 +10,6 @@ import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Parts.NameResolve.Error as Error
-import qualified UHF.Parts.NameResolve.NRReader as NRReader
 import qualified UHF.Parts.NameResolve.NameMaps as NameMaps
 import UHF.Parts.NameResolve.ResolveResult
 import qualified UHF.Parts.TypeSolver as TypeSolver

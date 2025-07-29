@@ -15,6 +15,7 @@ import qualified UHF.Parts.NameResolve.Error as Error
 import qualified UHF.Parts.NameResolve.NRReader as NRReader
 import qualified UHF.Parts.NameResolve.NameMaps as NameMaps
 import qualified UHF.Util.Arena as Arena
+import qualified UHF.Parts.TypeSolver.TypeWithInferVar as TypeWithInferVar
 
 -- TODO: figure out a better solution than to have adt_parents and type_synonym_parents
 
@@ -105,10 +106,11 @@ assign_in_module ::
 assign_in_module module_key (SIR.Module id () bindings adts type_synonyms) = do
     module_name_map <- lift $ lift $ lift new_name_map_stack_end
 
+    lift $ lift $ lift $ modify_name_map module_name_map $ NameMaps.add_to_name_maps primitive_decls primitive_vals []
+    lift $ lift $ lift $ modify_sir_child_maps $ NameMaps.add_to_module_child_maps primitive_decls primitive_vals [] module_key
     children <- lift $ lift $ NameMaps.decls_to_children bindings adts type_synonyms
     lift $ lift $ lift $ modify_name_map module_name_map $ NameMaps.add_tuple_to_name_maps children
     lift $ lift $ lift $ modify_sir_child_maps $ NameMaps.add_tuple_to_module_child_maps children module_key
-    -- TODO: populate with intrinsics too
 
     mapM_ (\adt -> tell $ Map.singleton adt module_name_map) adts
     mapM_ (\synonym -> lift $ tell $ Map.singleton synonym module_name_map) type_synonyms
@@ -117,6 +119,16 @@ assign_in_module module_key (SIR.Module id () bindings adts type_synonyms) = do
         <$> mapM (lift . lift . assign_in_binding module_name_map) bindings
         <*> pure adts
         <*> pure type_synonyms
+    where
+        primitive_decls =
+            [ ("int", NameMaps.ImplicitPrim, SIR.DeclRef'Type TypeWithInferVar.Type'Int)
+            , ("float", NameMaps.ImplicitPrim, SIR.DeclRef'Type TypeWithInferVar.Type'Float)
+            , ("char", NameMaps.ImplicitPrim, SIR.DeclRef'Type TypeWithInferVar.Type'Char)
+            , ("string", NameMaps.ImplicitPrim, SIR.DeclRef'Type TypeWithInferVar.Type'String)
+            , ("bool", NameMaps.ImplicitPrim, SIR.DeclRef'Type TypeWithInferVar.Type'Bool)
+            , ("uhf_intrinsics", NameMaps.ImplicitPrim, SIR.DeclRef'ExternPackage SIR.ExternPackage'IntrinsicsPackage)
+            ]
+        primitive_vals = []
 
 assign_in_adts ::
     Map.Map Type.ADTKey NameMaps.NameMapStackKey ->

@@ -14,8 +14,6 @@ import qualified UHF.Util.Arena as Arena
 type Unprepared = (NameMaps.NameMapStackKey, Const () (), (), (), (), ())
 type Prepared = (NameMaps.NameMapStackKey, ResolveResult () () (), (), (), (), ())
 
--- TODO: grep for all Inconclusive in this file and make sure they are handled in Resolve
-
 prepare :: SIR.SIR Unprepared -> SIR.SIR Prepared
 prepare (SIR.SIR mods adts type_synonyms type_vars variables (SIR.CU root_module main_function)) =
     SIR.SIR

@@ -129,6 +129,6 @@ finalize_split_iden (SIR.SplitIdentifier'Get texpr next resolved) = SIR.SplitIde
 finalize_split_iden (SIR.SplitIdentifier'Single name_maps i resolved) = SIR.SplitIdentifier'Single name_maps i <$> finalize_result resolved
 
 finalize_result :: ResolveResult Error.Error Compiler.ErrorReportedPromise a -> Error.WithErrors (Maybe a)
-finalize_result (Inconclusive err) = todo -- TODO: report error and then return Nothing
+finalize_result (Inconclusive err) = Compiler.tell_err err >> pure Nothing
 finalize_result (Errored _) = pure Nothing
 finalize_result (Resolved r) = pure $ Just r

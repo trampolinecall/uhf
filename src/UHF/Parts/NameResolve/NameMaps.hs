@@ -216,8 +216,8 @@ decls_to_children ::
     [Type.ADTKey] ->
     [Type.TypeSynonymKey] ->
     NRReader
-        (Arena.Arena (Type.ADT (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage)) Type.ADTKey)
-        (Arena.Arena (Type.TypeSynonym (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage)) Type.TypeSynonymKey)
+        (Arena.Arena (SIR.ADT stage) Type.ADTKey)
+        (Arena.Arena (SIR.TypeSynonym stage) Type.TypeSynonymKey)
         (Arena.Arena (SIR.Variable stage) SIR.VariableKey)
         quant_var_arena
         sir_child_maps
@@ -314,23 +314,6 @@ quant_vars_to_children =
             let (Type.QuantVar (Located name_sp name)) = Arena.get quant_var_arena var
             pure (name, DeclAt name_sp, SIR.DeclRef'Type $ TypeWithInferVar.Type'QuantVar var)
         )
-
--- TODO: remove this
--- collect_child_maps :: SIR.SIR stage -> WithErrors SIRChildMaps
--- collect_child_maps (SIR.SIR mod_arena adt_arena type_synonym_arena _ variable_arena _) = SIRChildMaps <$> Arena.transformM go mod_arena
---     where
---         primitive_decls =
---                 [ ("int", ImplicitPrim, SIR.DeclRef'Type TypeWithInferVar.Type'Int)
---                 , ("float", ImplicitPrim, SIR.DeclRef'Type TypeWithInferVar.Type'Float)
---                 , ("char", ImplicitPrim, SIR.DeclRef'Type TypeWithInferVar.Type'Char)
---                 , ("string", ImplicitPrim, SIR.DeclRef'Type TypeWithInferVar.Type'String)
---                 , ("bool", ImplicitPrim, SIR.DeclRef'Type TypeWithInferVar.Type'Bool)
---                 , ("uhf_intrinsics", ImplicitPrim, SIR.DeclRef'ExternPackage SIR.ExternPackage'IntrinsicsPackage)
---                 ]
---         primitive_vals = []
---
---         go (SIR.Module _ bindings adts type_synonyms) =
---             runReaderT (name_maps_to_child_maps <$> make_name_maps_from_decls primitive_decls primitive_vals [] type_synonym_arena bindings adts type_synonyms) (adt_arena, variable_arena, (), ())
 
 -- intrinsics package child maps {{{1
 -- TODO: not sure if this is the best place to put this

@@ -9,27 +9,26 @@ import UHF.Prelude
 import Data.Functor.Const (Const (Const))
 import qualified Data.Map as Map
 import qualified UHF.Data.IR.Type as Type
-import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Error as Error
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.NRReader as NRReader
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.NameMaps as NameMaps
+import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Util.Arena as Arena
-import qualified UHF.Data.SIR.Type as TypeWithInferVar
 
 -- TODO: figure out a better solution than to have adt_parents and type_synonym_parents
 
 type QuantVarArena = Arena.Arena Type.QuantVar Type.QuantVarKey
 type NameMapStackArena = Arena.Arena NameMaps.NameMapStack NameMaps.NameMapStackKey
 
-type Unassigned = ((), Const () (), (), (), (), ())
+type Unassigned = ((), Const () (), (), (), (), (), ())
 
 type UnassignedModuleArena = Arena.Arena (SIR.Module Unassigned) SIR.ModuleKey
 type UnassignedADTArena = Arena.Arena (SIR.ADT Unassigned) Type.ADTKey
 type UnassignedTypeSynonymArena = Arena.Arena (SIR.TypeSynonym Unassigned) Type.TypeSynonymKey
 type UnassignedVariableArena = Arena.Arena (SIR.Variable Unassigned) SIR.VariableKey
 
-type Assigned = (NameMaps.NameMapStackKey, Const () (), (), (), (), ())
+type Assigned = (NameMaps.NameMapStackKey, Const () (), (), (), (), (), ())
 
 type AssignedModuleArena = Arena.Arena (SIR.Module Assigned) SIR.ModuleKey
 type AssignedADTArena = Arena.Arena (SIR.ADT Assigned) Type.ADTKey

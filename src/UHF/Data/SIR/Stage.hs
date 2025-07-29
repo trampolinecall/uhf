@@ -23,6 +23,8 @@ class Stage s where
 
     type TypeInfo s
 
+    type InferVarAllowed s
+
     type BinaryOpsAllowed s
 
 instance Stage (d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) where
@@ -36,6 +38,8 @@ instance Stage (d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden
     type PIdenResolved (d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = p_iden_resolved
 
     type TypeInfo (d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = type_info
+
+    type InferVarAllowed (d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = () -- TODO
 
     type BinaryOpsAllowed (d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = binary_ops_allowed
 

@@ -4,7 +4,7 @@ module UHF.Data.ANFIR.PP (dump_cu) where
 
 import UHF.Prelude
 
-import UHF.Source.Located (Located (Located, unlocate))
+import UHF.Source.Located (Located (Located))
 import qualified UHF.Data.ANFIR as ANFIR
 import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.Intrinsics as Intrinsics
@@ -115,7 +115,7 @@ expr (ANFIR.Expr'Match _ _ t) = tree t >>= \ t -> pure (PP.List ["match ", t])
                     Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
                     Type.ADT.get_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
                     let variant_name = Type.ADT.variant_name variant
-                    in pure $ PP.List [adt_refer, " ", PP.String $ unlocate variant_name]
+                    in pure $ PP.List [adt_refer, " ", PP.String $ variant_name]
                 )
                 m_variant
 
@@ -129,7 +129,7 @@ expr (ANFIR.Expr'ADTDestructure _ _ base m_field_idx) =
             Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_referred ->
             Type.ADT.get_variant <$> get_adt_arena <*> pure variant_idx >>= \ variant ->
             let variant_name = Type.ADT.variant_name variant
-            in pure (PP.List [adt_referred, " ", PP.String $ unlocate variant_name], PP.String $ show field_idx)
+            in pure (PP.List [adt_referred, " ", PP.String $ variant_name], PP.String $ show field_idx)
         )
         m_field_idx >>= \ (variant_referred, field) ->
     pure (PP.List ["(", base, " as ", variant_referred, ").", field])
@@ -141,5 +141,5 @@ expr (ANFIR.Expr'MakeADT _ _ variant_index@(Type.ADT.VariantIndex _ adt_key _) t
     mapM refer_binding args >>= \ args ->
     mapM refer_type tyargs >>= \ tyargs ->
     let variant_name = Type.ADT.variant_name variant
-    in pure $ PP.List ["adt ", adt_referred, " ", PP.String $ unlocate variant_name, "#", PP.parenthesized_comma_list PP.Inconsistent tyargs, PP.bracketed_comma_list PP.Inconsistent args]
+    in pure $ PP.List ["adt ", adt_referred, " ", PP.String $ variant_name, "#", PP.parenthesized_comma_list PP.Inconsistent tyargs, PP.bracketed_comma_list PP.Inconsistent args]
 expr (ANFIR.Expr'Poison _ _) = pure $ PP.String "poison"

@@ -32,6 +32,8 @@ library
       UHF.Data.SIR
       UHF.Data.SIR.PP
       UHF.Data.SIR.Stage
+      UHF.Data.SIR.Type
+      UHF.Data.SIR.Type.PP
       UHF.Data.Token
       UHF.Data.Token.TH
       UHF.Diagnostic
@@ -86,8 +88,6 @@ library
       UHF.Parts.TypeSolver.Solve
       UHF.Parts.TypeSolver.SolveError
       UHF.Parts.TypeSolver.SolveMonad
-      UHF.Parts.TypeSolver.TypeWithInferVar
-      UHF.Parts.TypeSolver.TypeWithInferVar.PP
       UHF.Parts.TypeSolver.Utils
       UHF.PP
       UHF.PP.IndentationMonad

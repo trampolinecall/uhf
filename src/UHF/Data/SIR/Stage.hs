@@ -10,6 +10,8 @@ module UHF.Data.SIR.Stage
     , AllShowable
     ) where
 
+-- TODO: remove this file
+--
 import UHF.Prelude
 
 import Data.Kind (Type, Constraint)

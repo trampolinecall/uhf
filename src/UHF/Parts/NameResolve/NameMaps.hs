@@ -1,6 +1,5 @@
 module UHF.Parts.NameResolve.NameMaps
-    ( NameMapStackKey
-    , NameMapStack (..)
+    ( NameMapStack (..)
     , NameMaps
     , ChildMaps
     , DeclAt (..)
@@ -124,10 +123,6 @@ add_tuple_to_name_maps (ds, vs, as) (NameMaps m) = NameMaps <$> add_to_maps ds v
 
 -- NameMapStack {{{1
 data NameMapStack = NameMapStack NameMaps (Maybe NameMapStackKey)
-newtype NameMapStackKey = NameMapStackKey Arena.KeyData deriving (Show, Eq, Ord)
-instance Arena.Key NameMapStackKey where
-    make_key = NameMapStackKey
-    unmake_key (NameMapStackKey i) = i
 
 -- SIRChildMaps {{{1
 newtype SIRChildMaps = SIRChildMaps (Arena.Arena ChildMaps SIR.ModuleKey)

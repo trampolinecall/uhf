@@ -15,7 +15,7 @@ import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Error as Error
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.NRReader as NRReader
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.NameMaps as NameMaps
 import qualified UHF.Util.Arena as Arena
-import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar as TypeWithInferVar
+import qualified UHF.Data.SIR.Type as TypeWithInferVar
 
 -- TODO: figure out a better solution than to have adt_parents and type_synonym_parents
 

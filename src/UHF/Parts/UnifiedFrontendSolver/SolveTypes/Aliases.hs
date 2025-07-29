@@ -5,10 +5,11 @@ import UHF.Prelude
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
-import qualified UHF.Data.SIR.Type as SIR.Type
 import qualified UHF.Util.Arena as Arena
+import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar as TypeWithInferVars
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.NameMaps (NameMapStackKey)
 
-type TypeWithInferVars = SIR.Type.Type
+type TypeWithInferVars = TypeWithInferVars.Type
 type Type = Type.Type
 
 type UntypedDIden = Maybe (SIR.DeclRef TypeWithInferVars)
@@ -17,7 +18,7 @@ type PIden = Maybe Type.ADT.VariantIndex
 
 type QuantVarArena = Arena.Arena Type.QuantVar Type.QuantVarKey
 
-type Untyped = (UntypedDIden, UntypedDIden, TypeWithInferVars, VIden, VIden, PIden, PIden, (), Void)
+type Untyped = (NameMapStackKey, Maybe (), SIR.DeclRef TypeWithInferVars, TypeWithInferVars, (), Void)
 
 type UntypedSIR = SIR.SIR Untyped
 type UntypedModule = SIR.Module Untyped
@@ -36,7 +37,7 @@ type UntypedModuleArena = Arena.Arena UntypedModule SIR.ModuleKey
 
 type TypedWithInferVarsDIden = Maybe (SIR.DeclRef TypeWithInferVars)
 
-type TypedWithInferVars = (TypedWithInferVarsDIden, TypedWithInferVarsDIden, TypeWithInferVars, VIden, VIden, PIden, PIden, TypeWithInferVars, Void)
+type TypedWithInferVars = (NameMapStackKey, Maybe (), SIR.DeclRef TypeWithInferVars, TypeWithInferVars, TypeWithInferVars, Void)
 
 type TypedWithInferVarsSIR = SIR.SIR TypedWithInferVars
 type TypedWithInferVarsModule = SIR.Module TypedWithInferVars
@@ -53,7 +54,7 @@ type TypedWithInferVarsTypeSynonymArena = Arena.Arena TypedWithInferVarsTypeSyno
 type TypedWithInferVarsVariableArena = Arena.Arena TypedWithInferVarsVariable SIR.VariableKey
 type TypedWithInferVarsModuleArena = Arena.Arena TypedWithInferVarsModule SIR.ModuleKey
 
-type Typed = (TypedDIden, TypedDIden, Maybe Type, VIden, VIden, PIden, PIden, Maybe Type, Void)
+type Typed = (NameMapStackKey, Maybe (), SIR.DeclRef Type, Type, Maybe Type, Void)
 
 type TypedDIden = Maybe (SIR.DeclRef Type)
 

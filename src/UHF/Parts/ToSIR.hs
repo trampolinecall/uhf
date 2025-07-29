@@ -183,26 +183,26 @@ convert_decls var_parent decl_parent decls =
                     fields
 
 convert_type :: AST.Type -> MakeIRState TypeExpr
-convert_type (AST.Type'Refer id) = pure $ SIR.TypeExpr'Refer () (just_span id) () (convert_aiden_tok <$> id) (Const ())
-convert_type (AST.Type'Get sp prev name) = convert_type prev >>= \ prev -> pure (SIR.TypeExpr'Get () sp prev (convert_aiden_tok <$> name))
+convert_type (AST.Type'Refer id) = pure $ SIR.TypeExpr'Refer (Const ()) (just_span id) () (convert_aiden_tok <$> id) (Const ())
+convert_type (AST.Type'Get sp prev name) = convert_type prev >>= \ prev -> pure (SIR.TypeExpr'Get (Const ()) sp prev (convert_aiden_tok <$> name))
 convert_type (AST.Type'Tuple sp items) = mapM convert_type items >>= group_items
     where
         -- TODO: better spans for this
-        group_items [a, b] = pure $ SIR.TypeExpr'Tuple () sp a b
-        group_items (a:b:more) = SIR.TypeExpr'Tuple () sp a <$> group_items (b:more)
-        group_items [_] = tell_error (Tuple1 sp) >> pure (SIR.TypeExpr'Poison () sp)
-        group_items [] = tell_error (Tuple0 sp) >> pure (SIR.TypeExpr'Poison () sp)
-convert_type (AST.Type'Hole sp id) = pure $ SIR.TypeExpr'Hole () () sp (convert_aiden_tok <$> id)
-convert_type (AST.Type'Function sp arg res) = SIR.TypeExpr'Function () sp <$> convert_type arg <*> convert_type res
+        group_items [a, b] = pure $ SIR.TypeExpr'Tuple (Const ()) sp a b
+        group_items (a:b:more) = SIR.TypeExpr'Tuple (Const ()) sp a <$> group_items (b:more)
+        group_items [_] = tell_error (Tuple1 sp) >> pure (SIR.TypeExpr'Poison (Const ()) sp)
+        group_items [] = tell_error (Tuple0 sp) >> pure (SIR.TypeExpr'Poison (Const ()) sp)
+convert_type (AST.Type'Hole sp id) = pure $ SIR.TypeExpr'Hole (Const ()) (Const ()) sp (convert_aiden_tok <$> id)
+convert_type (AST.Type'Function sp arg res) = SIR.TypeExpr'Function (Const ()) sp <$> convert_type arg <*> convert_type res
 convert_type (AST.Type'Forall sp tys ty) =
     mapM (new_type_var . fmap convert_aiden_tok) tys >>= \case
         [] -> convert_type ty -- can happen if the user passed none
-        tyv1:tyv_more -> SIR.TypeExpr'Forall () sp () (tyv1 :| tyv_more) <$> convert_type ty
+        tyv1:tyv_more -> SIR.TypeExpr'Forall (Const ()) sp () (tyv1 :| tyv_more) <$> convert_type ty
 
 convert_type (AST.Type'Apply sp ty args) =
     convert_type ty >>= \ ty ->
-    foldlM (\ ty arg -> SIR.TypeExpr'Apply () sp ty <$> convert_type arg) ty args -- TODO: fix spans
-convert_type (AST.Type'Wild sp) = pure $ SIR.TypeExpr'Wild () sp
+    foldlM (\ ty arg -> SIR.TypeExpr'Apply (Const ()) sp ty <$> convert_type arg) ty args -- TODO: fix spans
+convert_type (AST.Type'Wild sp) = pure $ SIR.TypeExpr'Wild (Const ()) sp
 
 convert_expr :: ID.ExprID -> AST.Expr -> MakeIRState Expr
 convert_expr cur_id (AST.Expr'ReferAlpha sp t i) = SIR.Expr'Refer cur_id () sp <$> make_split_identifier t (convert_aiden_tok <$> i) <*> pure (Const ())
@@ -249,7 +249,7 @@ convert_expr cur_id (AST.Expr'BinaryOps sp first ops) =
                 case op of
                     AST.Operator'Path op_sp op_ty op_last -> do
                         op_ty <- convert_type op_ty
-                        pure (op_sp, SIR.SplitIdentifier'Get op_ty (convert_siden_tok <$> op_last), Const (), right')
+                        pure (op_sp, SIR.SplitIdentifier'Get op_ty (convert_siden_tok <$> op_last) (Const ()), Const (), right')
                     AST.Operator'Single op_iden@(Located op_sp _) -> pure (op_sp, SIR.SplitIdentifier'Single () (convert_siden_tok <$> op_iden) (Const ()), Const (), right'))
             [1..]
             ops
@@ -276,7 +276,7 @@ convert_expr cur_id (AST.Expr'Match sp (Located match_tok_sp _) e arms) =
         >>= \ arms ->
     pure (SIR.Expr'Match cur_id () sp match_tok_sp e arms)
 
-convert_expr cur_id (AST.Expr'TypeAnnotation sp ty e) = SIR.Expr'TypeAnnotation cur_id () sp <$> ((,()) <$> convert_type ty) <*> convert_expr (ID.ExprID'TypeAnnotationSubject cur_id) e
+convert_expr cur_id (AST.Expr'TypeAnnotation sp ty e) = SIR.Expr'TypeAnnotation cur_id () sp <$> ((,(Const ())) <$> convert_type ty) <*> convert_expr (ID.ExprID'TypeAnnotationSubject cur_id) e
 convert_expr cur_id (AST.Expr'Forall sp tys e) =
     mapM (new_type_var . fmap convert_aiden_tok) tys >>= \case
         [] -> convert_expr (ID.ExprID'ForallResult cur_id) e
@@ -287,7 +287,7 @@ convert_expr cur_id (AST.Expr'TypeApply sp e args) =
     snd <$> foldlM
         (\ (apply_id, e) arg ->
             convert_type arg >>= \ arg ->
-            pure (ID.ExprID'TypeApplyOn apply_id, SIR.Expr'TypeApply apply_id () sp e (arg, ())))
+            pure (ID.ExprID'TypeApplyOn apply_id, SIR.Expr'TypeApply apply_id () sp e (arg, (Const ()))))
         (ID.ExprID'TypeApplyOn cur_id, e)
         args -- TODO: fix span for this
 convert_expr cur_id (AST.Expr'Hole sp hid) = pure (SIR.Expr'Hole cur_id () sp (convert_aiden_tok <$> hid))
@@ -326,7 +326,7 @@ make_split_identifier :: Maybe AST.Type -> Located Text -> MakeIRState (SIR.Spli
 make_split_identifier Nothing i = pure $ SIR.SplitIdentifier'Single () i (Const ())
 make_split_identifier (Just ty) i = do
     ty <- convert_type ty
-    pure $ SIR.SplitIdentifier'Get ty i
+    pure $ SIR.SplitIdentifier'Get ty i (Const ())
 
 convert_aiden_tok :: Token.AlphaIdentifier -> Text
 convert_aiden_tok (Token.AlphaIdentifier i) = i

@@ -15,7 +15,7 @@ module UHF.Parts.UnifiedFrontendSolver.TypeSolver
     , InferVarForWhat (..)
     , infer_var_for_what_sp
     , infer_var_for_what_name
-    , from_ir_type
+    -- , from_ir_type TODO
 
     , SolveMonad
     , SolverState (..)

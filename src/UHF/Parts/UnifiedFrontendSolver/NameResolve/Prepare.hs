@@ -4,8 +4,6 @@ import UHF.Prelude
 
 import Control.Arrow (second)
 import Data.Functor.Const (Const (Const))
-import qualified UHF.Data.IR.Type as Type
-import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.ResolveResult
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.NameMaps as NameMaps
@@ -28,13 +26,13 @@ prepare_mod :: SIR.Module Unprepared -> SIR.Module Prepared
 prepare_mod (SIR.Module id name_map bindings adts type_synonyms) = SIR.Module id name_map (map prepare_binding bindings) adts type_synonyms
 
 prepare_adt :: SIR.ADT Unprepared -> SIR.ADT Prepared
-prepare_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars (map prepare_variant variants)
+prepare_adt (SIR.ADT id name type_vars variants) = SIR.ADT id name type_vars (map prepare_variant variants)
     where
-        prepare_variant (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id (map (\(id, name, (ty, Const ())) -> (id, name, (prepare_type_expr ty, Inconclusive ()))) fields)
-        prepare_variant (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id (map (\(id, (ty, Const ())) -> (id, (prepare_type_expr ty, Inconclusive ()))) fields)
+        prepare_variant (SIR.ADTVariant'Named name id fields) = SIR.ADTVariant'Named name id (map (\(id, name, ty) -> (id, name, prepare_type_expr ty)) fields)
+        prepare_variant (SIR.ADTVariant'Anon name id fields) = SIR.ADTVariant'Anon name id (map (\(id, ty) -> (id, prepare_type_expr ty)) fields)
 
 prepare_type_synonym :: SIR.TypeSynonym Unprepared -> SIR.TypeSynonym Prepared
-prepare_type_synonym (Type.TypeSynonym id name (expansion, Const ())) = Type.TypeSynonym id name (prepare_type_expr expansion, Inconclusive ())
+prepare_type_synonym (SIR.TypeSynonym id name expansion) = SIR.TypeSynonym id name (prepare_type_expr expansion)
 
 prepare_variable :: SIR.Variable Unprepared -> SIR.Variable Prepared
 prepare_variable (SIR.Variable varid tyinfo n) = SIR.Variable varid tyinfo n

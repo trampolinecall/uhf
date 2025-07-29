@@ -6,15 +6,15 @@ module UHF.Parts.UnifiedFrontendSolver.TypeSolver.SolveMonad
     , run_solve_monad
     , run_solve_monad_with
     , new_infer_var
-    , UHF.Parts.TypeSolver.SolveMonad.get
-    , UHF.Parts.TypeSolver.SolveMonad.put
+    , UHF.Parts.UnifiedFrontendSolver.TypeSolver.SolveMonad.get
+    , UHF.Parts.UnifiedFrontendSolver.TypeSolver.SolveMonad.put
     , get_infer_vars
     , modify_infer_vars
     ) where
 
 import UHF.Prelude
 
-import UHF.Parts.TypeSolver.TypeWithInferVar
+import UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar
 import qualified UHF.Util.Arena as Arena
 
 newtype SolveMonad under a = SolveMonad (StateT SolverState under a) deriving (Functor, Applicative, Monad, MonadTrans)

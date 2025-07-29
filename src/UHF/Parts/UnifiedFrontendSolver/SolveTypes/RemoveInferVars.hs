@@ -48,19 +48,19 @@ convert_vars infer_vars =
         convert_var _ (TypeSolver.InferVar for_what TypeSolver.Fresh) = lift (Compiler.tell_error $ AmbiguousType for_what) >> MaybeT (pure Nothing)
 
 module_ :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> TypedWithInferVarsModule -> TypedModule
-module_ infer_vars (SIR.Module id bindings adts type_synonyms) = SIR.Module id (map (binding infer_vars) bindings) adts type_synonyms
+module_ infer_vars (SIR.Module id name_maps_index bindings adts type_synonyms) = SIR.Module id name_maps_index (map (binding infer_vars) bindings) adts type_synonyms
 
 variable :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> TypedWithInferVarsVariable -> TypedVariable
 variable infer_vars (SIR.Variable id ty name) = SIR.Variable id (type_ infer_vars ty) name
 
 adt :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> TypedWithInferVarsADT -> TypedADT
-adt infer_vars (Type.ADT id name quant_var variants) = Type.ADT id name quant_var (map variant variants)
+adt infer_vars (SIR.ADT id name quant_var variants) = SIR.ADT id name quant_var (map variant variants)
     where
-        variant (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id (map (\ (name, id, ty) -> (name, id, type_expr_and_type infer_vars ty)) fields)
-        variant (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id (map (\ (id, ty) -> (id, type_expr_and_type infer_vars ty)) fields)
+        variant (SIR.ADTVariant'Named name id fields) = SIR.ADTVariant'Named name id (map (\ (name, id, ty) -> (name, id, type_expr infer_vars ty)) fields)
+        variant (SIR.ADTVariant'Anon name id fields) = SIR.ADTVariant'Anon name id (map (\ (id, ty) -> (id, type_expr infer_vars ty)) fields)
 
 type_synonym :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> TypedWithInferVarsTypeSynonym -> TypedTypeSynonym
-type_synonym infer_vars (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name (type_expr_and_type infer_vars expansion)
+type_synonym infer_vars (SIR.TypeSynonym id name expansion) = SIR.TypeSynonym id name (type_expr infer_vars expansion)
 
 binding :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> TypedWithInferVarsBinding -> TypedBinding
 binding infer_vars (SIR.Binding p eq_sp e) = SIR.Binding (pattern infer_vars p) eq_sp (expr infer_vars e)
@@ -83,25 +83,25 @@ expr infer_vars (SIR.Expr'Float id ty sp r) = SIR.Expr'Float id (type_ infer_var
 expr infer_vars (SIR.Expr'Bool id ty sp b) = SIR.Expr'Bool id (type_ infer_vars ty) sp b
 expr infer_vars (SIR.Expr'Tuple id ty sp l r) = SIR.Expr'Tuple id (type_ infer_vars ty) sp (expr infer_vars l) (expr infer_vars r)
 expr infer_vars (SIR.Expr'Lambda id ty sp param body) = SIR.Expr'Lambda id (type_ infer_vars ty) sp (pattern infer_vars param) (expr infer_vars body)
-expr infer_vars (SIR.Expr'Let id ty sp bindings adts type_synonyms result) = SIR.Expr'Let id (type_ infer_vars ty) sp (map (binding infer_vars) bindings) adts type_synonyms (expr infer_vars result)
-expr infer_vars (SIR.Expr'LetRec id ty sp bindings adts type_synonyms result) = SIR.Expr'LetRec id (type_ infer_vars ty) sp (map (binding infer_vars) bindings) adts type_synonyms (expr infer_vars result)
+expr infer_vars (SIR.Expr'Let id ty sp name_maps_index bindings adts type_synonyms result) = SIR.Expr'Let id (type_ infer_vars ty) sp name_maps_index (map (binding infer_vars) bindings) adts type_synonyms (expr infer_vars result)
+expr infer_vars (SIR.Expr'LetRec id ty sp name_maps_index bindings adts type_synonyms result) = SIR.Expr'LetRec id (type_ infer_vars ty) sp name_maps_index (map (binding infer_vars) bindings) adts type_synonyms (expr infer_vars result)
 expr _ (SIR.Expr'BinaryOps _ void _ _ _ _) = absurd void
 expr infer_vars (SIR.Expr'Call id ty sp callee arg) = SIR.Expr'Call id (type_ infer_vars ty) sp (expr infer_vars callee) (expr infer_vars arg)
 expr infer_vars (SIR.Expr'If id ty sp if_sp cond true false) = SIR.Expr'If id (type_ infer_vars ty) sp if_sp (expr infer_vars cond) (expr infer_vars true) (expr infer_vars false)
-expr infer_vars (SIR.Expr'Match id ty sp match_tok_sp testing arms) = SIR.Expr'Match id (type_ infer_vars ty) sp match_tok_sp (expr infer_vars testing) (map (\ (p, e) -> (pattern infer_vars p, expr infer_vars e)) arms)
+expr infer_vars (SIR.Expr'Match id ty sp match_tok_sp testing arms) = SIR.Expr'Match id (type_ infer_vars ty) sp match_tok_sp (expr infer_vars testing) (map (\ (nci, p, e) -> (nci, pattern infer_vars p, expr infer_vars e)) arms)
 expr infer_vars (SIR.Expr'TypeAnnotation id ty sp annotation e) = SIR.Expr'TypeAnnotation id (type_ infer_vars ty) sp (type_expr_and_type infer_vars annotation) (expr infer_vars e)
-expr infer_vars (SIR.Expr'Forall id ty sp names e) = SIR.Expr'Forall id (type_ infer_vars ty) sp (NonEmpty.map identity names) (expr infer_vars e)
+expr infer_vars (SIR.Expr'Forall id ty sp name_maps_index names e) = SIR.Expr'Forall id (type_ infer_vars ty) sp name_maps_index (NonEmpty.map identity names) (expr infer_vars e)
 expr infer_vars (SIR.Expr'TypeApply id ty sp e args) = SIR.Expr'TypeApply id (type_ infer_vars ty) sp (expr infer_vars e) (type_expr_and_type infer_vars args)
 expr infer_vars (SIR.Expr'Hole id ty sp hid) = SIR.Expr'Hole id (type_ infer_vars ty) sp hid
 expr infer_vars (SIR.Expr'Poison id ty sp) = SIR.Expr'Poison id (type_ infer_vars ty) sp
 
 type_expr :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> TypedWithInferVarsTypeExpr -> TypedTypeExpr
-type_expr infer_vars (SIR.TypeExpr'Refer evaled sp iden) = SIR.TypeExpr'Refer (m_decl infer_vars evaled) sp (m_decl infer_vars iden)
+type_expr infer_vars (SIR.TypeExpr'Refer evaled sp name_context iden resolved) = SIR.TypeExpr'Refer (m_decl infer_vars evaled) sp name_context iden (m_decl infer_vars resolved)
 type_expr infer_vars (SIR.TypeExpr'Get evaled sp parent name) = SIR.TypeExpr'Get (m_decl infer_vars evaled) sp (type_expr infer_vars parent) name
 type_expr infer_vars (SIR.TypeExpr'Tuple evaled sp a b) = SIR.TypeExpr'Tuple (m_decl infer_vars evaled) sp (type_expr infer_vars a) (type_expr infer_vars b)
 type_expr infer_vars (SIR.TypeExpr'Hole evaled tyinfo sp hid) = SIR.TypeExpr'Hole (m_decl infer_vars evaled) (type_ infer_vars tyinfo) sp hid
 type_expr infer_vars (SIR.TypeExpr'Function evaled sp arg res) = SIR.TypeExpr'Function (m_decl infer_vars evaled) sp (type_expr infer_vars arg) (type_expr infer_vars res)
-type_expr infer_vars (SIR.TypeExpr'Forall evaled sp names sub) = SIR.TypeExpr'Forall (m_decl infer_vars evaled) sp names (type_expr infer_vars sub)
+type_expr infer_vars (SIR.TypeExpr'Forall evaled sp name_map_index names sub) = SIR.TypeExpr'Forall (m_decl infer_vars evaled) sp name_map_index names (type_expr infer_vars sub)
 type_expr infer_vars (SIR.TypeExpr'Apply evaled sp applied_to args) = SIR.TypeExpr'Apply (m_decl infer_vars evaled) sp (type_expr infer_vars applied_to) (type_expr infer_vars args)
 type_expr infer_vars (SIR.TypeExpr'Wild evaled sp) = SIR.TypeExpr'Wild (m_decl infer_vars evaled) sp
 type_expr infer_vars (SIR.TypeExpr'Poison evaled sp) = SIR.TypeExpr'Poison (m_decl infer_vars evaled) sp
@@ -110,8 +110,8 @@ type_expr_and_type :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> (TypedW
 type_expr_and_type infer_vars (te, t) = (type_expr infer_vars te, type_ infer_vars t)
 
 split_identifier :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> SIR.SplitIdentifier single TypedWithInferVars -> SIR.SplitIdentifier single Typed
-split_identifier infer_vars (SIR.SplitIdentifier'Get texpr next) = SIR.SplitIdentifier'Get (type_expr infer_vars texpr) next
-split_identifier _ (SIR.SplitIdentifier'Single single) = SIR.SplitIdentifier'Single single
+split_identifier infer_vars (SIR.SplitIdentifier'Get texpr next resolved) = SIR.SplitIdentifier'Get (type_expr infer_vars texpr) next resolved
+split_identifier _ (SIR.SplitIdentifier'Single name_context name resolved) = SIR.SplitIdentifier'Single name_context name resolved
 
 m_decl :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> Maybe (SIR.DeclRef TypeWithInferVars) -> Maybe (SIR.DeclRef Type)
 m_decl infer_vars d = d >>= decl infer_vars

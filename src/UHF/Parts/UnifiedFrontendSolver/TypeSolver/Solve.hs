@@ -21,7 +21,8 @@ import UHF.Parts.UnifiedFrontendSolver.TypeSolver.Utils
 import UHF.Source.Located (Located (..))
 import UHF.Source.Span (Span)
 import qualified UHF.Data.IR.Type as Type
-import qualified UHF.Parts.UnifiedFrontendSolver.SolveMonad as SolveMonad
+import qualified UHF.Data.SIR as SIR
+import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver.SolveMonad as SolveMonad
 import qualified UHF.Util.Arena as Arena
 
 -- e_t for error type - the type of the type expressions in the things that will be passed to error messages
@@ -142,8 +143,8 @@ apply_ty sp (Type'InferVar infer_var) arg =
         InferVar _ (Substituted sub) -> apply_ty sp sub arg
         InferVar _ Fresh -> pure Nothing
 apply_ty sp ty@(Type'ADT adt params_already_applied) arg = do
-    (adts, _, _, _) <- ask
-    let (Type.ADT _ _ type_params _) = Arena.get adts adt
+    (adts, _, _, _) <- todo -- TODO: ask
+    let (SIR.ADT _ _ type_params _) = Arena.get adts adt
     if length params_already_applied < length type_params -- TODO: check kind of arg when higher kinds are implemented
           then pure $ Just $ Right $ Type'ADT adt (params_already_applied <> [arg])
           else Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty))
@@ -180,13 +181,13 @@ unify (Type'ADT a_adt_key a_params, a_var_map) (Type'ADT b_adt_key b_params, b_v
             (zip a_params b_params)
 
 unify (Type'Synonym a_syn_key, a_var_map) b =
-    lift (lift ask) >>= \ (_, _, get_type_synonym, _) ->
-    lift (lift $ lift $ get_type_synonym a_syn_key) >>= \ (Type.TypeSynonym _ _ (_, a_expansion)) ->
+    lift (lift (todo )) >>= \ (_, _, get_type_synonym, _) -> -- TODO: ask
+    lift (lift $ lift $ get_type_synonym a_syn_key) >>= \ (Type.TypeSynonym _ (_, a_expansion)) ->
     unify (a_expansion, a_var_map) b
 
 unify a (Type'Synonym b_syn_key, b_var_map) =
     lift (lift ask) >>= \ (_, _, get_type_synonym, _) ->
-    lift (lift $ lift $ get_type_synonym b_syn_key) >>= \ (Type.TypeSynonym _ _ (_, b_expansion)) ->
+    lift (lift $ lift $ get_type_synonym b_syn_key) >>= \ (Type.TypeSynonym _ (_, b_expansion)) ->
     unify a (b_expansion, b_var_map)
 
 unify (Type'Int, _) (Type'Int, _) = pure ()
@@ -277,7 +278,7 @@ occurs_check u (Type'ADT _ params) = or <$> mapM (occurs_check u) params
 occurs_check u (Type'Synonym syn_key) =
     -- TODO: reconsider if this is correct
     ask >>= \ (_, _, get_type_synonym, _) ->
-    lift (get_type_synonym syn_key) >>= \ (Type.TypeSynonym _ _ (_, other_expansion)) ->
+    lift (get_type_synonym syn_key) >>= \ (Type.TypeSynonym _ (_, other_expansion)) ->
     occurs_check u other_expansion
 
 occurs_check _ Type'Int = pure False

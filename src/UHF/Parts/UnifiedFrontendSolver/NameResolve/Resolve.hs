@@ -103,35 +103,33 @@ resolve_in_module (SIR.Module id name_maps bindings adts type_synonyms) = do
     pure $ SIR.Module id name_maps bindings adts type_synonyms
 
 resolve_in_adt :: SIR.ADT (PrevStep prev_bee) -> ResolveMonad (SIR.ADT PostResolve)
-resolve_in_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM resolve_in_variant variants
+resolve_in_adt (SIR.ADT id name type_vars variants) = SIR.ADT id name type_vars <$> mapM resolve_in_variant variants
     where
-        resolve_in_variant ::
-            Type.ADT.Variant (SIR.TypeExpr (PrevStep prev_bee1), ResolveResult prev_bee1 Compiler.ErrorReportedPromise TypeSolver.Type) ->
-            ResolveMonad (Type.ADT.Variant (SIR.TypeExpr PostResolve, ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise TypeSolver.Type))
-        resolve_in_variant (Type.ADT.Variant'Named name id fields) =
-            Type.ADT.Variant'Named name id
+        resolve_in_variant :: SIR.ADTVariant (PrevStep prev_bee1) -> ResolveMonad (SIR.ADTVariant PostResolve)
+        resolve_in_variant (SIR.ADTVariant'Named name id fields) =
+            SIR.ADTVariant'Named name id
                 <$> mapM
-                    ( \(id, name, (texpr, as_type)) -> do
+                    ( \(id, name, texpr) -> do
                         texpr <- resolve_in_type_expr texpr
-                        as_type <- if_inconclusive as_type (type_expr_evaled_as_type texpr)
-                        pure (id, name, (texpr, as_type))
+                        -- as_type <- if_inconclusive as_type (type_expr_evaled_as_type texpr)
+                        pure (id, name, texpr)
                     )
                     fields
-        resolve_in_variant (Type.ADT.Variant'Anon name id fields) =
-            Type.ADT.Variant'Anon name id
+        resolve_in_variant (SIR.ADTVariant'Anon name id fields) =
+            SIR.ADTVariant'Anon name id
                 <$> mapM
-                    ( \(id, (texpr, as_type)) -> do
+                    ( \(id, texpr) -> do
                         texpr <- resolve_in_type_expr texpr
-                        as_type <- if_inconclusive as_type (type_expr_evaled_as_type texpr)
-                        pure (id, (texpr, as_type))
+                        -- as_type <- if_inconclusive as_type (type_expr_evaled_as_type texpr)
+                        pure (id, texpr)
                     )
                     fields
 
 resolve_in_type_synonym :: SIR.TypeSynonym (PrevStep prev_bee) -> ResolveMonad (SIR.TypeSynonym PostResolve)
-resolve_in_type_synonym (Type.TypeSynonym id name (expansion, expansion_as_type)) = do
+resolve_in_type_synonym (SIR.TypeSynonym id name expansion) = do
     expansion <- resolve_in_type_expr expansion
-    expansion_as_type <- if_inconclusive expansion_as_type (type_expr_evaled_as_type expansion)
-    pure $ Type.TypeSynonym id name (expansion, expansion_as_type)
+    -- expansion_as_type <- if_inconclusive expansion_as_type (type_expr_evaled_as_type expansion)
+    pure $ SIR.TypeSynonym id name expansion
 
 resolve_in_binding :: SIR.Binding (PrevStep prev_bee) -> ResolveMonad (SIR.Binding PostResolve)
 resolve_in_binding (SIR.Binding target eq_sp expr) = SIR.Binding <$> resolve_in_pat target <*> pure eq_sp <*> resolve_in_expr expr

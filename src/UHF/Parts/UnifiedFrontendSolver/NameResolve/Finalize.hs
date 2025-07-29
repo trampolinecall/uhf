@@ -40,22 +40,24 @@ finalize_mod :: SIR.Module Resolved -> Error.WithErrors (SIR.Module Finalized)
 finalize_mod (SIR.Module id name_map bindings adts type_synonyms) = SIR.Module id name_map <$> mapM finalize_binding bindings <*> pure adts <*> pure type_synonyms
 
 finalize_adt :: SIR.ADT Resolved -> Error.WithErrors (SIR.ADT Finalized)
-finalize_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM finalize_variant variants
+finalize_adt (SIR.ADT id name type_vars variants) = SIR.ADT id name type_vars <$> mapM finalize_variant variants
     where
-        finalize_variant (Type.ADT.Variant'Named name id fields) =
-            Type.ADT.Variant'Named name id
+        finalize_variant (SIR.ADTVariant'Named name id fields) =
+            SIR.ADTVariant'Named name id
                 <$> mapM
-                    (\(id, name, (ty, as_type)) -> finalize_type_expr ty >>= \ty -> finalize_result as_type >>= \as_type -> pure (id, name, (ty, as_type)))
+                    -- (\(id, name, (ty, as_type)) -> finalize_type_expr ty >>= \ty -> finalize_result as_type >>= \as_type -> pure (id, name, (ty, as_type)))
+                    (\(id, name, ty) -> finalize_type_expr ty >>= \ty -> pure (id, name, ty))
                     fields
-        finalize_variant (Type.ADT.Variant'Anon name id fields) =
-            Type.ADT.Variant'Anon name id
-                <$> mapM (\(id, (ty, as_type)) -> finalize_type_expr ty >>= \ty -> finalize_result as_type >>= \as_type -> pure (id, (ty, as_type))) fields
+        finalize_variant (SIR.ADTVariant'Anon name id fields) =
+            SIR.ADTVariant'Anon name id
+                -- <$> mapM (\(id, (ty, as_type)) -> finalize_type_expr ty >>= \ty -> finalize_result as_type >>= \as_type -> pure (id, (ty, as_type))) fields
+                <$> mapM (\(id, ty) -> finalize_type_expr ty >>= \ty -> pure (id, ty)) fields
 
 finalize_type_synonym :: SIR.TypeSynonym Resolved -> Error.WithErrors (SIR.TypeSynonym Finalized)
-finalize_type_synonym (Type.TypeSynonym id name (expansion, as_type)) = do
+finalize_type_synonym (SIR.TypeSynonym id name expansion) = do
     expansion <- finalize_type_expr expansion
-    as_type <- finalize_result as_type
-    pure $ Type.TypeSynonym id name (expansion, as_type)
+    -- as_type <- finalize_result as_type
+    pure $ SIR.TypeSynonym id name expansion
 
 finalize_variable :: SIR.Variable Resolved -> Error.WithErrors (SIR.Variable Finalized)
 finalize_variable (SIR.Variable varid tyinfo n) = pure $ SIR.Variable varid tyinfo n
@@ -129,6 +131,6 @@ finalize_split_iden (SIR.SplitIdentifier'Get texpr next resolved) = SIR.SplitIde
 finalize_split_iden (SIR.SplitIdentifier'Single name_maps i resolved) = SIR.SplitIdentifier'Single name_maps i <$> finalize_result resolved
 
 finalize_result :: ResolveResult Error.Error Compiler.ErrorReportedPromise a -> Error.WithErrors (Maybe a)
-finalize_result (Inconclusive err) = Compiler.tell_err err >> pure Nothing
+finalize_result (Inconclusive err) = Compiler.tell_error err >> pure Nothing
 finalize_result (Errored _) = pure Nothing
 finalize_result (Resolved r) = pure $ Just r

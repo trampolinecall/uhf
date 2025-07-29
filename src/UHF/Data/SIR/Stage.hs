@@ -26,18 +26,18 @@ class Stage s where
 
     type BinaryOpsAllowed s
 
-instance Stage (name_map_index, iden_resolved_functor (), type_expr_evaled, type_expr_evaled_as_type, infer_var_allowed, type_info, binary_ops_allowed) where
-    type NameMapIndex (name_map_index, iden_resolved_functor (), type_expr_evaled, type_expr_evaled_as_type, infer_var_allowed, type_info, binary_ops_allowed) = name_map_index
+instance Stage (name_map_index, iden_resolved_functor (), type_expr_evaled, type_expr_evaled_as_type, type_info, binary_ops_allowed) where
+    type NameMapIndex (name_map_index, iden_resolved_functor (), type_expr_evaled, type_expr_evaled_as_type, type_info, binary_ops_allowed) = name_map_index
 
-    type IdenResolvedFunctor (name_map_index, iden_resolved_functor (), type_expr_evaled, type_expr_evaled_as_type, infer_var_allowed, type_info, binary_ops_allowed) = iden_resolved_functor
+    type IdenResolvedFunctor (name_map_index, iden_resolved_functor (), type_expr_evaled, type_expr_evaled_as_type, type_info, binary_ops_allowed) = iden_resolved_functor
 
     -- TODO: see if it is possible to remove TypeExprEvaled and TypeExprEvaledAsType
-    type TypeExprEvaled (name_map_index, iden_resolved_functor (), type_expr_evaled, type_expr_evaled_as_type, infer_var_allowed, type_info, binary_ops_allowed) = type_expr_evaled
-    type TypeExprEvaledAsType (name_map_index, iden_resolved_functor (), type_expr_evaled, type_expr_evaled_as_type, infer_var_allowed, type_info, binary_ops_allowed) = type_expr_evaled_as_type
+    type TypeExprEvaled (name_map_index, iden_resolved_functor (), type_expr_evaled, type_expr_evaled_as_type, type_info, binary_ops_allowed) = type_expr_evaled
+    type TypeExprEvaledAsType (name_map_index, iden_resolved_functor (), type_expr_evaled, type_expr_evaled_as_type, type_info, binary_ops_allowed) = type_expr_evaled_as_type
 
-    type TypeInfo (name_map_index, iden_resolved_functor (), type_expr_evaled, type_expr_evaled_as_type, infer_var_allowed, type_info, binary_ops_allowed) = type_info
+    type TypeInfo (name_map_index, iden_resolved_functor (), type_expr_evaled, type_expr_evaled_as_type, type_info, binary_ops_allowed) = type_info
 
-    type BinaryOpsAllowed (name_map_index, iden_resolved_functor (), type_expr_evaled, type_expr_evaled_as_type, infer_var_allowed, type_info, binary_ops_allowed) = binary_ops_allowed
+    type BinaryOpsAllowed (name_map_index, iden_resolved_functor (), type_expr_evaled, type_expr_evaled_as_type, type_info, binary_ops_allowed) = binary_ops_allowed
 
 type AllHaveInstance (c :: Type -> Constraint) s =
     ( c (NameMapIndex s)

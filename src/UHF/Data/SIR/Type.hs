@@ -1,5 +1,6 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
+-- TODO: maybe this is not the best place to put this module?
 
 module UHF.Data.SIR.Type
     ( Type (..)

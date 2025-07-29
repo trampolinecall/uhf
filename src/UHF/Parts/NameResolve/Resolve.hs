@@ -431,17 +431,35 @@ look_up_variant ::
         (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise Type.ADT.VariantIndex)
 look_up_variant name_maps_stack_key name = todo >>= \name_maps_arena -> lift $ lift $ report_errored $ NameMaps.look_up_variant name_maps_arena name_maps_stack_key name
 
+get_decl_child ::
+    SIR.DeclRef TypeSolver.Type ->
+    Located Text ->
+    ReaderT
+        whatever_figure_this_out_later_TODO
+        (WriterT ProgressMade Error.WithErrors)
+        (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise (SIR.DeclRef TypeSolver.Type))
+get_decl_child parent name = todo >>= \sir_child_maps -> lift $ lift $ report_errored $ NameMaps.get_decl_child sir_child_maps parent name
+get_value_child ::
+    SIR.DeclRef TypeSolver.Type ->
+    Located Text ->
+    ReaderT
+        whatever_figure_this_out_later_TODO
+        (WriterT ProgressMade Error.WithErrors)
+        (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise SIR.ValueRef)
+get_value_child parent name = todo >>= \sir_child_maps -> lift $ lift $ report_errored $ NameMaps.get_value_child sir_child_maps parent name
+get_variant_child ::
+    SIR.DeclRef TypeSolver.Type ->
+    Located Text ->
+    ReaderT
+        whatever_figure_this_out_later_TODO
+        (WriterT ProgressMade Error.WithErrors)
+        (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise Type.ADT.VariantIndex)
+get_variant_child parent name = todo >>= \sir_child_maps -> lift $ lift $ report_errored $ NameMaps.get_variant_child sir_child_maps parent name
+
 report_errored :: ResolveResult Error.Error Error.Error res -> Error.WithErrors (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise res)
 report_errored (Resolved res) = pure $ Resolved res
 report_errored (Errored err) = Errored <$> Compiler.tell_error err
 report_errored (Inconclusive bee) = pure $ Inconclusive (Just bee)
-
-get_decl_child :: Monad m => SIR.DeclRef TypeSolver.Type -> Located Text -> m (ResolveResult bee e (SIR.DeclRef TypeSolver.Type))
-get_decl_child parent name = todo >>= \sir_child_maps -> pure $ convert_either_to_resolve_result $ NameMaps.get_decl_child sir_child_maps parent name
-get_value_child :: Monad m => SIR.DeclRef TypeSolver.Type -> Located Text -> m (ResolveResult bee e SIR.ValueRef)
-get_value_child parent name = todo >>= \sir_child_maps -> pure $ convert_either_to_resolve_result $ NameMaps.get_value_child sir_child_maps parent name
-get_variant_child :: Monad m => SIR.DeclRef TypeSolver.Type -> Located Text -> m (ResolveResult bee e Type.ADT.VariantIndex)
-get_variant_child parent name = todo >>= \sir_child_maps -> pure $ convert_either_to_resolve_result $ NameMaps.get_variant_child sir_child_maps parent name
 
 make_infer_var ::
     TypeSolver.InferVarForWhat ->

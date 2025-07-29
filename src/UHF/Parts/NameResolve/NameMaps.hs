@@ -169,7 +169,7 @@ look_up which_map arena name_map_stack iden =
                         Just parent -> go parent
                         Nothing -> Errored $ Error'CouldNotFind iden
 
-get_decl_child :: SIRChildMaps -> SIR.DeclRef TypeWithInferVar.Type -> Located Text -> Either Error (SIR.DeclRef TypeWithInferVar.Type)
+get_decl_child :: SIRChildMaps -> SIR.DeclRef TypeWithInferVar.Type -> Located Text -> ResolveResult Error Error (SIR.DeclRef TypeWithInferVar.Type)
 get_decl_child sir_child_maps decl name =
     let res = case decl of
             SIR.DeclRef'Module m ->
@@ -180,9 +180,9 @@ get_decl_child sir_child_maps decl name =
                 let ChildMaps (Maps d_children _ _) = intrinsics_package_child_maps
                 in Map.lookup (unlocate name) d_children
     in case res of
-        Just (_, res) -> Right res
-        Nothing -> Left $ Error'CouldNotFindIn Nothing name -- TODO: put previous
-get_value_child :: SIRChildMaps -> SIR.DeclRef TypeWithInferVar.Type -> Located Text -> Either Error SIR.ValueRef
+        Just (_, res) -> Resolved res
+        Nothing -> Errored $ Error'CouldNotFindIn Nothing name -- TODO: put previous
+get_value_child :: SIRChildMaps -> SIR.DeclRef TypeWithInferVar.Type -> Located Text -> ResolveResult Error Error SIR.ValueRef
 get_value_child sir_child_maps decl name =
     let res = case decl of
             SIR.DeclRef'Module m ->
@@ -193,9 +193,9 @@ get_value_child sir_child_maps decl name =
                 let ChildMaps (Maps _ v_children _) = intrinsics_package_child_maps
                 in Map.lookup (unlocate name) v_children
     in case res of
-        Just (_, res) -> Right res
-        Nothing -> Left $ Error'CouldNotFindIn Nothing name -- TODO: put previous
-get_variant_child :: SIRChildMaps -> SIR.DeclRef TypeWithInferVar.Type -> Located Text -> Either Error Type.ADT.VariantIndex
+        Just (_, res) -> Resolved res
+        Nothing -> Errored $ Error'CouldNotFindIn Nothing name -- TODO: put previous
+get_variant_child :: SIRChildMaps -> SIR.DeclRef TypeWithInferVar.Type -> Located Text -> ResolveResult Error Error Type.ADT.VariantIndex
 get_variant_child sir_child_maps decl name =
     let res = case decl of
             SIR.DeclRef'Module m ->
@@ -206,8 +206,8 @@ get_variant_child sir_child_maps decl name =
                 let ChildMaps (Maps _ _ adtv_children) = intrinsics_package_child_maps
                 in Map.lookup (unlocate name) adtv_children
     in case res of
-        Just (_, res) -> Right res
-        Nothing -> Left $ Error'CouldNotFindIn Nothing name -- TODO: put previous
+        Just (_, res) -> Resolved res
+        Nothing -> Errored $ Error'CouldNotFindIn Nothing name -- TODO: put previous
 
 -- utilities for adding things to name maps and child maps {{{1
 decls_to_children ::

@@ -17,6 +17,8 @@ import qualified UHF.Parts.TypeSolver as TypeSolver
 import UHF.Source.Located (Located)
 import qualified UHF.Util.Arena as Arena
 
+-- TODO: ProgressMade is never updated
+
 type PreResolve = (NameMaps.NameMapStackKey, ResolveResult () Compiler.ErrorReportedPromise (), SIR.DeclRef TypeSolver.Type, TypeSolver.Type, (), ())
 type PostResolve =
     ( NameMaps.NameMapStackKey
@@ -37,18 +39,10 @@ type ADTArena prev_bee = Arena.Arena (SIR.ADT (PrevStep prev_bee)) Type.ADTKey
 type TypeSynonymArena prev_bee = Arena.Arena (SIR.TypeSynonym (PrevStep prev_bee)) Type.TypeSynonymKey
 type VariableArena prev_bee = Arena.Arena (SIR.Variable (PrevStep prev_bee)) SIR.VariableKey
 
--- TODO: remove this
-convert_either_to_resolve_result :: Either Error.Error r -> ResolveResult bee e r
-convert_either_to_resolve_result (Right r) = Resolved r
-convert_either_to_resolve_result (Left e) = Errored todo -- TODO: e
-
 resolve :: SIR.SIR PreResolve -> Error.WithErrors (SIR.SIR PostResolve)
 resolve = go
     where
-        -- TODO: better organize these functions so that they are not all under this where clause (split this file up into multiple files?)
-        go ::
-            SIR.SIR (PrevStep prev_bee) ->
-            Writer (Compiler.Diagnostics Error.Error Void) (SIR.SIR PostResolve)
+        go :: SIR.SIR (PrevStep prev_bee) -> Writer (Compiler.Diagnostics Error.Error Void) (SIR.SIR PostResolve)
         go sir = do
             (sir', progress_made) <- runWriterT $ resolve_single_step sir
             case progress_made of
@@ -63,8 +57,6 @@ instance Semigroup ProgressMade where
     ProgressMade <> ProgressMade = ProgressMade
 instance Monoid ProgressMade where
     mempty = NoProgressMade
-
--- TODO: grep for all Inconclusive in this file and make sure they are handled in Resolve
 
 resolve_single_step :: SIR.SIR (PrevStep prev_bee) -> WriterT ProgressMade Error.WithErrors (SIR.SIR PostResolve)
 resolve_single_step (SIR.SIR mods adts type_synonyms type_vars variables (SIR.CU root_module main_function)) = do
@@ -414,12 +406,35 @@ resolve_split_iden resolve_single _ (SIR.SplitIdentifier'Single name_maps name r
         Errored err -> pure (SIR.SplitIdentifier'Single name_maps name (Errored err))
         Resolved result -> pure (SIR.SplitIdentifier'Single name_maps name (Resolved result))
 
-look_up_decl :: Monad m => NameMaps.NameMapStackKey -> Located Text -> m (ResolveResult bee e (SIR.DeclRef TypeSolver.Type))
-look_up_decl name_maps_stack_key name = todo >>= \name_maps_arena -> pure $ convert_either_to_resolve_result $ NameMaps.look_up_decl name_maps_arena name_maps_stack_key name
-look_up_value :: Monad m => NameMaps.NameMapStackKey -> Located Text -> m (ResolveResult bee e SIR.ValueRef)
-look_up_value name_maps_stack_key name = todo >>= \name_maps_arena -> pure $ convert_either_to_resolve_result $ NameMaps.look_up_value name_maps_arena name_maps_stack_key name
-look_up_variant :: Monad m => NameMaps.NameMapStackKey -> Located Text -> m (ResolveResult bee e Type.ADT.VariantIndex)
-look_up_variant name_maps_stack_key name = todo >>= \name_maps_arena -> pure $ convert_either_to_resolve_result $ NameMaps.look_up_variant name_maps_arena name_maps_stack_key name
+look_up_decl ::
+    NameMaps.NameMapStackKey ->
+    Located Text ->
+    ReaderT
+        whatever_figure_this_out_later_TODO
+        (WriterT ProgressMade Error.WithErrors)
+        (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise (SIR.DeclRef TypeSolver.Type))
+look_up_decl name_maps_stack_key name = todo >>= \name_maps_arena -> lift $ lift $ report_errored $ NameMaps.look_up_decl name_maps_arena name_maps_stack_key name
+look_up_value ::
+    NameMaps.NameMapStackKey ->
+    Located Text ->
+    ReaderT
+        whatever_figure_this_out_later_TODO
+        (WriterT ProgressMade Error.WithErrors)
+        (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise SIR.ValueRef)
+look_up_value name_maps_stack_key name = todo >>= \name_maps_arena -> lift $ lift $ report_errored $ NameMaps.look_up_value name_maps_arena name_maps_stack_key name
+look_up_variant ::
+    NameMaps.NameMapStackKey ->
+    Located Text ->
+    ReaderT
+        whatever_figure_this_out_later_TODO
+        (WriterT ProgressMade Error.WithErrors)
+        (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise Type.ADT.VariantIndex)
+look_up_variant name_maps_stack_key name = todo >>= \name_maps_arena -> lift $ lift $ report_errored $ NameMaps.look_up_variant name_maps_arena name_maps_stack_key name
+
+report_errored :: ResolveResult Error.Error Error.Error res -> Error.WithErrors (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise res)
+report_errored (Resolved res) = pure $ Resolved res
+report_errored (Errored err) = Errored <$> Compiler.tell_error err
+report_errored (Inconclusive bee) = pure $ Inconclusive (Just bee)
 
 get_decl_child :: Monad m => SIR.DeclRef TypeSolver.Type -> Located Text -> m (ResolveResult bee e (SIR.DeclRef TypeSolver.Type))
 get_decl_child parent name = todo >>= \sir_child_maps -> pure $ convert_either_to_resolve_result $ NameMaps.get_decl_child sir_child_maps parent name

@@ -154,7 +154,7 @@ assign_in_adt ::
         sir_child_maps
         (StateT (NameMapStackArena, NameMaps.SIRChildMaps) Error.WithErrors)
         (SIR.ADT Assigned)
-assign_in_adt adt_parent_name_maps adt_key (Type.ADT id name type_vars variants) = do
+assign_in_adt adt_parent_name_maps adt_key (SIR.ADT id name type_vars variants) = do
     let parent = adt_parent_name_maps Map.! adt_key
     new_name_map_stack <- lift $ new_name_map_stack_with_parent parent
 
@@ -162,10 +162,10 @@ assign_in_adt adt_parent_name_maps adt_key (Type.ADT id name type_vars variants)
     lift $ modify_name_map new_name_map_stack $ NameMaps.add_to_name_maps children [] []
     -- TODO: also populate child map (when child maps for adts are implemented)
 
-    Type.ADT id name type_vars <$> mapM (assign_in_variant new_name_map_stack) variants
+    SIR.ADT id name type_vars <$> mapM (assign_in_variant new_name_map_stack) variants
     where
-        assign_in_variant nc_stack (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id <$> mapM (\(id, name, (ty, Const ())) -> assign_in_type_expr nc_stack ty >>= \ty -> pure (id, name, (ty, Const ()))) fields
-        assign_in_variant nc_stack (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id <$> mapM (\(id, (ty, Const ())) -> assign_in_type_expr nc_stack ty >>= \ty -> pure (id, (ty, Const ()))) fields
+        assign_in_variant nc_stack (SIR.ADTVariant'Named name id fields) = SIR.ADTVariant'Named name id <$> mapM (\(id, name, ty) -> assign_in_type_expr nc_stack ty >>= \ty -> pure (id, name, ty)) fields
+        assign_in_variant nc_stack (SIR.ADTVariant'Anon name id fields) = SIR.ADTVariant'Anon name id <$> mapM (\(id, ty) -> assign_in_type_expr nc_stack ty >>= \ty -> pure (id, ty)) fields
 
 assign_in_type_synonyms ::
     Map.Map Type.TypeSynonymKey NameMaps.NameMapStackKey ->
@@ -192,10 +192,10 @@ assign_in_type_synonym ::
         sir_child_maps
         (StateT (NameMapStackArena, NameMaps.SIRChildMaps) Error.WithErrors)
         (SIR.TypeSynonym Assigned)
-assign_in_type_synonym parent_maps synonym_key (Type.TypeSynonym id name (expansion, Const ())) = do
+assign_in_type_synonym parent_maps synonym_key (SIR.TypeSynonym id name expansion) = do
     let parent = parent_maps Map.! synonym_key
     expansion <- assign_in_type_expr parent expansion
-    pure (Type.TypeSynonym id name (expansion, Const ()))
+    pure (SIR.TypeSynonym id name expansion)
 
 assign_in_binding ::
     NameMaps.NameMapStackKey ->

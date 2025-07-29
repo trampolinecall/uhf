@@ -14,7 +14,7 @@ module UHF.Parts.UnifiedFrontendSolver.TypeSolver.SolveMonad
 
 import UHF.Prelude
 
-import UHF.Data.SIR.Type
+import UHF.Parts.TypeSolver.TypeWithInferVar
 import qualified UHF.Util.Arena as Arena
 
 newtype SolveMonad under a = SolveMonad (StateT SolverState under a) deriving (Functor, Applicative, Monad, MonadTrans)

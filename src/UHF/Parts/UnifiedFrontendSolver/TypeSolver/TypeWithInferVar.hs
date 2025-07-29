@@ -1,8 +1,7 @@
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
 -- TODO: maybe this is not the best place to put this module?
 
-module UHF.Data.SIR.Type
+module UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar
     ( Type (..)
     , InferVar (..)
     , InferVarArena
@@ -13,6 +12,8 @@ module UHF.Data.SIR.Type
     , infer_var_for_what_name
 
     , kind_of
+
+    , from_ir_type
     )
     where
 
@@ -22,30 +23,29 @@ import UHF.Source.Span (Span)
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Util.Arena as Arena
 import qualified UHF.Data.SIR as SIR
-import UHF.Data.SIR.Stage as Stage
 
-data Type stage
-    = Type'ADT Type.ADTKey [Type stage]
+data Type
+    = Type'ADT Type.ADTKey [Type]
     | Type'Synonym Type.TypeSynonymKey
     | Type'Int
     | Type'Float
     | Type'Char
     | Type'String
     | Type'Bool
-    | Type'Function (Type stage) (Type stage)
-    | Type'Tuple (Type stage) (Type stage)
+    | Type'Function Type Type
+    | Type'Tuple Type Type
     | Type'QuantVar Type.QuantVarKey
-    | Type'InferVar (Stage.InferVarAllowed stage) InferVarKey
-    | Type'Forall (NonEmpty Type.QuantVarKey) (Type stage)
+    | Type'InferVar InferVarKey
+    | Type'Forall (NonEmpty Type.QuantVarKey) Type
     | Type'Kind'Type
-    | Type'Kind'Arrow (Type stage) (Type stage)
+    | Type'Kind'Arrow Type Type
     | Type'Kind'Kind
-deriving instance Show (Stage.InferVarAllowed stage) => Show (Type stage)
+    deriving Show
 
-kind_of :: Arena.Arena (SIR.ADT stage) Type.ADTKey -> Arena.Arena (SIR.TypeSynonym stage) Type.TypeSynonymKey -> Arena.Arena Type.QuantVar Type.QuantVarKey -> Type stage -> Type stage
+kind_of :: Arena.Arena (SIR.ADT stage) Type.ADTKey -> Arena.Arena (SIR.TypeSynonym stage) Type.TypeSynonymKey -> Arena.Arena Type.QuantVar Type.QuantVarKey -> Type -> Type
 kind_of adt_arena type_synonym_arena quant_var_arena = go
     where
-        go :: Type stage -> Type stage
+        go :: Type -> Type
         go t = case t of
             Type'ADT adt_key applied ->
                 let SIR.ADT _ _ quant_vars _ = Arena.get adt_arena adt_key
@@ -61,16 +61,16 @@ kind_of adt_arena type_synonym_arena quant_var_arena = go
             Type'Function _ _ -> Type'Kind'Type
             Type'Tuple _ _ -> Type'Kind'Type
             Type'QuantVar qvk -> quant_var_kind qvk
-            Type'InferVar _ _ -> Type'Kind'Type -- TODO: infer vars with different kinds
+            Type'InferVar _ -> Type'Kind'Type -- TODO: infer vars with different kinds
             Type'Forall quant_vars result -> make_arrows (map quant_var_kind (toList quant_vars)) result
             Type'Kind'Type -> Type'Kind'Kind
             Type'Kind'Arrow _ _ -> Type'Kind'Kind
             Type'Kind'Kind -> Type'Kind'Kind
 
-        quant_var_kind :: Type.QuantVarKey -> Type stage
+        quant_var_kind :: Type.QuantVarKey -> Type
         quant_var_kind qvk = Type'Kind'Type -- TODO: quant vars with different kinds
 
-        make_arrows :: [Type stage] -> Type stage -> Type stage
+        make_arrows :: [Type] -> Type -> Type
         make_arrows [] res = res
         make_arrows (cur_arg:more_args) res = Type'Kind'Arrow cur_arg (make_arrows more_args res)
 
@@ -78,9 +78,9 @@ newtype InferVarKey = InferVarKey Arena.KeyData deriving (Show, Eq, Ord)
 instance Arena.Key InferVarKey where
     make_key = InferVarKey
     unmake_key (InferVarKey i) = i
-type InferVarArena stage = Arena.Arena (InferVar stage) InferVarKey
+type InferVarArena = Arena.Arena InferVar InferVarKey
 
-data InferVar stage = InferVar InferVarForWhat (InferVarStatus stage)
+data InferVar = InferVar InferVarForWhat InferVarStatus
 data InferVarForWhat
     = Variable Span
     | UnresolvedIdenExpr Span
@@ -96,7 +96,7 @@ data InferVarForWhat
     | UnresolvedADTVariantPattern Span
     | ImplicitTyParam Span
     | SomeError Span -- TODO: remove this
-data InferVarStatus stage = Fresh | Substituted (Type stage)
+data InferVarStatus = Fresh | Substituted Type
 
 infer_var_for_what_sp :: InferVarForWhat -> Span
 infer_var_for_what_sp (Variable sp) = sp
@@ -130,19 +130,18 @@ infer_var_for_what_name (UnresolvedADTVariantPattern _) = "ADT variant pattern"
 infer_var_for_what_name (ImplicitTyParam _) = "implicit type parameter" -- TODO: better message
 infer_var_for_what_name (SomeError _) = "some error" -- TODO: remove this
 
--- TODO: remove this
--- from_ir_type :: Type.Type -> Type
--- from_ir_type (Type.Type'ADT adtk args) = Type'ADT adtk (map from_ir_type args)
--- from_ir_type (Type.Type'Synonym tsk) = Type'Synonym tsk
--- from_ir_type Type.Type'Int = Type'Int
--- from_ir_type Type.Type'Float = Type'Float
--- from_ir_type Type.Type'Char = Type'Char
--- from_ir_type Type.Type'String = Type'String
--- from_ir_type Type.Type'Bool = Type'Bool
--- from_ir_type (Type.Type'Function a r) = Type'Function (from_ir_type a) (from_ir_type r)
--- from_ir_type (Type.Type'Tuple a b) = Type'Tuple (from_ir_type a) (from_ir_type b)
--- from_ir_type (Type.Type'QuantVar qvk) = Type'QuantVar qvk
--- from_ir_type (Type.Type'Forall qvars res) = Type'Forall qvars (from_ir_type res)
--- from_ir_type Type.Type'Kind'Type = Type'Kind'Type
--- from_ir_type (Type.Type'Kind'Arrow a b) = Type'Kind'Arrow (from_ir_type a) (from_ir_type b)
--- from_ir_type Type.Type'Kind'Kind = Type'Kind'Kind
+from_ir_type :: Type.Type -> Type
+from_ir_type (Type.Type'ADT adtk args) = Type'ADT adtk (map from_ir_type args)
+from_ir_type (Type.Type'Synonym tsk) = Type'Synonym tsk
+from_ir_type Type.Type'Int = Type'Int
+from_ir_type Type.Type'Float = Type'Float
+from_ir_type Type.Type'Char = Type'Char
+from_ir_type Type.Type'String = Type'String
+from_ir_type Type.Type'Bool = Type'Bool
+from_ir_type (Type.Type'Function a r) = Type'Function (from_ir_type a) (from_ir_type r)
+from_ir_type (Type.Type'Tuple a b) = Type'Tuple (from_ir_type a) (from_ir_type b)
+from_ir_type (Type.Type'QuantVar qvk) = Type'QuantVar qvk
+from_ir_type (Type.Type'Forall qvars res) = Type'Forall qvars (from_ir_type res)
+from_ir_type Type.Type'Kind'Type = Type'Kind'Type
+from_ir_type (Type.Type'Kind'Arrow a b) = Type'Kind'Arrow (from_ir_type a) (from_ir_type b)
+from_ir_type Type.Type'Kind'Kind = Type'Kind'Kind

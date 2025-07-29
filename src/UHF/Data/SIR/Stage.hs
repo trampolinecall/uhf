@@ -24,8 +24,6 @@ class Stage s where
 
     type TypeInfo s
 
-    type InferVarAllowed s
-
     type BinaryOpsAllowed s
 
 instance Stage (name_map_index, iden_resolved_functor (), type_expr_evaled, type_expr_evaled_as_type, infer_var_allowed, type_info, binary_ops_allowed) where
@@ -36,8 +34,6 @@ instance Stage (name_map_index, iden_resolved_functor (), type_expr_evaled, type
     -- TODO: see if it is possible to remove TypeExprEvaled and TypeExprEvaledAsType
     type TypeExprEvaled (name_map_index, iden_resolved_functor (), type_expr_evaled, type_expr_evaled_as_type, infer_var_allowed, type_info, binary_ops_allowed) = type_expr_evaled
     type TypeExprEvaledAsType (name_map_index, iden_resolved_functor (), type_expr_evaled, type_expr_evaled_as_type, infer_var_allowed, type_info, binary_ops_allowed) = type_expr_evaled_as_type
-
-    type InferVarAllowed (name_map_index, iden_resolved_functor (), type_expr_evaled, type_expr_evaled_as_type, infer_var_allowed, type_info, binary_ops_allowed) = infer_var_allowed
 
     type TypeInfo (name_map_index, iden_resolved_functor (), type_expr_evaled, type_expr_evaled_as_type, infer_var_allowed, type_info, binary_ops_allowed) = type_info
 

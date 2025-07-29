@@ -3,6 +3,7 @@ module UHF.Parts.UnifiedFrontendSolver.TypeSolver.Constraint where
 import UHF.Data.SIR.Type
 import UHF.Source.Located (Located)
 import UHF.Source.Span (Span)
+import UHF.Parts.TypeSolver.TypeWithInferVar
 
 -- TODO: maybe dont have InWhat
 data EqInWhat = InAssignment | InNamedPattern | InIfBranches | InMatchPatterns | InMatchArms

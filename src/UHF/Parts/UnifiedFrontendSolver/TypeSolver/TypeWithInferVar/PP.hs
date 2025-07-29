@@ -1,4 +1,4 @@
-module UHF.Data.SIR.Type.PP
+module UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar.PP
     ( InferVarNamer
     , run_infer_var_namer
     , make_infer_var_name_messages
@@ -10,7 +10,7 @@ import UHF.Prelude
 
 import qualified Data.Map as Map
 
-import UHF.Data.SIR.Type
+import UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar
 import UHF.Source.Located (Located (..))
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.PP as Type.PP

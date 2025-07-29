@@ -1,9 +1,12 @@
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE ExplicitForAll #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 
 module UHF.Data.SIR.Stage
     ( Stage (..)
     , AllHaveInstance
+    , IdenResolvedFunctorHasInstance
     , AllShowable
     ) where
 
@@ -12,14 +15,12 @@ import UHF.Prelude
 import Data.Kind (Type, Constraint)
 
 class Stage s where
-    type DIdenStart s
+    type NameMapIndex s
+
+    type IdenResolvedFunctor s :: Type -> Type
+
     type TypeExprEvaled s
     type TypeExprEvaledAsType s
-
-    type VIdenStart s
-    type VIdenResolved s
-    type PIdenStart s
-    type PIdenResolved s
 
     type TypeInfo s
 
@@ -27,31 +28,27 @@ class Stage s where
 
     type BinaryOpsAllowed s
 
-instance Stage (d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) where
-    type DIdenStart (d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = d_iden_start
-    type TypeExprEvaled (d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = type_expr_evaled
-    type TypeExprEvaledAsType (d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = type_expr_evaled_as_type
+instance Stage (name_map_index, iden_resolved_functor (), type_expr_evaled, type_expr_evaled_as_type, infer_var_allowed, type_info, binary_ops_allowed) where
+    type NameMapIndex (name_map_index, iden_resolved_functor (), type_expr_evaled, type_expr_evaled_as_type, infer_var_allowed, type_info, binary_ops_allowed) = name_map_index
 
-    type VIdenStart (d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = v_iden_start
-    type VIdenResolved (d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = v_iden_resolved
-    type PIdenStart (d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = p_iden_start
-    type PIdenResolved (d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = p_iden_resolved
+    type IdenResolvedFunctor (name_map_index, iden_resolved_functor (), type_expr_evaled, type_expr_evaled_as_type, infer_var_allowed, type_info, binary_ops_allowed) = iden_resolved_functor
 
-    type TypeInfo (d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = type_info
+    -- TODO: see if it is possible to remove TypeExprEvaled and TypeExprEvaledAsType
+    type TypeExprEvaled (name_map_index, iden_resolved_functor (), type_expr_evaled, type_expr_evaled_as_type, infer_var_allowed, type_info, binary_ops_allowed) = type_expr_evaled
+    type TypeExprEvaledAsType (name_map_index, iden_resolved_functor (), type_expr_evaled, type_expr_evaled_as_type, infer_var_allowed, type_info, binary_ops_allowed) = type_expr_evaled_as_type
 
-    type InferVarAllowed (d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = () -- TODO
+    type InferVarAllowed (name_map_index, iden_resolved_functor (), type_expr_evaled, type_expr_evaled_as_type, infer_var_allowed, type_info, binary_ops_allowed) = infer_var_allowed
 
-    type BinaryOpsAllowed (d_iden_start, type_expr_evaled, type_expr_evaled_as_type, v_iden_start, v_iden_resolved, p_iden_start, p_iden_resolved, type_info, binary_ops_allowed) = binary_ops_allowed
+    type TypeInfo (name_map_index, iden_resolved_functor (), type_expr_evaled, type_expr_evaled_as_type, infer_var_allowed, type_info, binary_ops_allowed) = type_info
+
+    type BinaryOpsAllowed (name_map_index, iden_resolved_functor (), type_expr_evaled, type_expr_evaled_as_type, infer_var_allowed, type_info, binary_ops_allowed) = binary_ops_allowed
 
 type AllHaveInstance (c :: Type -> Constraint) s =
-    ( c (DIdenStart s)
+    ( c (NameMapIndex s)
     , c (TypeExprEvaled s)
     , c (TypeExprEvaledAsType s)
-    , c (VIdenStart s)
-    , c (VIdenResolved s)
-    , c (PIdenStart s)
-    , c (PIdenResolved s)
     , c (TypeInfo s)
     , c (BinaryOpsAllowed s)
     )
+type IdenResolvedFunctorHasInstance d (c :: Type -> Constraint) s = c (IdenResolvedFunctor s d)
 type AllShowable s = AllHaveInstance Show s

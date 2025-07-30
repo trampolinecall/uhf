@@ -66,15 +66,37 @@ new_type_expr_evaled_as_type_key task = do
     writer ((), ([], [], [], [], [task]))
     state $ \(decls, vals, variants, tees, teeats) -> let (key, teeats') = Arena.put (Inconclusive ()) teeats in (key, (decls, vals, variants, tees, teeats'))
 
-prepare :: SIR.SIR Unprepared -> PrepareState (SIR.SIR Prepared)
+prepare ::
+    SIR.SIR Unprepared ->
+    ( SIR.SIR Prepared
+    , ( IdenResolvedArena (SIR.DeclRef TypeWithInferVar.Type)
+      , IdenResolvedArena SIR.ValueRef
+      , IdenResolvedArena Type.ADT.VariantIndex
+      , TypeExprEvaledArena ()
+      , TypeExprEvaledAsTypeArena ()
+      )
+    , ( [IdenResolveTask (SIR.DeclRef TypeWithInferVar.Type)]
+      , [IdenResolveTask SIR.ValueRef]
+      , [IdenResolveTask Type.ADT.VariantIndex]
+      , [TypeExprEvalTask]
+      , [TypeExprEvalAsTypeTask]
+      )
+    )
 prepare (SIR.SIR mods adts type_synonyms type_vars variables (SIR.CU root_module main_function)) =
-    SIR.SIR
-        <$> Arena.transformM prepare_mod mods
-        <*> Arena.transformM prepare_adt adts
-        <*> Arena.transformM prepare_type_synonym type_synonyms
-        <*> pure type_vars
-        <*> Arena.transformM prepare_variable variables
-        <*> pure (SIR.CU root_module main_function)
+    let ((sir, tasks), arenas) =
+            runState
+                ( runWriterT
+                    ( SIR.SIR
+                        <$> Arena.transformM prepare_mod mods
+                        <*> Arena.transformM prepare_adt adts
+                        <*> Arena.transformM prepare_type_synonym type_synonyms
+                        <*> pure type_vars
+                        <*> Arena.transformM prepare_variable variables
+                        <*> pure (SIR.CU root_module main_function)
+                    )
+                )
+                (Arena.new, Arena.new, Arena.new, Arena.new, Arena.new)
+    in (sir, arenas, tasks)
 
 prepare_mod :: SIR.Module Unprepared -> PrepareState (SIR.Module Prepared)
 prepare_mod (SIR.Module id name_map bindings adts type_synonyms) = SIR.Module id name_map <$> mapM prepare_binding bindings <*> pure adts <*> pure type_synonyms
@@ -182,10 +204,12 @@ prepare_expr (SIR.Expr'Match id type_info sp match_tok_sp e arms) =
         <$> prepare_expr e
         <*> mapM (\(ncs, pat, expr) -> (ncs,,) <$> prepare_pat pat <*> prepare_expr expr) arms
 prepare_expr (SIR.Expr'TypeAnnotation id type_info sp (ty, ()) e) =
-    prepare_type_expr ty >>= \ty -> new_type_expr_evaled_as_type_key (EvalAsType $ SIR.type_expr_evaled ty) >>= \ty_resolved -> SIR.Expr'TypeAnnotation id type_info sp (ty, ty_resolved) <$> prepare_expr e
+    prepare_type_expr ty >>= \ty ->
+        new_type_expr_evaled_as_type_key (EvalAsType $ SIR.type_expr_evaled ty) >>= \ty_resolved -> SIR.Expr'TypeAnnotation id type_info sp (ty, ty_resolved) <$> prepare_expr e
 prepare_expr (SIR.Expr'Forall id type_info sp ncs vars e) = SIR.Expr'Forall id type_info sp ncs vars <$> prepare_expr e
 prepare_expr (SIR.Expr'TypeApply id type_info sp e (arg, ())) =
-    prepare_type_expr arg >>= \arg -> new_type_expr_evaled_as_type_key (EvalAsType $ SIR.type_expr_evaled arg) >>= \arg_resolved -> SIR.Expr'TypeApply id type_info sp <$> prepare_expr e <*> pure (arg, arg_resolved)
+    prepare_type_expr arg >>= \arg ->
+        new_type_expr_evaled_as_type_key (EvalAsType $ SIR.type_expr_evaled arg) >>= \arg_resolved -> SIR.Expr'TypeApply id type_info sp <$> prepare_expr e <*> pure (arg, arg_resolved)
 prepare_expr (SIR.Expr'Hole id type_info sp hid) = pure $ SIR.Expr'Hole id type_info sp hid
 prepare_expr (SIR.Expr'Poison id type_info sp) = pure $ SIR.Expr'Poison id type_info sp
 

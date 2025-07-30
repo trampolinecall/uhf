@@ -1,15 +1,20 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module UHF.Parts.UnifiedFrontendSolver (solve) where
 
 import UHF.Prelude
 
 import Data.Functor.Const (Const)
-import qualified UHF.Data.SIR as SIR
-import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.NameMaps as NameMaps
-import qualified UHF.Parts.UnifiedFrontendSolver.SolveTypes.Aliases as Type
-import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.AssignNameMaps as AssignNameMaps
 import qualified UHF.Compiler as Compiler
+import qualified UHF.Data.SIR as SIR
+import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.AssignNameMaps as NameResolve.AssignNameMaps
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Error as NameResolve.Error
-import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Prepare as Prepare
+import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.NameMaps as NameResolve.NameMaps
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.NameResolveResultArena (IdenResolvedKey, TypeExprEvaledAsTypeKey, TypeExprEvaledKey)
+import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Prepare as NameResolve.Prepare
+import qualified UHF.Parts.UnifiedFrontendSolver.SolveTypes.AddTypes as AddTypes
+import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar as TypeWithInferVar
+import qualified UHF.Data.IR.Type as Type
 
 -- import qualified UHF.Compiler as Compiler
 -- import qualified UHF.Data.SIR as SIR
@@ -20,24 +25,23 @@ import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Prepare as Prepare
 -- import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Resolve as Resolve
 -- import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Finalize as Finalize
 -- import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.ResolveVPIdens as ResolveVPIdens
--- import qualified UHF.Parts.UnifiedFrontendSolver.SolveTypes.AddTypes as AddTypes
 -- import UHF.Parts.UnifiedFrontendSolver.SolveTypes.Aliases
 -- import UHF.Parts.UnifiedFrontendSolver.SolveTypes.Error
 -- import qualified UHF.Parts.UnifiedFrontendSolver.SolveTypes.RemoveInferVars as RemoveInferVars
 -- import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver as TypeSolver
 -- import qualified UHF.Util.Arena as Arena
 
-type PreSolve = ((), Const () (), (), (), (), ())
-type PostSolve = (NameMaps.NameMapStackKey, Maybe (), SIR.DeclRef Type.Type, Type.Type, Maybe Type.Type, Void)
+type PreSolve = ((), Const () (), (), (), (), (), ())
+type Prepared = (NameResolve.NameMaps.NameMapStackKey, IdenResolvedKey (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, (), ())
+type PostSolve = (NameResolve.NameMaps.NameMapStackKey, Maybe (), SIR.DeclRef Type.Type, Type.Type, Maybe Type.Type, Void)
 
 solve :: SIR.SIR PreSolve -> Compiler.WithDiagnostics NameResolve.Error.Error Void (SIR.SIR PostSolve)
 solve sir = do
-    (sir, name_map_stack_arena, sir_child_maps) <- AssignNameMaps.assign sir
-    let sir' = Prepare.prepare sir
+    (sir, name_map_stack_arena, sir_child_maps) <- NameResolve.AssignNameMaps.assign sir
+    let (sir', name_resolution_results, name_resolution_tasks) = NameResolve.Prepare.prepare sir
+    let (sir'', type_solver_state, type_solving_tasks) = AddTypes.add sir'
 
     todo
-
--- (sir, constraints) <- runWrtierT (AddTypes.add sir)
 
 -- sir <- Resolve.resolve sir
 -- -- TODO: solve constraints and mix these together

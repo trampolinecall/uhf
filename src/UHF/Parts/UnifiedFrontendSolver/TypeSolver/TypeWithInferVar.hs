@@ -84,7 +84,8 @@ type InferVarArena = Arena.Arena InferVar InferVarKey
 data InferVar = InferVar InferVarForWhat InferVarStatus
 data InferVarForWhat
     = Variable Span
-    | UnresolvedIdenExpr Span
+    | IdenExpr Span
+    | UnresolvedIdenExpr Span -- TODO: remove this
     | CallExpr Span
     | MatchExpr Span
     | PoisonExpr Span
@@ -101,6 +102,7 @@ data InferVarStatus = Fresh | Substituted Type
 
 infer_var_for_what_sp :: InferVarForWhat -> Span
 infer_var_for_what_sp (Variable sp) = sp
+infer_var_for_what_sp (IdenExpr sp) = sp
 infer_var_for_what_sp (UnresolvedIdenExpr sp) = sp
 infer_var_for_what_sp (CallExpr sp) = sp
 infer_var_for_what_sp (MatchExpr sp) = sp
@@ -117,6 +119,7 @@ infer_var_for_what_sp (SomeError sp) = sp
 
 infer_var_for_what_name :: InferVarForWhat -> Text
 infer_var_for_what_name (Variable _) = "binding"
+infer_var_for_what_name (IdenExpr _) = "identifier expression"
 infer_var_for_what_name (UnresolvedIdenExpr _) = "identifier expression"
 infer_var_for_what_name (CallExpr _) = "call expression"
 infer_var_for_what_name (MatchExpr _) = "match expression"

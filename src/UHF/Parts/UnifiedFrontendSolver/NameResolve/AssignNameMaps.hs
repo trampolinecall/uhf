@@ -28,7 +28,7 @@ type UnassignedADTArena = Arena.Arena (SIR.ADT Unassigned) Type.ADTKey
 type UnassignedTypeSynonymArena = Arena.Arena (SIR.TypeSynonym Unassigned) Type.TypeSynonymKey
 type UnassignedVariableArena = Arena.Arena (SIR.Variable Unassigned) SIR.VariableKey
 
-type Assigned = (NameMaps.NameMapStackKey, Const () (), (), (), (), (), ())
+type Assigned = (NameMaps.NameMapStackKey, Const () (), TypeWithInferVar.Type, (), (), (), ())
 
 type AssignedModuleArena = Arena.Arena (SIR.Module Assigned) SIR.ModuleKey
 type AssignedADTArena = Arena.Arena (SIR.ADT Assigned) Type.ADTKey
@@ -221,8 +221,8 @@ assign_in_type_expr ::
         sir_child_maps
         (StateT (NameMapStackArena, NameMaps.SIRChildMaps) Error.WithErrors)
         (SIR.TypeExpr Assigned)
-assign_in_type_expr nc_stack (SIR.TypeExpr'Refer evaled sp () id (Const ())) = pure $ SIR.TypeExpr'Refer evaled sp nc_stack id (Const ())
-assign_in_type_expr nc_stack (SIR.TypeExpr'Get evaled sp parent name) = SIR.TypeExpr'Get evaled sp <$> assign_in_type_expr nc_stack parent <*> pure name
+assign_in_type_expr nc_stack (SIR.TypeExpr'Refer evaled (Const ()) sp () id) = pure $ SIR.TypeExpr'Refer evaled (Const ()) sp nc_stack id
+assign_in_type_expr nc_stack (SIR.TypeExpr'Get evaled (Const ()) sp parent name) = SIR.TypeExpr'Get evaled (Const ()) sp <$> assign_in_type_expr nc_stack parent <*> pure name
 assign_in_type_expr nc_stack (SIR.TypeExpr'Tuple evaled sp a b) = SIR.TypeExpr'Tuple evaled sp <$> assign_in_type_expr nc_stack a <*> assign_in_type_expr nc_stack b
 assign_in_type_expr _ (SIR.TypeExpr'Hole evaled type_info sp hid) = pure $ SIR.TypeExpr'Hole evaled type_info sp hid
 assign_in_type_expr nc_stack (SIR.TypeExpr'Function evaled sp arg res) = SIR.TypeExpr'Function evaled sp <$> assign_in_type_expr nc_stack arg <*> assign_in_type_expr nc_stack res
@@ -249,7 +249,7 @@ assign_in_expr ::
         (StateT (NameMapStackArena, NameMaps.SIRChildMaps) Error.WithErrors)
     )
         (SIR.Expr Assigned)
-assign_in_expr nc_stack (SIR.Expr'Refer id type_info sp iden (Const ())) = SIR.Expr'Refer id type_info sp <$> assign_split_iden nc_stack iden <*> pure (Const ())
+assign_in_expr nc_stack (SIR.Expr'Refer id type_info sp iden ) = SIR.Expr'Refer id type_info sp <$> assign_split_iden nc_stack iden
 assign_in_expr _ (SIR.Expr'Char id type_info sp c) = pure $ SIR.Expr'Char id type_info sp c
 assign_in_expr _ (SIR.Expr'String id type_info sp s) = pure $ SIR.Expr'String id type_info sp s
 assign_in_expr _ (SIR.Expr'Int id type_info sp i) = pure $ SIR.Expr'Int id type_info sp i
@@ -289,8 +289,8 @@ assign_in_expr nc_stack (SIR.Expr'BinaryOps id allowed type_info sp first ops) =
     SIR.Expr'BinaryOps id allowed type_info sp
         <$> assign_in_expr nc_stack first
         <*> mapM
-            ( \(sp, iden, Const (), rhs) ->
-                (sp,,Const (),)
+            ( \(sp, iden, rhs) ->
+                (sp,,)
                     <$> assign_split_iden nc_stack iden
                     <*> assign_in_expr nc_stack rhs
             )
@@ -338,16 +338,14 @@ assign_in_pat _ (SIR.Pattern'Variable type_info sp bnk) = pure $ SIR.Pattern'Var
 assign_in_pat _ (SIR.Pattern'Wildcard type_info sp) = pure $ SIR.Pattern'Wildcard type_info sp
 assign_in_pat nc_stack (SIR.Pattern'Tuple type_info sp a b) = SIR.Pattern'Tuple type_info sp <$> assign_in_pat nc_stack a <*> assign_in_pat nc_stack b
 assign_in_pat nc_stack (SIR.Pattern'Named type_info sp at_sp bnk subpat) = SIR.Pattern'Named type_info sp at_sp bnk <$> assign_in_pat nc_stack subpat
-assign_in_pat nc_stack (SIR.Pattern'AnonADTVariant type_info sp variant_iden variant_assigned tyargs subpat) =
+assign_in_pat nc_stack (SIR.Pattern'AnonADTVariant type_info sp variant_iden tyargs subpat) =
     SIR.Pattern'AnonADTVariant type_info sp
         <$> assign_split_iden nc_stack variant_iden
-        <*> pure variant_assigned
         <*> pure tyargs
         <*> mapM (assign_in_pat nc_stack) subpat
-assign_in_pat nc_stack (SIR.Pattern'NamedADTVariant type_info sp variant_iden variant_assigned tyargs subpat) =
+assign_in_pat nc_stack (SIR.Pattern'NamedADTVariant type_info sp variant_iden tyargs subpat) =
     SIR.Pattern'NamedADTVariant type_info sp
         <$> assign_split_iden nc_stack variant_iden
-        <*> pure variant_assigned
         <*> pure tyargs
         <*> mapM (\(field_name, field_pat) -> (field_name,) <$> assign_in_pat nc_stack field_pat) subpat
 assign_in_pat _ (SIR.Pattern'Poison type_info sp) = pure $ SIR.Pattern'Poison type_info sp

@@ -19,10 +19,11 @@ import UHF.Source.Located (Located (..))
 import UHF.Source.Span (Span)
 import qualified UHF.Util.Arena as Arena
 import UHF.Parts.UnifiedFrontendSolver.SolveTypes.Task (TypeSolveTask (..))
+import UHF.Parts.UnifiedFrontendSolver.InfixGroup.InfixGroupResultArena (InfixGroupedKey)
 
-type Unadded = (NameMaps.NameMapStackKey, IdenResolvedKey (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, (), ())
+type Unadded = (NameMaps.NameMapStackKey, IdenResolvedKey (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, (), InfixGroupedKey)
 type Added =
-    (NameMaps.NameMapStackKey, IdenResolvedKey (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, TypeWithInferVar.Type, ())
+    (NameMaps.NameMapStackKey, IdenResolvedKey (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, TypeWithInferVar.Type, InfixGroupedKey)
 
 type AddMonad adts type_synonyms quant_vars vars =
     ReaderT (adts, type_synonyms, quant_vars, vars) (WriterT [TypeSolveTask] (TypeSolver.SolveMonad (Compiler.WithDiagnostics Error Void)))

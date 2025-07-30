@@ -26,7 +26,6 @@ module UHF.Parts.UnifiedFrontendSolver.TypeSolver
     , apply_type
 
     , solve_constraint
-    , solve_constraint_backlog
     , SolveError
 
     , substitute_quant_var

@@ -14,8 +14,8 @@ import UHF.Parts.UnifiedFrontendSolver.NameResolve.NameResolveResultArena
     , TypeExprEvaledAsTypeKey
     , TypeExprEvaledKey
     )
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.ResolveResult
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Task (IdenResolveTask (..), TypeExprEvalAsTypeTask (..), TypeExprEvalTask (..))
+import UHF.Parts.UnifiedFrontendSolver.SolveResult
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Util.Arena as Arena
 
@@ -35,36 +35,41 @@ type PrepareState =
             ( IdenResolvedArena (SIR.DeclRef TypeWithInferVar.Type)
             , IdenResolvedArena SIR.ValueRef
             , IdenResolvedArena Type.ADT.VariantIndex
-            , TypeExprEvaledArena ()
-            , TypeExprEvaledAsTypeArena ()
+            , TypeExprEvaledArena
+            , TypeExprEvaledAsTypeArena
             )
         )
 
 new_decl_iden_resolved_key ::
-    IdenResolveTask (SIR.DeclRef TypeWithInferVar.Type) -> PrepareState (IdenResolvedKey (SIR.DeclRef TypeWithInferVar.Type))
-new_decl_iden_resolved_key task = do
-    writer ((), ([task], [], [], [], []))
-    state $ \(decls, vals, variants, tees, teeats) -> let (key, decls') = Arena.put (Inconclusive ()) decls in (key, (decls', vals, variants, tees, teeats))
+    (IdenResolvedKey (SIR.DeclRef TypeWithInferVar.Type) -> IdenResolveTask (SIR.DeclRef TypeWithInferVar.Type)) ->
+    PrepareState (IdenResolvedKey (SIR.DeclRef TypeWithInferVar.Type))
+new_decl_iden_resolved_key make_task = do
+    key <- state $ \(decls, vals, variants, tees, teeats) -> let (key, decls') = Arena.put (Inconclusive Nothing) decls in (key, (decls', vals, variants, tees, teeats))
+    writer ((), ([make_task key], [], [], [], []))
+    pure key
 
-new_val_iden_resolved_key :: IdenResolveTask SIR.ValueRef -> PrepareState (IdenResolvedKey SIR.ValueRef)
-new_val_iden_resolved_key task = do
-    writer ((), ([], [task], [], [], []))
-    state $ \(decls, vals, variants, tees, teeats) -> let (key, vals') = Arena.put (Inconclusive ()) vals in (key, (decls, vals', variants, tees, teeats))
+new_val_iden_resolved_key :: (IdenResolvedKey SIR.ValueRef -> IdenResolveTask SIR.ValueRef) -> PrepareState (IdenResolvedKey SIR.ValueRef)
+new_val_iden_resolved_key make_task = do
+    key <- state $ \(decls, vals, variants, tees, teeats) -> let (key, vals') = Arena.put (Inconclusive Nothing) vals in (key, (decls, vals', variants, tees, teeats))
+    writer ((), ([], [make_task key], [], [], []))
+    pure key
 
-new_variant_iden_resolved_key :: IdenResolveTask Type.ADT.VariantIndex -> PrepareState (IdenResolvedKey Type.ADT.VariantIndex)
-new_variant_iden_resolved_key task = do
-    writer ((), ([], [], [task], [], []))
-    state $ \(decls, vals, variants, tees, teeats) -> let (key, variants') = Arena.put (Inconclusive ()) variants in (key, (decls, vals, variants', tees, teeats))
+new_variant_iden_resolved_key ::
+    (IdenResolvedKey Type.ADT.VariantIndex -> IdenResolveTask Type.ADT.VariantIndex) -> PrepareState (IdenResolvedKey Type.ADT.VariantIndex)
+new_variant_iden_resolved_key make_task = do
+    key <- state $ \(decls, vals, variants, tees, teeats) -> let (key, variants') = Arena.put (Inconclusive Nothing) variants in (key, (decls, vals, variants', tees, teeats))
+    writer ((), ([], [], [make_task key], [], []))
+    pure key
 
 new_type_expr_evaled_key :: TypeExprEvalTask -> PrepareState TypeExprEvaledKey
 new_type_expr_evaled_key task = do
     writer ((), ([], [], [], [task], []))
-    state $ \(decls, vals, variants, tees, teeats) -> let (key, tees') = Arena.put (Inconclusive ()) tees in (key, (decls, vals, variants, tees', teeats))
+    state $ \(decls, vals, variants, tees, teeats) -> let (key, tees') = Arena.put (Inconclusive Nothing) tees in (key, (decls, vals, variants, tees', teeats))
 
 new_type_expr_evaled_as_type_key :: TypeExprEvalAsTypeTask -> PrepareState TypeExprEvaledAsTypeKey
 new_type_expr_evaled_as_type_key task = do
     writer ((), ([], [], [], [], [task]))
-    state $ \(decls, vals, variants, tees, teeats) -> let (key, teeats') = Arena.put (Inconclusive ()) teeats in (key, (decls, vals, variants, tees, teeats'))
+    state $ \(decls, vals, variants, tees, teeats) -> let (key, teeats') = Arena.put (Inconclusive Nothing) teeats in (key, (decls, vals, variants, tees, teeats'))
 
 prepare ::
     SIR.SIR Unprepared ->
@@ -72,8 +77,8 @@ prepare ::
     , ( IdenResolvedArena (SIR.DeclRef TypeWithInferVar.Type)
       , IdenResolvedArena SIR.ValueRef
       , IdenResolvedArena Type.ADT.VariantIndex
-      , TypeExprEvaledArena ()
-      , TypeExprEvaledAsTypeArena ()
+      , TypeExprEvaledArena
+      , TypeExprEvaledAsTypeArena
       )
     , ( [IdenResolveTask (SIR.DeclRef TypeWithInferVar.Type)]
       , [IdenResolveTask SIR.ValueRef]
@@ -233,7 +238,7 @@ prepare_pat (SIR.Pattern'NamedADTVariant type_info sp variant_iden tyargs subpat
 prepare_pat (SIR.Pattern'Poison type_info sp) = pure $ SIR.Pattern'Poison type_info sp
 
 prepare_split_iden ::
-    (IdenResolveTask result -> PrepareState (IdenResolvedKey resolved)) ->
+    ((IdenResolvedKey result -> IdenResolveTask result) -> PrepareState (IdenResolvedKey resolved)) ->
     SIR.SplitIdentifier resolved Unprepared ->
     PrepareState (SIR.SplitIdentifier resolved Prepared)
 prepare_split_iden new_key (SIR.SplitIdentifier'Get texpr next (Const ())) = do

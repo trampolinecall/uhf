@@ -12,8 +12,8 @@ import UHF.Source.Located (Located)
 -- TODO: rename NameMapStack to NameContext everywhere
 --
 data IdenResolveTask result
-    = ResolveRoot NameMapStackKey (Located Text)
-    | ResolveGet TypeExprEvaledKey (Located Text)
+    = ResolveRoot NameMapStackKey (Located Text) (IdenResolvedKey result)
+    | ResolveGet TypeExprEvaledKey (Located Text) (IdenResolvedKey result)
 
 data TypeExprEvalTask
     = GetFromDeclIdenResolved (IdenResolvedKey (SIR.DeclRef TypeWithInferVar.Type))

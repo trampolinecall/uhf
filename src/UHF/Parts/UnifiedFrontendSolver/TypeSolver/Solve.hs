@@ -7,7 +7,6 @@ module UHF.Parts.UnifiedFrontendSolver.TypeSolver.Solve
     , apply_type
 
     , solve_constraint
-    , solve_constraint_backlog
     ) where
 
 import UHF.Prelude
@@ -28,8 +27,6 @@ import qualified UHF.Util.Arena as Arena
 -- e_t for error type - the type of the type expressions in the things that will be passed to error messages
 type TypeContextReader e_t t under = ReaderT (Arena.Arena (Type.ADT e_t) Type.ADTKey, Arena.Arena (Type.TypeSynonym e_t) Type.TypeSynonymKey, Type.TypeSynonymKey -> SolveMonad.SolveMonad under (Type.TypeSynonym (t, Type)), Arena.Arena Type.QuantVar Type.QuantVarKey) (SolveMonad.SolveMonad under)
 
--- TODO: figure out a better interface for pushing onto the backlog
-
 -- TODO: figure out a better way to put this
 data ApplyTypeResult e_t
     = AppliedResult Type
@@ -48,30 +45,6 @@ apply_type adts type_synonyms get_type_synonym quant_vars for_what sp ty arg =
 -- TODO: figure out a better place in this module to put these 2 functions
 solve_constraint :: forall e_t under t. Monad under => Arena.Arena (Type.ADT e_t) Type.ADTKey -> Arena.Arena (Type.TypeSynonym e_t) Type.TypeSynonymKey -> (Type.TypeSynonymKey -> SolveMonad.SolveMonad under (Type.TypeSynonym (t, Type))) -> Arena.Arena Type.QuantVar Type.QuantVarKey -> Constraint -> SolveMonad.SolveMonad under (Maybe (Either (SolveError e_t) ()))
 solve_constraint adts type_synonyms get_type_synonym quant_vars constraint = solve adts type_synonyms get_type_synonym quant_vars constraint
-
-solve_constraint_backlog :: Monad under => Arena.Arena (Type.ADT e_t) Type.ADTKey -> Arena.Arena (Type.TypeSynonym e_t) Type.TypeSynonymKey -> (Type.TypeSynonymKey -> SolveMonad.SolveMonad under (Type.TypeSynonym (t, Type))) -> Arena.Arena Type.QuantVar Type.QuantVarKey -> [Constraint] -> SolveMonad.SolveMonad under ([SolveError e_t], [Constraint])
-solve_constraint_backlog adts type_synonyms get_type_synonym quant_vars backlog = do
-    (new_backlog, errors) <- runWriterT $ go backlog
-    pure (errors, new_backlog)
-    where
-        go constraints = do
-            next <- constraints
-                -- try to solve each constraint and save each one that couldn't be solved in this round
-                & mapM (\ constraint ->
-                    lift (solve adts type_synonyms get_type_synonym quant_vars constraint) >>= \case
-                        Just (Right ()) -> pure Nothing
-                        Just (Left err) -> do
-                            tell [err]
-                            pure Nothing
-                        Nothing -> pure (Just constraint)
-                )
-                & fmap catMaybes
-
-            if null next
-                then pure []
-                else if length constraints == length next
-                    then pure next -- all constraints were deferred, so no more solving can be done
-                    else go next
 
 get_error_type_context :: Monad under => TypeContextReader e_t t under (ErrorTypeContext e_t)
 get_error_type_context =

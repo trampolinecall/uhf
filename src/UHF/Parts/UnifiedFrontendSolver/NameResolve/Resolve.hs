@@ -1,4 +1,4 @@
-module UHF.Parts.UnifiedFrontendSolver.NameResolve.Resolve (resolve) where
+module UHF.Parts.UnifiedFrontendSolver.NameResolve.Resolve (resolve_decl_iden, resolve_value_iden, resolve_variant_iden) where
 
 import UHF.Prelude
 
@@ -9,83 +9,183 @@ import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
+import UHF.Parts.UnifiedFrontendSolver.InfixGroup.InfixGroupResultArena (InfixGroupedArena, InfixGroupedKey)
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Error as Error
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.NRReader as NRReader
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.NameMaps as NameMaps
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.ResolveResult
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.NameResolveResultArena
+    ( IdenResolvedArena
+    , IdenResolvedKey
+    , TypeExprEvaledArena
+    , TypeExprEvaledAsTypeArena
+    , TypeExprEvaledAsTypeKey
+    , TypeExprEvaledKey
+    )
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Task (IdenResolveTask (..))
+import UHF.Parts.UnifiedFrontendSolver.ProgressMade (ProgressMade (..))
+import UHF.Parts.UnifiedFrontendSolver.SolveResult (SolveResult (..))
+import UHF.Parts.UnifiedFrontendSolver.Solving (SolveMonad, get_type_expr_evaled)
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver as TypeSolver
+import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver as TypeWithInferVar
+import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver.SolveMonad as SolveMonad
 import UHF.Source.Located (Located)
 import qualified UHF.Util.Arena as Arena
 
-type PreResolve = (NameMaps.NameMapStackKey, ResolveResult () Compiler.ErrorReportedPromise (), SIR.DeclRef TypeSolver.Type, TypeSolver.Type, (), ())
-type PostResolve =
-    ( NameMaps.NameMapStackKey
-    , ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise () -- the best effort error is a Maybe in case some of the names cant be resolved because one of their dependencies is inconclusive, in which case we don't have an error to report for that name
-    , SIR.DeclRef TypeSolver.Type
-    , TypeSolver.Type
-    , ()
-    , ()
-    )
-
-type PrevStep prev_bee =
-    (NameMaps.NameMapStackKey, ResolveResult prev_bee Compiler.ErrorReportedPromise (), SIR.DeclRef TypeSolver.Type, TypeSolver.Type, (), ())
+-- TODO: remove these
+-- type PreResolve = (NameMaps.NameMapStackKey, SolveResult () Compiler.ErrorReportedPromise (), SIR.DeclRef TypeSolver.Type, TypeSolver.Type, (), ())
+-- type PostResolve =
+--     ( NameMaps.NameMapStackKey
+--     , SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise () -- the best effort error is a Maybe in case some of the names cant be resolved because one of their dependencies is inconclusive, in which case we don't have an error to report for that name
+--     , SIR.DeclRef TypeSolver.Type
+--     , TypeSolver.Type
+--     , ()
+--     , ()
+--     )
+-- type PrevStep prev_bee =
+--     (NameMaps.NameMapStackKey, SolveResult prev_bee Compiler.ErrorReportedPromise (), SIR.DeclRef TypeSolver.Type, TypeSolver.Type, (), ())
 
 type NameMapStackArena = Arena.Arena NameMaps.NameMapStack NameMaps.NameMapStackKey
-type ResolveMonad =
-    ( ReaderT
-        NameMapStackArena -- TODO: put SIR here too
-        ( NRReader.NRReader
-            (Arena.Arena (SIR.ADT PreResolve) Type.ADTKey)
-            (Arena.Arena (SIR.TypeSynonym PreResolve) Type.TypeSynonymKey)
-            ()
-            (Arena.Arena Type.QuantVar Type.QuantVarKey)
-            NameMaps.SIRChildMaps
-            (WriterT [TypeSolver.Constraint] (TypeSolver.SolveMonad Error.WithErrors))
+
+-- TODO: remove this?
+-- ( ReaderT
+--     NameMapStackArena -- TODO: put SIR here too
+--     ( NRReader.NRReader
+--         (Arena.Arena (SIR.ADT PreResolve) Type.ADTKey)
+--         (Arena.Arena (SIR.TypeSynonym PreResolve) Type.TypeSynonymKey)
+--         ()
+--         (Arena.Arena Type.QuantVar Type.QuantVarKey)
+--         NameMaps.SIRChildMaps
+--         (WriterT [TypeSolver.Constraint] (TypeSolver.SolveMonad Error.WithErrors))
+--     )
+-- )
+--
+resolve_decl_iden ::
+    IdenResolveTask (SIR.DeclRef TypeWithInferVar.Type) -> SolveMonad (ProgressMade (IdenResolveTask (SIR.DeclRef TypeWithInferVar.Type)))
+resolve_decl_iden =
+    resolve
+        ( \s ->
+            StateT $
+                \( (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
+                    , infix_group_results
+                    ) -> do
+                        ((), decl_iden_resolved_arena) <- runStateT s decl_iden_resolved_arena
+                        pure
+                            ( ()
+                            ,
+                                ( (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
+                                , infix_group_results
+                                )
+                            )
         )
-    )
+        look_up_decl
+        get_decl_child
+resolve_value_iden :: IdenResolveTask SIR.ValueRef -> SolveMonad (ProgressMade (IdenResolveTask SIR.ValueRef))
+resolve_value_iden =
+    resolve
+        ( \s ->
+            StateT $
+                \( (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
+                    , infix_group_results
+                    ) -> do
+                        ((), value_iden_resolved_arena) <- runStateT s value_iden_resolved_arena
+                        pure
+                            ( ()
+                            ,
+                                ( (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
+                                , infix_group_results
+                                )
+                            )
+        )
+        look_up_value
+        get_value_child
+resolve_variant_iden :: IdenResolveTask Type.ADT.VariantIndex -> SolveMonad (ProgressMade (IdenResolveTask Type.ADT.VariantIndex))
+resolve_variant_iden =
+    resolve
+        ( \s ->
+            StateT $
+                \( (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
+                    , infix_group_results
+                    ) -> do
+                        ((), variant_iden_resolved_arena) <- runStateT s variant_iden_resolved_arena
+                        pure
+                            ( ()
+                            ,
+                                ( (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
+                                , infix_group_results
+                                )
+                            )
+        )
+        look_up_variant
+        get_variant_child
 
 resolve ::
-    (NameMaps.NameMapStackKey -> Located Text -> ResolveMonad (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise resolved)) ->
-    (SIR.DeclRef TypeSolver.Type -> Located Text -> ResolveMonad (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise resolved)) ->
+    Monad under =>
+    (StateT (Arena.Arena (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise resolved) (IdenResolvedKey resolved)) under () -> SolveMonad ()) ->
+    (NameMaps.NameMapStackKey -> Located Text -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise resolved)) ->
+    (SIR.DeclRef TypeSolver.Type -> Located Text -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise resolved)) ->
     IdenResolveTask resolved ->
-    ResolveMonad (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise resolved)
-resolve resolve_root _ (ResolveRoot name_context name) = resolve_root name_context name
-resolve _ resolve_get (ResolveGet parent name) = do
-    parent_evaled <- SIR.type_expr_evaled <$> _get_other_result parent -- get_other_result will nullify a Inconclusive bee?
-    case parent_evaled of
-        Resolved texpr_evaled -> resolve_get texpr_evaled name
-        Errored err -> pure $ Errored err
+    SolveMonad (ProgressMade (IdenResolveTask resolved))
+resolve selector resolve_root _ (ResolveRoot name_context name result_key) = do
+    result <- resolve_root name_context name
+    put_result selector result_key result
+resolve selector _ resolve_get (ResolveGet parent name result_key) = do
+    parent_evaled <- get_type_expr_evaled parent
+    result <- case parent_evaled of
+        Solved texpr_evaled -> resolve_get texpr_evaled name
+        Errored erp -> pure $ Errored erp
         Inconclusive _ -> pure (Inconclusive Nothing)
+    put_result selector result_key result
+
+put_result ::
+    Monad under =>
+    (StateT (Arena.Arena (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise resolved) (IdenResolvedKey resolved)) under () -> SolveMonad ()) ->
+    IdenResolvedKey resolved ->
+    SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise resolved ->
+    SolveMonad (ProgressMade (IdenResolveTask resolved))
+put_result selector k res = do
+    case res of
+        Inconclusive _ -> pure Unsuccessful
+        _ -> do
+            selector $
+                modify $
+                    \arena ->
+                        Arena.modify
+                            arena
+                            k
+                            ( \case
+                                Inconclusive _ -> res
+                                _ -> res -- TODO: internal warning because there was already a result here and it was recomputed?
+                            )
+            pure $ Successful []
 
 look_up_decl ::
     NameMaps.NameMapStackKey ->
     Located Text ->
-    ResolveMonad (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise (SIR.DeclRef TypeSolver.Type))
-look_up_decl name_maps_stack_key name = ask >>= \name_maps_arena -> report_errored $ NameMaps.look_up_decl name_maps_arena name_maps_stack_key name
+    SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise (SIR.DeclRef TypeSolver.Type))
+look_up_decl name_maps_stack_key name = ask >>= \(name_maps_arena, _, _) -> report_errored $ NameMaps.look_up_decl name_maps_arena name_maps_stack_key name
 look_up_value ::
-    NameMaps.NameMapStackKey -> Located Text -> ResolveMonad (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise SIR.ValueRef)
-look_up_value name_maps_stack_key name = ask >>= \name_maps_arena -> report_errored $ NameMaps.look_up_value name_maps_arena name_maps_stack_key name
+    NameMaps.NameMapStackKey -> Located Text -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise SIR.ValueRef)
+look_up_value name_maps_stack_key name = ask >>= \(name_maps_arena, _, _) -> report_errored $ NameMaps.look_up_value name_maps_arena name_maps_stack_key name
 look_up_variant ::
-    NameMaps.NameMapStackKey -> Located Text -> ResolveMonad (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise Type.ADT.VariantIndex)
-look_up_variant name_maps_stack_key name = ask >>= \name_maps_arena -> report_errored $ NameMaps.look_up_variant name_maps_arena name_maps_stack_key name
+    NameMaps.NameMapStackKey -> Located Text -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise Type.ADT.VariantIndex)
+look_up_variant name_maps_stack_key name = ask >>= \(name_maps_arena, _, _) -> report_errored $ NameMaps.look_up_variant name_maps_arena name_maps_stack_key name
 
 get_decl_child ::
     SIR.DeclRef TypeSolver.Type ->
     Located Text ->
-    ResolveMonad (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise (SIR.DeclRef TypeSolver.Type))
-get_decl_child parent name = lift NRReader.ask_sir_child_maps >>= \sir_child_maps -> report_errored $ NameMaps.get_decl_child sir_child_maps parent name
+    SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise (SIR.DeclRef TypeSolver.Type))
+get_decl_child parent name = ask >>= \(_, sir_child_maps, _) -> report_errored $ NameMaps.get_decl_child sir_child_maps parent name
 get_value_child ::
-    SIR.DeclRef TypeSolver.Type -> Located Text -> ResolveMonad (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise SIR.ValueRef)
-get_value_child parent name = lift NRReader.ask_sir_child_maps >>= \sir_child_maps -> report_errored $ NameMaps.get_value_child sir_child_maps parent name
+    SIR.DeclRef TypeSolver.Type -> Located Text -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise SIR.ValueRef)
+get_value_child parent name = ask >>= \(_, sir_child_maps, _) -> report_errored $ NameMaps.get_value_child sir_child_maps parent name
 get_variant_child ::
-    SIR.DeclRef TypeSolver.Type -> Located Text -> ResolveMonad (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise Type.ADT.VariantIndex)
-get_variant_child parent name = lift NRReader.ask_sir_child_maps >>= \sir_child_maps -> report_errored $ NameMaps.get_variant_child sir_child_maps parent name
+    SIR.DeclRef TypeSolver.Type -> Located Text -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise Type.ADT.VariantIndex)
+get_variant_child parent name = ask >>= \(_, sir_child_maps, _) -> report_errored $ NameMaps.get_variant_child sir_child_maps parent name
 
 -- TODO: remove this?
-report_errored :: ResolveResult Error.Error Error.Error res -> ResolveMonad (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise res)
-report_errored (Resolved res) = pure $ Resolved res
-report_errored (Errored err) = Errored <$> lift (lift $ lift $ lift $ Compiler.tell_error err)
+report_errored :: SolveResult Error.Error Error.Error res -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise res)
+report_errored (Solved res) = pure $ Solved res
+report_errored (Errored err) = Errored <$> lift (lift $ lift $ Compiler.tell_error err)
 report_errored (Inconclusive bee) = pure $ Inconclusive (Just bee)
 
 -- resolve ::
@@ -120,7 +220,7 @@ report_errored (Inconclusive bee) = pure $ Inconclusive (Just bee)
 --
 -- resolve_single_step ::
 --     SIR.SIR (PrevStep prev_bee) ->
---     ResolveMonad (SIR.SIR PostResolve)
+--     SolveMonad (SIR.SIR PostResolve)
 -- resolve_single_step (SIR.SIR mods adts type_synonyms type_vars variables (SIR.CU root_module main_function)) = do
 --     mods <- Arena.transformM resolve_in_module mods
 --     adts <- Arena.transformM resolve_in_adt adts
@@ -129,15 +229,15 @@ report_errored (Inconclusive bee) = pure $ Inconclusive (Just bee)
 --     where
 --         change_variable (SIR.Variable varid tyinfo n) = SIR.Variable varid tyinfo n
 --
--- resolve_in_module :: SIR.Module (PrevStep prev_bee) -> ResolveMonad (SIR.Module PostResolve)
+-- resolve_in_module :: SIR.Module (PrevStep prev_bee) -> SolveMonad (SIR.Module PostResolve)
 -- resolve_in_module (SIR.Module id name_maps bindings adts type_synonyms) = do
 --     bindings <- mapM resolve_in_binding bindings
 --     pure $ SIR.Module id name_maps bindings adts type_synonyms
 --
--- resolve_in_adt :: SIR.ADT (PrevStep prev_bee) -> ResolveMonad (SIR.ADT PostResolve)
+-- resolve_in_adt :: SIR.ADT (PrevStep prev_bee) -> SolveMonad (SIR.ADT PostResolve)
 -- resolve_in_adt (SIR.ADT id name type_vars variants) = SIR.ADT id name type_vars <$> mapM resolve_in_variant variants
 --     where
---         resolve_in_variant :: SIR.ADTVariant (PrevStep prev_bee1) -> ResolveMonad (SIR.ADTVariant PostResolve)
+--         resolve_in_variant :: SIR.ADTVariant (PrevStep prev_bee1) -> SolveMonad (SIR.ADTVariant PostResolve)
 --         resolve_in_variant (SIR.ADTVariant'Named name id fields) =
 --             SIR.ADTVariant'Named name id
 --                 <$> mapM
@@ -157,16 +257,16 @@ report_errored (Inconclusive bee) = pure $ Inconclusive (Just bee)
 --                     )
 --                     fields
 --
--- resolve_in_type_synonym :: SIR.TypeSynonym (PrevStep prev_bee) -> ResolveMonad (SIR.TypeSynonym PostResolve)
+-- resolve_in_type_synonym :: SIR.TypeSynonym (PrevStep prev_bee) -> SolveMonad (SIR.TypeSynonym PostResolve)
 -- resolve_in_type_synonym (SIR.TypeSynonym id name expansion) = do
 --     expansion <- resolve_in_type_expr expansion
 --     -- expansion_as_type <- if_inconclusive expansion_as_type (type_expr_evaled_as_type expansion)
 --     pure $ SIR.TypeSynonym id name expansion
 --
--- resolve_in_binding :: SIR.Binding (PrevStep prev_bee) -> ResolveMonad (SIR.Binding PostResolve)
+-- resolve_in_binding :: SIR.Binding (PrevStep prev_bee) -> SolveMonad (SIR.Binding PostResolve)
 -- resolve_in_binding (SIR.Binding target eq_sp expr) = SIR.Binding <$> resolve_in_pat target <*> pure eq_sp <*> resolve_in_expr expr
 --
--- resolve_in_type_expr :: SIR.TypeExpr (PrevStep prev_bee) -> ResolveMonad (SIR.TypeExpr PostResolve)
+-- resolve_in_type_expr :: SIR.TypeExpr (PrevStep prev_bee) -> SolveMonad (SIR.TypeExpr PostResolve)
 -- resolve_in_type_expr (SIR.TypeExpr'Refer _ sp nc_stack id resolved) = do
 --     resolved <- if_inconclusive resolved (look_up_decl nc_stack id)
 --     pure $ SIR.TypeExpr'Refer resolved sp nc_stack id resolved
@@ -271,7 +371,7 @@ report_errored (Inconclusive bee) = pure $ Inconclusive (Just bee)
 --     pure $ SIR.TypeExpr'Poison evaled sp
 --
 -- type_expr_evaled_as_type ::
---     SIR.TypeExpr (PrevStep prev_bee) -> ResolveMonad (ResolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise TypeSolver.Type)
+--     SIR.TypeExpr (PrevStep prev_bee) -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise TypeSolver.Type)
 -- type_expr_evaled_as_type te =
 --     let sp = SIR.type_expr_span te
 --         d = SIR.type_expr_evaled te
@@ -286,7 +386,7 @@ report_errored (Inconclusive bee) = pure $ Inconclusive (Just bee)
 --         Errored _ -> Resolved <$> make_infer_var (TypeSolver.TypeExpr sp) -- TODO: make this message better
 --         Inconclusive _ -> pure (Inconclusive Nothing)
 --
--- resolve_in_expr :: SIR.Expr (PrevStep prev_bee) -> ResolveMonad (SIR.Expr PostResolve)
+-- resolve_in_expr :: SIR.Expr (PrevStep prev_bee) -> SolveMonad (SIR.Expr PostResolve)
 -- resolve_in_expr (SIR.Expr'Refer id type_info sp iden resolved) = do
 --     iden <- resolve_split_iden look_up_value get_value_child iden
 --     result <- if_inconclusive resolved (pure $ SIR.split_identifier_resolved iden)
@@ -347,7 +447,7 @@ report_errored (Inconclusive bee) = pure $ Inconclusive (Just bee)
 -- resolve_in_expr (SIR.Expr'Hole id type_info sp hid) = pure $ SIR.Expr'Hole id type_info sp hid
 -- resolve_in_expr (SIR.Expr'Poison id type_info sp) = pure $ SIR.Expr'Poison id type_info sp
 --
--- resolve_in_pat :: SIR.Pattern (PrevStep prev_bee) -> ResolveMonad (SIR.Pattern PostResolve)
+-- resolve_in_pat :: SIR.Pattern (PrevStep prev_bee) -> SolveMonad (SIR.Pattern PostResolve)
 -- resolve_in_pat (SIR.Pattern'Variable type_info sp bnk) = pure $ SIR.Pattern'Variable type_info sp bnk
 -- resolve_in_pat (SIR.Pattern'Wildcard type_info sp) = pure $ SIR.Pattern'Wildcard type_info sp
 -- resolve_in_pat (SIR.Pattern'Tuple type_info sp a b) = SIR.Pattern'Tuple type_info sp <$> resolve_in_pat a <*> resolve_in_pat b
@@ -367,7 +467,7 @@ report_errored (Inconclusive bee) = pure $ Inconclusive (Just bee)
 --
 --
 --
--- make_infer_var :: TypeSolver.InferVarForWhat -> ResolveMonad TypeSolver.Type
+-- make_infer_var :: TypeSolver.InferVarForWhat -> SolveMonad TypeSolver.Type
 -- make_infer_var for_what = do
 --     ifv <- lift $ lift $ lift $ lift $ TypeSolver.new_infer_var for_what
 --     pure $ TypeSolver.Type'InferVar ifv

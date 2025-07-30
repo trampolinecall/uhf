@@ -1,3 +1,4 @@
+{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module UHF.Parts.UnifiedFrontendSolver (solve) where
@@ -6,15 +7,28 @@ import UHF.Prelude
 
 import Data.Functor.Const (Const)
 import qualified UHF.Compiler as Compiler
+import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
+import UHF.Parts.UnifiedFrontendSolver.InfixGroup.InfixGroupResultArena (InfixGroupedKey)
+import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.InfixGroupResultArena as InfixGroupResultArena
+import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Prepare as InfixGroup.Prepare
+import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Task as InfixGroup.Task
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.AssignNameMaps as NameResolve.AssignNameMaps
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Error as NameResolve.Error
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.NameMaps as NameResolve.NameMaps
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.NameResolveResultArena (IdenResolvedKey, TypeExprEvaledAsTypeKey, TypeExprEvaledKey)
+import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.NameResolveResultArena as NameResolveResultArena
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Prepare as NameResolve.Prepare
+import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Resolve as NameResolve.Resolve
+import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Task as NameResolve.Task
+import UHF.Parts.UnifiedFrontendSolver.ProgressMade (ProgressMade (..))
 import qualified UHF.Parts.UnifiedFrontendSolver.SolveTypes.AddTypes as AddTypes
+import qualified UHF.Parts.UnifiedFrontendSolver.SolveTypes.Task as SolveTypes.Task
+import qualified UHF.Parts.UnifiedFrontendSolver.Solving as Solving
+import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver as SolveMonad
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar as TypeWithInferVar
-import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Util.Arena as Arena
 
 -- import qualified UHF.Compiler as Compiler
 -- import qualified UHF.Data.SIR as SIR
@@ -32,16 +46,90 @@ import qualified UHF.Data.IR.Type as Type
 -- import qualified UHF.Util.Arena as Arena
 
 type PreSolve = ((), Const () (), (), (), (), (), ())
-type Prepared = (NameResolve.NameMaps.NameMapStackKey, IdenResolvedKey (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, (), ())
 type PostSolve = (NameResolve.NameMaps.NameMapStackKey, Maybe (), SIR.DeclRef Type.Type, Type.Type, Maybe Type.Type, Void)
 
 solve :: SIR.SIR PreSolve -> Compiler.WithDiagnostics NameResolve.Error.Error Void (SIR.SIR PostSolve)
 solve sir = do
+    -- TODO: clean this up
     (sir, name_map_stack_arena, sir_child_maps) <- NameResolve.AssignNameMaps.assign sir
     let (sir', name_resolution_results, name_resolution_tasks) = NameResolve.Prepare.prepare sir
-    let (sir'', type_solver_state, type_solving_tasks) = AddTypes.add sir'
+    let (sir'', infix_group_results, infix_group_tasks) = InfixGroup.Prepare.prepare sir'
+    let (sir''', type_solver_state, type_solving_tasks) = AddTypes.add sir''
+
+    (((), (name_resolution_results, infix_group_results)), type_solver_state) <-
+        SolveMonad.run_solve_monad_with
+            ( runReaderT
+                (runStateT (solve' (name_resolution_tasks, infix_group_tasks, type_solving_tasks)) (name_resolution_results, infix_group_results))
+                (name_map_stack_arena, sir_child_maps, sir''')
+            )
+            type_solver_state
 
     todo
+
+solve' ::
+    ( ( [NameResolve.Task.IdenResolveTask (SIR.DeclRef TypeWithInferVar.Type)]
+      , [NameResolve.Task.IdenResolveTask SIR.ValueRef]
+      , [NameResolve.Task.IdenResolveTask Type.ADT.VariantIndex]
+      , [NameResolve.Task.TypeExprEvalTask]
+      , [NameResolve.Task.TypeExprEvalAsTypeTask]
+      )
+    , [InfixGroup.Task.InfixGroupTask]
+    , [SolveTypes.Task.TypeSolveTask]
+    ) ->
+    StateT
+        ( ( NameResolveResultArena.IdenResolvedArena (SIR.DeclRef TypeWithInferVar.Type)
+          , NameResolveResultArena.IdenResolvedArena SIR.ValueRef
+          , NameResolveResultArena.IdenResolvedArena Type.ADT.VariantIndex
+          , NameResolveResultArena.TypeExprEvaledArena
+          , NameResolveResultArena.TypeExprEvaledAsTypeArena
+          )
+        , InfixGroupResultArena.InfixGroupedArena ()
+        )
+        ( ReaderT
+            (Arena.Arena NameResolve.NameMaps.NameMapStack NameResolve.NameMaps.NameMapStackKey, NameResolve.NameMaps.SIRChildMaps, SIR.SIR Solving.SolvingStage)
+            (SolveMonad.SolveMonad (Compiler.WithDiagnostics NameResolve.Error.Error Void))
+        )
+        ()
+solve'
+    ( (decl_resolve_tasks, value_resolve_tasks, variant_resolve_tasks, type_expr_eval_tasks, type_expr_eval_as_type_tasks)
+        , infix_group_tasks
+        , type_solve_tasks
+        ) = do
+        -- TODO: sort by priority and ability to add new tasks
+        -- (resort by priority when new tasks are added, but if no new tasks are added then the new queue is a subsequence of the original queue so we dont need to resort)
+        (decl_resolve_tasks, changed1) <- go NameResolve.Resolve.resolve_decl_iden decl_resolve_tasks
+        (value_resolve_tasks, changed2) <- go NameResolve.Resolve.resolve_value_iden value_resolve_tasks
+        (variant_resolve_tasks, changed3) <- go NameResolve.Resolve.resolve_variant_iden variant_resolve_tasks
+        (type_expr_eval_tasks, changed4) <- go _ type_expr_eval_tasks
+        (type_expr_eval_as_type_tasks, changed5) <- go _ type_expr_eval_as_type_tasks
+
+        (infix_group_tasks, changed6) <- go _ infix_group_tasks
+
+        (type_solve_tasks, changed7) <- go _ type_solve_tasks
+
+        when (changed1 || changed2 || changed3 || changed4 || changed5 || changed6 || changed7) $
+            solve'
+                ( (decl_resolve_tasks, value_resolve_tasks, variant_resolve_tasks, type_expr_eval_tasks, type_expr_eval_as_type_tasks)
+                , infix_group_tasks
+                , type_solve_tasks
+                )
+        where
+            go :: Monad m => (task -> m (ProgressMade task)) -> [task] -> m ([task], Bool)
+            go _ [] = pure ([], False)
+            go solve tasks = do
+                (changed, retained_tasks, new_tasks) <-
+                    ( tasks
+                            & mapM
+                                ( \task ->
+                                    solve task >>= \case
+                                        Unsuccessful -> pure ([False], [task], [])
+                                        Successful new_tasks -> pure ([True], [], new_tasks)
+                                )
+                        )
+                        <&> mconcat
+
+                let next_tasks = if not $ null new_tasks {- TODO: sortOn priority -} then retained_tasks ++ new_tasks else retained_tasks
+                pure (next_tasks, or changed)
 
 -- sir <- Resolve.resolve sir
 -- -- TODO: solve constraints and mix these together

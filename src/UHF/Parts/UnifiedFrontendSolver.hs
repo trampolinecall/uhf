@@ -30,6 +30,7 @@ import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver as SolveMonad
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Util.Arena as Arena
 import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Group as InfixGroup.Group
+import qualified UHF.Parts.UnifiedFrontendSolver.SolveTypes.Solve as SolveTypes.Solve
 
 -- import qualified UHF.Compiler as Compiler
 -- import qualified UHF.Data.SIR as SIR
@@ -106,7 +107,7 @@ solve'
 
         (infix_group_tasks, changed6) <- go InfixGroup.Group.group infix_group_tasks
 
-        (type_solve_tasks, changed7) <- go _ type_solve_tasks
+        (type_solve_tasks, changed7) <- go SolveTypes.Solve.solve type_solve_tasks
 
         when (changed1 || changed2 || changed3 || changed4 || changed5 || changed6 || changed7) $
             solve'

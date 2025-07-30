@@ -92,6 +92,7 @@ library
       UHF.Parts.UnifiedFrontendSolver.SolveTypes.Error
       UHF.Parts.UnifiedFrontendSolver.SolveTypes.Error.InferVarNamer
       UHF.Parts.UnifiedFrontendSolver.SolveTypes.RemoveInferVars
+      UHF.Parts.UnifiedFrontendSolver.SolveTypes.Solve
       UHF.Parts.UnifiedFrontendSolver.SolveTypes.Task
       UHF.Parts.UnifiedFrontendSolver.Solving
       UHF.Parts.UnifiedFrontendSolver.TypeSolver

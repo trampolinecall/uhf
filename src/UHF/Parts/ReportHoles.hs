@@ -31,7 +31,7 @@ report_holes sir@(SIR.SIR _ _ _ _ _ (SIR.CU root_module _)) = runReaderT (module
 module_ :: (SIR.TypeInfo stage ~ Maybe Type.Type, SIR.TypeExprEvaledAsTypeKey stage ~ Maybe Type.Type) => SIR.ModuleKey -> ReaderT (SIR.SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
 module_ key =
     ask >>= \ (SIR.SIR modules _ _ _ _ _) ->
-    let SIR.Module _ bindings adts type_synonyms = Arena.get modules key
+    let SIR.Module _ _ bindings adts type_synonyms = Arena.get modules key
     in mapM_ binding bindings >> mapM_ adt adts >> mapM_ type_synonym type_synonyms
 
 adt :: (SIR.TypeInfo stage ~ Maybe Type.Type, SIR.TypeExprEvaledAsTypeKey stage ~ Maybe Type.Type) => Type.ADTKey -> ReaderT (SIR.SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
@@ -50,7 +50,7 @@ pattern :: SIR.Pattern stage -> ReaderT (SIR.SIR stage) (Compiler.WithDiagnostic
 pattern _ = pure () -- TODO: remove or keep for symmetry?
 
 expr :: (SIR.TypeInfo stage ~ Maybe Type.Type, SIR.TypeExprEvaledAsTypeKey stage ~ Maybe Type.Type) => SIR.Expr stage -> ReaderT (SIR.SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
-expr (SIR.Expr'Refer _ _ _ _ _) = pure ()
+expr (SIR.Expr'Refer _ _ _ _) = pure ()
 expr (SIR.Expr'Char _ _ _ _) = pure ()
 expr (SIR.Expr'String _ _ _ _) = pure ()
 expr (SIR.Expr'Int _ _ _ _) = pure ()
@@ -61,19 +61,19 @@ expr (SIR.Expr'Tuple _ _ _ a b) = expr a >> expr b
 
 expr (SIR.Expr'Lambda _ _ _ param body) = pattern param >> expr body
 
-expr (SIR.Expr'Let _ _ _ bindings adts type_synonyms body) = mapM_ binding bindings >> mapM_ adt adts >> mapM_ type_synonym type_synonyms >> expr body
-expr (SIR.Expr'LetRec _ _ _ bindings adts type_synonyms body) = mapM_ binding bindings >> mapM_ adt adts >> mapM_ type_synonym type_synonyms >> expr body
+expr (SIR.Expr'Let _ _ _ _ bindings adts type_synonyms body) = mapM_ binding bindings >> mapM_ adt adts >> mapM_ type_synonym type_synonyms >> expr body
+expr (SIR.Expr'LetRec _ _ _ _ bindings adts type_synonyms body) = mapM_ binding bindings >> mapM_ adt adts >> mapM_ type_synonym type_synonyms >> expr body
 
-expr (SIR.Expr'BinaryOps _ _ _ _ first ops) = expr first >> mapM_ (\ (_, _, _, rhs) -> expr rhs) ops
+expr (SIR.Expr'BinaryOps _ _ _ _ first ops) = expr first >> mapM_ (\ (_, _, rhs) -> expr rhs) ops
 
 expr (SIR.Expr'Call _ _ _ callee arg) = expr callee >> expr arg
 
 expr (SIR.Expr'If _ _ _ _ cond t f) = expr cond >> expr t >> expr f
-expr (SIR.Expr'Match _ _ _ _ e arms) = expr e >> mapM_ (\ (p, e) -> pattern p >> expr e) arms
+expr (SIR.Expr'Match _ _ _ _ e arms) = expr e >> mapM_ (\ (_, p, e) -> pattern p >> expr e) arms
 
 expr (SIR.Expr'TypeAnnotation _ _ _ (ty, _) e) = type_expr ty >> expr e
 
-expr (SIR.Expr'Forall _ _ _ _ e) = expr e
+expr (SIR.Expr'Forall _ _ _ _ _ e) = expr e
 expr (SIR.Expr'TypeApply _ _ _ e (arg, _)) = expr e >> type_expr arg
 
 expr (SIR.Expr'Hole _ type_info sp hid) =
@@ -87,8 +87,8 @@ expr (SIR.Expr'Hole _ type_info sp hid) =
 expr (SIR.Expr'Poison _ _ _) = pure ()
 
 type_expr :: (SIR.TypeInfo stage ~ Maybe Type.Type, SIR.TypeExprEvaledAsTypeKey stage ~ Maybe Type.Type) => SIR.TypeExpr stage -> ReaderT (SIR.SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
-type_expr (SIR.TypeExpr'Refer _ _ _) = pure ()
-type_expr (SIR.TypeExpr'Get _ _ inside _) = type_expr inside
+type_expr (SIR.TypeExpr'Refer _ _ _ _ _) = pure ()
+type_expr (SIR.TypeExpr'Get _ _ _ inside _) = type_expr inside
 type_expr (SIR.TypeExpr'Tuple _ _ a b) = type_expr a >> type_expr b
 type_expr (SIR.TypeExpr'Hole _ type_info sp hid) =
     case type_info of
@@ -98,7 +98,7 @@ type_expr (SIR.TypeExpr'Hole _ type_info sp hid) =
             pure ()
         Nothing -> pure () -- typing phase will have already reported ambiguous type
 type_expr (SIR.TypeExpr'Function _ _ arg res) = type_expr arg >> type_expr res
-type_expr (SIR.TypeExpr'Forall _ _ _ ty) = type_expr ty
+type_expr (SIR.TypeExpr'Forall _ _ _ _ ty) = type_expr ty
 type_expr (SIR.TypeExpr'Apply _ _ ty arg) = type_expr ty >> type_expr arg
 type_expr (SIR.TypeExpr'Wild _ _) = pure ()
 type_expr (SIR.TypeExpr'Poison _ _) = pure ()

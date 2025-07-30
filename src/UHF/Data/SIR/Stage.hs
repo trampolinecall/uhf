@@ -26,7 +26,7 @@ class Stage s where
 
     type TypeInfo s
 
-    type BinaryOpsAllowed s
+    type InfixGroupedKey s
 
 instance Stage (name_map_index, iden_resolved_key (), type_in_refer, type_expr_evaled_key, type_expr_evaled_as_type_key, type_info, binary_ops_allowed) where
     type NameMapIndex (name_map_index, iden_resolved_key (), type_in_refer, type_expr_evaled_key, type_expr_evaled_as_type_key, type_info, binary_ops_allowed) = name_map_index
@@ -41,14 +41,14 @@ instance Stage (name_map_index, iden_resolved_key (), type_in_refer, type_expr_e
 
     type TypeInfo (name_map_index, iden_resolved_key (), type_in_refer, type_expr_evaled_key, type_expr_evaled_as_type_key, type_info, binary_ops_allowed) = type_info
 
-    type BinaryOpsAllowed (name_map_index, iden_resolved_key (), type_in_refer, type_expr_evaled_key, type_expr_evaled_as_type_key, type_info, binary_ops_allowed) = binary_ops_allowed
+    type InfixGroupedKey (name_map_index, iden_resolved_key (), type_in_refer, type_expr_evaled_key, type_expr_evaled_as_type_key, type_info, binary_ops_allowed) = binary_ops_allowed
 
 type AllHaveInstance (c :: Type -> Constraint) s =
     ( c (NameMapIndex s)
     , c (TypeExprEvaledKey s)
     , c (TypeExprEvaledAsTypeKey s)
     , c (TypeInfo s)
-    , c (BinaryOpsAllowed s)
+    , c (InfixGroupedKey s)
     )
 type IdenResolvedKeyHasInstance d (c :: Type -> Constraint) s = c (IdenResolvedKey s d)
 type AllShowable s = AllHaveInstance Show s

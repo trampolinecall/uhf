@@ -151,7 +151,7 @@ data Expr stage
     | Expr'LetRec ID.ExprID (Stage.TypeInfo stage) Span (Stage.NameMapIndex stage) [Binding stage] [ADTKey] [TypeSynonymKey] (Expr stage)
     | Expr'BinaryOps
         ID.ExprID
-        (Stage.BinaryOpsAllowed stage)
+        (Stage.InfixGroupedKey stage)
         (Stage.TypeInfo stage)
         Span
         (Expr stage)

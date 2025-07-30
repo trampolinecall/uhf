@@ -3,6 +3,7 @@ module UHF.Parts.UnifiedFrontendSolver.NameResolve.Prepare (prepare) where
 import UHF.Prelude
 
 import Data.Functor.Const (Const (Const))
+import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.NameMaps as NameMaps
@@ -109,24 +110,22 @@ prepare_mod :: SIR.Module Unprepared -> PrepareState (SIR.Module Prepared)
 prepare_mod (SIR.Module id name_map bindings adts type_synonyms) = SIR.Module id name_map <$> mapM prepare_binding bindings <*> pure adts <*> pure type_synonyms
 
 prepare_adt :: SIR.ADT Unprepared -> PrepareState (SIR.ADT Prepared)
-prepare_adt (SIR.ADT id name type_vars variants) = SIR.ADT id name type_vars <$> mapM prepare_variant variants
+prepare_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM prepare_variant variants
     where
-        prepare_variant (SIR.ADTVariant'Named name id fields) =
-            SIR.ADTVariant'Named name id
+        prepare_variant (Type.ADT.Variant'Named name id fields) =
+            Type.ADT.Variant'Named name id
                 <$> mapM
-                    -- (\(id, name, (ty, as_type)) -> prepare_type_expr ty >>= \ty -> new_iden_resolved_key >>= \as_type -> pure (id, name, (ty, as_type)))
-                    (\(id, name, ty) -> prepare_type_expr ty >>= \ty -> pure (id, name, ty))
+                    (\(id, name, (ty, ())) -> prepare_type_expr ty >>= \ty -> new_type_expr_evaled_as_type_key (EvalAsType $ SIR.type_expr_evaled ty) >>= \as_type -> pure (id, name, (ty, as_type)))
                     fields
-        prepare_variant (SIR.ADTVariant'Anon name id fields) =
-            SIR.ADTVariant'Anon name id
-                -- <$> mapM (\(id, (ty, as_type)) -> prepare_type_expr ty >>= \ty -> new_iden_resolved_key >>= \as_type -> pure (id, (ty, as_type))) fields
-                <$> mapM (\(id, ty) -> prepare_type_expr ty >>= \ty -> pure (id, ty)) fields
+        prepare_variant (Type.ADT.Variant'Anon name id fields) =
+            Type.ADT.Variant'Anon name id
+                <$> mapM (\(id, (ty, ())) -> prepare_type_expr ty >>= \ty -> new_type_expr_evaled_as_type_key (EvalAsType $ SIR.type_expr_evaled ty) >>= \as_type -> pure (id, (ty, as_type))) fields
 
 prepare_type_synonym :: SIR.TypeSynonym Unprepared -> PrepareState (SIR.TypeSynonym Prepared)
-prepare_type_synonym (SIR.TypeSynonym id name expansion) = do
+prepare_type_synonym (Type.TypeSynonym id name (expansion, ())) = do
     expansion <- prepare_type_expr expansion
-    -- as_type <- new_iden_resolved_key
-    pure $ SIR.TypeSynonym id name expansion
+    as_type <- new_type_expr_evaled_as_type_key (EvalAsType $ SIR.type_expr_evaled expansion)
+    pure $ Type.TypeSynonym id name (expansion, as_type)
 
 prepare_variable :: SIR.Variable Unprepared -> PrepareState (SIR.Variable Prepared)
 prepare_variable (SIR.Variable varid tyinfo n) = pure $ SIR.Variable varid tyinfo n

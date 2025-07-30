@@ -28,20 +28,20 @@ class Stage s where
 
     type InfixGroupedKey s
 
-instance Stage (name_map_index, iden_resolved_key (), type_in_refer, type_expr_evaled_key, type_expr_evaled_as_type_key, type_info, binary_ops_allowed) where
-    type NameMapIndex (name_map_index, iden_resolved_key (), type_in_refer, type_expr_evaled_key, type_expr_evaled_as_type_key, type_info, binary_ops_allowed) = name_map_index
+instance Stage (name_map_index, iden_resolved_key (), type_in_refer, type_expr_evaled_key, type_expr_evaled_as_type_key, type_info, infix_grouped_key) where
+    type NameMapIndex (name_map_index, iden_resolved_key (), type_in_refer, type_expr_evaled_key, type_expr_evaled_as_type_key, type_info, infix_grouped_key) = name_map_index
 
-    type IdenResolvedKey (name_map_index, iden_resolved_key (), type_in_refer, type_expr_evaled_key, type_expr_evaled_as_type_key, type_info, binary_ops_allowed) = iden_resolved_key
+    type IdenResolvedKey (name_map_index, iden_resolved_key (), type_in_refer, type_expr_evaled_key, type_expr_evaled_as_type_key, type_info, infix_grouped_key) = iden_resolved_key
 
-    type TypeInRefer (name_map_index, iden_resolved_key (), type_in_refer, type_expr_evaled_key, type_expr_evaled_as_type_key, type_info, binary_ops_allowed) = type_in_refer
+    type TypeInRefer (name_map_index, iden_resolved_key (), type_in_refer, type_expr_evaled_key, type_expr_evaled_as_type_key, type_info, infix_grouped_key) = type_in_refer
 
     -- TODO: see if it is possible to remove TypeExprEvaledKey and TypeExprEvaledAsTypeKey
-    type TypeExprEvaledKey (name_map_index, iden_resolved_key (), type_in_refer, type_expr_evaled_key, type_expr_evaled_as_type_key, type_info, binary_ops_allowed) = type_expr_evaled_key
-    type TypeExprEvaledAsTypeKey (name_map_index, iden_resolved_key (), type_in_refer, type_expr_evaled_key, type_expr_evaled_as_type_key, type_info, binary_ops_allowed) = type_expr_evaled_as_type_key
+    type TypeExprEvaledKey (name_map_index, iden_resolved_key (), type_in_refer, type_expr_evaled_key, type_expr_evaled_as_type_key, type_info, infix_grouped_key) = type_expr_evaled_key
+    type TypeExprEvaledAsTypeKey (name_map_index, iden_resolved_key (), type_in_refer, type_expr_evaled_key, type_expr_evaled_as_type_key, type_info, infix_grouped_key) = type_expr_evaled_as_type_key
 
-    type TypeInfo (name_map_index, iden_resolved_key (), type_in_refer, type_expr_evaled_key, type_expr_evaled_as_type_key, type_info, binary_ops_allowed) = type_info
+    type TypeInfo (name_map_index, iden_resolved_key (), type_in_refer, type_expr_evaled_key, type_expr_evaled_as_type_key, type_info, infix_grouped_key) = type_info
 
-    type InfixGroupedKey (name_map_index, iden_resolved_key (), type_in_refer, type_expr_evaled_key, type_expr_evaled_as_type_key, type_info, binary_ops_allowed) = binary_ops_allowed
+    type InfixGroupedKey (name_map_index, iden_resolved_key (), type_in_refer, type_expr_evaled_key, type_expr_evaled_as_type_key, type_info, infix_grouped_key) = infix_grouped_key
 
 type AllHaveInstance (c :: Type -> Constraint) s =
     ( c (NameMapIndex s)

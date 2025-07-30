@@ -8,16 +8,17 @@ import UHF.Prelude
 
 import Data.Functor.Const (Const (Const))
 import qualified Data.Map as Map
+import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
+import UHF.Parts.UnifiedFrontendSolver.Error (Error)
+import qualified UHF.Parts.UnifiedFrontendSolver.Error as Solve.Error
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Error as Error
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.NRReader as NRReader
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.NameMaps as NameMaps
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Util.Arena as Arena
-import qualified UHF.Compiler as Compiler
-import qualified UHF.Parts.UnifiedFrontendSolver.Error as Solve.Error
-import UHF.Parts.UnifiedFrontendSolver.Error (Error)
 
 -- TODO: figure out a better solution than to have adt_parents and type_synonym_parents
 
@@ -157,7 +158,7 @@ assign_in_adt ::
         sir_child_maps
         (StateT (NameMapStackArena, NameMaps.SIRChildMaps) (Compiler.WithDiagnostics Solve.Error.Error Void))
         (SIR.ADT Assigned)
-assign_in_adt adt_parent_name_maps adt_key (SIR.ADT id name type_vars variants) = do
+assign_in_adt adt_parent_name_maps adt_key (Type.ADT id name type_vars variants) = do
     let parent = adt_parent_name_maps Map.! adt_key
     new_name_map_stack <- lift $ new_name_map_stack_with_parent parent
 
@@ -165,10 +166,10 @@ assign_in_adt adt_parent_name_maps adt_key (SIR.ADT id name type_vars variants) 
     lift $ todo $ modify_name_map new_name_map_stack $ NameMaps.add_to_name_maps children [] []
     -- TODO: also populate child map (when child maps for adts are implemented)
 
-    SIR.ADT id name type_vars <$> mapM (assign_in_variant new_name_map_stack) variants
+    Type.ADT id name type_vars <$> mapM (assign_in_variant new_name_map_stack) variants
     where
-        assign_in_variant nc_stack (SIR.ADTVariant'Named name id fields) = SIR.ADTVariant'Named name id <$> mapM (\(id, name, ty) -> assign_in_type_expr nc_stack ty >>= \ty -> pure (id, name, ty)) fields
-        assign_in_variant nc_stack (SIR.ADTVariant'Anon name id fields) = SIR.ADTVariant'Anon name id <$> mapM (\(id, ty) -> assign_in_type_expr nc_stack ty >>= \ty -> pure (id, ty)) fields
+        assign_in_variant nc_stack (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id <$> mapM (\(id, name, (ty, ())) -> assign_in_type_expr nc_stack ty >>= \ty -> pure (id, name, (ty, ()))) fields
+        assign_in_variant nc_stack (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id <$> mapM (\(id, (ty, ())) -> assign_in_type_expr nc_stack ty >>= \ty -> pure (id, (ty, ()))) fields
 
 assign_in_type_synonyms ::
     Map.Map Type.TypeSynonymKey NameMaps.NameMapStackKey ->
@@ -195,10 +196,10 @@ assign_in_type_synonym ::
         sir_child_maps
         (StateT (NameMapStackArena, NameMaps.SIRChildMaps) (Compiler.WithDiagnostics Solve.Error.Error Void))
         (SIR.TypeSynonym Assigned)
-assign_in_type_synonym parent_maps synonym_key (SIR.TypeSynonym id name expansion) = do
+assign_in_type_synonym parent_maps synonym_key (Type.TypeSynonym id name (expansion, ())) = do
     let parent = parent_maps Map.! synonym_key
     expansion <- assign_in_type_expr parent expansion
-    pure (SIR.TypeSynonym id name expansion)
+    pure (Type.TypeSynonym id name (expansion, ()))
 
 assign_in_binding ::
     NameMaps.NameMapStackKey ->
@@ -252,7 +253,7 @@ assign_in_expr ::
         (StateT (NameMapStackArena, NameMaps.SIRChildMaps) (Compiler.WithDiagnostics Solve.Error.Error Void))
     )
         (SIR.Expr Assigned)
-assign_in_expr nc_stack (SIR.Expr'Refer id type_info sp iden ) = SIR.Expr'Refer id type_info sp <$> assign_split_iden nc_stack iden
+assign_in_expr nc_stack (SIR.Expr'Refer id type_info sp iden) = SIR.Expr'Refer id type_info sp <$> assign_split_iden nc_stack iden
 assign_in_expr _ (SIR.Expr'Char id type_info sp c) = pure $ SIR.Expr'Char id type_info sp c
 assign_in_expr _ (SIR.Expr'String id type_info sp s) = pure $ SIR.Expr'String id type_info sp s
 assign_in_expr _ (SIR.Expr'Int id type_info sp i) = pure $ SIR.Expr'Int id type_info sp i

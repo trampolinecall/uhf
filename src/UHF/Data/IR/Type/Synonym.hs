@@ -6,4 +6,4 @@ import UHF.Data.IR.Keys
 import UHF.Source.Located (Located)
 import qualified UHF.Data.IR.ID as ID
 
-data TypeSynonym ty = TypeSynonym Text ty deriving Show
+data TypeSynonym ty = TypeSynonym ID.DeclID (Located Text) ty deriving Show

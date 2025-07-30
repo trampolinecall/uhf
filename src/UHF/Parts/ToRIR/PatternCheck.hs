@@ -18,6 +18,7 @@ import qualified Data.Text as Text
 import UHF.Source.Span (Span)
 import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Util.Arena as Arena
@@ -37,17 +38,17 @@ instance Diagnostic.ToWarning (NotUseful stage) where
     to_warning (NotUseful pat) = Diagnostic.Warning (Just $ SIR.pattern_span pat) "useless pattern" [] []
 
 type Type = Maybe Type.Type
-type CorrectStage s = (SIR.TypeInfo s ~ Type, SIR.PIdenResolved s ~ Maybe Type.ADTVariantIndex)
+type CorrectStage s = (SIR.TypeInfo s ~ Type, SIR.PIdenResolved s ~ Maybe Type.ADT.VariantIndex)
 
 data MatchValue
     = Any
-    | AnonADT Type.ADTVariantIndex [MatchValue]
+    | AnonADT Type.ADT.VariantIndex [MatchValue]
     | Tuple MatchValue MatchValue
 
 show_match_value :: Arena.Arena (Type.ADT Type) Type.ADTKey -> MatchValue -> Text
 show_match_value _ Any = "_"
 show_match_value adt_arena (AnonADT variant fields) =
-    let refer_variant = Type.ADTget_variant adt_arena variant & Type.ADTvariant_id & ID.stringify
+    let refer_variant = Type.ADT.get_variant adt_arena variant & Type.ADT.variant_id & ID.stringify
     in refer_variant <> "(" <> Text.intercalate ", " (map (show_match_value adt_arena) fields) <> ")"
 show_match_value adt_arena (Tuple a b) = "(" <> show_match_value adt_arena a <> ", " <> show_match_value adt_arena b <> ")" -- TODO: print multi-element tuples better
 
@@ -99,10 +100,10 @@ check adt_arena type_synonym_arena = mapAccumL check_one_pattern [Any]
                 enumerate_adt_ctors_and_fields (Type.Type'ADT adt_key params) =
                     let (Type.ADT _ _ qvars _) = Arena.get adt_arena adt_key
                     in if length params == length qvars
-                        then Type.ADTvariant_idxs adt_arena adt_key &
+                        then Type.ADT.variant_idxs adt_arena adt_key &
                                 map (\ variant_idx ->
-                                    let variant = Type.ADTget_variant adt_arena variant_idx
-                                        fields = Type.ADTvariant_field_types variant
+                                    let variant = Type.ADT.get_variant adt_arena variant_idx
+                                        fields = Type.ADT.variant_field_types variant
                                     in (variant_idx, map (const Any) fields)
                                 )
                         else []

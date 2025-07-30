@@ -8,6 +8,7 @@ import UHF.Source.Located (Located (unlocate))
 import UHF.Source.Span (Span)
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.Type.PP as Type.PP
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Diagnostic as Diagnostic
@@ -34,13 +35,13 @@ module_ key =
     in mapM_ binding bindings >> mapM_ adt adts >> mapM_ type_synonym type_synonyms
 
 adt :: (SIR.TypeInfo stage ~ Maybe Type.Type, SIR.TypeExprEvaledAsTypeKey stage ~ Maybe Type.Type) => Type.ADTKey -> ReaderT (SIR.SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
-adt key = ask >>= \ (SIR.SIR _ adts _ _ _ _) -> let (SIR.ADT _ _ _ variants) = Arena.get adts key in mapM_ variant variants
+adt key = ask >>= \ (SIR.SIR _ adts _ _ _ _) -> let (Type.ADT _ _ _ variants) = Arena.get adts key in mapM_ variant variants
     where
-        variant (SIR.ADTVariant'Named _ _ fields) = mapM_ (\ (_, _, (ty, _)) -> type_expr ty) fields
-        variant (SIR.ADTVariant'Anon _ _ fields) = mapM_ (\ (_, (ty, _)) -> type_expr ty) fields
+        variant (Type.ADT.Variant'Named _ _ fields) = mapM_ (\ (_, _, (ty, _)) -> type_expr ty) fields
+        variant (Type.ADT.Variant'Anon _ _ fields) = mapM_ (\ (_, (ty, _)) -> type_expr ty) fields
 
 type_synonym :: (SIR.TypeInfo stage ~ Maybe Type.Type, SIR.TypeExprEvaledAsTypeKey stage ~ Maybe Type.Type) => Type.TypeSynonymKey -> ReaderT (SIR.SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
-type_synonym key = ask >>= \ (SIR.SIR _ _ type_synonyms _ _ _) -> let (SIR.TypeSynonym _ _ expansion) = Arena.get type_synonyms key in type_expr expansion
+type_synonym key = ask >>= \ (SIR.SIR _ _ type_synonyms _ _ _) -> let (Type.TypeSynonym _ _ (expansion, _)) = Arena.get type_synonyms key in type_expr expansion
 
 binding :: (SIR.TypeInfo stage ~ Maybe Type.Type, SIR.TypeExprEvaledAsTypeKey stage ~ Maybe Type.Type) => SIR.Binding stage -> ReaderT (SIR.SIR stage) (Compiler.WithDiagnostics (Error stage) Void) ()
 binding (SIR.Binding p _ e) = pattern p >> expr e

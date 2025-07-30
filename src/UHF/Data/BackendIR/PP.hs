@@ -4,7 +4,7 @@ module UHF.Data.BackendIR.PP (dump_cu) where
 
 import UHF.Prelude
 
-import UHF.Source.Located (Located (Located))
+import UHF.Source.Located (Located (Located, unlocate))
 import qualified UHF.Data.BackendIR as BackendIR
 import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.Intrinsics as Intrinsics
@@ -120,7 +120,7 @@ expr (BackendIR.Expr'Match _ _ t) = tree t >>= \ t -> pure (PP.List ["match ", t
                     Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
                     Type.ADT.get_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
                     let variant_name = Type.ADT.variant_name variant
-                    in pure $ PP.List [adt_refer, " ", PP.String $ variant_name]
+                    in pure $ PP.List [adt_refer, " ", PP.String $ unlocate variant_name]
                 )
                 m_variant
 expr (BackendIR.Expr'TupleDestructure1 _ _ other) = refer_binding other >>= \ other ->  pure (PP.List [other, ".0"])
@@ -134,7 +134,7 @@ expr (BackendIR.Expr'ADTDestructure _ _ base m_field_idx) =
             Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_referred ->
             Type.ADT.get_variant <$> get_adt_arena <*> pure variant_idx >>= \ variant ->
             let variant_name = Type.ADT.variant_name variant
-            in pure (PP.List [adt_referred, " ", PP.String $ variant_name], PP.String $ show field_idx)
+            in pure (PP.List [adt_referred, " ", PP.String $ unlocate variant_name], PP.String $ show field_idx)
         )
         m_field_idx >>= \ (variant_referred, field) ->
     pure (PP.List ["(", base, " as ", variant_referred, ").", field])
@@ -145,6 +145,6 @@ expr (BackendIR.Expr'MakeADT _ _ variant_index@(Type.ADT.VariantIndex _ adt_key 
     Type.ADT.get_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
     mapM refer_binding args >>= \ args ->
     mapM refer_type tyargs >>= \ tyargs ->
-    let variant_name = Type.ADT.variant_name variant
+    let variant_name = unlocate $ Type.ADT.variant_name variant
     in pure $ PP.List ["adt ", adt_referred, " ", PP.String variant_name, "#", PP.parenthesized_comma_list PP.Inconsistent tyargs, PP.bracketed_comma_list PP.Inconsistent args]
 expr (BackendIR.Expr'Poison _ _ _) = pure $ PP.String "poison"

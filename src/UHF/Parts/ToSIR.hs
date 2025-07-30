@@ -10,6 +10,7 @@ import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.AST as AST
 import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Data.Token as Token
 import qualified UHF.Diagnostic as Diagnostic
@@ -36,8 +37,8 @@ type SIR = SIR.SIR SIRStage
 
 type Module = SIR.Module SIRStage
 type Binding = SIR.Binding SIRStage
-type ADT = SIR.ADT SIRStage
-type TypeSynonym = SIR.TypeSynonym SIRStage
+type ADT = Type.ADT (TypeExpr, ())
+type TypeSynonym = Type.TypeSynonym (TypeExpr, ())
 type TypeExpr = SIR.TypeExpr SIRStage
 type Expr = SIR.Expr SIRStage
 type Pattern = SIR.Pattern SIRStage
@@ -145,7 +146,7 @@ convert_decls var_parent decl_parent decls =
 
                 let adt_id = ID.DeclID decl_parent (convert_aiden_tok data_name)
                 in mapM (convert_variant adt_id) variants >>= \ variants_converted ->
-                let adt = SIR.ADT adt_id (convert_aiden_tok <$> l_data_name) ty_param_vars variants_converted
+                let adt = Type.ADT adt_id (convert_aiden_tok <$> l_data_name) ty_param_vars variants_converted
                 in
 
                 lift (new_adt adt) >>= \ adt_key ->
@@ -158,28 +159,28 @@ convert_decls var_parent decl_parent decls =
         convert_decl _ (AST.Decl'TypeSyn _ l_name@(Located _ name) expansion) =
             runMaybeT (
                 lift (convert_type expansion) >>= \ expansion' ->
-                lift (new_type_synonym (SIR.TypeSynonym (ID.DeclID decl_parent (convert_aiden_tok name)) (convert_aiden_tok <$> l_name) expansion'))
+                lift (new_type_synonym (Type.TypeSynonym (ID.DeclID decl_parent (convert_aiden_tok name)) (convert_aiden_tok <$> l_name) (expansion', ())))
             ) >>= \case
                 Just syn_key -> pure ([], [], [syn_key])
                 Nothing -> pure ([], [], [])
 
         convert_variant adt_id (AST.DataVariant'Anon (Located variant_name_sp (Token.AlphaIdentifier variant_name)) fields) =
             let variant_id = ID.ADTVariantID adt_id variant_name
-            in SIR.ADTVariant'Anon (Located variant_name_sp variant_name) variant_id
+            in Type.ADT.Variant'Anon (Located variant_name_sp variant_name) variant_id
                 <$> zipWithM
                     (\ field_idx ty_ast ->
                         lift (convert_type ty_ast) >>= \ ty ->
-                        pure (ID.ADTFieldID variant_id (show (field_idx :: Int)), ty))
+                        pure (ID.ADTFieldID variant_id (show (field_idx :: Int)), (ty, ())))
                     [0..]
                     fields
         convert_variant adt_id (AST.DataVariant'Named (Located variant_name_sp (Token.AlphaIdentifier variant_name)) fields) =
             let variant_id = ID.ADTVariantID adt_id variant_name
-            in SIR.ADTVariant'Named (Located variant_name_sp variant_name) variant_id
+            in Type.ADT.Variant'Named (Located variant_name_sp variant_name) variant_id
             -- TODO: check no duplicate field names
                 <$> mapM
                     (\ (Located _ (Token.AlphaIdentifier field_name), ty_ast) ->
                         lift (convert_type ty_ast) >>= \ ty ->
-                        pure (ID.ADTFieldID variant_id field_name, field_name, ty))
+                        pure (ID.ADTFieldID variant_id field_name, field_name, (ty, ())))
                     fields
 
 convert_type :: AST.Type -> MakeIRState TypeExpr

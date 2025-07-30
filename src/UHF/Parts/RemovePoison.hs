@@ -42,13 +42,13 @@ rp_cu (BackendIR.CU (Right main_function) bindings adts type_synonyms) = Backend
 rp_cu (BackendIR.CU (Left ()) _ _ _) = Nothing
 
 rp_adt :: PoisonedADT -> Maybe NoPoisonADT
-rp_adt (Type.ADT name type_vars variants) = Type.ADT name type_vars <$> mapM rp_variant variants
+rp_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM rp_variant variants
     where
-        rp_variant (Type.ADT.Variant'Named name fields) = Type.ADT.Variant'Named name <$> mapM (\ (field_name, field_ty) -> (field_name,) <$> field_ty) fields
-        rp_variant (Type.ADT.Variant'Anon name fields) = Type.ADT.Variant'Anon name <$> sequence fields
+        rp_variant (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id <$> mapM (\ (field_id, field_name, field_ty) -> (field_id, field_name,) <$> field_ty) fields
+        rp_variant (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id <$> mapM (\ (field_id, field_ty) -> (field_id,) <$> field_ty) fields
 
 rp_type_synonym :: PoisonedTypeSynonym -> Maybe NoPoisonTypeSynonym
-rp_type_synonym (Type.TypeSynonym name expansion) = Type.TypeSynonym name <$> expansion
+rp_type_synonym (Type.TypeSynonym id name expansion) = Type.TypeSynonym id name <$> expansion
 
 rp_group :: BackendIR.BindingGroup PoisonedTopologicalSortStatus -> Maybe (BackendIR.BindingGroup NoPoisonTopologicalSortStatus)
 rp_group (BackendIR.BindingGroup (Right BackendIR.TopologicallySorted) bindings) = Just (BackendIR.BindingGroup BackendIR.TopologicallySorted bindings)

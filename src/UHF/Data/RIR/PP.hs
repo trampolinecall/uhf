@@ -93,7 +93,7 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
                 mapM expr args >>= \ args ->
                 mapM refer_m_type tyargs >>= \ tyargs ->
                 let variant_name = Type.ADT.variant_name variant
-                in pure $ PP.FirstOnLineIfMultiline $ PP.List ["adt ", adt_refer, " ", PP.String $ variant_name, "#", PP.parenthesized_comma_list PP.Inconsistent tyargs, PP.bracketed_comma_list PP.Inconsistent args]
+                in pure $ PP.FirstOnLineIfMultiline $ PP.List ["adt ", adt_refer, " ", PP.String $ unlocate variant_name, "#", PP.parenthesized_comma_list PP.Inconsistent tyargs, PP.bracketed_comma_list PP.Inconsistent args]
             )
 
         levels (RIR.Expr'Lambda _ _ param captures body) = (1, \ _ _ -> refer_var param >>= \ param -> mapM refer_var (toList captures) >>= \ captures -> expr body >>= \ body -> pure (PP.FirstOnLineIfMultiline $ PP.List ["\\ ", param, "[", PP.comma_separated PP.Inconsistent captures, "] -> ", body]))
@@ -138,7 +138,7 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
                             Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
                             Type.ADT.get_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
                             let variant_name = Type.ADT.variant_name variant
-                            in pure $ PP.List [adt_refer, " ", PP.String $ variant_name]
+                            in pure $ PP.List [adt_refer, " ", PP.String $ unlocate variant_name]
                         )
                         m_variant
 
@@ -154,7 +154,7 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
                             Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
                             Type.ADT.get_variant <$> get_adt_arena <*> pure variant_idx >>= \ variant ->
                             let variant_name = Type.ADT.variant_name variant
-                            in pure (PP.List [adt_refer, " ", PP.String $ variant_name], PP.String $ show field_idx)
+                            in pure (PP.List [adt_refer, " ", PP.String $ unlocate variant_name], PP.String $ show field_idx)
                         )
                         m_field >>= \ (refer_variant, field_idx) ->
                     pure (PP.List ["(", base, " as ", refer_variant, ").", field_idx])

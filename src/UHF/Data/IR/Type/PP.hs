@@ -10,33 +10,33 @@ import UHF.Prelude
 
 import UHF.Source.Located (Located (Located))
 import qualified UHF.Util.Arena as Arena
+import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.PP as PP
 
 define_adt :: Arena.Arena Type.QuantVar Type.QuantVarKey -> (ty -> PP.Token) -> Type.ADT ty -> PP.Token
-define_adt quant_vars show_ty (Type.ADT name vars variants) =
+define_adt quant_vars show_ty (Type.ADT _ (Located _ name) vars variants) =
     let variants' = PP.braced_block $ map pp_variant variants
         vars'
             | null vars = PP.List [""]
             | otherwise = PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent (map (define_quant_var quant_vars) vars)]
     in PP.List ["data ", PP.String name, vars', " ", variants', ";"]
     where
-        pp_variant (Type.ADT.Variant'Anon name fields) = PP.List [PP.String name, PP.parenthesized_comma_list PP.Inconsistent $ map show_ty fields, ";"]
-        pp_variant (Type.ADT.Variant'Named name fields) = PP.List [PP.String name, " ", PP.braced_block $ map (\ (name, ty) -> PP.List [PP.String name, ": ", show_ty ty, ";"]) fields, ";"]
+        pp_variant (Type.ADT.Variant'Anon (Located _ name) _ fields) = PP.List [PP.String name, PP.parenthesized_comma_list PP.Inconsistent $ map (show_ty . snd) fields, ";"]
+        pp_variant (Type.ADT.Variant'Named (Located _ name) _ fields) = PP.List [PP.String name, " ", PP.braced_block $ map (\ (_, name, ty) -> PP.List [PP.String name, ": ", show_ty ty, ";"]) fields, ";"]
 
 define_type_synonym :: (ty -> PP.Token) -> Type.TypeSynonym ty -> PP.Token
-define_type_synonym show_ty (Type.TypeSynonym name expansion) = PP.List ["typesyn ", PP.String name, " = ", show_ty expansion, ";"]
+define_type_synonym show_ty (Type.TypeSynonym _ (Located _ name) expansion) = PP.List ["typesyn ", PP.String name, " = ", show_ty expansion, ";"]
 
 refer_adt :: Type.ADT ty -> PP.Token
-refer_adt (Type.ADT name _ _) = PP.String $ name -- TODO: print name appropriately given current scope
+refer_adt (Type.ADT id _ _ _) = PP.String $ ID.stringify id
 
 refer_type_synonym :: Type.TypeSynonym ty -> PP.Token
-refer_type_synonym (Type.TypeSynonym name _) = PP.String $ name -- TODO: print name appropriately given current scope
+refer_type_synonym (Type.TypeSynonym id _ _) = PP.String $ ID.stringify id
 
 -- TODO: construct an ast and print it
 -- TODO: precedence for this
--- TODO: rename this to something better
 refer_type :: Arena.Arena (Type.ADT ty) Type.ADTKey -> Arena.Arena (Type.TypeSynonym ty) Type.TypeSynonymKey -> Arena.Arena Type.QuantVar Type.QuantVarKey -> Type.Type -> PP.Token
 refer_type adts type_synonyms vars = go
     where

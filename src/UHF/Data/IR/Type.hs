@@ -38,16 +38,16 @@ data Type
     | Type'Kind'Kind
     deriving Show
 
-type_kind :: Arena.Arena (ADT ty) ADTKey -> Arena.Arena (TypeSynonym Type) TypeSynonymKey -> Arena.Arena QuantVar QuantVarKey -> Type -> Type
+type_kind :: Arena.Arena (ADT (t, Type)) ADTKey -> Arena.Arena (TypeSynonym (t, Type)) TypeSynonymKey -> Arena.Arena QuantVar QuantVarKey -> Type -> Type
 type_kind adt_arena type_synonym_arena quant_var_arena = go
     where
         go :: Type -> Type
         go t = case t of
             Type'ADT adt_key applied ->
-                let ADT _ quant_vars _ = Arena.get adt_arena adt_key
+                let ADT _ _ quant_vars _ = Arena.get adt_arena adt_key
                 in make_arrows (map quant_var_kind (drop (length applied) quant_vars)) Type'Kind'Type
             Type'Synonym ts_key ->
-                let TypeSynonym _ expansion = Arena.get type_synonym_arena ts_key
+                let TypeSynonym _ _ (_, expansion) = Arena.get type_synonym_arena ts_key
                 in go expansion -- TODO: need to modify this when type synonyms can be parameterized
             Type'Int -> Type'Kind'Type
             Type'Float -> Type'Kind'Type

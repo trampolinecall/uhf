@@ -13,5 +13,5 @@ import UHF.Source.Located (Located)
 data TypeSolveTask
     = ConstraintWhenTypeExprEvaledAsType TypeExprEvaledAsTypeKey (TypeWithInferVar.Type -> TypeSolver.Constraint)
     | Constraint TypeSolver.Constraint
-    | DefinedToBeTypeOfValueRef TypeSolver.InferVarKey (IdenResolvedKey SIR.ValueRef)
+    | DefinedToBeTypeOfValueRef TypeWithInferVar.InferVarKey (IdenResolvedKey SIR.ValueRef)
     | DefinedToBeTypeOfTypeExpr TypeWithInferVar.InferVarKey TypeExprEvaledAsTypeKey

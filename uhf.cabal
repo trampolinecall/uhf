@@ -80,6 +80,7 @@ library
       UHF.Parts.UnifiedFrontendSolver.NameResolve.ResolveReferStarts
       UHF.Parts.UnifiedFrontendSolver.NameResolve.ResolveResult
       UHF.Parts.UnifiedFrontendSolver.NameResolve.ResolveVPIdens
+      UHF.Parts.UnifiedFrontendSolver.NameResolve.Task
       UHF.Parts.UnifiedFrontendSolver.SolveTypes.AddTypes
       UHF.Parts.UnifiedFrontendSolver.SolveTypes.Aliases
       UHF.Parts.UnifiedFrontendSolver.SolveTypes.Error

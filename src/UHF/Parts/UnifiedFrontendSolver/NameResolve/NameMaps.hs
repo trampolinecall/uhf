@@ -293,8 +293,8 @@ pattern_to_children (SIR.Pattern'Named _ _ _ (Located var_span var_key) subpat) 
     name <- var_name var_key
     subpat' <- pattern_to_children subpat
     pure ((name, DeclAt var_span, SIR.ValueRef'Variable var_key) : subpat')
-pattern_to_children (SIR.Pattern'AnonADTVariant _ _ _ _ _ fields) = concat <$> mapM pattern_to_children fields
-pattern_to_children (SIR.Pattern'NamedADTVariant _ _ _ _ _ fields) = concat <$> mapM (pattern_to_children . snd) fields
+pattern_to_children (SIR.Pattern'AnonADTVariant _ _ _ _ fields) = concat <$> mapM pattern_to_children fields
+pattern_to_children (SIR.Pattern'NamedADTVariant _ _ _ _ fields) = concat <$> mapM (pattern_to_children . snd) fields
 pattern_to_children (SIR.Pattern'Poison _ _) = pure []
 var_name ::
     Monad under =>

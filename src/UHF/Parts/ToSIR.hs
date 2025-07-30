@@ -116,8 +116,8 @@ search_for_main_function mods variables mod =
         go_pat (SIR.Pattern'Wildcard _ _) = []
         go_pat (SIR.Pattern'Tuple _ _ a b) = go_pat a ++ go_pat b
         go_pat (SIR.Pattern'Named _ _ _ (Located _ vk) subpat) = go_var vk ++ go_pat subpat
-        go_pat (SIR.Pattern'AnonADTVariant _ _ _ _ _ field_pats) = concatMap go_pat field_pats
-        go_pat (SIR.Pattern'NamedADTVariant _ _ _ _ _ field_pats) = concatMap (go_pat . snd) field_pats
+        go_pat (SIR.Pattern'AnonADTVariant _ _ _ _ field_pats) = concatMap go_pat field_pats
+        go_pat (SIR.Pattern'NamedADTVariant _ _ _ _ field_pats) = concatMap (go_pat . snd) field_pats
         go_pat (SIR.Pattern'Poison _ _) = []
 
         go_var vk =
@@ -183,8 +183,8 @@ convert_decls var_parent decl_parent decls =
                     fields
 
 convert_type :: AST.Type -> MakeIRState TypeExpr
-convert_type (AST.Type'Refer id) = pure $ SIR.TypeExpr'Refer () (just_span id) () (convert_aiden_tok <$> id) (Const ())
-convert_type (AST.Type'Get sp prev name) = convert_type prev >>= \ prev -> pure (SIR.TypeExpr'Get () sp prev (convert_aiden_tok <$> name))
+convert_type (AST.Type'Refer id) = pure $ SIR.TypeExpr'Refer () (Const ()) (just_span id) () (convert_aiden_tok <$> id)
+convert_type (AST.Type'Get sp prev name) = convert_type prev >>= \ prev -> pure (SIR.TypeExpr'Get () (Const ()) sp prev (convert_aiden_tok <$> name))
 convert_type (AST.Type'Tuple sp items) = mapM convert_type items >>= group_items
     where
         -- TODO: better spans for this
@@ -205,7 +205,7 @@ convert_type (AST.Type'Apply sp ty args) =
 convert_type (AST.Type'Wild sp) = pure $ SIR.TypeExpr'Wild () sp
 
 convert_expr :: ID.ExprID -> AST.Expr -> MakeIRState Expr
-convert_expr cur_id (AST.Expr'ReferAlpha sp t i) = SIR.Expr'Refer cur_id () sp <$> make_split_identifier t (convert_aiden_tok <$> i) <*> pure (Const ())
+convert_expr cur_id (AST.Expr'ReferAlpha sp t i) = SIR.Expr'Refer cur_id () sp <$> make_split_identifier t (convert_aiden_tok <$> i)
 convert_expr cur_id (AST.Expr'Char sp c) = pure (SIR.Expr'Char cur_id () sp c)
 convert_expr cur_id (AST.Expr'String sp s) = pure (SIR.Expr'String cur_id () sp s)
 convert_expr cur_id (AST.Expr'Int sp i) = pure (SIR.Expr'Int cur_id () sp i)
@@ -249,8 +249,8 @@ convert_expr cur_id (AST.Expr'BinaryOps sp first ops) =
                 case op of
                     AST.Operator'Path op_sp op_ty op_last -> do
                         op_ty <- convert_type op_ty
-                        pure (op_sp, SIR.SplitIdentifier'Get op_ty (convert_siden_tok <$> op_last) (Const ()), Const (), right')
-                    AST.Operator'Single op_iden@(Located op_sp _) -> pure (op_sp, SIR.SplitIdentifier'Single () (convert_siden_tok <$> op_iden) (Const ()), Const (), right'))
+                        pure (op_sp, SIR.SplitIdentifier'Get op_ty (convert_siden_tok <$> op_last) (Const ()), right')
+                    AST.Operator'Single op_iden@(Located op_sp _) -> pure (op_sp, SIR.SplitIdentifier'Single () (convert_siden_tok <$> op_iden) (Const ()), right'))
             [1..]
             ops
 
@@ -313,14 +313,14 @@ convert_pattern parent (AST.Pattern'NamedAlpha sp located_name@(Located name_sp 
 convert_pattern parent (AST.Pattern'AnonADTVariant sp v_ty variant fields) = do
     fields <- mapM (convert_pattern parent) fields
     variant_split_iden <- make_split_identifier v_ty (convert_aiden_tok <$> variant)
-    pure (SIR.Pattern'AnonADTVariant () sp variant_split_iden (Const ()) [] fields)
+    pure (SIR.Pattern'AnonADTVariant () sp variant_split_iden [] fields)
 convert_pattern parent (AST.Pattern'NamedADTVariant sp v_ty variant fields) = do
     fields <- mapM (\ (field_name, field_pat) ->
             convert_pattern parent field_pat >>= \ field_pat ->
             pure (convert_aiden_tok <$> field_name, field_pat)
         ) fields
     variant_split_iden <- make_split_identifier v_ty (convert_aiden_tok <$> variant)
-    pure (SIR.Pattern'NamedADTVariant () sp variant_split_iden (Const ()) [] fields)
+    pure (SIR.Pattern'NamedADTVariant () sp variant_split_iden [] fields)
 
 make_split_identifier :: Maybe AST.Type -> Located Text -> MakeIRState (SIR.SplitIdentifier resolved SIRStage)
 make_split_identifier Nothing i = pure $ SIR.SplitIdentifier'Single () i (Const ())

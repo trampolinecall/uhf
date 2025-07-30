@@ -1,5 +1,7 @@
 module UHF.Parts.UnifiedFrontendSolver.NameResolve.ResolveResult (ResolveResult (..), if_inconclusive) where
 
+-- TODO: move this file into UnifiedFrontendSolver so that it can be shared between all of the phases
+
 import UHF.Prelude
 
 data ResolveResult best_effort_error error result

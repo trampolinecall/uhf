@@ -9,6 +9,8 @@ import UHF.Parts.UnifiedFrontendSolver.NameResolve.NameResolveResultArena (IdenR
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar as TypeWithInferVar
 import UHF.Source.Located (Located)
 
+-- TODO: rename NameMapStack to NameContext everywhere
+--
 data IdenResolveTask result
     = ResolveRoot NameMapStackKey (Located Text)
     | ResolveGet TypeExprEvaledKey (Located Text)

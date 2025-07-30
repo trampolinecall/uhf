@@ -1,8 +1,6 @@
 {-# LANGUAGE UndecidableInstances #-}
--- TODO: maybe this is not the best place to put this module?
--- move it to IR.Data.TypeWithInferVar?
 
-module UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar
+module UHF.Data.IR.TypeWithInferVar
     ( Type (..)
     , InferVar (..)
     , InferVarArena
@@ -23,7 +21,6 @@ import UHF.Prelude
 import UHF.Source.Span (Span)
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Util.Arena as Arena
-import qualified UHF.Data.SIR as SIR
 
 data Type
     = Type'ADT Type.ADTKey [Type]

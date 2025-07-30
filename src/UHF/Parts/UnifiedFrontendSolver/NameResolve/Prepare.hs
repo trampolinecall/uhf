@@ -5,9 +5,10 @@ import UHF.Prelude
 import Data.Functor.Const (Const (Const))
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
+import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Data.SIR as SIR
-import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.NameMaps as NameMaps
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.NameResolveResultArena
+import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameMaps
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result
     ( IdenResolvedArena
     , IdenResolvedKey
     , TypeExprEvaledArena
@@ -17,7 +18,6 @@ import UHF.Parts.UnifiedFrontendSolver.NameResolve.NameResolveResultArena
     )
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Task (IdenResolveTask (..), TypeExprEvalAsTypeTask (..), TypeExprEvalTask (..))
 import UHF.Parts.UnifiedFrontendSolver.SolveResult
-import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Util.Arena as Arena
 
 type Unprepared = (NameMaps.NameMapStackKey, Const () (), TypeWithInferVar.Type, (), (), (), ())
@@ -105,87 +105,72 @@ prepare (SIR.SIR mods adts type_synonyms type_vars variables (SIR.CU root_module
                 )
                 (Arena.new, Arena.new, Arena.new, Arena.new, Arena.new)
     in (sir, arenas, tasks)
-
 prepare_mod :: SIR.Module Unprepared -> PrepareState (SIR.Module Prepared)
 prepare_mod (SIR.Module id name_map bindings adts type_synonyms) = SIR.Module id name_map <$> mapM prepare_binding bindings <*> pure adts <*> pure type_synonyms
-
 prepare_adt :: SIR.ADT Unprepared -> PrepareState (SIR.ADT Prepared)
 prepare_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM prepare_variant variants
     where
         prepare_variant (Type.ADT.Variant'Named name id fields) =
             Type.ADT.Variant'Named name id
                 <$> mapM
-                    (\(id, name, (ty, ())) -> prepare_type_expr ty >>= \ty -> new_type_expr_evaled_as_type_key (EvalAsType $ SIR.type_expr_evaled ty) >>= \as_type -> pure (id, name, (ty, as_type)))
+                    ( \(id, name, (ty, ())) ->
+                        prepare_type_expr ty >>= \ty -> new_type_expr_evaled_as_type_key (EvalAsType $ SIR.type_expr_evaled ty) >>= \as_type -> pure (id, name, (ty, as_type))
+                    )
                     fields
         prepare_variant (Type.ADT.Variant'Anon name id fields) =
             Type.ADT.Variant'Anon name id
-                <$> mapM (\(id, (ty, ())) -> prepare_type_expr ty >>= \ty -> new_type_expr_evaled_as_type_key (EvalAsType $ SIR.type_expr_evaled ty) >>= \as_type -> pure (id, (ty, as_type))) fields
-
+                <$> mapM
+                    ( \(id, (ty, ())) -> prepare_type_expr ty >>= \ty -> new_type_expr_evaled_as_type_key (EvalAsType $ SIR.type_expr_evaled ty) >>= \as_type -> pure (id, (ty, as_type))
+                    )
+                    fields
 prepare_type_synonym :: SIR.TypeSynonym Unprepared -> PrepareState (SIR.TypeSynonym Prepared)
 prepare_type_synonym (Type.TypeSynonym id name (expansion, ())) = do
     expansion <- prepare_type_expr expansion
     as_type <- new_type_expr_evaled_as_type_key (EvalAsType $ SIR.type_expr_evaled expansion)
     pure $ Type.TypeSynonym id name (expansion, as_type)
-
 prepare_variable :: SIR.Variable Unprepared -> PrepareState (SIR.Variable Prepared)
 prepare_variable (SIR.Variable varid tyinfo n) = pure $ SIR.Variable varid tyinfo n
-
 prepare_binding :: SIR.Binding Unprepared -> PrepareState (SIR.Binding Prepared)
 prepare_binding (SIR.Binding target eq_sp expr) = SIR.Binding <$> prepare_pat target <*> pure eq_sp <*> prepare_expr expr
-
 prepare_type_expr :: SIR.TypeExpr Unprepared -> PrepareState (SIR.TypeExpr Prepared)
 prepare_type_expr (SIR.TypeExpr'Refer () (Const ()) sp name_maps id) = do
     resolved_key <- new_decl_iden_resolved_key $ ResolveRoot name_maps id
     evaled_key <- new_type_expr_evaled_key $ GetFromDeclIdenResolved resolved_key
-
     pure $ SIR.TypeExpr'Refer evaled_key resolved_key sp name_maps id
 prepare_type_expr (SIR.TypeExpr'Get () (Const ()) sp parent name) = do
     parent <- prepare_type_expr parent
-
     resolved_key <- new_decl_iden_resolved_key $ ResolveGet (SIR.type_expr_evaled parent) name
     evaled_key <- new_type_expr_evaled_key $ GetFromDeclIdenResolved resolved_key
-
     pure $ SIR.TypeExpr'Get evaled_key resolved_key sp parent name
 prepare_type_expr (SIR.TypeExpr'Tuple () sp a b) = do
     a <- prepare_type_expr a
     b <- prepare_type_expr b
-
     evaled_key <- new_type_expr_evaled_key $ MakeTuple (SIR.type_expr_evaled a) (SIR.type_expr_evaled b)
-
     pure $ SIR.TypeExpr'Tuple evaled_key sp a b
 prepare_type_expr (SIR.TypeExpr'Hole () () sp hid) = do
     evaled_key <- new_type_expr_evaled_key MakeInferVar
     evaled_as_type_key <- new_type_expr_evaled_as_type_key (EvalAsType evaled_key)
-
     pure $ SIR.TypeExpr'Hole evaled_key evaled_as_type_key sp hid
 prepare_type_expr (SIR.TypeExpr'Function () sp arg res) = do
     arg <- prepare_type_expr arg
     res <- prepare_type_expr res
-
     evaled_key <- new_type_expr_evaled_key $ MakeFunction (SIR.type_expr_evaled arg) (SIR.type_expr_evaled res)
-
     pure $ SIR.TypeExpr'Function evaled_key sp arg res
 prepare_type_expr (SIR.TypeExpr'Forall () sp name_maps vars ty) = do
     ty <- prepare_type_expr ty
-
     evaled_key <- new_type_expr_evaled_key $ MakeForall vars (SIR.type_expr_evaled ty)
-
     pure $ SIR.TypeExpr'Forall evaled_key sp name_maps vars ty
 prepare_type_expr (SIR.TypeExpr'Apply () sp ty args) = do
     ty <- prepare_type_expr ty
     args <- prepare_type_expr args
-
     evaled_key <- new_type_expr_evaled_key $ MakeApply (SIR.type_expr_evaled ty) (SIR.type_expr_evaled args)
-
     pure $ SIR.TypeExpr'Apply evaled_key sp ty args
 prepare_type_expr (SIR.TypeExpr'Wild () sp) = do
     evaled_key <- new_type_expr_evaled_key MakeInferVar
-
     pure $ SIR.TypeExpr'Wild evaled_key sp
 prepare_type_expr (SIR.TypeExpr'Poison () sp) = do
     evaled_key <- new_type_expr_evaled_key MakeInferVar
     pure $ SIR.TypeExpr'Poison evaled_key sp
-
 prepare_expr :: SIR.Expr Unprepared -> PrepareState (SIR.Expr Prepared)
 prepare_expr (SIR.Expr'Refer id type_info sp iden) = SIR.Expr'Refer id type_info sp <$> prepare_split_iden new_val_iden_resolved_key iden
 prepare_expr (SIR.Expr'Char id type_info sp c) = pure $ SIR.Expr'Char id type_info sp c
@@ -218,7 +203,6 @@ prepare_expr (SIR.Expr'TypeApply id type_info sp e (arg, ())) =
         new_type_expr_evaled_as_type_key (EvalAsType $ SIR.type_expr_evaled arg) >>= \arg_resolved -> SIR.Expr'TypeApply id type_info sp <$> prepare_expr e <*> pure (arg, arg_resolved)
 prepare_expr (SIR.Expr'Hole id type_info sp hid) = pure $ SIR.Expr'Hole id type_info sp hid
 prepare_expr (SIR.Expr'Poison id type_info sp) = pure $ SIR.Expr'Poison id type_info sp
-
 prepare_pat :: SIR.Pattern Unprepared -> PrepareState (SIR.Pattern Prepared)
 prepare_pat (SIR.Pattern'Variable type_info sp bnk) = pure $ SIR.Pattern'Variable type_info sp bnk
 prepare_pat (SIR.Pattern'Wildcard type_info sp) = pure $ SIR.Pattern'Wildcard type_info sp
@@ -237,7 +221,6 @@ prepare_pat (SIR.Pattern'NamedADTVariant type_info sp variant_iden tyargs subpat
         <*> pure tyargs
         <*> mapM (\(name, pat) -> (name,) <$> prepare_pat pat) subpat
 prepare_pat (SIR.Pattern'Poison type_info sp) = pure $ SIR.Pattern'Poison type_info sp
-
 prepare_split_iden ::
     ((IdenResolvedKey result -> IdenResolveTask result) -> PrepareState (IdenResolvedKey resolved)) ->
     SIR.SplitIdentifier resolved Unprepared ->

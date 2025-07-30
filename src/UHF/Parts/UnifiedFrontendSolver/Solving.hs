@@ -16,22 +16,14 @@ import UHF.Prelude
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
-import UHF.Parts.UnifiedFrontendSolver.InfixGroup.InfixGroupResultArena (InfixGroupedArena, InfixGroupedKey)
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Error as NameResolve.Error
-import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.NameMaps as NameMaps
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.NameResolveResultArena
-    ( IdenResolvedArena
-    , IdenResolvedKey
-    , TypeExprEvaledArena
-    , TypeExprEvaledAsTypeArena
-    , TypeExprEvaledAsTypeKey
-    , TypeExprEvaledKey
-    )
 import UHF.Parts.UnifiedFrontendSolver.SolveResult (SolveResult)
-import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver as TypeWithInferVar
-import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver.SolveMonad as SolveMonad
 import qualified UHF.Util.Arena as Arena
 import UHF.Parts.UnifiedFrontendSolver.Error (Error)
+import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameMaps
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (IdenResolvedKey, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, IdenResolvedArena, TypeExprEvaledArena, TypeExprEvaledAsTypeArena)
+import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
+import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupedKey, InfixGroupedArena)
 
 type SolvingStage =
     ( NameMaps.NameMapStackKey
@@ -52,11 +44,12 @@ type SolveMonad =
           , TypeExprEvaledAsTypeArena
           )
         , InfixGroupedArena
+        , TypeWithInferVar.InferVarArena
         )
         -- TODO: eventually this should also be in the StateT because macro expansion can add to NameMaps and ChildMaps and identifier patterns need to be able to resolve as adt variant patterns with no fields
         ( ReaderT
             (Arena.Arena NameMaps.NameMapStack NameMaps.NameMapStackKey, NameMaps.SIRChildMaps, SIR.SIR SolvingStage)
-            (SolveMonad.SolveMonad (Compiler.WithDiagnostics Error Void))
+            (Compiler.WithDiagnostics Error Void)
         )
 
 ask_name_maps_arena :: SolveMonad (Arena.Arena NameMaps.NameMapStack NameMaps.NameMapStackKey)
@@ -70,29 +63,29 @@ get_decl_iden_resolved ::
     IdenResolvedKey (SIR.DeclRef TypeWithInferVar.Type) ->
     SolveMonad (SolveResult (Maybe NameResolve.Error.Error) Compiler.ErrorReportedPromise (SIR.DeclRef TypeWithInferVar.Type))
 get_decl_iden_resolved key = do
-    ((decl_iden_resolved_arena, _, _, _, _), _) <- get
+    ((decl_iden_resolved_arena, _, _, _, _), _, _) <- get
     pure $ Arena.get decl_iden_resolved_arena key
 
 get_value_iden_resolved ::
     IdenResolvedKey SIR.ValueRef -> SolveMonad (SolveResult (Maybe NameResolve.Error.Error) Compiler.ErrorReportedPromise SIR.ValueRef)
 get_value_iden_resolved key = do
-    ((_, value_iden_resolved_arena, _, _, _), _) <- get
+    ((_, value_iden_resolved_arena, _, _, _), _, _) <- get
     pure $ Arena.get value_iden_resolved_arena key
 
 get_variant_iden_resolved ::
     IdenResolvedKey Type.ADT.VariantIndex -> SolveMonad (SolveResult (Maybe NameResolve.Error.Error) Compiler.ErrorReportedPromise Type.ADT.VariantIndex)
 get_variant_iden_resolved key = do
-    ((_, _, variant_iden_resolved_arena, _, _), _) <- get
+    ((_, _, variant_iden_resolved_arena, _, _), _, _) <- get
     pure $ Arena.get variant_iden_resolved_arena key
 
 get_type_expr_evaled ::
     TypeExprEvaledKey -> SolveMonad (SolveResult (Maybe NameResolve.Error.Error) Compiler.ErrorReportedPromise (SIR.DeclRef TypeWithInferVar.Type))
 get_type_expr_evaled key = do
-    ((_, _, _, type_expr_evaled_arena, _), _) <- get
+    ((_, _, _, type_expr_evaled_arena, _), _, _) <- get
     pure $ Arena.get type_expr_evaled_arena key
 
 get_type_expr_evaled_as_type ::
     TypeExprEvaledAsTypeKey -> SolveMonad (SolveResult (Maybe NameResolve.Error.Error) Compiler.ErrorReportedPromise TypeWithInferVar.Type)
 get_type_expr_evaled_as_type key = do
-    ((_, _, _, _, type_expr_evaled_as_type_arena), _) <- get
+    ((_, _, _, _, type_expr_evaled_as_type_arena), _, _) <- get
     pure $ Arena.get type_expr_evaled_as_type_arena key

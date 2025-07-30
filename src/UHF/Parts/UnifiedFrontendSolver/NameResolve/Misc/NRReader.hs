@@ -1,4 +1,4 @@
-module UHF.Parts.UnifiedFrontendSolver.NameResolve.NRReader
+module UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NRReader
     ( NRReader
 
     , ask_adt_arena -- TODO: remove
@@ -8,7 +8,6 @@ module UHF.Parts.UnifiedFrontendSolver.NameResolve.NRReader
     , ask_sir_child_maps -- TODO: remove?
     ) where
 
--- TODO: clean up this and the 3 modules too
 -- TODO: remove this
 
 import UHF.Prelude

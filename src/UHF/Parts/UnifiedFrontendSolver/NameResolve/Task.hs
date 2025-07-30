@@ -4,10 +4,10 @@ import UHF.Prelude
 
 import UHF.Data.IR.Type.QuantVar (QuantVarKey)
 import qualified UHF.Data.SIR as SIR
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.NameMaps (NameMapStackKey)
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.NameResolveResultArena (IdenResolvedKey, TypeExprEvaledKey, TypeExprEvaledAsTypeKey)
-import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar as TypeWithInferVar
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps (NameMapStackKey)
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (IdenResolvedKey, TypeExprEvaledKey, TypeExprEvaledAsTypeKey)
 import UHF.Source.Located (Located)
+import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 
 -- TODO: rename NameMapStack to NameContext everywhere
 --

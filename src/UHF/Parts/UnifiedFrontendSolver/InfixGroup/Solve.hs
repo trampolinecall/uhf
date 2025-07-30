@@ -1,11 +1,11 @@
-module UHF.Parts.UnifiedFrontendSolver.InfixGroup.Group (group) where
+module UHF.Parts.UnifiedFrontendSolver.InfixGroup.Solve (group) where
 
 import UHF.Prelude
 
 import qualified UHF.Data.SIR as SIR
-import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Result (InfixGroupResult (..))
+import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupResult (..))
 import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Task (InfixGroupTask (..))
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.NameResolveResultArena
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (IdenResolvedKey)
 import UHF.Parts.UnifiedFrontendSolver.ProgressMade (ProgressMade (..))
 import UHF.Parts.UnifiedFrontendSolver.SolveResult (SolveResult (..))
 import UHF.Parts.UnifiedFrontendSolver.Solving (SolveMonad, get_value_iden_resolved)
@@ -22,7 +22,7 @@ group (InfixGroupTask operators result_key) = do
         Errored () -> do
         -- TODO: this is very similar to put_result from NameResolve so maybe there is a general version that can be put into UnifiedFrontendSolver.Solving?
             modify $
-                \(nr_things, result_arena) ->
+                \(nr_things, result_arena, infer_vars) ->
                     ( nr_things
                     , Arena.modify
                         result_arena
@@ -31,13 +31,14 @@ group (InfixGroupTask operators result_key) = do
                             Inconclusive _ -> Errored ()
                             _ -> Errored () -- TODO: internal warning because there was already a result here and it was recomputed?
                         )
+                    , infer_vars
                     )
             pure $ Successful []
         Solved (res, a) -> do
             when (not $ null a) $ error "internal error: still operations to group after grouping binary ops"
 
             modify $
-                \(nr_things, result_arena) ->
+                \(nr_things, result_arena, infer_vars) ->
                     ( nr_things
                     , Arena.modify
                         result_arena
@@ -46,6 +47,7 @@ group (InfixGroupTask operators result_key) = do
                             Inconclusive _ -> Solved res
                             _ -> Solved res -- TODO: internal warning because there was already a result here and it was recomputed?
                         )
+                    , infer_vars
                     )
             pure $ Successful []
     where

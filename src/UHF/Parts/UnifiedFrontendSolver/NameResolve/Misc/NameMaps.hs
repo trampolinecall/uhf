@@ -1,4 +1,4 @@
-module UHF.Parts.UnifiedFrontendSolver.NameResolve.NameMaps
+module UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps
     ( NameMapStackKey
     , NameMapStack (..)
     , NameMaps
@@ -43,12 +43,12 @@ import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Intrinsics as Intrinsics
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
+import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Data.SIR as SIR
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.DeclAt
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Error
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.NRReader
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.DeclAt (DeclAt (..))
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NRReader
 import UHF.Parts.UnifiedFrontendSolver.SolveResult
-import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar as TypeWithInferVar
 import UHF.Source.Located (Located (Located, unlocate))
 import qualified UHF.Util.Arena as Arena
 
@@ -147,7 +147,8 @@ add_tuple_to_module_child_maps :: ([DeclChild], [ValueChild], [ADTVariantChild])
 add_tuple_to_module_child_maps (ds, vs, as) mod_key (SIRChildMaps module_child_maps) = SIRChildMaps <$> Arena.modifyM module_child_maps mod_key (add_to_child_maps ds vs as)
 
 -- getting from name maps and child maps {{{1
-look_up_decl :: Arena.Arena NameMapStack NameMapStackKey -> NameMapStackKey -> Located Text -> SolveResult Error Error (SIR.DeclRef TypeWithInferVar.Type)
+look_up_decl ::
+    Arena.Arena NameMapStack NameMapStackKey -> NameMapStackKey -> Located Text -> SolveResult Error Error (SIR.DeclRef TypeWithInferVar.Type)
 look_up_decl = look_up (\(NameMaps (Maps d _ _)) -> d)
 look_up_value :: Arena.Arena NameMapStack NameMapStackKey -> NameMapStackKey -> Located Text -> SolveResult Error Error SIR.ValueRef
 look_up_value = look_up (\(NameMaps (Maps _ val _)) -> val)
@@ -156,7 +157,11 @@ look_up_variant = look_up (\(NameMaps (Maps _ _ var)) -> var)
 
 -- TODO: make this able to return inconclusive results (because macros)
 look_up ::
-    (NameMaps -> Map Text (DeclAt, result)) -> Arena.Arena NameMapStack NameMapStackKey -> NameMapStackKey -> Located Text -> SolveResult Error Error result
+    (NameMaps -> Map Text (DeclAt, result)) ->
+    Arena.Arena NameMapStack NameMapStackKey ->
+    NameMapStackKey ->
+    Located Text ->
+    SolveResult Error Error result
 look_up which_map arena name_map_stack iden =
     go name_map_stack
     where

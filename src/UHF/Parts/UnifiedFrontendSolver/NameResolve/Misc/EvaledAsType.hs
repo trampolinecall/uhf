@@ -1,4 +1,4 @@
-module UHF.Parts.UnifiedFrontendSolver.NameResolve.EvaledAsType (NotAType, evaled_as_type) where
+module UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.EvaledAsType (NotAType, evaled_as_type) where
 
 import UHF.Prelude
 

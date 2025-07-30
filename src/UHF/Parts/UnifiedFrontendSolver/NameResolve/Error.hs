@@ -11,11 +11,10 @@ import UHF.Prelude
 
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Diagnostic as Diagnostic
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.DeclAt
-import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver as TypeSolver
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.DeclAt (DeclAt (..))
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.EvaledAsType (NotAType)
 import UHF.Source.Located (Located (Located))
 import UHF.Source.Span (Span)
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.EvaledAsType (NotAType)
 
 -- TODO: remove this type synonym
 type WithErrors = Compiler.WithDiagnostics Error Void
@@ -24,7 +23,8 @@ data Error
     | Error'CouldNotFindIn (Maybe (Located Text)) (Located Text)
     | Error'DuplicateDecl Text DeclAt DeclAt
     | Error'NotAType NotAType
-    | forall t. Error'SolveError (TypeSolver.SolveError t) -- i did this out of laziness :) -- TODO: this should not be necessary anymore?
+
+-- TODO: see if this is still necessary | forall t. Error'SolveError (TypeSolver.SolveError t) -- i did this out of laziness :) -- TODO: this should not be necessary anymore?
 
 instance Diagnostic.ToError Error where
     to_error (Error'CouldNotFind (Located sp name)) = Diagnostic.Error (Just sp) ("could not find name '" <> name <> "'") [] []
@@ -49,10 +49,10 @@ instance Diagnostic.ToError Error where
         where
             decl_at_span (DeclAt sp) = Just sp
             decl_at_span ImplicitPrim = Nothing
-
             message_for_decl_before n (DeclAt _) = "'" <> convert_str n <> "' previously declared here"
             message_for_decl_before n ImplicitPrim = "'" <> convert_str n <> "' is implicitly declared as a primitive" -- TODO: reword this message (ideally when it is declared through the prelude import the message would be something like 'implicitly declared by prelude')
             message_for_decl_now n (DeclAt _) = "'" <> convert_str n <> "' redefined here"
             message_for_decl_now n ImplicitPrim = "'" <> convert_str n <> "' is implicitly declared as a primitive" -- TODO: reword this message (ideally when it is declared through the prelude import the message would be something like 'implicitly declared by prelude')
     to_error (Error'NotAType nat) = Diagnostic.to_error nat
-    to_error (Error'SolveError se) = Diagnostic.to_error se
+
+-- TODO: remove this? to_error (Error'SolveError se) = Diagnostic.to_error se

@@ -1,29 +1,31 @@
-module UHF.Parts.UnifiedFrontendSolver.TypeSolver.SolveError
-    ( ErrorTypeContext(..) -- TODO: remove?
-    , SolveError (..)
-    ) where
+{-# LANGUAGE ExistentialQuantification #-}
+
+module UHF.Parts.UnifiedFrontendSolver.TypeSolve.Error (ErrorTypeContext (..), Error (..)) where
 
 import UHF.Prelude
 
-import UHF.Parts.UnifiedFrontendSolver.TypeSolver.Constraint
-import UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar
-import UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar.PP
+import UHF.Data.IR.TypeWithInferVar (InferVarArena, Type (..), InferVarKey)
+import UHF.Data.IR.TypeWithInferVar.PP (InferVarNamer, run_infer_var_namer, make_infer_var_name_messages, pp_type)
+import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Task
 import UHF.Source.Located (Located (..))
 import UHF.Source.Span (Span)
-import qualified UHF.Util.Arena as Arena
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.PP as PP
+import qualified UHF.Util.Arena as Arena
 
-data ErrorTypeContext t
-    = ErrorTypeContext
+data ErrorTypeContext
+    = forall t. ErrorTypeContext
         (Arena.Arena (Type.ADT t) Type.ADTKey)
         (Arena.Arena (Type.TypeSynonym t) Type.TypeSynonymKey)
         (Arena.Arena Type.QuantVar Type.QuantVarKey)
         InferVarArena
-data SolveError t
-    = EqError
-        { eq_error_context :: ErrorTypeContext t
+
+data Error
+    = AmbiguousType TypeWithInferVar.InferVarForWhat
+    | EqError
+        { eq_error_context :: ErrorTypeContext
         , eq_error_in_what :: EqInWhat
         , eq_error_span :: Span
         , eq_error_a_whole :: Located Type
@@ -32,7 +34,7 @@ data SolveError t
         , eq_error_b_part :: Type
         }
     | ExpectError
-        { expect_error_context :: ErrorTypeContext t
+        { expect_error_context :: ErrorTypeContext
         , expect_error_in_what :: ExpectInWhat
         , expect_error_got_whole :: Located Type
         , expect_error_expect_whole :: Type
@@ -40,11 +42,20 @@ data SolveError t
         , expect_error_expect_part :: Type
         }
 
-    | OccursCheckError (ErrorTypeContext t) Span InferVarKey Type
-    | DoesNotTakeTypeArgument (ErrorTypeContext t) Span Type
-    | WrongTypeArgument (ErrorTypeContext t) Span Type Type
+    | OccursCheckError (ErrorTypeContext ) Span InferVarKey Type
+    | DoesNotTakeTypeArgument (ErrorTypeContext ) Span Type
+    | WrongTypeArgument (ErrorTypeContext ) Span Type Type
 
-instance Diagnostic.ToError (SolveError t) where
+instance Diagnostic.ToError (Error ) where
+    to_error (AmbiguousType for_what) =
+        let sp = TypeWithInferVar.infer_var_for_what_sp for_what
+            name = TypeWithInferVar.infer_var_for_what_name for_what
+        in Diagnostic.Error
+                (Just sp)
+                ("ambiguous type: could not infer the type of this " <> name)
+                []
+                []
+
     to_error (EqError context@(ErrorTypeContext _ _ _ infer_vars) in_what span a_whole b_whole a_part b_part) =
         let what = case in_what of
                 InAssignment -> "assignment"
@@ -133,5 +144,5 @@ instance Diagnostic.ToError (SolveError t) where
             (make_infer_var_name_messages infer_vars var_names)
             []
 
-pp_type_with_error_context :: Bool -> ErrorTypeContext t -> Type -> InferVarNamer PP.Token
+pp_type_with_error_context :: Bool -> ErrorTypeContext -> Type -> InferVarNamer PP.Token
 pp_type_with_error_context name_infer_vars (ErrorTypeContext adts type_synonyms quant_vars infer_vars) = pp_type name_infer_vars adts type_synonyms quant_vars infer_vars

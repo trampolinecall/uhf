@@ -1,10 +1,12 @@
-module UHF.Parts.UnifiedFrontendSolver.InfixGroup.InfixGroupResultArena (InfixGroupedKey, InfixGroupedArena) where
+module UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupedKey, InfixGroupedArena, InfixGroupResult (..)) where
 
 import UHF.Prelude
 
 import UHF.Parts.UnifiedFrontendSolver.SolveResult (SolveResult)
 import qualified UHF.Util.Arena as Arena
-import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Result (InfixGroupResult)
+import qualified UHF.Data.SIR as SIR
+
+data InfixGroupResult = Call InfixGroupResult InfixGroupResult | Operand Int | Operator SIR.ValueRef
 
 newtype InfixGroupedKey = InfixGroupedKey Arena.KeyData deriving (Show, Eq, Ord)
 instance Arena.Key InfixGroupedKey where

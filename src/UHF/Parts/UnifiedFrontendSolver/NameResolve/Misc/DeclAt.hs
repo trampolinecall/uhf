@@ -1,4 +1,4 @@
-module UHF.Parts.UnifiedFrontendSolver.NameResolve.DeclAt (DeclAt (..)) where
+module UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.DeclAt (DeclAt (..)) where
 
 -- TODO: figure out a better solution than to split this into this tiny separate module
 -- TODO: clean up this and the 3 modules too

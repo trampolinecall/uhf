@@ -4,12 +4,12 @@ import UHF.Prelude
 
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
+import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Data.SIR as SIR
 import UHF.Parts.UnifiedFrontendSolver.Error (Error (NRError))
 import qualified UHF.Parts.UnifiedFrontendSolver.Error as SolveError
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Error as Error
-import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.NameMaps as NameMaps
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.NameResolveResultArena
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result
     ( IdenResolvedArena
     , IdenResolvedKey
     , TypeExprEvaledArena
@@ -18,8 +18,6 @@ import UHF.Parts.UnifiedFrontendSolver.NameResolve.NameResolveResultArena
     , TypeExprEvaledKey
     )
 import UHF.Parts.UnifiedFrontendSolver.SolveResult
-import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver as TypeSolver
-import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Util.Arena as Arena
 
 finalize ::

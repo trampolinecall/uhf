@@ -1,18 +1,18 @@
-module UHF.Parts.UnifiedFrontendSolver.TypeSolver.Utils (substitute_quant_var) where
+module UHF.Parts.UnifiedFrontendSolver.TypeSolve.Misc.SubstituteQuantVar (substitute_quant_var) where
 
 import UHF.Prelude
 
-import UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar
-import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver.SolveMonad as SolveMonad
+import UHF.Data.IR.TypeWithInferVar
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Util.Arena as Arena
+import UHF.Parts.UnifiedFrontendSolver.Solving (SolveMonad)
 
 -- TODO: find a better place to put this function
-substitute_quant_var :: Monad under => Type.QuantVarKey -> Type -> Type -> SolveMonad.SolveMonad under Type
+substitute_quant_var :: Type.QuantVarKey -> Type -> Type -> SolveMonad Type
 substitute_quant_var looking_for replacement ty = go ty
     where
-        go ty@(Type'InferVar ifv) =
-            SolveMonad.get_infer_vars >>= \ infer_vars ->
+        go ty@(Type'InferVar ifv) = do
+            (_, _, infer_vars) <- get
             case Arena.get infer_vars ifv of
                 InferVar _ (Substituted sub) -> go sub
                 InferVar _ Fresh -> pure ty

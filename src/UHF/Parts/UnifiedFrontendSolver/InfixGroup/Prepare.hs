@@ -2,16 +2,16 @@ module UHF.Parts.UnifiedFrontendSolver.InfixGroup.Prepare (prepare) where
 
 import UHF.Prelude
 
-import qualified UHF.Data.SIR as SIR
-import UHF.Parts.UnifiedFrontendSolver.InfixGroup.InfixGroupResultArena (InfixGroupedArena, InfixGroupedKey)
-import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Task (InfixGroupTask (..))
-import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.NameMaps as NameMaps
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.NameResolveResultArena (IdenResolvedKey, TypeExprEvaledAsTypeKey, TypeExprEvaledKey)
-import UHF.Parts.UnifiedFrontendSolver.SolveResult
-import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar as TypeWithInferVar
-import qualified UHF.Util.Arena as Arena
-import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.Type as Type
+import qualified UHF.Data.IR.Type.ADT as Type.ADT
+import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
+import qualified UHF.Data.SIR as SIR
+import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupedArena, InfixGroupedKey)
+import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Task (InfixGroupTask (..))
+import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameMaps
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (IdenResolvedKey, TypeExprEvaledAsTypeKey, TypeExprEvaledKey)
+import UHF.Parts.UnifiedFrontendSolver.SolveResult
+import qualified UHF.Util.Arena as Arena
 
 type Unprepared = (NameMaps.NameMapStackKey, IdenResolvedKey (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, (), ())
 type Prepared = (NameMaps.NameMapStackKey, IdenResolvedKey (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, (), InfixGroupedKey)

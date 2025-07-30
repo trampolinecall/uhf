@@ -2,22 +2,12 @@ module UHF.Parts.UnifiedFrontendSolver.InfixGroup.Prepare (prepare) where
 
 import UHF.Prelude
 
-import Data.Functor.Const (Const (Const))
-import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
 import UHF.Parts.UnifiedFrontendSolver.InfixGroup.InfixGroupResultArena (InfixGroupedArena, InfixGroupedKey)
 import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Task (InfixGroupTask (..))
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.NameMaps as NameMaps
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.NameResolveResultArena
-    ( IdenResolvedArena
-    , IdenResolvedKey
-    , TypeExprEvaledArena
-    , TypeExprEvaledAsTypeArena
-    , TypeExprEvaledAsTypeKey
-    , TypeExprEvaledKey
-    )
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.NameResolveResultArena (IdenResolvedKey, TypeExprEvaledAsTypeKey, TypeExprEvaledKey)
 import UHF.Parts.UnifiedFrontendSolver.SolveResult
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Task (IdenResolveTask (..), TypeExprEvalAsTypeTask (..), TypeExprEvalTask (..))
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Util.Arena as Arena
 
@@ -25,14 +15,15 @@ type Unprepared = (NameMaps.NameMapStackKey, IdenResolvedKey (), TypeWithInferVa
 type Prepared = (NameMaps.NameMapStackKey, IdenResolvedKey (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, (), InfixGroupedKey)
 
 -- TODO: make someday this will turn into a RWST?
-type PrepareState = WriterT [InfixGroupTask] (State (InfixGroupedArena ()))
+type PrepareState = WriterT [InfixGroupTask] (State InfixGroupedArena)
 
-new_infix_grouped_key :: InfixGroupTask -> PrepareState InfixGroupedKey
+new_infix_grouped_key :: (InfixGroupedKey -> InfixGroupTask) -> PrepareState InfixGroupedKey
 new_infix_grouped_key task = do
-    tell [task]
-    state $ \arena -> let (key, arena') = Arena.put (Inconclusive ()) arena in (key, arena')
+    key <- state $ \arena -> let (key, arena') = Arena.put (Inconclusive ()) arena in (key, arena')
+    tell [task key]
+    pure key
 
-prepare :: SIR.SIR Unprepared -> (SIR.SIR Prepared, InfixGroupedArena (), [InfixGroupTask])
+prepare :: SIR.SIR Unprepared -> (SIR.SIR Prepared, InfixGroupedArena, [InfixGroupTask])
 prepare (SIR.SIR mods adts type_synonyms type_vars variables (SIR.CU root_module main_function)) =
     let ((sir, tasks), arenas) =
             runState
@@ -117,10 +108,10 @@ prepare_expr (SIR.Expr'Lambda id type_info sp param body) = SIR.Expr'Lambda id t
 prepare_expr (SIR.Expr'Let id type_info sp name_maps bindings adts type_synonyms body) = SIR.Expr'Let id type_info sp name_maps <$> mapM prepare_binding bindings <*> pure adts <*> pure type_synonyms <*> prepare_expr body
 prepare_expr (SIR.Expr'LetRec id type_info sp name_maps bindings adts type_synonyms body) = SIR.Expr'LetRec id type_info sp name_maps <$> mapM prepare_binding bindings <*> pure adts <*> pure type_synonyms <*> prepare_expr body
 prepare_expr (SIR.Expr'BinaryOps id () type_info sp first ops) = do
-    infix_group_key <- new_infix_grouped_key InfixGroupTask
-
     first <- prepare_expr first
     ops <- mapM (\(sp, iden, rhs) -> (sp,,) <$> prepare_split_iden iden <*> prepare_expr rhs) ops
+
+    infix_group_key <- new_infix_grouped_key $ InfixGroupTask (map (\(_, iden, _) -> SIR.split_identifier_resolved iden) ops)
 
     pure $ SIR.Expr'BinaryOps id infix_group_key type_info sp first ops
 prepare_expr (SIR.Expr'Call id type_info sp callee arg) = SIR.Expr'Call id type_info sp <$> prepare_expr callee <*> prepare_expr arg

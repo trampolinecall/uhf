@@ -66,9 +66,10 @@ library
       UHF.Parts.TSBackend.TS
       UHF.Parts.TSBackend.TS.PP
       UHF.Parts.UnifiedFrontendSolver
-      UHF.Parts.UnifiedFrontendSolver.InfixGroup
+      UHF.Parts.UnifiedFrontendSolver.InfixGroup.Group
       UHF.Parts.UnifiedFrontendSolver.InfixGroup.InfixGroupResultArena
       UHF.Parts.UnifiedFrontendSolver.InfixGroup.Prepare
+      UHF.Parts.UnifiedFrontendSolver.InfixGroup.Result
       UHF.Parts.UnifiedFrontendSolver.InfixGroup.Task
       UHF.Parts.UnifiedFrontendSolver.NameResolve.AssignNameMaps
       UHF.Parts.UnifiedFrontendSolver.NameResolve.DeclAt

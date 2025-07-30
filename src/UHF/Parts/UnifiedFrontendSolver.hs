@@ -29,6 +29,7 @@ import qualified UHF.Parts.UnifiedFrontendSolver.Solving as Solving
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver as SolveMonad
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Util.Arena as Arena
+import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Group as InfixGroup.Group
 
 -- import qualified UHF.Compiler as Compiler
 -- import qualified UHF.Data.SIR as SIR
@@ -83,7 +84,7 @@ solve' ::
           , NameResolveResultArena.TypeExprEvaledArena
           , NameResolveResultArena.TypeExprEvaledAsTypeArena
           )
-        , InfixGroupResultArena.InfixGroupedArena ()
+        , InfixGroupResultArena.InfixGroupedArena
         )
         ( ReaderT
             (Arena.Arena NameResolve.NameMaps.NameMapStack NameResolve.NameMaps.NameMapStackKey, NameResolve.NameMaps.SIRChildMaps, SIR.SIR Solving.SolvingStage)
@@ -103,7 +104,7 @@ solve'
         (type_expr_eval_tasks, changed4) <- go NameResolve.Resolve.eval_type_expr type_expr_eval_tasks
         (type_expr_eval_as_type_tasks, changed5) <- go NameResolve.Resolve.eval_type_expr_as_type type_expr_eval_as_type_tasks
 
-        (infix_group_tasks, changed6) <- go _ infix_group_tasks
+        (infix_group_tasks, changed6) <- go InfixGroup.Group.group infix_group_tasks
 
         (type_solve_tasks, changed7) <- go _ type_solve_tasks
 

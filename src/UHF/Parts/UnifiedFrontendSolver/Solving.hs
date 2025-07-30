@@ -51,8 +51,9 @@ type SolveMonad =
           , TypeExprEvaledArena
           , TypeExprEvaledAsTypeArena
           )
-        , InfixGroupedArena ()
+        , InfixGroupedArena
         )
+        -- TODO: eventually this should also be in the StateT because macro expansion can add to NameMaps and ChildMaps and identifier patterns need to be able to resolve as adt variant patterns with no fields
         ( ReaderT
             (Arena.Arena NameMaps.NameMapStack NameMaps.NameMapStackKey, NameMaps.SIRChildMaps, SIR.SIR SolvingStage)
             (SolveMonad.SolveMonad (Compiler.WithDiagnostics Error.Error Void))

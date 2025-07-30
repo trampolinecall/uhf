@@ -1,5 +1,6 @@
 {-# LANGUAGE UndecidableInstances #-}
 -- TODO: maybe this is not the best place to put this module?
+-- move it to IR.Data.TypeWithInferVar?
 
 module UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar
     ( Type (..)

@@ -100,8 +100,8 @@ solve'
         (decl_resolve_tasks, changed1) <- go NameResolve.Resolve.resolve_decl_iden decl_resolve_tasks
         (value_resolve_tasks, changed2) <- go NameResolve.Resolve.resolve_value_iden value_resolve_tasks
         (variant_resolve_tasks, changed3) <- go NameResolve.Resolve.resolve_variant_iden variant_resolve_tasks
-        (type_expr_eval_tasks, changed4) <- go _ type_expr_eval_tasks
-        (type_expr_eval_as_type_tasks, changed5) <- go _ type_expr_eval_as_type_tasks
+        (type_expr_eval_tasks, changed4) <- go NameResolve.Resolve.eval_type_expr type_expr_eval_tasks
+        (type_expr_eval_as_type_tasks, changed5) <- go NameResolve.Resolve.eval_type_expr_as_type type_expr_eval_as_type_tasks
 
         (infix_group_tasks, changed6) <- go _ infix_group_tasks
 

@@ -73,6 +73,7 @@ library
       UHF.Parts.UnifiedFrontendSolver.NameResolve.AssignNameMaps
       UHF.Parts.UnifiedFrontendSolver.NameResolve.DeclAt
       UHF.Parts.UnifiedFrontendSolver.NameResolve.Error
+      UHF.Parts.UnifiedFrontendSolver.NameResolve.EvaledAsType
       UHF.Parts.UnifiedFrontendSolver.NameResolve.EvalTypeExprs
       UHF.Parts.UnifiedFrontendSolver.NameResolve.Finalize
       UHF.Parts.UnifiedFrontendSolver.NameResolve.NameMaps

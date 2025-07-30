@@ -1,4 +1,4 @@
-module UHF.Parts.UnifiedFrontendSolver.NameResolve.Resolve (resolve_decl_iden, resolve_value_iden, resolve_variant_iden) where
+module UHF.Parts.UnifiedFrontendSolver.NameResolve.Resolve (resolve_decl_iden, resolve_value_iden, resolve_variant_iden, eval_type_expr, eval_type_expr_as_type) where
 
 import UHF.Prelude
 
@@ -11,6 +11,7 @@ import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
 import UHF.Parts.UnifiedFrontendSolver.InfixGroup.InfixGroupResultArena (InfixGroupedArena, InfixGroupedKey)
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Error as Error
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.EvaledAsType (evaled_as_type)
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.NRReader as NRReader
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.NameMaps as NameMaps
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.NameResolveResultArena
@@ -21,10 +22,10 @@ import UHF.Parts.UnifiedFrontendSolver.NameResolve.NameResolveResultArena
     , TypeExprEvaledAsTypeKey
     , TypeExprEvaledKey
     )
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Task (IdenResolveTask (..))
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Task (IdenResolveTask (..), TypeExprEvalAsTypeTask (..), TypeExprEvalTask (..))
 import UHF.Parts.UnifiedFrontendSolver.ProgressMade (ProgressMade (..))
 import UHF.Parts.UnifiedFrontendSolver.SolveResult (SolveResult (..))
-import UHF.Parts.UnifiedFrontendSolver.Solving (SolveMonad, get_type_expr_evaled)
+import UHF.Parts.UnifiedFrontendSolver.Solving (SolveMonad, ask_sir, get_decl_iden_resolved, get_type_expr_evaled)
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver as TypeSolver
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver as TypeWithInferVar
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver.SolveMonad as SolveMonad
@@ -59,68 +60,84 @@ type NameMapStackArena = Arena.Arena NameMaps.NameMapStack NameMaps.NameMapStack
 --     )
 -- )
 --
+decl_iden_resolved_selector :: State (IdenResolvedArena (SIR.DeclRef TypeWithInferVar.Type)) () -> SolveMonad ()
+decl_iden_resolved_selector s =
+    state $
+        \( (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
+            , infix_group_results
+            ) ->
+                let ((), decl_iden_resolved_arena') = runState s decl_iden_resolved_arena
+                in ( ()
+                   ,
+                       ( (decl_iden_resolved_arena', value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
+                       , infix_group_results
+                       )
+                   )
+
+value_iden_resolved_selector :: State (IdenResolvedArena SIR.ValueRef) () -> SolveMonad ()
+value_iden_resolved_selector s =
+    state $
+        \( (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
+            , infix_group_results
+            ) ->
+                let ((), value_iden_resolved_arena') = runState s value_iden_resolved_arena
+                in ( ()
+                   ,
+                       ( (decl_iden_resolved_arena, value_iden_resolved_arena', variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
+                       , infix_group_results
+                       )
+                   )
+variant_iden_resolved_selector :: State (IdenResolvedArena Type.ADT.VariantIndex) () -> SolveMonad ()
+variant_iden_resolved_selector s =
+    state $
+        \( (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
+            , infix_group_results
+            ) ->
+                let ((), variant_iden_resolved_arena') = runState s variant_iden_resolved_arena
+                in ( ()
+                   ,
+                       ( (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena', type_expr_evaled_arena, type_expr_evaled_as_type_arena)
+                       , infix_group_results
+                       )
+                   )
+
+type_expr_evaled_selector :: State TypeExprEvaledArena () -> SolveMonad ()
+type_expr_evaled_selector s =
+    state $
+        \( (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
+            , infix_group_results
+            ) ->
+                let ((), type_expr_evaled_arena') = runState s type_expr_evaled_arena
+                in ( ()
+                   ,
+                       ( (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena', type_expr_evaled_as_type_arena)
+                       , infix_group_results
+                       )
+                   )
+type_expr_evaled_as_type_selector :: State TypeExprEvaledAsTypeArena () -> SolveMonad ()
+type_expr_evaled_as_type_selector s =
+    state $
+        \( (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
+            , infix_group_results
+            ) ->
+                let ((), type_expr_evaled_as_type_arena') = runState s type_expr_evaled_as_type_arena
+                in ( ()
+                   ,
+                       ( (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena')
+                       , infix_group_results
+                       )
+                   )
+
 resolve_decl_iden ::
     IdenResolveTask (SIR.DeclRef TypeWithInferVar.Type) -> SolveMonad (ProgressMade (IdenResolveTask (SIR.DeclRef TypeWithInferVar.Type)))
-resolve_decl_iden =
-    resolve
-        ( \s ->
-            StateT $
-                \( (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
-                    , infix_group_results
-                    ) -> do
-                        ((), decl_iden_resolved_arena) <- runStateT s decl_iden_resolved_arena
-                        pure
-                            ( ()
-                            ,
-                                ( (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
-                                , infix_group_results
-                                )
-                            )
-        )
-        look_up_decl
-        get_decl_child
+resolve_decl_iden = resolve decl_iden_resolved_selector look_up_decl get_decl_child
 resolve_value_iden :: IdenResolveTask SIR.ValueRef -> SolveMonad (ProgressMade (IdenResolveTask SIR.ValueRef))
-resolve_value_iden =
-    resolve
-        ( \s ->
-            StateT $
-                \( (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
-                    , infix_group_results
-                    ) -> do
-                        ((), value_iden_resolved_arena) <- runStateT s value_iden_resolved_arena
-                        pure
-                            ( ()
-                            ,
-                                ( (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
-                                , infix_group_results
-                                )
-                            )
-        )
-        look_up_value
-        get_value_child
+resolve_value_iden = resolve value_iden_resolved_selector look_up_value get_value_child
 resolve_variant_iden :: IdenResolveTask Type.ADT.VariantIndex -> SolveMonad (ProgressMade (IdenResolveTask Type.ADT.VariantIndex))
-resolve_variant_iden =
-    resolve
-        ( \s ->
-            StateT $
-                \( (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
-                    , infix_group_results
-                    ) -> do
-                        ((), variant_iden_resolved_arena) <- runStateT s variant_iden_resolved_arena
-                        pure
-                            ( ()
-                            ,
-                                ( (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
-                                , infix_group_results
-                                )
-                            )
-        )
-        look_up_variant
-        get_variant_child
+resolve_variant_iden = resolve variant_iden_resolved_selector look_up_variant get_variant_child
 
 resolve ::
-    Monad under =>
-    (StateT (Arena.Arena (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise resolved) (IdenResolvedKey resolved)) under () -> SolveMonad ()) ->
+    (State (Arena.Arena (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise resolved) (IdenResolvedKey resolved)) () -> SolveMonad ()) ->
     (NameMaps.NameMapStackKey -> Located Text -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise resolved)) ->
     (SIR.DeclRef TypeSolver.Type -> Located Text -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise resolved)) ->
     IdenResolveTask resolved ->
@@ -137,11 +154,11 @@ resolve selector _ resolve_get (ResolveGet parent name result_key) = do
     put_result selector result_key result
 
 put_result ::
-    Monad under =>
-    (StateT (Arena.Arena (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise resolved) (IdenResolvedKey resolved)) under () -> SolveMonad ()) ->
-    IdenResolvedKey resolved ->
-    SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise resolved ->
-    SolveMonad (ProgressMade (IdenResolveTask resolved))
+    Arena.Key key =>
+    (State (Arena.Arena (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise result) key) () -> SolveMonad ()) ->
+    key ->
+    SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise result ->
+    SolveMonad (ProgressMade task)
 put_result selector k res = do
     case res of
         Inconclusive _ -> pure Unsuccessful
@@ -187,6 +204,93 @@ report_errored :: SolveResult Error.Error Error.Error res -> SolveMonad (SolveRe
 report_errored (Solved res) = pure $ Solved res
 report_errored (Errored err) = Errored <$> lift (lift $ lift $ Compiler.tell_error err)
 report_errored (Inconclusive bee) = pure $ Inconclusive (Just bee)
+
+eval_type_expr :: TypeExprEvalTask -> SolveMonad (ProgressMade TypeExprEvalTask)
+eval_type_expr (GetFromDeclIdenResolved iden_resolved result_key) = do
+    resolved <- get_decl_iden_resolved iden_resolved
+    put_result type_expr_evaled_selector result_key resolved
+eval_type_expr (MakeTuple a b result_key) = do
+    a <- get_type_expr_evaled a
+    b <- get_type_expr_evaled b
+
+    evaled <- do
+        a' <- type_expr_evaled_as_type a
+        b' <- type_expr_evaled_as_type b
+        pure $ SIR.DeclRef'Type <$> (TypeSolver.Type'Tuple <$> a' <*> b')
+
+    put_result type_expr_evaled_selector result_key evaled
+eval_type_expr (MakeFunction arg res result_key) = do
+    arg <- get_type_expr_evaled arg
+    res <- get_type_expr_evaled res
+
+    evaled <- do
+        arg' <- type_expr_evaled_as_type arg
+        res' <- type_expr_evaled_as_type res
+        pure $ SIR.DeclRef'Type <$> (TypeSolver.Type'Function <$> arg' <*> res')
+
+    put_result type_expr_evaled_selector result_key evaled
+eval_type_expr (MakeForall qvars res result_key) = do
+    res <- get_type_expr_evaled res
+    evaled <-
+        do
+            res' <- type_expr_evaled_as_type res
+            pure $ SIR.DeclRef'Type <$> (TypeSolver.Type'Forall qvars <$> res')
+
+    put_result type_expr_evaled_selector result_key evaled
+eval_type_expr (MakeApply ty arg result_key) = do
+    ty <- get_type_expr_evaled ty
+    arg <- get_type_expr_evaled arg
+
+    evaled <- do
+        ty' <- type_expr_evaled_as_type ty
+        arg' <- type_expr_evaled_as_type arg
+
+        result_ty <- case (ty', arg') of
+            (Solved ty', Solved arg') -> do
+                SIR.SIR _ adts type_synonyms quant_vars _ _ <- ask_sir
+                lift (lift $ TypeSolver.apply_type (todo adts) (todo type_synonyms) todo quant_vars (TypeSolver.TypeExpr (todo {- sp -})) (todo {- sp -}) ty' arg') -- TODO: figure this out
+                    >>= \case
+                        TypeSolver.AppliedResult res -> pure $ Solved res
+                        TypeSolver.AppliedError err -> do
+                            _ <- lift $ lift $ lift $ Compiler.tell_error (Error.Error'SolveError err)
+                            Solved <$> make_infer_var (TypeSolver.TypeExpr (todo {- sp -})) -- TODO: fix duplication of this for_what
+                        TypeSolver.Inconclusive ty constraint -> do
+                            -- tell [constraint] TODO: tell constraint
+                            pure $ Solved ty
+            (Inconclusive _, _) -> pure $ Inconclusive Nothing
+            (_, Inconclusive _) -> pure $ Inconclusive Nothing
+            (Errored e, _) -> pure $ Errored e
+            (_, Errored e) -> pure $ Errored e
+
+        pure $ SIR.DeclRef'Type <$> result_ty
+
+    put_result type_expr_evaled_selector result_key evaled
+eval_type_expr (MakeInferVar result_key) = do
+    infer_var <- make_infer_var (TypeSolver.TypeExpr todo)
+
+    put_result type_expr_evaled_selector result_key (Solved $ SIR.DeclRef'Type infer_var)
+
+eval_type_expr_as_type :: TypeExprEvalAsTypeTask -> SolveMonad (ProgressMade TypeExprEvalAsTypeTask)
+eval_type_expr_as_type (EvalAsType te result_key) = do
+    te <- get_type_expr_evaled te
+    te' <- type_expr_evaled_as_type te
+    put_result type_expr_evaled_as_type_selector result_key te'
+
+type_expr_evaled_as_type ::
+    SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise (SIR.DeclRef TypeWithInferVar.Type) ->
+    SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise TypeWithInferVar.Type)
+type_expr_evaled_as_type (Solved dr) = case evaled_as_type todo dr of -- TODO: span
+    Right ty -> pure $ Solved ty
+    Left err -> lift $ lift $ lift $ Errored <$> Compiler.tell_error (Error.Error'NotAType err) -- TODO: report error and make an infer var instead of returning Errored? (this was the old behavior before the unified solver came in)
+type_expr_evaled_as_type (Inconclusive _) = pure $ Inconclusive Nothing
+type_expr_evaled_as_type (Errored e) = do
+    Solved <$> make_infer_var (TypeSolver.TypeExpr (todo)) -- TODO: make this message better
+    -- TODO: span
+
+make_infer_var :: TypeSolver.InferVarForWhat -> SolveMonad TypeSolver.Type
+make_infer_var for_what = do
+    ifv <- lift $ lift $ TypeSolver.new_infer_var for_what
+    pure $ TypeSolver.Type'InferVar ifv
 
 -- resolve ::
 --     Arena.Arena NameMaps.NameMapStack NameMaps.NameMapStackKey ->
@@ -266,125 +370,7 @@ report_errored (Inconclusive bee) = pure $ Inconclusive (Just bee)
 -- resolve_in_binding :: SIR.Binding (PrevStep prev_bee) -> SolveMonad (SIR.Binding PostResolve)
 -- resolve_in_binding (SIR.Binding target eq_sp expr) = SIR.Binding <$> resolve_in_pat target <*> pure eq_sp <*> resolve_in_expr expr
 --
--- resolve_in_type_expr :: SIR.TypeExpr (PrevStep prev_bee) -> SolveMonad (SIR.TypeExpr PostResolve)
--- resolve_in_type_expr (SIR.TypeExpr'Refer _ sp nc_stack id resolved) = do
---     resolved <- if_inconclusive resolved (look_up_decl nc_stack id)
---     pure $ SIR.TypeExpr'Refer resolved sp nc_stack id resolved
--- resolve_in_type_expr (SIR.TypeExpr'Get evaled sp parent name) = do
---     parent <- resolve_in_type_expr parent
---     evaled <-
---         if_inconclusive
---             evaled
---             ( case SIR.type_expr_evaled parent of
---                 Inconclusive _ -> pure (Inconclusive Nothing)
---                 Errored err -> pure $ Errored err
---                 Resolved r -> get_decl_child r name
---             )
---     pure $ SIR.TypeExpr'Get evaled sp parent name
--- resolve_in_type_expr (SIR.TypeExpr'Tuple evaled sp a b) = do
---     a <- resolve_in_type_expr a
---     b <- resolve_in_type_expr b
---     evaled <-
---         if_inconclusive
---             evaled
---             ( do
---                 a' <- type_expr_evaled_as_type a
---                 b' <- type_expr_evaled_as_type b
---                 pure $ SIR.DeclRef'Type <$> (TypeSolver.Type'Tuple <$> a' <*> b')
---             )
---     pure $ SIR.TypeExpr'Tuple evaled sp a b
--- resolve_in_type_expr (SIR.TypeExpr'Hole evaled evaled_as_type sp hid) = do
---     evaled_as_type <- if_inconclusive evaled_as_type (Resolved <$> make_infer_var (TypeSolver.TypeHole sp))
---     evaled <- if_inconclusive evaled (pure $ SIR.DeclRef'Type <$> evaled_as_type)
---     pure $ SIR.TypeExpr'Hole evaled evaled_as_type sp hid
--- resolve_in_type_expr (SIR.TypeExpr'Function evaled sp arg res) = do
---     arg <- resolve_in_type_expr arg
---     res <- resolve_in_type_expr res
---     evaled <-
---         if_inconclusive
---             evaled
---             ( do
---                 arg' <- type_expr_evaled_as_type arg
---                 res' <- type_expr_evaled_as_type res
---                 pure $ SIR.DeclRef'Type <$> (TypeSolver.Type'Function <$> arg' <*> res')
---             )
---     pure $ SIR.TypeExpr'Function evaled sp arg res
--- resolve_in_type_expr (SIR.TypeExpr'Forall evaled sp name_maps vars inner) = do
---     inner <- resolve_in_type_expr inner
---     evaled <-
---         if_inconclusive
---             evaled
---             ( do
---                 inner' <- type_expr_evaled_as_type inner
---                 pure $ SIR.DeclRef'Type <$> (TypeSolver.Type'Forall vars <$> inner')
---             )
---     pure $ SIR.TypeExpr'Forall evaled sp name_maps vars inner
--- resolve_in_type_expr (SIR.TypeExpr'Apply evaled sp ty arg) = do
---     ty <- resolve_in_type_expr ty
---     arg <- resolve_in_type_expr arg
---     evaled <-
---         if_inconclusive
---             evaled
---             ( do
---                 ty' <- type_expr_evaled_as_type ty
---                 arg' <- type_expr_evaled_as_type arg
 --
---                 result_ty <- case (ty', arg') of
---                     (Resolved ty', Resolved arg') -> do
---                         adts <- lift $ lift NRReader.ask_adt_arena
---                         type_synonyms <- lift $ lift NRReader.ask_type_synonym_arena
---                         quant_vars <- lift $ lift NRReader.ask_quant_var_arena
---                         lift (lift $ lift $ lift $ TypeSolver.apply_type adts type_synonyms todo quant_vars (TypeSolver.TypeExpr sp) sp ty' arg') -- TODO: figure this out
---                             >>= \case
---                                 TypeSolver.AppliedResult res -> pure $ Resolved res
---                                 TypeSolver.AppliedError err -> do
---                                     _ <- lift $ lift $ lift $ lift $ lift $ Compiler.tell_error (Error.Error'SolveError err)
---                                     Resolved <$> make_infer_var (TypeSolver.TypeExpr sp) -- TODO: fix duplication of this for_what
---                                 TypeSolver.Inconclusive ty constraint -> do
---                                     lift $ tell [constraint]
---                                     pure $ Resolved ty
---                     (Inconclusive _, _) -> pure $ Inconclusive Nothing
---                     (_, Inconclusive _) -> pure $ Inconclusive Nothing
---                     (Errored e, _) -> pure $ Errored e
---                     (_, Errored e) -> pure $ Errored e
---
---                 pure $ SIR.DeclRef'Type <$> result_ty
---             )
---     pure $ SIR.TypeExpr'Apply evaled sp ty arg
--- resolve_in_type_expr (SIR.TypeExpr'Wild evaled sp) = do
---     evaled <-
---         if_inconclusive
---             evaled
---             ( do
---                 infer_var <- make_infer_var (TypeSolver.TypeExpr sp)
---                 pure $ SIR.DeclRef'Type <$> Resolved infer_var
---             )
---     pure $ SIR.TypeExpr'Wild evaled sp
--- resolve_in_type_expr (SIR.TypeExpr'Poison evaled sp) = do
---     evaled <-
---         if_inconclusive
---             evaled
---             ( do
---                 infer_var <- make_infer_var (TypeSolver.TypeExpr sp)
---                 pure $ SIR.DeclRef'Type <$> Resolved infer_var
---             )
---     pure $ SIR.TypeExpr'Poison evaled sp
---
--- type_expr_evaled_as_type ::
---     SIR.TypeExpr (PrevStep prev_bee) -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise TypeSolver.Type)
--- type_expr_evaled_as_type te =
---     let sp = SIR.type_expr_span te
---         d = SIR.type_expr_evaled te
---     in case d of
---         Resolved (SIR.DeclRef'Module _) -> do
---             _ <- lift $ lift $ lift $ lift $ lift $ Compiler.tell_error (Error.Error'NotAType sp "a module")
---             Resolved <$> make_infer_var (TypeSolver.TypeExpr sp) -- TODO: don't make variables for these?
---         Resolved (SIR.DeclRef'Type ty) -> pure $ Resolved ty
---         Resolved (SIR.DeclRef'ExternPackage _) -> do
---             _ <- lift $ lift $ lift $ lift $ lift $ Compiler.tell_error (Error.Error'NotAType sp "external package")
---             Resolved <$> make_infer_var (TypeSolver.TypeExpr sp) -- TODO: don't make variables for these?
---         Errored _ -> Resolved <$> make_infer_var (TypeSolver.TypeExpr sp) -- TODO: make this message better
---         Inconclusive _ -> pure (Inconclusive Nothing)
 --
 -- resolve_in_expr :: SIR.Expr (PrevStep prev_bee) -> SolveMonad (SIR.Expr PostResolve)
 -- resolve_in_expr (SIR.Expr'Refer id type_info sp iden resolved) = do
@@ -463,11 +449,3 @@ report_errored (Inconclusive bee) = pure $ Inconclusive (Just bee)
 --     resolved <- if_inconclusive resolved (pure $ SIR.split_identifier_resolved variant_iden)
 --     pure $ SIR.Pattern'NamedADTVariant type_info sp variant_iden resolved tyargs subpats
 -- resolve_in_pat (SIR.Pattern'Poison type_info sp) = pure $ SIR.Pattern'Poison type_info sp
---
---
---
---
--- make_infer_var :: TypeSolver.InferVarForWhat -> SolveMonad TypeSolver.Type
--- make_infer_var for_what = do
---     ifv <- lift $ lift $ lift $ lift $ TypeSolver.new_infer_var for_what
---     pure $ TypeSolver.Type'InferVar ifv

@@ -5,7 +5,7 @@ import UHF.Prelude
 import UHF.Data.IR.Type.QuantVar (QuantVarKey)
 import qualified UHF.Data.SIR as SIR
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.NameMaps (NameMapStackKey)
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.NameResolveResultArena (IdenResolvedKey, TypeExprEvaledKey)
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.NameResolveResultArena (IdenResolvedKey, TypeExprEvaledKey, TypeExprEvaledAsTypeKey)
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar as TypeWithInferVar
 import UHF.Source.Located (Located)
 
@@ -16,12 +16,12 @@ data IdenResolveTask result
     | ResolveGet TypeExprEvaledKey (Located Text) (IdenResolvedKey result)
 
 data TypeExprEvalTask
-    = GetFromDeclIdenResolved (IdenResolvedKey (SIR.DeclRef TypeWithInferVar.Type))
-    | MakeTuple TypeExprEvaledKey TypeExprEvaledKey
-    | MakeFunction TypeExprEvaledKey TypeExprEvaledKey
-    | MakeForall (NonEmpty QuantVarKey) TypeExprEvaledKey
-    | MakeApply TypeExprEvaledKey TypeExprEvaledKey
-    | MakeInferVar
+    = GetFromDeclIdenResolved (IdenResolvedKey (SIR.DeclRef TypeWithInferVar.Type)) TypeExprEvaledKey
+    | MakeTuple TypeExprEvaledKey TypeExprEvaledKey TypeExprEvaledKey
+    | MakeFunction TypeExprEvaledKey TypeExprEvaledKey TypeExprEvaledKey
+    | MakeForall (NonEmpty QuantVarKey) TypeExprEvaledKey TypeExprEvaledKey
+    | MakeApply TypeExprEvaledKey TypeExprEvaledKey TypeExprEvaledKey
+    | MakeInferVar TypeExprEvaledKey
 
-newtype TypeExprEvalAsTypeTask
-    = EvalAsType TypeExprEvaledKey
+data TypeExprEvalAsTypeTask
+    = EvalAsType TypeExprEvaledKey TypeExprEvaledAsTypeKey

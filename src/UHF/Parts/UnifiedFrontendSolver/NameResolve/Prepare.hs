@@ -61,15 +61,17 @@ new_variant_iden_resolved_key make_task = do
     writer ((), ([], [], [make_task key], [], []))
     pure key
 
-new_type_expr_evaled_key :: TypeExprEvalTask -> PrepareState TypeExprEvaledKey
-new_type_expr_evaled_key task = do
-    writer ((), ([], [], [], [task], []))
-    state $ \(decls, vals, variants, tees, teeats) -> let (key, tees') = Arena.put (Inconclusive Nothing) tees in (key, (decls, vals, variants, tees', teeats))
+new_type_expr_evaled_key :: (TypeExprEvaledKey -> TypeExprEvalTask) -> PrepareState TypeExprEvaledKey
+new_type_expr_evaled_key make_task = do
+    key <- state $ \(decls, vals, variants, tees, teeats) -> let (key, tees') = Arena.put (Inconclusive Nothing) tees in (key, (decls, vals, variants, tees', teeats))
+    writer ((), ([], [], [], [make_task key], []))
+    pure key
 
-new_type_expr_evaled_as_type_key :: TypeExprEvalAsTypeTask -> PrepareState TypeExprEvaledAsTypeKey
-new_type_expr_evaled_as_type_key task = do
-    writer ((), ([], [], [], [], [task]))
-    state $ \(decls, vals, variants, tees, teeats) -> let (key, teeats') = Arena.put (Inconclusive Nothing) teeats in (key, (decls, vals, variants, tees, teeats'))
+new_type_expr_evaled_as_type_key :: (TypeExprEvaledAsTypeKey -> TypeExprEvalAsTypeTask) -> PrepareState TypeExprEvaledAsTypeKey
+new_type_expr_evaled_as_type_key make_task = do
+    key <- state $ \(decls, vals, variants, tees, teeats) -> let (key, teeats') = Arena.put (Inconclusive Nothing) teeats in (key, (decls, vals, variants, tees, teeats'))
+    writer ((), ([], [], [], [], [make_task key]))
+    pure key
 
 prepare ::
     SIR.SIR Unprepared ->

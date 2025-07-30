@@ -15,14 +15,15 @@ import UHF.Parts.UnifiedFrontendSolver.NameResolve.DeclAt
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver as TypeSolver
 import UHF.Source.Located (Located (Located))
 import UHF.Source.Span (Span)
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.EvaledAsType (NotAType)
 
 type WithErrors = Compiler.WithDiagnostics Error Void
 data Error
     = Error'CouldNotFind (Located Text)
     | Error'CouldNotFindIn (Maybe (Located Text)) (Located Text)
     | Error'DuplicateDecl Text DeclAt DeclAt
-    | Error'NotAType Span Text
-    | forall t. Error'SolveError (TypeSolver.SolveError t) -- i did this out of laziness :)
+    | Error'NotAType NotAType
+    | forall t. Error'SolveError (TypeSolver.SolveError t) -- i did this out of laziness :) -- TODO: this should not be necessary anymore?
 
 instance Diagnostic.ToError Error where
     to_error (Error'CouldNotFind (Located sp name)) = Diagnostic.Error (Just sp) ("could not find name '" <> name <> "'") [] []
@@ -52,5 +53,5 @@ instance Diagnostic.ToError Error where
             message_for_decl_before n ImplicitPrim = "'" <> convert_str n <> "' is implicitly declared as a primitive" -- TODO: reword this message (ideally when it is declared through the prelude import the message would be something like 'implicitly declared by prelude')
             message_for_decl_now n (DeclAt _) = "'" <> convert_str n <> "' redefined here"
             message_for_decl_now n ImplicitPrim = "'" <> convert_str n <> "' is implicitly declared as a primitive" -- TODO: reword this message (ideally when it is declared through the prelude import the message would be something like 'implicitly declared by prelude')
-    to_error (Error'NotAType sp instead) = Diagnostic.Error (Just sp) ("not a type: got " <> instead) [] []
+    to_error (Error'NotAType nat) = Diagnostic.to_error nat
     to_error (Error'SolveError se) = Diagnostic.to_error se

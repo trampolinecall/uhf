@@ -31,9 +31,9 @@ type DumpableConstraints stage =
 dump_main_module :: DumpableConstraints stage => SIR.SIR stage -> Text
 dump_main_module ir@(SIR.SIR modules _ _ _ _ (SIR.CU root_module _)) = PP.render $ runReader (define_module $ Arena.get modules root_module) ir
 
-get_adt_arena :: IRReader stage (Arena.Arena (Type.ADT (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage)) Type.ADTKey)
+get_adt_arena :: IRReader stage (Arena.Arena (Type.ADT (SIR.TypeExpr stage, SIR.TypeExprEvaledAsTypeKey stage)) Type.ADTKey)
 get_adt_arena = reader (\ (SIR.SIR _ adts _ _ _ _) -> adts)
-get_type_synonym_arena :: IRReader stage (Arena.Arena (Type.TypeSynonym (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage)) Type.TypeSynonymKey)
+get_type_synonym_arena :: IRReader stage (Arena.Arena (Type.TypeSynonym (SIR.TypeExpr stage, SIR.TypeExprEvaledAsTypeKey stage)) Type.TypeSynonymKey)
 get_type_synonym_arena = reader (\ (SIR.SIR _ _ syns _ _ _) -> syns)
 get_quant_var_arena :: IRReader stage (Arena.Arena Type.QuantVar Type.QuantVarKey)
 get_quant_var_arena = reader (\ (SIR.SIR _ _ _ vars _ _) -> vars)
@@ -42,9 +42,9 @@ get_var :: SIR.VariableKey -> IRReader stage (SIR.Variable stage)
 get_var k = reader (\ (SIR.SIR _ _ _ _ vars _) -> Arena.get vars k)
 get_module :: SIR.ModuleKey -> IRReader stage (SIR.Module stage)
 get_module k = reader (\ (SIR.SIR modules _ _ _ _ _) -> Arena.get modules k)
-get_adt :: Type.ADTKey -> IRReader stage (Type.ADT (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage))
+get_adt :: Type.ADTKey -> IRReader stage (Type.ADT (SIR.TypeExpr stage, SIR.TypeExprEvaledAsTypeKey stage))
 get_adt k = reader (\ (SIR.SIR _ adts _ _ _ _) -> Arena.get adts k)
-get_type_syn :: Type.TypeSynonymKey -> IRReader stage (Type.TypeSynonym (SIR.TypeExpr stage, SIR.TypeExprEvaledAsType stage))
+get_type_syn :: Type.TypeSynonymKey -> IRReader stage (Type.TypeSynonym (SIR.TypeExpr stage, SIR.TypeExprEvaledAsTypeKey stage))
 get_type_syn k = reader (\ (SIR.SIR _ _ syns _ _ _) -> Arena.get syns k)
 get_quant_var :: Type.QuantVarKey -> IRReader stage Type.QuantVar
 get_quant_var k = reader (\ (SIR.SIR _ _ _ quant_vars _ _) -> Arena.get quant_vars k)
@@ -158,10 +158,8 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
                         pure (PP.List [op, " ", rhs]))
                     ops >>= \ ops ->
                 pure (PP.List [first, PP.Block PP.Inconsistent Nothing (Just " ") Nothing ops]))
-
         levels (SIR.Expr'Call _ _ _ callee arg) = (1, \ cur _ -> cur callee >>= \ callee -> expr arg >>= \ arg -> pure (PP.FirstOnLineIfMultiline $ PP.List [callee, "(", arg, ")"]))
         levels (SIR.Expr'TypeApply _ _ _ e (arg, _)) = (1, \ cur _ -> cur e >>= \ e -> type_expr arg >>= \ arg -> pure (PP.List [e, "#(", arg, ")"]))
-
         levels (SIR.Expr'Refer _ _ _ iden resolved) = (2, \ _ _ -> PP.FirstOnLineIfMultiline <$> refer_split_iden_and_resolved iden resolved)
         levels (SIR.Expr'Hole _ _ _ hid) = (2, \ _ _ -> pure $ PP.List ["?", PP.String $ unlocate hid])
         levels (SIR.Expr'Poison _ _ _) = (2, \ _ _ -> pure $ PP.String "poison")
@@ -172,34 +170,25 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
         levels (SIR.Expr'Bool _ _ _ b) = (2, \ _ _ -> pure $ PP.FirstOnLineIfMultiline $ PP.String $ if b then "true" else "false")
         levels (SIR.Expr'Tuple _ _ _ a b) = (2, \ _ _ -> expr a >>= \ a -> expr b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b]))
         levels (SIR.Expr'Lambda _ _ _ param body) = (2, \ _ _ -> PP.FirstOnLineIfMultiline <$> (pattern param >>= \ param -> expr body >>= \ body -> pure (PP.List ["\\ ", param, " -> ", body]))) -- TODO: decide if this should be \ (x) -> or \ x ->
-
         levels (SIR.Expr'Let _ _ _ bindings adts type_synonyms body) = (2, \ _ _ -> pp_let "let" bindings adts type_synonyms body)
         levels (SIR.Expr'LetRec _ _ _ bindings adts type_synonyms body) = (2, \ _ _ -> pp_let "letrec" bindings adts type_synonyms body)
-
         levels (SIR.Expr'If _ _ _ _ cond t f) = (2, \ _ _ -> expr cond >>= \ cond -> expr t >>= \ t -> expr f >>= \ f -> pure (PP.FirstOnLineIfMultiline $ PP.List ["if ", cond, " then ", t, " else ", f]))
         levels (SIR.Expr'Match _ _ _ _ e arms) = (2, \ _ _ -> expr e >>= \ e -> mapM (\ (p, e) -> pattern p >>= \ p -> expr e >>= \ e -> pure (PP.List [p, " -> ", e, ";"])) arms >>= \ arms -> pure (PP.List ["match ", e, " ", PP.braced_block arms]))
-
         levels (SIR.Expr'TypeAnnotation _ _ _ (ty, _) e) = (2, \ _ _ -> type_expr ty >>= \ ty -> expr e >>= \ e -> pure (PP.List [":", ty, ": ", e]))
-
         levels (SIR.Expr'Forall _ _ _ tys e) = (2, \ _ _ -> mapM quant_var tys >>= \ tys -> expr e >>= \ e -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList tys, " ", e]))
-
 pp_let :: DumpableConstraints stage => Text -> [SIR.Binding stage] -> [Type.ADTKey] -> [Type.TypeSynonymKey] -> SIR.Expr stage -> IRReader stage PP.Token
 pp_let let_kw bindings adts type_synonyms body = do
     sir <- ask
-
     bindings <- mapM define_binding bindings
     quant_var_arena <- get_quant_var_arena
     adts <- mapM (\ k -> get_adt k >>= \ adt -> pure (Type.PP.define_adt quant_var_arena (\ (ty, _) -> runReader (type_expr ty) sir) adt)) adts
     type_synonyms <- mapM (\ k -> get_type_syn k >>= \ ts -> pure (Type.PP.define_type_synonym (\ (ty, _) -> runReader (type_expr ty) sir) ts)) type_synonyms
-
     body <- expr body
-
     let all_decls = adts ++ type_synonyms ++ bindings
     pure
         $ case all_decls of
             [decl] -> PP.FirstOnLineIfMultiline $ PP.List [PP.String let_kw, " ", decl, "\n", body]
             _ -> PP.FirstOnLineIfMultiline $ PP.List [PP.String let_kw, " ", PP.braced_block all_decls, "\n", body]
-
 pattern :: DumpableConstraints stage => SIR.Pattern stage -> IRReader stage PP.Token
 pattern (SIR.Pattern'Variable _ _ var_key) = refer_var var_key
 pattern (SIR.Pattern'Wildcard _ _) = pure $ PP.String "_"

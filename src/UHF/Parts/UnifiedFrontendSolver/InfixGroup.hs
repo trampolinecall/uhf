@@ -15,15 +15,15 @@ type VIden = Maybe SIR.ValueRef
 
 -- type IsUngrouped s = (SIR.VIdenResolved s ~ VIden, SIR.TypeInfo s ~ (), SIR.BinaryOpsAllowed s ~ ())
 -- type IsGrouped s = (SIR.VIdenResolved s ~ VIden, SIR.TypeInfo s ~ (), SIR.BinaryOpsAllowed s ~ Void)
-type IsUngrouped s = (SIR.IdenResolvedFunctor s ~ Maybe , SIR.TypeInfo s ~ (), SIR.BinaryOpsAllowed s ~ ())
-type IsGrouped s = (SIR.IdenResolvedFunctor s ~ Maybe , SIR.TypeInfo s ~ (), SIR.BinaryOpsAllowed s ~ Void)
+type IsUngrouped s = (SIR.IdenResolvedKey s ~ Maybe , SIR.TypeInfo s ~ (), SIR.BinaryOpsAllowed s ~ ())
+type IsGrouped s = (SIR.IdenResolvedKey s ~ Maybe , SIR.TypeInfo s ~ (), SIR.BinaryOpsAllowed s ~ Void)
 type Convertible ungrouped grouped =
     ( IsUngrouped ungrouped
     , IsGrouped grouped
     -- , SIR.DIdenStart ungrouped ~ SIR.DIdenStart grouped
     -- , SIR.VIdenStart ungrouped ~ SIR.VIdenStart grouped
-    , SIR.TypeExprEvaled ungrouped ~ SIR.TypeExprEvaled grouped
-    , SIR.TypeExprEvaledAsType ungrouped ~ SIR.TypeExprEvaledAsType grouped
+    , SIR.TypeExprEvaledKey ungrouped ~ SIR.TypeExprEvaledKey grouped
+    , SIR.TypeExprEvaledAsTypeKey ungrouped ~ SIR.TypeExprEvaledAsTypeKey grouped
     , SIR.NameMapIndex ungrouped ~ SIR.NameMapIndex grouped
     -- , SIR.PIdenStart ungrouped ~ SIR.PIdenStart grouped
     -- , SIR.PIdenResolved ungrouped ~ SIR.PIdenResolved grouped
@@ -110,7 +110,7 @@ group_expr (SIR.Expr'Forall id () sp name_map_index names e) = SIR.Expr'Forall i
 group_expr (SIR.Expr'TypeApply id () sp e args) = SIR.Expr'TypeApply id () sp <$> group_expr e <*> pure (convert_type_expr_and_ty args)
 
 -- TODO: automate functions like this?
-convert_type_expr_and_ty :: Convertible ungrouped grouped => (SIR.TypeExpr ungrouped, SIR.IdenResolvedFunctor grouped (SIR.TypeExprEvaledAsType ungrouped)) -> (SIR.TypeExpr grouped, SIR.IdenResolvedFunctor grouped (SIR.TypeExprEvaledAsType grouped))
+convert_type_expr_and_ty :: Convertible ungrouped grouped => (SIR.TypeExpr ungrouped, SIR.IdenResolvedKey grouped (SIR.TypeExprEvaledAsTypeKey ungrouped)) -> (SIR.TypeExpr grouped, SIR.IdenResolvedKey grouped (SIR.TypeExprEvaledAsTypeKey grouped))
 convert_type_expr_and_ty (tye, ty) = (convert_type_expr tye, ty)
 
 convert_split_iden :: Convertible ungrouped grouped => SIR.SplitIdentifier start ungrouped -> SIR.SplitIdentifier start grouped

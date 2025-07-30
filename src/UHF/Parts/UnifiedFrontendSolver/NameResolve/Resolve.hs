@@ -31,6 +31,7 @@ import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver as TypeWithInferVar
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver.SolveMonad as SolveMonad
 import UHF.Source.Located (Located)
 import qualified UHF.Util.Arena as Arena
+import UHF.Parts.UnifiedFrontendSolver.Error (Error(NRError))
 
 -- TODO: remove these
 -- type PreResolve = (NameMaps.NameMapStackKey, SolveResult () Compiler.ErrorReportedPromise (), SIR.DeclRef TypeSolver.Type, TypeSolver.Type, (), ())
@@ -202,7 +203,7 @@ get_variant_child parent name = ask >>= \(_, sir_child_maps, _) -> report_errore
 -- TODO: remove this?
 report_errored :: SolveResult Error.Error Error.Error res -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise res)
 report_errored (Solved res) = pure $ Solved res
-report_errored (Errored err) = Errored <$> lift (lift $ lift $ Compiler.tell_error err)
+report_errored (Errored err) = Errored <$> lift (lift $ lift $ Compiler.tell_error (NRError err))
 report_errored (Inconclusive bee) = pure $ Inconclusive (Just bee)
 
 eval_type_expr :: TypeExprEvalTask -> SolveMonad (ProgressMade TypeExprEvalTask)
@@ -252,7 +253,7 @@ eval_type_expr (MakeApply ty arg result_key) = do
                     >>= \case
                         TypeSolver.AppliedResult res -> pure $ Solved res
                         TypeSolver.AppliedError err -> do
-                            _ <- lift $ lift $ lift $ Compiler.tell_error (Error.Error'SolveError err)
+                            _ <- lift $ lift $ lift $ Compiler.tell_error $ NRError $ Error.Error'SolveError err
                             Solved <$> make_infer_var (TypeSolver.TypeExpr (todo {- sp -})) -- TODO: fix duplication of this for_what
                         TypeSolver.Inconclusive ty constraint -> do
                             -- tell [constraint] TODO: tell constraint
@@ -281,7 +282,7 @@ type_expr_evaled_as_type ::
     SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise TypeWithInferVar.Type)
 type_expr_evaled_as_type (Solved dr) = case evaled_as_type todo dr of -- TODO: span
     Right ty -> pure $ Solved ty
-    Left err -> lift $ lift $ lift $ Errored <$> Compiler.tell_error (Error.Error'NotAType err) -- TODO: report error and make an infer var instead of returning Errored? (this was the old behavior before the unified solver came in)
+    Left err -> lift $ lift $ lift $ Errored <$> Compiler.tell_error (NRError $ Error.Error'NotAType err) -- TODO: report error and make an infer var instead of returning Errored? (this was the old behavior before the unified solver came in)
 type_expr_evaled_as_type (Inconclusive _) = pure $ Inconclusive Nothing
 type_expr_evaled_as_type (Errored e) = do
     Solved <$> make_infer_var (TypeSolver.TypeExpr (todo)) -- TODO: make this message better

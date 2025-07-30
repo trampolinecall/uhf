@@ -17,7 +17,6 @@ import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
 import UHF.Parts.UnifiedFrontendSolver.InfixGroup.InfixGroupResultArena (InfixGroupedArena, InfixGroupedKey)
-import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Error as Error
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Error as NameResolve.Error
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.NameMaps as NameMaps
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.NameResolveResultArena
@@ -32,6 +31,7 @@ import UHF.Parts.UnifiedFrontendSolver.SolveResult (SolveResult)
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver as TypeWithInferVar
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver.SolveMonad as SolveMonad
 import qualified UHF.Util.Arena as Arena
+import UHF.Parts.UnifiedFrontendSolver.Error (Error)
 
 type SolvingStage =
     ( NameMaps.NameMapStackKey
@@ -56,7 +56,7 @@ type SolveMonad =
         -- TODO: eventually this should also be in the StateT because macro expansion can add to NameMaps and ChildMaps and identifier patterns need to be able to resolve as adt variant patterns with no fields
         ( ReaderT
             (Arena.Arena NameMaps.NameMapStack NameMaps.NameMapStackKey, NameMaps.SIRChildMaps, SIR.SIR SolvingStage)
-            (SolveMonad.SolveMonad (Compiler.WithDiagnostics Error.Error Void))
+            (SolveMonad.SolveMonad (Compiler.WithDiagnostics Error Void))
         )
 
 ask_name_maps_arena :: SolveMonad (Arena.Arena NameMaps.NameMapStack NameMaps.NameMapStackKey)

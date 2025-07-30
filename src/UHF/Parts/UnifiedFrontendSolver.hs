@@ -26,14 +26,15 @@ import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Resolve as NameReso
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Task as NameResolve.Task
 import UHF.Parts.UnifiedFrontendSolver.ProgressMade (ProgressMade (..))
 import qualified UHF.Parts.UnifiedFrontendSolver.SolveTypes.AddTypes as AddTypes
+import qualified UHF.Parts.UnifiedFrontendSolver.SolveTypes.RemoveInferVars as RemoveInferVars
 import qualified UHF.Parts.UnifiedFrontendSolver.SolveTypes.Solve as SolveTypes.Solve
 import qualified UHF.Parts.UnifiedFrontendSolver.SolveTypes.Task as SolveTypes.Task
+import UHF.Parts.UnifiedFrontendSolver.Error (Error)
 import qualified UHF.Parts.UnifiedFrontendSolver.Solving as Solving
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver as SolveMonad
+import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver as TypeSolver
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Util.Arena as Arena
-import qualified UHF.Parts.UnifiedFrontendSolver.SolveTypes.RemoveInferVars as RemoveInferVars
-import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver as TypeSolver
 
 -- import qualified UHF.Compiler as Compiler
 -- import qualified UHF.Data.SIR as SIR
@@ -51,12 +52,13 @@ import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver as TypeSolver
 -- import qualified UHF.Util.Arena as Arena
 
 type PreSolve = ((), Const () (), (), (), (), (), ())
-type PostSolve = (NameResolve.NameMaps.NameMapStackKey, IdenResolvedKey (), Type.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, Maybe Type.Type, InfixGroupedKey)
+type PostSolve =
+    (NameResolve.NameMaps.NameMapStackKey, IdenResolvedKey (), Type.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, Maybe Type.Type, InfixGroupedKey)
 
 solve ::
     SIR.SIR PreSolve ->
     Compiler.WithDiagnostics
-        NameResolve.Error.Error
+        Error
         Void
         ( SIR.SIR PostSolve
         , ( Arena.Arena (Maybe (SIR.DeclRef TypeWithInferVar.Type)) (IdenResolvedKey (SIR.DeclRef TypeWithInferVar.Type))
@@ -74,7 +76,7 @@ solve sir = do
     let (sir'', infix_group_results, infix_group_tasks) = InfixGroup.Prepare.prepare sir'
     let (sir''', type_solver_state, type_solving_tasks) = AddTypes.add sir''
 
-    (((), (name_resolution_results, infix_group_results)), TypeSolver.SolverState type_solver_state) <-
+    (((), (name_resolution_results, infix_group_results)), TypeSolver.SolverState infer_vars) <-
         SolveMonad.run_solve_monad_with
             ( runReaderT
                 (runStateT (solve' (name_resolution_tasks, infix_group_tasks, type_solving_tasks)) (name_resolution_results, infix_group_results))
@@ -108,7 +110,7 @@ solve' ::
         )
         ( ReaderT
             (Arena.Arena NameResolve.NameMaps.NameMapStack NameResolve.NameMaps.NameMapStackKey, NameResolve.NameMaps.SIRChildMaps, SIR.SIR Solving.SolvingStage)
-            (SolveMonad.SolveMonad (Compiler.WithDiagnostics NameResolve.Error.Error Void))
+            (SolveMonad.SolveMonad (Compiler.WithDiagnostics Error Void))
         )
         ()
 solve'

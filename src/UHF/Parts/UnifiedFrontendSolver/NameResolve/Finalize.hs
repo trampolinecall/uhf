@@ -5,24 +5,22 @@ import UHF.Prelude
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
+import UHF.Parts.UnifiedFrontendSolver.Error (Error (NRError))
+import qualified UHF.Parts.UnifiedFrontendSolver.Error as SolveError
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Error as Error
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.NameMaps as NameMaps
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.NameResolveResultArena (IdenResolvedArena, TypeExprEvaledArena, TypeExprEvaledAsTypeArena, IdenResolvedKey, TypeExprEvaledKey, TypeExprEvaledAsTypeKey)
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.NameResolveResultArena
+    ( IdenResolvedArena
+    , IdenResolvedKey
+    , TypeExprEvaledArena
+    , TypeExprEvaledAsTypeArena
+    , TypeExprEvaledAsTypeKey
+    , TypeExprEvaledKey
+    )
 import UHF.Parts.UnifiedFrontendSolver.SolveResult
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver as TypeSolver
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Util.Arena as Arena
-
--- TODO: remove these
-type Resolved =
-    ( NameMaps.NameMapStackKey
-    , SolveResult Error.Error Compiler.ErrorReportedPromise ()
-    , SIR.DeclRef TypeSolver.Type
-    , TypeSolver.Type
-    , ()
-    , ()
-    )
-type Finalized = (NameMaps.NameMapStackKey, Maybe (), SIR.DeclRef TypeSolver.Type, TypeSolver.Type, (), ())
 
 finalize ::
     ( IdenResolvedArena (SIR.DeclRef TypeWithInferVar.Type)
@@ -32,7 +30,7 @@ finalize ::
     , TypeExprEvaledAsTypeArena
     ) ->
     Compiler.WithDiagnostics
-        Error.Error
+        SolveError.Error
         Void
         ( Arena.Arena (Maybe (SIR.DeclRef TypeWithInferVar.Type)) (IdenResolvedKey (SIR.DeclRef TypeWithInferVar.Type))
         , Arena.Arena (Maybe SIR.ValueRef) (IdenResolvedKey SIR.ValueRef)
@@ -152,8 +150,9 @@ finalize (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_reso
 -- finalize_split_iden (SIR.SplitIdentifier'Get texpr next resolved) = SIR.SplitIdentifier'Get <$> finalize_type_expr texpr <*> pure next <*> finalize_result resolved
 -- finalize_split_iden (SIR.SplitIdentifier'Single name_maps i resolved) = SIR.SplitIdentifier'Single name_maps i <$> finalize_result resolved
 
-finalize_result :: SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise result -> Compiler.WithDiagnostics Error.Error Void (Maybe result)
-finalize_result (Inconclusive (Just err)) = Compiler.tell_error err >> pure Nothing
+finalize_result ::
+    SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise result -> Compiler.WithDiagnostics SolveError.Error Void (Maybe result)
+finalize_result (Inconclusive (Just err)) = Compiler.tell_error (NRError err) >> pure Nothing
 finalize_result (Inconclusive Nothing) = pure Nothing
 finalize_result (Errored _) = pure Nothing
 finalize_result (Solved r) = pure $ Just r

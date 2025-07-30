@@ -23,6 +23,7 @@ import UHF.Parts.UnifiedFrontendSolver.SolveTypes.Error
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver as TypeSolver
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Util.Arena as Arena
+import qualified UHF.Parts.UnifiedFrontendSolver.Error as SolveError
 
 type WithInferVars =
     ( NameMaps.NameMapStackKey
@@ -43,7 +44,7 @@ type WithoutInferVars =
     , InfixGroupedKey
     )
 
-remove :: TypeSolver.InferVarArena -> SIR.SIR WithInferVars -> Compiler.WithDiagnostics Error Void (SIR.SIR WithoutInferVars)
+remove :: TypeSolver.InferVarArena -> SIR.SIR WithInferVars -> Compiler.WithDiagnostics SolveError.Error Void (SIR.SIR WithoutInferVars)
 remove infer_vars (SIR.SIR modules adts type_synonyms type_vars variables (SIR.CU root_module main_function)) = do
     infer_vars <- convert_vars infer_vars
     pure $
@@ -55,7 +56,7 @@ remove infer_vars (SIR.SIR modules adts type_synonyms type_vars variables (SIR.C
             (Arena.transform (variable infer_vars) variables)
             (SIR.CU root_module main_function)
 
-convert_vars :: TypeSolver.InferVarArena -> Compiler.WithDiagnostics Error Void (Arena.Arena (Maybe Type) TypeSolver.InferVarKey)
+convert_vars :: TypeSolver.InferVarArena -> Compiler.WithDiagnostics SolveError.Error Void (Arena.Arena (Maybe Type) TypeSolver.InferVarKey)
 convert_vars infer_vars =
     -- infinite recursion is not possible because occurs check prevents loops in substitution
     mfix (\infer_vars_converted -> Arena.transformM (runMaybeT . convert_var infer_vars_converted) infer_vars)
@@ -79,7 +80,7 @@ convert_vars infer_vars =
                 TypeSolver.Type'Kind'Kind -> pure Type.Type'Kind'Kind
 
         convert_var infer_vars_converted (TypeSolver.InferVar _ (TypeSolver.Substituted s)) = r infer_vars_converted s
-        convert_var _ (TypeSolver.InferVar for_what TypeSolver.Fresh) = lift (Compiler.tell_error $ AmbiguousType for_what) >> MaybeT (pure Nothing)
+        convert_var _ (TypeSolver.InferVar for_what TypeSolver.Fresh) = lift (Compiler.tell_error $ SolveError.TypeError $ AmbiguousType for_what) >> MaybeT (pure Nothing)
 
 module_ :: Arena.Arena (Maybe Type) TypeSolver.InferVarKey -> SIR.Module WithInferVars -> SIR.Module WithoutInferVars
 module_ infer_vars (SIR.Module id name_maps_index bindings adts type_synonyms) = SIR.Module id name_maps_index (map (binding infer_vars) bindings) adts type_synonyms

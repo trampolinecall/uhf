@@ -17,6 +17,7 @@ import UHF.Source.Located (Located (Located))
 import UHF.Source.Span (Span)
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.EvaledAsType (NotAType)
 
+-- TODO: remove this type synonym
 type WithErrors = Compiler.WithDiagnostics Error Void
 data Error
     = Error'CouldNotFind (Located Text)

@@ -2,8 +2,6 @@
 
 module UHF.Data.AST where
 
--- TODO: rename this to literal ast and make it literally store tokens (is this actually necessary?)
-
 import UHF.Prelude
 
 import qualified UHF.Data.Token as Token

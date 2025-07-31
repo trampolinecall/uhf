@@ -35,7 +35,6 @@ instance Stage (name_map_index, iden_resolved_key (), type_in_refer, type_expr_e
 
     type TypeInRefer (name_map_index, iden_resolved_key (), type_in_refer, type_expr_evaled_key, type_expr_evaled_as_type_key, type_info, infix_grouped_key) = type_in_refer
 
-    -- TODO: see if it is possible to remove TypeExprEvaledKey and TypeExprEvaledAsTypeKey
     type TypeExprEvaledKey (name_map_index, iden_resolved_key (), type_in_refer, type_expr_evaled_key, type_expr_evaled_as_type_key, type_info, infix_grouped_key) = type_expr_evaled_key
     type TypeExprEvaledAsTypeKey (name_map_index, iden_resolved_key (), type_in_refer, type_expr_evaled_key, type_expr_evaled_as_type_key, type_info, infix_grouped_key) = type_expr_evaled_as_type_key
 

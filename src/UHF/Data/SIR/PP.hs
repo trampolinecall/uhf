@@ -54,7 +54,7 @@ get_quant_var :: Type.QuantVarKey -> IRReader stage Type.QuantVar
 get_quant_var k = reader (\ (SIR.SIR _ _ _ quant_vars _ _) -> Arena.get quant_vars k)
 
 define_module :: DumpableConstraints stage => SIR.Module stage -> IRReader stage PP.Token
-define_module (SIR.Module _ _ bindings adts type_synonyms) =
+define_module (SIR.Module _ _ _ bindings adts type_synonyms) =
     ask >>= \ sir ->
     get_quant_var_arena >>= \ quant_var_arena ->
     mapM (\ k -> get_adt k >>= \ adt -> pure (Type.PP.define_adt quant_var_arena (\ (ty, _) -> runReader (type_expr ty) sir) adt)) adts >>= \ adts_defined ->
@@ -63,11 +63,11 @@ define_module (SIR.Module _ _ bindings adts type_synonyms) =
     pure (PP.flat_block $ adts_defined <> type_synonyms_defined <> bindings_defined)
 
 define_binding :: DumpableConstraints stage => SIR.Binding stage -> IRReader stage PP.Token
-define_binding (SIR.Binding pat _ init) = pattern pat >>= \ pat -> expr init >>= \ init -> pure $ PP.List [pat, " = ", init, ";"]
+define_binding (SIR.Binding _ pat _ init) = pattern pat >>= \ pat -> expr init >>= \ init -> pure $ PP.List [pat, " = ", init, ";"]
 
 refer_var :: SIR.VariableKey -> IRReader stage PP.Token
 refer_var k = get_var k >>= \case
-    SIR.Variable id _ _ -> pure $ PP.String (ID.stringify id)
+    SIR.Variable _ id _ _ -> pure $ PP.String (ID.stringify id)
 
 -- TODO: rename this to something better
 refer_bv :: SIR.ValueRef -> IRReader stage PP.Token
@@ -79,7 +79,7 @@ refer_bv (SIR.ValueRef'Intrinsic i) = pure $ PP.String $ Intrinsics.intrinsic_na
 refer_decl :: DumpableType stage t => SIR.DeclRef t -> IRReader stage PP.Token
 refer_decl d = case d of
     SIR.DeclRef'Module m ->
-        get_module m >>= \ (SIR.Module id _ _ _ _) ->
+        get_module m >>= \ (SIR.Module _ id _ _ _ _) ->
         pure (PP.String $ ID.stringify id)
     SIR.DeclRef'Type ty -> refer_type ty
     SIR.DeclRef'ExternPackage SIR.ExternPackage'IntrinsicsPackage -> pure "uhf_intrinsics"
@@ -128,13 +128,13 @@ instance DumpableIdentifier stage Type.ADT.VariantIndex where
 
 -- TODO: figure out how to overload this for if resolved is not ()
 refer_split_iden :: (DumpableConstraints stage, DumpableIdentifier stage resolved) => SIR.SplitIdentifier resolved stage -> IRReader stage PP.Token
-refer_split_iden (SIR.SplitIdentifier'Get texpr next resolved) = type_expr texpr >>= \ texpr -> pure (PP.List [texpr, "::", PP.String $ unlocate next])
-refer_split_iden (SIR.SplitIdentifier'Single _ name resolved) = refer_iden name
+refer_split_iden (SIR.SplitIdentifier'Get _ texpr next resolved) = type_expr texpr >>= \ texpr -> pure (PP.List [texpr, "::", PP.String $ unlocate next])
+refer_split_iden (SIR.SplitIdentifier'Single _ _ name resolved) = refer_iden name
 
 -- TODO: figure out how to overload this for if resolved is not ()
 refer_split_iden_and_resolved :: (DumpableConstraints stage, DumpableIdentifier stage single) => SIR.SplitIdentifier single stage -> resolved -> IRReader stage PP.Token
-refer_split_iden_and_resolved (SIR.SplitIdentifier'Get texpr next resolved) _ = type_expr texpr >>= \ texpr -> pure (PP.List [texpr, "::", PP.String $ unlocate next])
-refer_split_iden_and_resolved (SIR.SplitIdentifier'Single _ name resolved) _ = refer_iden name
+refer_split_iden_and_resolved (SIR.SplitIdentifier'Get _ texpr next resolved) _ = type_expr texpr >>= \ texpr -> pure (PP.List [texpr, "::", PP.String $ unlocate next])
+refer_split_iden_and_resolved (SIR.SplitIdentifier'Single _ _ name resolved) _ = refer_iden name
 
 -- TODO: dump type info too
 
@@ -144,20 +144,20 @@ quant_var k = get_quant_var k >>= \ (Type.QuantVar (Located _ name)) -> pure $ P
 type_expr :: DumpableConstraints stage => SIR.TypeExpr stage -> IRReader stage PP.Token
 type_expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
     where
-        levels (SIR.TypeExpr'Forall _ _ _ vars ty) = (1, \ cur _ -> mapM quant_var vars >>= \ vars -> cur ty >>= \ ty -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList vars, " ", ty]))
-        levels (SIR.TypeExpr'Function _ _ arg res) = (2, \ cur next -> next arg >>= \ arg -> cur res >>= \ res -> pure (PP.List [arg, " -> ", res]))
-        levels (SIR.TypeExpr'Apply _ _ ty arg) = (3, \ cur _ -> cur ty >>= \ ty -> type_expr arg >>= \ arg -> pure (PP.List [ty, "#(", arg, ")"]))
-        levels (SIR.TypeExpr'Get _ _ resolved parent name) = (3, \ cur _ -> cur parent >>= \ parent -> pure (PP.List [parent, "::", PP.String $ unlocate name]))
-        levels (SIR.TypeExpr'Refer _ _ _ _ iden) = (4, \ _ _ -> refer_iden iden)
-        levels (SIR.TypeExpr'Tuple _ _ a b) = (4, \ _ _ -> type_expr a >>= \ a -> type_expr b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b]))
-        levels (SIR.TypeExpr'Hole _ _ _ hid) = (4, \ _ _ -> pure $ PP.List ["?", PP.String $ unlocate hid])
-        levels (SIR.TypeExpr'Wild _ _) = (4, \ _ _ -> pure $ PP.String "_")
-        levels (SIR.TypeExpr'Poison _ _) = (4, \ _ _ -> pure $ PP.String "poison")
+        levels (SIR.TypeExpr'Forall _ _ _ _ vars ty) = (1, \ cur _ -> mapM quant_var vars >>= \ vars -> cur ty >>= \ ty -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList vars, " ", ty]))
+        levels (SIR.TypeExpr'Function _ _ _ arg res) = (2, \ cur next -> next arg >>= \ arg -> cur res >>= \ res -> pure (PP.List [arg, " -> ", res]))
+        levels (SIR.TypeExpr'Apply _ _ _ ty arg) = (3, \ cur _ -> cur ty >>= \ ty -> type_expr arg >>= \ arg -> pure (PP.List [ty, "#(", arg, ")"]))
+        levels (SIR.TypeExpr'Get _ _ _ resolved parent name) = (3, \ cur _ -> cur parent >>= \ parent -> pure (PP.List [parent, "::", PP.String $ unlocate name]))
+        levels (SIR.TypeExpr'Refer _ _ _ _ _ iden) = (4, \ _ _ -> refer_iden iden)
+        levels (SIR.TypeExpr'Tuple _ _ _ a b) = (4, \ _ _ -> type_expr a >>= \ a -> type_expr b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b]))
+        levels (SIR.TypeExpr'Hole _ _ _ _ hid) = (4, \ _ _ -> pure $ PP.List ["?", PP.String $ unlocate hid])
+        levels (SIR.TypeExpr'Wild _ _ _) = (4, \ _ _ -> pure $ PP.String "_")
+        levels (SIR.TypeExpr'Poison _ _ _) = (4, \ _ _ -> pure $ PP.String "poison")
 
 expr :: DumpableConstraints stage => SIR.Expr stage -> IRReader stage PP.Token
 expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
     where
-        levels (SIR.Expr'BinaryOps _ _ _ _ first ops) =
+        levels (SIR.Expr'BinaryOps _ _ _ _ _ first ops) =
             (0, \ _ next ->
                 next first >>= \ first ->
                 mapM
@@ -167,24 +167,24 @@ expr = PP.Precedence.pp_precedence_m levels PP.Precedence.parenthesize
                         pure (PP.List [op, " ", rhs]))
                     ops >>= \ ops ->
                 pure (PP.List [first, PP.Block PP.Inconsistent Nothing (Just " ") Nothing ops]))
-        levels (SIR.Expr'Call _ _ _ callee arg) = (1, \ cur _ -> cur callee >>= \ callee -> expr arg >>= \ arg -> pure (PP.FirstOnLineIfMultiline $ PP.List [callee, "(", arg, ")"]))
-        levels (SIR.Expr'TypeApply _ _ _ e (arg, _)) = (1, \ cur _ -> cur e >>= \ e -> type_expr arg >>= \ arg -> pure (PP.List [e, "#(", arg, ")"]))
-        levels (SIR.Expr'Refer _ _ _ iden) = (2, \ _ _ -> PP.FirstOnLineIfMultiline <$> refer_split_iden iden)
-        levels (SIR.Expr'Hole _ _ _ hid) = (2, \ _ _ -> pure $ PP.List ["?", PP.String $ unlocate hid])
-        levels (SIR.Expr'Poison _ _ _) = (2, \ _ _ -> pure $ PP.String "poison")
-        levels (SIR.Expr'Char _ _ _ c) = (2, \ _ _ -> pure $ PP.FirstOnLineIfMultiline $ PP.String $ show c)
-        levels (SIR.Expr'String _ _ _ s) = (2, \ _ _ -> pure $ PP.FirstOnLineIfMultiline $ PP.String $ show s)
-        levels (SIR.Expr'Int _ _ _ i) = (2, \ _ _ -> pure $ PP.FirstOnLineIfMultiline $ PP.String $ show i)
-        levels (SIR.Expr'Float _ _ _ (n :% d)) = (2, \ _ _ -> pure $ PP.FirstOnLineIfMultiline $ PP.String $ "(" <> show n <> "/" <> show d <> ")")
-        levels (SIR.Expr'Bool _ _ _ b) = (2, \ _ _ -> pure $ PP.FirstOnLineIfMultiline $ PP.String $ if b then "true" else "false")
-        levels (SIR.Expr'Tuple _ _ _ a b) = (2, \ _ _ -> expr a >>= \ a -> expr b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b]))
-        levels (SIR.Expr'Lambda _ _ _ param body) = (2, \ _ _ -> PP.FirstOnLineIfMultiline <$> (pattern param >>= \ param -> expr body >>= \ body -> pure (PP.List ["\\ ", param, " -> ", body]))) -- TODO: decide if this should be \ (x) -> or \ x ->
-        levels (SIR.Expr'Let _ _ _ _ bindings adts type_synonyms body) = (2, \ _ _ -> pp_let "let" bindings adts type_synonyms body)
-        levels (SIR.Expr'LetRec _ _ _ _ bindings adts type_synonyms body) = (2, \ _ _ -> pp_let "letrec" bindings adts type_synonyms body)
-        levels (SIR.Expr'If _ _ _ _ cond t f) = (2, \ _ _ -> expr cond >>= \ cond -> expr t >>= \ t -> expr f >>= \ f -> pure (PP.FirstOnLineIfMultiline $ PP.List ["if ", cond, " then ", t, " else ", f]))
-        levels (SIR.Expr'Match _ _ _ _ e arms) = (2, \ _ _ -> expr e >>= \ e -> mapM (\ (_, p, e) -> pattern p >>= \ p -> expr e >>= \ e -> pure (PP.List [p, " -> ", e, ";"])) arms >>= \ arms -> pure (PP.List ["match ", e, " ", PP.braced_block arms]))
-        levels (SIR.Expr'TypeAnnotation _ _ _ (ty, _) e) = (2, \ _ _ -> type_expr ty >>= \ ty -> expr e >>= \ e -> pure (PP.List [":", ty, ": ", e]))
-        levels (SIR.Expr'Forall _ _ _ _ tys e) = (2, \ _ _ -> mapM quant_var tys >>= \ tys -> expr e >>= \ e -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList tys, " ", e]))
+        levels (SIR.Expr'Call _ _ _ _ callee arg) = (1, \ cur _ -> cur callee >>= \ callee -> expr arg >>= \ arg -> pure (PP.FirstOnLineIfMultiline $ PP.List [callee, "(", arg, ")"]))
+        levels (SIR.Expr'TypeApply _ _ _ _ e (arg, _)) = (1, \ cur _ -> cur e >>= \ e -> type_expr arg >>= \ arg -> pure (PP.List [e, "#(", arg, ")"]))
+        levels (SIR.Expr'Refer _ _ _ _ iden) = (2, \ _ _ -> PP.FirstOnLineIfMultiline <$> refer_split_iden iden)
+        levels (SIR.Expr'Hole _ _ _ _ hid) = (2, \ _ _ -> pure $ PP.List ["?", PP.String $ unlocate hid])
+        levels (SIR.Expr'Poison _ _ _ _) = (2, \ _ _ -> pure $ PP.String "poison")
+        levels (SIR.Expr'Char _ _ _ _ c) = (2, \ _ _ -> pure $ PP.FirstOnLineIfMultiline $ PP.String $ show c)
+        levels (SIR.Expr'String _ _ _ _ s) = (2, \ _ _ -> pure $ PP.FirstOnLineIfMultiline $ PP.String $ show s)
+        levels (SIR.Expr'Int _ _ _ _ i) = (2, \ _ _ -> pure $ PP.FirstOnLineIfMultiline $ PP.String $ show i)
+        levels (SIR.Expr'Float _ _ _ _ (n :% d)) = (2, \ _ _ -> pure $ PP.FirstOnLineIfMultiline $ PP.String $ "(" <> show n <> "/" <> show d <> ")")
+        levels (SIR.Expr'Bool _ _ _ _ b) = (2, \ _ _ -> pure $ PP.FirstOnLineIfMultiline $ PP.String $ if b then "true" else "false")
+        levels (SIR.Expr'Tuple _ _ _ _ a b) = (2, \ _ _ -> expr a >>= \ a -> expr b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b]))
+        levels (SIR.Expr'Lambda _ _ _ _ param body) = (2, \ _ _ -> PP.FirstOnLineIfMultiline <$> (pattern param >>= \ param -> expr body >>= \ body -> pure (PP.List ["\\ ", param, " -> ", body]))) -- TODO: decide if this should be \ (x) -> or \ x ->
+        levels (SIR.Expr'Let _ _ _ _ _ bindings adts type_synonyms body) = (2, \ _ _ -> pp_let "let" bindings adts type_synonyms body)
+        levels (SIR.Expr'LetRec _ _ _ _ _ bindings adts type_synonyms body) = (2, \ _ _ -> pp_let "letrec" bindings adts type_synonyms body)
+        levels (SIR.Expr'If _ _ _ _ _ cond t f) = (2, \ _ _ -> expr cond >>= \ cond -> expr t >>= \ t -> expr f >>= \ f -> pure (PP.FirstOnLineIfMultiline $ PP.List ["if ", cond, " then ", t, " else ", f]))
+        levels (SIR.Expr'Match _ _ _ _ _ e arms) = (2, \ _ _ -> expr e >>= \ e -> mapM (\ (_, p, e) -> pattern p >>= \ p -> expr e >>= \ e -> pure (PP.List [p, " -> ", e, ";"])) arms >>= \ arms -> pure (PP.List ["match ", e, " ", PP.braced_block arms]))
+        levels (SIR.Expr'TypeAnnotation _ _ _ _ (ty, _) e) = (2, \ _ _ -> type_expr ty >>= \ ty -> expr e >>= \ e -> pure (PP.List [":", ty, ": ", e]))
+        levels (SIR.Expr'Forall _ _ _ _ _ tys e) = (2, \ _ _ -> mapM quant_var tys >>= \ tys -> expr e >>= \ e -> pure (PP.List ["#", PP.parenthesized_comma_list PP.Inconsistent $ toList tys, " ", e]))
 pp_let :: DumpableConstraints stage => Text -> [SIR.Binding stage] -> [Type.ADTKey] -> [Type.TypeSynonymKey] -> SIR.Expr stage -> IRReader stage PP.Token
 pp_let let_kw bindings adts type_synonyms body = do
     sir <- ask
@@ -199,10 +199,10 @@ pp_let let_kw bindings adts type_synonyms body = do
             [decl] -> PP.FirstOnLineIfMultiline $ PP.List [PP.String let_kw, " ", decl, "\n", body]
             _ -> PP.FirstOnLineIfMultiline $ PP.List [PP.String let_kw, " ", PP.braced_block all_decls, "\n", body]
 pattern :: DumpableConstraints stage => SIR.Pattern stage -> IRReader stage PP.Token
-pattern (SIR.Pattern'Variable _ _ var_key) = refer_var var_key
-pattern (SIR.Pattern'Wildcard _ _) = pure $ PP.String "_"
-pattern (SIR.Pattern'Tuple _ _ a b) = pattern a >>= \ a -> pattern b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b])
-pattern (SIR.Pattern'Named _ _ _ var_key subpat) = refer_var (unlocate var_key) >>= \ var_key -> pattern subpat >>= \ subpat -> pure (PP.List ["@", var_key, " ", subpat])
-pattern (SIR.Pattern'AnonADTVariant _ _ variant_iden _ fields) = refer_split_iden variant_iden >>= \ variant -> mapM pattern fields >>= \ fields -> pure (PP.List [variant, PP.parenthesized_comma_list PP.Inconsistent fields])
-pattern (SIR.Pattern'NamedADTVariant _ _ variant_iden _ fields) = refer_split_iden variant_iden >>= \ variant -> mapM (\ (field_name, field_pat) -> pattern field_pat >>= \ field_pat -> pure (PP.List [PP.String $ unlocate field_name, " = ", field_pat, ";"])) fields >>= \ fields -> pure (PP.List [variant, PP.braced_block fields])
-pattern (SIR.Pattern'Poison _ _) = pure $ PP.String "poison"
+pattern (SIR.Pattern'Variable _ _ _ var_key) = refer_var var_key
+pattern (SIR.Pattern'Wildcard _ _ _) = pure $ PP.String "_"
+pattern (SIR.Pattern'Tuple _ _ _ a b) = pattern a >>= \ a -> pattern b >>= \ b -> pure (PP.parenthesized_comma_list PP.Inconsistent [a, b])
+pattern (SIR.Pattern'Named _ _ _ _ var_key subpat) = refer_var (unlocate var_key) >>= \ var_key -> pattern subpat >>= \ subpat -> pure (PP.List ["@", var_key, " ", subpat])
+pattern (SIR.Pattern'AnonADTVariant _ _ _ variant_iden _ fields) = refer_split_iden variant_iden >>= \ variant -> mapM pattern fields >>= \ fields -> pure (PP.List [variant, PP.parenthesized_comma_list PP.Inconsistent fields])
+pattern (SIR.Pattern'NamedADTVariant _ _ _ variant_iden _ fields) = refer_split_iden variant_iden >>= \ variant -> mapM (\ (field_name, field_pat) -> pattern field_pat >>= \ field_pat -> pure (PP.List [PP.String $ unlocate field_name, " = ", field_pat, ";"])) fields >>= \ fields -> pure (PP.List [variant, PP.braced_block fields])
+pattern (SIR.Pattern'Poison _ _ _) = pure $ PP.String "poison"

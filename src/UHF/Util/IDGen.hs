@@ -14,7 +14,6 @@ import UHF.Prelude
 import qualified Control.Monad.Fix as Fix
 import qualified Data.Functor.Identity as Identity
 
-newtype Unique = Unique Int deriving (Show, Eq, Ord)
 newtype IDGenT id m r = IDGenT (StateT (Int, Int -> id) m r) deriving (Functor, Applicative, Monad, MonadTrans, Fix.MonadFix)
 type IDGen id = IDGenT id Identity.Identity
 

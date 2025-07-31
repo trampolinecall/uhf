@@ -12,7 +12,6 @@ import qualified System.FilePath as FilePath
 import qualified Pipes
 
 import UHF.Source.File (File)
-import UHF.Source.Located (Located)
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.ANFIR as ANFIR
 import qualified UHF.Data.ANFIR.PP as ANFIR.PP
@@ -28,15 +27,11 @@ import qualified UHF.Data.SIR as SIR
 import qualified UHF.Data.SIR.PP as SIR.PP
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Settings as DiagnosticSettings
-import qualified UHF.Parts.TypeSolver as TypeSolver
-import qualified UHF.Parts.InfixGroup as InfixGroup
 import qualified UHF.Parts.Lexer as Lexer
-import qualified UHF.Parts.NameResolve as NameResolve
 import qualified UHF.Parts.OptimizeANFIR as OptimizeANFIR
 import qualified UHF.Parts.Parser as Parser
 import qualified UHF.Parts.RemovePoison as RemovePoison
 import qualified UHF.Parts.ReportHoles as ReportHoles
-import qualified UHF.Parts.SolveTypes as SolveTypes
 import qualified UHF.Parts.TSBackend as TSBackend
 import qualified UHF.Parts.ToANFIR as ToANFIR
 import qualified UHF.Parts.ToBackendIR as ToBackendIR
@@ -44,12 +39,22 @@ import qualified UHF.Parts.ToRIR as ToRIR
 import qualified UHF.Parts.ToSIR as ToSIR
 import qualified UHF.Source.File as File
 import qualified UHF.Source.FormattedString as FormattedString
+import qualified UHF.Util.Arena as Arena
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (IdenResolvedKey, TypeExprEvaledKey, TypeExprEvaledAsTypeKey)
+import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupResult, InfixGroupedKey)
+import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameResolve.NameMaps
+import qualified UHF.Parts.UnifiedFrontendSolver as UnifiedFrontendSolver
+import Data.Functor.Const (Const)
 
 type AST = [AST.Decl]
-type FirstSIR = SIR.SIR (Located Text, (), (), Located Text, (), Located Text, (), (), ())
-type NRSIR = (SIR.SIR (Maybe (SIR.DeclRef TypeSolver.Type), Maybe (SIR.DeclRef TypeSolver.Type), TypeSolver.Type, Maybe SIR.ValueRef, Maybe SIR.ValueRef, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, (), ()), TypeSolver.SolverState, [TypeSolver.Constraint])
-type InfixGroupedSIR = SIR.SIR (Maybe (SIR.DeclRef TypeSolver.Type), Maybe (SIR.DeclRef TypeSolver.Type), TypeSolver.Type, Maybe SIR.ValueRef, Maybe SIR.ValueRef, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, (), Void)
-type TypedSIR = SIR.SIR (Maybe (SIR.DeclRef IR.Type.Type), Maybe (SIR.DeclRef IR.Type.Type), Maybe IR.Type.Type, Maybe SIR.ValueRef, Maybe SIR.ValueRef, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.ADT.VariantIndex, Maybe IR.Type.Type, Void)
+type FirstSIR = SIR.SIR ((), Const () (), (), (), (), (), ())
+type SolvedSIR = (SIR.SIR (NameResolve.NameMaps.NameContextKey, IdenResolvedKey (), IR.Type.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, Maybe IR.Type.Type, InfixGroupedKey)
+        , Arena.Arena (Maybe (SIR.DeclRef IR.Type.Type)) (IdenResolvedKey (SIR.DeclRef IR.Type.Type))
+        , Arena.Arena (Maybe SIR.ValueRef) (IdenResolvedKey SIR.ValueRef)
+        , Arena.Arena (Maybe IR.Type.ADT.VariantIndex) (IdenResolvedKey IR.Type.ADT.VariantIndex)
+        , Arena.Arena (Maybe (SIR.DeclRef IR.Type.Type)) TypeExprEvaledKey
+        , Arena.Arena (Maybe IR.Type.Type) TypeExprEvaledAsTypeKey
+        , Arena.Arena (Maybe InfixGroupResult) InfixGroupedKey)
 type RIR = RIR.RIR
 type ANFIR = ANFIR.ANFIR
 type BackendIR = BackendIR.BackendIR (Either BackendIR.HasLoops BackendIR.TopologicallySorted) (Maybe IR.Type.Type) ()
@@ -64,9 +69,7 @@ data PhaseResultsCache
         { _get_file :: File
         , _get_ast :: Maybe (AST, Outputable)
         , _get_first_sir :: Maybe (FirstSIR, Outputable)
-        , _get_nrsir :: Maybe (NRSIR, Outputable)
-        , _get_infix_grouped :: Maybe (InfixGroupedSIR, Outputable)
-        , _get_typed_sir :: Maybe (TypedSIR, Outputable)
+        , _get_solved_sir :: Maybe (SolvedSIR, Outputable)
         , _get_rir :: Maybe (RIR, Outputable)
         , _get_anfir :: Maybe (ANFIR, Outputable)
         , _get_optimized_anfir :: Maybe (ANFIR, Outputable)
@@ -76,7 +79,7 @@ data PhaseResultsCache
         }
 type PhaseResultsState = StateT PhaseResultsCache WithDiagnosticsIO
 
-data OutputFormat = AST | SIR | NRSIR | InfixGroupedSIR | TypedSIR | RIR | ANFIR | OptimizedANFIR | BackendIR | TS | Check
+data OutputFormat = AST | SIR | SolvedSIR | RIR | ANFIR | OptimizedANFIR | BackendIR | TS | Check
 data CompileOptions
     = CompileOptions
         { input_file :: FilePath
@@ -98,13 +101,11 @@ compile_returning_diagnostics compile_options =
     pure (if Compiler.had_errors diagnostics then Left diagnostics else Right ())
 
 print_outputs :: CompileOptions -> File -> WithDiagnosticsIO ()
-print_outputs compile_options file = evalStateT (mapM_ print_output_format (output_formats compile_options)) (PhaseResultsCache file Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing)
+print_outputs compile_options file = evalStateT (mapM_ print_output_format (output_formats compile_options)) (PhaseResultsCache file Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing)
     where
         print_output_format AST = get_ast >>= output_if_outputable (lift . lift . putTextLn . AST.PP.pp_decls)
         print_output_format SIR = get_first_sir >>= output_if_outputable (lift . lift . write_output_file "uhf_sir" . SIR.PP.dump_main_module)
-        print_output_format NRSIR = get_nrsir >>= output_if_outputable (\ (ir, _, _) -> lift (lift (write_output_file "uhf_nrsir" (SIR.PP.dump_main_module ir))))
-        print_output_format InfixGroupedSIR = get_infix_grouped >>= output_if_outputable (lift . lift . write_output_file "uhf_infix_grouped" . SIR.PP.dump_main_module)
-        print_output_format TypedSIR = get_typed_sir >>= output_if_outputable (lift . lift . write_output_file "uhf_typed_sir" . SIR.PP.dump_main_module)
+        print_output_format SolvedSIR = get_solved_sir >>= output_if_outputable (\ (ir, _, _, _, _, _, _) -> lift (lift (write_output_file "uhf_solved_sir" (SIR.PP.dump_main_module ir))))
         print_output_format RIR = get_rir >>= output_if_outputable (lift . lift . write_output_file "uhf_rir" . RIR.PP.dump_main_module)
         print_output_format ANFIR = get_anfir >>= output_if_outputable (lift . lift . write_output_file "uhf_anfir" . ANFIR.PP.dump_cu)
         print_output_format OptimizedANFIR = get_optimized_anfir >>= output_if_outputable (lift . lift . write_output_file "uhf_anfir_optimized" . ANFIR.PP.dump_cu)
@@ -154,7 +155,9 @@ run_stage_on_previous_stage_output f (a, last_outputable) = do
 on_tuple_first :: (a -> b) -> (a, c) -> (b, c)
 on_tuple_first f (a, b) = (f a, b)
 
---- TODO: use template haskell for this?
+-- TODO: clean up this file
+
+-- TODO: use template haskell for this?
 -- all of these functions return the result of a phase either by calculating it or retrieving it from the cache
 get_ast :: PhaseResultsState (AST, Outputable)
 get_ast = get_or_calculate _get_ast (\ cache ast -> cache { _get_ast = ast }) parse_phase
@@ -172,30 +175,19 @@ get_first_sir = get_or_calculate _get_first_sir (\ cache first_sir -> cache { _g
     where
         to_sir = get_ast >>= run_stage_on_previous_stage_output (convert_errors . ToSIR.convert)
 
-get_nrsir :: PhaseResultsState (NRSIR, Outputable)
-get_nrsir = get_or_calculate _get_nrsir (\ cache nrsir -> cache { _get_nrsir = nrsir }) name_resolve
+get_solved_sir :: PhaseResultsState (SolvedSIR, Outputable)
+get_solved_sir = get_or_calculate _get_solved_sir (\ cache solved_sir -> cache { _get_solved_sir = solved_sir }) solve_sir
     where
-        name_resolve = get_first_sir >>= run_stage_on_previous_stage_output (convert_errors . NameResolve.resolve) -- TODO: make this operate on teesir
-
-get_infix_grouped :: PhaseResultsState (InfixGroupedSIR, Outputable)
-get_infix_grouped = get_or_calculate _get_infix_grouped (\ cache infix_grouped -> cache { _get_infix_grouped = infix_grouped }) group_infix
-    where
-        group_infix = get_nrsir >>= \ ((nrsir, _, _), outputable) -> pure (on_tuple_first InfixGroup.group (nrsir, outputable))
-
-get_typed_sir :: PhaseResultsState (TypedSIR, Outputable)
-get_typed_sir = get_or_calculate _get_typed_sir (\ cache typed_sir -> cache { _get_typed_sir = typed_sir }) solve_types
-    where
-        solve_types =
-            get_nrsir >>= \ ((_, solver_state, constraint_backlog), _) ->
-            get_infix_grouped >>= \ infix_grouped ->
-            run_stage_on_previous_stage_output (convert_errors . SolveTypes.solve solver_state constraint_backlog) infix_grouped >>= \ typed_ir -> -- TODO:
-            run_stage_on_previous_stage_output (convert_errors . ReportHoles.report_holes) typed_ir >>
-            pure typed_ir
+        solve_sir = do
+            sir <- get_first_sir
+            ((solved_sir, (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena), infix_group_result_arena), outputable) <- run_stage_on_previous_stage_output (convert_errors . UnifiedFrontendSolver.solve) sir
+            ((), _) <- convert_errors (ReportHoles.report_holes type_expr_evaled_as_type_arena solved_sir)
+            pure ((solved_sir, decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena, infix_group_result_arena), outputable)
 
 get_rir :: PhaseResultsState (RIR, Outputable)
 get_rir = get_or_calculate _get_rir (\ cache rir -> cache { _get_rir = rir }) to_rir
     where
-        to_rir = get_typed_sir >>= run_stage_on_previous_stage_output (convert_errors . ToRIR.convert)
+        to_rir = get_solved_sir >>= run_stage_on_previous_stage_output (convert_errors . (\ (solved_sir, decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena, infix_group_result_arena ) -> ToRIR.convert decl_iden_resolved_arena value_iden_resolved_arena variant_iden_resolved_arena type_expr_evaled_arena type_expr_evaled_as_type_arena infix_group_result_arena solved_sir))
 
 get_anfir :: PhaseResultsState (ANFIR, Outputable)
 get_anfir = get_or_calculate _get_anfir (\ cache anfir -> cache { _get_anfir = anfir }) to_anfir

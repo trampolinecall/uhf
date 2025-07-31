@@ -11,9 +11,7 @@ import qualified Data.Text as Text
 import qualified UHF.Data.Token as Token
 import qualified UHF.Diagnostic as Diagnostic
 import UHF.Source.EqIgnoringSpans
-import UHF.Source.Located (Located (Located))
 import qualified UHF.Source.Located as Located
-import UHF.Source.Span (Span)
 
 data Error = BadToken Int [Token.TokenType] Token.LToken
     deriving (Generic, EqIgnoringSpans, Show, Eq)

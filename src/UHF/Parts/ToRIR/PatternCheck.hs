@@ -22,8 +22,9 @@ import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Util.Arena as Arena
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (TypeExprEvaledAsTypeKey)
 
-data CompletenessError stage = CompletenessError (Arena.Arena (Type.ADT Type) Type.ADTKey) Span [SIR.Pattern stage] [MatchValue]
+data CompletenessError stage = CompletenessError (Arena.Arena (SIR.ADT stage) Type.ADTKey) Span [SIR.Pattern stage] [MatchValue]
 data NotUseful stage = NotUseful (SIR.Pattern stage)
 
 instance Diagnostic.ToError (CompletenessError stage) where
@@ -38,14 +39,14 @@ instance Diagnostic.ToWarning (NotUseful stage) where
     to_warning (NotUseful pat) = Diagnostic.Warning (Just $ SIR.pattern_span pat) "useless pattern" [] []
 
 type Type = Maybe Type.Type
-type CorrectStage s = (SIR.TypeInfo s ~ Type, SIR.PIdenResolved s ~ Maybe Type.ADT.VariantIndex)
+type CorrectStage s = (SIR.TypeInfo s ~ Type, SIR.TypeExprEvaledAsTypeKey s ~ TypeExprEvaledAsTypeKey) -- TODO: this constraint doesnt really make sense anymore
 
 data MatchValue
     = Any
     | AnonADT Type.ADT.VariantIndex [MatchValue]
     | Tuple MatchValue MatchValue
 
-show_match_value :: Arena.Arena (Type.ADT Type) Type.ADTKey -> MatchValue -> Text
+show_match_value :: Arena.Arena (SIR.ADT stage) Type.ADTKey -> MatchValue -> Text
 show_match_value _ Any = "_"
 show_match_value adt_arena (AnonADT variant fields) =
     let refer_variant = Type.ADT.get_variant adt_arena variant & Type.ADT.variant_id & ID.stringify
@@ -54,8 +55,13 @@ show_match_value adt_arena (Tuple a b) = "(" <> show_match_value adt_arena a <> 
 
 -- TODO: clean this up
 -- TODO: use actual type of expression being matched against, not types of patterns
-check :: forall stage. CorrectStage stage => Arena.Arena (Type.ADT Type) Type.ADTKey -> Arena.Arena (Type.TypeSynonym Type) Type.TypeSynonymKey -> [SIR.Pattern stage] -> ([MatchValue], [(SIR.Pattern stage, [MatchValue])])
-check adt_arena type_synonym_arena = mapAccumL check_one_pattern [Any]
+check :: forall stage. (CorrectStage stage, Arena.Key (SIR.IdenResolvedKey stage Type.ADT.VariantIndex)) =>
+    Arena.Arena (SIR.ADT stage) Type.ADTKey ->
+    Arena.Arena (SIR.TypeSynonym stage) Type.TypeSynonymKey ->
+    Arena.Arena (Maybe Type.ADT.VariantIndex) (SIR.IdenResolvedKey stage Type.ADT.VariantIndex) ->
+    Arena.Arena Type TypeExprEvaledAsTypeKey ->
+    [SIR.Pattern stage] -> ([MatchValue], [(SIR.Pattern stage, [MatchValue])])
+check adt_arena type_synonym_arena variant_iden_resolved_arena type_expr_evaled_as_type_arena = mapAccumL check_one_pattern [Any]
     where
         check_one_pattern :: [MatchValue] -> SIR.Pattern stage -> ([MatchValue], (SIR.Pattern stage, [MatchValue]))
         check_one_pattern uncovered cur_pattern =
@@ -87,53 +93,57 @@ check adt_arena type_synonym_arena = mapAccumL check_one_pattern [Any]
                     let (uncovered_field_combos, covered_field_combos) = check_fields [field_a_pat, field_b_pat] [uncovered_a, uncovered_b]
                     in (map make_into_tuple uncovered_field_combos, map make_into_tuple covered_field_combos) -- make_into_tuple will not error because the field combos must be 2 fields long
 
-        check_against_one_uncovered_value (SIR.Pattern'AnonADTVariant (Just ty) _ _ (Just pat_variant) _ pat_fields) uncovered_value =
-            case uncovered_value of
-                Any ->
-                    let (still_uncovered, covered) = enumerate_adt_ctors_and_fields ty & map (uncurry go) & unzip
-                    in (concat still_uncovered, concat covered)
-                AnonADT uncovered_variant uncovered_fields -> go uncovered_variant uncovered_fields
+        check_against_one_uncovered_value (SIR.Pattern'AnonADTVariant (Just ty) _ iden _ pat_fields) uncovered_value =
+            case Arena.get variant_iden_resolved_arena (SIR.split_identifier_resolved iden) of
+                Just pat_variant ->
+                    case uncovered_value of
+                        Any ->
+                            let (still_uncovered, covered) = enumerate_adt_ctors_and_fields ty & map (uncurry go) & unzip
+                            in (concat still_uncovered, concat covered)
+                        AnonADT uncovered_variant uncovered_fields -> go uncovered_variant uncovered_fields
 
-                Tuple _ _ -> ([uncovered_value], []) -- like above: not illegal state; treat like a poison pattern
+                        Tuple _ _ -> ([uncovered_value], []) -- like above: not illegal state; treat like a poison pattern
 
-            where
-                enumerate_adt_ctors_and_fields (Type.Type'ADT adt_key params) =
-                    let (Type.ADT _ _ qvars _) = Arena.get adt_arena adt_key
-                    in if length params == length qvars
-                        then Type.ADT.variant_idxs adt_arena adt_key &
-                                map (\ variant_idx ->
-                                    let variant = Type.ADT.get_variant adt_arena variant_idx
-                                        fields = Type.ADT.variant_field_types variant
-                                    in (variant_idx, map (const Any) fields)
-                                )
-                        else []
-                enumerate_adt_ctors_and_fields (Type.Type'Synonym ts_key) =
-                    let (Type.TypeSynonym _ _ expansion) = Arena.get type_synonym_arena ts_key
-                    in maybe [] enumerate_adt_ctors_and_fields expansion -- in the case that the type synonym had a type error and is Nothing, treat it like it has no constructors / like an uninhabited type
-                enumerate_adt_ctors_and_fields Type.Type'Int = error_for_enumerate_adt_ctors_and_fields "Type'Int"
-                enumerate_adt_ctors_and_fields Type.Type'Float = error_for_enumerate_adt_ctors_and_fields "Type'Float"
-                enumerate_adt_ctors_and_fields Type.Type'Char = error_for_enumerate_adt_ctors_and_fields "Type'Char"
-                enumerate_adt_ctors_and_fields Type.Type'String = error_for_enumerate_adt_ctors_and_fields "Type'String"
-                enumerate_adt_ctors_and_fields Type.Type'Bool = error_for_enumerate_adt_ctors_and_fields "Type'Bool"
-                enumerate_adt_ctors_and_fields (Type.Type'Function _ _) = error_for_enumerate_adt_ctors_and_fields "Type'Function"
-                enumerate_adt_ctors_and_fields (Type.Type'Tuple _ _) = error_for_enumerate_adt_ctors_and_fields "Type'Tuple"
-                enumerate_adt_ctors_and_fields (Type.Type'QuantVar _) = error_for_enumerate_adt_ctors_and_fields "Type'QuantVar"
-                enumerate_adt_ctors_and_fields (Type.Type'Forall _ _) = error_for_enumerate_adt_ctors_and_fields "Type'Forall"
-                enumerate_adt_ctors_and_fields Type.Type'Kind'Type = error_for_enumerate_adt_ctors_and_fields "Type'Kind'Type"
-                enumerate_adt_ctors_and_fields (Type.Type'Kind'Arrow _ _) = error_for_enumerate_adt_ctors_and_fields "Type'Kind'Arrow"
-                enumerate_adt_ctors_and_fields Type.Type'Kind'Kind = error_for_enumerate_adt_ctors_and_fields "Type'Kind'Kind"
+                    where
+                        enumerate_adt_ctors_and_fields (Type.Type'ADT adt_key params) =
+                            let (Type.ADT _ _ qvars _) = Arena.get adt_arena adt_key
+                            in if length params == length qvars
+                                then Type.ADT.variant_idxs adt_arena adt_key &
+                                        map (\ variant_idx ->
+                                            let variant = Type.ADT.get_variant adt_arena variant_idx
+                                                fields = Type.ADT.variant_field_types variant
+                                            in (variant_idx, map (const Any) fields)
+                                        )
+                                else []
+                        enumerate_adt_ctors_and_fields (Type.Type'Synonym ts_key) =
+                            let (Type.TypeSynonym _ _ (_, expansion)) = Arena.get type_synonym_arena ts_key
+                            in maybe [] enumerate_adt_ctors_and_fields (Arena.get type_expr_evaled_as_type_arena expansion) -- in the case that the type synonym had a type error and is Nothing, treat it like it has no constructors / like an uninhabited type
+                        enumerate_adt_ctors_and_fields Type.Type'Int = error_for_enumerate_adt_ctors_and_fields "Type'Int"
+                        enumerate_adt_ctors_and_fields Type.Type'Float = error_for_enumerate_adt_ctors_and_fields "Type'Float"
+                        enumerate_adt_ctors_and_fields Type.Type'Char = error_for_enumerate_adt_ctors_and_fields "Type'Char"
+                        enumerate_adt_ctors_and_fields Type.Type'String = error_for_enumerate_adt_ctors_and_fields "Type'String"
+                        enumerate_adt_ctors_and_fields Type.Type'Bool = error_for_enumerate_adt_ctors_and_fields "Type'Bool"
+                        enumerate_adt_ctors_and_fields (Type.Type'Function _ _) = error_for_enumerate_adt_ctors_and_fields "Type'Function"
+                        enumerate_adt_ctors_and_fields (Type.Type'Tuple _ _) = error_for_enumerate_adt_ctors_and_fields "Type'Tuple"
+                        enumerate_adt_ctors_and_fields (Type.Type'QuantVar _) = error_for_enumerate_adt_ctors_and_fields "Type'QuantVar"
+                        enumerate_adt_ctors_and_fields (Type.Type'Forall _ _) = error_for_enumerate_adt_ctors_and_fields "Type'Forall"
+                        enumerate_adt_ctors_and_fields Type.Type'Kind'Type = error_for_enumerate_adt_ctors_and_fields "Type'Kind'Type"
+                        enumerate_adt_ctors_and_fields (Type.Type'Kind'Arrow _ _) = error_for_enumerate_adt_ctors_and_fields "Type'Kind'Arrow"
+                        enumerate_adt_ctors_and_fields Type.Type'Kind'Kind = error_for_enumerate_adt_ctors_and_fields "Type'Kind'Kind"
 
-                error_for_enumerate_adt_ctors_and_fields ty = error $ "cannot enumerate adt constructors for " ++ ty
+                        error_for_enumerate_adt_ctors_and_fields ty = error $ "cannot enumerate adt constructors for " ++ ty
 
-                go uncovered_variant uncovered_fields
-                    | uncovered_variant == pat_variant =
-                        let (uncovered_field_combos, covered_field_combos) = check_fields pat_fields uncovered_fields
-                        in (map (AnonADT uncovered_variant) uncovered_field_combos, map (AnonADT uncovered_variant) covered_field_combos)
-                    | otherwise = ([AnonADT uncovered_variant uncovered_fields], []) -- if the constructors do not match, the pattern will cover nothing
-        check_against_one_uncovered_value (SIR.Pattern'AnonADTVariant _ _ _ _ _ _) uncovered_value = ([uncovered_value], []) -- a variant pattern with an unknown variant or an unknown type does not cover anything
+                        go uncovered_variant uncovered_fields
+                            | uncovered_variant == pat_variant =
+                                let (uncovered_field_combos, covered_field_combos) = check_fields pat_fields uncovered_fields
+                                in (map (AnonADT uncovered_variant) uncovered_field_combos, map (AnonADT uncovered_variant) covered_field_combos)
+                            | otherwise = ([AnonADT uncovered_variant uncovered_fields], []) -- if the constructors do not match, the pattern will cover nothing
+                Nothing -> ([uncovered_value], []) -- a variant pattern with an unknown variant does not cover anything
 
-        check_against_one_uncovered_value (SIR.Pattern'NamedADTVariant (Just ty) _ _ (Just variant) _ fields) uncovered_value = todo
-        check_against_one_uncovered_value (SIR.Pattern'NamedADTVariant _ _ _ _ _ _) uncovered_value = ([uncovered_value], []) -- same as above: a variant pattern with an unknown variant or an unknown type does not cover anything
+        check_against_one_uncovered_value (SIR.Pattern'AnonADTVariant _ _ _ _ _) uncovered_value = ([uncovered_value], [])  -- a variant pattern with an unknown type does not cover anything
+
+        check_against_one_uncovered_value (SIR.Pattern'NamedADTVariant (Just ty) _ _  _ fields) uncovered_value = todo
+        check_against_one_uncovered_value (SIR.Pattern'NamedADTVariant _ _ _ _ _) uncovered_value = ([uncovered_value], []) -- same as above: a variant pattern with an unknown variant or an unknown type does not cover anything
 
         check_against_one_uncovered_value (SIR.Pattern'Poison _ _) uncovered_value = ([uncovered_value], []) -- poison pattern behaves as if it doesnt cover anything
 
@@ -175,16 +185,16 @@ check adt_arena type_synonym_arena = mapAccumL check_one_pattern [Any]
 
         is_valid_match_value mv = True -- TODO: not (has_uninhabited_values mv)
 
-check_complete :: CorrectStage stage => Arena.Arena (Type.ADT Type) Type.ADTKey -> Arena.Arena (Type.TypeSynonym Type) Type.TypeSynonymKey -> Span -> [SIR.Pattern stage] -> Either (CompletenessError stage) ()
-check_complete adt_arena type_synonym_arena err_sp patterns =
-    let (left_over, _) = check adt_arena type_synonym_arena patterns
+check_complete :: (CorrectStage stage, Arena.Key (SIR.IdenResolvedKey stage Type.ADT.VariantIndex)) => Arena.Arena (SIR.ADT stage) Type.ADTKey -> Arena.Arena (SIR.TypeSynonym stage) Type.TypeSynonymKey -> Arena.Arena (Maybe Type.ADT.VariantIndex) (SIR.IdenResolvedKey stage Type.ADT.VariantIndex) -> Arena.Arena Type TypeExprEvaledAsTypeKey -> Span -> [SIR.Pattern stage] -> Either (CompletenessError stage) ()
+check_complete adt_arena type_synonym_arena variant_iden_resolved_arena type_expr_evaled_as_type_arena err_sp patterns =
+    let (left_over, _) = check adt_arena type_synonym_arena variant_iden_resolved_arena type_expr_evaled_as_type_arena patterns
     in if null left_over
         then Right ()
         else Left $ CompletenessError adt_arena err_sp patterns left_over
 
-check_useful :: CorrectStage stage => Arena.Arena (Type.ADT Type) Type.ADTKey -> Arena.Arena (Type.TypeSynonym Type) Type.TypeSynonymKey -> [SIR.Pattern stage] -> Either [NotUseful stage] ()
-check_useful adt_arena type_synonym_arena patterns =
-    let (_, patterns') = check adt_arena type_synonym_arena patterns
+check_useful :: (CorrectStage stage, Arena.Key (SIR.IdenResolvedKey stage Type.ADT.VariantIndex)) => Arena.Arena (SIR.ADT stage) Type.ADTKey -> Arena.Arena (SIR.TypeSynonym stage) Type.TypeSynonymKey -> Arena.Arena (Maybe Type.ADT.VariantIndex) (SIR.IdenResolvedKey stage Type.ADT.VariantIndex) -> Arena.Arena Type TypeExprEvaledAsTypeKey -> [SIR.Pattern stage] -> Either [NotUseful stage] ()
+check_useful adt_arena type_synonym_arena variant_iden_resolved_arena type_expr_evaled_as_type_arena patterns =
+    let (_, patterns') = check adt_arena type_synonym_arena variant_iden_resolved_arena type_expr_evaled_as_type_arena patterns
         warns = mapMaybe (\ (pat, covers) -> if null covers then Just (NotUseful pat) else Nothing) patterns'
     in if null warns
         then Right ()

@@ -8,4 +8,4 @@ ghc-options:
 
 extra-deps:
   - inflist-0.0.1
-  - weeder-2.4.1
+  - weeder-2.9.0

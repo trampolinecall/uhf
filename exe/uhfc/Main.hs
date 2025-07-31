@@ -38,9 +38,7 @@ argparser =
                             (reader_from_map
                                 [ ("ast", Driver.AST)
                                 , ("sir", Driver.SIR)
-                                , ("name-resolved", Driver.NRSIR)
-                                , ("infix-grouped", Driver.InfixGroupedSIR)
-                                , ("typed-sir", Driver.TypedSIR)
+                                , ("solved-sir", Driver.SolvedSIR)
                                 , ("rir", Driver.RIR)
                                 , ("anfir", Driver.ANFIR)
                                 , ("anfir-optimized", Driver.OptimizedANFIR)

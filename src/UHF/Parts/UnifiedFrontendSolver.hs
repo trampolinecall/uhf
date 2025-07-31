@@ -21,7 +21,7 @@ import qualified UHF.Parts.UnifiedFrontendSolver.Solving as Solving
 import qualified UHF.Util.Arena as Arena
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameResolve.NameMaps
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (IdenResolvedKey, TypeExprEvaledKey, TypeExprEvaledAsTypeKey)
-import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupedKey)
+import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupedKey, InfixGroupResult)
 import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result as InfixGroup.Result
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolve.Task as SolveTypes.Task
@@ -34,6 +34,7 @@ import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Solve as InfixGroup.
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Solve as NameResolve.Solve
 import Data.List (sortOn)
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolve.Task as TypeSolve.Task
+import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Finalize as InfixGroup.Finalize
 
 type PreSolve = ((), Const () (), (), (), (), (), ())
 type PostSolve =
@@ -45,13 +46,13 @@ solve ::
         Error
         Void
         ( SIR.SIR PostSolve
-        , ( Arena.Arena (Maybe (SIR.DeclRef TypeWithInferVar.Type)) (IdenResolvedKey (SIR.DeclRef TypeWithInferVar.Type))
+        , ( Arena.Arena (Maybe (SIR.DeclRef Type.Type)) (IdenResolvedKey (SIR.DeclRef Type.Type))
           , Arena.Arena (Maybe SIR.ValueRef) (IdenResolvedKey SIR.ValueRef)
           , Arena.Arena (Maybe Type.ADT.VariantIndex) (IdenResolvedKey Type.ADT.VariantIndex)
-          , Arena.Arena (Maybe (SIR.DeclRef TypeWithInferVar.Type)) TypeExprEvaledKey
-          , Arena.Arena (Maybe TypeWithInferVar.Type) TypeExprEvaledAsTypeKey
+          , Arena.Arena (Maybe (SIR.DeclRef Type.Type)) TypeExprEvaledKey
+          , Arena.Arena (Maybe Type.Type) TypeExprEvaledAsTypeKey
           )
-        , InfixGroup.Result.InfixGroupedArena
+        , Arena.Arena (Maybe InfixGroupResult) InfixGroupedKey
         )
 solve sir = do
     -- TODO: clean this up
@@ -65,10 +66,11 @@ solve sir = do
                 (runStateT (solve' (name_resolution_tasks, infix_group_tasks, type_solving_tasks)) (name_resolution_results, infix_group_results, infer_vars))
                 (name_map_stack_arena, sir_child_maps, sir''')
 
-    name_resolution_results <- NameResolve.Finalize.finalize name_resolution_results
-    sir'''' <- TypeSolve.Finalize.remove_infer_vars infer_vars sir'''
+    (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena) <- NameResolve.Finalize.finalize name_resolution_results
+    infix_group_results <- InfixGroup.Finalize.finalize infix_group_results
+    (sir'''', decl_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena) <- TypeSolve.Finalize.remove_infer_vars infer_vars decl_iden_resolved_arena type_expr_evaled_arena type_expr_evaled_as_type_arena sir'''
 
-    pure (sir'''', name_resolution_results, infix_group_results)
+    pure (sir'''', (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena), infix_group_results)
 
 solve' ::
     ( ( [NameResolve.Task.IdenResolveTask (SIR.DeclRef TypeWithInferVar.Type)]

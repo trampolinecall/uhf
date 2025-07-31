@@ -69,6 +69,7 @@ library
       UHF.Parts.TSBackend.TS.PP
       UHF.Parts.UnifiedFrontendSolver
       UHF.Parts.UnifiedFrontendSolver.Error
+      UHF.Parts.UnifiedFrontendSolver.InfixGroup.Finalize
       UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result
       UHF.Parts.UnifiedFrontendSolver.InfixGroup.Prepare
       UHF.Parts.UnifiedFrontendSolver.InfixGroup.Solve

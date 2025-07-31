@@ -38,17 +38,32 @@ type WithoutInferVars =
     , InfixGroupedKey
     )
 
-remove_infer_vars :: TypeWithInferVar.InferVarArena -> SIR.SIR WithInferVars -> Compiler.WithDiagnostics SolveError.Error Void (SIR.SIR WithoutInferVars)
-remove_infer_vars infer_vars (SIR.SIR modules adts type_synonyms type_vars variables (SIR.CU root_module main_function)) = do
+remove_infer_vars ::
+    TypeWithInferVar.InferVarArena ->
+    Arena.Arena (Maybe (SIR.DeclRef TypeWithInferVar.Type)) (IdenResolvedKey (SIR.DeclRef TypeWithInferVar.Type)) ->
+    Arena.Arena (Maybe (SIR.DeclRef TypeWithInferVar.Type)) TypeExprEvaledKey ->
+    Arena.Arena (Maybe TypeWithInferVar.Type) TypeExprEvaledAsTypeKey ->
+    SIR.SIR WithInferVars ->
+    Compiler.WithDiagnostics SolveError.Error Void
+        ( SIR.SIR WithoutInferVars
+        , Arena.Arena (Maybe (SIR.DeclRef Type.Type)) (IdenResolvedKey (SIR.DeclRef Type.Type))
+        , Arena.Arena (Maybe (SIR.DeclRef Type.Type)) TypeExprEvaledKey
+        , Arena.Arena (Maybe Type.Type) TypeExprEvaledAsTypeKey
+        )
+remove_infer_vars infer_vars decl_iden_resolved_arena type_expr_evaled_arena type_expr_evaled_as_type_arena (SIR.SIR modules adts type_synonyms type_vars variables (SIR.CU root_module main_function)) = do
     infer_vars <- convert_vars infer_vars
     pure $
-        SIR.SIR
+        ( SIR.SIR
             (Arena.transform (module_ infer_vars) modules)
             (Arena.transform (adt infer_vars) adts)
             (Arena.transform (type_synonym infer_vars) type_synonyms)
             type_vars
             (Arena.transform (variable infer_vars) variables)
             (SIR.CU root_module main_function)
+        , Arena.change_key $ Arena.transform (>>= decl_ref infer_vars) decl_iden_resolved_arena
+        , Arena.transform (>>= decl_ref infer_vars) type_expr_evaled_arena
+        , Arena.transform (>>= type_ infer_vars) type_expr_evaled_as_type_arena
+        )
 
 convert_vars :: TypeWithInferVar.InferVarArena -> Compiler.WithDiagnostics SolveError.Error Void (Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey)
 convert_vars infer_vars =
@@ -164,12 +179,12 @@ split_identifier infer_vars (SIR.SplitIdentifier'Get texpr next resolved) = SIR.
 split_identifier _ (SIR.SplitIdentifier'Single name_context name resolved) = SIR.SplitIdentifier'Single name_context name resolved
 
 m_decl :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> Maybe (SIR.DeclRef TypeWithInferVar.Type) -> Maybe (SIR.DeclRef Type)
-m_decl infer_vars d = d >>= decl infer_vars
+m_decl infer_vars d = d >>= decl_ref infer_vars
 
-decl :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.DeclRef TypeWithInferVar.Type -> Maybe (SIR.DeclRef Type)
-decl _ (SIR.DeclRef'Module m) = Just $ SIR.DeclRef'Module m
-decl infer_vars (SIR.DeclRef'Type t) = SIR.DeclRef'Type <$> type_ infer_vars t
-decl _ (SIR.DeclRef'ExternPackage ep) = Just $ SIR.DeclRef'ExternPackage ep
+decl_ref :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.DeclRef TypeWithInferVar.Type -> Maybe (SIR.DeclRef Type)
+decl_ref _ (SIR.DeclRef'Module m) = Just $ SIR.DeclRef'Module m
+decl_ref infer_vars (SIR.DeclRef'Type t) = SIR.DeclRef'Type <$> type_ infer_vars t
+decl_ref _ (SIR.DeclRef'ExternPackage ep) = Just $ SIR.DeclRef'ExternPackage ep
 
 type_ :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> TypeWithInferVar.Type -> Maybe Type
 type_ infer_vars = r

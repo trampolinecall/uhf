@@ -17,6 +17,7 @@ module UHF.Util.Arena
     , transform_with_keyM
 
     , tests
+    , change_key
     ) where
 
 import UHF.Prelude hiding (put, get, modify)
@@ -56,6 +57,12 @@ modifyM (Arena items) key change =
     in case Sequence.splitAt index items of
         (before, old Sequence.:<| after) -> change old >>= \ changed -> pure (Arena $ before <> (changed Sequence.<| after))
         (_, Sequence.Empty) -> unreachable -- because the key should always be valid
+
+-- TODO: this is not really a great function but it is needed for finalizing TypeSolve because it needs to transform from an
+-- Arena _ (IdenResolvedKey (SIR.DeclRef TypeWithInferVar.Type)) to Arena _ (IdenResolvedKey (SIR.DeclRef Type.Type))
+-- so figure out a way to do this without having this function
+change_key :: (Key k1, Key k2) => Arena a k1 -> Arena a k2
+change_key (Arena items) = Arena items
 
 transform :: Key k => (a -> b) -> Arena a k -> Arena b k
 transform t (Arena items) = Arena $ fmap t items

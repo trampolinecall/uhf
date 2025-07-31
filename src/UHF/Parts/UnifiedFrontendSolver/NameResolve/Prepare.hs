@@ -20,8 +20,8 @@ import UHF.Parts.UnifiedFrontendSolver.NameResolve.Task (IdenResolveTask (..), T
 import UHF.Parts.UnifiedFrontendSolver.SolveResult
 import qualified UHF.Util.Arena as Arena
 
-type Unprepared = (NameMaps.NameMapStackKey, Const () (), TypeWithInferVar.Type, (), (), (), ())
-type Prepared = (NameMaps.NameMapStackKey, IdenResolvedKey (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, (), ())
+type Unprepared = (NameMaps.NameContextKey, Const () (), TypeWithInferVar.Type, (), (), (), ())
+type Prepared = (NameMaps.NameContextKey, IdenResolvedKey (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, (), ())
 
 -- TODO: make someday this will turn into a RWST?
 type PrepareState =

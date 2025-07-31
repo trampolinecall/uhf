@@ -1,15 +1,11 @@
 module UHF.Parts.UnifiedFrontendSolver.TypeSolve.Task (EqInWhat (..), ExpectInWhat (..), TypeSolveTask (..), Constraint (..)) where
 
-import UHF.Prelude
-
-import UHF.Data.IR.Type.QuantVar (QuantVarKey)
 import UHF.Data.IR.TypeWithInferVar
 import qualified UHF.Data.SIR as SIR
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (IdenResolvedKey, TypeExprEvaledAsTypeKey)
 import UHF.Source.Located (Located)
 import UHF.Source.Span (Span)
 
--- TODO: maybe dont have InWhat
 data EqInWhat = InAssignment | InNamedPattern | InIfBranches | InMatchPatterns | InMatchArms
 data ExpectInWhat = InTypeAnnotation | InCallExpr | InIfCondition | InTypeApplication | InADTVariantPatternField | InADTFieldType | InMainFunction
 

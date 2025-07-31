@@ -22,7 +22,7 @@ import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 -- TODO: figure out a better solution than to have adt_parents and type_synonym_parents
 
 type QuantVarArena = Arena.Arena Type.QuantVar Type.QuantVarKey
-type NameMapStackArena = Arena.Arena NameMaps.NameMapStack NameMaps.NameMapStackKey
+type NameContextArena = Arena.Arena NameMaps.NameContext NameMaps.NameContextKey
 
 type Unassigned = ((), Const () (), (), (), (), (), ())
 
@@ -31,36 +31,36 @@ type UnassignedADTArena = Arena.Arena (SIR.ADT Unassigned) Type.ADTKey
 type UnassignedTypeSynonymArena = Arena.Arena (SIR.TypeSynonym Unassigned) Type.TypeSynonymKey
 type UnassignedVariableArena = Arena.Arena (SIR.Variable Unassigned) SIR.VariableKey
 
-type Assigned = (NameMaps.NameMapStackKey, Const () (), TypeWithInferVar.Type, (), (), (), ())
+type Assigned = (NameMaps.NameContextKey, Const () (), TypeWithInferVar.Type, (), (), (), ())
 
 type AssignedModuleArena = Arena.Arena (SIR.Module Assigned) SIR.ModuleKey
 type AssignedADTArena = Arena.Arena (SIR.ADT Assigned) Type.ADTKey
 type AssignedTypeSynonymArena = Arena.Arena (SIR.TypeSynonym Assigned) Type.TypeSynonymKey
 
 -- helper functions {{{1
-new_name_map_stack_end :: Monad m => StateT (NameMapStackArena, NameMaps.SIRChildMaps) m NameMaps.NameMapStackKey
+new_name_map_stack_end :: Monad m => StateT (NameContextArena, NameMaps.SIRChildMaps) m NameMaps.NameContextKey
 new_name_map_stack_end = state $ \(arena, sir_child_maps) ->
-    let (key, arena') = Arena.put (NameMaps.NameMapStack NameMaps.empty_name_maps Nothing) arena
+    let (key, arena') = Arena.put (NameMaps.NameContext NameMaps.empty_name_maps Nothing) arena
     in (key, (arena', sir_child_maps))
 
-new_name_map_stack_with_parent :: Monad m => NameMaps.NameMapStackKey -> StateT (NameMapStackArena, NameMaps.SIRChildMaps) m NameMaps.NameMapStackKey
+new_name_map_stack_with_parent :: Monad m => NameMaps.NameContextKey -> StateT (NameContextArena, NameMaps.SIRChildMaps) m NameMaps.NameContextKey
 new_name_map_stack_with_parent parent = state $ \(arena, sir_child_maps) ->
-    let (key, arena') = Arena.put (NameMaps.NameMapStack NameMaps.empty_name_maps (Just parent)) arena
+    let (key, arena') = Arena.put (NameMaps.NameContext NameMaps.empty_name_maps (Just parent)) arena
     in (key, (arena', sir_child_maps))
 
 modify_name_map ::
-    Monad m => NameMaps.NameMapStackKey -> (NameMaps.NameMaps -> m NameMaps.NameMaps) -> StateT (NameMapStackArena, NameMaps.SIRChildMaps) m ()
+    Monad m => NameMaps.NameContextKey -> (NameMaps.NameMaps -> m NameMaps.NameMaps) -> StateT (NameContextArena, NameMaps.SIRChildMaps) m ()
 modify_name_map key modification = StateT $ \(arena, sir_child_maps) -> do
-    modified <- Arena.modifyM arena key (\(NameMaps.NameMapStack name_maps parent) -> NameMaps.NameMapStack <$> modification name_maps <*> pure parent)
+    modified <- Arena.modifyM arena key (\(NameMaps.NameContext name_maps parent) -> NameMaps.NameContext <$> modification name_maps <*> pure parent)
     pure ((), (modified, sir_child_maps))
 
-modify_sir_child_maps :: Monad m => (NameMaps.SIRChildMaps -> m NameMaps.SIRChildMaps) -> StateT (NameMapStackArena, NameMaps.SIRChildMaps) m ()
+modify_sir_child_maps :: Monad m => (NameMaps.SIRChildMaps -> m NameMaps.SIRChildMaps) -> StateT (NameContextArena, NameMaps.SIRChildMaps) m ()
 modify_sir_child_maps modification = StateT $ \(arena, sir_child_maps) -> do
     modified <- modification sir_child_maps
     pure ((), (arena, modified))
 
 -- assign entry point {{{1
-assign :: SIR.SIR Unassigned -> Compiler.WithDiagnostics Solve.Error.Error Void (SIR.SIR Assigned, NameMapStackArena, NameMaps.SIRChildMaps)
+assign :: SIR.SIR Unassigned -> Compiler.WithDiagnostics Solve.Error.Error Void (SIR.SIR Assigned, NameContextArena, NameMaps.SIRChildMaps)
 assign sir@(SIR.SIR mods adts type_synonyms type_vars variables (SIR.CU root_module main_function)) = do
     (sir', (name_maps_arena, sir_child_maps)) <-
         runStateT
@@ -77,7 +77,7 @@ assign sir@(SIR.SIR mods adts type_synonyms type_vars variables (SIR.CU root_mod
 
 -- assigning through sir {{{1
 type ADTParentAndTypeSynonymParentWriter m =
-    WriterT (Map Type.ADTKey NameMaps.NameMapStackKey) (WriterT (Map Type.TypeSynonymKey NameMaps.NameMapStackKey) m)
+    WriterT (Map Type.ADTKey NameMaps.NameContextKey) (WriterT (Map Type.TypeSynonymKey NameMaps.NameContextKey) m)
 assign_in_mods ::
     UnassignedModuleArena ->
     NRReader.NRReader
@@ -86,8 +86,8 @@ assign_in_mods ::
         UnassignedVariableArena
         QuantVarArena
         sir_child_maps
-        (StateT (NameMapStackArena, NameMaps.SIRChildMaps) (Compiler.WithDiagnostics Solve.Error.Error Void))
-        (AssignedModuleArena, Map.Map Type.ADTKey NameMaps.NameMapStackKey, Map.Map Type.TypeSynonymKey NameMaps.NameMapStackKey)
+        (StateT (NameContextArena, NameMaps.SIRChildMaps) (Compiler.WithDiagnostics Solve.Error.Error Void))
+        (AssignedModuleArena, Map.Map Type.ADTKey NameMaps.NameContextKey, Map.Map Type.TypeSynonymKey NameMaps.NameContextKey)
 assign_in_mods module_arena = do
     ((module_arena, adt_parents), type_synonym_parents) <- runWriterT $ runWriterT $ Arena.transform_with_keyM assign_in_module module_arena
     pure (module_arena, adt_parents, type_synonym_parents)
@@ -102,7 +102,7 @@ assign_in_module ::
             UnassignedVariableArena
             QuantVarArena
             sir_child_maps
-            (StateT (NameMapStackArena, NameMaps.SIRChildMaps) (Compiler.WithDiagnostics Solve.Error.Error Void))
+            (StateT (NameContextArena, NameMaps.SIRChildMaps) (Compiler.WithDiagnostics Solve.Error.Error Void))
         )
         (SIR.Module Assigned)
 assign_in_module module_key (SIR.Module id () bindings adts type_synonyms) = do
@@ -133,7 +133,7 @@ assign_in_module module_key (SIR.Module id () bindings adts type_synonyms) = do
         primitive_vals = []
 
 assign_in_adts ::
-    Map.Map Type.ADTKey NameMaps.NameMapStackKey ->
+    Map.Map Type.ADTKey NameMaps.NameContextKey ->
     UnassignedADTArena ->
     NRReader.NRReader
         adt_arena
@@ -141,12 +141,12 @@ assign_in_adts ::
         var_arena
         QuantVarArena
         sir_child_maps
-        (StateT (NameMapStackArena, NameMaps.SIRChildMaps) (Compiler.WithDiagnostics Solve.Error.Error Void))
+        (StateT (NameContextArena, NameMaps.SIRChildMaps) (Compiler.WithDiagnostics Solve.Error.Error Void))
         AssignedADTArena
 assign_in_adts adt_parent_name_maps = Arena.transform_with_keyM (assign_in_adt adt_parent_name_maps)
 
 assign_in_adt ::
-    Map.Map Type.ADTKey NameMaps.NameMapStackKey ->
+    Map.Map Type.ADTKey NameMaps.NameContextKey ->
     Type.ADTKey ->
     SIR.ADT Unassigned ->
     NRReader.NRReader
@@ -155,7 +155,7 @@ assign_in_adt ::
         var_arena
         QuantVarArena
         sir_child_maps
-        (StateT (NameMapStackArena, NameMaps.SIRChildMaps) (Compiler.WithDiagnostics Solve.Error.Error Void))
+        (StateT (NameContextArena, NameMaps.SIRChildMaps) (Compiler.WithDiagnostics Solve.Error.Error Void))
         (SIR.ADT Assigned)
 assign_in_adt adt_parent_name_maps adt_key (Type.ADT id name type_vars variants) = do
     let parent = adt_parent_name_maps Map.! adt_key
@@ -171,7 +171,7 @@ assign_in_adt adt_parent_name_maps adt_key (Type.ADT id name type_vars variants)
         assign_in_variant nc_stack (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id <$> mapM (\(id, (ty, ())) -> assign_in_type_expr nc_stack ty >>= \ty -> pure (id, (ty, ()))) fields
 
 assign_in_type_synonyms ::
-    Map.Map Type.TypeSynonymKey NameMaps.NameMapStackKey ->
+    Map.Map Type.TypeSynonymKey NameMaps.NameContextKey ->
     UnassignedTypeSynonymArena ->
     NRReader.NRReader
         adt_arena
@@ -179,12 +179,12 @@ assign_in_type_synonyms ::
         var_arena
         QuantVarArena
         sir_child_maps
-        (StateT (NameMapStackArena, NameMaps.SIRChildMaps) (Compiler.WithDiagnostics Solve.Error.Error Void))
+        (StateT (NameContextArena, NameMaps.SIRChildMaps) (Compiler.WithDiagnostics Solve.Error.Error Void))
         AssignedTypeSynonymArena
 assign_in_type_synonyms type_synonym_parent_name_maps = Arena.transform_with_keyM (assign_in_type_synonym type_synonym_parent_name_maps)
 
 assign_in_type_synonym ::
-    Map.Map Type.TypeSynonymKey NameMaps.NameMapStackKey ->
+    Map.Map Type.TypeSynonymKey NameMaps.NameContextKey ->
     Type.TypeSynonymKey ->
     SIR.TypeSynonym Unassigned ->
     NRReader.NRReader
@@ -193,7 +193,7 @@ assign_in_type_synonym ::
         var_arena
         QuantVarArena
         sir_child_maps
-        (StateT (NameMapStackArena, NameMaps.SIRChildMaps) (Compiler.WithDiagnostics Solve.Error.Error Void))
+        (StateT (NameContextArena, NameMaps.SIRChildMaps) (Compiler.WithDiagnostics Solve.Error.Error Void))
         (SIR.TypeSynonym Assigned)
 assign_in_type_synonym parent_maps synonym_key (Type.TypeSynonym id name (expansion, ())) = do
     let parent = parent_maps Map.! synonym_key
@@ -201,7 +201,7 @@ assign_in_type_synonym parent_maps synonym_key (Type.TypeSynonym id name (expans
     pure (Type.TypeSynonym id name (expansion, ()))
 
 assign_in_binding ::
-    NameMaps.NameMapStackKey ->
+    NameMaps.NameContextKey ->
     SIR.Binding Unassigned ->
     NRReader.NRReader
         UnassignedADTArena
@@ -209,12 +209,12 @@ assign_in_binding ::
         UnassignedVariableArena
         QuantVarArena
         sir_child_maps
-        (StateT (NameMapStackArena, NameMaps.SIRChildMaps) (Compiler.WithDiagnostics Solve.Error.Error Void))
+        (StateT (NameContextArena, NameMaps.SIRChildMaps) (Compiler.WithDiagnostics Solve.Error.Error Void))
         (SIR.Binding Assigned)
 assign_in_binding nc_stack (SIR.Binding target eq_sp expr) = SIR.Binding <$> assign_in_pat nc_stack target <*> pure eq_sp <*> assign_in_expr nc_stack expr
 
 assign_in_type_expr ::
-    NameMaps.NameMapStackKey ->
+    NameMaps.NameContextKey ->
     SIR.TypeExpr Unassigned ->
     NRReader.NRReader
         adt_arena
@@ -222,7 +222,7 @@ assign_in_type_expr ::
         var_arena
         QuantVarArena
         sir_child_maps
-        (StateT (NameMapStackArena, NameMaps.SIRChildMaps) (Compiler.WithDiagnostics Solve.Error.Error Void))
+        (StateT (NameContextArena, NameMaps.SIRChildMaps) (Compiler.WithDiagnostics Solve.Error.Error Void))
         (SIR.TypeExpr Assigned)
 assign_in_type_expr nc_stack (SIR.TypeExpr'Refer evaled (Const ()) sp () id) = pure $ SIR.TypeExpr'Refer evaled (Const ()) sp nc_stack id
 assign_in_type_expr nc_stack (SIR.TypeExpr'Get evaled (Const ()) sp parent name) = SIR.TypeExpr'Get evaled (Const ()) sp <$> assign_in_type_expr nc_stack parent <*> pure name
@@ -241,7 +241,7 @@ assign_in_type_expr _ (SIR.TypeExpr'Wild assigned sp) = pure $ SIR.TypeExpr'Wild
 assign_in_type_expr _ (SIR.TypeExpr'Poison assigned sp) = pure $ SIR.TypeExpr'Poison assigned sp
 
 assign_in_expr ::
-    NameMaps.NameMapStackKey ->
+    NameMaps.NameContextKey ->
     SIR.Expr Unassigned ->
     ( NRReader.NRReader
         UnassignedADTArena
@@ -249,7 +249,7 @@ assign_in_expr ::
         UnassignedVariableArena
         QuantVarArena
         sir_child_maps
-        (StateT (NameMapStackArena, NameMaps.SIRChildMaps) (Compiler.WithDiagnostics Solve.Error.Error Void))
+        (StateT (NameContextArena, NameMaps.SIRChildMaps) (Compiler.WithDiagnostics Solve.Error.Error Void))
     )
         (SIR.Expr Assigned)
 assign_in_expr nc_stack (SIR.Expr'Refer id type_info sp iden) = SIR.Expr'Refer id type_info sp <$> assign_split_iden nc_stack iden
@@ -327,7 +327,7 @@ assign_in_expr _ (SIR.Expr'Hole id type_info sp hid) = pure $ SIR.Expr'Hole id t
 assign_in_expr _ (SIR.Expr'Poison id type_info sp) = pure $ SIR.Expr'Poison id type_info sp
 
 assign_in_pat ::
-    NameMaps.NameMapStackKey ->
+    NameMaps.NameContextKey ->
     SIR.Pattern Unassigned ->
     NRReader.NRReader
         adt_arena
@@ -335,7 +335,7 @@ assign_in_pat ::
         var_arena
         QuantVarArena
         sir_child_maps
-        (StateT (NameMapStackArena, NameMaps.SIRChildMaps) (Compiler.WithDiagnostics Error Void))
+        (StateT (NameContextArena, NameMaps.SIRChildMaps) (Compiler.WithDiagnostics Error Void))
         (SIR.Pattern Assigned)
 assign_in_pat _ (SIR.Pattern'Variable type_info sp bnk) = pure $ SIR.Pattern'Variable type_info sp bnk
 assign_in_pat _ (SIR.Pattern'Wildcard type_info sp) = pure $ SIR.Pattern'Wildcard type_info sp
@@ -355,7 +355,7 @@ assign_in_pat _ (SIR.Pattern'Poison type_info sp) = pure $ SIR.Pattern'Poison ty
 
 -- assigning identifiers {{{1
 assign_split_iden ::
-    NameMaps.NameMapStackKey ->
+    NameMaps.NameContextKey ->
     SIR.SplitIdentifier resolved Unassigned ->
     NRReader.NRReader
         adt_arena
@@ -363,7 +363,7 @@ assign_split_iden ::
         var_arena
         QuantVarArena
         sir_child_maps
-        (StateT (NameMapStackArena, NameMaps.SIRChildMaps) (Compiler.WithDiagnostics Solve.Error.Error Void))
+        (StateT (NameContextArena, NameMaps.SIRChildMaps) (Compiler.WithDiagnostics Solve.Error.Error Void))
         (SIR.SplitIdentifier resolved Assigned)
 assign_split_iden name_map_stack (SIR.SplitIdentifier'Get texpr next (Const ())) = SIR.SplitIdentifier'Get <$> assign_in_type_expr name_map_stack texpr <*> pure next <*> pure (Const ())
 assign_split_iden name_map_stack (SIR.SplitIdentifier'Single () i (Const ())) = pure $ SIR.SplitIdentifier'Single name_map_stack i (Const ())

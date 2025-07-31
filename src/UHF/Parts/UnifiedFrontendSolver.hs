@@ -13,11 +13,8 @@ import qualified UHF.Data.SIR as SIR
 import UHF.Parts.UnifiedFrontendSolver.Error (Error)
 import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Prepare as InfixGroup.Prepare
 import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Task as InfixGroup.Task
-import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Error as NameResolve.Error
-import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Finalize as Finalize
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Finalize as NameResolve.Finalize
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Prepare as NameResolve.Prepare
-import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Prepare as Prepare
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Task as NameResolve.Task
 import UHF.Parts.UnifiedFrontendSolver.ProgressMade (ProgressMade (..))
 import qualified UHF.Parts.UnifiedFrontendSolver.Solving as Solving
@@ -38,7 +35,7 @@ import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Solve as NameResolv
 
 type PreSolve = ((), Const () (), (), (), (), (), ())
 type PostSolve =
-    (NameResolve.NameMaps.NameMapStackKey, IdenResolvedKey (), Type.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, Maybe Type.Type, InfixGroupedKey)
+    (NameResolve.NameMaps.NameContextKey, IdenResolvedKey (), Type.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, Maybe Type.Type, InfixGroupedKey)
 
 solve ::
     SIR.SIR PreSolve ->
@@ -92,7 +89,7 @@ solve' ::
         , TypeWithInferVar.InferVarArena
         )
         ( ReaderT
-            (Arena.Arena NameResolve.NameMaps.NameMapStack NameResolve.NameMaps.NameMapStackKey, NameResolve.NameMaps.SIRChildMaps, SIR.SIR Solving.SolvingStage)
+            (Arena.Arena NameResolve.NameMaps.NameContext NameResolve.NameMaps.NameContextKey, NameResolve.NameMaps.SIRChildMaps, SIR.SIR Solving.SolvingStage)
             (Compiler.WithDiagnostics Error Void)
         )
         ()
@@ -128,31 +125,11 @@ solve'
                             & mapM
                                 ( \task ->
                                     solve task >>= \case
-                                        Unsuccessful -> pure ([False], [task], [])
-                                        Successful new_tasks -> pure ([True], [], new_tasks)
+                                        NoProgressMade -> pure ([False], [task], [])
+                                        ProgressMade new_tasks -> pure ([True], [], new_tasks)
                                 )
                         )
                         <&> mconcat
 
                 let next_tasks = if not $ null new_tasks {- TODO: sortOn priority -} then retained_tasks ++ new_tasks else retained_tasks
                 pure (next_tasks, or changed)
-
--- TODO: remove this
--- -- this does both type inference and type checking
--- solve :: TypeSolver.SolverState -> [TypeSolver.Constraint] -> UntypedSIR -> Compiler.WithDiagnostics Error Void TypedSIR
--- solve nr_solver_state backlog (SIR.SIR mods adts type_synonyms quant_vars variables (SIR.CU root_module main_function)) = -- TODO: do not destructure ir?
---     TypeSolver.run_solve_monad_with
---         (
---             let get_type_synonym ts_key = pure $ Arena.get type_synonyms ts_key
---             in
---             mapM_ (\ constraint -> do
---             ) constraints >>
---             TypeSolver.solve_constraint_backlog adts type_synonyms get_type_synonym quant_vars backlog >>= \ (backlog_errors, new_backlog) -> -- TODO: not sure what to do with new_backlog
---             mapM (lift . Compiler.tell_error . SolveError) backlog_errors >>
---             pure (mods, adts, type_synonyms, variables)
---         )
---         nr_solver_state >>= \ ((mods, adts, type_synonyms, variables), TypeSolver.SolverState infer_vars) ->
---
---     RemoveInferVars.remove infer_vars mods adts type_synonyms variables >>= \ (mods, adts, type_synonyms, variables) ->
---
---     pure (SIR.SIR mods adts type_synonyms quant_vars variables (SIR.CU root_module main_function))

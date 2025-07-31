@@ -20,7 +20,7 @@ import UHF.Data.IR.Type (Type)
 import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Error (Error(..))
 
 type WithInferVars =
-    ( NameMaps.NameMapStackKey
+    ( NameMaps.NameContextKey
     , IdenResolvedKey ()
     , TypeWithInferVar.Type
     , TypeExprEvaledKey
@@ -29,7 +29,7 @@ type WithInferVars =
     , InfixGroupedKey
     )
 type WithoutInferVars =
-    ( NameMaps.NameMapStackKey
+    ( NameMaps.NameContextKey
     , IdenResolvedKey ()
     , Type.Type
     , TypeExprEvaledKey

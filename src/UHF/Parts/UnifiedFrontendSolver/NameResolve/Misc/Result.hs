@@ -27,7 +27,6 @@ type IdenResolvedArena res = Arena.Arena (SolveResult (Maybe Error.Error) Compil
 convert_decl_iden_resolved_key :: IdenResolvedKey (SIR.DeclRef TypeWithInferVar.Type) -> IdenResolvedKey (SIR.DeclRef Type.Type)
 convert_decl_iden_resolved_key (IdenResolvedKey k) = IdenResolvedKey k
 
--- TODO: split these into separate phases
 newtype TypeExprEvaledKey = TypeExprEvaledKey Arena.KeyData deriving (Show, Eq, Ord)
 instance Arena.Key TypeExprEvaledKey where
     make_key = TypeExprEvaledKey

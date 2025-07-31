@@ -4,54 +4,50 @@ module UHF.Parts.UnifiedFrontendSolver.TypeSolve.Solve (solve) where
 
 import UHF.Prelude
 
-import Data.Map (Map)
-import qualified Data.Map as Map
 import UHF.Data.IR.TypeWithInferVar
-import qualified UHF.Compiler as Compiler
-import qualified UHF.Data.SIR as SIR
-import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Task (InfixGroupTask (..))
 import UHF.Parts.UnifiedFrontendSolver.ProgressMade (ProgressMade (..))
 import UHF.Parts.UnifiedFrontendSolver.SolveResult (SolveResult (..))
 import UHF.Parts.UnifiedFrontendSolver.Solving (SolveMonad, ask_sir, get_type_expr_evaled_as_type, get_value_iden_resolved)
+import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Error (ErrorTypeContext (..), Error (..))
+import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Misc.SubstituteQuantVar (substitute_quant_var)
 import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Task (TypeSolveTask (..), Constraint (..), ExpectInWhat (..))
+import UHF.Source.Located (Located(unlocate, Located, just_span))
 import UHF.Source.Span (Span)
+import qualified Data.Map as Map
+import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.SIR as SIR
-import qualified UHF.Util.Arena as Arena
-import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Error (ErrorTypeContext (..), Error (..))
 import qualified UHF.Parts.UnifiedFrontendSolver.Error as UnifiedError (Error(TSError))
-import UHF.Source.Located (Located(unlocate, Located, just_span))
-import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Misc.SubstituteQuantVar (substitute_quant_var)
+import qualified UHF.Util.Arena as Arena
 
 solve :: TypeSolveTask -> SolveMonad (ProgressMade TypeSolveTask)
 solve (ConstraintWhenTypeExprEvaledAsType tyeatk make_constraint) = do
     tyeat <- get_type_expr_evaled_as_type tyeatk
     case tyeat of
-        Solved tyeat -> pure $ Successful [Constraint $ make_constraint tyeat]
-        Inconclusive _ -> pure Unsuccessful
-        Errored _ -> pure $ Successful []
--- TODO: rename Successful to ProgressMade and Unsuccessful to NoProgressMade
+        Solved tyeat -> pure $ ProgressMade [Constraint $ make_constraint tyeat]
+        Inconclusive _ -> pure NoProgressMade
+        Errored _ -> pure $ ProgressMade []
 
 solve (Constraint constraint) = do
     solve_constraint constraint >>= \case
         Just (Left e) -> do
             _ <- lift $ lift $ Compiler.tell_error (UnifiedError.TSError e)
-            pure $ Successful []
-        Just (Right ()) -> pure $ Successful []
-        Nothing -> pure Unsuccessful
+            pure $ ProgressMade []
+        Just (Right ()) -> pure $ ProgressMade []
+        Nothing -> pure NoProgressMade
 solve (DefinedToBeTypeOfValueRef ifvk vik) = do
     vi <- get_value_iden_resolved vik
     case vi of
-        Solved vi -> pure $ Successful [Constraint $ Expect todo (todo ifvk) (todo vi)]
-        Inconclusive _ -> pure Unsuccessful
-        Errored _ -> pure $ Successful []
+        Solved vi -> pure $ ProgressMade [Constraint $ Expect todo (todo ifvk) (todo vi)]
+        Inconclusive _ -> pure NoProgressMade
+        Errored _ -> pure $ ProgressMade []
 
 solve (DefinedToBeTypeOfTypeExpr ifvk tyek) = do
     tye <- get_type_expr_evaled_as_type tyek
     case tye of
-        Solved tye -> pure $ Successful [Constraint $ Expect todo (todo ifvk) (todo tye)]
-        Inconclusive _ -> pure Unsuccessful
-        Errored _ -> pure $ Successful []
+        Solved tye -> pure $ ProgressMade [Constraint $ Expect todo (todo ifvk) (todo tye)]
+        Inconclusive _ -> pure NoProgressMade
+        Errored _ -> pure $ ProgressMade []
 
 get_error_type_context :: SolveMonad ErrorTypeContext
 get_error_type_context = do

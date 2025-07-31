@@ -26,7 +26,7 @@ import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupedKey, InfixGroupedArena)
 
 type SolvingStage =
-    ( NameMaps.NameMapStackKey
+    ( NameMaps.NameContextKey
     , IdenResolvedKey ()
     , TypeWithInferVar.Type
     , TypeExprEvaledKey
@@ -48,11 +48,11 @@ type SolveMonad =
         )
         -- TODO: eventually this should also be in the StateT because macro expansion can add to NameMaps and ChildMaps and identifier patterns need to be able to resolve as adt variant patterns with no fields
         ( ReaderT
-            (Arena.Arena NameMaps.NameMapStack NameMaps.NameMapStackKey, NameMaps.SIRChildMaps, SIR.SIR SolvingStage)
+            (Arena.Arena NameMaps.NameContext NameMaps.NameContextKey, NameMaps.SIRChildMaps, SIR.SIR SolvingStage)
             (Compiler.WithDiagnostics Error Void)
         )
 
-ask_name_maps_arena :: SolveMonad (Arena.Arena NameMaps.NameMapStack NameMaps.NameMapStackKey)
+ask_name_maps_arena :: SolveMonad (Arena.Arena NameMaps.NameContext NameMaps.NameContextKey)
 ask_name_maps_arena = (\(name_maps_arena, _, _) -> name_maps_arena) <$> ask
 ask_sir_child_maps :: SolveMonad NameMaps.SIRChildMaps
 ask_sir_child_maps = (\(_, sir_child_maps, _) -> sir_child_maps) <$> ask

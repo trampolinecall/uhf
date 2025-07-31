@@ -73,7 +73,6 @@ library
       UHF.Parts.UnifiedFrontendSolver.InfixGroup.Prepare
       UHF.Parts.UnifiedFrontendSolver.InfixGroup.Solve
       UHF.Parts.UnifiedFrontendSolver.InfixGroup.Task
-      UHF.Parts.UnifiedFrontendSolver.InfixGroup.Types
       UHF.Parts.UnifiedFrontendSolver.NameResolve.Error
       UHF.Parts.UnifiedFrontendSolver.NameResolve.Finalize
       UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.DeclAt
@@ -85,7 +84,6 @@ library
       UHF.Parts.UnifiedFrontendSolver.NameResolve.Prepare
       UHF.Parts.UnifiedFrontendSolver.NameResolve.Solve
       UHF.Parts.UnifiedFrontendSolver.NameResolve.Task
-      UHF.Parts.UnifiedFrontendSolver.NameResolve.Types
       UHF.Parts.UnifiedFrontendSolver.ProgressMade
       UHF.Parts.UnifiedFrontendSolver.SolveResult
       UHF.Parts.UnifiedFrontendSolver.Solving
@@ -95,7 +93,6 @@ library
       UHF.Parts.UnifiedFrontendSolver.TypeSolve.Prepare
       UHF.Parts.UnifiedFrontendSolver.TypeSolve.Solve
       UHF.Parts.UnifiedFrontendSolver.TypeSolve.Task
-      UHF.Parts.UnifiedFrontendSolver.TypeSolve.Types
       UHF.PP
       UHF.PP.IndentationMonad
       UHF.PP.Precedence

@@ -14,7 +14,6 @@ import qualified UHF.Diagnostic as Diagnostic
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.DeclAt (DeclAt (..))
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.EvaledAsType (NotAType)
 import UHF.Source.Located (Located (Located))
-import UHF.Source.Span (Span)
 
 -- TODO: remove this type synonym
 type WithErrors = Compiler.WithDiagnostics Error Void

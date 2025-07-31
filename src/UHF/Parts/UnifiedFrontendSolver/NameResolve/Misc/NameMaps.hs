@@ -1,6 +1,6 @@
 module UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps
-    ( NameMapStackKey
-    , NameMapStack (..)
+    ( NameContextKey
+    , NameContext (..)
     , NameMaps
     , ChildMaps
     , DeclAt (..)
@@ -68,7 +68,6 @@ data Maps
 --     }
 -- A, B, and C are all in scope inside of X so that variants and declarations inside X can use them, so they are part of the NameMap that represents
 -- the names in scope inside of X, but A, B, and C are not part of the child maps of X, so you can't refer to X::A.
--- this is also why there is a NameMapStack but not a ChildMapStack.
 -- TODO: rename NameMaps to NameMap and ChildMaps to ChildMap?
 newtype ChildMaps = ChildMaps Maps deriving Show
 newtype NameMaps = NameMaps Maps deriving Show
@@ -122,12 +121,12 @@ add_tuple_to_child_maps (ds, vs, as) (ChildMaps m) = ChildMaps <$> add_to_maps d
 add_tuple_to_name_maps :: ([DeclChild], [ValueChild], [ADTVariantChild]) -> NameMaps -> WithErrors NameMaps
 add_tuple_to_name_maps (ds, vs, as) (NameMaps m) = NameMaps <$> add_to_maps ds vs as m
 
--- NameMapStack {{{1
-data NameMapStack = NameMapStack NameMaps (Maybe NameMapStackKey)
-newtype NameMapStackKey = NameMapStackKey Arena.KeyData deriving (Show, Eq, Ord)
-instance Arena.Key NameMapStackKey where
-    make_key = NameMapStackKey
-    unmake_key (NameMapStackKey i) = i
+-- NameContext {{{1
+data NameContext = NameContext NameMaps (Maybe NameContextKey)
+newtype NameContextKey = NameContextKey Arena.KeyData deriving (Show, Eq, Ord)
+instance Arena.Key NameContextKey where
+    make_key = NameContextKey
+    unmake_key (NameContextKey i) = i
 
 -- SIRChildMaps {{{1
 newtype SIRChildMaps = SIRChildMaps (Arena.Arena ChildMaps SIR.ModuleKey)
@@ -148,25 +147,24 @@ add_tuple_to_module_child_maps (ds, vs, as) mod_key (SIRChildMaps module_child_m
 
 -- getting from name maps and child maps {{{1
 look_up_decl ::
-    Arena.Arena NameMapStack NameMapStackKey -> NameMapStackKey -> Located Text -> SolveResult Error Error (SIR.DeclRef TypeWithInferVar.Type)
+    Arena.Arena NameContext NameContextKey -> NameContextKey -> Located Text -> SolveResult Error Error (SIR.DeclRef TypeWithInferVar.Type)
 look_up_decl = look_up (\(NameMaps (Maps d _ _)) -> d)
-look_up_value :: Arena.Arena NameMapStack NameMapStackKey -> NameMapStackKey -> Located Text -> SolveResult Error Error SIR.ValueRef
+look_up_value :: Arena.Arena NameContext NameContextKey -> NameContextKey -> Located Text -> SolveResult Error Error SIR.ValueRef
 look_up_value = look_up (\(NameMaps (Maps _ val _)) -> val)
-look_up_variant :: Arena.Arena NameMapStack NameMapStackKey -> NameMapStackKey -> Located Text -> SolveResult Error Error Type.ADT.VariantIndex
+look_up_variant :: Arena.Arena NameContext NameContextKey -> NameContextKey -> Located Text -> SolveResult Error Error Type.ADT.VariantIndex
 look_up_variant = look_up (\(NameMaps (Maps _ _ var)) -> var)
 
--- TODO: make this able to return inconclusive results (because macros)
 look_up ::
     (NameMaps -> Map Text (DeclAt, result)) ->
-    Arena.Arena NameMapStack NameMapStackKey ->
-    NameMapStackKey ->
+    Arena.Arena NameContext NameContextKey ->
+    NameContextKey ->
     Located Text ->
     SolveResult Error Error result
 look_up which_map arena name_map_stack iden =
     go name_map_stack
     where
         go current_name_map_stack_key =
-            let NameMapStack current_name_maps parent = Arena.get arena current_name_map_stack_key
+            let NameContext current_name_maps parent = Arena.get arena current_name_map_stack_key
             in case Map.lookup (unlocate iden) (which_map current_name_maps) of
                 Just (_, decl) -> Solved decl
                 Nothing ->
@@ -234,18 +232,17 @@ decls_to_children bindings adts type_synonyms = do
             adts
                 & map
                     ( \adt ->
-                        todo -- TODO
-                        -- let (Type.ADT _ (Located adt_name_sp adt_name) _ _) = Arena.get adt_arena adt
-                        --     (variant_constructors, variant_patterns) =
-                        --         Type.ADT.variant_idxs adt_arena adt
-                        --             & map
-                        --                 ( \variant_index ->
-                        --                     case Type.ADT.get_variant adt_arena variant_index of
-                        --                         Type.ADT.Variant'Anon (Located variant_name_sp variant_name) _ _ -> ((variant_name, DeclAt variant_name_sp, SIR.ValueRef'ADTVariantConstructor variant_index), (variant_name, DeclAt variant_name_sp, variant_index))
-                        --                         Type.ADT.Variant'Named _ _ _ -> todo
-                        --                 )
-                        --             & unzip
-                        -- in ([(adt_name, DeclAt adt_name_sp, SIR.DeclRef'Type $ TypeWithInferVar.Type'ADT adt [])], variant_constructors, variant_patterns) -- TODO: make this deal with named variants too; also TODO: move variants to inside their types
+                        let (Type.ADT _ (Located adt_name_sp adt_name) _ _) = Arena.get adt_arena adt
+                            (variant_constructors, variant_patterns) =
+                                Type.ADT.variant_idxs adt_arena adt
+                                    & map
+                                        ( \variant_index ->
+                                            case Type.ADT.get_variant adt_arena variant_index of
+                                                Type.ADT.Variant'Anon (Located variant_name_sp variant_name) _ _ -> ((variant_name, DeclAt variant_name_sp, SIR.ValueRef'ADTVariantConstructor variant_index), (variant_name, DeclAt variant_name_sp, variant_index))
+                                                Type.ADT.Variant'Named _ _ _ -> todo
+                                        )
+                                    & unzip
+                        in ([(adt_name, DeclAt adt_name_sp, SIR.DeclRef'Type $ TypeWithInferVar.Type'ADT adt [])], variant_constructors, variant_patterns) -- TODO: make this deal with named variants too; also TODO: move variants to inside their types
                     )
                 & unzip3
 
@@ -254,10 +251,9 @@ decls_to_children bindings adts type_synonyms = do
             type_synonyms
                 & map
                     ( \synonym ->
-                        todo -- TODO
-                        -- let (Type.TypeSynonym _ (Located name_sp name) _) = Arena.get type_synonym_arena synonym
-                        --     synonym_decl_key = SIR.DeclRef'Type $ TypeWithInferVar.Type'Synonym synonym
-                        -- in ([(name, DeclAt name_sp, synonym_decl_key)], [], [])
+                        let (Type.TypeSynonym _ (Located name_sp name) _) = Arena.get type_synonym_arena synonym
+                            synonym_decl_key = SIR.DeclRef'Type $ TypeWithInferVar.Type'Synonym synonym
+                        in ([(name, DeclAt name_sp, synonym_decl_key)], [], [])
                     )
                 & unzip3
 

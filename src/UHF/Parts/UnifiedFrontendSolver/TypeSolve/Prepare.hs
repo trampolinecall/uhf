@@ -2,32 +2,25 @@ module UHF.Parts.UnifiedFrontendSolver.TypeSolve.Prepare (add_types) where
 
 import UHF.Prelude
 
-import Control.Monad ((>=>))
-import Data.Functor.Const (Const (Const))
-import qualified UHF.Compiler as Compiler
-import qualified UHF.Data.IR.Intrinsics as Intrinsics
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameMaps
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (IdenResolvedKey, TypeExprEvaledAsTypeKey, TypeExprEvaledKey)
-import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Error
--- import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver as TypeSolver
 import UHF.Source.Located (Located (..))
-import UHF.Source.Span (Span)
 import qualified UHF.Util.Arena as Arena
 import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Task (TypeSolveTask (..), Constraint (..), ExpectInWhat (..), EqInWhat (..))
 import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupedKey)
 import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import UHF.Data.IR.TypeWithInferVar (InferVarArena)
 
-type Unadded = (NameMaps.NameMapStackKey, IdenResolvedKey (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, (), InfixGroupedKey)
+type Unadded = (NameMaps.NameContextKey, IdenResolvedKey (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, (), InfixGroupedKey)
 type Added =
-    (NameMaps.NameMapStackKey, IdenResolvedKey (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, TypeWithInferVar.Type, InfixGroupedKey)
+    (NameMaps.NameContextKey, IdenResolvedKey (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, TypeWithInferVar.Type, InfixGroupedKey)
 
 -- TODO: remove these
 type TypedWithInferVarsDIden = Maybe (SIR.DeclRef TypeWithInferVar.Type)
-type TypedWithInferVars = (NameMaps.NameMapStackKey, Maybe (), SIR.DeclRef TypeWithInferVar.Type, TypeWithInferVar.Type, TypeWithInferVar.Type, Void)
+type TypedWithInferVars = (NameMaps.NameContextKey, Maybe (), SIR.DeclRef TypeWithInferVar.Type, TypeWithInferVar.Type, TypeWithInferVar.Type, Void)
 type TypedWithInferVarsSIR = SIR.SIR TypedWithInferVars
 type TypedWithInferVarsModule = SIR.Module TypedWithInferVars
 type TypedWithInferVarsADT = SIR.ADT TypedWithInferVars
@@ -44,7 +37,7 @@ type TypedWithInferVarsModuleArena = Arena.Arena TypedWithInferVarsModule SIR.Mo
 type QuantVarArena = Arena.Arena Type.QuantVar Type.QuantVarKey
 
 type AddMonad adts type_synonyms quant_vars vars =
-    ReaderT (adts, type_synonyms, quant_vars, vars) (WriterT [TypeSolveTask] (StateT InferVarArena (Compiler.WithDiagnostics Error Void)))
+    ReaderT (adts, type_synonyms, quant_vars, vars) (WriterT [TypeSolveTask] (State InferVarArena))
 
 -- TODO: maybe it is a bad idea to have this type synonym here?
 type AddedVariableArena = (Arena.Arena (SIR.Variable Added) SIR.VariableKey)
@@ -68,15 +61,13 @@ get_var_type var = do
 --             pure $ TypeWithInferVar.Type'InferVar result_ifv
 --         TypeSolver.Inconclusive ty constraint -> tell [constraint] >> pure ty
 
--- TODO: find a better place to put this
 new_infer_var :: TypeWithInferVar.InferVarForWhat -> AddMonad adts type_synonyms quant_vars vars TypeWithInferVar.InferVarKey
 new_infer_var for_what = state $ \ vars -> let (k, vars') = Arena.put (TypeWithInferVar.InferVar for_what TypeWithInferVar.Fresh) vars in (k, vars')
 
 add_types :: SIR.SIR Unadded -> (SIR.SIR Added, InferVarArena, [TypeSolveTask])
 add_types (SIR.SIR modules adts type_synonyms type_vars variables (SIR.CU root_module main_function)) =
     let ((sir, tasks), arenas) =
-            todo $
-                runStateT -- TODO: should this be able to return errors?
+                runState
                 ( runWriterT
                     ( do
                         type_synonyms <- runReaderT (Arena.transformM add_in_type_synonym type_synonyms) ((), (), (), ())
@@ -109,7 +100,6 @@ add_in_module (SIR.Module id name_context_key bindings adts type_synonyms) = SIR
 add_in_adt :: SIR.ADT Unadded -> AddMonad adts type_synonyms quant_avrs vars (SIR.ADT Added)
 add_in_adt (Type.ADT id name quant_vars variants) = Type.ADT id name quant_vars <$> mapM add_in_variant variants
     where
-        -- TODO: deduplicate these?
         add_in_variant (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id <$> mapM (\ (id, name, (field, as_type)) -> (id, name,) <$> ((,as_type) <$> do_field field)) fields
         add_in_variant (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id <$> mapM (\ (id, (field, as_type)) -> (id,) <$> ((,as_type) <$> do_field field)) fields
 

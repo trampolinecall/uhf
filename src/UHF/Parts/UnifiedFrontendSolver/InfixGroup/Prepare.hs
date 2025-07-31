@@ -13,10 +13,9 @@ import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (IdenResolvedKey,
 import UHF.Parts.UnifiedFrontendSolver.SolveResult
 import qualified UHF.Util.Arena as Arena
 
-type Unprepared = (NameMaps.NameMapStackKey, IdenResolvedKey (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, (), ())
-type Prepared = (NameMaps.NameMapStackKey, IdenResolvedKey (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, (), InfixGroupedKey)
+type Unprepared = (NameMaps.NameContextKey, IdenResolvedKey (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, (), ())
+type Prepared = (NameMaps.NameContextKey, IdenResolvedKey (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, (), InfixGroupedKey)
 
--- TODO: make someday this will turn into a RWST?
 type PrepareState = WriterT [InfixGroupTask] (State InfixGroupedArena)
 
 new_infix_grouped_key :: (InfixGroupedKey -> InfixGroupTask) -> PrepareState InfixGroupedKey

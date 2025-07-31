@@ -39,7 +39,6 @@ import UHF.Prelude
 import qualified Data.Map as Map
 
 import qualified GHC.Enum as Enum (enumFromTo, maxBound, minBound)
-import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Intrinsics as Intrinsics
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
@@ -86,7 +85,7 @@ type DeclChild = Child (SIR.DeclRef TypeWithInferVar.Type)
 type ValueChild = Child SIR.ValueRef
 type ADTVariantChild = Child Type.ADT.VariantIndex
 
-add_to_maps :: [DeclChild] -> [ValueChild] -> [ADTVariantChild] -> Maps -> WithErrors Maps
+add_to_maps :: [DeclChild] -> [ValueChild] -> [ADTVariantChild] -> Maps -> Writer [Error] Maps
 add_to_maps decls values adt_variants maps = do
     maps <- foldlM add_decl maps decls
     maps <- foldlM add_value maps values
@@ -103,23 +102,23 @@ add_to_maps decls values adt_variants maps = do
             adt_variants <- add adt_variants adt_variant
             pure $ Maps decls values adt_variants
 
-        add :: Map Text (DeclAt, thing) -> Child thing -> WithErrors (Map Text (DeclAt, thing))
+        add :: Map Text (DeclAt, thing) -> Child thing -> Writer [Error] (Map Text (DeclAt, thing))
         add map (name, decl_at, resolved) =
             case Map.lookup name map of
                 Just (prev_decl_at, _) -> do
-                    _ <- Compiler.tell_error $ Error'DuplicateDecl name prev_decl_at decl_at
+                    _ <- tell [Error'DuplicateDecl name prev_decl_at decl_at]
                     pure map
                 Nothing -> pure $ Map.insert name (decl_at, resolved) map
 
-add_to_child_maps :: [DeclChild] -> [ValueChild] -> [ADTVariantChild] -> ChildMaps -> WithErrors ChildMaps
-add_to_child_maps ds vs as (ChildMaps m) = ChildMaps <$> add_to_maps ds vs as m
-add_to_name_maps :: [DeclChild] -> [ValueChild] -> [ADTVariantChild] -> NameMaps -> WithErrors NameMaps
-add_to_name_maps ds vs as (NameMaps m) = NameMaps <$> add_to_maps ds vs as m
+add_to_child_maps :: [DeclChild] -> [ValueChild] -> [ADTVariantChild] -> ChildMaps -> (ChildMaps, [Error])
+add_to_child_maps ds vs as (ChildMaps m) = runWriter $ ChildMaps <$> add_to_maps ds vs as m
+add_to_name_maps :: [DeclChild] -> [ValueChild] -> [ADTVariantChild] -> NameMaps -> (NameMaps, [Error])
+add_to_name_maps ds vs as (NameMaps m) = runWriter $ NameMaps <$> add_to_maps ds vs as m
 
-add_tuple_to_child_maps :: ([DeclChild], [ValueChild], [ADTVariantChild]) -> ChildMaps -> WithErrors ChildMaps
-add_tuple_to_child_maps (ds, vs, as) (ChildMaps m) = ChildMaps <$> add_to_maps ds vs as m
-add_tuple_to_name_maps :: ([DeclChild], [ValueChild], [ADTVariantChild]) -> NameMaps -> WithErrors NameMaps
-add_tuple_to_name_maps (ds, vs, as) (NameMaps m) = NameMaps <$> add_to_maps ds vs as m
+add_tuple_to_child_maps :: ([DeclChild], [ValueChild], [ADTVariantChild]) -> ChildMaps -> (ChildMaps, [Error])
+add_tuple_to_child_maps (ds, vs, as) (ChildMaps m) = runWriter $ ChildMaps <$> add_to_maps ds vs as m
+add_tuple_to_name_maps :: ([DeclChild], [ValueChild], [ADTVariantChild]) -> NameMaps -> (NameMaps, [Error])
+add_tuple_to_name_maps (ds, vs, as) (NameMaps m) = runWriter $ NameMaps <$> add_to_maps ds vs as m
 
 -- NameContext {{{1
 data NameContext = NameContext NameMaps (Maybe NameContextKey)
@@ -139,11 +138,11 @@ empty_sir_child_maps (SIR.SIR mod_arena _ _ _ _ _) = SIRChildMaps $ Arena.transf
 get_module_child_maps :: SIRChildMaps -> SIR.ModuleKey -> ChildMaps
 get_module_child_maps (SIRChildMaps module_child_maps) = Arena.get module_child_maps
 
-add_to_module_child_maps :: [DeclChild] -> [ValueChild] -> [ADTVariantChild] -> SIR.ModuleKey -> SIRChildMaps -> WithErrors SIRChildMaps
-add_to_module_child_maps ds vs as mod_key (SIRChildMaps module_child_maps) = SIRChildMaps <$> Arena.modifyM module_child_maps mod_key (add_to_child_maps ds vs as)
+add_to_module_child_maps :: [DeclChild] -> [ValueChild] -> [ADTVariantChild] -> SIR.ModuleKey -> SIRChildMaps -> (SIRChildMaps, [Error])
+add_to_module_child_maps ds vs as mod_key (SIRChildMaps module_child_maps) = runWriter $ SIRChildMaps <$> Arena.modifyM module_child_maps mod_key (writer . add_to_child_maps ds vs as) -- TODO: this ad hoc writer runWriter is really weird and should probably be refactored to something else (incidentally, it will probably just compile out and be fine)
 
-add_tuple_to_module_child_maps :: ([DeclChild], [ValueChild], [ADTVariantChild]) -> SIR.ModuleKey -> SIRChildMaps -> WithErrors SIRChildMaps
-add_tuple_to_module_child_maps (ds, vs, as) mod_key (SIRChildMaps module_child_maps) = SIRChildMaps <$> Arena.modifyM module_child_maps mod_key (add_to_child_maps ds vs as)
+add_tuple_to_module_child_maps :: ([DeclChild], [ValueChild], [ADTVariantChild]) -> SIR.ModuleKey -> SIRChildMaps -> (SIRChildMaps, [Error])
+add_tuple_to_module_child_maps (ds, vs, as) mod_key (SIRChildMaps module_child_maps) = runWriter $ SIRChildMaps <$> Arena.modifyM module_child_maps mod_key (writer . add_to_child_maps ds vs as)
 
 -- getting from name maps and child maps {{{1
 look_up_decl ::

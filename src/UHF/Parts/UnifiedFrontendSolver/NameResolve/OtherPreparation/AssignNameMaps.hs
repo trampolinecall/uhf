@@ -12,12 +12,12 @@ import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
-import UHF.Parts.UnifiedFrontendSolver.Error (Error)
 import qualified UHF.Parts.UnifiedFrontendSolver.Error as Solve.Error
 import qualified UHF.Util.Arena as Arena
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NRReader as NRReader
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameMaps
 import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
+import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Error as NameResolve.Error
 
 -- TODO: figure out a better solution than to have adt_parents and type_synonym_parents
 
@@ -58,6 +58,12 @@ modify_sir_child_maps :: Monad m => (NameMaps.SIRChildMaps -> m NameMaps.SIRChil
 modify_sir_child_maps modification = StateT $ \(arena, sir_child_maps) -> do
     modified <- modification sir_child_maps
     pure ((), (arena, modified))
+
+-- TODO: this is a very ad hoc solution and should probably be refactored somehow
+convert_add_to_name_maps :: (thing -> (thing, [NameResolve.Error.Error])) -> thing -> Compiler.WithDiagnostics Solve.Error.Error Void thing
+convert_add_to_name_maps fn thing =
+    let (res, errs) = fn thing
+    in Compiler.tell_errors (map Solve.Error.NRError errs) >> pure res
 
 -- assign entry point {{{1
 assign :: SIR.SIR Unassigned -> Compiler.WithDiagnostics Solve.Error.Error Void (SIR.SIR Assigned, NameContextArena, NameMaps.SIRChildMaps)
@@ -108,11 +114,11 @@ assign_in_module ::
 assign_in_module module_key (SIR.Module id () bindings adts type_synonyms) = do
     module_name_map <- lift $ lift $ lift new_name_map_stack_end
 
-    lift $ lift $ lift $ todo $ modify_name_map module_name_map $ NameMaps.add_to_name_maps primitive_decls primitive_vals [] -- TODO: convert from nr error to unified solver error
-    lift $ lift $ lift $ todo $ modify_sir_child_maps $ NameMaps.add_to_module_child_maps primitive_decls primitive_vals [] module_key
+    lift $ lift $ lift $ modify_name_map module_name_map $ convert_add_to_name_maps $ NameMaps.add_to_name_maps primitive_decls primitive_vals [] -- TODO: convert from nr error to unified solver error
+    lift $ lift $ lift $ modify_sir_child_maps $ convert_add_to_name_maps $ NameMaps.add_to_module_child_maps primitive_decls primitive_vals [] module_key
     children <- lift $ lift $ NameMaps.decls_to_children bindings adts type_synonyms
-    lift $ lift $ lift $ todo $ modify_name_map module_name_map $ NameMaps.add_tuple_to_name_maps children
-    lift $ lift $ lift $ todo $ modify_sir_child_maps $ NameMaps.add_tuple_to_module_child_maps children module_key
+    lift $ lift $ lift $ modify_name_map module_name_map $ convert_add_to_name_maps $ NameMaps.add_tuple_to_name_maps children
+    lift $ lift $ lift $ modify_sir_child_maps $ convert_add_to_name_maps $ NameMaps.add_tuple_to_module_child_maps children module_key
 
     mapM_ (\adt -> tell $ Map.singleton adt module_name_map) adts
     mapM_ (\synonym -> lift $ tell $ Map.singleton synonym module_name_map) type_synonyms
@@ -162,7 +168,7 @@ assign_in_adt adt_parent_name_maps adt_key (Type.ADT id name type_vars variants)
     new_name_map_stack <- lift $ new_name_map_stack_with_parent parent
 
     children <- NameMaps.quant_vars_to_children type_vars
-    lift $ todo $ modify_name_map new_name_map_stack $ NameMaps.add_to_name_maps children [] []
+    lift $ modify_name_map new_name_map_stack $ convert_add_to_name_maps $ NameMaps.add_to_name_maps children [] []
     -- TODO: also populate child map (when child maps for adts are implemented)
 
     Type.ADT id name type_vars <$> mapM (assign_in_variant new_name_map_stack) variants
@@ -233,7 +239,7 @@ assign_in_type_expr nc_stack (SIR.TypeExpr'Forall evaled sp () vars ty) = do
     new_name_map_stack <- lift $ new_name_map_stack_with_parent nc_stack
 
     children <- NameMaps.quant_vars_to_children $ toList vars
-    lift $ todo $ modify_name_map new_name_map_stack $ NameMaps.add_to_name_maps children [] []
+    lift $ modify_name_map new_name_map_stack $ convert_add_to_name_maps $ NameMaps.add_to_name_maps children [] []
 
     SIR.TypeExpr'Forall evaled sp new_name_map_stack vars <$> assign_in_type_expr new_name_map_stack ty
 assign_in_type_expr nc_stack (SIR.TypeExpr'Apply assigned sp ty args) = SIR.TypeExpr'Apply assigned sp <$> assign_in_type_expr nc_stack ty <*> assign_in_type_expr nc_stack args
@@ -263,14 +269,14 @@ assign_in_expr nc_stack (SIR.Expr'Lambda id type_info sp param body) = do
     body_name_map_stack <- lift $ new_name_map_stack_with_parent nc_stack
 
     children <- NameMaps.pattern_to_children param
-    lift $ todo $ modify_name_map body_name_map_stack $ NameMaps.add_to_name_maps [] children []
+    lift $ modify_name_map body_name_map_stack $ convert_add_to_name_maps $ NameMaps.add_to_name_maps [] children []
 
     SIR.Expr'Lambda id type_info sp <$> assign_in_pat nc_stack param <*> assign_in_expr body_name_map_stack body
 assign_in_expr nc_stack (SIR.Expr'Let id type_info sp () bindings adts type_synonyms body) = do
     new_name_map_stack <- lift $ new_name_map_stack_with_parent nc_stack
 
     children <- NameMaps.decls_to_children bindings adts type_synonyms
-    lift $ todo $ modify_name_map new_name_map_stack $ NameMaps.add_tuple_to_name_maps children
+    lift $ modify_name_map new_name_map_stack $ convert_add_to_name_maps $ NameMaps.add_tuple_to_name_maps children
 
     SIR.Expr'Let id type_info sp new_name_map_stack
         <$> mapM (assign_in_binding nc_stack) bindings
@@ -281,7 +287,7 @@ assign_in_expr nc_stack (SIR.Expr'LetRec id type_info sp () bindings adts type_s
     new_name_map_stack <- lift $ new_name_map_stack_with_parent nc_stack
 
     children <- NameMaps.decls_to_children bindings adts type_synonyms
-    lift $ todo $ modify_name_map new_name_map_stack $ NameMaps.add_tuple_to_name_maps children
+    lift $ modify_name_map new_name_map_stack $ convert_add_to_name_maps $ NameMaps.add_tuple_to_name_maps children
 
     SIR.Expr'LetRec id type_info sp new_name_map_stack
         <$> mapM (assign_in_binding new_name_map_stack) bindings
@@ -307,7 +313,7 @@ assign_in_expr nc_stack (SIR.Expr'Match id type_info sp match_tok_sp e arms) =
             ( \((), pat, expr) -> do
                 arm_ncs <- lift $ new_name_map_stack_with_parent nc_stack
                 children <- NameMaps.pattern_to_children pat
-                lift $ todo $ modify_name_map arm_ncs $ NameMaps.add_to_name_maps [] children []
+                lift $ modify_name_map arm_ncs $ convert_add_to_name_maps $ NameMaps.add_to_name_maps [] children []
 
                 pat' <- assign_in_pat nc_stack pat
                 expr' <- assign_in_expr arm_ncs expr
@@ -319,7 +325,7 @@ assign_in_expr nc_stack (SIR.Expr'Forall id type_info sp () vars e) = do
     new_ncs <- lift $ new_name_map_stack_with_parent nc_stack
 
     children <- NameMaps.quant_vars_to_children $ toList vars
-    lift $ todo $ modify_name_map new_ncs $ NameMaps.add_to_name_maps children [] []
+    lift $ modify_name_map new_ncs $ convert_add_to_name_maps $ NameMaps.add_to_name_maps children [] []
 
     SIR.Expr'Forall id type_info sp new_ncs vars <$> assign_in_expr new_ncs e
 assign_in_expr nc_stack (SIR.Expr'TypeApply id type_info sp e (arg, arg_ty)) = SIR.Expr'TypeApply id type_info sp <$> assign_in_expr nc_stack e <*> ((,arg_ty) <$> assign_in_type_expr nc_stack arg)
@@ -335,7 +341,7 @@ assign_in_pat ::
         var_arena
         QuantVarArena
         sir_child_maps
-        (StateT (NameContextArena, NameMaps.SIRChildMaps) (Compiler.WithDiagnostics Error Void))
+        (StateT (NameContextArena, NameMaps.SIRChildMaps) (Compiler.WithDiagnostics Solve.Error.Error Void))
         (SIR.Pattern Assigned)
 assign_in_pat _ (SIR.Pattern'Variable type_info sp bnk) = pure $ SIR.Pattern'Variable type_info sp bnk
 assign_in_pat _ (SIR.Pattern'Wildcard type_info sp) = pure $ SIR.Pattern'Wildcard type_info sp

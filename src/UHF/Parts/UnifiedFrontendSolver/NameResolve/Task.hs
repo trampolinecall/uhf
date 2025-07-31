@@ -16,7 +16,6 @@ import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps (NameContextKey
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (IdenResolvedKey, TypeExprEvaledAsTypeKey, TypeExprEvaledKey)
 import UHF.Source.Located (Located)
 import UHF.Source.Span (Span)
-import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Task (TypeSolveTask)
 
 data IdenResolveTask result
     = ResolveRoot NameContextKey (Located Text) (IdenResolvedKey result)

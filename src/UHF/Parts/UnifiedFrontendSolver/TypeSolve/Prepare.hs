@@ -13,7 +13,6 @@ import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Task (TypeSolveTask (..), Const
 import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupedKey)
 import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import UHF.Data.IR.TypeWithInferVar (InferVarArena)
-import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Misc.SubstituteQuantVar (substitute_quant_var)
 
 type Unadded = (NameMaps.NameContextKey, IdenResolvedKey (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, (), InfixGroupedKey)
 type Added =

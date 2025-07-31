@@ -8,7 +8,7 @@ module UHF.Data.SIR
     , Stage.Stage (..)
     , CU (..)
     , ADT (..)
-    -- , ADTVariant (..) TODO: sir-type
+    , ADTVariant (..)
     , TypeSynonym (..)
     , DeclRef (..)
     , ExternPackage (..)
@@ -55,7 +55,7 @@ type AllShowable stage =
     , Stage.IdenResolvedKeyHasInstance (Stage.TypeExprEvaledAsTypeKey stage) Show stage
     , Stage.IdenResolvedKeyHasInstance (DeclRef (Stage.TypeInRefer stage)) Show stage
     , Stage.IdenResolvedKeyHasInstance ValueRef Show stage
-    , Stage.IdenResolvedKeyHasInstance Type.ADT.VariantIndex Show stage
+    , Stage.IdenResolvedKeyHasInstance SIR.ADT.VariantIndex Show stage
     )
 
 -- "syntax based ir"
@@ -73,9 +73,15 @@ deriving instance AllShowable stage => Show (SIR stage)
 -- TODO: when support for compiling libraries that should not need a main function, a field should be added that identifies whether or not the compilation unit is a library or an executable or this should be split into 2 constructors for libraries or executables
 data CU stage = CU {cu_root_module :: ModuleKey, cu_main_function :: Maybe VariableKey} deriving Show
 
--- TODO: make these into their own datatypes and do not share representation with types
-type ADT stage = Type.ADT (TypeExpr stage, Stage.TypeExprEvaledAsTypeKey stage)
-type TypeSynonym stage = Type.TypeSynonym (TypeExpr stage, Stage.TypeExprEvaledAsTypeKey stage)
+data ADT stage = ADT ID.DeclID (Located Text) [QuantVarKey] [ADTVariant stage]
+deriving instance AllShowable stage => Show (ADT stage)
+data ADTVariant stage
+    = ADTVariant'Named (Located Text) ID.ADTVariantID [(ID.ADTFieldID, Text, TypeExpr stage, Stage.TypeExprEvaledAsTypeKey stage)]
+    | ADTVariant'Anon (Located Text) ID.ADTVariantID [(ID.ADTFieldID, TypeExpr stage, Stage.TypeExprEvaledAsTypeKey stage)]
+deriving instance AllShowable stage => Show (ADTVariant stage)
+
+data TypeSynonym stage = TypeSynonym ID.DeclID (Located Text) (TypeExpr stage) (Stage.TypeExprEvaledAsTypeKey stage)
+deriving instance AllShowable stage => Show (TypeSynonym stage)
 
 data ExternPackage
     = ExternPackage'IntrinsicsPackage
@@ -100,13 +106,6 @@ data DeclRef ty
     | DeclRef'Type ty
     | DeclRef'ExternPackage ExternPackage -- TODO: change this to ExternModule? because referring to an external package would just refer to its root module
     deriving Show
-
--- TODO: data ADT stage = ADT ID.DeclID (Located Text) [QuantVarKey] [ADTVariant stage]
--- TODO: data ADTVariant stage
--- TODO:     = ADTVariant'Named (Located Text) ID.ADTVariantID [(ID.ADTFieldID, Text, TypeExpr stage)]
--- TODO:     | ADTVariant'Anon (Located Text) ID.ADTVariantID [(ID.ADTFieldID, TypeExpr stage)]
--- TODO:
--- TODO: data TypeSynonym stage = TypeSynonym ID.DeclID (Located Text) (TypeExpr stage)
 
 data TypeExpr stage
     = TypeExpr'Refer

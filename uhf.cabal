@@ -33,6 +33,8 @@ library
       UHF.Data.RIR
       UHF.Data.RIR.PP
       UHF.Data.SIR
+      UHF.Data.SIR.ADT
+      UHF.Data.SIR.ADT.Utils
       UHF.Data.SIR.PP
       UHF.Data.SIR.Stage
       UHF.Data.Token

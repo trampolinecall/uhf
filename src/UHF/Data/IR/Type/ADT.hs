@@ -34,6 +34,7 @@ data Variant ty
 data VariantIndex = VariantIndex DoNotConstruct ADTKey Int deriving (Show, Eq, Ord)
 data FieldIndex = FieldIndex DoNotConstruct VariantIndex Int deriving (Show, Eq, Ord)
 
+-- TODO: these are not needed anymore because they are only converted from SIR.ADT.VariantIndex and SIR.ADT.FieldIndex?
 variant_idxs :: Arena.Arena (ADT ty) ADTKey -> ADTKey -> [VariantIndex]
 variant_idxs arena key =
     let (ADT _ _ _ variants) = Arena.get arena key

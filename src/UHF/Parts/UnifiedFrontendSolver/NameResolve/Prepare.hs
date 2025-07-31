@@ -20,6 +20,7 @@ import UHF.Parts.UnifiedFrontendSolver.NameResolve.Task (IdenResolveTask (..), T
 import UHF.Parts.UnifiedFrontendSolver.SolveResult
 import UHF.Source.Located (Located (Located))
 import qualified UHF.Util.Arena as Arena
+import qualified UHF.Data.SIR.ADT as SIR.ADT
 
 type Unprepared = (NameMaps.NameContextKey, Const () (), TypeWithInferVar.Type, (), (), (), ())
 type Prepared = (NameMaps.NameContextKey, IdenResolvedKey (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, (), ())
@@ -29,14 +30,14 @@ type PrepareState =
     WriterT
         ( [IdenResolveTask (SIR.DeclRef TypeWithInferVar.Type)]
         , [IdenResolveTask SIR.ValueRef]
-        , [IdenResolveTask Type.ADT.VariantIndex]
+        , [IdenResolveTask SIR.ADT.VariantIndex]
         , [TypeExprEvalTask]
         , [TypeExprEvalAsTypeTask]
         )
         ( State
             ( IdenResolvedArena (SIR.DeclRef TypeWithInferVar.Type)
             , IdenResolvedArena SIR.ValueRef
-            , IdenResolvedArena Type.ADT.VariantIndex
+            , IdenResolvedArena SIR.ADT.VariantIndex
             , TypeExprEvaledArena
             , TypeExprEvaledAsTypeArena
             )
@@ -57,7 +58,7 @@ new_val_iden_resolved_key make_task = do
     pure key
 
 new_variant_iden_resolved_key ::
-    (IdenResolvedKey Type.ADT.VariantIndex -> IdenResolveTask Type.ADT.VariantIndex) -> PrepareState (IdenResolvedKey Type.ADT.VariantIndex)
+    (IdenResolvedKey SIR.ADT.VariantIndex -> IdenResolveTask SIR.ADT.VariantIndex) -> PrepareState (IdenResolvedKey SIR.ADT.VariantIndex)
 new_variant_iden_resolved_key make_task = do
     key <- state $ \(decls, vals, variants, tees, teeats) -> let (key, variants') = Arena.put (Inconclusive Nothing) variants in (key, (decls, vals, variants', tees, teeats))
     writer ((), ([], [], [make_task key], [], []))
@@ -80,13 +81,13 @@ prepare ::
     ( SIR.SIR Prepared
     , ( IdenResolvedArena (SIR.DeclRef TypeWithInferVar.Type)
       , IdenResolvedArena SIR.ValueRef
-      , IdenResolvedArena Type.ADT.VariantIndex
+      , IdenResolvedArena SIR.ADT.VariantIndex
       , TypeExprEvaledArena
       , TypeExprEvaledAsTypeArena
       )
     , ( [IdenResolveTask (SIR.DeclRef TypeWithInferVar.Type)]
       , [IdenResolveTask SIR.ValueRef]
-      , [IdenResolveTask Type.ADT.VariantIndex]
+      , [IdenResolveTask SIR.ADT.VariantIndex]
       , [TypeExprEvalTask]
       , [TypeExprEvalAsTypeTask]
       )
@@ -109,28 +110,28 @@ prepare (SIR.SIR mods adts type_synonyms type_vars variables (SIR.CU root_module
 prepare_mod :: SIR.Module Unprepared -> PrepareState (SIR.Module Prepared)
 prepare_mod (SIR.Module id name_map bindings adts type_synonyms) = SIR.Module id name_map <$> mapM prepare_binding bindings <*> pure adts <*> pure type_synonyms
 prepare_adt :: SIR.ADT Unprepared -> PrepareState (SIR.ADT Prepared)
-prepare_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM prepare_variant variants
+prepare_adt (SIR.ADT id name type_vars variants) = SIR.ADT id name type_vars <$> mapM prepare_variant variants
     where
-        prepare_variant (Type.ADT.Variant'Named name id fields) =
-            Type.ADT.Variant'Named name id
+        prepare_variant (SIR.ADTVariant'Named name id fields) =
+            SIR.ADTVariant'Named name id
                 <$> mapM
-                    ( \(id, name, (ty, ())) ->
+                    ( \(id, name, ty, ()) ->
                         prepare_type_expr ty >>= \ty ->
-                            new_type_expr_evaled_as_type_key (EvalAsType $ Located (SIR.type_expr_span ty) (SIR.type_expr_evaled ty)) >>= \as_type -> pure (id, name, (ty, as_type))
+                            new_type_expr_evaled_as_type_key (EvalAsType $ Located (SIR.type_expr_span ty) (SIR.type_expr_evaled ty)) >>= \as_type -> pure (id, name, ty, as_type)
                     )
                     fields
-        prepare_variant (Type.ADT.Variant'Anon name id fields) =
-            Type.ADT.Variant'Anon name id
+        prepare_variant (SIR.ADTVariant'Anon name id fields) =
+            SIR.ADTVariant'Anon name id
                 <$> mapM
-                    ( \(id, (ty, ())) ->
-                        prepare_type_expr ty >>= \ty -> new_type_expr_evaled_as_type_key (EvalAsType $ Located (SIR.type_expr_span ty) (SIR.type_expr_evaled ty)) >>= \as_type -> pure (id, (ty, as_type))
+                    ( \(id, ty, ()) ->
+                        prepare_type_expr ty >>= \ty -> new_type_expr_evaled_as_type_key (EvalAsType $ Located (SIR.type_expr_span ty) (SIR.type_expr_evaled ty)) >>= \as_type -> pure (id, ty, as_type)
                     )
                     fields
 prepare_type_synonym :: SIR.TypeSynonym Unprepared -> PrepareState (SIR.TypeSynonym Prepared)
-prepare_type_synonym (Type.TypeSynonym id name (expansion, ())) = do
+prepare_type_synonym (SIR.TypeSynonym id name expansion ()) = do
     expansion <- prepare_type_expr expansion
     as_type <- new_type_expr_evaled_as_type_key (EvalAsType $ Located (SIR.type_expr_span expansion) (SIR.type_expr_evaled expansion))
-    pure $ Type.TypeSynonym id name (expansion, as_type)
+    pure $ SIR.TypeSynonym id name expansion as_type
 prepare_variable :: SIR.Variable Unprepared -> PrepareState (SIR.Variable Prepared)
 prepare_variable (SIR.Variable varid tyinfo n) = pure $ SIR.Variable varid tyinfo n
 prepare_binding :: SIR.Binding Unprepared -> PrepareState (SIR.Binding Prepared)

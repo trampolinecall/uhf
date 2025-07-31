@@ -172,7 +172,7 @@ prepare_type_expr (SIR.TypeExpr'Apply () sp ty args) = do
     args <- prepare_type_expr args
     evaled_key <-
         new_type_expr_evaled_key $
-            MakeApply (Located (SIR.type_expr_span ty) (SIR.type_expr_evaled ty)) (Located (SIR.type_expr_span args) (SIR.type_expr_evaled args))
+            MakeApply sp (Located (SIR.type_expr_span ty) (SIR.type_expr_evaled ty)) (Located (SIR.type_expr_span args) (SIR.type_expr_evaled args))
     pure $ SIR.TypeExpr'Apply evaled_key sp ty args
 prepare_type_expr (SIR.TypeExpr'Wild () sp) = do
     evaled_key <- new_type_expr_evaled_key $ MakeInferVar sp

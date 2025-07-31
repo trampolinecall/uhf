@@ -1,40 +1,37 @@
-{-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-
 module UHF.Parts.UnifiedFrontendSolver (solve) where
 
 import UHF.Prelude
 
 import Data.Functor.Const (Const)
+import Data.List (sortOn)
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
+import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Data.SIR as SIR
 import UHF.Parts.UnifiedFrontendSolver.Error (Error)
+import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Finalize as InfixGroup.Finalize
+import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupResult, InfixGroupedKey)
+import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result as InfixGroup.Result
 import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Prepare as InfixGroup.Prepare
+import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Solve as InfixGroup.Solve
 import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Task as InfixGroup.Task
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Finalize as NameResolve.Finalize
+import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameResolve.NameMaps
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (IdenResolvedKey, TypeExprEvaledAsTypeKey, TypeExprEvaledKey)
+import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result as NameResolve.Result
+import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.OtherPreparation.AssignNameMaps as NameResolve.OtherPreparation.AssignNameMaps
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Prepare as NameResolve.Prepare
+import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Solve as NameResolve.Solve
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Task as NameResolve.Task
 import UHF.Parts.UnifiedFrontendSolver.ProgressMade (ProgressMade (..))
 import qualified UHF.Parts.UnifiedFrontendSolver.Solving as Solving
-import qualified UHF.Util.Arena as Arena
-import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameResolve.NameMaps
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (IdenResolvedKey, TypeExprEvaledKey, TypeExprEvaledAsTypeKey)
-import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupedKey, InfixGroupResult)
-import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
-import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result as InfixGroup.Result
-import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolve.Task as SolveTypes.Task
-import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result as NameResolve.Result
-import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolve.Prepare as TypeSolve.Prepare
-import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.OtherPreparation.AssignNameMaps as NameResolve.OtherPreparation.AssignNameMaps
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolve.Finalize as TypeSolve.Finalize
+import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolve.Prepare as TypeSolve.Prepare
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolve.Solve as TypeSolve.Solve
-import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Solve as InfixGroup.Solve
-import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Solve as NameResolve.Solve
-import Data.List (sortOn)
+import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolve.Task as SolveTypes.Task
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolve.Task as TypeSolve.Task
-import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Finalize as InfixGroup.Finalize
+import qualified UHF.Util.Arena as Arena
 
 type PreSolve = ((), Const () (), (), (), (), (), ())
 type PostSolve =
@@ -61,22 +58,28 @@ solve sir = do
     let (sir'', infix_group_results, infix_group_tasks) = InfixGroup.Prepare.prepare sir'
     let (sir''', infer_vars, type_solving_tasks) = TypeSolve.Prepare.add_types sir''
 
-    ((), (name_resolution_results, infix_group_results, infer_vars))  <-
-             runReaderT
-                (runStateT (solve' (name_resolution_tasks, infix_group_tasks, type_solving_tasks)) (name_resolution_results, infix_group_results, infer_vars))
-                (name_map_stack_arena, sir_child_maps, sir''')
+    ((), (name_resolution_results, infix_group_results, infer_vars)) <-
+        runReaderT
+            (runStateT (solve' ((\ (a, b, c, d, e) -> (a, b, c, map Right d, e)) name_resolution_tasks, infix_group_tasks, type_solving_tasks)) (name_resolution_results, infix_group_results, infer_vars))
+            (name_map_stack_arena, sir_child_maps, sir''')
 
-    (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena) <- NameResolve.Finalize.finalize name_resolution_results
+    (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena) <-
+        NameResolve.Finalize.finalize name_resolution_results
     infix_group_results <- InfixGroup.Finalize.finalize infix_group_results
-    (sir'''', decl_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena) <- TypeSolve.Finalize.remove_infer_vars infer_vars decl_iden_resolved_arena type_expr_evaled_arena type_expr_evaled_as_type_arena sir'''
+    (sir'''', decl_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena) <-
+        TypeSolve.Finalize.remove_infer_vars infer_vars decl_iden_resolved_arena type_expr_evaled_arena type_expr_evaled_as_type_arena sir'''
 
-    pure (sir'''', (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena), infix_group_results)
+    pure
+        ( sir''''
+        , (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
+        , infix_group_results
+        )
 
 solve' ::
     ( ( [NameResolve.Task.IdenResolveTask (SIR.DeclRef TypeWithInferVar.Type)]
       , [NameResolve.Task.IdenResolveTask SIR.ValueRef]
       , [NameResolve.Task.IdenResolveTask Type.ADT.VariantIndex]
-      , [NameResolve.Task.TypeExprEvalTask]
+      , [Either TypeSolve.Task.TypeSolveTask NameResolve.Task.TypeExprEvalTask]
       , [NameResolve.Task.TypeExprEvalAsTypeTask]
       )
     , [InfixGroup.Task.InfixGroupTask]
@@ -105,8 +108,13 @@ solve'
         (decl_resolve_tasks, changed1) <- go NameResolve.Task.iden_resolve_task_priority NameResolve.Solve.resolve_decl_iden decl_resolve_tasks
         (value_resolve_tasks, changed2) <- go NameResolve.Task.iden_resolve_task_priority NameResolve.Solve.resolve_value_iden value_resolve_tasks
         (variant_resolve_tasks, changed3) <- go NameResolve.Task.iden_resolve_task_priority NameResolve.Solve.resolve_variant_iden variant_resolve_tasks
-        (type_expr_eval_tasks, changed4) <- go NameResolve.Task.type_expr_eval_task_priority NameResolve.Solve.eval_type_expr type_expr_eval_tasks
-        (type_expr_eval_as_type_tasks, changed5) <- go NameResolve.Task.type_expr_eval_as_type_priority NameResolve.Solve.eval_type_expr_as_type type_expr_eval_as_type_tasks
+        (type_expr_eval_tasks, changed4) <-
+            go
+                (either TypeSolve.Task.priority NameResolve.Task.type_expr_eval_task_priority)
+                (either (fmap (fmap Left) . TypeSolve.Solve.solve) NameResolve.Solve.eval_type_expr)
+                type_expr_eval_tasks -- TODO: this is a really hacky solution
+        (type_expr_eval_as_type_tasks, changed5) <-
+            go NameResolve.Task.type_expr_eval_as_type_priority NameResolve.Solve.eval_type_expr_as_type type_expr_eval_as_type_tasks
 
         (infix_group_tasks, changed6) <- go InfixGroup.Task.priority InfixGroup.Solve.group infix_group_tasks
 

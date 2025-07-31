@@ -8,8 +8,8 @@ import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (IdenResolvedKey,
 import UHF.Source.Located (Located)
 import UHF.Source.Span (Span)
 
-data EqInWhat = InAssignment | InNamedPattern | InIfBranches | InMatchPatterns | InMatchArms
-data ExpectInWhat = InTypeAnnotation | InCallExpr | InIfCondition | InTypeApplication | InADTVariantPatternField | InADTFieldType | InMainFunction | InVariable
+data EqInWhat = InAssignment | InNamedPattern | InIfBranches | InMatchPatterns | InMatchArms deriving Show
+data ExpectInWhat = InTypeAnnotation | InCallExpr | InIfCondition | InTypeApplication | InADTVariantPatternField | InADTFieldType | InMainFunction | InVariable deriving Show
 
 data TypeSolveTask
     = WhenTypeExprEvaledAsType TypeExprEvaledAsTypeKey (Type -> TypeSolveTask)
@@ -24,6 +24,7 @@ data Constraint
     | Expect ExpectInWhat (Located Type) Type
     | DefinedToBe ExpectInWhat Span InferVarKey Type -- TODO: make this should have its own InWhat?
     | InferVarIsApplyResult Span InferVarKey Type Type
+    deriving Show
 
 priority :: TypeSolveTask -> Int
 priority (WhenTypeExprEvaledAsType _ _) = 0

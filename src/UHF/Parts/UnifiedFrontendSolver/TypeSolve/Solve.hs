@@ -106,7 +106,7 @@ data UnifyError
 
 type VarSubGenerator = StateT VarSub
 type VarSubMap = Map.Map Type.QuantVarKey VarSub
-newtype VarSub = VarSub Int deriving Eq
+newtype VarSub = VarSub Int deriving (Show, Eq)
 generate_var_sub :: Applicative m => VarSubGenerator m VarSub
 generate_var_sub = StateT $ \ cur_var@(VarSub cur_num) -> pure (cur_var, VarSub $ cur_num + 1)
 run_var_sub_generator :: Monad m => VarSubGenerator m r -> m r
@@ -205,8 +205,7 @@ unify (Type'InferVar a, a_var_map) b = unify_infer_var (a, a_var_map) b False
 unify a (Type'InferVar b, b_var_map) = unify_infer_var (b, b_var_map) a True
 
 unify (Type'ADT a_adt_key a_params, a_var_map) (Type'ADT b_adt_key b_params, b_var_map)
-    | a_adt_key == b_adt_key
-        && length a_params == length b_params =
+    | a_adt_key == b_adt_key && length a_params == length b_params =
         mapM_
             (\ (a_param, b_param) -> unify (a_param, a_var_map) (b_param, b_var_map))
             (zip a_params b_params)

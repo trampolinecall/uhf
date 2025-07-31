@@ -68,9 +68,10 @@ data SIR stage
     , sir_variables :: Arena.Arena (Variable stage) VariableKey
     , sir_cu :: CU stage
     }
+deriving instance AllShowable stage => Show (SIR stage)
 
 -- TODO: when support for compiling libraries that should not need a main function, a field should be added that identifies whether or not the compilation unit is a library or an executable or this should be split into 2 constructors for libraries or executables
-data CU stage = CU {cu_root_module :: ModuleKey, cu_main_function :: Maybe VariableKey}
+data CU stage = CU {cu_root_module :: ModuleKey, cu_main_function :: Maybe VariableKey} deriving Show
 
 -- TODO: make these into their own datatypes and do not share representation with types
 type ADT stage = Type.ADT (TypeExpr stage, Stage.TypeExprEvaledAsTypeKey stage)

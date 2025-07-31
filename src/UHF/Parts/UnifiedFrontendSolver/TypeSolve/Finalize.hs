@@ -159,19 +159,15 @@ expr infer_vars (SIR.Expr'Hole id ty sp hid) = SIR.Expr'Hole id (type_ infer_var
 expr infer_vars (SIR.Expr'Poison id ty sp) = SIR.Expr'Poison id (type_ infer_vars ty) sp
 
 type_expr :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.TypeExpr WithInferVars -> SIR.TypeExpr WithoutInferVars
-type_expr infer_vars (SIR.TypeExpr'Refer evaled resolved sp name_context iden) = SIR.TypeExpr'Refer evaled (convert_decl_iden_resolved_key resolved) sp name_context iden
+type_expr _ (SIR.TypeExpr'Refer evaled resolved sp name_context iden) = SIR.TypeExpr'Refer evaled (convert_decl_iden_resolved_key resolved) sp name_context iden
 type_expr infer_vars (SIR.TypeExpr'Get evaled resolved sp parent name) = SIR.TypeExpr'Get evaled (convert_decl_iden_resolved_key resolved) sp (type_expr infer_vars parent) name
 type_expr infer_vars (SIR.TypeExpr'Tuple evaled sp a b) = SIR.TypeExpr'Tuple evaled sp (type_expr infer_vars a) (type_expr infer_vars b)
-type_expr infer_vars (SIR.TypeExpr'Hole evaled tyinfo sp hid) = SIR.TypeExpr'Hole evaled tyinfo sp hid
+type_expr _ (SIR.TypeExpr'Hole evaled tyinfo sp hid) = SIR.TypeExpr'Hole evaled tyinfo sp hid
 type_expr infer_vars (SIR.TypeExpr'Function evaled sp arg res) = SIR.TypeExpr'Function evaled sp (type_expr infer_vars arg) (type_expr infer_vars res)
 type_expr infer_vars (SIR.TypeExpr'Forall evaled sp name_map_index names sub) = SIR.TypeExpr'Forall evaled sp name_map_index names (type_expr infer_vars sub)
 type_expr infer_vars (SIR.TypeExpr'Apply evaled sp applied_to args) = SIR.TypeExpr'Apply evaled sp (type_expr infer_vars applied_to) (type_expr infer_vars args)
-type_expr infer_vars (SIR.TypeExpr'Wild evaled sp) = SIR.TypeExpr'Wild evaled sp
-type_expr infer_vars (SIR.TypeExpr'Poison evaled sp) = SIR.TypeExpr'Poison evaled sp
-
-type_expr_and_type ::
-    Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> (SIR.TypeExpr WithInferVars, TypeWithInferVar.Type) -> (SIR.TypeExpr WithoutInferVars, Maybe Type)
-type_expr_and_type infer_vars (te, t) = (type_expr infer_vars te, type_ infer_vars t)
+type_expr _ (SIR.TypeExpr'Wild evaled sp) = SIR.TypeExpr'Wild evaled sp
+type_expr _ (SIR.TypeExpr'Poison evaled sp) = SIR.TypeExpr'Poison evaled sp
 
 split_identifier ::
     Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.SplitIdentifier single WithInferVars -> SIR.SplitIdentifier single WithoutInferVars

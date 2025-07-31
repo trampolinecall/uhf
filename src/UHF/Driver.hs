@@ -12,7 +12,6 @@ import qualified System.FilePath as FilePath
 import qualified Pipes
 
 import UHF.Source.File (File)
-import UHF.Source.Located (Located)
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.ANFIR as ANFIR
 import qualified UHF.Data.ANFIR.PP as ANFIR.PP
@@ -42,7 +41,6 @@ import qualified UHF.Source.File as File
 import qualified UHF.Source.FormattedString as FormattedString
 import qualified UHF.Util.Arena as Arena
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (IdenResolvedKey, TypeExprEvaledKey, TypeExprEvaledAsTypeKey)
-import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupResult, InfixGroupedKey)
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameResolve.NameMaps
 import qualified UHF.Parts.UnifiedFrontendSolver as UnifiedFrontendSolver

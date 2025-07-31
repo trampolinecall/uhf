@@ -2,21 +2,17 @@
 
 module UHF.Parts.UnifiedFrontendSolver.NameResolve.Error
     ( Error (..)
-    , WithErrors
     ) where
 
 -- TODO: clean up this and the 3 modules too
 
 import UHF.Prelude
 
-import qualified UHF.Compiler as Compiler
 import qualified UHF.Diagnostic as Diagnostic
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.DeclAt (DeclAt (..))
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.EvaledAsType (NotAType)
 import UHF.Source.Located (Located (Located))
 
--- TODO: remove this type synonym
-type WithErrors = Compiler.WithDiagnostics Error Void
 data Error
     = Error'CouldNotFind (Located Text)
     | Error'CouldNotFindIn (Maybe (Located Text)) (Located Text)

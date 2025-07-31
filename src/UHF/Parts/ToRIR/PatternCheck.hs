@@ -22,7 +22,7 @@ import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Util.Arena as Arena
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (TypeExprEvaledKey, TypeExprEvaledAsTypeKey)
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (TypeExprEvaledAsTypeKey)
 
 data CompletenessError stage = CompletenessError (Arena.Arena (SIR.ADT stage) Type.ADTKey) Span [SIR.Pattern stage] [MatchValue]
 data NotUseful stage = NotUseful (SIR.Pattern stage)

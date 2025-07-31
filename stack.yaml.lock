@@ -12,12 +12,12 @@ packages:
   original:
     hackage: inflist-0.0.1
 - completed:
-    hackage: weeder-2.4.1@sha256:c770961b5f2d32f21eb9499954758eaf68044fc488439e2e6acf4fe1757f00d5,1959
+    hackage: weeder-2.9.0@sha256:95e5c70abe3ba56053ece773cdf9ce8abde5ec5cc9a4847c37d13119034a5b18,3707
     pantry-tree:
-      sha256: 26b9aa41d2fa2555e5699004e34fae3d39a8163310e39ef46789180bf176cc40
-      size: 439
+      sha256: 741a9889bdaa8222e8c032ea161114f43c9813ba9e19f0c0637c1876bd2efc8e
+      size: 6056
   original:
-    hackage: weeder-2.4.1
+    hackage: weeder-2.9.0
 snapshots:
 - completed:
     sha256: 238fa745b64f91184f9aa518fe04bdde6552533d169b0da5256670df83a0f1a9

@@ -7,7 +7,7 @@ import UHF.Prelude
 import UHF.Data.IR.TypeWithInferVar
 import UHF.Parts.UnifiedFrontendSolver.ProgressMade (ProgressMade (..))
 import UHF.Parts.UnifiedFrontendSolver.SolveResult (SolveResult (..))
-import UHF.Parts.UnifiedFrontendSolver.Solving (SolveMonad, ask_sir, get_type_expr_evaled_as_type, get_value_iden_resolved, get_type_expr_evaled, SolvingStage)
+import UHF.Parts.UnifiedFrontendSolver.Solving (SolveMonad, ask_sir, get_type_expr_evaled_as_type, get_value_iden_resolved, get_type_expr_evaled)
 import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Error (ErrorTypeContext (..), Error (..))
 import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Misc.SubstituteQuantVar (substitute_quant_var)
 import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Task (TypeSolveTask (..), Constraint (..), ExpectInWhat (..))
@@ -211,12 +211,12 @@ unify (Type'ADT a_adt_key a_params, a_var_map) (Type'ADT b_adt_key b_params, b_v
             (zip a_params b_params)
 
 unify (Type'Synonym a_syn_key, a_var_map) b =
-    lift (lift (todo )) >>= \ (_, _, get_type_synonym, _) -> -- TODO: ask
+    lift (lift todo) >>= \ (_, _, get_type_synonym, _) -> -- TODO: ask
     lift (lift $ lift $ get_type_synonym a_syn_key) >>= \ (Type.TypeSynonym _ _ (_, a_expansion)) ->
     unify (a_expansion, a_var_map) b
 
 unify a (Type'Synonym b_syn_key, b_var_map) = do
-    (SIR.SIR _ adts type_synonyms qvars _ _) <- lift $ lift $ ask_sir
+    (SIR.SIR _ _ type_synonyms _ _ _) <- lift $ lift ask_sir
     let (Type.TypeSynonym _ _ (_, b_expansion)) = Arena.get type_synonyms b_syn_key
     b_expansion <- lift $ lift $ todo b_expansion
 

@@ -40,7 +40,7 @@ instance Diagnostic.ToError Error where
         let span = decl_at_span decl_now
         in Diagnostic.Error
             span
-            ("duplicate declaration of " <> convert_str name <> "'")
+            ("duplicate declaration of '" <> convert_str name <> "'")
             [ (decl_at_span decl_before, Diagnostic.MsgError, Just $ message_for_decl_before name decl_before)
             , (decl_at_span decl_now, Diagnostic.MsgError, Just $ message_for_decl_now name decl_now)
             ]

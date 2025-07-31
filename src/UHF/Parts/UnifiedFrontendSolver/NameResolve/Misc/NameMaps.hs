@@ -329,7 +329,7 @@ intrinsics_package_child_maps =
             Map.empty
             ( Map.fromList $
                 map
-                    (\intrinsic -> (Intrinsics.intrinsic_bv_name intrinsic, (ImplicitPrim, SIR.ValueRef'Intrinsic intrinsic)))
+                    (\intrinsic -> (Intrinsics.intrinsic_name intrinsic, (ImplicitPrim, SIR.ValueRef'Intrinsic intrinsic)))
                     (Enum.enumFromTo Enum.minBound Enum.maxBound)
             )
             Map.empty

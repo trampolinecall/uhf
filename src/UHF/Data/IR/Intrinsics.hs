@@ -1,7 +1,7 @@
 module UHF.Data.IR.Intrinsics
     ( Intrinsic (..)
-    , intrinsic_bv_type
-    , intrinsic_bv_name
+    , intrinsic_type
+    , intrinsic_name
     , intrinsic_bv_id
     ) where
 
@@ -31,11 +31,11 @@ intrinsic_bv_info Intrinsic'IntDiv = ("int_div", Type.Type'Int `Type.Type'Functi
 intrinsic_bv_info Intrinsic'IntMod = ("int_mod", Type.Type'Int `Type.Type'Function` (Type.Type'Int `Type.Type'Function` Type.Type'Int)) -- int_mod :: int -> int -> int
 intrinsic_bv_info Intrinsic'ImpurePrint = ("impure_print", Type.Type'String `Type.Type'Function` Type.Type'Int) -- impure_print :: string -> int (always returns 0) TODO: this is really bad
 
-intrinsic_bv_type :: Intrinsic -> Type.Type
-intrinsic_bv_type i = let (_, ty) = intrinsic_bv_info i in ty
+intrinsic_type :: Intrinsic -> Type.Type
+intrinsic_type i = let (_, ty) = intrinsic_bv_info i in ty
 
-intrinsic_bv_name :: Intrinsic -> Text
-intrinsic_bv_name i = let (name, _) = intrinsic_bv_info i in name
+intrinsic_name :: Intrinsic -> Text
+intrinsic_name i = let (name, _) = intrinsic_bv_info i in name
 
 intrinsic_bv_id :: Intrinsic -> ID.IntrinsicBVID
-intrinsic_bv_id = ID.IntrinsicBVID . intrinsic_bv_name
+intrinsic_bv_id = ID.IntrinsicBVID . intrinsic_name

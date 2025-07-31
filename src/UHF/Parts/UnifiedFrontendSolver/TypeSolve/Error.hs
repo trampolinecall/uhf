@@ -14,6 +14,7 @@ import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.PP as PP
 import qualified UHF.Util.Arena as Arena
+import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.EvaledAsType as EvaledAsType
 
 data ErrorTypeContext
     = forall t. ErrorTypeContext
@@ -45,6 +46,7 @@ data Error
     | OccursCheckError (ErrorTypeContext ) Span InferVarKey Type
     | DoesNotTakeTypeArgument (ErrorTypeContext ) Span Type
     | WrongTypeArgument (ErrorTypeContext ) Span Type Type
+    | NotAType EvaledAsType.NotAType
 
 instance Diagnostic.ToError (Error ) where
     to_error (AmbiguousType for_what) =
@@ -88,6 +90,7 @@ instance Diagnostic.ToError (Error ) where
                 InADTVariantPatternField -> "ADT variant pattern field"
                 InADTFieldType -> "ADT field type"
                 InMainFunction -> "main function"
+                InVariable -> "variable"
 
             sp = just_span got_whole
 
@@ -143,6 +146,8 @@ instance Diagnostic.ToError (Error ) where
             ("type '" <> ty_printed <> "' does not accept a type argument '" <> arg_printed <> "'")
             (make_infer_var_name_messages infer_vars var_names)
             []
+
+    to_error (NotAType err) = Diagnostic.to_error err
 
 pp_type_with_error_context :: Bool -> ErrorTypeContext -> Type -> InferVarNamer PP.Token
 pp_type_with_error_context name_infer_vars (ErrorTypeContext adts type_synonyms quant_vars infer_vars) = pp_type name_infer_vars adts type_synonyms quant_vars infer_vars

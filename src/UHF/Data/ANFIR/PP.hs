@@ -80,7 +80,7 @@ quant_var k = get_quant_var k >>= \ (Type.QuantVar (Located _ name)) -> pure (PP
 
 expr :: ANFIR.Expr -> IRReader PP.Token
 expr (ANFIR.Expr'Refer _ _ bk) = refer_binding bk
-expr (ANFIR.Expr'Intrinsic _ _ i) = pure $ PP.String $ Intrinsics.intrinsic_bv_name i
+expr (ANFIR.Expr'Intrinsic _ _ i) = pure $ PP.String $ Intrinsics.intrinsic_name i
 expr (ANFIR.Expr'Int _ _ i) = pure $ PP.String $ show i
 expr (ANFIR.Expr'Float _ _ (n :% d)) = pure $ PP.String $ "(" <> show n <> "/" <> show d <> ")"
 expr (ANFIR.Expr'Bool _ _ b) = pure $ PP.String $ if b then "true" else "false"

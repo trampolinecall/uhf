@@ -72,7 +72,7 @@ refer_var k = get_var k >>= \case
 refer_bv :: SIR.ValueRef -> IRReader stage PP.Token
 refer_bv (SIR.ValueRef'Variable v) = refer_var v
 refer_bv (SIR.ValueRef'ADTVariantConstructor var) = refer_iden var
-refer_bv (SIR.ValueRef'Intrinsic i) = pure $ PP.String $ Intrinsics.intrinsic_bv_name i
+refer_bv (SIR.ValueRef'Intrinsic i) = pure $ PP.String $ Intrinsics.intrinsic_name i
 
 -- TODO: rename this to something better
 refer_decl :: DumpableType stage t => SIR.DeclRef t -> IRReader stage PP.Token

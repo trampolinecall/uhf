@@ -7,7 +7,7 @@ import UHF.Prelude
 import UHF.Data.IR.TypeWithInferVar
 import UHF.Parts.UnifiedFrontendSolver.ProgressMade (ProgressMade (..))
 import UHF.Parts.UnifiedFrontendSolver.SolveResult (SolveResult (..))
-import UHF.Parts.UnifiedFrontendSolver.Solving (SolveMonad, ask_sir, get_type_expr_evaled_as_type, get_value_iden_resolved)
+import UHF.Parts.UnifiedFrontendSolver.Solving (SolveMonad, ask_sir, get_type_expr_evaled_as_type, get_value_iden_resolved, get_type_expr_evaled, SolvingStage)
 import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Error (ErrorTypeContext (..), Error (..))
 import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Misc.SubstituteQuantVar (substitute_quant_var)
 import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Task (TypeSolveTask (..), Constraint (..), ExpectInWhat (..))
@@ -19,14 +19,66 @@ import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Parts.UnifiedFrontendSolver.Error as UnifiedError (Error(TSError))
 import qualified UHF.Util.Arena as Arena
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.EvaledAsType (evaled_as_type)
+import qualified UHF.Data.IR.Type.ADT as Type.ADT
+import qualified UHF.Data.IR.Intrinsics as Intrinsics
 
 solve :: TypeSolveTask -> SolveMonad (ProgressMade TypeSolveTask)
-solve (ConstraintWhenTypeExprEvaledAsType tyeatk make_constraint) = do
+solve (WhenTypeExprEvaledAsType tyeatk more) = do
     tyeat <- get_type_expr_evaled_as_type tyeatk
     case tyeat of
-        Solved tyeat -> pure $ ProgressMade [Constraint $ make_constraint tyeat]
+        Solved tyeat -> pure $ ProgressMade [more tyeat]
         Inconclusive _ -> pure NoProgressMade
         Errored _ -> pure $ ProgressMade []
+solve (WhenTypeExprEvaled tyeatk more) = do
+    tyeat <- get_type_expr_evaled tyeatk
+    case tyeat of
+        Solved tyeat -> pure $ ProgressMade [more tyeat]
+        Inconclusive _ -> pure NoProgressMade
+        Errored _ -> pure $ ProgressMade []
+solve (WhenValueRefResolved vik more) = do
+    vi <- get_value_iden_resolved vik
+    case vi of
+        Solved vi -> pure $ ProgressMade [more vi]
+        Inconclusive _ -> pure NoProgressMade
+        Errored _ -> pure $ ProgressMade []
+solve (EvalAsType sp dr more) = do
+    case evaled_as_type sp dr of
+        Right res -> pure $ ProgressMade [more res]
+        Left err -> do
+            _ <- lift $ lift $ Compiler.tell_error (UnifiedError.TSError $ NotAType err)
+            pure $ ProgressMade []
+solve (GetValueRefType vr more) = do
+    case vr of
+        SIR.ValueRef'Variable var -> do
+            (SIR.SIR _ _ _ _ vars _) <- ask_sir
+            let SIR.Variable _ ty _ = Arena.get vars var
+            pure $ ProgressMade [more ty]
+        SIR.ValueRef'ADTVariantConstructor variant_index@(Type.ADT.VariantIndex _ adt_key _) -> do
+            (SIR.SIR _ adts _ _ _ _) <- ask_sir
+            let (Type.ADT _ _ adt_type_params _) = Arena.get adts adt_key
+            let variant = Type.ADT.get_variant adts variant_index
+            case variant of
+                Type.ADT.Variant'Named _ _ _ -> error "bound value should not be made for a named adt variant" -- TODO: statically make sure this cant happen?
+                Type.ADT.Variant'Anon _ _ fields -> do
+                    fields_evaled <- sequence <$> mapM (get_type_expr_evaled_as_type . snd . snd) fields
+                    case fields_evaled of
+                        Solved fields_evaled -> do
+                            let change_quant_vars ty =
+                                    foldlM
+                                        (\ ty (adt_typaram, var_typaram) ->
+                                            substitute_quant_var adt_typaram (Type'QuantVar var_typaram) ty)
+                                        ty
+                                        (zip adt_type_params adt_type_params) -- TODO: duplicate the type params by changing zip adt_type_params adt_type_params to zip adt_type_params new_type_params
+                            arg_tys <- mapM change_quant_vars fields_evaled
+                            let wrap_in_forall = case adt_type_params of
+                                    [] -> identity
+                                    param:more -> Type'Forall (param :| more)
+                            let ty = wrap_in_forall $ foldr Type'Function (Type'ADT adt_key (map Type'QuantVar adt_type_params)) arg_tys -- function type that takes all the field types and then results in the adt type
+                            pure $ ProgressMade [more ty]
+                        Errored _ -> pure $ ProgressMade []
+                        Inconclusive _ -> pure NoProgressMade
+        SIR.ValueRef'Intrinsic i -> pure $ ProgressMade [more $ from_ir_type $ Intrinsics.intrinsic_type i]
 
 solve (Constraint constraint) = do
     solve_constraint constraint >>= \case
@@ -35,19 +87,6 @@ solve (Constraint constraint) = do
             pure $ ProgressMade []
         Just (Right ()) -> pure $ ProgressMade []
         Nothing -> pure NoProgressMade
-solve (DefinedToBeTypeOfValueRef ifvk vik) = do
-    vi <- get_value_iden_resolved vik
-    case vi of
-        Solved vi -> pure $ ProgressMade [Constraint $ Expect todo (todo ifvk) (todo vi)]
-        Inconclusive _ -> pure NoProgressMade
-        Errored _ -> pure $ ProgressMade []
-
-solve (DefinedToBeTypeOfTypeExpr ifvk tyek) = do
-    tye <- get_type_expr_evaled_as_type tyek
-    case tye of
-        Solved tye -> pure $ ProgressMade [Constraint $ Expect todo (todo ifvk) (todo tye)]
-        Inconclusive _ -> pure NoProgressMade
-        Errored _ -> pure $ ProgressMade []
 
 get_error_type_context :: SolveMonad ErrorTypeContext
 get_error_type_context = do
@@ -116,17 +155,17 @@ solve_constraint (InferVarIsApplyResult sp infer_var ty arg) =
         Just (Left e) -> pure $ Just $ Left e
         Nothing -> pure Nothing
 
-solve_constraint (DefinedToBe infer_var ty) =
+solve_constraint (DefinedToBe in_what sp infer_var ty) =
     run_var_sub_generator (runExceptT (unify_infer_var (infer_var, Map.empty) (ty, Map.empty) False)) >>= \case
         Right () -> pure $ Just $ Right ()
 
-        Left (Mismatch got_part expect_part) ->
+        Left (Mismatch infer_var_part expect_part) ->
             get_error_type_context >>= \ context ->
-            pure (Just $ Left $ todo {- TODO: ExpectError { expect_error_context = context, expect_error_in_what = in_what, expect_error_got_whole = got, expect_error_expect_whole = expect, expect_error_got_part = got_part, expect_error_expect_part = expect_part } -})
+            pure (Just $ Left $ ExpectError { expect_error_context = context, expect_error_in_what = in_what, expect_error_got_whole = Located sp (Type'InferVar infer_var), expect_error_expect_whole = ty, expect_error_got_part = infer_var_part, expect_error_expect_part = expect_part } )
 
         Left (OccursCheck infer_var ty) ->
             get_error_type_context >>= \ context ->
-            pure (Just $ Left $ todo {- TODO: OccursCheckError context (just_span got) infer_var ty -})
+            pure (Just $ Left $ OccursCheckError context sp infer_var ty)
 
 apply_ty :: Span -> Type -> Type -> SolveMonad (Maybe (Either Error Type))
 apply_ty sp (Type'InferVar infer_var) arg = do

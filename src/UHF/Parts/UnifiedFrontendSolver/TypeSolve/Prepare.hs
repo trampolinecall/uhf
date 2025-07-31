@@ -13,6 +13,7 @@ import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Task (TypeSolveTask (..), Const
 import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupedKey)
 import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import UHF.Data.IR.TypeWithInferVar (InferVarArena)
+import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Misc.SubstituteQuantVar (substitute_quant_var)
 
 type Unadded = (NameMaps.NameContextKey, IdenResolvedKey (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, (), InfixGroupedKey)
 type Added =
@@ -36,6 +37,7 @@ type TypedWithInferVarsVariableArena = Arena.Arena TypedWithInferVarsVariable SI
 type TypedWithInferVarsModuleArena = Arena.Arena TypedWithInferVarsModule SIR.ModuleKey
 type QuantVarArena = Arena.Arena Type.QuantVar Type.QuantVarKey
 
+-- TODO: refactor this monad (pattern assigning reads vars and adt assigning reads adts, type_synonyms, and quant_vars)
 type AddMonad adts type_synonyms quant_vars vars =
     ReaderT (adts, type_synonyms, quant_vars, vars) (WriterT [TypeSolveTask] (State InferVarArena))
 
@@ -48,19 +50,6 @@ get_var_type var = do
     let SIR.Variable _ ty _ = Arena.get vars var
     pure ty
 
--- apply_type :: TypeSolver.InferVarForWhat -> Span -> TypeWithInferVar.Type -> TypeWithInferVar.Type -> AddMonad TypedWithInferVarsADTArena TypedWithInferVarsTypeSynonymArena QuantVarArena vars TypeWithInferVar.Type
--- apply_type for_what sp ty arg = do
---     (adts, type_synonyms, quant_vars, _) <- ask
---     get_type_synonym <- get_type_synonym
---     apply_result <- lift $ lift $ TypeSolver.apply_type adts type_synonyms get_type_synonym quant_vars for_what sp ty arg
---     case apply_result of
---         TypeSolver.AppliedResult res -> pure res
---         TypeSolver.AppliedError e -> do
---             _ <- lift $ lift $ lift $ Compiler.tell_error (SolveError e)
---             result_ifv <- new_infer_var for_what
---             pure $ TypeWithInferVar.Type'InferVar result_ifv
---         TypeSolver.Inconclusive ty constraint -> tell [constraint] >> pure ty
-
 new_infer_var :: TypeWithInferVar.InferVarForWhat -> AddMonad adts type_synonyms quant_vars vars TypeWithInferVar.InferVarKey
 new_infer_var for_what = state $ \ vars -> let (k, vars') = Arena.put (TypeWithInferVar.InferVar for_what TypeWithInferVar.Fresh) vars in (k, vars')
 
@@ -72,8 +61,8 @@ add_types (SIR.SIR modules adts type_synonyms type_vars variables (SIR.CU root_m
                     ( do
                         type_synonyms <- runReaderT (Arena.transformM add_in_type_synonym type_synonyms) ((), (), (), ())
                         variables <- runReaderT (Arena.transformM add_in_variable variables) ((), (), (), ())
-                        adts <- runReaderT (Arena.transformM add_in_adt adts) ((), (), (), ())
-                        modules <- runReaderT (Arena.transformM add_in_module modules) (todo)
+                        adts <- runReaderT (Arena.transformM add_in_adt adts) (adts, type_synonyms, type_vars, ())
+                        modules <- runReaderT (Arena.transformM add_in_module modules) ((), (), (), variables)
 
                         case main_function of
                             Just main_function -> runReaderT (add_main_function_constraint main_function) ((), (), (), variables)
@@ -85,7 +74,7 @@ add_types (SIR.SIR modules adts type_synonyms type_vars variables (SIR.CU root_m
                 Arena.new
     in (sir, arenas, tasks)
 
-add_main_function_constraint :: SIR.VariableKey -> AddMonad adts type_synonyms quant_vars (Arena.Arena (SIR.Variable Added) SIR.VariableKey) ()
+add_main_function_constraint :: SIR.VariableKey -> AddMonad adts type_synonyms quant_vars AddedVariableArena ()
 add_main_function_constraint main_function = do
     (_, _, _, vars) <- ask
     let SIR.Variable _ ty (Located var_sp _) = Arena.get vars main_function
@@ -94,10 +83,11 @@ add_main_function_constraint main_function = do
 add_in_variable :: SIR.Variable Unadded -> AddMonad adts type_synonyms quant_vars vars (SIR.Variable Added)
 add_in_variable (SIR.Variable id () name@(Located def_span _)) = SIR.Variable id <$> (TypeWithInferVar.Type'InferVar <$> new_infer_var (TypeWithInferVar.Variable def_span)) <*> pure name
 
-add_in_module :: SIR.Module Unadded -> AddMonad TypedWithInferVarsADTArena TypedWithInferVarsTypeSynonymArena QuantVarArena AddedVariableArena (SIR.Module Added)
+add_in_module :: SIR.Module Unadded -> AddMonad adts type_synonyms quant_vars AddedVariableArena (SIR.Module Added)
 add_in_module (SIR.Module id name_context_key bindings adts type_synonyms) = SIR.Module id name_context_key <$> mapM add_in_binding bindings <*> pure adts <*> pure type_synonyms
 
-add_in_adt :: SIR.ADT Unadded -> AddMonad adts type_synonyms quant_avrs vars (SIR.ADT Added)
+-- TODO: figure this out
+add_in_adt :: SIR.ADT Unadded -> AddMonad (Arena.Arena (SIR.ADT whatever) Type.ADTKey) (Arena.Arena (SIR.TypeSynonym whatever2) Type.TypeSynonymKey) QuantVarArena vars (SIR.ADT Added)
 add_in_adt (Type.ADT id name quant_vars variants) = Type.ADT id name quant_vars <$> mapM add_in_variant variants
     where
         add_in_variant (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id <$> mapM (\ (id, name, (field, as_type)) -> (id, name,) <$> ((,as_type) <$> do_field field)) fields
@@ -105,9 +95,9 @@ add_in_adt (Type.ADT id name quant_vars variants) = Type.ADT id name quant_vars 
 
         do_field ty_expr = do
             ty_expr <- add_in_type_expr ty_expr
-            ty <- todo {- evaled_as_type -} $ SIR.type_expr_evaled ty_expr
+            let ty = SIR.type_expr_evaled ty_expr
             (adt_arena, type_synonym_arena, quant_var_arena, _) <- ask
-            tell [Constraint $ Expect InADTFieldType (Located (SIR.type_expr_span ty_expr) (TypeWithInferVar.kind_of (todo adt_arena) (todo type_synonym_arena) (todo quant_var_arena) ty)) TypeWithInferVar.Type'Kind'Type]
+            tell [WhenTypeExprEvaled ty $ \ty -> EvalAsType (SIR.type_expr_span ty_expr) ty $ \ty -> Constraint $ Expect InADTFieldType (Located (SIR.type_expr_span ty_expr) (TypeWithInferVar.kind_of adt_arena (todo type_synonym_arena) quant_var_arena ty)) TypeWithInferVar.Type'Kind'Type]
             pure ty_expr
 
 add_in_type_synonym :: SIR.TypeSynonym Unadded -> AddMonad adts type_synonyms quant_vars vars (SIR.TypeSynonym Added)
@@ -124,14 +114,14 @@ add_in_type_expr (SIR.TypeExpr'Apply evaled sp t arg) = SIR.TypeExpr'Apply evale
 add_in_type_expr (SIR.TypeExpr'Wild evaled sp) = pure (SIR.TypeExpr'Wild evaled sp)
 add_in_type_expr (SIR.TypeExpr'Poison evaled sp) = pure (SIR.TypeExpr'Poison evaled sp)
 
-add_in_binding :: SIR.Binding Unadded -> AddMonad TypedWithInferVarsADTArena TypedWithInferVarsTypeSynonymArena QuantVarArena AddedVariableArena (SIR.Binding Added)
+add_in_binding :: SIR.Binding Unadded -> AddMonad adts type_synonyms quant_vars AddedVariableArena (SIR.Binding Added)
 add_in_binding (SIR.Binding p eq_sp e) = do
     p <- add_in_pattern p
     e <- add_in_expr e
     tell [Constraint $ Eq InAssignment eq_sp (loc_pat_type p) (loc_expr_type e)]
     pure $ SIR.Binding p eq_sp e
 
-add_in_pattern :: SIR.Pattern Unadded -> AddMonad TypedWithInferVarsADTArena type_synonyms quant_vars AddedVariableArena (SIR.Pattern Added)
+add_in_pattern :: SIR.Pattern Unadded -> AddMonad adts type_synonyms quant_vars AddedVariableArena (SIR.Pattern Added)
 add_in_pattern (SIR.Pattern'Variable () sp var) = do
     ty <- get_var_type var
     pure $ SIR.Pattern'Variable ty sp var
@@ -198,16 +188,16 @@ add_in_pattern (SIR.Pattern'NamedADTVariant () sp variant_iden _ fields) = do
 
 add_in_pattern (SIR.Pattern'Poison () sp) = SIR.Pattern'Poison <$> (TypeWithInferVar.Type'InferVar <$> new_infer_var (TypeWithInferVar.PoisonPattern sp)) <*> pure sp
 
-add_in_expr :: SIR.Expr Unadded -> AddMonad TypedWithInferVarsADTArena TypedWithInferVarsTypeSynonymArena QuantVarArena AddedVariableArena (SIR.Expr Added)
+add_in_expr :: SIR.Expr Unadded -> AddMonad adts type_synonyms quant_vars AddedVariableArena (SIR.Expr Added)
 add_in_expr (SIR.Expr'Refer id () sp iden) = do
     let resolved = SIR.split_identifier_resolved iden
 
-    ty <- new_infer_var (TypeWithInferVar.IdenExpr sp)
-    tell [DefinedToBeTypeOfValueRef ty resolved]
+    ifv <- new_infer_var (TypeWithInferVar.IdenExpr sp)
+    tell [WhenValueRefResolved resolved $ \resolved -> GetValueRefType resolved $ \ty -> Constraint $ DefinedToBe InVariable sp ifv ty]
 
     iden <- add_in_split_iden iden
 
-    pure (SIR.Expr'Refer id (TypeWithInferVar.Type'InferVar ty) sp iden)
+    pure (SIR.Expr'Refer id (TypeWithInferVar.Type'InferVar ifv) sp iden)
 
 add_in_expr (SIR.Expr'Char id () sp c) = pure (SIR.Expr'Char id TypeWithInferVar.Type'Char sp c)
 add_in_expr (SIR.Expr'String id () sp t) = pure (SIR.Expr'String id TypeWithInferVar.Type'String sp t)
@@ -279,50 +269,27 @@ add_in_expr (SIR.Expr'Forall id () sp name_context_key vars e) =
     pure (SIR.Expr'Forall id (TypeWithInferVar.Type'Forall vars (SIR.expr_type e)) sp name_context_key vars e)
 add_in_expr (SIR.Expr'TypeApply id () sp e (arg, arg_ty)) = do
     e <- add_in_expr e
-    arg <- add_in_type_expr arg
+    arg' <- add_in_type_expr arg
 
     result_ty <- new_infer_var (TypeWithInferVar.IdenExpr sp)
-    tell [ConstraintWhenTypeExprEvaledAsType (todo {- evaled_as_type -} $ SIR.type_expr_evaled arg) (\ arg -> InferVarIsApplyResult sp result_ty (SIR.expr_type e) arg)]
+    tell [WhenTypeExprEvaled (SIR.type_expr_evaled arg') $ \ arg_evaled -> EvalAsType (SIR.type_expr_span arg) arg_evaled $ \ arg_as_type -> Constraint $ InferVarIsApplyResult sp result_ty (SIR.expr_type e) arg_as_type]
 
-    pure $ SIR.Expr'TypeApply id (TypeWithInferVar.Type'InferVar result_ty) sp e (arg, arg_ty)
+    pure $ SIR.Expr'TypeApply id (TypeWithInferVar.Type'InferVar result_ty) sp e (arg', arg_ty)
 
 add_in_expr (SIR.Expr'TypeAnnotation id () sp (annotation, annotation_ty) e) = do
     annotation <- add_in_type_expr annotation
     e <- add_in_expr e
-    tell [ConstraintWhenTypeExprEvaledAsType annotation_ty (\annotation_ty -> Expect InTypeAnnotation (Located (SIR.type_expr_span annotation) (SIR.expr_type e)) annotation_ty)]
+    tell [WhenTypeExprEvaledAsType annotation_ty $ \annotation_ty -> Constraint $ Expect InTypeAnnotation (Located (SIR.type_expr_span annotation) (SIR.expr_type e)) annotation_ty]
 
-    ty <- new_infer_var (TypeWithInferVar.IdenExpr sp)
-    tell [DefinedToBeTypeOfTypeExpr ty annotation_ty]
+    ifv <- new_infer_var (TypeWithInferVar.IdenExpr sp)
+    tell [WhenTypeExprEvaledAsType annotation_ty $ \ annotation_ty -> Constraint $ DefinedToBe InTypeAnnotation sp ifv annotation_ty]
 
-    pure $ SIR.Expr'TypeAnnotation id (TypeWithInferVar.Type'InferVar ty) sp (annotation, annotation_ty) e
+    pure $ SIR.Expr'TypeAnnotation id (TypeWithInferVar.Type'InferVar ifv) sp (annotation, annotation_ty) e
 
-add_in_split_iden :: SIR.SplitIdentifier resolved Unadded -> AddMonad TypedWithInferVarsADTArena type_synonyms quant_vars vars (SIR.SplitIdentifier resolved Added)
+add_in_split_iden :: SIR.SplitIdentifier resolved Unadded -> AddMonad typedWithInferVarsADTArena type_synonyms quant_vars vars (SIR.SplitIdentifier resolved Added)
 add_in_split_iden (SIR.SplitIdentifier'Get parent name resolved) = SIR.SplitIdentifier'Get <$> add_in_type_expr parent <*> pure name <*> pure resolved
 add_in_split_iden (SIR.SplitIdentifier'Single name_context_key name resolved) = pure $ SIR.SplitIdentifier'Single name_context_key name resolved
 
--- TODO: deal with these
--- -- TODO: make helper functions to not use lift
---
--- get_bv_type :: SIR.ValueRef -> ContextReader TypedWithInferVarsADTArena type_synonyms quant_vars TypedWithInferVarsVariableArena TypeWithInferVars
--- get_bv_type bv =
---     case bv of
---         SIR.ValueRef'Variable var -> get_var_type var
---         SIR.ValueRef'ADTVariantConstructor variant_index@(Type.ADT.VariantIndex _ adt_key _) -> do
---             (adts, _, _, _) <- ask
---             let (Type.ADT _ _ adt_type_params _) = Arena.get adts adt_key
---             let variant = Type.ADT.get_variant adts variant_index
---             case variant of
---                     Type.ADT.Variant'Named _ _ _ -> error "bound value should not be made for a named adt variant" -- TODO: statically make sure this cant happen?
---                     Type.ADT.Variant'Anon _ _ fields ->
---                         let change_quant_vars ty = foldlM (\ ty (adt_typaram, var_typaram) -> lift $ lift $ TypeSolver.substitute_quant_var adt_typaram (TypeWithInferVar.Type'QuantVar var_typaram) ty) ty (zip adt_type_params adt_type_params)
---                         in mapM (change_quant_vars . snd . snd) fields >>= \ arg_tys ->
---                         let wrap_in_forall = case adt_type_params of -- TODO: duplicate these type params
---                                 [] -> identity
---                                 param:more -> TypeWithInferVar.Type'Forall (param :| more)
---                         in pure $ wrap_in_forall $ foldr TypeWithInferVar.Type'Function (TypeWithInferVar.Type'ADT adt_key (map TypeWithInferVar.Type'QuantVar adt_type_params)) arg_tys -- function type that takes all the field types and then results in the adt type
---         SIR.ValueRef'Intrinsic i -> pure $ TypeSolver.from_ir_type $ Intrinsics.intrinsic_bv_type i
---
---
 -- -- TODO: come up with a better way of doing this
 -- get_type_synonym :: ContextReader adts (Arena.Arena (Type.TypeSynonym t) Type.TypeSynonymKey) quant_vars vars (Type.TypeSynonymKey -> TypeSolver.SolveMonad (Compiler.WithDiagnostics Error Void) (Type.TypeSynonym t))
 -- get_type_synonym = do

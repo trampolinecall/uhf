@@ -85,7 +85,7 @@ quant_var k = get_quant_var k >>= \ (Type.QuantVar (Located _ name)) -> pure (PP
 
 expr :: (DumpableType ty) => BackendIR.Expr topological_sort_status ty poison_allowed -> IRReader topological_sort_status ty poison_allowed PP.Token
 expr (BackendIR.Expr'Refer _ _ bk) = refer_binding bk
-expr (BackendIR.Expr'Intrinsic _ _ i) = pure $ PP.String $ Intrinsics.intrinsic_bv_name i
+expr (BackendIR.Expr'Intrinsic _ _ i) = pure $ PP.String $ Intrinsics.intrinsic_name i
 expr (BackendIR.Expr'Int _ _ i) = pure $ PP.String $ show i
 expr (BackendIR.Expr'Float _ _ (n :% d)) = pure $ PP.String $ "(" <> show n <> "/" <> show d <> ")"
 expr (BackendIR.Expr'Bool _ _ b) = pure $ PP.String $ if b then "true" else "false"

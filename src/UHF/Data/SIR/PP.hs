@@ -17,8 +17,9 @@ import qualified UHF.Data.IR.Type.PP as Type.PP
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.PP as PP
 import qualified UHF.PP.Precedence as PP.Precedence
-import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolver as TypeSolver
 import qualified UHF.Util.Arena as Arena
+import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
+import qualified UHF.Data.IR.TypeWithInferVar.PP as TypeWithInferVar.PP
 
 type IRReader stage = Reader (SIR.SIR stage)
 
@@ -92,12 +93,12 @@ refer_adt_variant variant_index@(Type.ADT.VariantIndex _ adt_key _) =
 class DumpableType stage ty where
     refer_type :: ty -> IRReader stage PP.Token
 
-instance DumpableType stage TypeSolver.Type where
+instance DumpableType stage TypeWithInferVar.Type where
     refer_type t = do
         adt_arena <- get_adt_arena
         type_synonym_arena <- get_type_synonym_arena
         quant_var_arena <- get_quant_var_arena
-        pure (fst $ TypeSolver.run_infer_var_namer $ TypeSolver.pp_type False adt_arena type_synonym_arena quant_var_arena todo t) -- TODO
+        pure (fst $ TypeWithInferVar.PP.run_infer_var_namer $ TypeWithInferVar.PP.pp_type False adt_arena type_synonym_arena quant_var_arena todo t) -- TODO
 instance DumpableType stage Type.Type where
     refer_type t = do
         adt_arena <- get_adt_arena

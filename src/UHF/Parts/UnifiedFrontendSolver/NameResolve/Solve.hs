@@ -14,9 +14,10 @@ import UHF.Parts.UnifiedFrontendSolver.NameResolve.Task (IdenResolveTask (..), T
 import UHF.Parts.UnifiedFrontendSolver.ProgressMade (ProgressMade (..))
 import UHF.Parts.UnifiedFrontendSolver.SolveResult (SolveResult (..))
 import UHF.Parts.UnifiedFrontendSolver.Solving (SolveMonad, get_decl_iden_resolved, get_type_expr_evaled)
-import UHF.Source.Located (Located)
+import UHF.Source.Located (Located (Located))
 import qualified UHF.Util.Arena as Arena
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.EvaledAsType (evaled_as_type)
+import UHF.Source.Span (Span)
 
 decl_iden_resolved_selector :: State (IdenResolvedArena (SIR.DeclRef TypeWithInferVar.Type)) () -> SolveMonad ()
 decl_iden_resolved_selector s =
@@ -176,41 +177,41 @@ eval_type_expr :: TypeExprEvalTask -> SolveMonad (ProgressMade TypeExprEvalTask)
 eval_type_expr (GetFromDeclIdenResolved iden_resolved result_key) = do
     resolved <- get_decl_iden_resolved iden_resolved
     put_result type_expr_evaled_selector result_key resolved
-eval_type_expr (MakeTuple a b result_key) = do
+eval_type_expr (MakeTuple (Located a_sp a) (Located b_sp b) result_key) = do
     a <- get_type_expr_evaled a
     b <- get_type_expr_evaled b
 
     evaled <- do
-        a' <- type_expr_evaled_as_type a
-        b' <- type_expr_evaled_as_type b
+        a' <- type_expr_evaled_as_type a_sp a
+        b' <- type_expr_evaled_as_type b_sp b
         pure $ SIR.DeclRef'Type <$> (TypeWithInferVar.Type'Tuple <$> a' <*> b')
 
     put_result type_expr_evaled_selector result_key evaled
-eval_type_expr (MakeFunction arg res result_key) = do
+eval_type_expr (MakeFunction (Located arg_sp arg) (Located res_sp res) result_key) = do
     arg <- get_type_expr_evaled arg
     res <- get_type_expr_evaled res
 
     evaled <- do
-        arg' <- type_expr_evaled_as_type arg
-        res' <- type_expr_evaled_as_type res
+        arg' <- type_expr_evaled_as_type arg_sp arg
+        res' <- type_expr_evaled_as_type res_sp res
         pure $ SIR.DeclRef'Type <$> (TypeWithInferVar.Type'Function <$> arg' <*> res')
 
     put_result type_expr_evaled_selector result_key evaled
-eval_type_expr (MakeForall qvars res result_key) = do
+eval_type_expr (MakeForall qvars (Located res_sp res) result_key) = do
     res <- get_type_expr_evaled res
     evaled <-
         do
-            res' <- type_expr_evaled_as_type res
+            res' <- type_expr_evaled_as_type res_sp res
             pure $ SIR.DeclRef'Type <$> (TypeWithInferVar.Type'Forall qvars <$> res')
 
     put_result type_expr_evaled_selector result_key evaled
-eval_type_expr (MakeApply ty arg result_key) = do
+eval_type_expr (MakeApply (Located ty_sp ty) (Located arg_sp arg) result_key) = do
     ty <- get_type_expr_evaled ty
     arg <- get_type_expr_evaled arg
 
     evaled <- do
-        ty' <- type_expr_evaled_as_type ty
-        arg' <- type_expr_evaled_as_type arg
+        ty' <- type_expr_evaled_as_type ty_sp ty
+        arg' <- type_expr_evaled_as_type arg_sp arg
 
         result_ty <- pure $ Errored todo
         -- TODO: just make an infer var and make a constraint without trying to apply first
@@ -235,26 +236,27 @@ eval_type_expr (MakeApply ty arg result_key) = do
         pure $ SIR.DeclRef'Type <$> result_ty
 
     put_result type_expr_evaled_selector result_key evaled
-eval_type_expr (MakeInferVar result_key) = do
-    infer_var <- make_infer_var (TypeWithInferVar.TypeExpr todo)
+eval_type_expr (MakeInferVar sp result_key) = do
+    infer_var <- make_infer_var (TypeWithInferVar.TypeExpr sp)
 
     put_result type_expr_evaled_selector result_key (Solved $ SIR.DeclRef'Type infer_var)
 
 eval_type_expr_as_type :: TypeExprEvalAsTypeTask -> SolveMonad (ProgressMade TypeExprEvalAsTypeTask)
-eval_type_expr_as_type (EvalAsType te result_key) = do
+eval_type_expr_as_type (EvalAsType (Located sp te) result_key) = do
     te <- get_type_expr_evaled te
-    te' <- type_expr_evaled_as_type te
+    te' <- type_expr_evaled_as_type sp te
     put_result type_expr_evaled_as_type_selector result_key te'
 
 type_expr_evaled_as_type ::
+    Span ->
     SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise (SIR.DeclRef TypeWithInferVar.Type) ->
     SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise TypeWithInferVar.Type)
-type_expr_evaled_as_type (Solved dr) = case evaled_as_type todo dr of -- TODO: span
+type_expr_evaled_as_type sp (Solved dr) = case evaled_as_type sp dr of -- TODO: span
     Right ty -> pure $ Solved ty
     Left err -> lift $ lift $ Errored <$> Compiler.tell_error (NRError $ Error.Error'NotAType err) -- TODO: report error and make an infer var instead of returning Errored? (this was the old behavior before the unified solver came in)
-type_expr_evaled_as_type (Inconclusive _) = pure $ Inconclusive Nothing
-type_expr_evaled_as_type (Errored e) = do
-    Solved <$> make_infer_var (TypeWithInferVar.TypeExpr todo) -- TODO: make this message better
+type_expr_evaled_as_type _ (Inconclusive _) = pure $ Inconclusive Nothing
+type_expr_evaled_as_type sp (Errored e) = do
+    Solved <$> make_infer_var (TypeWithInferVar.TypeExpr sp) -- TODO: make this message better
     -- TODO: span
 
 make_infer_var :: TypeWithInferVar.InferVarForWhat -> SolveMonad TypeWithInferVar.Type

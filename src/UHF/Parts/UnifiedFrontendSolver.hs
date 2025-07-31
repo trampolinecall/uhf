@@ -32,6 +32,8 @@ import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolve.Finalize as TypeSolve
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolve.Solve as TypeSolve.Solve
 import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Solve as InfixGroup.Solve
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Solve as NameResolve.Solve
+import Data.List (sortOn)
+import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolve.Task as TypeSolve.Task
 
 type PreSolve = ((), Const () (), (), (), (), (), ())
 type PostSolve =
@@ -98,17 +100,15 @@ solve'
         , infix_group_tasks
         , type_solve_tasks
         ) = do
-        -- TODO: sort by priority and ability to add new tasks
-        -- (resort by priority when new tasks are added, but if no new tasks are added then the new queue is a subsequence of the original queue so we dont need to resort)
-        (decl_resolve_tasks, changed1) <- go NameResolve.Solve.resolve_decl_iden decl_resolve_tasks
-        (value_resolve_tasks, changed2) <- go NameResolve.Solve.resolve_value_iden value_resolve_tasks
-        (variant_resolve_tasks, changed3) <- go NameResolve.Solve.resolve_variant_iden variant_resolve_tasks
-        (type_expr_eval_tasks, changed4) <- go NameResolve.Solve.eval_type_expr type_expr_eval_tasks
-        (type_expr_eval_as_type_tasks, changed5) <- go NameResolve.Solve.eval_type_expr_as_type type_expr_eval_as_type_tasks
+        (decl_resolve_tasks, changed1) <- go NameResolve.Task.iden_resolve_task_priority NameResolve.Solve.resolve_decl_iden decl_resolve_tasks
+        (value_resolve_tasks, changed2) <- go NameResolve.Task.iden_resolve_task_priority NameResolve.Solve.resolve_value_iden value_resolve_tasks
+        (variant_resolve_tasks, changed3) <- go NameResolve.Task.iden_resolve_task_priority NameResolve.Solve.resolve_variant_iden variant_resolve_tasks
+        (type_expr_eval_tasks, changed4) <- go NameResolve.Task.type_expr_eval_task_priority NameResolve.Solve.eval_type_expr type_expr_eval_tasks
+        (type_expr_eval_as_type_tasks, changed5) <- go NameResolve.Task.type_expr_eval_as_type_priority NameResolve.Solve.eval_type_expr_as_type type_expr_eval_as_type_tasks
 
-        (infix_group_tasks, changed6) <- go InfixGroup.Solve.group infix_group_tasks
+        (infix_group_tasks, changed6) <- go InfixGroup.Task.priority InfixGroup.Solve.group infix_group_tasks
 
-        (type_solve_tasks, changed7) <- go TypeSolve.Solve.solve type_solve_tasks
+        (type_solve_tasks, changed7) <- go TypeSolve.Task.priority TypeSolve.Solve.solve type_solve_tasks
 
         when (changed1 || changed2 || changed3 || changed4 || changed5 || changed6 || changed7) $
             solve'
@@ -117,9 +117,9 @@ solve'
                 , type_solve_tasks
                 )
         where
-            go :: Monad m => (task -> m (ProgressMade task)) -> [task] -> m ([task], Bool)
-            go _ [] = pure ([], False)
-            go solve tasks = do
+            go :: Monad m => (task -> Int) -> (task -> m (ProgressMade task)) -> [task] -> m ([task], Bool)
+            go _ _ [] = pure ([], False)
+            go priority solve tasks = do
                 (changed, retained_tasks, new_tasks) <-
                     ( tasks
                             & mapM
@@ -131,5 +131,7 @@ solve'
                         )
                         <&> mconcat
 
-                let next_tasks = if not $ null new_tasks {- TODO: sortOn priority -} then retained_tasks ++ new_tasks else retained_tasks
+                -- lower priority numbers mean higher priority (because lower numbers get sorted to the front)
+                -- sort again by priority when new tasks are added, but if no new tasks are added then the new queue is a subsequence of the original queue so we dont need to resort
+                let next_tasks = if not $ null new_tasks then sortOn priority (retained_tasks ++ new_tasks) else retained_tasks
                 pure (next_tasks, or changed)

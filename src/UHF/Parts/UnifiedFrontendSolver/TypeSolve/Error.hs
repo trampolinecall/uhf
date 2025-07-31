@@ -5,7 +5,7 @@ module UHF.Parts.UnifiedFrontendSolver.TypeSolve.Error (ErrorTypeContext (..), E
 import UHF.Prelude
 
 import UHF.Data.IR.TypeWithInferVar (InferVarArena, Type (..), InferVarKey)
-import UHF.Data.IR.TypeWithInferVar.PP (InferVarNamer, run_infer_var_namer, make_infer_var_name_messages, pp_type)
+import UHF.Data.IR.TypeWithInferVar.PP (pp_type)
 import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Task
 import UHF.Source.Located (Located (..))
 import UHF.Source.Span (Span)
@@ -15,6 +15,7 @@ import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.PP as PP
 import qualified UHF.Util.Arena as Arena
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.EvaledAsType as EvaledAsType
+import UHF.Data.IR.TypeWithInferVar.PP.InferVarNamer (InferVarNamer, run_infer_var_namer, make_infer_var_name_messages)
 
 data ErrorTypeContext
     = forall t. ErrorTypeContext
@@ -43,12 +44,12 @@ data Error
         , expect_error_expect_part :: Type
         }
 
-    | OccursCheckError (ErrorTypeContext ) Span InferVarKey Type
-    | DoesNotTakeTypeArgument (ErrorTypeContext ) Span Type
-    | WrongTypeArgument (ErrorTypeContext ) Span Type Type
+    | OccursCheckError ErrorTypeContext Span InferVarKey Type
+    | DoesNotTakeTypeArgument ErrorTypeContext Span Type
+    | WrongTypeArgument ErrorTypeContext Span Type Type
     | NotAType EvaledAsType.NotAType
 
-instance Diagnostic.ToError (Error ) where
+instance Diagnostic.ToError Error where
     to_error (AmbiguousType for_what) =
         let sp = TypeWithInferVar.infer_var_for_what_sp for_what
             name = TypeWithInferVar.infer_var_for_what_name for_what

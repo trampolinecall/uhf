@@ -20,6 +20,7 @@ import qualified UHF.PP.Precedence as PP.Precedence
 import qualified UHF.Util.Arena as Arena
 import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Data.IR.TypeWithInferVar.PP as TypeWithInferVar.PP
+import qualified UHF.Data.IR.TypeWithInferVar.PP.InferVarNamer as TypeWithInferVar.PP.InferVarNamer
 
 type IRReader stage = Reader (SIR.SIR stage)
 
@@ -98,7 +99,7 @@ instance DumpableType stage TypeWithInferVar.Type where
         adt_arena <- get_adt_arena
         type_synonym_arena <- get_type_synonym_arena
         quant_var_arena <- get_quant_var_arena
-        pure (fst $ TypeWithInferVar.PP.run_infer_var_namer $ TypeWithInferVar.PP.pp_type False adt_arena type_synonym_arena quant_var_arena todo t) -- TODO
+        pure (fst $ TypeWithInferVar.PP.InferVarNamer.run_infer_var_namer $ TypeWithInferVar.PP.pp_type False adt_arena type_synonym_arena quant_var_arena todo t) -- TODO
 instance DumpableType stage Type.Type where
     refer_type t = do
         adt_arena <- get_adt_arena

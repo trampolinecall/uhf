@@ -29,6 +29,7 @@ library
       UHF.Data.IR.Type.Synonym
       UHF.Data.IR.TypeWithInferVar
       UHF.Data.IR.TypeWithInferVar.PP
+      UHF.Data.IR.TypeWithInferVar.PP.InferVarNamer
       UHF.Data.RIR
       UHF.Data.RIR.PP
       UHF.Data.SIR

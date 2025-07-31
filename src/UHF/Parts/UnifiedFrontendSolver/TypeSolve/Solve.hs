@@ -231,7 +231,7 @@ unify (Type'Function a1 r1, var_map_1) (Type'Function a2 r2, var_map_2) = unify 
 unify (Type'Tuple a1 b1, var_map_1) (Type'Tuple a2 b2, var_map_2) = unify (a1, var_map_1) (a2, var_map_2) >> unify (b1, var_map_1) (b2, var_map_2)
 -- variables are carefully constructed to be unique for every forall
 -- for example if '#(T)' appears twice in a source file then both T's are created twice and have different keys in the type var arena so that each one unifies with itself but not with the other
--- implicitly generated expressions that contain #(...) (for example the constructor functions of adts) also create new variables
+-- implicitly generated expressions that contain #(...) (for example the constructor functions of adts) also create new variables (TODO: this is actually not true)
 unify (a@(Type'QuantVar v1), var_map_1) (b@(Type'QuantVar v2), var_map_2)
     | v1 == v2 = pure ()
     | otherwise =

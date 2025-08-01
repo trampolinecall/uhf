@@ -127,8 +127,8 @@ data Expr stage
     | Expr'LetRec (SIR.ID.ID "Expr") ID.ExprID (Stage.TypeInfo stage) Span (Stage.NameMapIndex stage) [Binding stage] [ADTKey] [TypeSynonymKey] (Expr stage)
     | Expr'BinaryOps
         (SIR.ID.ID "Expr")
+        (SIR.ID.ID "BinaryOpsExpr")
         ID.ExprID
-        (Stage.InfixGroupedKey stage)
         (Stage.TypeInfo stage)
         Span
         (Expr stage)

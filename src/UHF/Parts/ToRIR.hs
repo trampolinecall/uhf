@@ -19,7 +19,7 @@ import qualified UHF.Parts.ToRIR.TopologicalSort as TopologicalSort
 import qualified UHF.Util.Arena as Arena
 import qualified UHF.Util.IDGen as IDGen
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameResolve.NameMaps
-import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupedKey, InfixGroupResult)
+import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupResult, InfixGroupFinalResults)
 import Data.Functor.Const (Const)
 import qualified UHF.Data.SIR.ID as SIR.ID
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (ValueRef (..))
@@ -28,7 +28,7 @@ import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (DeclIdenFinalRes
 type Type = Maybe Type.Type
 
 type LastSIR =
-    ( NameResolve.NameMaps.NameContextKey, Const () (), Type.Type, (), (), Maybe Type.Type, InfixGroupedKey)
+    ( NameResolve.NameMaps.NameContextKey, Const () (), Type.Type, (), (), Maybe Type.Type, ())
 
 type VariableArena = Arena.Arena RIR.Variable RIR.VariableKey
 
@@ -49,7 +49,7 @@ type ConvertState =
         , VariantIdenFinalResults
         , TypeExprsFinalEvaled
         , TypeExprsFinalEvaledAsTypes
-        , Arena.Arena (Maybe InfixGroupResult) InfixGroupedKey
+        , InfixGroupFinalResults
         )
         (StateT VariableArena (IDGen.IDGenT ID.VariableID (IDGen.IDGenT ID.ExprID (Compiler.WithDiagnostics Error (PatternCheck.NotUseful LastSIR)))))
 
@@ -68,10 +68,10 @@ get_variant_iden_resolved k = do
     (_, _, _, _, variant_idens_resolved, _, _, _) <- ask
     pure $ variant_idens_resolved Map.! k
 
-get_infix_grouped :: InfixGroupedKey -> ConvertState (Maybe InfixGroupResult)
+get_infix_grouped :: SIR.ID.ID "BinaryOpsExpr" -> ConvertState (Maybe InfixGroupResult)
 get_infix_grouped k = do
-    (_, _, _, _, _, _, _, infix_grouped_arena) <- ask
-    pure $ Arena.get infix_grouped_arena k
+    (_, _, _, _, _, _, _, infix_group_results) <- ask
+    pure $ infix_group_results Map.! k
 
 new_made_up_expr_id :: (ID.ExprID -> a) -> ConvertState a
 new_made_up_expr_id make =
@@ -84,10 +84,10 @@ convert ::
     VariantIdenFinalResults ->
     TypeExprsFinalEvaled ->
     TypeExprsFinalEvaledAsTypes ->
-    Arena.Arena (Maybe InfixGroupResult) InfixGroupedKey ->
+    InfixGroupFinalResults ->
     SIR.SIR LastSIR ->
     Compiler.WithDiagnostics Error (PatternCheck.NotUseful LastSIR) RIR.RIR
-convert decl_idens_resolved value_idens_resolved variant_idens_resolved type_exprs_evaled type_exprs_evaled_as_types infix_grouped_arena (SIR.SIR modules adts type_synonyms quant_vars vars (SIR.CU root_module main_function)) = do
+convert decl_idens_resolved value_idens_resolved variant_idens_resolved type_exprs_evaled type_exprs_evaled_as_types infix_group_results (SIR.SIR modules adts type_synonyms quant_vars vars (SIR.CU root_module main_function)) = do
     let vars_converted = Arena.transform (\ (SIR.Variable _ id ty (Located sp _)) -> RIR.Variable id ty sp) vars
     ((adts_converted, type_synonyms_converted, cu), vars_with_new) <-
         IDGen.run_id_gen_t ID.ExprID'RIRGen $
@@ -100,7 +100,7 @@ convert decl_idens_resolved value_idens_resolved variant_idens_resolved type_exp
                             cu <- convert_root_module main_function (Arena.get modules root_module)
                             pure (adts_converted, type_synonyms_converted, cu)
                         )
-                        (adts, type_synonyms, decl_idens_resolved, value_idens_resolved, variant_idens_resolved, type_exprs_evaled, type_exprs_evaled_as_types, infix_grouped_arena)
+                        (adts, type_synonyms, decl_idens_resolved, value_idens_resolved, variant_idens_resolved, type_exprs_evaled, type_exprs_evaled_as_types, infix_group_results)
                     )
                     vars_converted
     pure (RIR.RIR adts_converted type_synonyms_converted quant_vars vars_with_new cu)

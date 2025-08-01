@@ -258,7 +258,8 @@ convert_expr cur_id (AST.Expr'Where sp subexpr decls) =
 
 convert_expr cur_id (AST.Expr'BinaryOps sp first ops) =
     lift SIR.ID.gen_id >>= \ eid ->
-    SIR.Expr'BinaryOps eid cur_id () () sp
+    lift SIR.ID.gen_id >>= \ boid ->
+    SIR.Expr'BinaryOps eid boid cur_id () sp
         <$> convert_expr (ID.ExprID'BinaryOperand cur_id 0) first
         <*> zipWithM
             (\ ind (op, right) -> do

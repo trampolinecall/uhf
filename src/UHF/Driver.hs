@@ -40,8 +40,7 @@ import qualified UHF.Parts.ToRIR as ToRIR
 import qualified UHF.Parts.ToSIR as ToSIR
 import qualified UHF.Source.File as File
 import qualified UHF.Source.FormattedString as FormattedString
-import qualified UHF.Util.Arena as Arena
-import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupResult, InfixGroupedKey)
+import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupFinalResults)
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameResolve.NameMaps
 import qualified UHF.Parts.UnifiedFrontendSolver as UnifiedFrontendSolver
 import Data.Functor.Const (Const)
@@ -49,13 +48,13 @@ import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (DeclIdenFinalRes
 
 type AST = [AST.Decl]
 type FirstSIR = SIR.SIR ((), Const () (), (), (), (), (), ())
-type SolvedSIR = (SIR.SIR (NameResolve.NameMaps.NameContextKey, Const () (), IR.Type.Type, (), (), Maybe IR.Type.Type, InfixGroupedKey)
+type SolvedSIR = (SIR.SIR (NameResolve.NameMaps.NameContextKey, Const () (), IR.Type.Type, (), (), Maybe IR.Type.Type, ())
         , DeclIdenFinalResults
         , ValueIdenFinalResults
         , VariantIdenFinalResults
         , TypeExprsFinalEvaled
         , TypeExprsFinalEvaledAsTypes
-        , Arena.Arena (Maybe InfixGroupResult) InfixGroupedKey)
+        , InfixGroupFinalResults)
 type RIR = RIR.RIR
 type ANFIR = ANFIR.ANFIR
 type BackendIR = BackendIR.BackendIR (Either BackendIR.HasLoops BackendIR.TopologicallySorted) (Maybe IR.Type.Type) ()

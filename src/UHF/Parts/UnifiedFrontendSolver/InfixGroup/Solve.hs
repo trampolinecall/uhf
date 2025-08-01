@@ -4,6 +4,7 @@ module UHF.Parts.UnifiedFrontendSolver.InfixGroup.Solve (group) where
 
 import UHF.Prelude
 
+import qualified Data.Map as Map
 import qualified UHF.Data.SIR.ID as SIR.ID
 import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupResult (..))
 import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Task (InfixGroupTask (..))
@@ -11,7 +12,6 @@ import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (ValueRef)
 import UHF.Parts.UnifiedFrontendSolver.ProgressMade (ProgressMade (..))
 import UHF.Parts.UnifiedFrontendSolver.SolveResult (SolveResult (..))
 import UHF.Parts.UnifiedFrontendSolver.Solving (SolveMonad, get_value_iden_resolved)
-import qualified UHF.Util.Arena as Arena
 
 group :: InfixGroupTask -> SolveMonad (ProgressMade InfixGroupTask)
 group (InfixGroupTask operators result_key) = do
@@ -24,15 +24,15 @@ group (InfixGroupTask operators result_key) = do
         Errored () -> do
             -- TODO: this is very similar to put_result from NameResolve so maybe there is a general version that can be put into UnifiedFrontendSolver.Solving?
             modify $
-                \(nr_things, result_arena, infer_vars) ->
+                \(nr_things, results, infer_vars) ->
                     ( nr_things
-                    , Arena.modify
-                        result_arena
-                        result_key
+                    , Map.alter
                         ( \case
-                            Inconclusive _ -> Errored ()
-                            _ -> Errored () -- TODO: internal warning because there was already a result here and it was recomputed?
+                            Just (Inconclusive _) -> Just $ Errored ()
+                            _ -> Just $ Errored () -- TODO: internal warning because there was already a result here and it was recomputed?
                         )
+                        result_key
+                        results
                     , infer_vars
                     )
             pure $ ProgressMade []
@@ -40,15 +40,15 @@ group (InfixGroupTask operators result_key) = do
             when (not $ null a) $ error "internal error: still operations to group after grouping binary ops"
 
             modify $
-                \(nr_things, result_arena, infer_vars) ->
+                \(nr_things, results, infer_vars) ->
                     ( nr_things
-                    , Arena.modify
-                        result_arena
-                        result_key
+                    , Map.alter
                         ( \case
-                            Inconclusive _ -> Solved res
-                            _ -> Solved res -- TODO: internal warning because there was already a result here and it was recomputed?
+                            Just (Inconclusive _) -> Just $ Solved res
+                            _ -> Just $ Solved res -- TODO: internal warning because there was already a result here and it was recomputed?
                         )
+                        result_key
+                        results
                     , infer_vars
                     )
             pure $ ProgressMade []

@@ -9,15 +9,14 @@ import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as Na
 import UHF.Source.Located (Located (..))
 import qualified UHF.Util.Arena as Arena
 import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Task (TypeSolveTask (..), Constraint (..), ExpectInWhat (..), EqInWhat (..))
-import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupedKey)
 import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import UHF.Data.IR.TypeWithInferVar (InferVarArena)
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef)
 import Data.Functor.Const (Const)
 
-type Unadded = (NameMaps.NameContextKey, Const () (), TypeWithInferVar.Type, (), (), (), InfixGroupedKey)
+type Unadded = (NameMaps.NameContextKey, Const () (), TypeWithInferVar.Type, (), (), (), ())
 type Added =
-    (NameMaps.NameContextKey, Const () (), TypeWithInferVar.Type, (), (), TypeWithInferVar.Type, InfixGroupedKey)
+    (NameMaps.NameContextKey, Const () (), TypeWithInferVar.Type, (), (), TypeWithInferVar.Type, ())
 
 -- TODO: remove these
 type TypedWithInferVarsDIden = Maybe (DeclRef TypeWithInferVar.Type)

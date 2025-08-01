@@ -1,16 +1,14 @@
-module UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupedKey, InfixGroupedArena, InfixGroupResult (..)) where
+{-# LANGUAGE DataKinds #-}
+
+module UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupResult (..), InfixGroupResults, InfixGroupFinalResults) where
 
 import UHF.Prelude
 
-import UHF.Parts.UnifiedFrontendSolver.SolveResult (SolveResult)
-import qualified UHF.Util.Arena as Arena
+import qualified UHF.Data.SIR.ID as SIR.ID
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (ValueRef)
+import UHF.Parts.UnifiedFrontendSolver.SolveResult (SolveResult)
 
 data InfixGroupResult = Call InfixGroupResult InfixGroupResult | Operand Int | Operator ValueRef
 
-newtype InfixGroupedKey = InfixGroupedKey Arena.KeyData deriving (Show, Eq, Ord)
-instance Arena.Key InfixGroupedKey where
-    make_key = InfixGroupedKey
-    unmake_key (InfixGroupedKey i) = i
-
-type InfixGroupedArena = Arena.Arena (SolveResult () () InfixGroupResult) InfixGroupedKey
+type InfixGroupResults = Map (SIR.ID.ID "BinaryOpsExpr") (SolveResult () () InfixGroupResult)
+type InfixGroupFinalResults = Map (SIR.ID.ID "BinaryOpsExpr") (Maybe InfixGroupResult)

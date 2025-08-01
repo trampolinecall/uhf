@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 module UHF.Parts.UnifiedFrontendSolver.InfixGroup.Prepare (prepare) where
 
 import UHF.Prelude
@@ -6,25 +7,26 @@ import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Data.SIR as SIR
-import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupedArena, InfixGroupedKey)
 import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Task (InfixGroupTask (..))
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameMaps
 import UHF.Parts.UnifiedFrontendSolver.SolveResult
 import qualified UHF.Util.Arena as Arena
 import Data.Functor.Const (Const)
+import qualified UHF.Data.SIR.ID as SIR.ID
+import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupResults)
+import qualified Data.Map as Map
 
 type Unprepared = (NameMaps.NameContextKey, Const () (), TypeWithInferVar.Type, (), (), (), ())
-type Prepared = (NameMaps.NameContextKey, Const () (), TypeWithInferVar.Type, (), (), (), InfixGroupedKey)
+type Prepared = (NameMaps.NameContextKey, Const () (), TypeWithInferVar.Type, (), (), (), ())
 
-type PrepareState = WriterT [InfixGroupTask] (State InfixGroupedArena)
+type PrepareState = WriterT [InfixGroupTask] (State InfixGroupResults)
 
-new_infix_grouped_key :: (InfixGroupedKey -> InfixGroupTask) -> PrepareState InfixGroupedKey
-new_infix_grouped_key task = do
-    key <- state $ \arena -> let (key, arena') = Arena.put (Inconclusive ()) arena in (key, arena')
-    tell [task key]
-    pure key
+new_infix_grouped_key :: SIR.ID.ID "BinaryOpsExpr" -> (SIR.ID.ID "BinaryOpsExpr" -> InfixGroupTask) -> PrepareState ()
+new_infix_grouped_key id task = do
+    state $ \map -> let map' = Map.insert id (Inconclusive ()) map in ((), map')
+    tell [task id]
 
-prepare :: SIR.SIR Unprepared -> (SIR.SIR Prepared, InfixGroupedArena, [InfixGroupTask])
+prepare :: SIR.SIR Unprepared -> (SIR.SIR Prepared, InfixGroupResults, [InfixGroupTask])
 prepare (SIR.SIR mods adts type_synonyms type_vars variables (SIR.CU root_module main_function)) =
     let ((sir, tasks), arenas) =
             runState
@@ -38,7 +40,7 @@ prepare (SIR.SIR mods adts type_synonyms type_vars variables (SIR.CU root_module
                         <*> pure (SIR.CU root_module main_function)
                     )
                 )
-                Arena.new
+                Map.empty
     in (sir, arenas, tasks)
 
 prepare_mod :: SIR.Module Unprepared -> PrepareState (SIR.Module Prepared)
@@ -107,13 +109,13 @@ prepare_expr (SIR.Expr'Tuple eid id type_info sp a b) = SIR.Expr'Tuple eid id ty
 prepare_expr (SIR.Expr'Lambda eid id type_info sp param body) = SIR.Expr'Lambda eid id type_info sp <$> prepare_pat param <*> prepare_expr body
 prepare_expr (SIR.Expr'Let eid id type_info sp name_maps bindings adts type_synonyms body) = SIR.Expr'Let eid id type_info sp name_maps <$> mapM prepare_binding bindings <*> pure adts <*> pure type_synonyms <*> prepare_expr body
 prepare_expr (SIR.Expr'LetRec eid id type_info sp name_maps bindings adts type_synonyms body) = SIR.Expr'LetRec eid id type_info sp name_maps <$> mapM prepare_binding bindings <*> pure adts <*> pure type_synonyms <*> prepare_expr body
-prepare_expr (SIR.Expr'BinaryOps eid id () type_info sp first ops) = do
+prepare_expr (SIR.Expr'BinaryOps eid boid id type_info sp first ops) = do
     first <- prepare_expr first
     ops <- mapM (\(sp, iden, rhs) -> (sp,,) <$> prepare_split_iden iden <*> prepare_expr rhs) ops
 
-    infix_group_key <- new_infix_grouped_key $ InfixGroupTask (map (\(_, iden, _) -> SIR.split_identifier_id iden) ops)
+    new_infix_grouped_key boid $ InfixGroupTask (map (\(_, iden, _) -> SIR.split_identifier_id iden) ops)
 
-    pure $ SIR.Expr'BinaryOps eid id infix_group_key type_info sp first ops
+    pure $ SIR.Expr'BinaryOps eid boid id type_info sp first ops
 prepare_expr (SIR.Expr'Call eid id type_info sp callee arg) = SIR.Expr'Call eid id type_info sp <$> prepare_expr callee <*> prepare_expr arg
 prepare_expr (SIR.Expr'If eid id type_info sp if_sp cond t f) = SIR.Expr'If eid id type_info sp if_sp <$> prepare_expr cond <*> prepare_expr t <*> prepare_expr f
 prepare_expr (SIR.Expr'Match eid id type_info sp match_tok_sp e arms) =

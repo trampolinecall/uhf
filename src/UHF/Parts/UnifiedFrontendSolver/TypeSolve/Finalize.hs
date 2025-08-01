@@ -16,16 +16,12 @@ import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Data.SIR as SIR
-import qualified UHF.Data.SIR.ID as SIR.ID
 import qualified UHF.Parts.UnifiedFrontendSolver.Error as SolveError
-import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupedKey)
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameMaps
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef (..))
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result
     ( DeclIdenAlmostFinalResults
     , DeclIdenFinalResults
-    , TypeExprsEvaled
-    , TypeExprsEvaledAsTypes
     , TypeExprsFinalEvaled
     , TypeExprsFinalEvaledAsTypes, TypeExprsAlmostFinalEvaled, TypeExprsAlmostFinalEvaledAsTypes
     )
@@ -39,7 +35,7 @@ type WithInferVars =
     , ()
     , ()
     , TypeWithInferVar.Type
-    , InfixGroupedKey
+    , ()
     )
 type WithoutInferVars =
     ( NameMaps.NameContextKey
@@ -48,7 +44,7 @@ type WithoutInferVars =
     , ()
     , ()
     , Maybe Type.Type
-    , InfixGroupedKey
+    , ()
     )
 
 remove_infer_vars ::

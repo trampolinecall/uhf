@@ -13,7 +13,7 @@ import qualified UHF.Data.SIR as SIR
 import qualified UHF.Data.SIR.ID as SIR.ID
 import UHF.Parts.UnifiedFrontendSolver.Error (Error)
 import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Finalize as InfixGroup.Finalize
-import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupResult, InfixGroupedKey)
+import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupFinalResults, InfixGroupResult, InfixGroupResults)
 import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result as InfixGroup.Result
 import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Prepare as InfixGroup.Prepare
 import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Solve as InfixGroup.Solve
@@ -23,10 +23,14 @@ import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as Na
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result
     ( DeclIdenFinalResults
     , DeclIdenResults
+    , TypeExprsEvaled
+    , TypeExprsEvaledAsTypes
+    , TypeExprsFinalEvaled
+    , TypeExprsFinalEvaledAsTypes
     , ValueIdenFinalResults
     , ValueIdenResults
     , VariantIdenFinalResults
-    , VariantIdenResults, TypeExprsFinalEvaled, TypeExprsFinalEvaledAsTypes, TypeExprsEvaled, TypeExprsEvaledAsTypes
+    , VariantIdenResults
     )
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.OtherPreparation.AssignNameMaps as NameResolve.OtherPreparation.AssignNameMaps
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Prepare as NameResolve.Prepare
@@ -43,7 +47,7 @@ import qualified UHF.Util.Arena as Arena
 
 type PreSolve = ((), Const () (), (), (), (), (), ())
 type PostSolve =
-    (NameResolve.NameMaps.NameContextKey, Const () (), Type.Type, (), (), Maybe Type.Type, InfixGroupedKey)
+    (NameResolve.NameMaps.NameContextKey, Const () (), Type.Type, (), (), Maybe Type.Type, ())
 
 solve ::
     SIR.SIR PreSolve ->
@@ -57,7 +61,7 @@ solve ::
           , TypeExprsFinalEvaled
           , TypeExprsFinalEvaledAsTypes
           )
-        , Arena.Arena (Maybe InfixGroupResult) InfixGroupedKey
+        , InfixGroupFinalResults
         )
 solve sir = do
     -- TODO: clean this up
@@ -103,7 +107,7 @@ solve' ::
           , TypeExprsEvaled
           , TypeExprsEvaledAsTypes
           )
-        , InfixGroup.Result.InfixGroupedArena
+        , InfixGroupResults
         , TypeWithInferVar.InferVarArena
         )
         ( ReaderT

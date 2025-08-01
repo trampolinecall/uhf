@@ -235,8 +235,8 @@ prepare_pat (SIR.Pattern'NamedADTVariant id type_info sp variant_iden tyargs sub
 prepare_pat (SIR.Pattern'Poison id type_info sp) = pure $ SIR.Pattern'Poison id type_info sp
 prepare_split_iden ::
     ((IdenResolvedKey result -> IdenResolveTask result) -> PrepareState (IdenResolvedKey resolved)) ->
-    SIR.SplitIdentifier Unprepared ->
-    PrepareState (SIR.SplitIdentifier Prepared)
+    SIR.SplitIdentifier id_name Unprepared ->
+    PrepareState (SIR.SplitIdentifier id_name Prepared)
 prepare_split_iden new_key (SIR.SplitIdentifier'Get id texpr next) = do
     texpr <- prepare_type_expr texpr
     resolved_key <- new_key (ResolveGet (SIR.type_expr_evaled texpr) next)

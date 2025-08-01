@@ -289,7 +289,7 @@ add_in_expr (SIR.Expr'TypeAnnotation eid id () sp (annotation, annotation_ty) e)
 
     pure $ SIR.Expr'TypeAnnotation eid id (TypeWithInferVar.Type'InferVar ifv) sp (annotation, annotation_ty) e
 
-add_in_split_iden :: SIR.SplitIdentifier Unadded -> AddMonad typedWithInferVarsADTArena type_synonyms quant_vars vars (SIR.SplitIdentifier Added)
+add_in_split_iden :: SIR.SplitIdentifier id_name Unadded -> AddMonad typedWithInferVarsADTArena type_synonyms quant_vars vars (SIR.SplitIdentifier id_name Added)
 add_in_split_iden (SIR.SplitIdentifier'Get id parent name) = SIR.SplitIdentifier'Get id <$> add_in_type_expr parent <*> pure name
 add_in_split_iden (SIR.SplitIdentifier'Single id name_context_key name) = pure $ SIR.SplitIdentifier'Single id name_context_key name
 

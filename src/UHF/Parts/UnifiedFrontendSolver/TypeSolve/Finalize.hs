@@ -53,7 +53,7 @@ remove_infer_vars ::
         )
 remove_infer_vars infer_vars decl_iden_resolved_arena type_expr_evaled_arena type_expr_evaled_as_type_arena (SIR.SIR modules adts type_synonyms type_vars variables (SIR.CU root_module main_function)) = do
     infer_vars <- convert_vars infer_vars
-    pure $
+    pure
         ( SIR.SIR
             (Arena.transform (module_ infer_vars) modules)
             (Arena.transform (adt infer_vars) adts)
@@ -173,8 +173,7 @@ type_expr infer_vars (SIR.TypeExpr'Apply id evaled sp applied_to args) = SIR.Typ
 type_expr _ (SIR.TypeExpr'Wild id evaled sp) = SIR.TypeExpr'Wild id evaled sp
 type_expr _ (SIR.TypeExpr'Poison id evaled sp) = SIR.TypeExpr'Poison id evaled sp
 
-split_identifier ::
-    Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.SplitIdentifier WithInferVars -> SIR.SplitIdentifier WithoutInferVars
+split_identifier :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.SplitIdentifier id_name WithInferVars -> SIR.SplitIdentifier id_name WithoutInferVars
 split_identifier infer_vars (SIR.SplitIdentifier'Get id texpr next) = SIR.SplitIdentifier'Get id (type_expr infer_vars texpr) next
 split_identifier _ (SIR.SplitIdentifier'Single id name_context name) = SIR.SplitIdentifier'Single id name_context name
 

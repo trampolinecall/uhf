@@ -265,6 +265,6 @@ assign_in_pat nc_stack (SIR.Pattern'NamedADTVariant id type_info sp variant_iden
 assign_in_pat _ (SIR.Pattern'Poison id type_info sp) = pure $ SIR.Pattern'Poison id type_info sp
 
 -- assigning identifiers {{{1
-assign_split_iden :: NameMaps.NameContextKey -> SIR.SplitIdentifier Unassigned -> AssignMonad (SIR.SplitIdentifier Assigned)
+assign_split_iden :: NameMaps.NameContextKey -> SIR.SplitIdentifier id_name Unassigned -> AssignMonad (SIR.SplitIdentifier id_name Assigned)
 assign_split_iden name_context (SIR.SplitIdentifier'Get id texpr next) = SIR.SplitIdentifier'Get id <$> assign_in_type_expr name_context texpr <*> pure next
 assign_split_iden name_context (SIR.SplitIdentifier'Single id () i) = pure $ SIR.SplitIdentifier'Single id name_context i

@@ -93,6 +93,7 @@ library
       UHF.Parts.UnifiedFrontendSolver.Solving
       UHF.Parts.UnifiedFrontendSolver.TypeSolve.Error
       UHF.Parts.UnifiedFrontendSolver.TypeSolve.Finalize
+      UHF.Parts.UnifiedFrontendSolver.TypeSolve.Misc.Result
       UHF.Parts.UnifiedFrontendSolver.TypeSolve.Misc.SubstituteQuantVar
       UHF.Parts.UnifiedFrontendSolver.TypeSolve.Prepare
       UHF.Parts.UnifiedFrontendSolver.TypeSolve.Solve

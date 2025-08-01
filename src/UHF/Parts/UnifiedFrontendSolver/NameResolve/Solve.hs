@@ -263,6 +263,6 @@ type_expr_evaled_as_type sp (Errored _) = do
     Solved . TypeWithInferVar.Type'InferVar <$> make_infer_var (TypeWithInferVar.TypeExpr sp) -- TODO: make this message better
 
 make_infer_var :: TypeWithInferVar.InferVarForWhat -> SolveMonad TypeWithInferVar.InferVarKey
-make_infer_var for_what = state $ \(nr_things, ig_things, infer_vars) ->
+make_infer_var for_what = state $ \(nr_things, ig_things, (type_info, infer_vars)) ->
     let (key, infer_vars') = Arena.put (TypeWithInferVar.InferVar for_what TypeWithInferVar.Fresh) infer_vars
-    in (key, (nr_things, ig_things, infer_vars'))
+    in (key, (nr_things, ig_things, (type_info, infer_vars')))

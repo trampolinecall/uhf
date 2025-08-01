@@ -22,33 +22,30 @@ import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef (..))
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result
     ( DeclIdenAlmostFinalResults
     , DeclIdenFinalResults
+    , TypeExprsAlmostFinalEvaled
+    , TypeExprsAlmostFinalEvaledAsTypes
     , TypeExprsFinalEvaled
-    , TypeExprsFinalEvaledAsTypes, TypeExprsAlmostFinalEvaled, TypeExprsAlmostFinalEvaledAsTypes
+    , TypeExprsFinalEvaledAsTypes
     )
 import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Error (Error (..))
+import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Misc.Result (FinalTypeInfo (..), TypeInfo (..))
 import qualified UHF.Util.Arena as Arena
 
-type WithInferVars =
-    ( NameMaps.NameContextKey
-    , Const () ()
-    , TypeWithInferVar.Type
-    , ()
-    , ()
-    , TypeWithInferVar.Type
-    , ()
-    )
+type WithInferVars = (NameMaps.NameContextKey, Const () (), (), (), (), (), ())
 type WithoutInferVars =
     ( NameMaps.NameContextKey
     , Const () ()
-    , Type.Type
     , ()
     , ()
-    , Maybe Type.Type
+    , ()
+    , ()
     , ()
     )
 
+-- TODO: sir does not change so do not return it
 remove_infer_vars ::
     TypeWithInferVar.InferVarArena ->
+    TypeInfo ->
     DeclIdenAlmostFinalResults ->
     TypeExprsAlmostFinalEvaled ->
     TypeExprsAlmostFinalEvaledAsTypes ->
@@ -57,11 +54,12 @@ remove_infer_vars ::
         SolveError.Error
         Void
         ( SIR.SIR WithoutInferVars
+        , FinalTypeInfo
         , DeclIdenFinalResults
         , TypeExprsFinalEvaled
         , TypeExprsFinalEvaledAsTypes
         )
-remove_infer_vars infer_vars decl_iden_results type_exprs_evaled type_exprs_evaled_as_types (SIR.SIR modules adts type_synonyms type_vars variables (SIR.CU root_module main_function)) = do
+remove_infer_vars infer_vars type_info decl_iden_results type_exprs_evaled type_exprs_evaled_as_types (SIR.SIR modules adts type_synonyms type_vars variables (SIR.CU root_module main_function)) = do
     infer_vars <- convert_vars infer_vars
     pure
         ( SIR.SIR
@@ -69,8 +67,13 @@ remove_infer_vars infer_vars decl_iden_results type_exprs_evaled type_exprs_eval
             (Arena.transform (adt infer_vars) adts)
             (Arena.transform (type_synonym infer_vars) type_synonyms)
             type_vars
-            (Arena.transform (variable infer_vars) variables)
+            variables
             (SIR.CU root_module main_function)
+        , FinalTypeInfo
+            (Map.map (type_ infer_vars) (expr_types type_info))
+            (Map.map (type_ infer_vars) (variable_types type_info))
+            (Map.map (type_ infer_vars) (pattern_types type_info))
+            (Map.map (map (type_ infer_vars)) (variant_pattern_applications type_info))
         , Map.map (>>= decl_ref infer_vars) decl_iden_results
         , Map.map (>>= decl_ref infer_vars) type_exprs_evaled
         , Map.map (>>= type_ infer_vars) type_exprs_evaled_as_types
@@ -107,10 +110,6 @@ module_ :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.Module W
 -- TODO: rename mid to id
 module_ infer_vars (SIR.Module mid id name_maps_index bindings adts type_synonyms) = SIR.Module mid id name_maps_index (map (binding infer_vars) bindings) adts type_synonyms
 
-variable :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.Variable WithInferVars -> SIR.Variable WithoutInferVars
--- TODO: rename vid to id
-variable infer_vars (SIR.Variable vid id ty name) = SIR.Variable vid id (type_ infer_vars ty) name
-
 adt :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.ADT WithInferVars -> SIR.ADT WithoutInferVars
 adt infer_vars (Type.ADT id name quant_var variants) = Type.ADT id name quant_var (map variant variants)
     where
@@ -124,57 +123,54 @@ binding :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.Binding 
 binding infer_vars (SIR.Binding bid p eq_sp e) = SIR.Binding bid (pattern infer_vars p) eq_sp (expr infer_vars e)
 
 pattern :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.Pattern WithInferVars -> SIR.Pattern WithoutInferVars
-pattern infer_vars (SIR.Pattern'Variable id ty sp bn) = SIR.Pattern'Variable id (type_ infer_vars ty) sp bn
-pattern infer_vars (SIR.Pattern'Wildcard id ty sp) = SIR.Pattern'Wildcard id (type_ infer_vars ty) sp
-pattern infer_vars (SIR.Pattern'Tuple id ty sp l r) = SIR.Pattern'Tuple id (type_ infer_vars ty) sp (pattern infer_vars l) (pattern infer_vars r)
-pattern infer_vars (SIR.Pattern'Named id ty sp at_sp bnk subpat) = SIR.Pattern'Named id (type_ infer_vars ty) sp at_sp bnk (pattern infer_vars subpat)
-pattern infer_vars (SIR.Pattern'AnonADTVariant id ty sp variant_iden tyargs fields) =
+pattern infer_vars (SIR.Pattern'Variable id sp bn) = SIR.Pattern'Variable id sp bn
+pattern infer_vars (SIR.Pattern'Wildcard id sp) = SIR.Pattern'Wildcard id sp
+pattern infer_vars (SIR.Pattern'Tuple id sp l r) = SIR.Pattern'Tuple id sp (pattern infer_vars l) (pattern infer_vars r)
+pattern infer_vars (SIR.Pattern'Named id sp at_sp bnk subpat) = SIR.Pattern'Named id sp at_sp bnk (pattern infer_vars subpat)
+pattern infer_vars (SIR.Pattern'AnonADTVariant id variant_id sp variant_iden fields) =
     SIR.Pattern'AnonADTVariant
         id
-        (type_ infer_vars ty)
+        variant_id
         sp
         (split_identifier infer_vars variant_iden)
-        (map (type_ infer_vars) tyargs)
         (map (pattern infer_vars) fields)
-pattern infer_vars (SIR.Pattern'NamedADTVariant id ty sp variant_iden tyargs fields) =
+pattern infer_vars (SIR.Pattern'NamedADTVariant id variant_id sp variant_iden fields) =
     SIR.Pattern'NamedADTVariant
         id
-        (type_ infer_vars ty)
+        variant_id
         sp
         (split_identifier infer_vars variant_iden)
-        (map (type_ infer_vars) tyargs)
         (map (\(field_name, field_pat) -> (field_name, pattern infer_vars field_pat)) fields)
-pattern infer_vars (SIR.Pattern'Poison id ty sp) = SIR.Pattern'Poison id (type_ infer_vars ty) sp
+pattern infer_vars (SIR.Pattern'Poison id sp) = SIR.Pattern'Poison id sp
 
 expr :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.Expr WithInferVars -> SIR.Expr WithoutInferVars
 -- TODO: rename eid to id
-expr infer_vars (SIR.Expr'Refer eid id ty sp iden) = SIR.Expr'Refer eid id (type_ infer_vars ty) sp (split_identifier infer_vars iden)
-expr infer_vars (SIR.Expr'Char eid id ty sp c) = SIR.Expr'Char eid id (type_ infer_vars ty) sp c
-expr infer_vars (SIR.Expr'String eid id ty sp t) = SIR.Expr'String eid id (type_ infer_vars ty) sp t
-expr infer_vars (SIR.Expr'Int eid id ty sp i) = SIR.Expr'Int eid id (type_ infer_vars ty) sp i
-expr infer_vars (SIR.Expr'Float eid id ty sp r) = SIR.Expr'Float eid id (type_ infer_vars ty) sp r
-expr infer_vars (SIR.Expr'Bool eid id ty sp b) = SIR.Expr'Bool eid id (type_ infer_vars ty) sp b
-expr infer_vars (SIR.Expr'Tuple eid id ty sp l r) = SIR.Expr'Tuple eid id (type_ infer_vars ty) sp (expr infer_vars l) (expr infer_vars r)
-expr infer_vars (SIR.Expr'Lambda eid id ty sp param body) = SIR.Expr'Lambda eid id (type_ infer_vars ty) sp (pattern infer_vars param) (expr infer_vars body)
-expr infer_vars (SIR.Expr'Let eid id ty sp name_maps_index bindings adts type_synonyms result) = SIR.Expr'Let eid id (type_ infer_vars ty) sp name_maps_index (map (binding infer_vars) bindings) adts type_synonyms (expr infer_vars result)
-expr infer_vars (SIR.Expr'LetRec eid id ty sp name_maps_index bindings adts type_synonyms result) = SIR.Expr'LetRec eid id (type_ infer_vars ty) sp name_maps_index (map (binding infer_vars) bindings) adts type_synonyms (expr infer_vars result)
-expr _ (SIR.Expr'BinaryOps _ _ _ _ _ _ _) = todo
-expr infer_vars (SIR.Expr'Call eid id ty sp callee arg) = SIR.Expr'Call eid id (type_ infer_vars ty) sp (expr infer_vars callee) (expr infer_vars arg)
-expr infer_vars (SIR.Expr'If eid id ty sp if_sp cond true false) = SIR.Expr'If eid id (type_ infer_vars ty) sp if_sp (expr infer_vars cond) (expr infer_vars true) (expr infer_vars false)
-expr infer_vars (SIR.Expr'Match eid id ty sp match_tok_sp testing arms) =
+expr infer_vars (SIR.Expr'Refer eid id sp iden) = SIR.Expr'Refer eid id sp (split_identifier infer_vars iden)
+expr infer_vars (SIR.Expr'Char eid id sp c) = SIR.Expr'Char eid id sp c
+expr infer_vars (SIR.Expr'String eid id sp t) = SIR.Expr'String eid id sp t
+expr infer_vars (SIR.Expr'Int eid id sp i) = SIR.Expr'Int eid id sp i
+expr infer_vars (SIR.Expr'Float eid id sp r) = SIR.Expr'Float eid id sp r
+expr infer_vars (SIR.Expr'Bool eid id sp b) = SIR.Expr'Bool eid id sp b
+expr infer_vars (SIR.Expr'Tuple eid id sp l r) = SIR.Expr'Tuple eid id sp (expr infer_vars l) (expr infer_vars r)
+expr infer_vars (SIR.Expr'Lambda eid id sp param body) = SIR.Expr'Lambda eid id sp (pattern infer_vars param) (expr infer_vars body)
+expr infer_vars (SIR.Expr'Let eid id sp name_maps_index bindings adts type_synonyms result) = SIR.Expr'Let eid id sp name_maps_index (map (binding infer_vars) bindings) adts type_synonyms (expr infer_vars result)
+expr infer_vars (SIR.Expr'LetRec eid id sp name_maps_index bindings adts type_synonyms result) = SIR.Expr'LetRec eid id sp name_maps_index (map (binding infer_vars) bindings) adts type_synonyms (expr infer_vars result)
+expr _ (SIR.Expr'BinaryOps _ _ _ _ _ _) = todo
+expr infer_vars (SIR.Expr'Call eid id sp callee arg) = SIR.Expr'Call eid id sp (expr infer_vars callee) (expr infer_vars arg)
+expr infer_vars (SIR.Expr'If eid id sp if_sp cond true false) = SIR.Expr'If eid id sp if_sp (expr infer_vars cond) (expr infer_vars true) (expr infer_vars false)
+expr infer_vars (SIR.Expr'Match eid id sp match_tok_sp testing arms) =
     SIR.Expr'Match
         eid
         id
-        (type_ infer_vars ty)
         sp
         match_tok_sp
         (expr infer_vars testing)
         (map (\(nci, p, e) -> (nci, pattern infer_vars p, expr infer_vars e)) arms)
-expr infer_vars (SIR.Expr'TypeAnnotation eid id ty sp (annotation, annotation_evaled) e) = SIR.Expr'TypeAnnotation eid id (type_ infer_vars ty) sp (type_expr infer_vars annotation, annotation_evaled) (expr infer_vars e)
-expr infer_vars (SIR.Expr'Forall eid id ty sp name_maps_index names e) = SIR.Expr'Forall eid id (type_ infer_vars ty) sp name_maps_index (NonEmpty.map identity names) (expr infer_vars e)
-expr infer_vars (SIR.Expr'TypeApply eid id ty sp e (arg, arg_evaled)) = SIR.Expr'TypeApply eid id (type_ infer_vars ty) sp (expr infer_vars e) (type_expr infer_vars arg, arg_evaled)
-expr infer_vars (SIR.Expr'Hole eid id ty sp hid) = SIR.Expr'Hole eid id (type_ infer_vars ty) sp hid
-expr infer_vars (SIR.Expr'Poison eid id ty sp) = SIR.Expr'Poison eid id (type_ infer_vars ty) sp
+expr infer_vars (SIR.Expr'TypeAnnotation eid id sp (annotation, annotation_evaled) e) = SIR.Expr'TypeAnnotation eid id sp (type_expr infer_vars annotation, annotation_evaled) (expr infer_vars e)
+expr infer_vars (SIR.Expr'Forall eid id sp name_maps_index names e) = SIR.Expr'Forall eid id sp name_maps_index (NonEmpty.map identity names) (expr infer_vars e)
+expr infer_vars (SIR.Expr'TypeApply eid id sp e (arg, arg_evaled)) = SIR.Expr'TypeApply eid id sp (expr infer_vars e) (type_expr infer_vars arg, arg_evaled)
+expr infer_vars (SIR.Expr'Hole eid id sp hid) = SIR.Expr'Hole eid id sp hid
+expr infer_vars (SIR.Expr'Poison eid id sp) = SIR.Expr'Poison eid id sp
 
 type_expr :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.TypeExpr WithInferVars -> SIR.TypeExpr WithoutInferVars
 type_expr _ (SIR.TypeExpr'Refer id nrid sp name_context iden) = SIR.TypeExpr'Refer id nrid sp name_context iden

@@ -23,6 +23,7 @@ import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.EvaledAsType (evaled_as_
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.Intrinsics as Intrinsics
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (ValueRef(..))
+import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Misc.Result (TypeInfo(..))
 
 solve :: TypeSolveTask -> SolveMonad (ProgressMade TypeSolveTask)
 solve (WhenTypeExprEvaledAsType tyeatk more) = do
@@ -53,7 +54,9 @@ solve (GetValueRefType vr more) = do
     case vr of
         ValueRef'Variable var -> do
             (SIR.SIR _ _ _ _ vars _) <- ask_sir
-            let SIR.Variable _ _ ty _ = Arena.get vars var
+            let SIR.Variable id _ _ = Arena.get vars var
+            (_, _, (TypeInfo { variable_types = variable_types }, _)) <- get
+            let ty = variable_types Map.! id
             pure $ ProgressMade [more ty]
         ValueRef'ADTVariantConstructor variant_index@(Type.ADT.VariantIndex _ adt_key _) -> do
             (SIR.SIR _ adts _ _ _ _) <- ask_sir
@@ -91,7 +94,7 @@ solve (Constraint constraint) = do
 
 get_error_type_context :: SolveMonad ErrorTypeContext
 get_error_type_context = do
-    (_, _, infer_vars) <- get
+    (_, _, (_, infer_vars)) <- get
     (SIR.SIR _ adts type_synonyms qvars _ _) <- ask_sir
     pure (ErrorTypeContext adts type_synonyms qvars infer_vars)
 
@@ -99,7 +102,7 @@ set_infer_var_status :: InferVarKey -> InferVarStatus -> SolveMonad ()
 set_infer_var_status infer_var new_status = modify_infer_vars $ \ infer_vars -> Arena.modify infer_vars infer_var (\ (InferVar for _) -> InferVar for new_status)
 
 modify_infer_vars :: (Arena.Arena InferVar InferVarKey -> Arena.Arena InferVar InferVarKey) ->  SolveMonad ()
-modify_infer_vars modification = state $ \ (nr_things, ig_things, infer_vars) -> ((), (nr_things, ig_things, modification infer_vars))
+modify_infer_vars modification = state $ \ (nr_things, ig_things, (type_info, infer_vars)) -> ((), (nr_things, ig_things, (type_info, modification infer_vars)))
 
 data UnifyError
     = Mismatch Type Type
@@ -170,7 +173,7 @@ solve_constraint (DefinedToBe in_what sp infer_var ty) =
 
 apply_ty :: Span -> Type -> Type -> SolveMonad (Maybe (Either Error Type))
 apply_ty sp (Type'InferVar infer_var) arg = do
-    (_, _, infer_vars) <- get
+    (_, _, (_, infer_vars)) <- get
     case Arena.get infer_vars infer_var of
         InferVar _ (Substituted sub) -> apply_ty sp sub arg
         InferVar _ Fresh -> pure Nothing
@@ -269,7 +272,7 @@ unify (a, _) (b, _) = ExceptT (pure $ Left $ Mismatch a b)
 
 unify_infer_var :: (InferVarKey, VarSubMap) -> (Type, VarSubMap) -> Bool -> ExceptT UnifyError (VarSubGenerator SolveMonad) ()
 unify_infer_var (infer_var, infer_var_var_map) (other, other_var_map) infer_var_on_right = do
-    (_, _, infer_vars) <- lift $ lift get
+    (_, _, (_, infer_vars)) <- lift $ lift get
     case Arena.get infer_vars infer_var of
         -- if this infer_varnown can be expanded, unify its expansion
         InferVar _ (Substituted infer_var_sub) ->
@@ -301,7 +304,7 @@ occurs_check ifv (Type'InferVar other_v) =
     if ifv == other_v
         then pure True
         else do
-            (_, _, infer_vars) <- get
+            (_, _, (_, infer_vars)) <- get
             case Arena.get infer_vars other_v of
                 InferVar _ (Substituted other_sub) -> occurs_check ifv other_sub
                 InferVar _ Fresh -> pure False

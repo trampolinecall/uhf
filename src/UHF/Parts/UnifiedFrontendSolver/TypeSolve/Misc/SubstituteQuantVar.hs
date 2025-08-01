@@ -12,7 +12,7 @@ substitute_quant_var :: Type.QuantVarKey -> Type -> Type -> SolveMonad Type
 substitute_quant_var looking_for replacement ty = go ty
     where
         go ty@(Type'InferVar ifv) = do
-            (_, _, infer_vars) <- get
+            (_, _, (_, infer_vars)) <- get
             case Arena.get infer_vars ifv of
                 InferVar _ (Substituted sub) -> go sub
                 InferVar _ Fresh -> pure ty -- TODO: this is not correct because if this infer var later gets substituted for something with looking_for then it wont get replaced

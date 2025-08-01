@@ -7,14 +7,12 @@ import UHF.Prelude
 import Data.Functor.Const (Const)
 import Data.List (sortOn)
 import qualified UHF.Compiler as Compiler
-import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Data.SIR.ID as SIR.ID
 import UHF.Parts.UnifiedFrontendSolver.Error (Error)
 import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Finalize as InfixGroup.Finalize
-import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupFinalResults, InfixGroupResult, InfixGroupResults)
-import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result as InfixGroup.Result
+import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupFinalResults, InfixGroupResults)
 import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Prepare as InfixGroup.Prepare
 import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Solve as InfixGroup.Solve
 import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Task as InfixGroup.Task
@@ -44,10 +42,10 @@ import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolve.Solve as TypeSolve.So
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolve.Task as SolveTypes.Task
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolve.Task as TypeSolve.Task
 import qualified UHF.Util.Arena as Arena
+import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Misc.Result (TypeInfo, FinalTypeInfo)
 
 type PreSolve = ((), Const () (), (), (), (), (), ())
-type PostSolve =
-    (NameResolve.NameMaps.NameContextKey, Const () (), Type.Type, (), (), Maybe Type.Type, ())
+type PostSolve = (NameResolve.NameMaps.NameContextKey, Const () (), (), (), (), (), ())
 
 solve ::
     SIR.SIR PreSolve ->
@@ -62,32 +60,34 @@ solve ::
           , TypeExprsFinalEvaledAsTypes
           )
         , InfixGroupFinalResults
+        , FinalTypeInfo
         )
 solve sir = do
     -- TODO: clean this up
     (sir, name_map_stack_arena, sir_child_maps) <- NameResolve.OtherPreparation.AssignNameMaps.assign sir
     let (sir', name_resolution_results, name_resolution_tasks) = NameResolve.Prepare.prepare sir
     let (sir'', infix_group_results, infix_group_tasks) = InfixGroup.Prepare.prepare sir'
-    let (sir''', infer_vars, type_solving_tasks) = TypeSolve.Prepare.add_types sir''
+    let (sir''', (type_info, infer_vars), type_solving_tasks) = TypeSolve.Prepare.add_types sir''
 
-    ((), (name_resolution_results, infix_group_results, infer_vars)) <-
+    ((), (name_resolution_results, infix_group_results, (type_info, infer_vars))) <-
         runReaderT
             ( runStateT
                 (solve' ((\(a, b, c, d, e) -> (a, b, c, map Right d, e)) name_resolution_tasks, infix_group_tasks, type_solving_tasks))
-                (name_resolution_results, infix_group_results, infer_vars)
+                (name_resolution_results, infix_group_results, (type_info, infer_vars))
             )
             (name_map_stack_arena, sir_child_maps, sir''')
 
     (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena) <-
         NameResolve.Finalize.finalize name_resolution_results
     infix_group_results <- InfixGroup.Finalize.finalize infix_group_results
-    (sir'''', decl_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena) <-
-        TypeSolve.Finalize.remove_infer_vars infer_vars decl_iden_resolved_arena type_expr_evaled_arena type_expr_evaled_as_type_arena sir'''
+    (sir'''', type_info, decl_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena) <-
+        TypeSolve.Finalize.remove_infer_vars infer_vars type_info decl_iden_resolved_arena type_expr_evaled_arena type_expr_evaled_as_type_arena sir'''
 
     pure
         ( sir''''
         , (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
         , infix_group_results
+        , type_info
         )
 
 solve' ::
@@ -108,7 +108,7 @@ solve' ::
           , TypeExprsEvaledAsTypes
           )
         , InfixGroupResults
-        , TypeWithInferVar.InferVarArena
+        , (TypeInfo, TypeWithInferVar.InferVarArena)
         )
         ( ReaderT
             (Arena.Arena NameResolve.NameMaps.NameContext NameResolve.NameMaps.NameContextKey, NameResolve.NameMaps.SIRChildMaps, SIR.SIR Solving.SolvingStage)

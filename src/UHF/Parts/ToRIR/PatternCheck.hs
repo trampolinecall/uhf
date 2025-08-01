@@ -74,12 +74,12 @@ check adt_arena type_synonym_arena variant_idens_resolved type_exprs_evaled_as_t
         -- first list of tuple is all of the unmatched values
         -- second list of tuple is all of the matched values
         check_against_one_uncovered_value :: SIR.Pattern stage -> MatchValue -> ([MatchValue], [MatchValue])
-        check_against_one_uncovered_value (SIR.Pattern'Variable _ ty _ _) uncovered_value = check_wild ty uncovered_value
-        check_against_one_uncovered_value (SIR.Pattern'Wildcard _ ty _) uncovered_value = check_wild ty uncovered_value
+        check_against_one_uncovered_value (SIR.Pattern'Variable ty _ _) uncovered_value = check_wild ty uncovered_value
+        check_against_one_uncovered_value (SIR.Pattern'Wildcard ty _) uncovered_value = check_wild ty uncovered_value
 
-        check_against_one_uncovered_value (SIR.Pattern'Named _ _ _ _ _ subpat) uncovered_value = check_against_one_uncovered_value subpat uncovered_value
+        check_against_one_uncovered_value (SIR.Pattern'Named _ _ _ _ subpat) uncovered_value = check_against_one_uncovered_value subpat uncovered_value
 
-        check_against_one_uncovered_value (SIR.Pattern'Tuple _ _ _ field_a_pat field_b_pat) uncovered_value =
+        check_against_one_uncovered_value (SIR.Pattern'Tuple _ _ field_a_pat field_b_pat) uncovered_value =
             case uncovered_value of
                 -- the fields of '_ : (A, B)' are '[_ : A, _ : B]'
                 Any -> go Any Any
@@ -95,7 +95,8 @@ check adt_arena type_synonym_arena variant_idens_resolved type_exprs_evaled_as_t
                     let (uncovered_field_combos, covered_field_combos) = check_fields [field_a_pat, field_b_pat] [uncovered_a, uncovered_b]
                     in (map make_into_tuple uncovered_field_combos, map make_into_tuple covered_field_combos) -- make_into_tuple will not error because the field combos must be 2 fields long
 
-        check_against_one_uncovered_value (SIR.Pattern'AnonADTVariant _ (Just ty) _ iden _ pat_fields) uncovered_value =
+        check_against_one_uncovered_value (SIR.Pattern'AnonADTVariant _ _ iden _ pat_fields) uncovered_value =
+            -- TODO: this branch is for if there is a valid type
             case variant_idens_resolved Map.! SIR.split_identifier_id iden of
                 Just pat_variant ->
                     case uncovered_value of
@@ -142,12 +143,14 @@ check adt_arena type_synonym_arena variant_idens_resolved type_exprs_evaled_as_t
                             | otherwise = ([AnonADT uncovered_variant uncovered_fields], []) -- if the constructors do not match, the pattern will cover nothing
                 Nothing -> ([uncovered_value], []) -- a variant pattern with an unknown variant does not cover anything
 
-        check_against_one_uncovered_value (SIR.Pattern'AnonADTVariant _ _ _ _ _ _) uncovered_value = ([uncovered_value], [])  -- a variant pattern with an unknown type does not cover anything
+        -- TODO: and this branch is for if there isnt
+        check_against_one_uncovered_value (SIR.Pattern'AnonADTVariant _ _ _ _ _) uncovered_value = ([uncovered_value], [])  -- a variant pattern with an unknown type does not cover anything
 
-        check_against_one_uncovered_value (SIR.Pattern'NamedADTVariant _ (Just ty) _ _  _ fields) uncovered_value = todo
-        check_against_one_uncovered_value (SIR.Pattern'NamedADTVariant _ _ _ _ _ _) uncovered_value = ([uncovered_value], []) -- same as above: a variant pattern with an unknown variant or an unknown type does not cover anything
+        -- TODO: this match is for if it has a type
+        check_against_one_uncovered_value (SIR.Pattern'NamedADTVariant _ _ _ _ fields) uncovered_value = todo
+        -- TODO: this match is for if it doesnt have a type check_against_one_uncovered_value (SIR.Pattern'NamedADTVariant _ _ _ _ _) uncovered_value = ([uncovered_value], []) -- same as above: a variant pattern with an unknown variant or an unknown type does not cover anything
 
-        check_against_one_uncovered_value (SIR.Pattern'Poison _ _ _) uncovered_value = ([uncovered_value], []) -- poison pattern behaves as if it doesnt cover anything
+        check_against_one_uncovered_value (SIR.Pattern'Poison _ _) uncovered_value = ([uncovered_value], []) -- poison pattern behaves as if it doesnt cover anything
 
         check_wild _ uncovered_value = ([], [uncovered_value]) -- wildcard pattern always covers everything
 

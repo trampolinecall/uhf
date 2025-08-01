@@ -35,17 +35,11 @@ import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result
     , VariantIdenResults
     )
 import UHF.Parts.UnifiedFrontendSolver.SolveResult (SolveResult)
+import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Misc.Result (TypeInfo)
 import qualified UHF.Util.Arena as Arena
 
-type SolvingStage =
-    ( NameMaps.NameContextKey
-    , Const () () -- TODO: remove this stage item
-    , TypeWithInferVar.Type
-    , ()
-    , ()
-    , TypeWithInferVar.Type
-    , ()
-    )
+-- TODO: remove stage
+type SolvingStage = ( NameMaps.NameContextKey , Const () () , () , () , () , () , ())
 
 type SolveMonad =
     StateT
@@ -56,7 +50,7 @@ type SolveMonad =
           , TypeExprsEvaledAsTypes
           )
         , InfixGroupResults
-        , TypeWithInferVar.InferVarArena
+        , (TypeInfo, TypeWithInferVar.InferVarArena)
         )
         -- TODO: eventually this should also be in the StateT because macro expansion can add to NameMaps and ChildMaps and identifier patterns need to be able to resolve as adt variant patterns with no fields
         ( ReaderT

@@ -53,31 +53,31 @@ pattern :: SIR.Pattern stage -> ReaderT (SIR.SIR stage, TypeExprsFinalEvaledAsTy
 pattern _ = pure () -- TODO: remove or keep for symmetry?
 
 expr :: (SIR.TypeInfo stage ~ Maybe Type.Type) => SIR.Expr stage -> ReaderT (SIR.SIR stage, TypeExprsFinalEvaledAsTypes) (Compiler.WithDiagnostics (Error stage) Void) ()
-expr (SIR.Expr'Refer _ _ _ _ _) = pure ()
-expr (SIR.Expr'Char _ _ _ _ _) = pure ()
-expr (SIR.Expr'String _ _ _ _ _) = pure ()
-expr (SIR.Expr'Int _ _ _ _ _) = pure ()
-expr (SIR.Expr'Float _ _ _ _ _) = pure ()
-expr (SIR.Expr'Bool _ _ _ _ _) = pure ()
-expr (SIR.Expr'Tuple _ _ _ _ a b) = expr a >> expr b
-expr (SIR.Expr'Lambda _ _ _ _ param body) = pattern param >> expr body
-expr (SIR.Expr'Let _ _ _ _ _ bindings adts type_synonyms body) = mapM_ binding bindings >> mapM_ adt adts >> mapM_ type_synonym type_synonyms >> expr body
-expr (SIR.Expr'LetRec _ _ _ _ _ bindings adts type_synonyms body) = mapM_ binding bindings >> mapM_ adt adts >> mapM_ type_synonym type_synonyms >> expr body
-expr (SIR.Expr'BinaryOps _ _ _ _ _ first ops) = expr first >> mapM_ (\ (_, _, rhs) -> expr rhs) ops
-expr (SIR.Expr'Call _ _ _ _ callee arg) = expr callee >> expr arg
-expr (SIR.Expr'If _ _ _ _ _ cond t f) = expr cond >> expr t >> expr f
-expr (SIR.Expr'Match _ _ _ _ _ e arms) = expr e >> mapM_ (\ (_, p, e) -> pattern p >> expr e) arms
-expr (SIR.Expr'TypeAnnotation _ _ _ _ (ty, _) e) = type_expr ty >> expr e
-expr (SIR.Expr'Forall _ _ _ _ _ _ e) = expr e
-expr (SIR.Expr'TypeApply _ _ _ _ e (arg, _)) = expr e >> type_expr arg
-expr (SIR.Expr'Hole _ _ type_info sp hid) =
+expr (SIR.Expr'Refer _ _ _ _) = pure ()
+expr (SIR.Expr'Char _ _ _ _) = pure ()
+expr (SIR.Expr'String _ _ _ _) = pure ()
+expr (SIR.Expr'Int _ _ _ _) = pure ()
+expr (SIR.Expr'Float _ _ _ _) = pure ()
+expr (SIR.Expr'Bool _ _ _ _) = pure ()
+expr (SIR.Expr'Tuple _ _ _ a b) = expr a >> expr b
+expr (SIR.Expr'Lambda _ _ _ param body) = pattern param >> expr body
+expr (SIR.Expr'Let _ _ _ _ bindings adts type_synonyms body) = mapM_ binding bindings >> mapM_ adt adts >> mapM_ type_synonym type_synonyms >> expr body
+expr (SIR.Expr'LetRec _ _ _ _ bindings adts type_synonyms body) = mapM_ binding bindings >> mapM_ adt adts >> mapM_ type_synonym type_synonyms >> expr body
+expr (SIR.Expr'BinaryOps _ _ _ _ first ops) = expr first >> mapM_ (\ (_, _, rhs) -> expr rhs) ops
+expr (SIR.Expr'Call _ _ _ callee arg) = expr callee >> expr arg
+expr (SIR.Expr'If _ _ _ _ cond t f) = expr cond >> expr t >> expr f
+expr (SIR.Expr'Match _ _ _ _ e arms) = expr e >> mapM_ (\ (_, p, e) -> pattern p >> expr e) arms
+expr (SIR.Expr'TypeAnnotation _ _ _ (ty, _) e) = type_expr ty >> expr e
+expr (SIR.Expr'Forall _ _ _ _ _ e) = expr e
+expr (SIR.Expr'TypeApply _ _ _ e (arg, _)) = expr e >> type_expr arg
+expr (SIR.Expr'Hole _ type_info sp hid) =
     case type_info of
         Just type_info ->
             ask >>= \ (SIR.SIR _ adts type_synonyms vars _ _, _) ->
             lift (Compiler.tell_error (Error adts type_synonyms vars sp hid type_info)) >>
             pure ()
         Nothing -> pure () -- typing phase will have already reported ambiguous type
-expr (SIR.Expr'Poison _ _ _ _) = pure ()
+expr (SIR.Expr'Poison _ _ _) = pure ()
 
 type_expr :: (SIR.TypeInfo stage ~ Maybe Type.Type) => SIR.TypeExpr stage -> ReaderT (SIR.SIR stage, TypeExprsFinalEvaledAsTypes) (Compiler.WithDiagnostics (Error stage) Void) ()
 type_expr (SIR.TypeExpr'Refer _ _ _ _ _) = pure ()

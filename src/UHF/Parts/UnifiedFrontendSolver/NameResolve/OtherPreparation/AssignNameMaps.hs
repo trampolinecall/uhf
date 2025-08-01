@@ -1,3 +1,5 @@
+{-# LANGUAGE DataKinds #-}
+
 module UHF.Parts.UnifiedFrontendSolver.NameResolve.OtherPreparation.AssignNameMaps
     ( Unassigned
     , Assigned
@@ -13,12 +15,13 @@ import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Data.SIR as SIR
+import qualified UHF.Data.SIR.ID as SIR.ID
 import qualified UHF.Parts.UnifiedFrontendSolver.Error as Solve.Error
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Error as NameResolve.Error
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameMaps
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps.Utils as NameMaps.Utils
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef (..))
 import qualified UHF.Util.Arena as Arena
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef(..))
 
 -- TODO: figure out a better solution than to have adt_parents and type_synonym_parents
 
@@ -30,35 +33,116 @@ type UnassignedModuleArena = Arena.Arena (SIR.Module Unassigned) SIR.ModuleKey
 type UnassignedADTArena = Arena.Arena (SIR.ADT Unassigned) Type.ADTKey
 type UnassignedTypeSynonymArena = Arena.Arena (SIR.TypeSynonym Unassigned) Type.TypeSynonymKey
 
-type Assigned = (NameMaps.NameContextKey, Const () (), (), (), (), (), ())
+type Assigned = ((), Const () (), (), (), (), (), ())
 
 type AssignedModuleArena = Arena.Arena (SIR.Module Assigned) SIR.ModuleKey
 type AssignedADTArena = Arena.Arena (SIR.ADT Assigned) Type.ADTKey
 type AssignedTypeSynonymArena = Arena.Arena (SIR.TypeSynonym Assigned) Type.TypeSynonymKey
 
-type AssignMonad = ReaderT (SIR.SIR Unassigned) (StateT (NameContextArena, NameMaps.SIRChildMaps) (Compiler.WithDiagnostics Solve.Error.Error Void))
+type AssignMonad =
+    ReaderT
+        (SIR.SIR Unassigned)
+        ( StateT
+            ( NameContextArena
+            , NameMaps.SIRChildMaps
+            , Map (SIR.ID.ID "HasChildNameContext") NameMaps.NameContextKey
+            , Map (SIR.ID.ID "HasEnclosingNameContext") NameMaps.NameContextKey
+            )
+            (Compiler.WithDiagnostics Solve.Error.Error Void)
+        )
 
 -- helper functions {{{1
-new_name_map_stack_end :: Monad m => StateT (NameContextArena, NameMaps.SIRChildMaps) m NameMaps.NameContextKey
-new_name_map_stack_end = state $ \(arena, sir_child_maps) ->
+new_name_map_stack_end ::
+    Monad m =>
+    StateT
+        ( NameContextArena
+        , NameMaps.SIRChildMaps
+        , Map (SIR.ID.ID "HasChildNameContext") NameMaps.NameContextKey
+        , Map (SIR.ID.ID "HasEnclosingNameContext") NameMaps.NameContextKey
+        )
+        m
+        NameMaps.NameContextKey
+new_name_map_stack_end = state $ \(arena, sir_child_maps, hcncid_map, hencid_map) ->
     let (key, arena') = Arena.put (NameMaps.NameContext NameMaps.empty_name_maps Nothing) arena
-    in (key, (arena', sir_child_maps))
+    in (key, (arena', sir_child_maps, hcncid_map, hencid_map))
 
-new_name_map_stack_with_parent :: Monad m => NameMaps.NameContextKey -> StateT (NameContextArena, NameMaps.SIRChildMaps) m NameMaps.NameContextKey
-new_name_map_stack_with_parent parent = state $ \(arena, sir_child_maps) ->
+new_name_map_stack_with_parent ::
+    Monad m =>
+    NameMaps.NameContextKey ->
+    StateT
+        ( NameContextArena
+        , NameMaps.SIRChildMaps
+        , Map (SIR.ID.ID "HasChildNameContext") NameMaps.NameContextKey
+        , Map (SIR.ID.ID "HasEnclosingNameContext") NameMaps.NameContextKey
+        )
+        m
+        NameMaps.NameContextKey
+new_name_map_stack_with_parent parent = state $ \(arena, sir_child_maps, hcncid_map, hencid_map) ->
     let (key, arena') = Arena.put (NameMaps.NameContext NameMaps.empty_name_maps (Just parent)) arena
-    in (key, (arena', sir_child_maps))
+    in (key, (arena', sir_child_maps, hcncid_map, hencid_map))
 
 modify_name_map ::
-    Monad m => NameMaps.NameContextKey -> (NameMaps.NameMaps -> m NameMaps.NameMaps) -> StateT (NameContextArena, NameMaps.SIRChildMaps) m ()
-modify_name_map key modification = StateT $ \(arena, sir_child_maps) -> do
+    Monad m =>
+    NameMaps.NameContextKey ->
+    (NameMaps.NameMaps -> m NameMaps.NameMaps) ->
+    StateT
+        ( NameContextArena
+        , NameMaps.SIRChildMaps
+        , Map (SIR.ID.ID "HasChildNameContext") NameMaps.NameContextKey
+        , Map (SIR.ID.ID "HasEnclosingNameContext") NameMaps.NameContextKey
+        )
+        m
+        ()
+modify_name_map key modification = StateT $ \(arena, sir_child_maps, hcncid_map, hencid_map) -> do
     modified <- Arena.modifyM arena key (\(NameMaps.NameContext name_maps parent) -> NameMaps.NameContext <$> modification name_maps <*> pure parent)
-    pure ((), (modified, sir_child_maps))
+    pure ((), (modified, sir_child_maps, hcncid_map, hencid_map))
 
-modify_sir_child_maps :: Monad m => (NameMaps.SIRChildMaps -> m NameMaps.SIRChildMaps) -> StateT (NameContextArena, NameMaps.SIRChildMaps) m ()
-modify_sir_child_maps modification = StateT $ \(arena, sir_child_maps) -> do
+modify_sir_child_maps ::
+    Monad m =>
+    (NameMaps.SIRChildMaps -> m NameMaps.SIRChildMaps) ->
+    StateT
+        ( NameContextArena
+        , NameMaps.SIRChildMaps
+        , Map (SIR.ID.ID "HasChildNameContext") NameMaps.NameContextKey
+        , Map (SIR.ID.ID "HasEnclosingNameContext") NameMaps.NameContextKey
+        )
+        m
+        ()
+modify_sir_child_maps modification = StateT $ \(arena, sir_child_maps, hcncid_map, hencid_map) -> do
     modified <- modification sir_child_maps
-    pure ((), (arena, modified))
+    pure ((), (arena, modified, hcncid_map, hencid_map))
+
+put_hcncid ::
+    Monad m =>
+    SIR.ID.ID "HasChildNameContext" ->
+    NameMaps.NameContextKey ->
+    StateT
+        ( NameContextArena
+        , NameMaps.SIRChildMaps
+        , Map (SIR.ID.ID "HasChildNameContext") NameMaps.NameContextKey
+        , Map (SIR.ID.ID "HasEnclosingNameContext") NameMaps.NameContextKey
+        )
+        m
+        ()
+put_hcncid id nk = StateT $ \(arena, sir_child_maps, hcncid_map, hencid_map) -> do
+    let hcncid_map' = Map.insert id nk hcncid_map
+    pure ((), (arena, sir_child_maps, hcncid_map', hencid_map))
+
+put_hencid ::
+    Monad m =>
+    SIR.ID.ID "HasEnclosingNameContext" ->
+    NameMaps.NameContextKey ->
+    StateT
+        ( NameContextArena
+        , NameMaps.SIRChildMaps
+        , Map (SIR.ID.ID "HasChildNameContext") NameMaps.NameContextKey
+        , Map (SIR.ID.ID "HasEnclosingNameContext") NameMaps.NameContextKey
+        )
+        m
+        ()
+put_hencid id nk = StateT $ \(arena, sir_child_maps, hcncid_map, hencid_map) -> do
+    let hencid_map' = Map.insert id nk hencid_map
+    pure ((), (arena, sir_child_maps, hcncid_map, hencid_map'))
 
 -- TODO: this is a very ad hoc solution and should probably be refactored somehow
 convert_add_to_name_maps :: (thing -> (thing, [NameResolve.Error.Error])) -> thing -> Compiler.WithDiagnostics Solve.Error.Error Void thing
@@ -67,9 +151,19 @@ convert_add_to_name_maps fn thing =
     in Compiler.tell_errors (map Solve.Error.NRError errs) >> pure res
 
 -- assign entry point {{{1
-assign :: SIR.SIR Unassigned -> Compiler.WithDiagnostics Solve.Error.Error Void (SIR.SIR Assigned, NameContextArena, NameMaps.SIRChildMaps)
+assign ::
+    SIR.SIR Unassigned ->
+    Compiler.WithDiagnostics
+        Solve.Error.Error
+        Void
+        ( SIR.SIR Assigned
+        , NameContextArena
+        , NameMaps.SIRChildMaps
+        , Map (SIR.ID.ID "HasChildNameContext") NameMaps.NameContextKey
+        , Map (SIR.ID.ID "HasEnclosingNameContext") NameMaps.NameContextKey
+        )
 assign sir@(SIR.SIR mods adts type_synonyms type_vars variables (SIR.CU root_module main_function)) = do
-    (sir', (name_maps_arena, sir_child_maps)) <-
+    (sir', (name_maps_arena, sir_child_maps, hencid_map, hcncid_map)) <-
         runStateT
             ( runReaderT
                 ( do
@@ -80,8 +174,8 @@ assign sir@(SIR.SIR mods adts type_synonyms type_vars variables (SIR.CU root_mod
                 )
                 sir
             )
-            (Arena.new, NameMaps.empty_sir_child_maps sir)
-    pure (sir', name_maps_arena, sir_child_maps)
+            (Arena.new, NameMaps.empty_sir_child_maps sir, Map.empty, Map.empty)
+    pure (sir', name_maps_arena, sir_child_maps, hencid_map, hcncid_map)
     where
         change_variable (SIR.Variable id varid n) = SIR.Variable id varid n
 
@@ -97,10 +191,11 @@ assign_in_mods module_arena = do
 
 assign_in_module :: SIR.ModuleKey -> SIR.Module Unassigned -> ADTParentAndTypeSynonymParentWriter AssignMonad (SIR.Module Assigned)
 -- TODO: rename mid to id
-assign_in_module module_key (SIR.Module mid id () bindings adts type_synonyms) = do
+assign_in_module module_key (SIR.Module mid hcncid id bindings adts type_synonyms) = do
     module_name_map <- lift $ lift $ lift new_name_map_stack_end
+    lift $ lift $ lift $ put_hcncid hcncid module_name_map
 
-    lift $ lift $ lift $ modify_name_map module_name_map $ convert_add_to_name_maps $ NameMaps.add_to_name_maps primitive_decls primitive_vals [] -- TODO: convert from nr error to unified solver error
+    lift $ lift $ lift $ modify_name_map module_name_map $ convert_add_to_name_maps $ NameMaps.add_to_name_maps primitive_decls primitive_vals []
     lift $ lift $ lift $ modify_sir_child_maps $ convert_add_to_name_maps $ NameMaps.add_to_module_child_maps primitive_decls primitive_vals [] module_key
     children <- lift $ lift $ NameMaps.Utils.decls_to_children bindings adts type_synonyms
     lift $ lift $ lift $ modify_name_map module_name_map $ convert_add_to_name_maps $ NameMaps.add_tuple_to_name_maps children
@@ -109,7 +204,7 @@ assign_in_module module_key (SIR.Module mid id () bindings adts type_synonyms) =
     mapM_ (\adt -> tell $ Map.singleton adt module_name_map) adts
     mapM_ (\synonym -> lift $ tell $ Map.singleton synonym module_name_map) type_synonyms
 
-    SIR.Module mid id module_name_map
+    SIR.Module mid hcncid id
         <$> mapM (lift . lift . assign_in_binding module_name_map) bindings
         <*> pure adts
         <*> pure type_synonyms
@@ -138,7 +233,9 @@ assign_in_adt adt_parent_name_maps adt_key (Type.ADT id name type_vars variants)
 
     Type.ADT id name type_vars <$> mapM (assign_in_variant new_name_map_stack) variants
     where
-        assign_in_variant nc_stack (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id <$> mapM (\(id, name, (ty, teeatid)) -> assign_in_type_expr nc_stack ty >>= \ty -> pure (id, name, (ty, teeatid))) fields
+        assign_in_variant nc_stack (Type.ADT.Variant'Named name id fields) =
+            Type.ADT.Variant'Named name id
+                <$> mapM (\(id, name, (ty, teeatid)) -> assign_in_type_expr nc_stack ty >>= \ty -> pure (id, name, (ty, teeatid))) fields
         assign_in_variant nc_stack (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id <$> mapM (\(id, (ty, teeatid)) -> assign_in_type_expr nc_stack ty >>= \ty -> pure (id, (ty, teeatid))) fields
 
 assign_in_type_synonyms :: Map.Map Type.TypeSynonymKey NameMaps.NameContextKey -> UnassignedTypeSynonymArena -> AssignMonad AssignedTypeSynonymArena
@@ -155,18 +252,21 @@ assign_in_binding :: NameMaps.NameContextKey -> SIR.Binding Unassigned -> Assign
 assign_in_binding nc_stack (SIR.Binding id target eq_sp expr) = SIR.Binding id <$> assign_in_pat nc_stack target <*> pure eq_sp <*> assign_in_expr nc_stack expr
 
 assign_in_type_expr :: NameMaps.NameContextKey -> SIR.TypeExpr Unassigned -> AssignMonad (SIR.TypeExpr Assigned)
-assign_in_type_expr nc_stack (SIR.TypeExpr'Refer id nrid sp () iden) = pure $ SIR.TypeExpr'Refer id nrid sp nc_stack iden
+assign_in_type_expr nc_stack (SIR.TypeExpr'Refer id nrid hencid sp iden) = do
+    lift $ put_hencid hencid nc_stack
+    pure $ SIR.TypeExpr'Refer id nrid hencid sp iden
 assign_in_type_expr nc_stack (SIR.TypeExpr'Get id nrid sp parent name) = SIR.TypeExpr'Get id nrid sp <$> assign_in_type_expr nc_stack parent <*> pure name
 assign_in_type_expr nc_stack (SIR.TypeExpr'Tuple id sp a b) = SIR.TypeExpr'Tuple id sp <$> assign_in_type_expr nc_stack a <*> assign_in_type_expr nc_stack b
 assign_in_type_expr _ (SIR.TypeExpr'Hole id type_info sp hid) = pure $ SIR.TypeExpr'Hole id type_info sp hid
 assign_in_type_expr nc_stack (SIR.TypeExpr'Function id sp arg res) = SIR.TypeExpr'Function id sp <$> assign_in_type_expr nc_stack arg <*> assign_in_type_expr nc_stack res
-assign_in_type_expr nc_stack (SIR.TypeExpr'Forall id sp () vars ty) = do
+assign_in_type_expr nc_stack (SIR.TypeExpr'Forall id hcncid sp vars ty) = do
     new_name_map_stack <- lift $ new_name_map_stack_with_parent nc_stack
+    lift $ put_hcncid hcncid new_name_map_stack
 
     children <- NameMaps.Utils.quant_vars_to_children $ toList vars
     lift $ modify_name_map new_name_map_stack $ convert_add_to_name_maps $ NameMaps.add_to_name_maps children [] []
 
-    SIR.TypeExpr'Forall id sp new_name_map_stack vars <$> assign_in_type_expr new_name_map_stack ty
+    SIR.TypeExpr'Forall id hcncid sp vars <$> assign_in_type_expr new_name_map_stack ty
 assign_in_type_expr nc_stack (SIR.TypeExpr'Apply id sp ty args) = SIR.TypeExpr'Apply id sp <$> assign_in_type_expr nc_stack ty <*> assign_in_type_expr nc_stack args
 assign_in_type_expr _ (SIR.TypeExpr'Wild id sp) = pure $ SIR.TypeExpr'Wild id sp
 assign_in_type_expr _ (SIR.TypeExpr'Poison id sp) = pure $ SIR.TypeExpr'Poison id sp
@@ -187,24 +287,26 @@ assign_in_expr nc_stack (SIR.Expr'Lambda eid id sp param body) = do
     lift $ modify_name_map body_name_map_stack $ convert_add_to_name_maps $ NameMaps.add_to_name_maps [] children []
 
     SIR.Expr'Lambda eid id sp <$> assign_in_pat nc_stack param <*> assign_in_expr body_name_map_stack body
-assign_in_expr nc_stack (SIR.Expr'Let eid id sp () bindings adts type_synonyms body) = do
+assign_in_expr nc_stack (SIR.Expr'Let eid hcncid id sp bindings adts type_synonyms body) = do
     new_name_map_stack <- lift $ new_name_map_stack_with_parent nc_stack
+    lift $ put_hcncid hcncid new_name_map_stack
 
     children <- NameMaps.Utils.decls_to_children bindings adts type_synonyms
     lift $ modify_name_map new_name_map_stack $ convert_add_to_name_maps $ NameMaps.add_tuple_to_name_maps children
 
-    SIR.Expr'Let eid id sp new_name_map_stack
+    SIR.Expr'Let eid hcncid id sp
         <$> mapM (assign_in_binding nc_stack) bindings
         <*> pure adts
         <*> pure type_synonyms
         <*> assign_in_expr new_name_map_stack body
-assign_in_expr nc_stack (SIR.Expr'LetRec eid id sp () bindings adts type_synonyms body) = do
+assign_in_expr nc_stack (SIR.Expr'LetRec eid hcncid id sp bindings adts type_synonyms body) = do
     new_name_map_stack <- lift $ new_name_map_stack_with_parent nc_stack
+    lift $ put_hcncid hcncid new_name_map_stack
 
     children <- NameMaps.Utils.decls_to_children bindings adts type_synonyms
     lift $ modify_name_map new_name_map_stack $ convert_add_to_name_maps $ NameMaps.add_tuple_to_name_maps children
 
-    SIR.Expr'LetRec eid id sp new_name_map_stack
+    SIR.Expr'LetRec eid hcncid id sp
         <$> mapM (assign_in_binding new_name_map_stack) bindings
         <*> pure adts
         <*> pure type_synonyms
@@ -225,24 +327,26 @@ assign_in_expr nc_stack (SIR.Expr'Match eid id sp match_tok_sp e arms) =
     SIR.Expr'Match eid id sp match_tok_sp
         <$> assign_in_expr nc_stack e
         <*> mapM
-            ( \((), pat, expr) -> do
+            ( \(hcncid, pat, expr) -> do
                 arm_ncs <- lift $ new_name_map_stack_with_parent nc_stack
+                lift $ put_hcncid hcncid arm_ncs
                 children <- NameMaps.Utils.pattern_to_children pat
                 lift $ modify_name_map arm_ncs $ convert_add_to_name_maps $ NameMaps.add_to_name_maps [] children []
 
                 pat' <- assign_in_pat nc_stack pat
                 expr' <- assign_in_expr arm_ncs expr
-                pure (arm_ncs, pat', expr')
+                pure (hcncid, pat', expr')
             )
             arms
 assign_in_expr nc_stack (SIR.Expr'TypeAnnotation eid id sp (ty, tye_ty) e) = SIR.Expr'TypeAnnotation eid id sp <$> ((,tye_ty) <$> assign_in_type_expr nc_stack ty) <*> assign_in_expr nc_stack e
-assign_in_expr nc_stack (SIR.Expr'Forall eid id sp () vars e) = do
+assign_in_expr nc_stack (SIR.Expr'Forall eid hcncid id sp vars e) = do
     new_ncs <- lift $ new_name_map_stack_with_parent nc_stack
+    lift $ put_hcncid hcncid new_ncs
 
     children <- NameMaps.Utils.quant_vars_to_children $ toList vars
     lift $ modify_name_map new_ncs $ convert_add_to_name_maps $ NameMaps.add_to_name_maps children [] []
 
-    SIR.Expr'Forall eid id sp new_ncs vars <$> assign_in_expr new_ncs e
+    SIR.Expr'Forall eid hcncid id sp vars <$> assign_in_expr new_ncs e
 assign_in_expr nc_stack (SIR.Expr'TypeApply eid id sp e (arg, arg_ty)) = SIR.Expr'TypeApply eid id sp <$> assign_in_expr nc_stack e <*> ((,arg_ty) <$> assign_in_type_expr nc_stack arg)
 assign_in_expr _ (SIR.Expr'Hole eid id sp hid) = pure $ SIR.Expr'Hole eid id sp hid
 assign_in_expr _ (SIR.Expr'Poison eid id sp) = pure $ SIR.Expr'Poison eid id sp
@@ -265,4 +369,6 @@ assign_in_pat _ (SIR.Pattern'Poison id sp) = pure $ SIR.Pattern'Poison id sp
 -- assigning identifiers {{{1
 assign_split_iden :: NameMaps.NameContextKey -> SIR.SplitIdentifier id_name Unassigned -> AssignMonad (SIR.SplitIdentifier id_name Assigned)
 assign_split_iden name_context (SIR.SplitIdentifier'Get id texpr next) = SIR.SplitIdentifier'Get id <$> assign_in_type_expr name_context texpr <*> pure next
-assign_split_iden name_context (SIR.SplitIdentifier'Single id () i) = pure $ SIR.SplitIdentifier'Single id name_context i
+assign_split_iden name_context (SIR.SplitIdentifier'Single id hencid i) = do
+    lift $ put_hencid hencid name_context
+    pure $ SIR.SplitIdentifier'Single id hencid i

@@ -45,7 +45,7 @@ import qualified UHF.Util.Arena as Arena
 import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Misc.Result (TypeInfo, FinalTypeInfo)
 
 type PreSolve = ((), Const () (), (), (), (), (), ())
-type PostSolve = (NameResolve.NameMaps.NameContextKey, Const () (), (), (), (), (), ())
+type PostSolve = ((), Const () (), (), (), (), (), ())
 
 solve ::
     SIR.SIR PreSolve ->
@@ -64,8 +64,8 @@ solve ::
         )
 solve sir = do
     -- TODO: clean this up
-    (sir, name_map_stack_arena, sir_child_maps) <- NameResolve.OtherPreparation.AssignNameMaps.assign sir
-    let (sir', name_resolution_results, name_resolution_tasks) = NameResolve.Prepare.prepare sir
+    (sir, name_map_stack_arena, sir_child_maps, hcncid_map, hencid_map) <- NameResolve.OtherPreparation.AssignNameMaps.assign sir
+    let (sir', name_resolution_results, name_resolution_tasks) = NameResolve.Prepare.prepare hcncid_map hencid_map sir
     let (sir'', infix_group_results, infix_group_tasks) = InfixGroup.Prepare.prepare sir'
     let (sir''', (type_info, infer_vars), type_solving_tasks) = TypeSolve.Prepare.add_types sir''
 

@@ -18,8 +18,8 @@ import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Misc.Result (TypeInfo (..), emp
 import qualified Data.Map as Map
 import qualified UHF.Data.SIR.ID as SIR.ID
 
-type Unadded = (NameMaps.NameContextKey, Const () (), (), (), (), (), ())
-type Added = (NameMaps.NameContextKey, Const () (), (), (), (), (), ())
+type Unadded = ((), Const () (), (), (), (), (), ())
+type Added = ((), Const () (), (), (), (), (), ())
 
 -- TODO: remove these
 type TypedWithInferVarsDIden = Maybe (DeclRef TypeWithInferVar.Type)

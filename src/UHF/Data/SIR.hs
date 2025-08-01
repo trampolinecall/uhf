@@ -6,7 +6,6 @@
 
 module UHF.Data.SIR
     ( SIR (..)
-    , Stage.Stage (..)
     , CU (..)
     , ADT (..)
     -- , ADTVariant (..) TODO: sir-type
@@ -39,16 +38,11 @@ import qualified UHF.Data.IR.ID as ID
 import UHF.Data.IR.Keys
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.SIR.ID as SIR.ID -- TODO: import this as ID instead of SIR.ID when ID.gets renamed to MangleID
-import qualified UHF.Data.SIR.Stage as Stage
 import UHF.Source.Located (Located)
 import UHF.Source.Span (Span)
 import qualified UHF.Util.Arena as Arena
 
 -- TODO: transpose grouping of these? ie restructure as files for ast, type synonyms, intrinsics, ..., and all related operations like child maps, getting children, ... together in thesdecls with all related thing in the same file
-
-type AllShowable stage =
-    ( Stage.AllShowable stage
-    )
 
 -- "syntax based ir"
 -- TODO: no more arenas now that maps are used
@@ -61,7 +55,7 @@ data SIR stage
     , sir_variables :: Arena.Arena (Variable stage) VariableKey
     , sir_cu :: CU stage
     }
-deriving instance AllShowable stage => Show (SIR stage)
+    deriving Show
 
 -- TODO: when support for compiling libraries that should not need a main function, a field should be added that identifies whether or not the compilation unit is a library or an executable or this should be split into 2 constructors for libraries or executables
 data CU stage = CU {cu_root_module :: ModuleKey, cu_main_function :: Maybe VariableKey} deriving Show
@@ -75,16 +69,16 @@ data ExternPackage
     deriving Show
 
 data Module stage
-    = Module (SIR.ID.ID "Module") ID.ModuleID (Stage.NameMapIndex stage) [Binding stage] [ADTKey] [TypeSynonymKey]
-deriving instance AllShowable stage => Show (Module stage)
+    = Module (SIR.ID.ID "Module") (SIR.ID.ID "HasChildNameContext") ID.ModuleID [Binding stage] [ADTKey] [TypeSynonymKey]
+    deriving Show
 
 data Variable stage
     = Variable (SIR.ID.ID "Variable") ID.VariableID (Located Text)
-deriving instance AllShowable stage => Show (Variable stage)
+    deriving Show
 
 data Binding stage
     = Binding (SIR.ID.ID "Binding") (Pattern stage) Span (Expr stage)
-deriving instance AllShowable stage => Show (Binding stage)
+    deriving Show
 
 type HoleIdentifier = Located Text
 
@@ -96,21 +90,21 @@ type HoleIdentifier = Located Text
 -- TODO: data TypeSynonym stage = TypeSynonym ID.DeclID (Located Text) (TypeExpr stage)
 
 data TypeExpr stage
-    = TypeExpr'Refer (SIR.ID.ID "TypeExpr") (SIR.ID.ID "DeclIden") Span (Stage.NameMapIndex stage) (Located Text)
+    = TypeExpr'Refer (SIR.ID.ID "TypeExpr") (SIR.ID.ID "DeclIden") (SIR.ID.ID "HasEnclosingNameContext") Span (Located Text)
     | TypeExpr'Get (SIR.ID.ID "TypeExpr") (SIR.ID.ID "DeclIden") Span (TypeExpr stage) (Located Text) -- TODO: remove this unit field
     | TypeExpr'Tuple (SIR.ID.ID "TypeExpr") Span (TypeExpr stage) (TypeExpr stage)
     | TypeExpr'Hole (SIR.ID.ID "TypeExpr") (SIR.ID.ID "TypeExprEvaledAsType") Span HoleIdentifier
     | TypeExpr'Function (SIR.ID.ID "TypeExpr") Span (TypeExpr stage) (TypeExpr stage)
-    | TypeExpr'Forall (SIR.ID.ID "TypeExpr") Span (Stage.NameMapIndex stage) (NonEmpty QuantVarKey) (TypeExpr stage)
+    | TypeExpr'Forall (SIR.ID.ID "TypeExpr") (SIR.ID.ID "HasChildNameContext") Span (NonEmpty QuantVarKey) (TypeExpr stage)
     | TypeExpr'Apply (SIR.ID.ID "TypeExpr") Span (TypeExpr stage) (TypeExpr stage)
     | TypeExpr'Wild (SIR.ID.ID "TypeExpr") Span
     | TypeExpr'Poison (SIR.ID.ID "TypeExpr") Span
-deriving instance AllShowable stage => Show (TypeExpr stage)
+    deriving Show
 
 data SplitIdentifier id_name stage
     = SplitIdentifier'Get (SIR.ID.ID id_name) (TypeExpr stage) (Located Text)
-    | SplitIdentifier'Single (SIR.ID.ID id_name) (Stage.NameMapIndex stage) (Located Text)
-deriving instance AllShowable stage => Show (SplitIdentifier id_name stage)
+    | SplitIdentifier'Single (SIR.ID.ID id_name) (SIR.ID.ID "HasEnclosingNameContext") (Located Text)
+    deriving Show
 
 type ValueIden stage = SplitIdentifier "ValueIden" stage -- TODO: ValueIden (and VariantIden) are probably not the most accurate names to describe these
 
@@ -123,8 +117,8 @@ data Expr stage
     | Expr'Bool (SIR.ID.ID "Expr") ID.ExprID Span Bool -- TODO: replace with identifier exprs
     | Expr'Tuple (SIR.ID.ID "Expr") ID.ExprID Span (Expr stage) (Expr stage)
     | Expr'Lambda (SIR.ID.ID "Expr") ID.ExprID Span (Pattern stage) (Expr stage)
-    | Expr'Let (SIR.ID.ID "Expr") ID.ExprID Span (Stage.NameMapIndex stage) [Binding stage] [ADTKey] [TypeSynonymKey] (Expr stage)
-    | Expr'LetRec (SIR.ID.ID "Expr") ID.ExprID Span (Stage.NameMapIndex stage) [Binding stage] [ADTKey] [TypeSynonymKey] (Expr stage)
+    | Expr'Let (SIR.ID.ID "Expr") (SIR.ID.ID "HasChildNameContext") ID.ExprID Span  [Binding stage] [ADTKey] [TypeSynonymKey] (Expr stage)
+    | Expr'LetRec (SIR.ID.ID "Expr") (SIR.ID.ID "HasChildNameContext") ID.ExprID Span  [Binding stage] [ADTKey] [TypeSynonymKey] (Expr stage)
     | Expr'BinaryOps
         (SIR.ID.ID "Expr")
         (SIR.ID.ID "BinaryOpsExpr")
@@ -134,8 +128,8 @@ data Expr stage
         [(Span, ValueIden stage, Expr stage)]
     | Expr'Call (SIR.ID.ID "Expr") ID.ExprID Span (Expr stage) (Expr stage)
     | Expr'If (SIR.ID.ID "Expr") ID.ExprID Span Span (Expr stage) (Expr stage) (Expr stage)
-    | Expr'Match (SIR.ID.ID "Expr") ID.ExprID Span Span (Expr stage) [(Stage.NameMapIndex stage, Pattern stage, Expr stage)]
-    | Expr'Forall (SIR.ID.ID "Expr") ID.ExprID Span (Stage.NameMapIndex stage) (NonEmpty QuantVarKey) (Expr stage)
+    | Expr'Match (SIR.ID.ID "Expr") ID.ExprID Span Span (Expr stage) [(SIR.ID.ID "HasChildNameContext", Pattern stage, Expr stage)]
+    | Expr'Forall (SIR.ID.ID "Expr") (SIR.ID.ID "HasChildNameContext") ID.ExprID Span (NonEmpty QuantVarKey) (Expr stage)
     | Expr'TypeApply (SIR.ID.ID "Expr") ID.ExprID Span (Expr stage) (TypeExpr stage, SIR.ID.ID "TypeExprEvaledAsType")
     | Expr'TypeAnnotation
         (SIR.ID.ID "Expr")
@@ -146,7 +140,7 @@ data Expr stage
         (Expr stage)
     | Expr'Hole (SIR.ID.ID "Expr") ID.ExprID Span HoleIdentifier
     | Expr'Poison (SIR.ID.ID "Expr") ID.ExprID Span
-deriving instance AllShowable stage => Show (Expr stage)
+    deriving Show
 
 type VariantIden stage = SplitIdentifier "VariantIden" stage
 
@@ -158,7 +152,7 @@ data Pattern stage
     | Pattern'AnonADTVariant (SIR.ID.ID "Pattern") (SIR.ID.ID "VariantPattern") Span (VariantIden stage) [Pattern stage]
     | Pattern'NamedADTVariant (SIR.ID.ID "Pattern") (SIR.ID.ID "VariantPattern") Span (VariantIden stage) [(Located Text, Pattern stage)]
     | Pattern'Poison (SIR.ID.ID "Pattern") Span
-deriving instance AllShowable stage => Show (Pattern stage)
+    deriving Show
 
 type_expr_evaled :: TypeExpr stage -> SIR.ID.ID "TypeExpr"
 type_expr_evaled (TypeExpr'Refer id _ _ _ _) = id
@@ -172,12 +166,12 @@ type_expr_evaled (TypeExpr'Wild id _) = id
 type_expr_evaled (TypeExpr'Poison id _) = id
 
 type_expr_span :: TypeExpr stage -> Span
-type_expr_span (TypeExpr'Refer _ _ span _ _) = span
+type_expr_span (TypeExpr'Refer _ _ _ span _) = span
 type_expr_span (TypeExpr'Get _ _ span _ _) = span
 type_expr_span (TypeExpr'Tuple _ span _ _) = span
 type_expr_span (TypeExpr'Hole _ _ span _) = span
 type_expr_span (TypeExpr'Function _ span _ _) = span
-type_expr_span (TypeExpr'Forall _ span _ _ _) = span
+type_expr_span (TypeExpr'Forall _ _ span _ _) = span
 type_expr_span (TypeExpr'Apply _ span _ _) = span
 type_expr_span (TypeExpr'Wild _ span) = span
 type_expr_span (TypeExpr'Poison _ span) = span
@@ -216,26 +210,26 @@ expr_span (Expr'Float _ _ sp _) = sp
 expr_span (Expr'Bool _ _ sp _) = sp
 expr_span (Expr'Tuple _ _ sp _ _) = sp
 expr_span (Expr'Lambda _ _ sp _ _) = sp
-expr_span (Expr'Let _ _ sp _ _ _ _ _) = sp
-expr_span (Expr'LetRec _ _ sp _ _ _ _ _) = sp
+expr_span (Expr'Let _ _ _ sp _ _ _ _) = sp
+expr_span (Expr'LetRec _ _ _ sp _ _ _ _) = sp
 expr_span (Expr'BinaryOps _ _ _ sp _ _) = sp
 expr_span (Expr'Call _ _ sp _ _) = sp
 expr_span (Expr'If _ _ sp _ _ _ _) = sp
 expr_span (Expr'Match _ _ sp _ _ _) = sp
 expr_span (Expr'Poison _ _ sp) = sp
 expr_span (Expr'Hole _ _ sp _) = sp
-expr_span (Expr'Forall _ _ sp _ _ _) = sp
+expr_span (Expr'Forall _ _ _ sp _ _) = sp
 expr_span (Expr'TypeApply _ _ sp _ _) = sp
 expr_span (Expr'TypeAnnotation _ _ sp _ _) = sp
 
 pattern_id :: Pattern stage -> SIR.ID.ID "Pattern"
-pattern_id (Pattern'Variable id sp _) = id
-pattern_id (Pattern'Wildcard id sp) = id
-pattern_id (Pattern'Tuple id sp _ _) = id
-pattern_id (Pattern'Named id sp _ _ _) = id
-pattern_id (Pattern'Poison id sp) = id
-pattern_id (Pattern'AnonADTVariant id _ sp _ _) = id
-pattern_id (Pattern'NamedADTVariant id _ sp _ _) = id
+pattern_id (Pattern'Variable id _ _) = id
+pattern_id (Pattern'Wildcard id _) = id
+pattern_id (Pattern'Tuple id _ _ _) = id
+pattern_id (Pattern'Named id _ _ _ _) = id
+pattern_id (Pattern'Poison id _) = id
+pattern_id (Pattern'AnonADTVariant id _ _ _ _) = id
+pattern_id (Pattern'NamedADTVariant id _ _ _ _) = id
 
 pattern_span :: Pattern stage -> Span
 pattern_span (Pattern'Variable _ sp _) = sp

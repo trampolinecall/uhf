@@ -31,9 +31,9 @@ import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Error (Error (..))
 import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Misc.Result (FinalTypeInfo (..), TypeInfo (..))
 import qualified UHF.Util.Arena as Arena
 
-type WithInferVars = (NameMaps.NameContextKey, Const () (), (), (), (), (), ())
+type WithInferVars = ((), Const () (), (), (), (), (), ())
 type WithoutInferVars =
-    ( NameMaps.NameContextKey
+    ( ()
     , Const () ()
     , ()
     , ()

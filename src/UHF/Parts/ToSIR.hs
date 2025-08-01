@@ -99,7 +99,8 @@ convert decls = do
                     (bindings, adts, type_synonyms) <- convert_decls (ID.VarParent'Module module_id) (ID.DeclParent'Module module_id) decls
                     -- TODO: when IR.ID is renamed to MangleID, rename these variables to module_mangle_id and module_id instead of module_id and module_sir_id
                     module_sir_id <- lift SIR.ID.gen_id
-                    new_module (SIR.Module module_sir_id module_id () bindings adts type_synonyms)
+                    hcncid <- lift SIR.ID.gen_id
+                    new_module (SIR.Module module_sir_id hcncid module_id bindings adts type_synonyms)
                 )
                 (Arena.new, Arena.new, Arena.new, Arena.new, Arena.new)
     main_function <- search_for_main_function mods variables root_module
@@ -195,7 +196,7 @@ convert_decls var_parent decl_parent decls =
                     fields
 
 convert_type :: AST.Type -> MakeIRState TypeExpr
-convert_type (AST.Type'Refer id) = lift SIR.ID.gen_id >>= \ teid -> lift SIR.ID.gen_id >>= \ tenrid -> pure $ SIR.TypeExpr'Refer teid tenrid (just_span id) () (convert_aiden_tok <$> id)
+convert_type (AST.Type'Refer id) = lift SIR.ID.gen_id >>= \ teid -> lift SIR.ID.gen_id >>= \ tenrid -> lift SIR.ID.gen_id >>= \ hencid -> pure $ SIR.TypeExpr'Refer teid tenrid hencid (just_span id) (convert_aiden_tok <$> id)
 convert_type (AST.Type'Get sp prev name) = lift SIR.ID.gen_id >>= \ teid -> lift SIR.ID.gen_id >>= \ tenrid -> convert_type prev >>= \ prev -> pure (SIR.TypeExpr'Get teid tenrid sp prev (convert_aiden_tok <$> name))
 convert_type (AST.Type'Tuple sp items) = mapM convert_type items >>= group_items
     where
@@ -209,7 +210,7 @@ convert_type (AST.Type'Function sp arg res) = SIR.TypeExpr'Function <$> lift SIR
 convert_type (AST.Type'Forall sp tys ty) =
     mapM (new_type_var . fmap convert_aiden_tok) tys >>= \case
         [] -> convert_type ty -- can happen if the user passed none
-        tyv1:tyv_more -> lift SIR.ID.gen_id >>= \ teid -> SIR.TypeExpr'Forall teid sp () (tyv1 :| tyv_more) <$> convert_type ty
+        tyv1:tyv_more -> lift SIR.ID.gen_id >>= \ teid -> lift SIR.ID.gen_id >>= \ hcncid -> SIR.TypeExpr'Forall teid hcncid sp (tyv1 :| tyv_more) <$> convert_type ty
 
 convert_type (AST.Type'Apply sp ty args) =
     convert_type ty >>= \ ty ->
@@ -245,16 +246,19 @@ convert_expr cur_id (AST.Expr'Let sp decls subexpr) = go cur_id decls
         go cur_id [] = convert_expr cur_id subexpr
         go cur_id (first:more) =
             lift SIR.ID.gen_id >>= \ eid ->
+            lift SIR.ID.gen_id >>= \ hcncid ->
             convert_decls (ID.VarParent'Let cur_id) (ID.DeclParent'Let cur_id) [first] >>= \ (bindings, adts, type_synonyms) ->
-            SIR.Expr'Let eid cur_id sp () bindings adts type_synonyms <$> go (ID.ExprID'LetResultOf cur_id) more
+            SIR.Expr'Let eid hcncid cur_id sp bindings adts type_synonyms <$> go (ID.ExprID'LetResultOf cur_id) more
 convert_expr cur_id (AST.Expr'LetRec sp decls subexpr) =
     lift SIR.ID.gen_id >>= \ eid ->
+    lift SIR.ID.gen_id >>= \ hcncid ->
     convert_decls (ID.VarParent'Let cur_id) (ID.DeclParent'Let cur_id) decls >>= \ (bindings, adts, type_synonyms) ->
-    SIR.Expr'LetRec eid cur_id sp () bindings adts type_synonyms <$> convert_expr (ID.ExprID'LetResultOf cur_id) subexpr
+    SIR.Expr'LetRec eid hcncid cur_id sp bindings adts type_synonyms <$> convert_expr (ID.ExprID'LetResultOf cur_id) subexpr
 convert_expr cur_id (AST.Expr'Where sp subexpr decls) =
     lift SIR.ID.gen_id >>= \ eid ->
+    lift SIR.ID.gen_id >>= \ hcncid ->
     convert_decls (ID.VarParent'Where cur_id) (ID.DeclParent'Where cur_id) decls >>= \ (bindings, adts, type_synonyms) ->
-    SIR.Expr'LetRec eid cur_id sp () bindings adts type_synonyms <$> convert_expr (ID.ExprID'WhereResultOf cur_id) subexpr
+    SIR.Expr'LetRec eid hcncid cur_id sp bindings adts type_synonyms <$> convert_expr (ID.ExprID'WhereResultOf cur_id) subexpr
 
 convert_expr cur_id (AST.Expr'BinaryOps sp first ops) =
     lift SIR.ID.gen_id >>= \ eid ->
@@ -271,7 +275,8 @@ convert_expr cur_id (AST.Expr'BinaryOps sp first ops) =
                         pure (op_sp, SIR.SplitIdentifier'Get siid op_ty (convert_siden_tok <$> op_last), right')
                     AST.Operator'Single op_iden@(Located op_sp _) -> do
                         siid <- lift SIR.ID.gen_id
-                        pure (op_sp, SIR.SplitIdentifier'Single siid () (convert_siden_tok <$> op_iden), right'))
+                        hencid <- lift SIR.ID.gen_id
+                        pure (op_sp, SIR.SplitIdentifier'Single siid hencid (convert_siden_tok <$> op_iden), right'))
             [1..]
             ops
 
@@ -291,9 +296,10 @@ convert_expr cur_id (AST.Expr'Match sp (Located match_tok_sp _) e arms) =
     convert_expr (ID.ExprID'MatchScrutinee cur_id) e >>= \ e ->
     zipWithM
         (\ ind (pat, choice) ->
+            lift SIR.ID.gen_id >>= \ hcncid ->
             convert_pattern (ID.VarParent'MatchArm cur_id ind) pat >>= \ pat ->
             convert_expr (ID.ExprID'MatchArm cur_id ind) choice >>= \ choice ->
-            pure ((), pat, choice))
+            pure (hcncid, pat, choice))
         [0..]
         arms
         >>= \ arms ->
@@ -305,7 +311,8 @@ convert_expr cur_id (AST.Expr'Forall sp tys e) =
         [] -> convert_expr (ID.ExprID'ForallResult cur_id) e
         tyv1:tyv_more ->
             lift SIR.ID.gen_id >>= \ eid ->
-            SIR.Expr'Forall eid cur_id sp () (tyv1 :| tyv_more) <$> convert_expr (ID.ExprID'ForallResult cur_id) e
+            lift SIR.ID.gen_id >>= \ hcncid ->
+            SIR.Expr'Forall eid hcncid cur_id sp (tyv1 :| tyv_more) <$> convert_expr (ID.ExprID'ForallResult cur_id) e
 
 convert_expr cur_id (AST.Expr'TypeApply sp e args) =
     convert_expr (ID.ExprID'TypeApplyFirst cur_id) e >>= \ e ->
@@ -360,7 +367,8 @@ convert_pattern parent (AST.Pattern'NamedADTVariant sp v_ty variant fields) = do
 make_split_identifier :: TypeLits.KnownSymbol id_name => Maybe AST.Type -> Located Text -> MakeIRState (SIR.SplitIdentifier id_name SIRStage)
 make_split_identifier Nothing i = do
     siid <- lift SIR.ID.gen_id
-    pure $ SIR.SplitIdentifier'Single siid () i
+    hencid <- lift SIR.ID.gen_id
+    pure $ SIR.SplitIdentifier'Single siid hencid i
 make_split_identifier (Just ty) i = do
     siid <- lift SIR.ID.gen_id
     ty <- convert_type ty

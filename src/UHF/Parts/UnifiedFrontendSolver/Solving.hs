@@ -39,7 +39,7 @@ import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Misc.Result (TypeInfo)
 import qualified UHF.Util.Arena as Arena
 
 -- TODO: remove stage
-type SolvingStage = ( NameMaps.NameContextKey , Const () () , () , () , () , () , ())
+type SolvingStage = ((), Const () (), (), (), (), (), ())
 
 type SolveMonad =
     StateT

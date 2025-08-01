@@ -49,7 +49,7 @@ import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Misc.Result (FinalTypeInfo)
 
 type AST = [AST.Decl]
 type FirstSIR = SIR.SIR ((), Const () (), (), (), (), (), ())
-type SolvedSIR = (SIR.SIR (NameResolve.NameMaps.NameContextKey, Const () (), (), (), (), (), ())
+type SolvedSIR = (SIR.SIR ((), Const () (), (), (), (), (), ())
         , DeclIdenFinalResults
         , ValueIdenFinalResults
         , VariantIdenFinalResults

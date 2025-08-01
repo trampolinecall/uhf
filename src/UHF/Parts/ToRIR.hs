@@ -30,7 +30,7 @@ import Data.List (zipWith4)
 type Type = Maybe Type.Type
 
 type LastSIR =
-    ( NameResolve.NameMaps.NameContextKey, Const () (), (), (), (), (), ())
+    ( (), Const () (), (), (), (), (), ())
 
 type VariableArena = Arena.Arena RIR.Variable RIR.VariableKey
 
@@ -207,8 +207,8 @@ convert_expr (SIR.Expr'Lambda _ id sp param_pat body) = do
     body <- RIR.Expr'Let id body_sp <$> lift (sort_bindings bindings) <*> pure [] <*> pure [] <*> convert_expr body
     pure (RIR.Expr'Lambda id sp param_bk (TopologicalSort.get_captures param_bk body) body)
 
-convert_expr (SIR.Expr'Let _ id sp _ bindings adts type_synonyms body) = RIR.Expr'Let id sp <$> (concat <$> mapM convert_binding bindings >>= lift . sort_bindings) <*> pure adts <*> pure type_synonyms <*> convert_expr body -- TODO: define adt constructors for these
-convert_expr (SIR.Expr'LetRec _ id sp _ bindings adts type_synonyms body) = RIR.Expr'Let id sp <$> (concat <$> mapM convert_binding bindings >>= lift . sort_bindings) <*> pure adts <*> pure type_synonyms <*> convert_expr body -- TODO: define adt constructors for these
+convert_expr (SIR.Expr'Let _ _ id sp bindings adts type_synonyms body) = RIR.Expr'Let id sp <$> (concat <$> mapM convert_binding bindings >>= lift . sort_bindings) <*> pure adts <*> pure type_synonyms <*> convert_expr body -- TODO: define adt constructors for these
+convert_expr (SIR.Expr'LetRec _ _ id sp bindings adts type_synonyms body) = RIR.Expr'Let id sp <$> (concat <$> mapM convert_binding bindings >>= lift . sort_bindings) <*> pure adts <*> pure type_synonyms <*> convert_expr body -- TODO: define adt constructors for these
 convert_expr (SIR.Expr'BinaryOps _ void _ _ _ _) = todo
 convert_expr (SIR.Expr'Call _ id sp callee arg) = RIR.Expr'Call id sp <$> convert_expr callee <*> convert_expr arg
 convert_expr (SIR.Expr'If eid id sp _ cond true false) =
@@ -349,7 +349,7 @@ convert_expr (SIR.Expr'Hole eid id sp _) = do
     ty <- lift $ get_expr_ty eid
     pure $ RIR.Expr'Poison id ty sp
 convert_expr (SIR.Expr'TypeAnnotation _ _ _ _ other) = convert_expr other
-convert_expr (SIR.Expr'Forall eid id sp _ vars e) = do
+convert_expr (SIR.Expr'Forall eid _ id sp vars e) = do
     ty <- lift $ get_expr_ty eid
     RIR.Expr'Forall id sp vars <$> convert_expr e
 convert_expr (SIR.Expr'TypeApply eid id sp e (arg, arg_ty)) = do

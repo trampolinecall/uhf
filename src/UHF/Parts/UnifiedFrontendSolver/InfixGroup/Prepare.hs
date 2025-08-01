@@ -17,8 +17,8 @@ import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as Na
 import UHF.Parts.UnifiedFrontendSolver.SolveResult
 import qualified UHF.Util.Arena as Arena
 
-type Unprepared = (NameMaps.NameContextKey, Const () (), (), (), (), (), ())
-type Prepared = (NameMaps.NameContextKey, Const () (), (), (), (), (), ())
+type Unprepared = ((), Const () (), (), (), (), (), ())
+type Prepared = ((), Const () (), (), (), (), (), ())
 
 type PrepareState = WriterT [InfixGroupTask] (State InfixGroupResults)
 

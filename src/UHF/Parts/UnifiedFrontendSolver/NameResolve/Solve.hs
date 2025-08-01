@@ -1,15 +1,26 @@
+{-# LANGUAGE DataKinds #-}
+
 module UHF.Parts.UnifiedFrontendSolver.NameResolve.Solve (resolve_decl_iden, resolve_value_iden, resolve_variant_iden, eval_type_expr, eval_type_expr_as_type) where
 
 import UHF.Prelude
 
+import qualified Data.Map as Map
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
+import qualified UHF.Data.SIR.ID as SIR.ID
 import UHF.Parts.UnifiedFrontendSolver.Error (Error (NRError))
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Error as Error
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.EvaledAsType (evaled_as_type)
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameMaps
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (IdenResolvedArena, IdenResolvedKey, TypeExprEvaledArena, TypeExprEvaledAsTypeArena)
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef (..), ValueRef)
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result
+    ( DeclIdenResults
+    , TypeExprEvaledArena
+    , TypeExprEvaledAsTypeArena
+    , ValueIdenResults
+    , VariantIdenResults
+    )
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Task (IdenResolveTask (..), TypeExprEvalAsTypeTask (..), TypeExprEvalTask (..))
 import UHF.Parts.UnifiedFrontendSolver.ProgressMade (ProgressMade (..))
 import UHF.Parts.UnifiedFrontendSolver.SolveResult (SolveResult (..))
@@ -18,50 +29,49 @@ import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Task (Constraint (InferVarIsApp
 import UHF.Source.Located (Located (Located))
 import UHF.Source.Span (Span)
 import qualified UHF.Util.Arena as Arena
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef (..), ValueRef)
 
-decl_iden_resolved_selector :: State (IdenResolvedArena (DeclRef TypeWithInferVar.Type)) () -> SolveMonad ()
+decl_iden_resolved_selector :: State DeclIdenResults () -> SolveMonad ()
 decl_iden_resolved_selector s =
     state $
-        \( (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
+        \( (decl_iden_results, value_iden_results, variant_iden_results, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
             , infix_group_results
             , infer_vars
             ) ->
-                let ((), decl_iden_resolved_arena') = runState s decl_iden_resolved_arena
+                let ((), decl_iden_results') = runState s decl_iden_results
                 in ( ()
                    ,
-                       ( (decl_iden_resolved_arena', value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
+                       ( (decl_iden_results', value_iden_results, variant_iden_results, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
                        , infix_group_results
                        , infer_vars
                        )
                    )
 
-value_iden_resolved_selector :: State (IdenResolvedArena ValueRef) () -> SolveMonad ()
+value_iden_resolved_selector :: State ValueIdenResults () -> SolveMonad ()
 value_iden_resolved_selector s =
     state $
-        \( (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
+        \( (decl_iden_results, value_iden_results, variant_iden_results, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
             , infix_group_results
             , infer_vars
             ) ->
-                let ((), value_iden_resolved_arena') = runState s value_iden_resolved_arena
+                let ((), value_iden_results') = runState s value_iden_results
                 in ( ()
                    ,
-                       ( (decl_iden_resolved_arena, value_iden_resolved_arena', variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
+                       ( (decl_iden_results, value_iden_results', variant_iden_results, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
                        , infix_group_results
                        , infer_vars
                        )
                    )
-variant_iden_resolved_selector :: State (IdenResolvedArena Type.ADT.VariantIndex) () -> SolveMonad ()
+variant_iden_resolved_selector :: State VariantIdenResults () -> SolveMonad ()
 variant_iden_resolved_selector s =
     state $
-        \( (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
+        \( (decl_iden_results, value_iden_results, variant_iden_results, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
             , infix_group_results
             , infer_vars
             ) ->
-                let ((), variant_iden_resolved_arena') = runState s variant_iden_resolved_arena
+                let ((), variant_iden_results') = runState s variant_iden_results
                 in ( ()
                    ,
-                       ( (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena', type_expr_evaled_arena, type_expr_evaled_as_type_arena)
+                       ( (decl_iden_results, value_iden_results, variant_iden_results', type_expr_evaled_arena, type_expr_evaled_as_type_arena)
                        , infix_group_results
                        , infer_vars
                        )
@@ -70,14 +80,14 @@ variant_iden_resolved_selector s =
 type_expr_evaled_selector :: State TypeExprEvaledArena () -> SolveMonad ()
 type_expr_evaled_selector s =
     state $
-        \( (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
+        \( (decl_iden_results, value_iden_results, variant_iden_results, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
             , infix_group_results
             , infer_vars
             ) ->
                 let ((), type_expr_evaled_arena') = runState s type_expr_evaled_arena
                 in ( ()
                    ,
-                       ( (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena', type_expr_evaled_as_type_arena)
+                       ( (decl_iden_results, value_iden_results, variant_iden_results, type_expr_evaled_arena', type_expr_evaled_as_type_arena)
                        , infix_group_results
                        , infer_vars
                        )
@@ -85,44 +95,66 @@ type_expr_evaled_selector s =
 type_expr_evaled_as_type_selector :: State TypeExprEvaledAsTypeArena () -> SolveMonad ()
 type_expr_evaled_as_type_selector s =
     state $
-        \( (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
+        \( (decl_iden_results, value_iden_results, variant_iden_results, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
             , infix_group_results
             , infer_vars
             ) ->
                 let ((), type_expr_evaled_as_type_arena') = runState s type_expr_evaled_as_type_arena
                 in ( ()
                    ,
-                       ( (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena')
+                       ( (decl_iden_results, value_iden_results, variant_iden_results, type_expr_evaled_arena, type_expr_evaled_as_type_arena')
                        , infix_group_results
                        , infer_vars
                        )
                    )
 
-resolve_decl_iden ::
-    IdenResolveTask (DeclRef TypeWithInferVar.Type) -> SolveMonad (ProgressMade (IdenResolveTask (DeclRef TypeWithInferVar.Type)))
+resolve_decl_iden :: IdenResolveTask (SIR.ID.ID "DeclIden") -> SolveMonad (ProgressMade (IdenResolveTask (SIR.ID.ID "DeclIden")))
 resolve_decl_iden = resolve decl_iden_resolved_selector look_up_decl get_decl_child
-resolve_value_iden :: IdenResolveTask ValueRef -> SolveMonad (ProgressMade (IdenResolveTask ValueRef))
+resolve_value_iden :: IdenResolveTask (SIR.ID.ID "ValueIden") -> SolveMonad (ProgressMade (IdenResolveTask (SIR.ID.ID "ValueIden")))
 resolve_value_iden = resolve value_iden_resolved_selector look_up_value get_value_child
-resolve_variant_iden :: IdenResolveTask Type.ADT.VariantIndex -> SolveMonad (ProgressMade (IdenResolveTask Type.ADT.VariantIndex))
+resolve_variant_iden :: IdenResolveTask (SIR.ID.ID "VariantIden") -> SolveMonad (ProgressMade (IdenResolveTask (SIR.ID.ID "VariantIden")))
 resolve_variant_iden = resolve variant_iden_resolved_selector look_up_variant get_variant_child
 
 resolve ::
-    (State (Arena.Arena (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise resolved) (IdenResolvedKey resolved)) () -> SolveMonad ()) ->
+    (State (Map (SIR.ID.ID id_name) (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise resolved)) () -> SolveMonad ()) ->
     (NameMaps.NameContextKey -> Located Text -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise resolved)) ->
     (DeclRef TypeWithInferVar.Type -> Located Text -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise resolved)) ->
-    IdenResolveTask resolved ->
-    SolveMonad (ProgressMade (IdenResolveTask resolved))
+    IdenResolveTask (SIR.ID.ID id_name) ->
+    SolveMonad (ProgressMade (IdenResolveTask (SIR.ID.ID id_name)))
 resolve selector resolve_root _ (ResolveRoot name_context name result_key) = do
     result <- resolve_root name_context name
-    put_result selector result_key result
+    put_result_in_map selector result_key result
 resolve selector _ resolve_get (ResolveGet parent name result_key) = do
     parent_evaled <- get_type_expr_evaled parent
     result <- case parent_evaled of
         Solved texpr_evaled -> resolve_get texpr_evaled name
         Errored erp -> pure $ Errored erp
         Inconclusive _ -> pure (Inconclusive Nothing)
-    put_result selector result_key result
+    put_result_in_map selector result_key result
 
+put_result_in_map ::
+    Ord key =>
+    (State (Map key (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise result)) () -> SolveMonad ()) ->
+    key ->
+    SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise result ->
+    SolveMonad (ProgressMade task)
+put_result_in_map selector k res = do
+    case res of
+        Inconclusive _ -> pure NoProgressMade
+        _ -> do
+            selector $
+                modify $
+                    \map ->
+                        Map.alter
+                            ( \case
+                                Just (Inconclusive _) -> Just res
+                                _ -> Just res -- TODO: internal warning because there was already a result here and it was recomputed?
+                            )
+                            k
+                            map
+            pure $ ProgressMade []
+
+-- TODO: remove this and rename put_result_in_map to just put_result
 put_result ::
     Arena.Key key =>
     (State (Arena.Arena (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise result) key) () -> SolveMonad ()) ->
@@ -146,12 +178,9 @@ put_result selector k res = do
             pure $ ProgressMade []
 
 look_up_decl ::
-    NameMaps.NameContextKey ->
-    Located Text ->
-    SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise (DeclRef TypeWithInferVar.Type))
+    NameMaps.NameContextKey -> Located Text -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise (DeclRef TypeWithInferVar.Type))
 look_up_decl name_maps_stack_key name = ask >>= \(name_maps_arena, _, _) -> report_errored $ NameMaps.look_up_decl name_maps_arena name_maps_stack_key name
-look_up_value ::
-    NameMaps.NameContextKey -> Located Text -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise ValueRef)
+look_up_value :: NameMaps.NameContextKey -> Located Text -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise ValueRef)
 look_up_value name_maps_stack_key name = ask >>= \(name_maps_arena, _, _) -> report_errored $ NameMaps.look_up_value name_maps_arena name_maps_stack_key name
 look_up_variant ::
     NameMaps.NameContextKey -> Located Text -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise Type.ADT.VariantIndex)

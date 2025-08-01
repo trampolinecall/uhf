@@ -1,3 +1,5 @@
+{-# LANGUAGE DataKinds #-}
+
 module UHF.Parts.UnifiedFrontendSolver.Solving
     ( SolvingStage
     , SolveMonad
@@ -13,22 +15,33 @@ module UHF.Parts.UnifiedFrontendSolver.Solving
 
 import UHF.Prelude
 
+import Data.Functor.Const (Const)
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
+import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Data.SIR as SIR
+import qualified UHF.Data.SIR.ID as SIR.ID
+import UHF.Parts.UnifiedFrontendSolver.Error (Error)
+import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupedArena, InfixGroupedKey)
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Error as NameResolve.Error
+import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameMaps
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef, ValueRef)
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result
+    ( DeclIdenResults
+    , TypeExprEvaledArena
+    , TypeExprEvaledAsTypeArena
+    , TypeExprEvaledAsTypeKey
+    , TypeExprEvaledKey
+    , ValueIdenResults
+    , VariantIdenResults
+    )
 import UHF.Parts.UnifiedFrontendSolver.SolveResult (SolveResult)
 import qualified UHF.Util.Arena as Arena
-import UHF.Parts.UnifiedFrontendSolver.Error (Error)
-import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameMaps
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (IdenResolvedKey, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, IdenResolvedArena, TypeExprEvaledArena, TypeExprEvaledAsTypeArena)
-import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
-import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupedKey, InfixGroupedArena)
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef, ValueRef)
+import qualified Data.Map as Map
 
 type SolvingStage =
     ( NameMaps.NameContextKey
-    , IdenResolvedKey ()
+    , Const () () -- TODO: remove this stage item
     , TypeWithInferVar.Type
     , TypeExprEvaledKey
     , TypeExprEvaledAsTypeKey
@@ -38,9 +51,9 @@ type SolvingStage =
 
 type SolveMonad =
     StateT
-        ( ( IdenResolvedArena (DeclRef TypeWithInferVar.Type)
-          , IdenResolvedArena ValueRef
-          , IdenResolvedArena Type.ADT.VariantIndex
+        ( ( DeclIdenResults
+          , ValueIdenResults
+          , VariantIdenResults
           , TypeExprEvaledArena
           , TypeExprEvaledAsTypeArena
           )
@@ -61,23 +74,22 @@ ask_sir :: SolveMonad (SIR.SIR SolvingStage)
 ask_sir = (\(_, _, sir) -> sir) <$> ask
 
 get_decl_iden_resolved ::
-    IdenResolvedKey (DeclRef TypeWithInferVar.Type) ->
-    SolveMonad (SolveResult (Maybe NameResolve.Error.Error) Compiler.ErrorReportedPromise (DeclRef TypeWithInferVar.Type))
+    SIR.ID.ID "DeclIden" -> SolveMonad (SolveResult (Maybe NameResolve.Error.Error) Compiler.ErrorReportedPromise (DeclRef TypeWithInferVar.Type))
 get_decl_iden_resolved key = do
     ((decl_iden_resolved_arena, _, _, _, _), _, _) <- get
-    pure $ Arena.get decl_iden_resolved_arena key
+    pure $ decl_iden_resolved_arena Map.! key
 
 get_value_iden_resolved ::
-    IdenResolvedKey ValueRef -> SolveMonad (SolveResult (Maybe NameResolve.Error.Error) Compiler.ErrorReportedPromise ValueRef)
+    SIR.ID.ID "ValueIden" -> SolveMonad (SolveResult (Maybe NameResolve.Error.Error) Compiler.ErrorReportedPromise ValueRef)
 get_value_iden_resolved key = do
     ((_, value_iden_resolved_arena, _, _, _), _, _) <- get
-    pure $ Arena.get value_iden_resolved_arena key
+    pure $ value_iden_resolved_arena Map.! key
 
 get_variant_iden_resolved ::
-    IdenResolvedKey Type.ADT.VariantIndex -> SolveMonad (SolveResult (Maybe NameResolve.Error.Error) Compiler.ErrorReportedPromise Type.ADT.VariantIndex)
+    SIR.ID.ID "VariantIden" -> SolveMonad (SolveResult (Maybe NameResolve.Error.Error) Compiler.ErrorReportedPromise Type.ADT.VariantIndex)
 get_variant_iden_resolved key = do
     ((_, _, variant_iden_resolved_arena, _, _), _, _) <- get
-    pure $ Arena.get variant_iden_resolved_arena key
+    pure $ variant_iden_resolved_arena Map.! key
 
 get_type_expr_evaled ::
     TypeExprEvaledKey -> SolveMonad (SolveResult (Maybe NameResolve.Error.Error) Compiler.ErrorReportedPromise (DeclRef TypeWithInferVar.Type))

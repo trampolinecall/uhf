@@ -20,10 +20,9 @@ module UHF.Data.SIR
     , HoleIdentifier
     , TypeExpr (..)
     , SplitIdentifier (..)
-    , ExprIdentifierRef
-    , OperatorRef
+    , ValueIden
     , Expr (..)
-    , PatternADTVariantRef
+    , VariantIden
     , Pattern (..)
     , expr_type
     , pattern_type
@@ -31,6 +30,7 @@ module UHF.Data.SIR
     , expr_span
     , pattern_span
     , type_expr_span
+    , split_iden_id
     ) where
 
 import UHF.Prelude
@@ -39,7 +39,7 @@ import qualified UHF.Data.IR.ID as ID
 import UHF.Data.IR.Keys
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
-import UHF.Data.SIR.ID as SIR.ID
+import qualified UHF.Data.SIR.ID as SIR.ID -- TODO: import this as ID instead of SIR.ID when ID.gets renamed to MangleID
 import qualified UHF.Data.SIR.Stage as Stage
 import UHF.Source.Located (Located)
 import UHF.Source.Span (Span)
@@ -100,12 +100,12 @@ type HoleIdentifier = Located Text
 -- TODO: data TypeSynonym stage = TypeSynonym ID.DeclID (Located Text) (TypeExpr stage)
 
 data TypeExpr stage
-    = TypeExpr'Refer (SIR.ID.ID "TypeExpr")
+    = TypeExpr'Refer (SIR.ID.ID "TypeExpr") (SIR.ID.ID "DeclIden")
         (Stage.TypeExprEvaledKey stage)
         Span
         (Stage.NameMapIndex stage)
         (Located Text)
-    | TypeExpr'Get (SIR.ID.ID "TypeExpr") (Stage.TypeExprEvaledKey stage) Span (TypeExpr stage) (Located Text) -- TODO: remove this unit field
+    | TypeExpr'Get (SIR.ID.ID "TypeExpr") (SIR.ID.ID "DeclIden") (Stage.TypeExprEvaledKey stage) Span (TypeExpr stage) (Located Text) -- TODO: remove this unit field
     | TypeExpr'Tuple (SIR.ID.ID "TypeExpr") (Stage.TypeExprEvaledKey stage) Span (TypeExpr stage) (TypeExpr stage)
     | TypeExpr'Hole
         (SIR.ID.ID "TypeExpr") (Stage.TypeExprEvaledKey stage)
@@ -124,11 +124,10 @@ data SplitIdentifier id_name stage
     | SplitIdentifier'Single (SIR.ID.ID id_name) (Stage.NameMapIndex stage) (Located Text)
 deriving instance AllShowable stage => Show (SplitIdentifier id_name stage)
 
-type ExprIdentifierRef stage = SplitIdentifier "ValueRef" stage -- TODO: these seem like pretty useless type synonyms
-type OperatorRef stage = SplitIdentifier "OperatorRef" stage -- TODO: these seem like pretty useless type synonyms
+type ValueIden stage = SplitIdentifier "ValueIden" stage -- TODO: ValueIden (and VariantIden) are probably not the most accurate names to describe these
 
 data Expr stage
-    = Expr'Refer (SIR.ID.ID "Expr") ID.ExprID (Stage.TypeInfo stage) Span (ExprIdentifierRef stage)
+    = Expr'Refer (SIR.ID.ID "Expr") ID.ExprID (Stage.TypeInfo stage) Span (ValueIden stage)
     | Expr'Char (SIR.ID.ID "Expr") ID.ExprID (Stage.TypeInfo stage) Span Char
     | Expr'String (SIR.ID.ID "Expr") ID.ExprID (Stage.TypeInfo stage) Span Text
     | Expr'Int (SIR.ID.ID "Expr") ID.ExprID (Stage.TypeInfo stage) Span Integer
@@ -144,7 +143,7 @@ data Expr stage
         (Stage.TypeInfo stage)
         Span
         (Expr stage)
-        [(Span, OperatorRef stage, Expr stage)]
+        [(Span, ValueIden stage, Expr stage)]
     | Expr'Call (SIR.ID.ID "Expr") ID.ExprID (Stage.TypeInfo stage) Span (Expr stage) (Expr stage)
     | Expr'If (SIR.ID.ID "Expr") ID.ExprID (Stage.TypeInfo stage) Span Span (Expr stage) (Expr stage) (Expr stage)
     | Expr'Match (SIR.ID.ID "Expr") ID.ExprID (Stage.TypeInfo stage) Span Span (Expr stage) [(Stage.NameMapIndex stage, Pattern stage, Expr stage)]
@@ -160,7 +159,7 @@ data Expr stage
     | Expr'Poison (SIR.ID.ID "Expr") ID.ExprID (Stage.TypeInfo stage) Span
 deriving instance AllShowable stage => Show (Expr stage)
 
-type PatternADTVariantRef stage = SplitIdentifier "VariantIden" stage -- TODO: these seem like pretty useless type synonyms
+type VariantIden stage = SplitIdentifier "VariantIden" stage
 
 data Pattern stage
     = Pattern'Variable (SIR.ID.ID "Pattern") (Stage.TypeInfo stage) Span VariableKey
@@ -170,21 +169,21 @@ data Pattern stage
     | Pattern'AnonADTVariant
         (SIR.ID.ID "Pattern") (Stage.TypeInfo stage)
         Span
-        (PatternADTVariantRef stage)
+        (VariantIden stage)
         [Stage.TypeInfo stage]
         [Pattern stage]
     | Pattern'NamedADTVariant
         (SIR.ID.ID "Pattern") (Stage.TypeInfo stage)
         Span
-        (PatternADTVariantRef stage)
+        (VariantIden stage)
         [Stage.TypeInfo stage]
         [(Located Text, Pattern stage)]
     | Pattern'Poison (SIR.ID.ID "Pattern") (Stage.TypeInfo stage) Span
 deriving instance AllShowable stage => Show (Pattern stage)
 
 type_expr_evaled :: TypeExpr stage -> Stage.TypeExprEvaledKey stage
-type_expr_evaled (TypeExpr'Refer _ evaled _ _ _) = evaled
-type_expr_evaled (TypeExpr'Get _ evaled _ _ _) = evaled
+type_expr_evaled (TypeExpr'Refer _ _ evaled _ _ _) = evaled
+type_expr_evaled (TypeExpr'Get _ _ evaled _ _ _) = evaled
 type_expr_evaled (TypeExpr'Tuple _ evaled _ _ _) = evaled
 type_expr_evaled (TypeExpr'Hole _ evaled _ _ _) = evaled
 type_expr_evaled (TypeExpr'Function _ evaled _ _ _) = evaled
@@ -194,8 +193,8 @@ type_expr_evaled (TypeExpr'Wild _ evaled _) = evaled
 type_expr_evaled (TypeExpr'Poison _ evaled _) = evaled
 
 type_expr_span :: TypeExpr stage -> Span
-type_expr_span (TypeExpr'Refer _ _ span _ _) = span
-type_expr_span (TypeExpr'Get _ _ span _ _) = span
+type_expr_span (TypeExpr'Refer _ _ _ span _ _) = span
+type_expr_span (TypeExpr'Get _ _ _ span _ _) = span
 type_expr_span (TypeExpr'Tuple _ _ span _ _) = span
 type_expr_span (TypeExpr'Hole _ _ _ span _) = span
 type_expr_span (TypeExpr'Function _ _ span _ _) = span
@@ -203,6 +202,10 @@ type_expr_span (TypeExpr'Forall _ _ span _ _ _) = span
 type_expr_span (TypeExpr'Apply _ _ span _ _) = span
 type_expr_span (TypeExpr'Wild _ _ span) = span
 type_expr_span (TypeExpr'Poison _ _ span) = span
+
+split_iden_id :: SplitIdentifier id_name stage -> SIR.ID.ID id_name
+split_iden_id (SplitIdentifier'Get id _ _) = id
+split_iden_id (SplitIdentifier'Single id _ _) = id
 
 expr_type :: Expr stage -> Stage.TypeInfo stage
 expr_type (Expr'Refer _ _ type_info _ _) = type_info

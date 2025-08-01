@@ -1,15 +1,17 @@
+{-# LANGUAGE DataKinds #-}
+
 module UHF.Parts.UnifiedFrontendSolver.InfixGroup.Solve (group) where
 
 import UHF.Prelude
 
+import qualified UHF.Data.SIR.ID as SIR.ID
 import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupResult (..))
 import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Task (InfixGroupTask (..))
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (IdenResolvedKey)
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (ValueRef)
 import UHF.Parts.UnifiedFrontendSolver.ProgressMade (ProgressMade (..))
 import UHF.Parts.UnifiedFrontendSolver.SolveResult (SolveResult (..))
 import UHF.Parts.UnifiedFrontendSolver.Solving (SolveMonad, get_value_iden_resolved)
 import qualified UHF.Util.Arena as Arena
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (ValueRef)
 
 group :: InfixGroupTask -> SolveMonad (ProgressMade InfixGroupTask)
 group (InfixGroupTask operators result_key) = do
@@ -20,7 +22,7 @@ group (InfixGroupTask operators result_key) = do
     case res of
         Inconclusive _ -> pure NoProgressMade
         Errored () -> do
-        -- TODO: this is very similar to put_result from NameResolve so maybe there is a general version that can be put into UnifiedFrontendSolver.Solving?
+            -- TODO: this is very similar to put_result from NameResolve so maybe there is a general version that can be put into UnifiedFrontendSolver.Solving?
             modify $
                 \(nr_things, result_arena, infer_vars) ->
                     ( nr_things
@@ -51,11 +53,7 @@ group (InfixGroupTask operators result_key) = do
                     )
             pure $ ProgressMade []
     where
-        go ::
-            InfixGroupResult ->
-            [(IdenResolvedKey ValueRef, Int)] ->
-            Int ->
-            SolveMonad (SolveResult () () (InfixGroupResult, [(IdenResolvedKey ValueRef, Int)]))
+        go :: InfixGroupResult -> [(SIR.ID.ID "ValueIden", Int)] -> Int -> SolveMonad (SolveResult () () (InfixGroupResult, [(SIR.ID.ID "ValueIden", Int)]))
         go left more@((first_op, first_rhs) : after_first_op) cur_precedence = do
             first_op <- get_value_iden_resolved first_op
             case first_op of

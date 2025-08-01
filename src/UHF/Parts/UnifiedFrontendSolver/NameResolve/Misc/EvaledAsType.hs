@@ -2,7 +2,6 @@ module UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.EvaledAsType (NotAType, 
 
 import UHF.Prelude
 
-import qualified UHF.Data.SIR as SIR
 import qualified UHF.Diagnostic as Diagnostic
 import UHF.Source.Span (Span)
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef (..))

@@ -155,8 +155,8 @@ assign_in_binding :: NameMaps.NameContextKey -> SIR.Binding Unassigned -> Assign
 assign_in_binding nc_stack (SIR.Binding id target eq_sp expr) = SIR.Binding id <$> assign_in_pat nc_stack target <*> pure eq_sp <*> assign_in_expr nc_stack expr
 
 assign_in_type_expr :: NameMaps.NameContextKey -> SIR.TypeExpr Unassigned -> AssignMonad (SIR.TypeExpr Assigned)
-assign_in_type_expr nc_stack (SIR.TypeExpr'Refer id evaled sp () iden) = pure $ SIR.TypeExpr'Refer id evaled sp nc_stack iden
-assign_in_type_expr nc_stack (SIR.TypeExpr'Get id evaled sp parent name) = SIR.TypeExpr'Get id evaled sp <$> assign_in_type_expr nc_stack parent <*> pure name
+assign_in_type_expr nc_stack (SIR.TypeExpr'Refer id nrid evaled sp () iden) = pure $ SIR.TypeExpr'Refer id nrid evaled sp nc_stack iden
+assign_in_type_expr nc_stack (SIR.TypeExpr'Get id nrid evaled sp parent name) = SIR.TypeExpr'Get id nrid evaled sp <$> assign_in_type_expr nc_stack parent <*> pure name
 assign_in_type_expr nc_stack (SIR.TypeExpr'Tuple id evaled sp a b) = SIR.TypeExpr'Tuple id evaled sp <$> assign_in_type_expr nc_stack a <*> assign_in_type_expr nc_stack b
 assign_in_type_expr _ (SIR.TypeExpr'Hole id evaled type_info sp hid) = pure $ SIR.TypeExpr'Hole id evaled type_info sp hid
 assign_in_type_expr nc_stack (SIR.TypeExpr'Function id evaled sp arg res) = SIR.TypeExpr'Function id evaled sp <$> assign_in_type_expr nc_stack arg <*> assign_in_type_expr nc_stack res

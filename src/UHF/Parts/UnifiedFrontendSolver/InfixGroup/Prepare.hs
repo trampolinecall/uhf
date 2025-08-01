@@ -9,12 +9,13 @@ import qualified UHF.Data.SIR as SIR
 import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupedArena, InfixGroupedKey)
 import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Task (InfixGroupTask (..))
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameMaps
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (IdenResolvedKey, TypeExprEvaledAsTypeKey, TypeExprEvaledKey)
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (TypeExprEvaledAsTypeKey, TypeExprEvaledKey)
 import UHF.Parts.UnifiedFrontendSolver.SolveResult
 import qualified UHF.Util.Arena as Arena
+import Data.Functor.Const (Const)
 
-type Unprepared = (NameMaps.NameContextKey, IdenResolvedKey (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, (), ())
-type Prepared = (NameMaps.NameContextKey, IdenResolvedKey (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, (), InfixGroupedKey)
+type Unprepared = (NameMaps.NameContextKey, Const () (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, (), ())
+type Prepared = (NameMaps.NameContextKey, Const () (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, (), InfixGroupedKey)
 
 type PrepareState = WriterT [InfixGroupTask] (State InfixGroupedArena)
 
@@ -70,10 +71,10 @@ prepare_binding :: SIR.Binding Unprepared -> PrepareState (SIR.Binding Prepared)
 prepare_binding (SIR.Binding id target eq_sp expr) = SIR.Binding id <$> prepare_pat target <*> pure eq_sp <*> prepare_expr expr
 
 prepare_type_expr :: SIR.TypeExpr Unprepared -> PrepareState (SIR.TypeExpr Prepared)
-prepare_type_expr (SIR.TypeExpr'Refer id evaled sp name_maps iden) = pure $ SIR.TypeExpr'Refer id evaled sp name_maps iden
-prepare_type_expr (SIR.TypeExpr'Get id evaled sp parent name) = do
+prepare_type_expr (SIR.TypeExpr'Refer id nrid evaled sp name_maps iden) = pure $ SIR.TypeExpr'Refer id nrid evaled sp name_maps iden
+prepare_type_expr (SIR.TypeExpr'Get id nrid evaled sp parent name) = do
     parent <- prepare_type_expr parent
-    pure $ SIR.TypeExpr'Get id evaled sp parent name
+    pure $ SIR.TypeExpr'Get id nrid evaled sp parent name
 prepare_type_expr (SIR.TypeExpr'Tuple id evaled sp a b) = do
     a <- prepare_type_expr a
     b <- prepare_type_expr b
@@ -111,7 +112,7 @@ prepare_expr (SIR.Expr'BinaryOps eid id () type_info sp first ops) = do
     first <- prepare_expr first
     ops <- mapM (\(sp, iden, rhs) -> (sp,,) <$> prepare_split_iden iden <*> prepare_expr rhs) ops
 
-    infix_group_key <- new_infix_grouped_key $ InfixGroupTask (map (\(_, iden, _) -> {- SIR.split_identifier_resolved TODO -} todo iden) ops)
+    infix_group_key <- new_infix_grouped_key $ InfixGroupTask (map (\(_, iden, _) -> SIR.split_iden_id iden) ops)
 
     pure $ SIR.Expr'BinaryOps eid id infix_group_key type_info sp first ops
 prepare_expr (SIR.Expr'Call eid id type_info sp callee arg) = SIR.Expr'Call eid id type_info sp <$> prepare_expr callee <*> prepare_expr arg

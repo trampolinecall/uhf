@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 module UHF.Parts.UnifiedFrontendSolver.TypeSolve.Finalize (remove_infer_vars) where
 
 import UHF.Prelude
@@ -7,7 +8,7 @@ import qualified Data.List.NonEmpty as NonEmpty
 import Control.Monad.Fix (mfix)
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupedKey)
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (IdenResolvedKey, TypeExprEvaledKey, TypeExprEvaledAsTypeKey)
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (TypeExprEvaledKey, TypeExprEvaledAsTypeKey, DeclIdenAlmostFinalResults, DeclIdenFinalResults)
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
@@ -19,10 +20,13 @@ import qualified UHF.Util.Arena as Arena
 import UHF.Data.IR.Type (Type)
 import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Error (Error(..))
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef (..))
+import qualified UHF.Data.SIR.ID as SIR.ID
+import Data.Functor.Const (Const)
+import qualified Data.Map as Map
 
 type WithInferVars =
     ( NameMaps.NameContextKey
-    , IdenResolvedKey ()
+    , Const () ()
     , TypeWithInferVar.Type
     , TypeExprEvaledKey
     , TypeExprEvaledAsTypeKey
@@ -31,7 +35,7 @@ type WithInferVars =
     )
 type WithoutInferVars =
     ( NameMaps.NameContextKey
-    , IdenResolvedKey ()
+    , Const () ()
     , Type.Type
     , TypeExprEvaledKey
     , TypeExprEvaledAsTypeKey
@@ -41,17 +45,17 @@ type WithoutInferVars =
 
 remove_infer_vars ::
     TypeWithInferVar.InferVarArena ->
-    Arena.Arena (Maybe (DeclRef TypeWithInferVar.Type)) (IdenResolvedKey (DeclRef TypeWithInferVar.Type)) ->
+    DeclIdenAlmostFinalResults ->
     Arena.Arena (Maybe (DeclRef TypeWithInferVar.Type)) TypeExprEvaledKey ->
     Arena.Arena (Maybe TypeWithInferVar.Type) TypeExprEvaledAsTypeKey ->
     SIR.SIR WithInferVars ->
     Compiler.WithDiagnostics SolveError.Error Void
         ( SIR.SIR WithoutInferVars
-        , Arena.Arena (Maybe (DeclRef Type.Type)) (IdenResolvedKey (DeclRef Type.Type))
+        , DeclIdenFinalResults
         , Arena.Arena (Maybe (DeclRef Type.Type)) TypeExprEvaledKey
         , Arena.Arena (Maybe Type.Type) TypeExprEvaledAsTypeKey
         )
-remove_infer_vars infer_vars decl_iden_resolved_arena type_expr_evaled_arena type_expr_evaled_as_type_arena (SIR.SIR modules adts type_synonyms type_vars variables (SIR.CU root_module main_function)) = do
+remove_infer_vars infer_vars decl_iden_results type_expr_evaled_arena type_expr_evaled_as_type_arena (SIR.SIR modules adts type_synonyms type_vars variables (SIR.CU root_module main_function)) = do
     infer_vars <- convert_vars infer_vars
     pure
         ( SIR.SIR
@@ -61,7 +65,7 @@ remove_infer_vars infer_vars decl_iden_resolved_arena type_expr_evaled_arena typ
             type_vars
             (Arena.transform (variable infer_vars) variables)
             (SIR.CU root_module main_function)
-        , Arena.change_key $ Arena.transform (>>= decl_ref infer_vars) decl_iden_resolved_arena
+        , Map.map (>>= decl_ref infer_vars) decl_iden_results
         , Arena.transform (>>= decl_ref infer_vars) type_expr_evaled_arena
         , Arena.transform (>>= type_ infer_vars) type_expr_evaled_as_type_arena
         )
@@ -163,8 +167,8 @@ expr infer_vars (SIR.Expr'Hole eid id ty sp hid) = SIR.Expr'Hole eid id (type_ i
 expr infer_vars (SIR.Expr'Poison eid id ty sp) = SIR.Expr'Poison eid id (type_ infer_vars ty) sp
 
 type_expr :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.TypeExpr WithInferVars -> SIR.TypeExpr WithoutInferVars
-type_expr _ (SIR.TypeExpr'Refer id evaled sp name_context iden) = SIR.TypeExpr'Refer id evaled sp name_context iden
-type_expr infer_vars (SIR.TypeExpr'Get id evaled sp parent name) = SIR.TypeExpr'Get id evaled sp (type_expr infer_vars parent) name
+type_expr _ (SIR.TypeExpr'Refer id nrid evaled sp name_context iden) = SIR.TypeExpr'Refer id nrid evaled sp name_context iden
+type_expr infer_vars (SIR.TypeExpr'Get id nrid evaled sp parent name) = SIR.TypeExpr'Get id nrid evaled sp (type_expr infer_vars parent) name
 type_expr infer_vars (SIR.TypeExpr'Tuple id evaled sp a b) = SIR.TypeExpr'Tuple id evaled sp (type_expr infer_vars a) (type_expr infer_vars b)
 type_expr _ (SIR.TypeExpr'Hole id evaled tyinfo sp hid) = SIR.TypeExpr'Hole id evaled tyinfo sp hid
 type_expr infer_vars (SIR.TypeExpr'Function id evaled sp arg res) = SIR.TypeExpr'Function id evaled sp (type_expr infer_vars arg) (type_expr infer_vars res)

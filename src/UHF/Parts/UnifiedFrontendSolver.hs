@@ -1,3 +1,5 @@
+{-# LANGUAGE DataKinds #-}
+
 module UHF.Parts.UnifiedFrontendSolver (solve) where
 
 import UHF.Prelude
@@ -6,9 +8,9 @@ import Data.Functor.Const (Const)
 import Data.List (sortOn)
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type as Type
-import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Data.SIR as SIR
+import qualified UHF.Data.SIR.ID as SIR.ID
 import UHF.Parts.UnifiedFrontendSolver.Error (Error)
 import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Finalize as InfixGroup.Finalize
 import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupResult, InfixGroupedKey)
@@ -18,7 +20,17 @@ import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Solve as InfixGroup.
 import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Task as InfixGroup.Task
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Finalize as NameResolve.Finalize
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameResolve.NameMaps
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (IdenResolvedKey, TypeExprEvaledAsTypeKey, TypeExprEvaledKey)
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef, ValueRef)
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result
+    ( DeclIdenFinalResults
+    , DeclIdenResults
+    , TypeExprEvaledAsTypeKey
+    , TypeExprEvaledKey
+    , ValueIdenFinalResults
+    , ValueIdenResults
+    , VariantIdenFinalResults
+    , VariantIdenResults
+    )
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result as NameResolve.Result
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.OtherPreparation.AssignNameMaps as NameResolve.OtherPreparation.AssignNameMaps
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Prepare as NameResolve.Prepare
@@ -32,11 +44,10 @@ import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolve.Solve as TypeSolve.So
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolve.Task as SolveTypes.Task
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolve.Task as TypeSolve.Task
 import qualified UHF.Util.Arena as Arena
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef, ValueRef)
 
 type PreSolve = ((), Const () (), (), (), (), (), ())
 type PostSolve =
-    (NameResolve.NameMaps.NameContextKey, IdenResolvedKey (), Type.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, Maybe Type.Type, InfixGroupedKey)
+    (NameResolve.NameMaps.NameContextKey, Const () (), Type.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, Maybe Type.Type, InfixGroupedKey)
 
 solve ::
     SIR.SIR PreSolve ->
@@ -44,9 +55,9 @@ solve ::
         Error
         Void
         ( SIR.SIR PostSolve
-        , ( Arena.Arena (Maybe (DeclRef Type.Type)) (IdenResolvedKey (DeclRef Type.Type))
-          , Arena.Arena (Maybe ValueRef) (IdenResolvedKey ValueRef)
-          , Arena.Arena (Maybe Type.ADT.VariantIndex) (IdenResolvedKey Type.ADT.VariantIndex)
+        , ( DeclIdenFinalResults
+          , ValueIdenFinalResults
+          , VariantIdenFinalResults
           , Arena.Arena (Maybe (DeclRef Type.Type)) TypeExprEvaledKey
           , Arena.Arena (Maybe Type.Type) TypeExprEvaledAsTypeKey
           )
@@ -61,7 +72,10 @@ solve sir = do
 
     ((), (name_resolution_results, infix_group_results, infer_vars)) <-
         runReaderT
-            (runStateT (solve' ((\ (a, b, c, d, e) -> (a, b, c, map Right d, e)) name_resolution_tasks, infix_group_tasks, type_solving_tasks)) (name_resolution_results, infix_group_results, infer_vars))
+            ( runStateT
+                (solve' ((\(a, b, c, d, e) -> (a, b, c, map Right d, e)) name_resolution_tasks, infix_group_tasks, type_solving_tasks))
+                (name_resolution_results, infix_group_results, infer_vars)
+            )
             (name_map_stack_arena, sir_child_maps, sir''')
 
     (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena) <-
@@ -77,9 +91,9 @@ solve sir = do
         )
 
 solve' ::
-    ( ( [NameResolve.Task.IdenResolveTask (DeclRef TypeWithInferVar.Type)]
-      , [NameResolve.Task.IdenResolveTask ValueRef]
-      , [NameResolve.Task.IdenResolveTask Type.ADT.VariantIndex]
+    ( ( [NameResolve.Task.IdenResolveTask (SIR.ID.ID "DeclIden")]
+      , [NameResolve.Task.IdenResolveTask (SIR.ID.ID "ValueIden")]
+      , [NameResolve.Task.IdenResolveTask (SIR.ID.ID "VariantIden")]
       , [Either TypeSolve.Task.TypeSolveTask NameResolve.Task.TypeExprEvalTask]
       , [NameResolve.Task.TypeExprEvalAsTypeTask]
       )
@@ -87,9 +101,9 @@ solve' ::
     , [SolveTypes.Task.TypeSolveTask]
     ) ->
     StateT
-        ( ( NameResolve.Result.IdenResolvedArena (DeclRef TypeWithInferVar.Type)
-          , NameResolve.Result.IdenResolvedArena ValueRef
-          , NameResolve.Result.IdenResolvedArena Type.ADT.VariantIndex
+        ( ( DeclIdenResults
+          , ValueIdenResults
+          , VariantIdenResults
           , NameResolve.Result.TypeExprEvaledArena
           , NameResolve.Result.TypeExprEvaledAsTypeArena
           )

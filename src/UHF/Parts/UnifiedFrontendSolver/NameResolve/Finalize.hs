@@ -3,44 +3,47 @@ module UHF.Parts.UnifiedFrontendSolver.NameResolve.Finalize (finalize) where
 import UHF.Prelude
 
 import qualified UHF.Compiler as Compiler
-import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import UHF.Parts.UnifiedFrontendSolver.Error (Error (NRError))
 import qualified UHF.Parts.UnifiedFrontendSolver.Error as SolveError
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Error as Error
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef)
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result
-    ( IdenResolvedArena
-    , IdenResolvedKey
+    ( DeclIdenAlmostFinalResults
+    , DeclIdenResults
     , TypeExprEvaledArena
     , TypeExprEvaledAsTypeArena
     , TypeExprEvaledAsTypeKey
     , TypeExprEvaledKey
+    , ValueIdenFinalResults
+    , ValueIdenResults
+    , VariantIdenFinalResults
+    , VariantIdenResults
     )
 import UHF.Parts.UnifiedFrontendSolver.SolveResult
 import qualified UHF.Util.Arena as Arena
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef, ValueRef)
 
 finalize ::
-    ( IdenResolvedArena (DeclRef TypeWithInferVar.Type)
-    , IdenResolvedArena ValueRef
-    , IdenResolvedArena Type.ADT.VariantIndex
+    ( DeclIdenResults
+    , ValueIdenResults
+    , VariantIdenResults
     , TypeExprEvaledArena
     , TypeExprEvaledAsTypeArena
     ) ->
     Compiler.WithDiagnostics
         SolveError.Error
         Void
-        ( Arena.Arena (Maybe (DeclRef TypeWithInferVar.Type)) (IdenResolvedKey (DeclRef TypeWithInferVar.Type))
-        , Arena.Arena (Maybe ValueRef) (IdenResolvedKey ValueRef)
-        , Arena.Arena (Maybe Type.ADT.VariantIndex) (IdenResolvedKey Type.ADT.VariantIndex)
+        ( DeclIdenAlmostFinalResults
+        , ValueIdenFinalResults
+        , VariantIdenFinalResults
         , Arena.Arena (Maybe (DeclRef TypeWithInferVar.Type)) TypeExprEvaledKey
         , Arena.Arena (Maybe TypeWithInferVar.Type) TypeExprEvaledAsTypeKey
         )
-finalize (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena) =
+finalize (decl_iden_results, value_iden_results, variant_iden_results, type_expr_evaled_arena, type_expr_evaled_as_type_arena) =
     (,,,,)
-        <$> Arena.transformM finalize_result decl_iden_resolved_arena
-        <*> Arena.transformM finalize_result value_iden_resolved_arena
-        <*> Arena.transformM finalize_result variant_iden_resolved_arena
+        <$> mapM finalize_result decl_iden_results
+        <*> mapM finalize_result value_iden_results
+        <*> mapM finalize_result variant_iden_results
         <*> Arena.transformM finalize_result type_expr_evaled_arena
         <*> Arena.transformM finalize_result type_expr_evaled_as_type_arena
 

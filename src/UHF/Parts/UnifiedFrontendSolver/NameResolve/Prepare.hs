@@ -1,68 +1,66 @@
+{-# LANGUAGE DataKinds #-}
+
 module UHF.Parts.UnifiedFrontendSolver.NameResolve.Prepare (prepare) where
 
 import UHF.Prelude
 
+import Data.Functor.Const (Const)
+import qualified Data.Map as Map
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Data.SIR as SIR
+import qualified UHF.Data.SIR.ID as SIR.ID
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameMaps
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result
-    ( IdenResolvedArena
-    , IdenResolvedKey
+    ( DeclIdenResults
     , TypeExprEvaledArena
     , TypeExprEvaledAsTypeArena
     , TypeExprEvaledAsTypeKey
     , TypeExprEvaledKey
+    , ValueIdenResults
+    , VariantIdenResults
     )
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Task (IdenResolveTask (..), TypeExprEvalAsTypeTask (..), TypeExprEvalTask (..))
 import UHF.Parts.UnifiedFrontendSolver.SolveResult
 import UHF.Source.Located (Located (Located))
 import qualified UHF.Util.Arena as Arena
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (ValueRef, DeclRef)
-import Data.Functor.Const (Const)
 
 type Unprepared = (NameMaps.NameContextKey, Const () (), TypeWithInferVar.Type, (), (), (), ())
-type Prepared = (NameMaps.NameContextKey, IdenResolvedKey (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, (), ())
+type Prepared = (NameMaps.NameContextKey, Const () (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, (), ())
 
 -- TODO: make someday this will turn into a RWST?
 type PrepareState =
     WriterT
-        ( [IdenResolveTask (DeclRef TypeWithInferVar.Type)]
-        , [IdenResolveTask ValueRef]
-        , [IdenResolveTask Type.ADT.VariantIndex]
+        ( [IdenResolveTask (SIR.ID.ID "DeclIden")]
+        , [IdenResolveTask (SIR.ID.ID "ValueIden")]
+        , [IdenResolveTask (SIR.ID.ID "VariantIden")]
         , [TypeExprEvalTask]
         , [TypeExprEvalAsTypeTask]
         )
         ( State
-            ( IdenResolvedArena (DeclRef TypeWithInferVar.Type)
-            , IdenResolvedArena ValueRef
-            , IdenResolvedArena Type.ADT.VariantIndex
+            ( DeclIdenResults
+            , ValueIdenResults
+            , VariantIdenResults
             , TypeExprEvaledArena
             , TypeExprEvaledAsTypeArena
             )
         )
 
-new_decl_iden_resolved_key ::
-    (IdenResolvedKey (DeclRef TypeWithInferVar.Type) -> IdenResolveTask (DeclRef TypeWithInferVar.Type)) ->
-    PrepareState (IdenResolvedKey (DeclRef TypeWithInferVar.Type))
-new_decl_iden_resolved_key make_task = do
-    key <- state $ \(decls, vals, variants, tees, teeats) -> let (key, decls') = Arena.put (Inconclusive Nothing) decls in (key, (decls', vals, variants, tees, teeats))
-    writer ((), ([make_task key], [], [], [], []))
-    pure key
+new_decl_iden_resolved_key :: SIR.ID.ID "DeclIden" -> (SIR.ID.ID "DeclIden" -> IdenResolveTask (SIR.ID.ID "DeclIden")) -> PrepareState ()
+new_decl_iden_resolved_key id make_task = do
+    state $ \(decls, vals, variants, tees, teeats) -> let decls' = Map.insert id (Inconclusive Nothing) decls in ((), (decls', vals, variants, tees, teeats))
+    writer ((), ([make_task id], [], [], [], []))
 
-new_val_iden_resolved_key :: (IdenResolvedKey ValueRef -> IdenResolveTask ValueRef) -> PrepareState (IdenResolvedKey ValueRef)
-new_val_iden_resolved_key make_task = do
-    key <- state $ \(decls, vals, variants, tees, teeats) -> let (key, vals') = Arena.put (Inconclusive Nothing) vals in (key, (decls, vals', variants, tees, teeats))
-    writer ((), ([], [make_task key], [], [], []))
-    pure key
+new_val_iden_resolved_key :: SIR.ID.ID "ValueIden" -> (SIR.ID.ID "ValueIden" -> IdenResolveTask (SIR.ID.ID "ValueIden")) -> PrepareState ()
+new_val_iden_resolved_key id make_task = do
+    state $ \(decls, vals, variants, tees, teeats) -> let vals' = Map.insert id (Inconclusive Nothing) vals in ((), (decls, vals', variants, tees, teeats))
+    writer ((), ([], [make_task id], [], [], []))
 
-new_variant_iden_resolved_key ::
-    (IdenResolvedKey Type.ADT.VariantIndex -> IdenResolveTask Type.ADT.VariantIndex) -> PrepareState (IdenResolvedKey Type.ADT.VariantIndex)
-new_variant_iden_resolved_key make_task = do
-    key <- state $ \(decls, vals, variants, tees, teeats) -> let (key, variants') = Arena.put (Inconclusive Nothing) variants in (key, (decls, vals, variants', tees, teeats))
-    writer ((), ([], [], [make_task key], [], []))
-    pure key
+new_variant_iden_resolved_key :: SIR.ID.ID "VariantIden" -> (SIR.ID.ID "VariantIden" -> IdenResolveTask (SIR.ID.ID "VariantIden")) -> PrepareState ()
+new_variant_iden_resolved_key id make_task = do
+    state $ \(decls, vals, variants, tees, teeats) -> let variants' = Map.insert id (Inconclusive Nothing) variants in ((), (decls, vals, variants', tees, teeats))
+    writer ((), ([], [], [make_task id], [], []))
 
 new_type_expr_evaled_key :: (TypeExprEvaledKey -> TypeExprEvalTask) -> PrepareState TypeExprEvaledKey
 new_type_expr_evaled_key make_task = do
@@ -79,15 +77,15 @@ new_type_expr_evaled_as_type_key make_task = do
 prepare ::
     SIR.SIR Unprepared ->
     ( SIR.SIR Prepared
-    , ( IdenResolvedArena (DeclRef TypeWithInferVar.Type)
-      , IdenResolvedArena ValueRef
-      , IdenResolvedArena Type.ADT.VariantIndex
+    , ( DeclIdenResults
+      , ValueIdenResults
+      , VariantIdenResults
       , TypeExprEvaledArena
       , TypeExprEvaledAsTypeArena
       )
-    , ( [IdenResolveTask (DeclRef TypeWithInferVar.Type)]
-      , [IdenResolveTask ValueRef]
-      , [IdenResolveTask Type.ADT.VariantIndex]
+    , ( [IdenResolveTask (SIR.ID.ID "DeclIden")]
+      , [IdenResolveTask (SIR.ID.ID "ValueIden")]
+      , [IdenResolveTask (SIR.ID.ID "VariantIden")]
       , [TypeExprEvalTask]
       , [TypeExprEvalAsTypeTask]
       )
@@ -105,7 +103,7 @@ prepare (SIR.SIR mods adts type_synonyms type_vars variables (SIR.CU root_module
                         <*> pure (SIR.CU root_module main_function)
                     )
                 )
-                (Arena.new, Arena.new, Arena.new, Arena.new, Arena.new)
+                (Map.empty, Map.empty, Map.empty, Arena.new, Arena.new)
     in (sir, arenas, tasks)
 prepare_mod :: SIR.Module Unprepared -> PrepareState (SIR.Module Prepared)
 prepare_mod (SIR.Module mid id name_map bindings adts type_synonyms) = SIR.Module mid id name_map <$> mapM prepare_binding bindings <*> pure adts <*> pure type_synonyms -- TODO: rename mid to id
@@ -137,15 +135,15 @@ prepare_variable (SIR.Variable id varid tyinfo n) = pure $ SIR.Variable id varid
 prepare_binding :: SIR.Binding Unprepared -> PrepareState (SIR.Binding Prepared)
 prepare_binding (SIR.Binding id target eq_sp expr) = SIR.Binding id <$> prepare_pat target <*> pure eq_sp <*> prepare_expr expr
 prepare_type_expr :: SIR.TypeExpr Unprepared -> PrepareState (SIR.TypeExpr Prepared)
-prepare_type_expr (SIR.TypeExpr'Refer id () sp name_maps iden) = do
-    resolved_key <- new_decl_iden_resolved_key $ ResolveRoot name_maps iden
-    evaled_key <- new_type_expr_evaled_key $ GetFromDeclIdenResolved resolved_key
-    pure $ SIR.TypeExpr'Refer id evaled_key sp name_maps iden
-prepare_type_expr (SIR.TypeExpr'Get id () sp parent name) = do
+prepare_type_expr (SIR.TypeExpr'Refer id nrid () sp name_maps iden) = do
+    new_decl_iden_resolved_key nrid $ ResolveRoot name_maps iden
+    evaled_key <- new_type_expr_evaled_key $ GetFromDeclIdenResolved nrid
+    pure $ SIR.TypeExpr'Refer id nrid evaled_key sp name_maps iden
+prepare_type_expr (SIR.TypeExpr'Get id nrid () sp parent name) = do
     parent <- prepare_type_expr parent
-    resolved_key <- new_decl_iden_resolved_key $ ResolveGet (SIR.type_expr_evaled parent) name
-    evaled_key <- new_type_expr_evaled_key $ GetFromDeclIdenResolved resolved_key
-    pure $ SIR.TypeExpr'Get id evaled_key sp parent name
+    new_decl_iden_resolved_key nrid $ ResolveGet (SIR.type_expr_evaled parent) name
+    evaled_key <- new_type_expr_evaled_key $ GetFromDeclIdenResolved nrid
+    pure $ SIR.TypeExpr'Get id nrid evaled_key sp parent name
 prepare_type_expr (SIR.TypeExpr'Tuple id () sp a b) = do
     a <- prepare_type_expr a
     b <- prepare_type_expr b
@@ -234,12 +232,13 @@ prepare_pat (SIR.Pattern'NamedADTVariant id type_info sp variant_iden tyargs sub
         <*> mapM (\(name, pat) -> (name,) <$> prepare_pat pat) subpat
 prepare_pat (SIR.Pattern'Poison id type_info sp) = pure $ SIR.Pattern'Poison id type_info sp
 prepare_split_iden ::
-    ((IdenResolvedKey result -> IdenResolveTask result) -> PrepareState (IdenResolvedKey resolved)) ->
+    (SIR.ID.ID id_name -> (SIR.ID.ID id_name -> IdenResolveTask (SIR.ID.ID id_name)) -> PrepareState ()) ->
     SIR.SplitIdentifier id_name Unprepared ->
     PrepareState (SIR.SplitIdentifier id_name Prepared)
 prepare_split_iden new_key (SIR.SplitIdentifier'Get id texpr next) = do
     texpr <- prepare_type_expr texpr
-    resolved_key <- new_key (ResolveGet (SIR.type_expr_evaled texpr) next)
+    new_key id (ResolveGet (SIR.type_expr_evaled texpr) next)
     pure $ SIR.SplitIdentifier'Get id texpr next
-prepare_split_iden new_key (SIR.SplitIdentifier'Single id name_maps i) =
-    pure $ SIR.SplitIdentifier'Single id name_maps i -- TODO: <$> new_key (ResolveRoot name_maps i)
+prepare_split_iden new_key (SIR.SplitIdentifier'Single id name_maps i) = do
+    new_key id (ResolveRoot name_maps i)
+    pure $ SIR.SplitIdentifier'Single id name_maps i

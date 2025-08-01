@@ -192,8 +192,8 @@ convert_decls var_parent decl_parent decls =
                     fields
 
 convert_type :: AST.Type -> MakeIRState TypeExpr
-convert_type (AST.Type'Refer id) = lift SIR.ID.gen_id >>= \ teid -> pure $ SIR.TypeExpr'Refer teid () (just_span id) () (convert_aiden_tok <$> id)
-convert_type (AST.Type'Get sp prev name) = lift SIR.ID.gen_id >>= \ teid -> convert_type prev >>= \ prev -> pure (SIR.TypeExpr'Get teid () sp prev (convert_aiden_tok <$> name))
+convert_type (AST.Type'Refer id) = lift SIR.ID.gen_id >>= \ teid -> lift SIR.ID.gen_id >>= \ tenrid -> pure $ SIR.TypeExpr'Refer teid tenrid () (just_span id) () (convert_aiden_tok <$> id)
+convert_type (AST.Type'Get sp prev name) = lift SIR.ID.gen_id >>= \ teid -> lift SIR.ID.gen_id >>= \ tenrid -> convert_type prev >>= \ prev -> pure (SIR.TypeExpr'Get teid tenrid () sp prev (convert_aiden_tok <$> name))
 convert_type (AST.Type'Tuple sp items) = mapM convert_type items >>= group_items
     where
         -- TODO: better spans for this

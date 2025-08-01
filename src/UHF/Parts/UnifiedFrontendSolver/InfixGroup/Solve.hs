@@ -2,7 +2,6 @@ module UHF.Parts.UnifiedFrontendSolver.InfixGroup.Solve (group) where
 
 import UHF.Prelude
 
-import qualified UHF.Data.SIR as SIR
 import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupResult (..))
 import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Task (InfixGroupTask (..))
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (IdenResolvedKey)
@@ -10,6 +9,7 @@ import UHF.Parts.UnifiedFrontendSolver.ProgressMade (ProgressMade (..))
 import UHF.Parts.UnifiedFrontendSolver.SolveResult (SolveResult (..))
 import UHF.Parts.UnifiedFrontendSolver.Solving (SolveMonad, get_value_iden_resolved)
 import qualified UHF.Util.Arena as Arena
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (ValueRef)
 
 group :: InfixGroupTask -> SolveMonad (ProgressMade InfixGroupTask)
 group (InfixGroupTask operators result_key) = do
@@ -53,9 +53,9 @@ group (InfixGroupTask operators result_key) = do
     where
         go ::
             InfixGroupResult ->
-            [(IdenResolvedKey SIR.ValueRef, Int)] ->
+            [(IdenResolvedKey ValueRef, Int)] ->
             Int ->
-            SolveMonad (SolveResult () () (InfixGroupResult, [(IdenResolvedKey SIR.ValueRef, Int)]))
+            SolveMonad (SolveResult () () (InfixGroupResult, [(IdenResolvedKey ValueRef, Int)]))
         go left more@((first_op, first_rhs) : after_first_op) cur_precedence = do
             first_op <- get_value_iden_resolved first_op
             case first_op of
@@ -77,5 +77,5 @@ group (InfixGroupTask operators result_key) = do
                 Inconclusive _ -> pure $ Inconclusive ()
         go left [] _ = pure $ Solved (left, [])
 
-get_op_prec :: SIR.ValueRef -> Int
+get_op_prec :: ValueRef -> Int
 get_op_prec = const 1 -- TODO: precedence

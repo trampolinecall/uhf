@@ -3,20 +3,20 @@ module UHF.Parts.UnifiedFrontendSolver.TypeSolve.Task (EqInWhat (..), ExpectInWh
 import UHF.Prelude
 
 import UHF.Data.IR.TypeWithInferVar
-import qualified UHF.Data.SIR as SIR
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (IdenResolvedKey, TypeExprEvaledAsTypeKey, TypeExprEvaledKey)
 import UHF.Source.Located (Located)
 import UHF.Source.Span (Span)
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (ValueRef, DeclRef)
 
 data EqInWhat = InAssignment | InNamedPattern | InIfBranches | InMatchPatterns | InMatchArms deriving Show
 data ExpectInWhat = InTypeAnnotation | InCallExpr | InIfCondition | InTypeApplication | InADTVariantPatternField | InADTFieldType | InMainFunction | InVariable deriving Show
 
 data TypeSolveTask
     = WhenTypeExprEvaledAsType TypeExprEvaledAsTypeKey (Type -> TypeSolveTask)
-    | WhenTypeExprEvaled TypeExprEvaledKey (SIR.DeclRef Type -> TypeSolveTask)
-    | WhenValueRefResolved (IdenResolvedKey SIR.ValueRef) (SIR.ValueRef -> TypeSolveTask)
-    | EvalAsType Span (SIR.DeclRef Type) (Type -> TypeSolveTask)
-    | GetValueRefType SIR.ValueRef (Type -> TypeSolveTask)
+    | WhenTypeExprEvaled TypeExprEvaledKey (DeclRef Type -> TypeSolveTask)
+    | WhenValueRefResolved (IdenResolvedKey ValueRef) (ValueRef -> TypeSolveTask)
+    | EvalAsType Span (DeclRef Type) (Type -> TypeSolveTask)
+    | GetValueRefType ValueRef (Type -> TypeSolveTask)
     | Constraint Constraint
 
 data Constraint

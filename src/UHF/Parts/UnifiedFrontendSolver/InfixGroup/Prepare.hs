@@ -42,7 +42,8 @@ prepare (SIR.SIR mods adts type_synonyms type_vars variables (SIR.CU root_module
     in (sir, arenas, tasks)
 
 prepare_mod :: SIR.Module Unprepared -> PrepareState (SIR.Module Prepared)
-prepare_mod (SIR.Module id name_map bindings adts type_synonyms) = SIR.Module id name_map <$> mapM prepare_binding bindings <*> pure adts <*> pure type_synonyms
+-- TODO: rename mid to id
+prepare_mod (SIR.Module mid id name_map bindings adts type_synonyms) = SIR.Module mid id name_map <$> mapM prepare_binding bindings <*> pure adts <*> pure type_synonyms
 
 prepare_adt :: SIR.ADT Unprepared -> PrepareState (SIR.ADT Prepared)
 prepare_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM prepare_variant variants
@@ -63,97 +64,97 @@ prepare_type_synonym (Type.TypeSynonym id name (expansion, ex_as_type)) = do
     pure $ Type.TypeSynonym id name (expansion, ex_as_type)
 
 prepare_variable :: SIR.Variable Unprepared -> PrepareState (SIR.Variable Prepared)
-prepare_variable (SIR.Variable varid tyinfo n) = pure $ SIR.Variable varid tyinfo n
+prepare_variable (SIR.Variable id varid tyinfo n) = pure $ SIR.Variable id varid tyinfo n
 
 prepare_binding :: SIR.Binding Unprepared -> PrepareState (SIR.Binding Prepared)
-prepare_binding (SIR.Binding target eq_sp expr) = SIR.Binding <$> prepare_pat target <*> pure eq_sp <*> prepare_expr expr
+prepare_binding (SIR.Binding id target eq_sp expr) = SIR.Binding id <$> prepare_pat target <*> pure eq_sp <*> prepare_expr expr
 
 prepare_type_expr :: SIR.TypeExpr Unprepared -> PrepareState (SIR.TypeExpr Prepared)
-prepare_type_expr (SIR.TypeExpr'Refer evaled resolved sp name_maps id) = pure $ SIR.TypeExpr'Refer evaled resolved sp name_maps id
-prepare_type_expr (SIR.TypeExpr'Get evaled resolved sp parent name) = do
+prepare_type_expr (SIR.TypeExpr'Refer id evaled sp name_maps iden) = pure $ SIR.TypeExpr'Refer id evaled sp name_maps iden
+prepare_type_expr (SIR.TypeExpr'Get id evaled sp parent name) = do
     parent <- prepare_type_expr parent
-    pure $ SIR.TypeExpr'Get evaled resolved sp parent name
-prepare_type_expr (SIR.TypeExpr'Tuple evaled sp a b) = do
+    pure $ SIR.TypeExpr'Get id evaled sp parent name
+prepare_type_expr (SIR.TypeExpr'Tuple id evaled sp a b) = do
     a <- prepare_type_expr a
     b <- prepare_type_expr b
-    pure $ SIR.TypeExpr'Tuple evaled sp a b
-prepare_type_expr (SIR.TypeExpr'Hole evaled evaled_as_type sp hid) = pure $ SIR.TypeExpr'Hole evaled evaled_as_type sp hid
-prepare_type_expr (SIR.TypeExpr'Function evaled sp arg res) = do
+    pure $ SIR.TypeExpr'Tuple id evaled sp a b
+prepare_type_expr (SIR.TypeExpr'Hole id evaled evaled_as_type sp hid) = pure $ SIR.TypeExpr'Hole id evaled evaled_as_type sp hid
+prepare_type_expr (SIR.TypeExpr'Function id evaled sp arg res) = do
     arg <- prepare_type_expr arg
     res <- prepare_type_expr res
 
-    pure $ SIR.TypeExpr'Function evaled sp arg res
-prepare_type_expr (SIR.TypeExpr'Forall evaled sp name_maps vars ty) = do
+    pure $ SIR.TypeExpr'Function id evaled sp arg res
+prepare_type_expr (SIR.TypeExpr'Forall id evaled sp name_maps vars ty) = do
     ty <- prepare_type_expr ty
 
-    pure $ SIR.TypeExpr'Forall evaled sp name_maps vars ty
-prepare_type_expr (SIR.TypeExpr'Apply evaled sp ty args) = do
+    pure $ SIR.TypeExpr'Forall id evaled sp name_maps vars ty
+prepare_type_expr (SIR.TypeExpr'Apply id evaled sp ty args) = do
     ty <- prepare_type_expr ty
     args <- prepare_type_expr args
 
-    pure $ SIR.TypeExpr'Apply evaled sp ty args
-prepare_type_expr (SIR.TypeExpr'Wild evaled sp) = pure $ SIR.TypeExpr'Wild evaled sp
-prepare_type_expr (SIR.TypeExpr'Poison evaled sp) = pure $ SIR.TypeExpr'Poison evaled sp
+    pure $ SIR.TypeExpr'Apply id evaled sp ty args
+prepare_type_expr (SIR.TypeExpr'Wild id evaled sp) = pure $ SIR.TypeExpr'Wild id evaled sp
+prepare_type_expr (SIR.TypeExpr'Poison id evaled sp) = pure $ SIR.TypeExpr'Poison id evaled sp
 
 prepare_expr :: SIR.Expr Unprepared -> PrepareState (SIR.Expr Prepared)
-prepare_expr (SIR.Expr'Refer id type_info sp iden) = SIR.Expr'Refer id type_info sp <$> prepare_split_iden iden
-prepare_expr (SIR.Expr'Char id type_info sp c) = pure $ SIR.Expr'Char id type_info sp c
-prepare_expr (SIR.Expr'String id type_info sp s) = pure $ SIR.Expr'String id type_info sp s
-prepare_expr (SIR.Expr'Int id type_info sp i) = pure $ SIR.Expr'Int id type_info sp i
-prepare_expr (SIR.Expr'Float id type_info sp f) = pure $ SIR.Expr'Float id type_info sp f
-prepare_expr (SIR.Expr'Bool id type_info sp b) = pure $ SIR.Expr'Bool id type_info sp b
-prepare_expr (SIR.Expr'Tuple id type_info sp a b) = SIR.Expr'Tuple id type_info sp <$> prepare_expr a <*> prepare_expr b
-prepare_expr (SIR.Expr'Lambda id type_info sp param body) = SIR.Expr'Lambda id type_info sp <$> prepare_pat param <*> prepare_expr body
-prepare_expr (SIR.Expr'Let id type_info sp name_maps bindings adts type_synonyms body) = SIR.Expr'Let id type_info sp name_maps <$> mapM prepare_binding bindings <*> pure adts <*> pure type_synonyms <*> prepare_expr body
-prepare_expr (SIR.Expr'LetRec id type_info sp name_maps bindings adts type_synonyms body) = SIR.Expr'LetRec id type_info sp name_maps <$> mapM prepare_binding bindings <*> pure adts <*> pure type_synonyms <*> prepare_expr body
-prepare_expr (SIR.Expr'BinaryOps id () type_info sp first ops) = do
+prepare_expr (SIR.Expr'Refer eid id type_info sp iden) = SIR.Expr'Refer eid id type_info sp <$> prepare_split_iden iden
+prepare_expr (SIR.Expr'Char eid id type_info sp c) = pure $ SIR.Expr'Char eid id type_info sp c
+prepare_expr (SIR.Expr'String eid id type_info sp s) = pure $ SIR.Expr'String eid id type_info sp s
+prepare_expr (SIR.Expr'Int eid id type_info sp i) = pure $ SIR.Expr'Int eid id type_info sp i
+prepare_expr (SIR.Expr'Float eid id type_info sp f) = pure $ SIR.Expr'Float eid id type_info sp f
+prepare_expr (SIR.Expr'Bool eid id type_info sp b) = pure $ SIR.Expr'Bool eid id type_info sp b
+prepare_expr (SIR.Expr'Tuple eid id type_info sp a b) = SIR.Expr'Tuple eid id type_info sp <$> prepare_expr a <*> prepare_expr b
+prepare_expr (SIR.Expr'Lambda eid id type_info sp param body) = SIR.Expr'Lambda eid id type_info sp <$> prepare_pat param <*> prepare_expr body
+prepare_expr (SIR.Expr'Let eid id type_info sp name_maps bindings adts type_synonyms body) = SIR.Expr'Let eid id type_info sp name_maps <$> mapM prepare_binding bindings <*> pure adts <*> pure type_synonyms <*> prepare_expr body
+prepare_expr (SIR.Expr'LetRec eid id type_info sp name_maps bindings adts type_synonyms body) = SIR.Expr'LetRec eid id type_info sp name_maps <$> mapM prepare_binding bindings <*> pure adts <*> pure type_synonyms <*> prepare_expr body
+prepare_expr (SIR.Expr'BinaryOps eid id () type_info sp first ops) = do
     first <- prepare_expr first
     ops <- mapM (\(sp, iden, rhs) -> (sp,,) <$> prepare_split_iden iden <*> prepare_expr rhs) ops
 
-    infix_group_key <- new_infix_grouped_key $ InfixGroupTask (map (\(_, iden, _) -> SIR.split_identifier_resolved iden) ops)
+    infix_group_key <- new_infix_grouped_key $ InfixGroupTask (map (\(_, iden, _) -> {- SIR.split_identifier_resolved TODO -} todo iden) ops)
 
-    pure $ SIR.Expr'BinaryOps id infix_group_key type_info sp first ops
-prepare_expr (SIR.Expr'Call id type_info sp callee arg) = SIR.Expr'Call id type_info sp <$> prepare_expr callee <*> prepare_expr arg
-prepare_expr (SIR.Expr'If id type_info sp if_sp cond t f) = SIR.Expr'If id type_info sp if_sp <$> prepare_expr cond <*> prepare_expr t <*> prepare_expr f
-prepare_expr (SIR.Expr'Match id type_info sp match_tok_sp e arms) =
-    SIR.Expr'Match id type_info sp match_tok_sp
+    pure $ SIR.Expr'BinaryOps eid id infix_group_key type_info sp first ops
+prepare_expr (SIR.Expr'Call eid id type_info sp callee arg) = SIR.Expr'Call eid id type_info sp <$> prepare_expr callee <*> prepare_expr arg
+prepare_expr (SIR.Expr'If eid id type_info sp if_sp cond t f) = SIR.Expr'If eid id type_info sp if_sp <$> prepare_expr cond <*> prepare_expr t <*> prepare_expr f
+prepare_expr (SIR.Expr'Match eid id type_info sp match_tok_sp e arms) =
+    SIR.Expr'Match eid id type_info sp match_tok_sp
         <$> prepare_expr e
         <*> mapM (\(ncs, pat, expr) -> (ncs,,) <$> prepare_pat pat <*> prepare_expr expr) arms
-prepare_expr (SIR.Expr'TypeAnnotation id type_info sp (ty, ty_evaled_as_type) e) = do
+prepare_expr (SIR.Expr'TypeAnnotation eid id type_info sp (ty, ty_evaled_as_type) e) = do
     ty <- prepare_type_expr ty
     e <- prepare_expr e
-    pure $ SIR.Expr'TypeAnnotation id type_info sp (ty, ty_evaled_as_type) e
-prepare_expr (SIR.Expr'Forall id type_info sp ncs vars e) = SIR.Expr'Forall id type_info sp ncs vars <$> prepare_expr e
-prepare_expr (SIR.Expr'TypeApply id type_info sp e (arg, arg_evaled_as_type)) = do
+    pure $ SIR.Expr'TypeAnnotation eid id type_info sp (ty, ty_evaled_as_type) e
+prepare_expr (SIR.Expr'Forall eid id type_info sp ncs vars e) = SIR.Expr'Forall eid id type_info sp ncs vars <$> prepare_expr e
+prepare_expr (SIR.Expr'TypeApply eid id type_info sp e (arg, arg_evaled_as_type)) = do
     arg <- prepare_type_expr arg
     e <- prepare_expr e
-    pure $ SIR.Expr'TypeApply id type_info sp e (arg, arg_evaled_as_type)
-prepare_expr (SIR.Expr'Hole id type_info sp hid) = pure $ SIR.Expr'Hole id type_info sp hid
-prepare_expr (SIR.Expr'Poison id type_info sp) = pure $ SIR.Expr'Poison id type_info sp
+    pure $ SIR.Expr'TypeApply eid id type_info sp e (arg, arg_evaled_as_type)
+prepare_expr (SIR.Expr'Hole eid id type_info sp hid) = pure $ SIR.Expr'Hole eid id type_info sp hid
+prepare_expr (SIR.Expr'Poison eid id type_info sp) = pure $ SIR.Expr'Poison eid id type_info sp
 
 prepare_pat :: SIR.Pattern Unprepared -> PrepareState (SIR.Pattern Prepared)
-prepare_pat (SIR.Pattern'Variable type_info sp bnk) = pure $ SIR.Pattern'Variable type_info sp bnk
-prepare_pat (SIR.Pattern'Wildcard type_info sp) = pure $ SIR.Pattern'Wildcard type_info sp
-prepare_pat (SIR.Pattern'Tuple type_info sp a b) = SIR.Pattern'Tuple type_info sp <$> prepare_pat a <*> prepare_pat b
-prepare_pat (SIR.Pattern'Named type_info sp at_sp bnk subpat) = SIR.Pattern'Named type_info sp at_sp bnk <$> prepare_pat subpat
-prepare_pat (SIR.Pattern'AnonADTVariant type_info sp variant_iden tyargs subpat) =
-    SIR.Pattern'AnonADTVariant type_info sp
+prepare_pat (SIR.Pattern'Variable id type_info sp bnk) = pure $ SIR.Pattern'Variable id type_info sp bnk
+prepare_pat (SIR.Pattern'Wildcard id type_info sp) = pure $ SIR.Pattern'Wildcard id type_info sp
+prepare_pat (SIR.Pattern'Tuple id type_info sp a b) = SIR.Pattern'Tuple id type_info sp <$> prepare_pat a <*> prepare_pat b
+prepare_pat (SIR.Pattern'Named id type_info sp at_sp bnk subpat) = SIR.Pattern'Named id type_info sp at_sp bnk <$> prepare_pat subpat
+prepare_pat (SIR.Pattern'AnonADTVariant id type_info sp variant_iden tyargs subpat) =
+    SIR.Pattern'AnonADTVariant id type_info sp
         <$> prepare_split_iden variant_iden
         <*> pure tyargs
         <*> mapM prepare_pat subpat
-prepare_pat (SIR.Pattern'NamedADTVariant type_info sp variant_iden tyargs subpat) =
-    SIR.Pattern'NamedADTVariant
+prepare_pat (SIR.Pattern'NamedADTVariant id type_info sp variant_iden tyargs subpat) =
+    SIR.Pattern'NamedADTVariant id
         type_info
         sp
         <$> prepare_split_iden variant_iden
         <*> pure tyargs
         <*> mapM (\(name, pat) -> (name,) <$> prepare_pat pat) subpat
-prepare_pat (SIR.Pattern'Poison type_info sp) = pure $ SIR.Pattern'Poison type_info sp
+prepare_pat (SIR.Pattern'Poison id type_info sp) = pure $ SIR.Pattern'Poison id type_info sp
 
 prepare_split_iden ::
-    SIR.SplitIdentifier resolved Unprepared ->
-    PrepareState (SIR.SplitIdentifier resolved Prepared)
-prepare_split_iden (SIR.SplitIdentifier'Get texpr next resolved) = do
+    SIR.SplitIdentifier Unprepared ->
+    PrepareState (SIR.SplitIdentifier Prepared)
+prepare_split_iden (SIR.SplitIdentifier'Get id texpr next) = do
     texpr <- prepare_type_expr texpr
-    pure $ SIR.SplitIdentifier'Get texpr next resolved
-prepare_split_iden (SIR.SplitIdentifier'Single name_maps i resolved) = pure $ SIR.SplitIdentifier'Single name_maps i resolved
+    pure $ SIR.SplitIdentifier'Get id texpr next
+prepare_split_iden (SIR.SplitIdentifier'Single id name_maps i) = pure $ SIR.SplitIdentifier'Single id name_maps i

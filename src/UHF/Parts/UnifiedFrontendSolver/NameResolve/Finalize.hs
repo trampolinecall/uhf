@@ -5,7 +5,6 @@ import UHF.Prelude
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
-import qualified UHF.Data.SIR as SIR
 import UHF.Parts.UnifiedFrontendSolver.Error (Error (NRError))
 import qualified UHF.Parts.UnifiedFrontendSolver.Error as SolveError
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Error as Error
@@ -19,10 +18,11 @@ import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result
     )
 import UHF.Parts.UnifiedFrontendSolver.SolveResult
 import qualified UHF.Util.Arena as Arena
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef, ValueRef)
 
 finalize ::
-    ( IdenResolvedArena (SIR.DeclRef TypeWithInferVar.Type)
-    , IdenResolvedArena SIR.ValueRef
+    ( IdenResolvedArena (DeclRef TypeWithInferVar.Type)
+    , IdenResolvedArena ValueRef
     , IdenResolvedArena Type.ADT.VariantIndex
     , TypeExprEvaledArena
     , TypeExprEvaledAsTypeArena
@@ -30,10 +30,10 @@ finalize ::
     Compiler.WithDiagnostics
         SolveError.Error
         Void
-        ( Arena.Arena (Maybe (SIR.DeclRef TypeWithInferVar.Type)) (IdenResolvedKey (SIR.DeclRef TypeWithInferVar.Type))
-        , Arena.Arena (Maybe SIR.ValueRef) (IdenResolvedKey SIR.ValueRef)
+        ( Arena.Arena (Maybe (DeclRef TypeWithInferVar.Type)) (IdenResolvedKey (DeclRef TypeWithInferVar.Type))
+        , Arena.Arena (Maybe ValueRef) (IdenResolvedKey ValueRef)
         , Arena.Arena (Maybe Type.ADT.VariantIndex) (IdenResolvedKey Type.ADT.VariantIndex)
-        , Arena.Arena (Maybe (SIR.DeclRef TypeWithInferVar.Type)) TypeExprEvaledKey
+        , Arena.Arena (Maybe (DeclRef TypeWithInferVar.Type)) TypeExprEvaledKey
         , Arena.Arena (Maybe TypeWithInferVar.Type) TypeExprEvaledAsTypeKey
         )
 finalize (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena) =

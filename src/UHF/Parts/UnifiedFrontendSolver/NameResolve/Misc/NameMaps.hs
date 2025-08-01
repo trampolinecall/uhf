@@ -44,13 +44,14 @@ import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.DeclAt (DeclAt (..))
 import UHF.Parts.UnifiedFrontendSolver.SolveResult
 import UHF.Source.Located (Located (unlocate))
 import qualified UHF.Util.Arena as Arena
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef (..), ValueRef (..))
 
 -- ChildMaps and NameMaps {{{1
 -- Maps is so that the functions that act on ChildMaps and NameMaps aren't so duplicated: by having ChildMaps and NameMaps be newtypes of Maps, we
 -- can have 1 function that does some operation on Maps and then 2 exported functions that unwraps the ChildMaps and NameMaps newtypes and applies
 -- that 1 function to the underlying Maps instead of having 2 almost identical functions for both ChildMaps and NameMaps
 data Maps
-    = Maps (Map.Map Text (DeclAt, SIR.DeclRef TypeWithInferVar.Type)) (Map.Map Text (DeclAt, SIR.ValueRef)) (Map.Map Text (DeclAt, Type.ADT.VariantIndex))
+    = Maps (Map.Map Text (DeclAt, DeclRef TypeWithInferVar.Type)) (Map.Map Text (DeclAt, ValueRef)) (Map.Map Text (DeclAt, Type.ADT.VariantIndex))
     deriving Show
 
 -- ChilsMaps and NameMaps are very similar datatypes. the difference between them is conceptual: ChildMaps is a map that tells what the children of a
@@ -75,8 +76,8 @@ empty_child_maps :: ChildMaps
 empty_child_maps = ChildMaps empty_maps
 
 type Child resolved = (Text, DeclAt, resolved)
-type DeclChild = Child (SIR.DeclRef TypeWithInferVar.Type)
-type ValueChild = Child SIR.ValueRef
+type DeclChild = Child (DeclRef TypeWithInferVar.Type)
+type ValueChild = Child ValueRef
 type ADTVariantChild = Child Type.ADT.VariantIndex
 
 add_to_maps :: [DeclChild] -> [ValueChild] -> [ADTVariantChild] -> Maps -> Writer [Error] Maps
@@ -127,7 +128,7 @@ newtype SIRChildMaps = SIRChildMaps (Arena.Arena ChildMaps SIR.ModuleKey)
 empty_sir_child_maps :: SIR.SIR stage -> SIRChildMaps
 empty_sir_child_maps (SIR.SIR mod_arena _ _ _ _ _) = SIRChildMaps $ Arena.transform go mod_arena
     where
-        go (SIR.Module _ _ _ _ _) = empty_child_maps
+        go (SIR.Module _ _ _ _ _ _) = empty_child_maps
 
 get_module_child_maps :: SIRChildMaps -> SIR.ModuleKey -> ChildMaps
 get_module_child_maps (SIRChildMaps module_child_maps) = Arena.get module_child_maps
@@ -140,9 +141,9 @@ add_tuple_to_module_child_maps (ds, vs, as) mod_key (SIRChildMaps module_child_m
 
 -- getting from name maps and child maps {{{1
 look_up_decl ::
-    Arena.Arena NameContext NameContextKey -> NameContextKey -> Located Text -> SolveResult Error Error (SIR.DeclRef TypeWithInferVar.Type)
+    Arena.Arena NameContext NameContextKey -> NameContextKey -> Located Text -> SolveResult Error Error (DeclRef TypeWithInferVar.Type)
 look_up_decl = look_up (\(NameMaps (Maps d _ _)) -> d)
-look_up_value :: Arena.Arena NameContext NameContextKey -> NameContextKey -> Located Text -> SolveResult Error Error SIR.ValueRef
+look_up_value :: Arena.Arena NameContext NameContextKey -> NameContextKey -> Located Text -> SolveResult Error Error ValueRef
 look_up_value = look_up (\(NameMaps (Maps _ val _)) -> val)
 look_up_variant :: Arena.Arena NameContext NameContextKey -> NameContextKey -> Located Text -> SolveResult Error Error Type.ADT.VariantIndex
 look_up_variant = look_up (\(NameMaps (Maps _ _ var)) -> var)
@@ -165,40 +166,40 @@ look_up which_map arena name_map_stack iden =
                         Just parent -> go parent
                         Nothing -> Errored $ Error'CouldNotFind iden
 
-get_decl_child :: SIRChildMaps -> SIR.DeclRef TypeWithInferVar.Type -> Located Text -> SolveResult Error Error (SIR.DeclRef TypeWithInferVar.Type)
+get_decl_child :: SIRChildMaps -> DeclRef TypeWithInferVar.Type -> Located Text -> SolveResult Error Error (DeclRef TypeWithInferVar.Type)
 get_decl_child sir_child_maps decl name =
     let res = case decl of
-            SIR.DeclRef'Module m ->
+            DeclRef'Module m ->
                 let ChildMaps (Maps d_children _ _) = get_module_child_maps sir_child_maps m
                 in Map.lookup (unlocate name) d_children
-            SIR.DeclRef'Type _ -> Nothing
-            SIR.DeclRef'ExternPackage SIR.ExternPackage'IntrinsicsPackage ->
+            DeclRef'Type _ -> Nothing
+            DeclRef'ExternPackage SIR.ExternPackage'IntrinsicsPackage ->
                 let ChildMaps (Maps d_children _ _) = intrinsics_package_child_maps
                 in Map.lookup (unlocate name) d_children
     in case res of
         Just (_, res) -> Solved res
         Nothing -> Errored $ Error'CouldNotFindIn Nothing name -- TODO: put previous
-get_value_child :: SIRChildMaps -> SIR.DeclRef TypeWithInferVar.Type -> Located Text -> SolveResult Error Error SIR.ValueRef
+get_value_child :: SIRChildMaps -> DeclRef TypeWithInferVar.Type -> Located Text -> SolveResult Error Error ValueRef
 get_value_child sir_child_maps decl name =
     let res = case decl of
-            SIR.DeclRef'Module m ->
+            DeclRef'Module m ->
                 let ChildMaps (Maps _ v_children _) = get_module_child_maps sir_child_maps m
                 in Map.lookup (unlocate name) v_children
-            SIR.DeclRef'Type _ -> Nothing
-            SIR.DeclRef'ExternPackage SIR.ExternPackage'IntrinsicsPackage ->
+            DeclRef'Type _ -> Nothing
+            DeclRef'ExternPackage SIR.ExternPackage'IntrinsicsPackage ->
                 let ChildMaps (Maps _ v_children _) = intrinsics_package_child_maps
                 in Map.lookup (unlocate name) v_children
     in case res of
         Just (_, res) -> Solved res
         Nothing -> Errored $ Error'CouldNotFindIn Nothing name -- TODO: put previous
-get_variant_child :: SIRChildMaps -> SIR.DeclRef TypeWithInferVar.Type -> Located Text -> SolveResult Error Error Type.ADT.VariantIndex
+get_variant_child :: SIRChildMaps -> DeclRef TypeWithInferVar.Type -> Located Text -> SolveResult Error Error Type.ADT.VariantIndex
 get_variant_child sir_child_maps decl name =
     let res = case decl of
-            SIR.DeclRef'Module m ->
+            DeclRef'Module m ->
                 let ChildMaps (Maps _ _ adtv_children) = get_module_child_maps sir_child_maps m
                 in Map.lookup (unlocate name) adtv_children
-            SIR.DeclRef'Type _ -> Nothing
-            SIR.DeclRef'ExternPackage SIR.ExternPackage'IntrinsicsPackage ->
+            DeclRef'Type _ -> Nothing
+            DeclRef'ExternPackage SIR.ExternPackage'IntrinsicsPackage ->
                 let ChildMaps (Maps _ _ adtv_children) = intrinsics_package_child_maps
                 in Map.lookup (unlocate name) adtv_children
     in case res of
@@ -217,7 +218,7 @@ intrinsics_package_child_maps =
             Map.empty
             ( Map.fromList $
                 map
-                    (\intrinsic -> (Intrinsics.intrinsic_name intrinsic, (ImplicitPrim, SIR.ValueRef'Intrinsic intrinsic)))
+                    (\intrinsic -> (Intrinsics.intrinsic_name intrinsic, (ImplicitPrim, ValueRef'Intrinsic intrinsic)))
                     (Enum.enumFromTo Enum.minBound Enum.maxBound)
             )
             Map.empty

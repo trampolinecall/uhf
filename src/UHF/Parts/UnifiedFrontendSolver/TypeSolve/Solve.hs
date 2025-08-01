@@ -22,6 +22,7 @@ import qualified UHF.Util.Arena as Arena
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.EvaledAsType (evaled_as_type)
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.Intrinsics as Intrinsics
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (ValueRef(..))
 
 solve :: TypeSolveTask -> SolveMonad (ProgressMade TypeSolveTask)
 solve (WhenTypeExprEvaledAsType tyeatk more) = do
@@ -50,11 +51,11 @@ solve (EvalAsType sp dr more) = do
             pure $ ProgressMade []
 solve (GetValueRefType vr more) = do
     case vr of
-        SIR.ValueRef'Variable var -> do
+        ValueRef'Variable var -> do
             (SIR.SIR _ _ _ _ vars _) <- ask_sir
-            let SIR.Variable _ ty _ = Arena.get vars var
+            let SIR.Variable _ _ ty _ = Arena.get vars var
             pure $ ProgressMade [more ty]
-        SIR.ValueRef'ADTVariantConstructor variant_index@(Type.ADT.VariantIndex _ adt_key _) -> do
+        ValueRef'ADTVariantConstructor variant_index@(Type.ADT.VariantIndex _ adt_key _) -> do
             (SIR.SIR _ adts _ _ _ _) <- ask_sir
             let (Type.ADT _ _ adt_type_params _) = Arena.get adts adt_key
             let variant = Type.ADT.get_variant adts variant_index
@@ -78,7 +79,7 @@ solve (GetValueRefType vr more) = do
                             pure $ ProgressMade [more ty]
                         Errored _ -> pure $ ProgressMade []
                         Inconclusive _ -> pure NoProgressMade
-        SIR.ValueRef'Intrinsic i -> pure $ ProgressMade [more $ from_ir_type $ Intrinsics.intrinsic_type i]
+        ValueRef'Intrinsic i -> pure $ ProgressMade [more $ from_ir_type $ Intrinsics.intrinsic_type i]
 
 solve (Constraint constraint) = do
     solve_constraint constraint >>= \case

@@ -5,7 +5,6 @@ import UHF.Prelude
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
-import qualified UHF.Data.SIR as SIR
 import UHF.Parts.UnifiedFrontendSolver.Error (Error (NRError))
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Error as Error
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.EvaledAsType (evaled_as_type)
@@ -19,8 +18,9 @@ import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Task (Constraint (InferVarIsApp
 import UHF.Source.Located (Located (Located))
 import UHF.Source.Span (Span)
 import qualified UHF.Util.Arena as Arena
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef (..), ValueRef)
 
-decl_iden_resolved_selector :: State (IdenResolvedArena (SIR.DeclRef TypeWithInferVar.Type)) () -> SolveMonad ()
+decl_iden_resolved_selector :: State (IdenResolvedArena (DeclRef TypeWithInferVar.Type)) () -> SolveMonad ()
 decl_iden_resolved_selector s =
     state $
         \( (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
@@ -36,7 +36,7 @@ decl_iden_resolved_selector s =
                        )
                    )
 
-value_iden_resolved_selector :: State (IdenResolvedArena SIR.ValueRef) () -> SolveMonad ()
+value_iden_resolved_selector :: State (IdenResolvedArena ValueRef) () -> SolveMonad ()
 value_iden_resolved_selector s =
     state $
         \( (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
@@ -99,9 +99,9 @@ type_expr_evaled_as_type_selector s =
                    )
 
 resolve_decl_iden ::
-    IdenResolveTask (SIR.DeclRef TypeWithInferVar.Type) -> SolveMonad (ProgressMade (IdenResolveTask (SIR.DeclRef TypeWithInferVar.Type)))
+    IdenResolveTask (DeclRef TypeWithInferVar.Type) -> SolveMonad (ProgressMade (IdenResolveTask (DeclRef TypeWithInferVar.Type)))
 resolve_decl_iden = resolve decl_iden_resolved_selector look_up_decl get_decl_child
-resolve_value_iden :: IdenResolveTask SIR.ValueRef -> SolveMonad (ProgressMade (IdenResolveTask SIR.ValueRef))
+resolve_value_iden :: IdenResolveTask ValueRef -> SolveMonad (ProgressMade (IdenResolveTask ValueRef))
 resolve_value_iden = resolve value_iden_resolved_selector look_up_value get_value_child
 resolve_variant_iden :: IdenResolveTask Type.ADT.VariantIndex -> SolveMonad (ProgressMade (IdenResolveTask Type.ADT.VariantIndex))
 resolve_variant_iden = resolve variant_iden_resolved_selector look_up_variant get_variant_child
@@ -109,7 +109,7 @@ resolve_variant_iden = resolve variant_iden_resolved_selector look_up_variant ge
 resolve ::
     (State (Arena.Arena (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise resolved) (IdenResolvedKey resolved)) () -> SolveMonad ()) ->
     (NameMaps.NameContextKey -> Located Text -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise resolved)) ->
-    (SIR.DeclRef TypeWithInferVar.Type -> Located Text -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise resolved)) ->
+    (DeclRef TypeWithInferVar.Type -> Located Text -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise resolved)) ->
     IdenResolveTask resolved ->
     SolveMonad (ProgressMade (IdenResolveTask resolved))
 resolve selector resolve_root _ (ResolveRoot name_context name result_key) = do
@@ -148,25 +148,25 @@ put_result selector k res = do
 look_up_decl ::
     NameMaps.NameContextKey ->
     Located Text ->
-    SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise (SIR.DeclRef TypeWithInferVar.Type))
+    SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise (DeclRef TypeWithInferVar.Type))
 look_up_decl name_maps_stack_key name = ask >>= \(name_maps_arena, _, _) -> report_errored $ NameMaps.look_up_decl name_maps_arena name_maps_stack_key name
 look_up_value ::
-    NameMaps.NameContextKey -> Located Text -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise SIR.ValueRef)
+    NameMaps.NameContextKey -> Located Text -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise ValueRef)
 look_up_value name_maps_stack_key name = ask >>= \(name_maps_arena, _, _) -> report_errored $ NameMaps.look_up_value name_maps_arena name_maps_stack_key name
 look_up_variant ::
     NameMaps.NameContextKey -> Located Text -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise Type.ADT.VariantIndex)
 look_up_variant name_maps_stack_key name = ask >>= \(name_maps_arena, _, _) -> report_errored $ NameMaps.look_up_variant name_maps_arena name_maps_stack_key name
 
 get_decl_child ::
-    SIR.DeclRef TypeWithInferVar.Type ->
+    DeclRef TypeWithInferVar.Type ->
     Located Text ->
-    SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise (SIR.DeclRef TypeWithInferVar.Type))
+    SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise (DeclRef TypeWithInferVar.Type))
 get_decl_child parent name = ask >>= \(_, sir_child_maps, _) -> report_errored $ NameMaps.get_decl_child sir_child_maps parent name
 get_value_child ::
-    SIR.DeclRef TypeWithInferVar.Type -> Located Text -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise SIR.ValueRef)
+    DeclRef TypeWithInferVar.Type -> Located Text -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise ValueRef)
 get_value_child parent name = ask >>= \(_, sir_child_maps, _) -> report_errored $ NameMaps.get_value_child sir_child_maps parent name
 get_variant_child ::
-    SIR.DeclRef TypeWithInferVar.Type -> Located Text -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise Type.ADT.VariantIndex)
+    DeclRef TypeWithInferVar.Type -> Located Text -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise Type.ADT.VariantIndex)
 get_variant_child parent name = ask >>= \(_, sir_child_maps, _) -> report_errored $ NameMaps.get_variant_child sir_child_maps parent name
 
 report_errored :: SolveResult Error.Error Error.Error res -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise res)
@@ -185,7 +185,7 @@ eval_type_expr (MakeTuple (Located a_sp a) (Located b_sp b) result_key) = do
     evaled <- do
         a' <- type_expr_evaled_as_type a_sp a
         b' <- type_expr_evaled_as_type b_sp b
-        pure $ SIR.DeclRef'Type <$> (TypeWithInferVar.Type'Tuple <$> a' <*> b')
+        pure $ DeclRef'Type <$> (TypeWithInferVar.Type'Tuple <$> a' <*> b')
 
     put_result type_expr_evaled_selector result_key evaled
 eval_type_expr (MakeFunction (Located arg_sp arg) (Located res_sp res) result_key) = do
@@ -195,7 +195,7 @@ eval_type_expr (MakeFunction (Located arg_sp arg) (Located res_sp res) result_ke
     evaled <- do
         arg' <- type_expr_evaled_as_type arg_sp arg
         res' <- type_expr_evaled_as_type res_sp res
-        pure $ SIR.DeclRef'Type <$> (TypeWithInferVar.Type'Function <$> arg' <*> res')
+        pure $ DeclRef'Type <$> (TypeWithInferVar.Type'Function <$> arg' <*> res')
 
     put_result type_expr_evaled_selector result_key evaled
 eval_type_expr (MakeForall qvars (Located res_sp res) result_key) = do
@@ -203,7 +203,7 @@ eval_type_expr (MakeForall qvars (Located res_sp res) result_key) = do
     evaled <-
         do
             res' <- type_expr_evaled_as_type res_sp res
-            pure $ SIR.DeclRef'Type <$> (TypeWithInferVar.Type'Forall qvars <$> res')
+            pure $ DeclRef'Type <$> (TypeWithInferVar.Type'Forall qvars <$> res')
 
     put_result type_expr_evaled_selector result_key evaled
 eval_type_expr (MakeApply whole_sp (Located ty_sp ty) (Located arg_sp arg) result_key) = do
@@ -222,7 +222,7 @@ eval_type_expr (MakeApply whole_sp (Located ty_sp ty) (Located arg_sp arg) resul
         (Errored e, _) -> pure (Errored e, [])
         (_, Errored e) -> pure (Errored e, [])
 
-    case SIR.DeclRef'Type <$> result_ty of
+    case DeclRef'Type <$> result_ty of
         Inconclusive _ -> pure NoProgressMade
         _ -> do
             type_expr_evaled_selector $
@@ -232,14 +232,14 @@ eval_type_expr (MakeApply whole_sp (Located ty_sp ty) (Located arg_sp arg) resul
                             arena
                             result_key
                             ( \case
-                                Inconclusive _ -> SIR.DeclRef'Type . TypeWithInferVar.Type'InferVar <$> result_ty
-                                _ -> SIR.DeclRef'Type . TypeWithInferVar.Type'InferVar <$> result_ty -- TODO: internal warning because there was already a result here and it was recomputed?
+                                Inconclusive _ -> DeclRef'Type . TypeWithInferVar.Type'InferVar <$> result_ty
+                                _ -> DeclRef'Type . TypeWithInferVar.Type'InferVar <$> result_ty -- TODO: internal warning because there was already a result here and it was recomputed?
                             )
             pure $ ProgressMade $ map (Left . Constraint) new_constraints
 eval_type_expr (MakeInferVar sp result_key) = do
     infer_var <- make_infer_var (TypeWithInferVar.TypeExpr sp)
 
-    put_result type_expr_evaled_selector result_key (Solved $ SIR.DeclRef'Type $ TypeWithInferVar.Type'InferVar infer_var)
+    put_result type_expr_evaled_selector result_key (Solved $ DeclRef'Type $ TypeWithInferVar.Type'InferVar infer_var)
 
 eval_type_expr_as_type :: TypeExprEvalAsTypeTask -> SolveMonad (ProgressMade TypeExprEvalAsTypeTask)
 eval_type_expr_as_type (EvalAsType (Located sp te) result_key) = do
@@ -249,7 +249,7 @@ eval_type_expr_as_type (EvalAsType (Located sp te) result_key) = do
 
 type_expr_evaled_as_type ::
     Span ->
-    SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise (SIR.DeclRef TypeWithInferVar.Type) ->
+    SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise (DeclRef TypeWithInferVar.Type) ->
     SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise TypeWithInferVar.Type)
 type_expr_evaled_as_type sp (Solved dr) = case evaled_as_type sp dr of
     Right ty -> pure $ Solved ty

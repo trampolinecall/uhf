@@ -82,6 +82,7 @@ library
       UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.EvaledAsType
       UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps
       UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps.Utils
+      UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs
       UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result
       UHF.Parts.UnifiedFrontendSolver.NameResolve.OtherPreparation.AssignNameMaps
       UHF.Parts.UnifiedFrontendSolver.NameResolve.Prepare

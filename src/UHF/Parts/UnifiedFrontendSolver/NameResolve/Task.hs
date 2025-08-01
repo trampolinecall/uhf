@@ -11,18 +11,18 @@ import UHF.Prelude
 
 import UHF.Data.IR.Type.QuantVar (QuantVarKey)
 import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
-import qualified UHF.Data.SIR as SIR
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps (NameContextKey)
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (IdenResolvedKey, TypeExprEvaledAsTypeKey, TypeExprEvaledKey)
 import UHF.Source.Located (Located)
 import UHF.Source.Span (Span)
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef)
 
 data IdenResolveTask result
     = ResolveRoot NameContextKey (Located Text) (IdenResolvedKey result)
     | ResolveGet TypeExprEvaledKey (Located Text) (IdenResolvedKey result)
 
 data TypeExprEvalTask
-    = GetFromDeclIdenResolved (IdenResolvedKey (SIR.DeclRef TypeWithInferVar.Type)) TypeExprEvaledKey
+    = GetFromDeclIdenResolved (IdenResolvedKey (DeclRef TypeWithInferVar.Type)) TypeExprEvaledKey
     | MakeTuple (Located TypeExprEvaledKey) (Located TypeExprEvaledKey) TypeExprEvaledKey
     | MakeFunction (Located TypeExprEvaledKey) (Located TypeExprEvaledKey) TypeExprEvaledKey
     | MakeForall (NonEmpty QuantVarKey) (Located TypeExprEvaledKey) TypeExprEvaledKey

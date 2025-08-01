@@ -32,6 +32,7 @@ import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolve.Solve as TypeSolve.So
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolve.Task as SolveTypes.Task
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolve.Task as TypeSolve.Task
 import qualified UHF.Util.Arena as Arena
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef, ValueRef)
 
 type PreSolve = ((), Const () (), (), (), (), (), ())
 type PostSolve =
@@ -43,10 +44,10 @@ solve ::
         Error
         Void
         ( SIR.SIR PostSolve
-        , ( Arena.Arena (Maybe (SIR.DeclRef Type.Type)) (IdenResolvedKey (SIR.DeclRef Type.Type))
-          , Arena.Arena (Maybe SIR.ValueRef) (IdenResolvedKey SIR.ValueRef)
+        , ( Arena.Arena (Maybe (DeclRef Type.Type)) (IdenResolvedKey (DeclRef Type.Type))
+          , Arena.Arena (Maybe ValueRef) (IdenResolvedKey ValueRef)
           , Arena.Arena (Maybe Type.ADT.VariantIndex) (IdenResolvedKey Type.ADT.VariantIndex)
-          , Arena.Arena (Maybe (SIR.DeclRef Type.Type)) TypeExprEvaledKey
+          , Arena.Arena (Maybe (DeclRef Type.Type)) TypeExprEvaledKey
           , Arena.Arena (Maybe Type.Type) TypeExprEvaledAsTypeKey
           )
         , Arena.Arena (Maybe InfixGroupResult) InfixGroupedKey
@@ -76,8 +77,8 @@ solve sir = do
         )
 
 solve' ::
-    ( ( [NameResolve.Task.IdenResolveTask (SIR.DeclRef TypeWithInferVar.Type)]
-      , [NameResolve.Task.IdenResolveTask SIR.ValueRef]
+    ( ( [NameResolve.Task.IdenResolveTask (DeclRef TypeWithInferVar.Type)]
+      , [NameResolve.Task.IdenResolveTask ValueRef]
       , [NameResolve.Task.IdenResolveTask Type.ADT.VariantIndex]
       , [Either TypeSolve.Task.TypeSolveTask NameResolve.Task.TypeExprEvalTask]
       , [NameResolve.Task.TypeExprEvalAsTypeTask]
@@ -86,8 +87,8 @@ solve' ::
     , [SolveTypes.Task.TypeSolveTask]
     ) ->
     StateT
-        ( ( NameResolve.Result.IdenResolvedArena (SIR.DeclRef TypeWithInferVar.Type)
-          , NameResolve.Result.IdenResolvedArena SIR.ValueRef
+        ( ( NameResolve.Result.IdenResolvedArena (DeclRef TypeWithInferVar.Type)
+          , NameResolve.Result.IdenResolvedArena ValueRef
           , NameResolve.Result.IdenResolvedArena Type.ADT.VariantIndex
           , NameResolve.Result.TypeExprEvaledArena
           , NameResolve.Result.TypeExprEvaledAsTypeArena

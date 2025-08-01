@@ -10,11 +10,9 @@ module UHF.Data.SIR
     , ADT (..)
     -- , ADTVariant (..) TODO: sir-type
     , TypeSynonym (..)
-    , DeclRef (..)
     , ExternPackage (..)
     , ModuleKey
     , Module (..)
-    , ValueRef (..)
     , VariableKey
     , Variable (..)
     , Binding (..)
@@ -29,7 +27,6 @@ module UHF.Data.SIR
     , expr_type
     , pattern_type
     , type_expr_evaled
-    , split_identifier_resolved
     , expr_span
     , pattern_span
     , type_expr_span
@@ -38,7 +35,6 @@ module UHF.Data.SIR
 import UHF.Prelude
 
 import qualified UHF.Data.IR.ID as ID
-import qualified UHF.Data.IR.Intrinsics as Intrinsics
 import UHF.Data.IR.Keys
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
@@ -54,8 +50,6 @@ type AllShowable stage =
     ( Stage.AllShowable stage
     , Stage.IdenResolvedKeyHasInstance (Stage.TypeExprEvaledKey stage) Show stage
     , Stage.IdenResolvedKeyHasInstance (Stage.TypeExprEvaledAsTypeKey stage) Show stage
-    , Stage.IdenResolvedKeyHasInstance (DeclRef (Stage.TypeInRefer stage)) Show stage
-    , Stage.IdenResolvedKeyHasInstance ValueRef Show stage
     , Stage.IdenResolvedKeyHasInstance Type.ADT.VariantIndex Show stage
     )
 
@@ -97,12 +91,6 @@ deriving instance AllShowable stage => Show (Binding stage)
 
 type HoleIdentifier = Located Text
 
-data DeclRef ty
-    = DeclRef'Module ModuleKey
-    | DeclRef'Type ty
-    | DeclRef'ExternPackage ExternPackage -- TODO: change this to ExternModule? because referring to an external package would just refer to its root module
-    deriving Show
-
 -- TODO: data ADT stage = ADT ID.DeclID (Located Text) [QuantVarKey] [ADTVariant stage]
 -- TODO: data ADTVariant stage
 -- TODO:     = ADTVariant'Named (Located Text) ID.ADTVariantID [(ID.ADTFieldID, Text, TypeExpr stage)]
@@ -113,11 +101,10 @@ data DeclRef ty
 data TypeExpr stage
     = TypeExpr'Refer SIR.ID.TypeExprID
         (Stage.TypeExprEvaledKey stage)
-        (Stage.IdenResolvedKey stage (DeclRef (Stage.TypeInRefer stage)))
         Span
         (Stage.NameMapIndex stage)
         (Located Text)
-    | TypeExpr'Get SIR.ID.TypeExprID (Stage.TypeExprEvaledKey stage) (Stage.IdenResolvedKey stage (DeclRef (Stage.TypeInRefer stage))) Span (TypeExpr stage) (Located Text)
+    | TypeExpr'Get SIR.ID.TypeExprID (Stage.TypeExprEvaledKey stage) Span (TypeExpr stage) (Located Text) -- TODO: remove this unit field
     | TypeExpr'Tuple SIR.ID.TypeExprID (Stage.TypeExprEvaledKey stage) Span (TypeExpr stage) (TypeExpr stage)
     | TypeExpr'Hole
         SIR.ID.TypeExprID (Stage.TypeExprEvaledKey stage)
@@ -131,19 +118,13 @@ data TypeExpr stage
     | TypeExpr'Poison SIR.ID.TypeExprID (Stage.TypeExprEvaledKey stage) Span
 deriving instance AllShowable stage => Show (TypeExpr stage)
 
-data SplitIdentifier resolved stage
-    = SplitIdentifier'Get SIR.ID.SplitIdentifierID (TypeExpr stage) (Located Text) (Stage.IdenResolvedKey stage resolved)
-    | SplitIdentifier'Single SIR.ID.SplitIdentifierID (Stage.NameMapIndex stage) (Located Text) (Stage.IdenResolvedKey stage resolved)
-deriving instance (AllShowable stage, Stage.IdenResolvedKeyHasInstance resolved Show stage) => Show (SplitIdentifier resolved stage)
+data SplitIdentifier stage
+    = SplitIdentifier'Get SIR.ID.SplitIdentifierID (TypeExpr stage) (Located Text)  -- TODO: parameterize SpltiIdentifierID? or split SplitIdentifier into separate types for value refs and variant refs?
+    | SplitIdentifier'Single SIR.ID.SplitIdentifierID (Stage.NameMapIndex stage) (Located Text)
+deriving instance AllShowable stage => Show (SplitIdentifier stage)
 
-type ExprIdentifierRef stage = SplitIdentifier ValueRef stage
-type OperatorRef stage = SplitIdentifier ValueRef stage
-
-data ValueRef
-    = ValueRef'Variable VariableKey
-    | ValueRef'ADTVariantConstructor Type.ADT.VariantIndex
-    | ValueRef'Intrinsic Intrinsics.Intrinsic
-    deriving Show
+type ExprIdentifierRef stage = SplitIdentifier stage -- TODO: these seem like pretty useless type synonyms
+type OperatorRef stage = SplitIdentifier stage -- TODO: these seem like pretty useless type synonyms
 
 data Expr stage
     = Expr'Refer SIR.ID.ExprID ID.ExprID (Stage.TypeInfo stage) Span (ExprIdentifierRef stage)
@@ -178,7 +159,7 @@ data Expr stage
     | Expr'Poison SIR.ID.ExprID ID.ExprID (Stage.TypeInfo stage) Span
 deriving instance AllShowable stage => Show (Expr stage)
 
-type PatternADTVariantRef stage = SplitIdentifier Type.ADT.VariantIndex stage
+type PatternADTVariantRef stage = SplitIdentifier stage -- TODO: these seem like pretty useless type synonyms
 
 data Pattern stage
     = Pattern'Variable SIR.ID.PatternID (Stage.TypeInfo stage) Span VariableKey
@@ -201,8 +182,8 @@ data Pattern stage
 deriving instance AllShowable stage => Show (Pattern stage)
 
 type_expr_evaled :: TypeExpr stage -> Stage.TypeExprEvaledKey stage
-type_expr_evaled (TypeExpr'Refer _ evaled _ _ _ _) = evaled
-type_expr_evaled (TypeExpr'Get _ evaled _ _ _ _) = evaled
+type_expr_evaled (TypeExpr'Refer _ evaled _ _ _) = evaled
+type_expr_evaled (TypeExpr'Get _ evaled _ _ _) = evaled
 type_expr_evaled (TypeExpr'Tuple _ evaled _ _ _) = evaled
 type_expr_evaled (TypeExpr'Hole _ evaled _ _ _) = evaled
 type_expr_evaled (TypeExpr'Function _ evaled _ _ _) = evaled
@@ -212,8 +193,8 @@ type_expr_evaled (TypeExpr'Wild _ evaled _) = evaled
 type_expr_evaled (TypeExpr'Poison _ evaled _) = evaled
 
 type_expr_span :: TypeExpr stage -> Span
-type_expr_span (TypeExpr'Refer _ _ _ span _ _) = span
-type_expr_span (TypeExpr'Get _ _ _ span _ _) = span
+type_expr_span (TypeExpr'Refer _ _ span _ _) = span
+type_expr_span (TypeExpr'Get _ _ span _ _) = span
 type_expr_span (TypeExpr'Tuple _ _ span _ _) = span
 type_expr_span (TypeExpr'Hole _ _ _ span _) = span
 type_expr_span (TypeExpr'Function _ _ span _ _) = span
@@ -221,10 +202,6 @@ type_expr_span (TypeExpr'Forall _ _ span _ _ _) = span
 type_expr_span (TypeExpr'Apply _ _ span _ _) = span
 type_expr_span (TypeExpr'Wild _ _ span) = span
 type_expr_span (TypeExpr'Poison _ _ span) = span
-
-split_identifier_resolved :: SplitIdentifier resolved stage -> Stage.IdenResolvedKey stage resolved
-split_identifier_resolved (SplitIdentifier'Get _ _ _ resolved) = resolved
-split_identifier_resolved (SplitIdentifier'Single _ _ _ resolved) = resolved
 
 expr_type :: Expr stage -> Stage.TypeInfo stage
 expr_type (Expr'Refer _ _ type_info _ _) = type_info

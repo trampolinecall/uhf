@@ -4,16 +4,13 @@ module UHF.Parts.UnifiedFrontendSolver.InfixGroup.Prepare (prepare) where
 
 import UHF.Prelude
 
-import Data.Functor.Const (Const)
 import qualified Data.Map as Map
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
-import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Data.SIR.ID as SIR.ID
 import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupResults)
 import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Task (InfixGroupTask (..))
-import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameMaps
 import UHF.Parts.UnifiedFrontendSolver.SolveResult
 import qualified UHF.Util.Arena as Arena
 

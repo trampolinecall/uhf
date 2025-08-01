@@ -6,37 +6,16 @@ import UHF.Prelude
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
-import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameMaps
 import UHF.Source.Located (Located (..))
 import qualified UHF.Util.Arena as Arena
 import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Task (TypeSolveTask (..), Constraint (..), ExpectInWhat (..), EqInWhat (..))
 import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import UHF.Data.IR.TypeWithInferVar (InferVarArena)
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef)
-import Data.Functor.Const (Const)
 import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Misc.Result (TypeInfo (..), empty_type_info)
 import qualified Data.Map as Map
 import qualified UHF.Data.SIR.ID as SIR.ID
 
-type Unadded = ((), Const () (), (), (), (), (), ())
-type Added = ((), Const () (), (), (), (), (), ())
-
--- TODO: remove these
-type TypedWithInferVarsDIden = Maybe (DeclRef TypeWithInferVar.Type)
-type TypedWithInferVars = (NameMaps.NameContextKey, Maybe (), DeclRef TypeWithInferVar.Type, TypeWithInferVar.Type, TypeWithInferVar.Type, Void)
-type TypedWithInferVarsSIR = SIR.SIR
-type TypedWithInferVarsModule = SIR.Module
-type TypedWithInferVarsADT = SIR.ADT
-type TypedWithInferVarsTypeSynonym = SIR.TypeSynonym
-type TypedWithInferVarsBinding = SIR.Binding
-type TypedWithInferVarsExpr = SIR.Expr
-type TypedWithInferVarsPattern = SIR.Pattern
-type TypedWithInferVarsVariable = SIR.Variable
-type TypedWithInferVarsTypeExpr = SIR.TypeExpr
-type TypedWithInferVarsADTArena = Arena.Arena TypedWithInferVarsADT Type.ADTKey
-type TypedWithInferVarsTypeSynonymArena = Arena.Arena TypedWithInferVarsTypeSynonym Type.TypeSynonymKey
-type TypedWithInferVarsVariableArena = Arena.Arena TypedWithInferVarsVariable SIR.VariableKey
-type TypedWithInferVarsModuleArena = Arena.Arena TypedWithInferVarsModule SIR.ModuleKey
+-- TODO: remove this
 type QuantVarArena = Arena.Arena Type.QuantVar Type.QuantVarKey
 
 -- TODO: refactor this monad (pattern assigning reads vars and adt assigning reads adts, type_synonyms, and quant_vars)

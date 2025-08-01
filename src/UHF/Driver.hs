@@ -41,9 +41,7 @@ import qualified UHF.Parts.ToSIR as ToSIR
 import qualified UHF.Source.File as File
 import qualified UHF.Source.FormattedString as FormattedString
 import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupFinalResults)
-import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameResolve.NameMaps
 import qualified UHF.Parts.UnifiedFrontendSolver as UnifiedFrontendSolver
-import Data.Functor.Const (Const)
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (DeclIdenFinalResults, ValueIdenFinalResults, VariantIdenFinalResults, TypeExprsFinalEvaled, TypeExprsFinalEvaledAsTypes)
 import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Misc.Result (FinalTypeInfo)
 

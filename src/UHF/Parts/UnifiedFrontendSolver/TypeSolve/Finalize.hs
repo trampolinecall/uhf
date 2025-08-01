@@ -8,7 +8,6 @@ import qualified Data.List.NonEmpty as NonEmpty
 
 import Control.Monad.Fix (mfix)
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
-import Data.Functor.Const (Const)
 import qualified Data.Map as Map
 import qualified UHF.Compiler as Compiler
 import UHF.Data.IR.Type (Type)
@@ -17,7 +16,6 @@ import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Parts.UnifiedFrontendSolver.Error as SolveError
-import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameMaps
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef (..))
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result
     ( DeclIdenAlmostFinalResults
@@ -104,8 +102,8 @@ binding :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.Binding 
 binding infer_vars (SIR.Binding bid p eq_sp e) = SIR.Binding bid (pattern infer_vars p) eq_sp (expr infer_vars e)
 
 pattern :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.Pattern  -> SIR.Pattern
-pattern infer_vars (SIR.Pattern'Variable id sp bn) = SIR.Pattern'Variable id sp bn
-pattern infer_vars (SIR.Pattern'Wildcard id sp) = SIR.Pattern'Wildcard id sp
+pattern _ (SIR.Pattern'Variable id sp bn) = SIR.Pattern'Variable id sp bn
+pattern _ (SIR.Pattern'Wildcard id sp) = SIR.Pattern'Wildcard id sp
 pattern infer_vars (SIR.Pattern'Tuple id sp l r) = SIR.Pattern'Tuple id sp (pattern infer_vars l) (pattern infer_vars r)
 pattern infer_vars (SIR.Pattern'Named id sp at_sp bnk subpat) = SIR.Pattern'Named id sp at_sp bnk (pattern infer_vars subpat)
 pattern infer_vars (SIR.Pattern'AnonADTVariant id variant_id sp variant_iden fields) =
@@ -122,16 +120,16 @@ pattern infer_vars (SIR.Pattern'NamedADTVariant id variant_id sp variant_iden fi
         sp
         (split_identifier infer_vars variant_iden)
         (map (\(field_name, field_pat) -> (field_name, pattern infer_vars field_pat)) fields)
-pattern infer_vars (SIR.Pattern'Poison id sp) = SIR.Pattern'Poison id sp
+pattern _ (SIR.Pattern'Poison id sp) = SIR.Pattern'Poison id sp
 
 expr :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.Expr -> SIR.Expr
 -- TODO: rename eid to id
 expr infer_vars (SIR.Expr'Refer eid id sp iden) = SIR.Expr'Refer eid id sp (split_identifier infer_vars iden)
-expr infer_vars (SIR.Expr'Char eid id sp c) = SIR.Expr'Char eid id sp c
-expr infer_vars (SIR.Expr'String eid id sp t) = SIR.Expr'String eid id sp t
-expr infer_vars (SIR.Expr'Int eid id sp i) = SIR.Expr'Int eid id sp i
-expr infer_vars (SIR.Expr'Float eid id sp r) = SIR.Expr'Float eid id sp r
-expr infer_vars (SIR.Expr'Bool eid id sp b) = SIR.Expr'Bool eid id sp b
+expr _ (SIR.Expr'Char eid id sp c) = SIR.Expr'Char eid id sp c
+expr _ (SIR.Expr'String eid id sp t) = SIR.Expr'String eid id sp t
+expr _ (SIR.Expr'Int eid id sp i) = SIR.Expr'Int eid id sp i
+expr _ (SIR.Expr'Float eid id sp r) = SIR.Expr'Float eid id sp r
+expr _ (SIR.Expr'Bool eid id sp b) = SIR.Expr'Bool eid id sp b
 expr infer_vars (SIR.Expr'Tuple eid id sp l r) = SIR.Expr'Tuple eid id sp (expr infer_vars l) (expr infer_vars r)
 expr infer_vars (SIR.Expr'Lambda eid id sp param body) = SIR.Expr'Lambda eid id sp (pattern infer_vars param) (expr infer_vars body)
 expr infer_vars (SIR.Expr'Let eid id sp name_maps_index bindings adts type_synonyms result) = SIR.Expr'Let eid id sp name_maps_index (map (binding infer_vars) bindings) adts type_synonyms (expr infer_vars result)
@@ -150,8 +148,8 @@ expr infer_vars (SIR.Expr'Match eid id sp match_tok_sp testing arms) =
 expr infer_vars (SIR.Expr'TypeAnnotation eid id sp (annotation, annotation_evaled) e) = SIR.Expr'TypeAnnotation eid id sp (type_expr infer_vars annotation, annotation_evaled) (expr infer_vars e)
 expr infer_vars (SIR.Expr'Forall eid id sp name_maps_index names e) = SIR.Expr'Forall eid id sp name_maps_index (NonEmpty.map identity names) (expr infer_vars e)
 expr infer_vars (SIR.Expr'TypeApply eid id sp e (arg, arg_evaled)) = SIR.Expr'TypeApply eid id sp (expr infer_vars e) (type_expr infer_vars arg, arg_evaled)
-expr infer_vars (SIR.Expr'Hole eid id sp hid) = SIR.Expr'Hole eid id sp hid
-expr infer_vars (SIR.Expr'Poison eid id sp) = SIR.Expr'Poison eid id sp
+expr _ (SIR.Expr'Hole eid id sp hid) = SIR.Expr'Hole eid id sp hid
+expr _ (SIR.Expr'Poison eid id sp) = SIR.Expr'Poison eid id sp
 
 type_expr :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.TypeExpr -> SIR.TypeExpr
 type_expr _ (SIR.TypeExpr'Refer id nrid sp name_context iden) = SIR.TypeExpr'Refer id nrid sp name_context iden

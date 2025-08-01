@@ -14,7 +14,6 @@ module UHF.Parts.UnifiedFrontendSolver.Solving
 
 import UHF.Prelude
 
-import Data.Functor.Const (Const)
 import qualified Data.Map as Map
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type.ADT as Type.ADT

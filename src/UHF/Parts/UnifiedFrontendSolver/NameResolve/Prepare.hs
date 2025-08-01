@@ -4,7 +4,6 @@ module UHF.Parts.UnifiedFrontendSolver.NameResolve.Prepare (prepare) where
 
 import UHF.Prelude
 
-import Data.Functor.Const (Const)
 import qualified Data.Map as Map
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT

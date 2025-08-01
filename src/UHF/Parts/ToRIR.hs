@@ -18,9 +18,7 @@ import qualified UHF.Parts.ToRIR.PatternCheck as PatternCheck
 import qualified UHF.Parts.ToRIR.TopologicalSort as TopologicalSort
 import qualified UHF.Util.Arena as Arena
 import qualified UHF.Util.IDGen as IDGen
-import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameResolve.NameMaps
 import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupResult, InfixGroupFinalResults)
-import Data.Functor.Const (Const)
 import qualified UHF.Data.SIR.ID as SIR.ID
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (ValueRef (..))
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (DeclIdenFinalResults, ValueIdenFinalResults, VariantIdenFinalResults, TypeExprsFinalEvaled, TypeExprsFinalEvaledAsTypes)

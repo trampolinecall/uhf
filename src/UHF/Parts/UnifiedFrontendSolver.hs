@@ -4,7 +4,6 @@ module UHF.Parts.UnifiedFrontendSolver (solve) where
 
 import UHF.Prelude
 
-import Data.Functor.Const (Const)
 import Data.List (sortOn)
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar

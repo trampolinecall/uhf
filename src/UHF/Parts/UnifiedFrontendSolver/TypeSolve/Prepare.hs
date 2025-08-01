@@ -47,7 +47,13 @@ type AddMonad adts type_synonyms quant_vars vars =
 type AddedVariableArena = (Arena.Arena (SIR.Variable Added) SIR.VariableKey)
 
 put_var_type :: SIR.ID.ID "Variable" -> TypeWithInferVar.Type -> AddMonad adts type_synonyms quant_vars vars ()
-put_var_type id t = state $ (\ (typeinfo, infer_vars) -> ((), (typeinfo { variable_types = Map.insert id t (variable_types typeinfo) }, infer_vars)))
+put_var_type id t = state $ \ (typeinfo, infer_vars) -> ((), (typeinfo { variable_types = Map.insert id t (variable_types typeinfo) }, infer_vars))
+
+put_expr_type :: SIR.ID.ID "Expr" -> TypeWithInferVar.Type -> AddMonad adts type_synonyms quant_vars vars ()
+put_expr_type id t = state $ \ (typeinfo, infer_vars) -> ((), (typeinfo { expr_types = Map.insert id t (expr_types typeinfo) }, infer_vars))
+
+put_pattern_type :: SIR.ID.ID "Pattern" -> TypeWithInferVar.Type -> AddMonad adts type_synonyms quant_vars vars ()
+put_pattern_type id t = state $ \ (typeinfo, infer_vars) -> ((), (typeinfo { pattern_types = Map.insert id t (pattern_types typeinfo) }, infer_vars))
 
 get_var_type :: SIR.VariableKey -> AddMonad adts type_synonyms quant_vars AddedVariableArena TypeWithInferVar.Type
 get_var_type var = do
@@ -138,21 +144,25 @@ add_in_binding (SIR.Binding id p eq_sp e) = do
 add_in_pattern :: SIR.Pattern Unadded -> AddMonad adts type_synonyms quant_vars AddedVariableArena (SIR.Pattern Added, TypeWithInferVar.Type)
 add_in_pattern (SIR.Pattern'Variable id sp var) = do
     ty <- get_var_type var
+    put_pattern_type id ty
     pure (SIR.Pattern'Variable id sp var, ty)
 
 add_in_pattern (SIR.Pattern'Wildcard id sp) = do
     ty <- TypeWithInferVar.Type'InferVar <$> new_infer_var (TypeWithInferVar.WildcardPattern sp)
+    put_pattern_type id ty
     pure $ (SIR.Pattern'Wildcard id sp, ty)
 
 add_in_pattern (SIR.Pattern'Tuple id sp l r) = do
     (l, l_ty) <- add_in_pattern l
     (r, r_ty) <- add_in_pattern r
+    put_pattern_type id (TypeWithInferVar.Type'Tuple l_ty r_ty)
     pure $ (SIR.Pattern'Tuple id sp l r, TypeWithInferVar.Type'Tuple l_ty r_ty)
 
 add_in_pattern (SIR.Pattern'Named id sp at_sp var@(Located var_span var_key) subpat) = do
     (subpat, subpat_ty) <- add_in_pattern subpat
     var_ty <- get_var_type var_key
     tell [Constraint $ Eq InNamedPattern at_sp (Located var_span var_ty) (Located (SIR.pattern_span subpat) subpat_ty)]
+    put_pattern_type id var_ty
     pure $ (SIR.Pattern'Named id sp at_sp var subpat, var_ty)
 
 add_in_pattern (SIR.Pattern'AnonADTVariant id variant_id sp variant_iden fields) =
@@ -186,6 +196,7 @@ add_in_pattern (SIR.Pattern'AnonADTVariant id variant_id sp variant_iden fields)
     -- TODO: dont forget to put inferred quant var applications
 
     add_in_split_iden variant_iden >>= \ variant_iden ->
+    put_pattern_type id todo >>
     pure (SIR.Pattern'AnonADTVariant id variant_id sp variant_iden pattern_fields, todo)
 
 add_in_pattern (SIR.Pattern'NamedADTVariant id variant_id sp variant_iden fields) = do
@@ -202,10 +213,12 @@ add_in_pattern (SIR.Pattern'NamedADTVariant id variant_id sp variant_iden fields
     (fields, field_tys) <- unzip <$> mapM (\ (field_name, field_pat) -> add_in_pattern field_pat >>= \ (pat, pat_ty) -> pure ((field_name, pat), pat_ty)) fields
     ty <- TypeWithInferVar.Type'InferVar <$> new_infer_var (TypeWithInferVar.UnresolvedADTVariantPattern sp)
     variant_iden <- add_in_split_iden variant_iden
+    put_pattern_type id todo
     pure (SIR.Pattern'NamedADTVariant id variant_id sp variant_iden fields, todo)
 
 add_in_pattern (SIR.Pattern'Poison id sp) = do
     ty <- TypeWithInferVar.Type'InferVar <$> new_infer_var (TypeWithInferVar.PoisonPattern sp)
+    put_pattern_type id ty
     pure (SIR.Pattern'Poison id sp, ty)
 
 add_in_expr :: SIR.Expr Unadded -> AddMonad adts type_synonyms quant_vars AddedVariableArena (SIR.Expr Added, TypeWithInferVar.Type)
@@ -218,32 +231,47 @@ add_in_expr (SIR.Expr'Refer eid id sp iden) = do
 
     iden <- add_in_split_iden iden
 
+    put_expr_type eid (TypeWithInferVar.Type'InferVar ifv)
     pure (SIR.Expr'Refer eid id sp iden, TypeWithInferVar.Type'InferVar ifv)
 
-add_in_expr (SIR.Expr'Char eid id sp c) = pure (SIR.Expr'Char eid id sp c, TypeWithInferVar.Type'Char)
-add_in_expr (SIR.Expr'String eid id sp t) = pure (SIR.Expr'String eid id sp t, TypeWithInferVar.Type'String )
-add_in_expr (SIR.Expr'Int eid id sp i) = pure (SIR.Expr'Int eid id sp i, TypeWithInferVar.Type'Int )
-add_in_expr (SIR.Expr'Float eid id sp r) = pure (SIR.Expr'Float eid id sp r, TypeWithInferVar.Type'Float )
-add_in_expr (SIR.Expr'Bool eid id sp b) = pure (SIR.Expr'Bool eid id sp b, TypeWithInferVar.Type'Bool )
+add_in_expr (SIR.Expr'Char eid id sp c) = do
+    put_expr_type eid TypeWithInferVar.Type'Char
+    pure (SIR.Expr'Char eid id sp c, TypeWithInferVar.Type'Char)
+add_in_expr (SIR.Expr'String eid id sp t) = do
+    put_expr_type eid TypeWithInferVar.Type'String
+    pure (SIR.Expr'String eid id sp t, TypeWithInferVar.Type'String)
+add_in_expr (SIR.Expr'Int eid id sp i) = do
+    put_expr_type eid TypeWithInferVar.Type'Int
+    pure (SIR.Expr'Int eid id sp i, TypeWithInferVar.Type'Int)
+add_in_expr (SIR.Expr'Float eid id sp r) = do
+    put_expr_type eid TypeWithInferVar.Type'Float
+    pure (SIR.Expr'Float eid id sp r, TypeWithInferVar.Type'Float)
+add_in_expr (SIR.Expr'Bool eid id sp b) = do
+    put_expr_type eid TypeWithInferVar.Type'Bool
+    pure (SIR.Expr'Bool eid id sp b, TypeWithInferVar.Type'Bool)
 
 add_in_expr (SIR.Expr'Tuple eid id sp l r) = do
     (l, l_ty) <- add_in_expr l
     (r, r_ty) <- add_in_expr r
-    pure (SIR.Expr'Tuple eid id sp l r, TypeWithInferVar.Type'Tuple (l_ty) (r_ty))
+    put_expr_type eid (TypeWithInferVar.Type'Tuple l_ty r_ty)
+    pure (SIR.Expr'Tuple eid id sp l r, TypeWithInferVar.Type'Tuple l_ty r_ty)
 
 add_in_expr (SIR.Expr'Lambda eid id sp param body) =
     add_in_pattern param >>= \ (param, param_ty) ->
     add_in_expr body >>= \ (body, body_ty) ->
+    put_expr_type eid (TypeWithInferVar.Type'Function param_ty body_ty) >>
     pure (SIR.Expr'Lambda eid id sp param body, TypeWithInferVar.Type'Function param_ty body_ty)
 
 add_in_expr (SIR.Expr'Let eid id sp name_context_key bindings adts type_synonyms result) =
     mapM add_in_binding bindings >>= \ bindings ->
     add_in_expr result >>= \ (result, result_ty) ->
+    put_expr_type eid result_ty >>
     pure (SIR.Expr'Let eid id sp name_context_key bindings adts type_synonyms result, result_ty)
 
 add_in_expr (SIR.Expr'LetRec eid id sp name_context_key bindings adts type_synonyms result) =
     mapM add_in_binding bindings >>= \ bindings ->
     add_in_expr result >>= \ (result, result_ty) ->
+    put_expr_type eid result_ty >>
     pure (SIR.Expr'LetRec eid id sp name_context_key bindings adts type_synonyms result, result_ty)
 
 add_in_expr (SIR.Expr'BinaryOps _ void _ _ _ _) = todo
@@ -256,6 +284,7 @@ add_in_expr (SIR.Expr'Call eid id sp callee arg) = do
 
     tell [Constraint $ Expect InCallExpr (Located (SIR.expr_span callee) callee_ty) (TypeWithInferVar.Type'Function arg_ty (TypeWithInferVar.Type'InferVar res_ty_var))]
 
+    put_expr_type eid (TypeWithInferVar.Type'InferVar res_ty_var)
     pure (SIR.Expr'Call eid id sp callee arg, TypeWithInferVar.Type'InferVar res_ty_var)
 
 add_in_expr (SIR.Expr'If eid id sp if_sp cond true false) = do
@@ -268,6 +297,7 @@ add_in_expr (SIR.Expr'If eid id sp if_sp cond true false) = do
         , Constraint $ Eq InIfBranches if_sp (Located (SIR.expr_span true) true_ty) (Located (SIR.expr_span false) false_ty)
         ]
 
+    put_expr_type eid true_ty
     pure (SIR.Expr'If eid id sp if_sp cond true false, true_ty)
 
 add_in_expr (SIR.Expr'Match eid id sp match_tok_sp testing arms) = do
@@ -283,17 +313,21 @@ add_in_expr (SIR.Expr'Match eid id sp match_tok_sp testing arms) = do
         Just (_, _, (_, first_arm_ty)) -> pure first_arm_ty
         Nothing -> TypeWithInferVar.Type'InferVar <$> (new_infer_var $ TypeWithInferVar.MatchExpr sp)
 
+    put_expr_type eid result_ty
     pure (SIR.Expr'Match eid id sp match_tok_sp testing (map (\ (nc, p, e) -> (nc, fst p, fst e)) arms), result_ty)
 
 add_in_expr (SIR.Expr'Poison eid id sp) = do
     ty <- TypeWithInferVar.Type'InferVar <$> new_infer_var (TypeWithInferVar.PoisonExpr sp)
+    put_expr_type eid ty
     pure (SIR.Expr'Poison eid id sp, ty)
 add_in_expr (SIR.Expr'Hole eid id sp hid) = do
     ty <- TypeWithInferVar.Type'InferVar <$> new_infer_var (TypeWithInferVar.HoleExpr sp)
+    put_expr_type eid ty
     pure (SIR.Expr'Hole eid id sp hid, ty)
 
 add_in_expr (SIR.Expr'Forall eid id sp name_context_key vars e) =
     add_in_expr e >>= \ (e, e_ty) ->
+    put_expr_type eid (TypeWithInferVar.Type'Forall vars e_ty) >>
     pure (SIR.Expr'Forall eid id  sp name_context_key vars e, TypeWithInferVar.Type'Forall vars e_ty)
 add_in_expr (SIR.Expr'TypeApply eid id sp e (arg, arg_ty)) = do
     (e, e_ty) <- add_in_expr e
@@ -302,6 +336,7 @@ add_in_expr (SIR.Expr'TypeApply eid id sp e (arg, arg_ty)) = do
     result_ty <- new_infer_var (TypeWithInferVar.IdenExpr sp)
     tell [WhenTypeExprEvaled (SIR.type_expr_evaled arg') $ \ arg_evaled -> EvalAsType (SIR.type_expr_span arg) arg_evaled $ \ arg_as_type -> Constraint $ InferVarIsApplyResult sp result_ty e_ty arg_as_type]
 
+    put_expr_type eid (TypeWithInferVar.Type'InferVar result_ty)
     pure $ (SIR.Expr'TypeApply eid id sp e (arg', arg_ty), TypeWithInferVar.Type'InferVar result_ty)
 
 add_in_expr (SIR.Expr'TypeAnnotation eid id sp (annotation, annotation_ty) e) = do
@@ -312,6 +347,7 @@ add_in_expr (SIR.Expr'TypeAnnotation eid id sp (annotation, annotation_ty) e) = 
     ifv <- new_infer_var (TypeWithInferVar.IdenExpr sp)
     tell [WhenTypeExprEvaledAsType annotation_ty $ \ annotation_ty -> Constraint $ DefinedToBe InTypeAnnotation sp ifv annotation_ty]
 
+    put_expr_type eid (TypeWithInferVar.Type'InferVar ifv)
     pure (SIR.Expr'TypeAnnotation eid id sp (annotation, annotation_ty) e, TypeWithInferVar.Type'InferVar ifv)
 
 add_in_split_iden :: SIR.SplitIdentifier id_name Unadded -> AddMonad typedWithInferVarsADTArena type_synonyms quant_vars vars (SIR.SplitIdentifier id_name Added)

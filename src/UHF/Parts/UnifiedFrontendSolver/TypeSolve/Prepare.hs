@@ -192,12 +192,12 @@ add_in_pattern (SIR.Pattern'NamedADTVariant id () sp variant_iden _ fields) = do
 add_in_pattern (SIR.Pattern'Poison id () sp) = SIR.Pattern'Poison id <$> (TypeWithInferVar.Type'InferVar <$> new_infer_var (TypeWithInferVar.PoisonPattern sp)) <*> pure sp
 
 add_in_expr :: SIR.Expr Unadded -> AddMonad adts type_synonyms quant_vars AddedVariableArena (SIR.Expr Added)
--- TODO: rename eid ot id
+-- TODO: rename eid to id
 add_in_expr (SIR.Expr'Refer eid id () sp iden) = do
-    let resolved = todo iden -- TODO
+    let iden_id = SIR.split_identifier_id iden
 
     ifv <- new_infer_var (TypeWithInferVar.IdenExpr sp)
-    tell [WhenValueRefResolved resolved $ \resolved -> GetValueRefType resolved $ \ty -> Constraint $ DefinedToBe InVariable sp ifv ty]
+    tell [WhenValueRefResolved iden_id $ \resolved -> GetValueRefType resolved $ \ty -> Constraint $ DefinedToBe InVariable sp ifv ty]
 
     iden <- add_in_split_iden iden
 

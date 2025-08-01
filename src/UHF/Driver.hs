@@ -45,16 +45,18 @@ import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as Na
 import qualified UHF.Parts.UnifiedFrontendSolver as UnifiedFrontendSolver
 import Data.Functor.Const (Const)
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (DeclIdenFinalResults, ValueIdenFinalResults, VariantIdenFinalResults, TypeExprsFinalEvaled, TypeExprsFinalEvaledAsTypes)
+import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Misc.Result (FinalTypeInfo)
 
 type AST = [AST.Decl]
 type FirstSIR = SIR.SIR ((), Const () (), (), (), (), (), ())
-type SolvedSIR = (SIR.SIR (NameResolve.NameMaps.NameContextKey, Const () (), IR.Type.Type, (), (), Maybe IR.Type.Type, ())
+type SolvedSIR = (SIR.SIR (NameResolve.NameMaps.NameContextKey, Const () (), (), (), (), (), ())
         , DeclIdenFinalResults
         , ValueIdenFinalResults
         , VariantIdenFinalResults
         , TypeExprsFinalEvaled
         , TypeExprsFinalEvaledAsTypes
-        , InfixGroupFinalResults)
+        , InfixGroupFinalResults
+        , FinalTypeInfo)
 type RIR = RIR.RIR
 type ANFIR = ANFIR.ANFIR
 type BackendIR = BackendIR.BackendIR (Either BackendIR.HasLoops BackendIR.TopologicallySorted) (Maybe IR.Type.Type) ()
@@ -105,7 +107,7 @@ print_outputs compile_options file = evalStateT (mapM_ print_output_format (outp
     where
         print_output_format AST = get_ast >>= output_if_outputable (lift . lift . putTextLn . AST.PP.pp_decls)
         print_output_format SIR = get_first_sir >>= output_if_outputable (lift . lift . write_output_file "uhf_sir" . SIR.PP.dump_main_module)
-        print_output_format SolvedSIR = get_solved_sir >>= output_if_outputable (\ (ir, _, _, _, _, _, _) -> lift (lift (write_output_file "uhf_solved_sir" (SIR.PP.dump_main_module ir))))
+        print_output_format SolvedSIR = get_solved_sir >>= output_if_outputable (\ (ir, _, _, _, _, _, _, _) -> lift (lift (write_output_file "uhf_solved_sir" (SIR.PP.dump_main_module ir))))
         print_output_format RIR = get_rir >>= output_if_outputable (lift . lift . write_output_file "uhf_rir" . RIR.PP.dump_main_module)
         print_output_format ANFIR = get_anfir >>= output_if_outputable (lift . lift . write_output_file "uhf_anfir" . ANFIR.PP.dump_cu)
         print_output_format OptimizedANFIR = get_optimized_anfir >>= output_if_outputable (lift . lift . write_output_file "uhf_anfir_optimized" . ANFIR.PP.dump_cu)
@@ -180,14 +182,14 @@ get_solved_sir = get_or_calculate _get_solved_sir (\ cache solved_sir -> cache {
     where
         solve_sir = do
             sir <- get_first_sir
-            ((solved_sir, (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena), infix_group_result_arena), outputable) <- run_stage_on_previous_stage_output (convert_errors . UnifiedFrontendSolver.solve) sir
-            ((), _) <- convert_errors (ReportHoles.report_holes type_expr_evaled_as_type_arena solved_sir)
-            pure ((solved_sir, decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena, infix_group_result_arena), outputable)
+            ((solved_sir, (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena), infix_group_result_arena, type_info), outputable) <- run_stage_on_previous_stage_output (convert_errors . UnifiedFrontendSolver.solve) sir
+            ((), _) <- convert_errors (ReportHoles.report_holes type_expr_evaled_as_type_arena type_info solved_sir)
+            pure ((solved_sir, decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena, infix_group_result_arena, type_info), outputable)
 
 get_rir :: PhaseResultsState (RIR, Outputable)
 get_rir = get_or_calculate _get_rir (\ cache rir -> cache { _get_rir = rir }) to_rir
     where
-        to_rir = get_solved_sir >>= run_stage_on_previous_stage_output (convert_errors . (\ (solved_sir, decl_idens_resolved, value_idens_resolved, variant_idens_resolved, type_exprs_evaled, type_exprs_evaled_as_types, infix_group_result_arena ) -> ToRIR.convert decl_idens_resolved value_idens_resolved variant_idens_resolved type_exprs_evaled type_exprs_evaled_as_types infix_group_result_arena solved_sir))
+        to_rir = get_solved_sir >>= run_stage_on_previous_stage_output (convert_errors . (\ (solved_sir, decl_idens_resolved, value_idens_resolved, variant_idens_resolved, type_exprs_evaled, type_exprs_evaled_as_types, infix_grouped_results, type_info) -> ToRIR.convert decl_idens_resolved value_idens_resolved variant_idens_resolved type_exprs_evaled type_exprs_evaled_as_types infix_grouped_results type_info solved_sir))
 
 get_anfir :: PhaseResultsState (ANFIR, Outputable)
 get_anfir = get_or_calculate _get_anfir (\ cache anfir -> cache { _get_anfir = anfir }) to_anfir

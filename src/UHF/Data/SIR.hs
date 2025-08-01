@@ -29,6 +29,8 @@ module UHF.Data.SIR
     , pattern_span
     , type_expr_span
     , split_identifier_id
+    , pattern_id
+    , expr_id
     ) where
 
 import UHF.Prelude
@@ -184,6 +186,27 @@ split_identifier_id :: SplitIdentifier id_name stage -> SIR.ID.ID id_name
 split_identifier_id (SplitIdentifier'Get id _ _) = id
 split_identifier_id (SplitIdentifier'Single id _ _) = id
 
+expr_id :: Expr stage -> SIR.ID.ID "Expr"
+expr_id (Expr'Refer id _ _ _) = id
+expr_id (Expr'Char id _ _ _) = id
+expr_id (Expr'String id _ _ _) = id
+expr_id (Expr'Int id _ _ _) = id
+expr_id (Expr'Float id _ _ _) = id
+expr_id (Expr'Bool id _ _ _) = id
+expr_id (Expr'Tuple id _ _ _ _) = id
+expr_id (Expr'Lambda id _ _ _ _) = id
+expr_id (Expr'Let id _ _ _ _ _ _ _) = id
+expr_id (Expr'LetRec id _ _ _ _ _ _ _) = id
+expr_id (Expr'BinaryOps id _ _ _ _ _) = id
+expr_id (Expr'Call id _ _ _ _) = id
+expr_id (Expr'If id _ _ _ _ _ _) = id
+expr_id (Expr'Match id _ _ _ _ _) = id
+expr_id (Expr'Poison id _ _) = id
+expr_id (Expr'Hole id _ _ _) = id
+expr_id (Expr'Forall id _ _ _ _ _) = id
+expr_id (Expr'TypeApply id _ _ _ _) = id
+expr_id (Expr'TypeAnnotation id _ _ _ _) = id
+
 expr_span :: Expr stage -> Span
 expr_span (Expr'Refer _ _ sp _) = sp
 expr_span (Expr'Char _ _ sp _) = sp
@@ -204,6 +227,15 @@ expr_span (Expr'Hole _ _ sp _) = sp
 expr_span (Expr'Forall _ _ sp _ _ _) = sp
 expr_span (Expr'TypeApply _ _ sp _ _) = sp
 expr_span (Expr'TypeAnnotation _ _ sp _ _) = sp
+
+pattern_id :: Pattern stage -> SIR.ID.ID "Pattern"
+pattern_id (Pattern'Variable id sp _) = id
+pattern_id (Pattern'Wildcard id sp) = id
+pattern_id (Pattern'Tuple id sp _ _) = id
+pattern_id (Pattern'Named id sp _ _ _) = id
+pattern_id (Pattern'Poison id sp) = id
+pattern_id (Pattern'AnonADTVariant id _ sp _ _) = id
+pattern_id (Pattern'NamedADTVariant id _ sp _ _) = id
 
 pattern_span :: Pattern stage -> Span
 pattern_span (Pattern'Variable _ sp _) = sp

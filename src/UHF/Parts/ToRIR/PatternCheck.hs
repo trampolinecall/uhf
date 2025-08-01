@@ -1,7 +1,7 @@
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE DataKinds #-}
 
 module UHF.Parts.ToRIR.PatternCheck
     ( CompletenessError (..)
@@ -16,24 +16,28 @@ import UHF.Prelude
 import qualified Data.List as List
 import qualified Data.Text as Text
 
-import UHF.Source.Span (Span)
+import qualified Data.Map as Map
 import qualified UHF.Data.IR.ID as ID
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
-import qualified UHF.Diagnostic as Diagnostic
-import qualified UHF.Util.Arena as Arena
-import qualified Data.Map as Map
 import qualified UHF.Data.SIR.ID as SIR.ID
+import qualified UHF.Diagnostic as Diagnostic
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (TypeExprsFinalEvaledAsTypes, VariantIdenFinalResults)
+import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Misc.Result (FinalTypeInfo (final_pattern_types))
+import UHF.Source.Span (Span)
+import qualified UHF.Util.Arena as Arena
 
 data CompletenessError stage = CompletenessError (Arena.Arena (SIR.ADT stage) Type.ADTKey) Span [SIR.Pattern stage] [MatchValue]
 data NotUseful stage = NotUseful (SIR.Pattern stage)
 
 instance Diagnostic.ToError (CompletenessError stage) where
     to_error (CompletenessError adt_arena sp pats left_over) =
-        Diagnostic.Error (Just sp) "incomplete patterns"
-            ( (Just sp, Diagnostic.MsgError, Just $ "values not matched: " <> Text.intercalate ", " (map (show_match_value adt_arena) left_over)) :
-                 map (\ pat -> (Just $ SIR.pattern_span pat, Diagnostic.MsgNote, Nothing)) pats
+        Diagnostic.Error
+            (Just sp)
+            "incomplete patterns"
+            ( (Just sp, Diagnostic.MsgError, Just $ "values not matched: " <> Text.intercalate ", " (map (show_match_value adt_arena) left_over))
+                : map (\pat -> (Just $ SIR.pattern_span pat, Diagnostic.MsgNote, Nothing)) pats
             )
             []
 
@@ -41,7 +45,6 @@ instance Diagnostic.ToWarning (NotUseful stage) where
     to_warning (NotUseful pat) = Diagnostic.Warning (Just $ SIR.pattern_span pat) "useless pattern" [] []
 
 type Type = Maybe Type.Type
-type CorrectStage s = (SIR.TypeInfo s ~ Type) -- TODO: this constraint doesnt really make sense anymore
 
 data MatchValue
     = Any
@@ -57,36 +60,34 @@ show_match_value adt_arena (Tuple a b) = "(" <> show_match_value adt_arena a <> 
 
 -- TODO: clean this up
 -- TODO: use actual type of expression being matched against, not types of patterns
-check :: forall stage. CorrectStage stage =>
+check :: forall stage.
     Arena.Arena (SIR.ADT stage) Type.ADTKey ->
     Arena.Arena (SIR.TypeSynonym stage) Type.TypeSynonymKey ->
-    Map (SIR.ID.ID "VariantIden") (Maybe Type.ADT.VariantIndex) ->
-    Map (SIR.ID.ID "TypeExprEvaledAsType") Type ->
-    [SIR.Pattern stage] -> ([MatchValue], [(SIR.Pattern stage, [MatchValue])])
-check adt_arena type_synonym_arena variant_idens_resolved type_exprs_evaled_as_types = mapAccumL check_one_pattern [Any]
+    VariantIdenFinalResults ->
+    TypeExprsFinalEvaledAsTypes ->
+    FinalTypeInfo ->
+    [SIR.Pattern stage] ->
+    ([MatchValue], [(SIR.Pattern stage, [MatchValue])])
+check adt_arena type_synonym_arena variant_idens_resolved type_exprs_evaled_as_types type_info = mapAccumL check_one_pattern [Any]
     where
         check_one_pattern :: [MatchValue] -> SIR.Pattern stage -> ([MatchValue], (SIR.Pattern stage, [MatchValue]))
         check_one_pattern uncovered cur_pattern =
             let (still_uncovered, covered) = unzip $ map (check_against_one_uncovered_value cur_pattern) uncovered
-            -- TODO: filter duplicates, also almost duplicates where _ and constructors are included (as of 2023-11-21, i am not sure what this todo is talking about)
-            in (filter is_valid_match_value $ concat still_uncovered, (cur_pattern, filter is_valid_match_value $ concat covered))
+            in -- TODO: filter duplicates, also almost duplicates where _ and constructors are included (as of 2023-11-21, i am not sure what this todo is talking about)
+               (filter is_valid_match_value $ concat still_uncovered, (cur_pattern, filter is_valid_match_value $ concat covered))
 
         -- first list of tuple is all of the unmatched values
         -- second list of tuple is all of the matched values
         check_against_one_uncovered_value :: SIR.Pattern stage -> MatchValue -> ([MatchValue], [MatchValue])
         check_against_one_uncovered_value (SIR.Pattern'Variable ty _ _) uncovered_value = check_wild ty uncovered_value
         check_against_one_uncovered_value (SIR.Pattern'Wildcard ty _) uncovered_value = check_wild ty uncovered_value
-
         check_against_one_uncovered_value (SIR.Pattern'Named _ _ _ _ subpat) uncovered_value = check_against_one_uncovered_value subpat uncovered_value
-
         check_against_one_uncovered_value (SIR.Pattern'Tuple _ _ field_a_pat field_b_pat) uncovered_value =
             case uncovered_value of
                 -- the fields of '_ : (A, B)' are '[_ : A, _ : B]'
                 Any -> go Any Any
                 Tuple uncovered_a uncovered_b -> go uncovered_a uncovered_b
-
                 AnonADT _ _ -> ([uncovered_value], []) -- is not an illegal state because things are allowed to pass to this stage even if they have type errors; just treat it like a poison pattern
-
             where
                 make_into_tuple [a, b] = Tuple a b
                 make_into_tuple _ = error "cannot make field combo of not 2 fields into a tuple"
@@ -94,29 +95,27 @@ check adt_arena type_synonym_arena variant_idens_resolved type_exprs_evaled_as_t
                 go uncovered_a uncovered_b =
                     let (uncovered_field_combos, covered_field_combos) = check_fields [field_a_pat, field_b_pat] [uncovered_a, uncovered_b]
                     in (map make_into_tuple uncovered_field_combos, map make_into_tuple covered_field_combos) -- make_into_tuple will not error because the field combos must be 2 fields long
-
-        check_against_one_uncovered_value (SIR.Pattern'AnonADTVariant _ _ iden _ pat_fields) uncovered_value =
-            -- TODO: this branch is for if there is a valid type
-            case variant_idens_resolved Map.! SIR.split_identifier_id iden of
-                Just pat_variant ->
+        check_against_one_uncovered_value (SIR.Pattern'AnonADTVariant id _ _ iden pat_fields) uncovered_value =
+            case (final_pattern_types type_info Map.! id, variant_idens_resolved Map.! SIR.split_identifier_id iden) of
+                (Just ty, Just pat_variant) ->
                     case uncovered_value of
                         Any ->
                             let (still_uncovered, covered) = enumerate_adt_ctors_and_fields ty & map (uncurry go) & unzip
                             in (concat still_uncovered, concat covered)
                         AnonADT uncovered_variant uncovered_fields -> go uncovered_variant uncovered_fields
-
                         Tuple _ _ -> ([uncovered_value], []) -- like above: not illegal state; treat like a poison pattern
-
                     where
                         enumerate_adt_ctors_and_fields (Type.Type'ADT adt_key params) =
                             let (Type.ADT _ _ qvars _) = Arena.get adt_arena adt_key
                             in if length params == length qvars
-                                then Type.ADT.variant_idxs adt_arena adt_key &
-                                        map (\ variant_idx ->
-                                            let variant = Type.ADT.get_variant adt_arena variant_idx
-                                                fields = Type.ADT.variant_field_types variant
-                                            in (variant_idx, map (const Any) fields)
-                                        )
+                                then
+                                    Type.ADT.variant_idxs adt_arena adt_key
+                                        & map
+                                            ( \variant_idx ->
+                                                let variant = Type.ADT.get_variant adt_arena variant_idx
+                                                    fields = Type.ADT.variant_field_types variant
+                                                in (variant_idx, map (const Any) fields)
+                                            )
                                 else []
                         enumerate_adt_ctors_and_fields (Type.Type'Synonym ts_key) =
                             let (Type.TypeSynonym _ _ (_, expansion)) = Arena.get type_synonym_arena ts_key
@@ -141,20 +140,19 @@ check adt_arena type_synonym_arena variant_idens_resolved type_exprs_evaled_as_t
                                 let (uncovered_field_combos, covered_field_combos) = check_fields pat_fields uncovered_fields
                                 in (map (AnonADT uncovered_variant) uncovered_field_combos, map (AnonADT uncovered_variant) covered_field_combos)
                             | otherwise = ([AnonADT uncovered_variant uncovered_fields], []) -- if the constructors do not match, the pattern will cover nothing
-                Nothing -> ([uncovered_value], []) -- a variant pattern with an unknown variant does not cover anything
-
-        -- TODO: and this branch is for if there isnt
-        check_against_one_uncovered_value (SIR.Pattern'AnonADTVariant _ _ _ _ _) uncovered_value = ([uncovered_value], [])  -- a variant pattern with an unknown type does not cover anything
+                _ -> ([uncovered_value], []) -- a variant pattern with an unknown variant does not cover anything
 
         -- TODO: this match is for if it has a type
         check_against_one_uncovered_value (SIR.Pattern'NamedADTVariant _ _ _ _ fields) uncovered_value = todo
         -- TODO: this match is for if it doesnt have a type check_against_one_uncovered_value (SIR.Pattern'NamedADTVariant _ _ _ _ _) uncovered_value = ([uncovered_value], []) -- same as above: a variant pattern with an unknown variant or an unknown type does not cover anything
 
         check_against_one_uncovered_value (SIR.Pattern'Poison _ _) uncovered_value = ([uncovered_value], []) -- poison pattern behaves as if it doesnt cover anything
-
         check_wild _ uncovered_value = ([], [uncovered_value]) -- wildcard pattern always covers everything
-
-        check_fields field_pats uncovered_value_fields = assert (length field_pats == length uncovered_value_fields) "must have the same number of field patterns and uncovered value fields" (uncovered_field_combos, covered_field_combos)
+        check_fields field_pats uncovered_value_fields =
+            assert
+                (length field_pats == length uncovered_value_fields)
+                "must have the same number of field patterns and uncovered value fields"
+                (uncovered_field_combos, covered_field_combos)
             where
                 (fields_uncovered, fields_covered) = unzip $ zipWith check_against_one_uncovered_value field_pats uncovered_value_fields
 
@@ -170,12 +168,12 @@ check adt_arena type_synonym_arena variant_idens_resolved type_exprs_evaled_as_t
                     -- this works because for a field combo to be uncovered, it only needs 1 of its fields to not match
                     fields_uncovered
                         & zipWith
-                            (\ field_i uncovered_possibilities ->
+                            ( \field_i uncovered_possibilities ->
                                 map
-                                    (\ uncovered_possibility -> List.take field_i uncovered_value_fields ++ [uncovered_possibility] ++ List.drop (field_i + 1) uncovered_value_fields)
+                                    (\uncovered_possibility -> List.take field_i uncovered_value_fields ++ [uncovered_possibility] ++ List.drop (field_i + 1) uncovered_value_fields)
                                     uncovered_possibilities
                             )
-                            [0..]
+                            [0 ..]
                         & concat
 
                 covered_field_combos =
@@ -190,17 +188,32 @@ check adt_arena type_synonym_arena variant_idens_resolved type_exprs_evaled_as_t
 
         is_valid_match_value mv = True -- TODO: not (has_uninhabited_values mv)
 
-check_complete :: (CorrectStage stage) => Arena.Arena (SIR.ADT stage) Type.ADTKey -> Arena.Arena (SIR.TypeSynonym stage) Type.TypeSynonymKey -> Map (SIR.ID.ID "VariantIden") (Maybe Type.ADT.VariantIndex) -> Map (SIR.ID.ID "TypeExprEvaledAsType") Type -> Span -> [SIR.Pattern stage] -> Either (CompletenessError stage) ()
-check_complete adt_arena type_synonym_arena variant_idens_resolved type_exprs_evaled_as_types err_sp patterns =
-    let (left_over, _) = check adt_arena type_synonym_arena variant_idens_resolved type_exprs_evaled_as_types patterns
+check_complete ::
+    Arena.Arena (SIR.ADT stage) Type.ADTKey ->
+    Arena.Arena (SIR.TypeSynonym stage) Type.TypeSynonymKey ->
+    Map (SIR.ID.ID "VariantIden") (Maybe Type.ADT.VariantIndex) ->
+    Map (SIR.ID.ID "TypeExprEvaledAsType") Type ->
+    FinalTypeInfo ->
+    Span ->
+    [SIR.Pattern stage] ->
+    Either (CompletenessError stage) ()
+check_complete adt_arena type_synonym_arena variant_idens_resolved type_exprs_evaled_as_types type_info err_sp patterns =
+    let (left_over, _) = check adt_arena type_synonym_arena variant_idens_resolved type_exprs_evaled_as_types type_info patterns
     in if null left_over
         then Right ()
         else Left $ CompletenessError adt_arena err_sp patterns left_over
 
-check_useful :: (CorrectStage stage) => Arena.Arena (SIR.ADT stage) Type.ADTKey -> Arena.Arena (SIR.TypeSynonym stage) Type.TypeSynonymKey -> Map (SIR.ID.ID "VariantIden") (Maybe Type.ADT.VariantIndex) -> Map (SIR.ID.ID "TypeExprEvaledAsType") Type -> [SIR.Pattern stage] -> Either [NotUseful stage] ()
-check_useful adt_arena type_synonym_arena variant_idens_resolved type_exprs_evaled_as_types patterns =
-    let (_, patterns') = check adt_arena type_synonym_arena variant_idens_resolved type_exprs_evaled_as_types patterns
-        warns = mapMaybe (\ (pat, covers) -> if null covers then Just (NotUseful pat) else Nothing) patterns'
+check_useful ::
+    Arena.Arena (SIR.ADT stage) Type.ADTKey ->
+    Arena.Arena (SIR.TypeSynonym stage) Type.TypeSynonymKey ->
+    Map (SIR.ID.ID "VariantIden") (Maybe Type.ADT.VariantIndex) ->
+    Map (SIR.ID.ID "TypeExprEvaledAsType") Type ->
+    FinalTypeInfo ->
+    [SIR.Pattern stage] ->
+    Either [NotUseful stage] ()
+check_useful adt_arena type_synonym_arena variant_idens_resolved type_exprs_evaled_as_types type_info patterns =
+    let (_, patterns') = check adt_arena type_synonym_arena variant_idens_resolved type_exprs_evaled_as_types type_info patterns
+        warns = mapMaybe (\(pat, covers) -> if null covers then Just (NotUseful pat) else Nothing) patterns'
     in if null warns
         then Right ()
         else Left warns

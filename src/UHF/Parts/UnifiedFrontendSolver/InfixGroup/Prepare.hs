@@ -17,9 +17,6 @@ import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as Na
 import UHF.Parts.UnifiedFrontendSolver.SolveResult
 import qualified UHF.Util.Arena as Arena
 
-type Unprepared = ((), Const () (), (), (), (), (), ())
-type Prepared = ((), Const () (), (), (), (), (), ())
-
 type PrepareState = WriterT [InfixGroupTask] (State InfixGroupResults)
 
 new_infix_grouped_key :: SIR.ID.ID "BinaryOpsExpr" -> (SIR.ID.ID "BinaryOpsExpr" -> InfixGroupTask) -> PrepareState ()
@@ -27,7 +24,7 @@ new_infix_grouped_key id task = do
     state $ \map -> let map' = Map.insert id (Inconclusive ()) map in ((), map')
     tell [task id]
 
-prepare :: SIR.SIR Unprepared -> (SIR.SIR Prepared, InfixGroupResults, [InfixGroupTask])
+prepare :: SIR.SIR -> (SIR.SIR, InfixGroupResults, [InfixGroupTask])
 prepare (SIR.SIR mods adts type_synonyms type_vars variables (SIR.CU root_module main_function)) =
     let ((sir, tasks), arenas) =
             runState
@@ -44,11 +41,11 @@ prepare (SIR.SIR mods adts type_synonyms type_vars variables (SIR.CU root_module
                 Map.empty
     in (sir, arenas, tasks)
 
-prepare_mod :: SIR.Module Unprepared -> PrepareState (SIR.Module Prepared)
+prepare_mod :: SIR.Module -> PrepareState SIR.Module
 -- TODO: rename mid to id
 prepare_mod (SIR.Module mid id name_map bindings adts type_synonyms) = SIR.Module mid id name_map <$> mapM prepare_binding bindings <*> pure adts <*> pure type_synonyms
 
-prepare_adt :: SIR.ADT Unprepared -> PrepareState (SIR.ADT Prepared)
+prepare_adt :: SIR.ADT -> PrepareState SIR.ADT
 prepare_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM prepare_variant variants
     where
         prepare_variant (Type.ADT.Variant'Named name id fields) =
@@ -61,18 +58,18 @@ prepare_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <
             Type.ADT.Variant'Anon name id
                 <$> mapM (\(id, (ty, as_type)) -> prepare_type_expr ty >>= \ty -> pure (id, (ty, as_type))) fields
 
-prepare_type_synonym :: SIR.TypeSynonym Unprepared -> PrepareState (SIR.TypeSynonym Prepared)
+prepare_type_synonym :: SIR.TypeSynonym -> PrepareState SIR.TypeSynonym
 prepare_type_synonym (Type.TypeSynonym id name (expansion, ex_as_type)) = do
     expansion <- prepare_type_expr expansion
     pure $ Type.TypeSynonym id name (expansion, ex_as_type)
 
-prepare_variable :: SIR.Variable Unprepared -> PrepareState (SIR.Variable Prepared)
+prepare_variable :: SIR.Variable -> PrepareState SIR.Variable
 prepare_variable (SIR.Variable id varid n) = pure $ SIR.Variable id varid n
 
-prepare_binding :: SIR.Binding Unprepared -> PrepareState (SIR.Binding Prepared)
+prepare_binding :: SIR.Binding -> PrepareState SIR.Binding
 prepare_binding (SIR.Binding id target eq_sp expr) = SIR.Binding id <$> prepare_pat target <*> pure eq_sp <*> prepare_expr expr
 
-prepare_type_expr :: SIR.TypeExpr Unprepared -> PrepareState (SIR.TypeExpr Prepared)
+prepare_type_expr :: SIR.TypeExpr -> PrepareState SIR.TypeExpr
 prepare_type_expr (SIR.TypeExpr'Refer id nrid sp name_maps iden) = pure $ SIR.TypeExpr'Refer id nrid sp name_maps iden
 prepare_type_expr (SIR.TypeExpr'Get id nrid sp parent name) = do
     parent <- prepare_type_expr parent
@@ -99,7 +96,7 @@ prepare_type_expr (SIR.TypeExpr'Apply id sp ty args) = do
 prepare_type_expr (SIR.TypeExpr'Wild id sp) = pure $ SIR.TypeExpr'Wild id sp
 prepare_type_expr (SIR.TypeExpr'Poison id sp) = pure $ SIR.TypeExpr'Poison id sp
 
-prepare_expr :: SIR.Expr Unprepared -> PrepareState (SIR.Expr Prepared)
+prepare_expr :: SIR.Expr -> PrepareState SIR.Expr
 prepare_expr (SIR.Expr'Refer eid id sp iden) = SIR.Expr'Refer eid id sp <$> prepare_split_iden iden
 prepare_expr (SIR.Expr'Char eid id sp c) = pure $ SIR.Expr'Char eid id sp c
 prepare_expr (SIR.Expr'String eid id sp s) = pure $ SIR.Expr'String eid id sp s
@@ -135,7 +132,7 @@ prepare_expr (SIR.Expr'TypeApply eid id sp e (arg, arg_evaled_as_type)) = do
 prepare_expr (SIR.Expr'Hole eid id sp hid) = pure $ SIR.Expr'Hole eid id sp hid
 prepare_expr (SIR.Expr'Poison eid id sp) = pure $ SIR.Expr'Poison eid id sp
 
-prepare_pat :: SIR.Pattern Unprepared -> PrepareState (SIR.Pattern Prepared)
+prepare_pat :: SIR.Pattern -> PrepareState SIR.Pattern
 prepare_pat (SIR.Pattern'Variable id sp bnk) = pure $ SIR.Pattern'Variable id sp bnk
 prepare_pat (SIR.Pattern'Wildcard id sp) = pure $ SIR.Pattern'Wildcard id sp
 prepare_pat (SIR.Pattern'Tuple id sp a b) = SIR.Pattern'Tuple id sp <$> prepare_pat a <*> prepare_pat b
@@ -154,8 +151,8 @@ prepare_pat (SIR.Pattern'NamedADTVariant id variant_id sp variant_iden subpat) =
 prepare_pat (SIR.Pattern'Poison id sp) = pure $ SIR.Pattern'Poison id sp
 
 prepare_split_iden ::
-    SIR.SplitIdentifier id_name Unprepared ->
-    PrepareState (SIR.SplitIdentifier id_name Prepared)
+    SIR.SplitIdentifier id_name ->
+    PrepareState (SIR.SplitIdentifier id_name)
 prepare_split_iden (SIR.SplitIdentifier'Get id texpr next) = do
     texpr <- prepare_type_expr texpr
     pure $ SIR.SplitIdentifier'Get id texpr next

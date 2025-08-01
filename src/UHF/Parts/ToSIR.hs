@@ -15,7 +15,6 @@ import qualified UHF.Data.SIR as SIR
 import qualified UHF.Data.Token as Token
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Util.Arena as Arena
-import Data.Functor.Const (Const)
 import qualified UHF.Data.SIR.ID as SIR.ID
 import qualified GHC.TypeLits as TypeLits
 
@@ -33,18 +32,17 @@ instance Diagnostic.ToError Error where
     to_error NoMain = Diagnostic.Error Nothing "no main function" [] []
     to_error (MultipleMains sps) = Diagnostic.Error (Just $ head sps) "multiple main functions" (map (\ sp -> (Just sp, Diagnostic.MsgError, Nothing)) sps) []
 
-type SIRStage = ((), Const () (), (), (), (), (), ())
+type SIR = SIR.SIR
 
-type SIR = SIR.SIR SIRStage
-
-type Module = SIR.Module SIRStage
-type Binding = SIR.Binding SIRStage
-type ADT = SIR.ADT SIRStage
-type TypeSynonym = SIR.TypeSynonym SIRStage
-type TypeExpr = SIR.TypeExpr SIRStage
-type Expr = SIR.Expr SIRStage
-type Pattern = SIR.Pattern SIRStage
-type Variable = SIR.Variable SIRStage
+-- TODO: delete this
+type Module = SIR.Module
+type Binding = SIR.Binding
+type ADT = SIR.ADT
+type TypeSynonym = SIR.TypeSynonym
+type TypeExpr = SIR.TypeExpr
+type Expr = SIR.Expr
+type Pattern = SIR.Pattern
+type Variable = SIR.Variable
 
 type ModuleArena = Arena.Arena Module SIR.ModuleKey
 type ADTArena = Arena.Arena ADT Type.ADTKey
@@ -120,7 +118,7 @@ search_for_main_function mods variables mod =
             _ <- Compiler.tell_error $ MultipleMains $ map get_var_span multiple
             pure Nothing
     where
-        go_pat :: SIR.Pattern stage -> [SIR.VariableKey]
+        go_pat :: SIR.Pattern -> [SIR.VariableKey]
         go_pat (SIR.Pattern'Variable _ _ vk) = go_var vk
         go_pat (SIR.Pattern'Wildcard _ _) = []
         go_pat (SIR.Pattern'Tuple _ _ a b) = go_pat a ++ go_pat b
@@ -364,7 +362,7 @@ convert_pattern parent (AST.Pattern'NamedADTVariant sp v_ty variant fields) = do
     vpid <- lift SIR.ID.gen_id
     pure (SIR.Pattern'NamedADTVariant pid vpid sp variant_split_iden fields)
 
-make_split_identifier :: TypeLits.KnownSymbol id_name => Maybe AST.Type -> Located Text -> MakeIRState (SIR.SplitIdentifier id_name SIRStage)
+make_split_identifier :: TypeLits.KnownSymbol id_name => Maybe AST.Type -> Located Text -> MakeIRState (SIR.SplitIdentifier id_name)
 make_split_identifier Nothing i = do
     siid <- lift SIR.ID.gen_id
     hencid <- lift SIR.ID.gen_id

@@ -48,8 +48,8 @@ import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (DeclIdenFinalRes
 import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Misc.Result (FinalTypeInfo)
 
 type AST = [AST.Decl]
-type FirstSIR = SIR.SIR ((), Const () (), (), (), (), (), ())
-type SolvedSIR = (SIR.SIR ((), Const () (), (), (), (), (), ())
+type FirstSIR = SIR.SIR
+type SolvedSIR = (SIR.SIR
         , DeclIdenFinalResults
         , ValueIdenFinalResults
         , VariantIdenFinalResults

@@ -125,7 +125,7 @@ instance Arena.Key NameContextKey where
 -- SIRChildMaps {{{1
 newtype SIRChildMaps = SIRChildMaps (Arena.Arena ChildMaps SIR.ModuleKey)
 
-empty_sir_child_maps :: SIR.SIR stage -> SIRChildMaps
+empty_sir_child_maps :: SIR.SIR -> SIRChildMaps
 empty_sir_child_maps (SIR.SIR mod_arena _ _ _ _ _) = SIRChildMaps $ Arena.transform go mod_arena
     where
         go (SIR.Module _ _ _ _ _ _) = empty_child_maps

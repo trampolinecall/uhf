@@ -1,7 +1,4 @@
-{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeOperators #-}
 
 module UHF.Parts.ToRIR.PatternCheck
     ( CompletenessError (..)
@@ -28,10 +25,10 @@ import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Misc.Result (FinalTypeInfo (fin
 import UHF.Source.Span (Span)
 import qualified UHF.Util.Arena as Arena
 
-data CompletenessError stage = CompletenessError (Arena.Arena (SIR.ADT stage) Type.ADTKey) Span [SIR.Pattern stage] [MatchValue]
-data NotUseful stage = NotUseful (SIR.Pattern stage)
+data CompletenessError = CompletenessError (Arena.Arena SIR.ADT Type.ADTKey) Span [SIR.Pattern] [MatchValue]
+data NotUseful = NotUseful SIR.Pattern
 
-instance Diagnostic.ToError (CompletenessError stage) where
+instance Diagnostic.ToError CompletenessError where
     to_error (CompletenessError adt_arena sp pats left_over) =
         Diagnostic.Error
             (Just sp)
@@ -41,7 +38,7 @@ instance Diagnostic.ToError (CompletenessError stage) where
             )
             []
 
-instance Diagnostic.ToWarning (NotUseful stage) where
+instance Diagnostic.ToWarning NotUseful where
     to_warning (NotUseful pat) = Diagnostic.Warning (Just $ SIR.pattern_span pat) "useless pattern" [] []
 
 type Type = Maybe Type.Type
@@ -51,7 +48,7 @@ data MatchValue
     | AnonADT Type.ADT.VariantIndex [MatchValue]
     | Tuple MatchValue MatchValue
 
-show_match_value :: Arena.Arena (SIR.ADT stage) Type.ADTKey -> MatchValue -> Text
+show_match_value :: Arena.Arena SIR.ADT Type.ADTKey -> MatchValue -> Text
 show_match_value _ Any = "_"
 show_match_value adt_arena (AnonADT variant fields) =
     let refer_variant = Type.ADT.get_variant adt_arena variant & Type.ADT.variant_id & ID.stringify
@@ -60,17 +57,17 @@ show_match_value adt_arena (Tuple a b) = "(" <> show_match_value adt_arena a <> 
 
 -- TODO: clean this up
 -- TODO: use actual type of expression being matched against, not types of patterns
-check :: forall stage.
-    Arena.Arena (SIR.ADT stage) Type.ADTKey ->
-    Arena.Arena (SIR.TypeSynonym stage) Type.TypeSynonymKey ->
+check ::
+    Arena.Arena SIR.ADT Type.ADTKey ->
+    Arena.Arena SIR.TypeSynonym Type.TypeSynonymKey ->
     VariantIdenFinalResults ->
     TypeExprsFinalEvaledAsTypes ->
     FinalTypeInfo ->
-    [SIR.Pattern stage] ->
-    ([MatchValue], [(SIR.Pattern stage, [MatchValue])])
+    [SIR.Pattern] ->
+    ([MatchValue], [(SIR.Pattern, [MatchValue])])
 check adt_arena type_synonym_arena variant_idens_resolved type_exprs_evaled_as_types type_info = mapAccumL check_one_pattern [Any]
     where
-        check_one_pattern :: [MatchValue] -> SIR.Pattern stage -> ([MatchValue], (SIR.Pattern stage, [MatchValue]))
+        check_one_pattern :: [MatchValue] -> SIR.Pattern -> ([MatchValue], (SIR.Pattern, [MatchValue]))
         check_one_pattern uncovered cur_pattern =
             let (still_uncovered, covered) = unzip $ map (check_against_one_uncovered_value cur_pattern) uncovered
             in -- TODO: filter duplicates, also almost duplicates where _ and constructors are included (as of 2023-11-21, i am not sure what this todo is talking about)
@@ -78,7 +75,7 @@ check adt_arena type_synonym_arena variant_idens_resolved type_exprs_evaled_as_t
 
         -- first list of tuple is all of the unmatched values
         -- second list of tuple is all of the matched values
-        check_against_one_uncovered_value :: SIR.Pattern stage -> MatchValue -> ([MatchValue], [MatchValue])
+        check_against_one_uncovered_value :: SIR.Pattern -> MatchValue -> ([MatchValue], [MatchValue])
         check_against_one_uncovered_value (SIR.Pattern'Variable ty _ _) uncovered_value = check_wild ty uncovered_value
         check_against_one_uncovered_value (SIR.Pattern'Wildcard ty _) uncovered_value = check_wild ty uncovered_value
         check_against_one_uncovered_value (SIR.Pattern'Named _ _ _ _ subpat) uncovered_value = check_against_one_uncovered_value subpat uncovered_value
@@ -189,14 +186,14 @@ check adt_arena type_synonym_arena variant_idens_resolved type_exprs_evaled_as_t
         is_valid_match_value mv = True -- TODO: not (has_uninhabited_values mv)
 
 check_complete ::
-    Arena.Arena (SIR.ADT stage) Type.ADTKey ->
-    Arena.Arena (SIR.TypeSynonym stage) Type.TypeSynonymKey ->
+    Arena.Arena SIR.ADT Type.ADTKey ->
+    Arena.Arena SIR.TypeSynonym Type.TypeSynonymKey ->
     Map (SIR.ID.ID "VariantIden") (Maybe Type.ADT.VariantIndex) ->
     Map (SIR.ID.ID "TypeExprEvaledAsType") Type ->
     FinalTypeInfo ->
     Span ->
-    [SIR.Pattern stage] ->
-    Either (CompletenessError stage) ()
+    [SIR.Pattern] ->
+    Either CompletenessError ()
 check_complete adt_arena type_synonym_arena variant_idens_resolved type_exprs_evaled_as_types type_info err_sp patterns =
     let (left_over, _) = check adt_arena type_synonym_arena variant_idens_resolved type_exprs_evaled_as_types type_info patterns
     in if null left_over
@@ -204,13 +201,13 @@ check_complete adt_arena type_synonym_arena variant_idens_resolved type_exprs_ev
         else Left $ CompletenessError adt_arena err_sp patterns left_over
 
 check_useful ::
-    Arena.Arena (SIR.ADT stage) Type.ADTKey ->
-    Arena.Arena (SIR.TypeSynonym stage) Type.TypeSynonymKey ->
+    Arena.Arena SIR.ADT Type.ADTKey ->
+    Arena.Arena SIR.TypeSynonym Type.TypeSynonymKey ->
     Map (SIR.ID.ID "VariantIden") (Maybe Type.ADT.VariantIndex) ->
     Map (SIR.ID.ID "TypeExprEvaledAsType") Type ->
     FinalTypeInfo ->
-    [SIR.Pattern stage] ->
-    Either [NotUseful stage] ()
+    [SIR.Pattern] ->
+    Either [NotUseful] ()
 check_useful adt_arena type_synonym_arena variant_idens_resolved type_exprs_evaled_as_types type_info patterns =
     let (_, patterns') = check adt_arena type_synonym_arena variant_idens_resolved type_exprs_evaled_as_types type_info patterns
         warns = mapMaybe (\(pat, covers) -> if null covers then Just (NotUseful pat) else Nothing) patterns'

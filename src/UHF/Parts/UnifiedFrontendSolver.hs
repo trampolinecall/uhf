@@ -35,7 +35,6 @@ import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Prepare as NameReso
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Solve as NameResolve.Solve
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Task as NameResolve.Task
 import UHF.Parts.UnifiedFrontendSolver.ProgressMade (ProgressMade (..))
-import qualified UHF.Parts.UnifiedFrontendSolver.Solving as Solving
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolve.Finalize as TypeSolve.Finalize
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolve.Prepare as TypeSolve.Prepare
 import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolve.Solve as TypeSolve.Solve
@@ -44,15 +43,12 @@ import qualified UHF.Parts.UnifiedFrontendSolver.TypeSolve.Task as TypeSolve.Tas
 import qualified UHF.Util.Arena as Arena
 import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Misc.Result (TypeInfo, FinalTypeInfo)
 
-type PreSolve = ((), Const () (), (), (), (), (), ())
-type PostSolve = ((), Const () (), (), (), (), (), ())
-
 solve ::
-    SIR.SIR PreSolve ->
+    SIR.SIR ->
     Compiler.WithDiagnostics
         Error
         Void
-        ( SIR.SIR PostSolve
+        ( SIR.SIR
         , ( DeclIdenFinalResults
           , ValueIdenFinalResults
           , VariantIdenFinalResults
@@ -111,7 +107,7 @@ solve' ::
         , (TypeInfo, TypeWithInferVar.InferVarArena)
         )
         ( ReaderT
-            (Arena.Arena NameResolve.NameMaps.NameContext NameResolve.NameMaps.NameContextKey, NameResolve.NameMaps.SIRChildMaps, SIR.SIR Solving.SolvingStage)
+            (Arena.Arena NameResolve.NameMaps.NameContext NameResolve.NameMaps.NameContextKey, NameResolve.NameMaps.SIRChildMaps, SIR.SIR)
             (Compiler.WithDiagnostics Error Void)
         )
         ()

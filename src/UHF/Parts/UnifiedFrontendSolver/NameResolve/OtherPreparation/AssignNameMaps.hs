@@ -29,19 +29,19 @@ type NameContextArena = Arena.Arena NameMaps.NameContext NameMaps.NameContextKey
 
 type Unassigned = ((), Const () (), (), (), (), (), ())
 
-type UnassignedModuleArena = Arena.Arena (SIR.Module Unassigned) SIR.ModuleKey
-type UnassignedADTArena = Arena.Arena (SIR.ADT Unassigned) Type.ADTKey
-type UnassignedTypeSynonymArena = Arena.Arena (SIR.TypeSynonym Unassigned) Type.TypeSynonymKey
+type UnassignedModuleArena = Arena.Arena SIR.Module SIR.ModuleKey
+type UnassignedADTArena = Arena.Arena SIR.ADT Type.ADTKey
+type UnassignedTypeSynonymArena = Arena.Arena SIR.TypeSynonym Type.TypeSynonymKey
 
 type Assigned = ((), Const () (), (), (), (), (), ())
 
-type AssignedModuleArena = Arena.Arena (SIR.Module Assigned) SIR.ModuleKey
-type AssignedADTArena = Arena.Arena (SIR.ADT Assigned) Type.ADTKey
-type AssignedTypeSynonymArena = Arena.Arena (SIR.TypeSynonym Assigned) Type.TypeSynonymKey
+type AssignedModuleArena = Arena.Arena SIR.Module SIR.ModuleKey
+type AssignedADTArena = Arena.Arena SIR.ADT Type.ADTKey
+type AssignedTypeSynonymArena = Arena.Arena SIR.TypeSynonym Type.TypeSynonymKey
 
 type AssignMonad =
     ReaderT
-        (SIR.SIR Unassigned)
+        SIR.SIR
         ( StateT
             ( NameContextArena
             , NameMaps.SIRChildMaps
@@ -152,11 +152,11 @@ convert_add_to_name_maps fn thing =
 
 -- assign entry point {{{1
 assign ::
-    SIR.SIR Unassigned ->
+    SIR.SIR ->
     Compiler.WithDiagnostics
         Solve.Error.Error
         Void
-        ( SIR.SIR Assigned
+        ( SIR.SIR
         , NameContextArena
         , NameMaps.SIRChildMaps
         , Map (SIR.ID.ID "HasChildNameContext") NameMaps.NameContextKey
@@ -189,7 +189,7 @@ assign_in_mods module_arena = do
     ((module_arena, adt_parents), type_synonym_parents) <- runWriterT $ runWriterT $ Arena.transform_with_keyM assign_in_module module_arena
     pure (module_arena, adt_parents, type_synonym_parents)
 
-assign_in_module :: SIR.ModuleKey -> SIR.Module Unassigned -> ADTParentAndTypeSynonymParentWriter AssignMonad (SIR.Module Assigned)
+assign_in_module :: SIR.ModuleKey -> SIR.Module -> ADTParentAndTypeSynonymParentWriter AssignMonad SIR.Module
 -- TODO: rename mid to id
 assign_in_module module_key (SIR.Module mid hcncid id bindings adts type_synonyms) = do
     module_name_map <- lift $ lift $ lift new_name_map_stack_end
@@ -222,7 +222,7 @@ assign_in_module module_key (SIR.Module mid hcncid id bindings adts type_synonym
 assign_in_adts :: Map.Map Type.ADTKey NameMaps.NameContextKey -> UnassignedADTArena -> AssignMonad AssignedADTArena
 assign_in_adts adt_parent_name_maps = Arena.transform_with_keyM (assign_in_adt adt_parent_name_maps)
 
-assign_in_adt :: Map.Map Type.ADTKey NameMaps.NameContextKey -> Type.ADTKey -> SIR.ADT Unassigned -> AssignMonad (SIR.ADT Assigned)
+assign_in_adt :: Map.Map Type.ADTKey NameMaps.NameContextKey -> Type.ADTKey -> SIR.ADT -> AssignMonad SIR.ADT
 assign_in_adt adt_parent_name_maps adt_key (Type.ADT id name type_vars variants) = do
     let parent = adt_parent_name_maps Map.! adt_key
     new_name_map_stack <- lift $ new_name_map_stack_with_parent parent
@@ -242,16 +242,16 @@ assign_in_type_synonyms :: Map.Map Type.TypeSynonymKey NameMaps.NameContextKey -
 assign_in_type_synonyms type_synonym_parent_name_maps = Arena.transform_with_keyM (assign_in_type_synonym type_synonym_parent_name_maps)
 
 assign_in_type_synonym ::
-    Map.Map Type.TypeSynonymKey NameMaps.NameContextKey -> Type.TypeSynonymKey -> SIR.TypeSynonym Unassigned -> AssignMonad (SIR.TypeSynonym Assigned)
+    Map.Map Type.TypeSynonymKey NameMaps.NameContextKey -> Type.TypeSynonymKey -> SIR.TypeSynonym -> AssignMonad SIR.TypeSynonym
 assign_in_type_synonym parent_maps synonym_key (Type.TypeSynonym id name (expansion, teeatid)) = do
     let parent = parent_maps Map.! synonym_key
     expansion <- assign_in_type_expr parent expansion
     pure (Type.TypeSynonym id name (expansion, teeatid))
 
-assign_in_binding :: NameMaps.NameContextKey -> SIR.Binding Unassigned -> AssignMonad (SIR.Binding Assigned)
+assign_in_binding :: NameMaps.NameContextKey -> SIR.Binding -> AssignMonad SIR.Binding
 assign_in_binding nc_stack (SIR.Binding id target eq_sp expr) = SIR.Binding id <$> assign_in_pat nc_stack target <*> pure eq_sp <*> assign_in_expr nc_stack expr
 
-assign_in_type_expr :: NameMaps.NameContextKey -> SIR.TypeExpr Unassigned -> AssignMonad (SIR.TypeExpr Assigned)
+assign_in_type_expr :: NameMaps.NameContextKey -> SIR.TypeExpr -> AssignMonad SIR.TypeExpr
 assign_in_type_expr nc_stack (SIR.TypeExpr'Refer id nrid hencid sp iden) = do
     lift $ put_hencid hencid nc_stack
     pure $ SIR.TypeExpr'Refer id nrid hencid sp iden
@@ -271,7 +271,7 @@ assign_in_type_expr nc_stack (SIR.TypeExpr'Apply id sp ty args) = SIR.TypeExpr'A
 assign_in_type_expr _ (SIR.TypeExpr'Wild id sp) = pure $ SIR.TypeExpr'Wild id sp
 assign_in_type_expr _ (SIR.TypeExpr'Poison id sp) = pure $ SIR.TypeExpr'Poison id sp
 
-assign_in_expr :: NameMaps.NameContextKey -> SIR.Expr Unassigned -> AssignMonad (SIR.Expr Assigned)
+assign_in_expr :: NameMaps.NameContextKey -> SIR.Expr -> AssignMonad SIR.Expr
 -- TODO: rename eid to id
 assign_in_expr nc_stack (SIR.Expr'Refer eid id sp iden) = SIR.Expr'Refer eid id sp <$> assign_split_iden nc_stack iden
 assign_in_expr _ (SIR.Expr'Char eid id sp c) = pure $ SIR.Expr'Char eid id sp c
@@ -351,7 +351,7 @@ assign_in_expr nc_stack (SIR.Expr'TypeApply eid id sp e (arg, arg_ty)) = SIR.Exp
 assign_in_expr _ (SIR.Expr'Hole eid id sp hid) = pure $ SIR.Expr'Hole eid id sp hid
 assign_in_expr _ (SIR.Expr'Poison eid id sp) = pure $ SIR.Expr'Poison eid id sp
 
-assign_in_pat :: NameMaps.NameContextKey -> SIR.Pattern Unassigned -> AssignMonad (SIR.Pattern Assigned)
+assign_in_pat :: NameMaps.NameContextKey -> SIR.Pattern -> AssignMonad SIR.Pattern
 assign_in_pat _ (SIR.Pattern'Variable id sp bnk) = pure $ SIR.Pattern'Variable id sp bnk
 assign_in_pat _ (SIR.Pattern'Wildcard id sp) = pure $ SIR.Pattern'Wildcard id sp
 assign_in_pat nc_stack (SIR.Pattern'Tuple id sp a b) = SIR.Pattern'Tuple id sp <$> assign_in_pat nc_stack a <*> assign_in_pat nc_stack b
@@ -367,7 +367,7 @@ assign_in_pat nc_stack (SIR.Pattern'NamedADTVariant id variant_id sp variant_ide
 assign_in_pat _ (SIR.Pattern'Poison id sp) = pure $ SIR.Pattern'Poison id sp
 
 -- assigning identifiers {{{1
-assign_split_iden :: NameMaps.NameContextKey -> SIR.SplitIdentifier id_name Unassigned -> AssignMonad (SIR.SplitIdentifier id_name Assigned)
+assign_split_iden :: NameMaps.NameContextKey -> SIR.SplitIdentifier id_name -> AssignMonad (SIR.SplitIdentifier id_name)
 assign_split_iden name_context (SIR.SplitIdentifier'Get id texpr next) = SIR.SplitIdentifier'Get id <$> assign_in_type_expr name_context texpr <*> pure next
 assign_split_iden name_context (SIR.SplitIdentifier'Single id hencid i) = do
     lift $ put_hencid hencid name_context

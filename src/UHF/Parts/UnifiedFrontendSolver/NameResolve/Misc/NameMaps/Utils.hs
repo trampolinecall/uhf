@@ -17,7 +17,7 @@ import UHF.Source.Located (Located (Located))
 import qualified UHF.Util.Arena as Arena
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (ValueRef(..), DeclRef (..))
 
-decls_to_children :: Monad under => [SIR.Binding stage] -> [Type.ADTKey] -> [Type.TypeSynonymKey] -> ReaderT (SIR.SIR stage) under ([DeclChild], [ValueChild], [ADTVariantChild])
+decls_to_children :: Monad under => [SIR.Binding] -> [Type.ADTKey] -> [Type.TypeSynonymKey] -> ReaderT SIR.SIR under ([DeclChild], [ValueChild], [ADTVariantChild])
 decls_to_children bindings adts type_synonyms = do
     (SIR.SIR _ adt_arena type_synonym_arena _ _ _) <- ask
     let (adt_decl_entries, adt_val_entries, adt_variant_entries) =
@@ -56,10 +56,10 @@ decls_to_children bindings adts type_synonyms = do
         , concat $ binding_variant_entries ++ adt_variant_entries ++ type_synonym_variant_entries
         )
 
-binding_to_children :: Monad under => SIR.Binding stage -> ReaderT (SIR.SIR stage) under ([DeclChild], [ValueChild], [ADTVariantChild])
+binding_to_children :: Monad under => SIR.Binding -> ReaderT SIR.SIR under ([DeclChild], [ValueChild], [ADTVariantChild])
 binding_to_children (SIR.Binding _ pat _ _) = ([],,[]) <$> pattern_to_children pat
 
-pattern_to_children :: Monad under => SIR.Pattern stage -> ReaderT (SIR.SIR stage) under [ValueChild]
+pattern_to_children :: Monad under => SIR.Pattern -> ReaderT SIR.SIR under [ValueChild]
 pattern_to_children (SIR.Pattern'Variable _ sp var_key) = do
     name <- var_name var_key
     pure [(name, DeclAt sp, ValueRef'Variable var_key)]
@@ -75,13 +75,13 @@ pattern_to_children (SIR.Pattern'Named _ _ _ (Located var_span var_key) subpat) 
 pattern_to_children (SIR.Pattern'AnonADTVariant _ _ _ _ fields) = concat <$> mapM pattern_to_children fields
 pattern_to_children (SIR.Pattern'NamedADTVariant _ _ _ _ fields) = concat <$> mapM (pattern_to_children . snd) fields
 pattern_to_children (SIR.Pattern'Poison _ _) = pure []
-var_name :: Monad under => SIR.VariableKey -> ReaderT (SIR.SIR stage) under Text
+var_name :: Monad under => SIR.VariableKey -> ReaderT SIR.SIR under Text
 var_name var_key = do
     (SIR.SIR _ _ _ _ var_arena _) <- ask
     let SIR.Variable _ _ (Located _ name) = Arena.get var_arena var_key
     pure name
 
-quant_vars_to_children :: Monad under => [Type.QuantVarKey] -> ReaderT (SIR.SIR stage) under [DeclChild]
+quant_vars_to_children :: Monad under => [Type.QuantVarKey] -> ReaderT SIR.SIR under [DeclChild]
 quant_vars_to_children =
     mapM
         ( \var -> do

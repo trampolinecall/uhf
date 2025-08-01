@@ -29,13 +29,10 @@ import Data.List (zipWith4)
 
 type Type = Maybe Type.Type
 
-type LastSIR =
-    ( (), Const () (), (), (), (), (), ())
-
 type VariableArena = Arena.Arena RIR.Variable RIR.VariableKey
 
 data Error
-    = CompletenessError (PatternCheck.CompletenessError LastSIR)
+    = CompletenessError PatternCheck.CompletenessError
     | HasLoops TopologicalSort.BindingsHaveLoopError
 
 instance Diagnostic.ToError Error where
@@ -44,8 +41,8 @@ instance Diagnostic.ToError Error where
 
 type ConvertState =
     ReaderT
-        ( Arena.Arena (SIR.ADT LastSIR) Type.ADTKey
-        , Arena.Arena (SIR.TypeSynonym LastSIR) Type.TypeSynonymKey
+        ( Arena.Arena SIR.ADT Type.ADTKey
+        , Arena.Arena SIR.TypeSynonym Type.TypeSynonymKey
         , DeclIdenFinalResults
         , ValueIdenFinalResults
         , VariantIdenFinalResults
@@ -54,7 +51,7 @@ type ConvertState =
         , InfixGroupFinalResults
         , FinalTypeInfo
         )
-        (StateT VariableArena (IDGen.IDGenT ID.VariableID (IDGen.IDGenT ID.ExprID (Compiler.WithDiagnostics Error (PatternCheck.NotUseful LastSIR)))))
+        (StateT VariableArena (IDGen.IDGenT ID.VariableID (IDGen.IDGenT ID.ExprID (Compiler.WithDiagnostics Error PatternCheck.NotUseful))))
 
 get_type_expr_evaled_as_type :: SIR.ID.ID "TypeExprEvaledAsType" -> ConvertState Type
 get_type_expr_evaled_as_type k = do
@@ -99,8 +96,8 @@ convert ::
     TypeExprsFinalEvaledAsTypes ->
     InfixGroupFinalResults ->
     FinalTypeInfo ->
-    SIR.SIR LastSIR ->
-    Compiler.WithDiagnostics Error (PatternCheck.NotUseful LastSIR) RIR.RIR
+    SIR.SIR ->
+    Compiler.WithDiagnostics Error PatternCheck.NotUseful RIR.RIR
 convert decl_idens_resolved value_idens_resolved variant_idens_resolved type_exprs_evaled type_exprs_evaled_as_types infix_group_results type_info (SIR.SIR modules adts type_synonyms quant_vars vars (SIR.CU root_module main_function)) = do
     let vars_converted = Arena.transform (\ (SIR.Variable vid mid (Located sp _)) -> RIR.Variable mid (final_variable_types type_info Map.! vid) sp) vars
     ((adts_converted, type_synonyms_converted, cu), vars_with_new) <-
@@ -119,7 +116,7 @@ convert decl_idens_resolved value_idens_resolved variant_idens_resolved type_exp
                     vars_converted
     pure (RIR.RIR adts_converted type_synonyms_converted quant_vars vars_with_new cu)
 
-convert_root_module :: Maybe SIR.VariableKey -> SIR.Module LastSIR -> ConvertState RIR.CU
+convert_root_module :: Maybe SIR.VariableKey -> SIR.Module -> ConvertState RIR.CU
 convert_root_module main_function (SIR.Module _ _ _ bindings adts type_synonyms) = do
     adt_constructors <- adts
         & mapM ( \ adt_key -> do
@@ -163,16 +160,16 @@ make_adt_constructor variant_index@(Type.ADT.VariantIndex _ adt_key _) = do
     var_key <- new_variable (RIR.expr_type var_arena lambdas) variant_name_sp
     pure (var_key, RIR.Binding var_key lambdas)
 
-convert_adt :: SIR.ADT LastSIR -> ConvertState (Type.ADT Type)
+convert_adt :: SIR.ADT -> ConvertState (Type.ADT Type)
 convert_adt (Type.ADT id name quant_vars variants) = Type.ADT id name quant_vars <$> mapM convert_variant variants
     where
         convert_variant (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id <$> mapM (\ (id, name, (_, ty)) -> (id, name,) <$> get_type_expr_evaled_as_type ty) fields
         convert_variant (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id <$> mapM (\ (id, (_, ty)) -> (id,) <$> get_type_expr_evaled_as_type ty) fields
 
-convert_type_synonym :: SIR.TypeSynonym LastSIR -> ConvertState (Type.TypeSynonym Type)
+convert_type_synonym :: SIR.TypeSynonym -> ConvertState (Type.TypeSynonym Type)
 convert_type_synonym (Type.TypeSynonym id name (_, expansion)) = Type.TypeSynonym id name <$> get_type_expr_evaled_as_type expansion
 
-convert_binding :: SIR.Binding LastSIR -> ReaderT (Map Type.ADT.VariantIndex RIR.VariableKey) ConvertState [RIR.Binding]
+convert_binding :: SIR.Binding -> ReaderT (Map Type.ADT.VariantIndex RIR.VariableKey) ConvertState [RIR.Binding]
 convert_binding (SIR.Binding _ pat eq_sp expr) = convert_expr expr >>= lift . assign_pattern eq_sp pat
 
 new_made_up_var_id :: ConvertState ID.VariableID
@@ -182,7 +179,7 @@ new_variable ty sp =
     new_made_up_var_id >>= \ id ->
     lift (state $ Arena.put (RIR.Variable id ty sp))
 
-convert_expr :: SIR.Expr LastSIR -> ReaderT (Map Type.ADT.VariantIndex RIR.VariableKey) ConvertState RIR.Expr
+convert_expr :: SIR.Expr -> ReaderT (Map Type.ADT.VariantIndex RIR.VariableKey) ConvertState RIR.Expr
 -- TODO: rename eid to id
 convert_expr (SIR.Expr'Refer eid id sp iden) = do
     ty <- lift $ get_expr_ty eid
@@ -286,10 +283,7 @@ convert_expr (SIR.Expr'Match eid id sp match_tok_sp scrutinee arms) = do
                 (RIR.Expr'Match id result_ty sp (RIR.MatchTree arms))
         )
     where
-        pattern_to_clauses ::
-            SIR.VariableKey
-                      -> SIR.Pattern LastSIR
-                      -> ConvertState [RIR.MatchClause]
+        pattern_to_clauses :: SIR.VariableKey -> SIR.Pattern -> ConvertState [RIR.MatchClause]
         pattern_to_clauses scrutinee_var (SIR.Pattern'Variable _ _ var_key) = pure [RIR.MatchClause'Assign var_key (RIR.MatchAssignRHS'OtherVar scrutinee_var)]
         pattern_to_clauses _ (SIR.Pattern'Wildcard _ _) = pure []
         pattern_to_clauses scrutinee_var (SIR.Pattern'Tuple _ _ a b) =
@@ -356,7 +350,7 @@ convert_expr (SIR.Expr'TypeApply eid id sp e (arg, arg_ty)) = do
     ty <- lift $ get_expr_ty eid
     RIR.Expr'TypeApply id ty sp <$> convert_expr e <*> lift (get_type_expr_evaled_as_type arg_ty)
 
-assign_pattern :: Span -> SIR.Pattern LastSIR -> RIR.Expr -> ConvertState [RIR.Binding]
+assign_pattern :: Span -> SIR.Pattern -> RIR.Expr -> ConvertState [RIR.Binding]
 assign_pattern incomplete_err_sp pat expr = do
     (adt_arena, type_synonym_arena, _, _, variant_iden_resolved_arena, _, type_expr_evaled_as_type_arena, _, type_info) <- ask
     case PatternCheck.check_complete adt_arena type_synonym_arena variant_iden_resolved_arena type_expr_evaled_as_type_arena type_info incomplete_err_sp [pat] of

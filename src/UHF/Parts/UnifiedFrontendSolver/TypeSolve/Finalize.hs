@@ -31,17 +31,6 @@ import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Error (Error (..))
 import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Misc.Result (FinalTypeInfo (..), TypeInfo (..))
 import qualified UHF.Util.Arena as Arena
 
-type WithInferVars = ((), Const () (), (), (), (), (), ())
-type WithoutInferVars =
-    ( ()
-    , Const () ()
-    , ()
-    , ()
-    , ()
-    , ()
-    , ()
-    )
-
 -- TODO: sir does not change so do not return it
 remove_infer_vars ::
     TypeWithInferVar.InferVarArena ->
@@ -49,16 +38,8 @@ remove_infer_vars ::
     DeclIdenAlmostFinalResults ->
     TypeExprsAlmostFinalEvaled ->
     TypeExprsAlmostFinalEvaledAsTypes ->
-    SIR.SIR WithInferVars ->
-    Compiler.WithDiagnostics
-        SolveError.Error
-        Void
-        ( SIR.SIR WithoutInferVars
-        , FinalTypeInfo
-        , DeclIdenFinalResults
-        , TypeExprsFinalEvaled
-        , TypeExprsFinalEvaledAsTypes
-        )
+    SIR.SIR ->
+    Compiler.WithDiagnostics SolveError.Error Void (SIR.SIR, FinalTypeInfo, DeclIdenFinalResults, TypeExprsFinalEvaled, TypeExprsFinalEvaledAsTypes)
 remove_infer_vars infer_vars type_info decl_iden_results type_exprs_evaled type_exprs_evaled_as_types (SIR.SIR modules adts type_synonyms type_vars variables (SIR.CU root_module main_function)) = do
     infer_vars <- convert_vars infer_vars
     pure
@@ -106,23 +87,23 @@ convert_vars infer_vars =
         convert_var infer_vars_converted (TypeWithInferVar.InferVar _ (TypeWithInferVar.Substituted s)) = r infer_vars_converted s
         convert_var _ (TypeWithInferVar.InferVar for_what TypeWithInferVar.Fresh) = lift (Compiler.tell_error $ SolveError.TSError $ AmbiguousType for_what) >> MaybeT (pure Nothing)
 
-module_ :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.Module WithInferVars -> SIR.Module WithoutInferVars
+module_ :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.Module  -> SIR.Module
 -- TODO: rename mid to id
 module_ infer_vars (SIR.Module mid id name_maps_index bindings adts type_synonyms) = SIR.Module mid id name_maps_index (map (binding infer_vars) bindings) adts type_synonyms
 
-adt :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.ADT WithInferVars -> SIR.ADT WithoutInferVars
+adt :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.ADT  -> SIR.ADT
 adt infer_vars (Type.ADT id name quant_var variants) = Type.ADT id name quant_var (map variant variants)
     where
         variant (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id (map (\(name, id, (ty, as_type)) -> (name, id, (type_expr infer_vars ty, as_type))) fields)
         variant (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id (map (\(id, (ty, as_type)) -> (id, (type_expr infer_vars ty, as_type))) fields)
 
-type_synonym :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.TypeSynonym WithInferVars -> SIR.TypeSynonym WithoutInferVars
+type_synonym :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.TypeSynonym  -> SIR.TypeSynonym
 type_synonym infer_vars (Type.TypeSynonym id name (expansion, expansion_as_type)) = Type.TypeSynonym id name (type_expr infer_vars expansion, expansion_as_type)
 
-binding :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.Binding WithInferVars -> SIR.Binding WithoutInferVars
+binding :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.Binding  -> SIR.Binding
 binding infer_vars (SIR.Binding bid p eq_sp e) = SIR.Binding bid (pattern infer_vars p) eq_sp (expr infer_vars e)
 
-pattern :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.Pattern WithInferVars -> SIR.Pattern WithoutInferVars
+pattern :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.Pattern  -> SIR.Pattern
 pattern infer_vars (SIR.Pattern'Variable id sp bn) = SIR.Pattern'Variable id sp bn
 pattern infer_vars (SIR.Pattern'Wildcard id sp) = SIR.Pattern'Wildcard id sp
 pattern infer_vars (SIR.Pattern'Tuple id sp l r) = SIR.Pattern'Tuple id sp (pattern infer_vars l) (pattern infer_vars r)
@@ -143,7 +124,7 @@ pattern infer_vars (SIR.Pattern'NamedADTVariant id variant_id sp variant_iden fi
         (map (\(field_name, field_pat) -> (field_name, pattern infer_vars field_pat)) fields)
 pattern infer_vars (SIR.Pattern'Poison id sp) = SIR.Pattern'Poison id sp
 
-expr :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.Expr WithInferVars -> SIR.Expr WithoutInferVars
+expr :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.Expr -> SIR.Expr
 -- TODO: rename eid to id
 expr infer_vars (SIR.Expr'Refer eid id sp iden) = SIR.Expr'Refer eid id sp (split_identifier infer_vars iden)
 expr infer_vars (SIR.Expr'Char eid id sp c) = SIR.Expr'Char eid id sp c
@@ -172,7 +153,7 @@ expr infer_vars (SIR.Expr'TypeApply eid id sp e (arg, arg_evaled)) = SIR.Expr'Ty
 expr infer_vars (SIR.Expr'Hole eid id sp hid) = SIR.Expr'Hole eid id sp hid
 expr infer_vars (SIR.Expr'Poison eid id sp) = SIR.Expr'Poison eid id sp
 
-type_expr :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.TypeExpr WithInferVars -> SIR.TypeExpr WithoutInferVars
+type_expr :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.TypeExpr -> SIR.TypeExpr
 type_expr _ (SIR.TypeExpr'Refer id nrid sp name_context iden) = SIR.TypeExpr'Refer id nrid sp name_context iden
 type_expr infer_vars (SIR.TypeExpr'Get id nrid sp parent name) = SIR.TypeExpr'Get id nrid sp (type_expr infer_vars parent) name
 type_expr infer_vars (SIR.TypeExpr'Tuple id sp a b) = SIR.TypeExpr'Tuple id sp (type_expr infer_vars a) (type_expr infer_vars b)
@@ -184,7 +165,7 @@ type_expr _ (SIR.TypeExpr'Wild id sp) = SIR.TypeExpr'Wild id sp
 type_expr _ (SIR.TypeExpr'Poison id sp) = SIR.TypeExpr'Poison id sp
 
 split_identifier ::
-    Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.SplitIdentifier id_name WithInferVars -> SIR.SplitIdentifier id_name WithoutInferVars
+    Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.SplitIdentifier id_name -> SIR.SplitIdentifier id_name
 split_identifier infer_vars (SIR.SplitIdentifier'Get id texpr next) = SIR.SplitIdentifier'Get id (type_expr infer_vars texpr) next
 split_identifier _ (SIR.SplitIdentifier'Single id name_context name) = SIR.SplitIdentifier'Single id name_context name
 

@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 module UHF.Parts.ToRIR (Error, convert) where
 
 import UHF.Prelude
@@ -17,18 +18,21 @@ import qualified UHF.Parts.ToRIR.PatternCheck as PatternCheck
 import qualified UHF.Parts.ToRIR.TopologicalSort as TopologicalSort
 import qualified UHF.Util.Arena as Arena
 import qualified UHF.Util.IDGen as IDGen
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (IdenResolvedKey, TypeExprEvaledKey, TypeExprEvaledAsTypeKey)
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (TypeExprEvaledKey, TypeExprEvaledAsTypeKey)
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameResolve.NameMaps
 import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupedKey, InfixGroupResult)
+import Data.Functor.Const (Const)
+import qualified UHF.Data.SIR.ID as SIR.ID
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef, ValueRef (..))
 
 type Type = Maybe Type.Type
 
-type DIden = Maybe (SIR.DeclRef Type.Type)
-type VIden = Maybe SIR.ValueRef
+type DIden = Maybe (DeclRef Type.Type)
+type VIden = Maybe ValueRef
 type PIden = Maybe Type.ADT.VariantIndex
 
 type LastSIR =
-    ( NameResolve.NameMaps.NameContextKey, IdenResolvedKey (), Type.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, Maybe Type.Type, InfixGroupedKey)
+    ( NameResolve.NameMaps.NameContextKey, Const () (), Type.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, Maybe Type.Type, InfixGroupedKey)
 
 type VariableArena = Arena.Arena RIR.Variable RIR.VariableKey
 
@@ -44,10 +48,10 @@ type ConvertState =
     ReaderT
         ( Arena.Arena (SIR.ADT LastSIR) Type.ADTKey
         , Arena.Arena (SIR.TypeSynonym LastSIR) Type.TypeSynonymKey
-        , Arena.Arena (Maybe (SIR.DeclRef Type.Type)) (IdenResolvedKey (SIR.DeclRef Type.Type))
-        , Arena.Arena (Maybe SIR.ValueRef) (IdenResolvedKey SIR.ValueRef)
-        , Arena.Arena (Maybe Type.ADT.VariantIndex) (IdenResolvedKey Type.ADT.VariantIndex)
-        , Arena.Arena (Maybe (SIR.DeclRef Type.Type)) TypeExprEvaledKey
+        , Map (SIR.ID.ID "DeclIden") (Maybe (DeclRef Type.Type))
+        , Map (SIR.ID.ID "ValueIden") (Maybe ValueRef)
+        , Map (SIR.ID.ID "VariantIden") (Maybe Type.ADT.VariantIndex)
+        , Arena.Arena (Maybe (DeclRef Type.Type)) TypeExprEvaledKey
         , Arena.Arena (Maybe Type.Type) TypeExprEvaledAsTypeKey
         , Arena.Arena (Maybe InfixGroupResult) InfixGroupedKey
         )
@@ -58,15 +62,15 @@ get_type_expr_evaled_as_type k = do
     (_, _, _, _, _, _, type_expr_evaled_as_type_arena, _) <- ask
     pure $ Arena.get type_expr_evaled_as_type_arena k
 
-get_value_iden_resolved :: IdenResolvedKey SIR.ValueRef -> ConvertState (Maybe SIR.ValueRef)
+get_value_iden_resolved :: SIR.ID.ID "ValueIden" -> ConvertState (Maybe ValueRef)
 get_value_iden_resolved k = do
-    (_, _, _, value_iden_resolved_arena, _, _, _, _) <- ask
-    pure $ Arena.get value_iden_resolved_arena k
+    (_, _, _, value_idens_resolved, _, _, _, _) <- ask
+    pure $ value_idens_resolved Map.! k
 
-get_variant_iden_resolved :: IdenResolvedKey Type.ADT.VariantIndex -> ConvertState (Maybe Type.ADT.VariantIndex)
+get_variant_iden_resolved :: SIR.ID.ID "VariantIden" -> ConvertState (Maybe Type.ADT.VariantIndex)
 get_variant_iden_resolved k = do
-    (_, _, _, _, variant_iden_resolved_arena, _, _, _) <- ask
-    pure $ Arena.get variant_iden_resolved_arena k
+    (_, _, _, _, variant_idens_resolved, _, _, _) <- ask
+    pure $ variant_idens_resolved Map.! k
 
 get_infix_grouped :: InfixGroupedKey -> ConvertState (Maybe InfixGroupResult)
 get_infix_grouped k = do
@@ -79,16 +83,16 @@ new_made_up_expr_id make =
     pure (make id)
 
 convert ::
-    Arena.Arena (Maybe (SIR.DeclRef Type.Type)) (IdenResolvedKey (SIR.DeclRef Type.Type)) ->
-    Arena.Arena (Maybe SIR.ValueRef) (IdenResolvedKey SIR.ValueRef) ->
-    Arena.Arena (Maybe Type.ADT.VariantIndex) (IdenResolvedKey Type.ADT.VariantIndex) ->
-    Arena.Arena (Maybe (SIR.DeclRef Type.Type)) TypeExprEvaledKey ->
+    Map (SIR.ID.ID "DeclIden") (Maybe (DeclRef Type.Type)) ->
+    Map (SIR.ID.ID "ValueIden") (Maybe ValueRef) ->
+    Map (SIR.ID.ID "VariantIden") (Maybe Type.ADT.VariantIndex) ->
+    Arena.Arena (Maybe (DeclRef Type.Type)) TypeExprEvaledKey ->
     Arena.Arena (Maybe Type.Type) TypeExprEvaledAsTypeKey ->
     Arena.Arena (Maybe InfixGroupResult) InfixGroupedKey ->
     SIR.SIR LastSIR ->
     Compiler.WithDiagnostics Error (PatternCheck.NotUseful LastSIR) RIR.RIR
 convert decl_iden_resolved_arena value_iden_resolved_arena variant_iden_resolved_arena type_expr_evaled_arena type_expr_evaled_as_type_arena infix_grouped_arena (SIR.SIR modules adts type_synonyms quant_vars vars (SIR.CU root_module main_function)) = do
-    let vars_converted = Arena.transform (\ (SIR.Variable id ty (Located sp _)) -> RIR.Variable id ty sp) vars
+    let vars_converted = Arena.transform (\ (SIR.Variable _ id ty (Located sp _)) -> RIR.Variable id ty sp) vars
     ((adts_converted, type_synonyms_converted, cu), vars_with_new) <-
         IDGen.run_id_gen_t ID.ExprID'RIRGen $
             IDGen.run_id_gen_t ID.VariableID'RIRMadeUp $
@@ -106,7 +110,7 @@ convert decl_iden_resolved_arena value_iden_resolved_arena variant_iden_resolved
     pure (RIR.RIR adts_converted type_synonyms_converted quant_vars vars_with_new cu)
 
 convert_root_module :: Maybe SIR.VariableKey -> SIR.Module LastSIR -> ConvertState RIR.CU
-convert_root_module main_function (SIR.Module _ _ bindings adts type_synonyms) = do
+convert_root_module main_function (SIR.Module _ _ _ bindings adts type_synonyms) = do
     adt_constructors <- adts
         & mapM ( \ adt_key -> do
             (adts, _, _, _, _, _, _, _) <- ask
@@ -159,7 +163,7 @@ convert_type_synonym :: SIR.TypeSynonym LastSIR -> ConvertState (Type.TypeSynony
 convert_type_synonym (Type.TypeSynonym id name (_, expansion)) = Type.TypeSynonym id name <$> get_type_expr_evaled_as_type expansion
 
 convert_binding :: SIR.Binding LastSIR -> ReaderT (Map Type.ADT.VariantIndex RIR.VariableKey) ConvertState [RIR.Binding]
-convert_binding (SIR.Binding pat eq_sp expr) = convert_expr expr >>= lift . assign_pattern eq_sp pat
+convert_binding (SIR.Binding _ pat eq_sp expr) = convert_expr expr >>= lift . assign_pattern eq_sp pat
 
 new_made_up_var_id :: ConvertState ID.VariableID
 new_made_up_var_id = lift $ lift IDGen.gen_id
@@ -169,20 +173,20 @@ new_variable ty sp =
     lift (state $ Arena.put (RIR.Variable id ty sp))
 
 convert_expr :: SIR.Expr LastSIR -> ReaderT (Map Type.ADT.VariantIndex RIR.VariableKey) ConvertState RIR.Expr
-convert_expr (SIR.Expr'Refer id ty sp iden) = do
+convert_expr (SIR.Expr'Refer _ id ty sp iden) = do
     adt_constructor_map <- ask
-    lift (get_value_iden_resolved (SIR.split_identifier_resolved iden)) >>= \case
-        Just (SIR.ValueRef'Variable var) -> pure $ RIR.Expr'Refer id ty sp (Just var)
-        Just (SIR.ValueRef'ADTVariantConstructor variant) -> pure $ RIR.Expr'Refer id ty sp (Just $ adt_constructor_map Map.! variant) -- TODO: lower these on demand to really ensure that this cannot be partial?
-        Just (SIR.ValueRef'Intrinsic i) -> pure $ RIR.Expr'Intrinsic id ty sp i
+    lift (get_value_iden_resolved (SIR.split_identifier_id iden)) >>= \case
+        Just (ValueRef'Variable var) -> pure $ RIR.Expr'Refer id ty sp (Just var)
+        Just (ValueRef'ADTVariantConstructor variant) -> pure $ RIR.Expr'Refer id ty sp (Just $ adt_constructor_map Map.! variant) -- TODO: lower these on demand to really ensure that this cannot be partial?
+        Just (ValueRef'Intrinsic i) -> pure $ RIR.Expr'Intrinsic id ty sp i
         Nothing -> pure $ RIR.Expr'Refer id ty sp Nothing
-convert_expr (SIR.Expr'Char id ty sp c) = pure $ RIR.Expr'Char id sp c
-convert_expr (SIR.Expr'String id ty sp s) = pure $ RIR.Expr'String id sp s
-convert_expr (SIR.Expr'Int id ty sp i) = pure $ RIR.Expr'Int id sp i
-convert_expr (SIR.Expr'Float id ty sp f) = pure $ RIR.Expr'Float id sp f
-convert_expr (SIR.Expr'Bool id ty sp b) = pure $ RIR.Expr'Bool id sp b
-convert_expr (SIR.Expr'Tuple id ty sp a b) = RIR.Expr'Tuple id sp <$> convert_expr a <*> convert_expr b
-convert_expr (SIR.Expr'Lambda id ty sp param_pat body) =
+convert_expr (SIR.Expr'Char _ id ty sp c) = pure $ RIR.Expr'Char id sp c
+convert_expr (SIR.Expr'String _ id ty sp s) = pure $ RIR.Expr'String id sp s
+convert_expr (SIR.Expr'Int _ id ty sp i) = pure $ RIR.Expr'Int id sp i
+convert_expr (SIR.Expr'Float _ id ty sp f) = pure $ RIR.Expr'Float id sp f
+convert_expr (SIR.Expr'Bool _ id ty sp b) = pure $ RIR.Expr'Bool id sp b
+convert_expr (SIR.Expr'Tuple _ id ty sp a b) = RIR.Expr'Tuple id sp <$> convert_expr a <*> convert_expr b
+convert_expr (SIR.Expr'Lambda _ id ty sp param_pat body) =
     let param_ty = SIR.pattern_type param_pat
         body_sp = SIR.expr_span body
     in
@@ -192,11 +196,11 @@ convert_expr (SIR.Expr'Lambda id ty sp param_pat body) =
     RIR.Expr'Let id body_sp <$> lift (sort_bindings bindings) <*> pure [] <*> pure [] <*> convert_expr body >>= \ body ->
     pure (RIR.Expr'Lambda id sp param_bk (TopologicalSort.get_captures param_bk body) body)
 
-convert_expr (SIR.Expr'Let id ty sp _ bindings adts type_synonyms body) = RIR.Expr'Let id sp <$> (concat <$> mapM convert_binding bindings >>= lift . sort_bindings) <*> pure adts <*> pure type_synonyms <*> convert_expr body -- TODO: define adt constructors for these
-convert_expr (SIR.Expr'LetRec id ty sp _ bindings adts type_synonyms body) = RIR.Expr'Let id sp <$> (concat <$> mapM convert_binding bindings >>= lift . sort_bindings) <*> pure adts <*> pure type_synonyms <*> convert_expr body -- TODO: define adt constructors for these
-convert_expr (SIR.Expr'BinaryOps _ void _ _ _ _) = todo
-convert_expr (SIR.Expr'Call id ty sp callee arg) = RIR.Expr'Call id sp <$> convert_expr callee <*> convert_expr arg
-convert_expr (SIR.Expr'If id ty sp _ cond true false) =
+convert_expr (SIR.Expr'Let _ id ty sp _ bindings adts type_synonyms body) = RIR.Expr'Let id sp <$> (concat <$> mapM convert_binding bindings >>= lift . sort_bindings) <*> pure adts <*> pure type_synonyms <*> convert_expr body -- TODO: define adt constructors for these
+convert_expr (SIR.Expr'LetRec _ id ty sp _ bindings adts type_synonyms body) = RIR.Expr'Let id sp <$> (concat <$> mapM convert_binding bindings >>= lift . sort_bindings) <*> pure adts <*> pure type_synonyms <*> convert_expr body -- TODO: define adt constructors for these
+convert_expr (SIR.Expr'BinaryOps _ _ void _ _ _ _) = todo
+convert_expr (SIR.Expr'Call _ id ty sp callee arg) = RIR.Expr'Call id sp <$> convert_expr callee <*> convert_expr arg
+convert_expr (SIR.Expr'If _ id ty sp _ cond true false) =
     -- if C then T else F
     -- becomes
     -- let cond = C;
@@ -228,7 +232,7 @@ convert_expr (SIR.Expr'If id ty sp _ cond true false) =
                 )
         )
 
-convert_expr (SIR.Expr'Match id ty sp match_tok_sp scrutinee arms) = do
+convert_expr (SIR.Expr'Match _ id ty sp match_tok_sp scrutinee arms) = do
     -- case S {
     --     P -> ...;
     --     ...
@@ -273,9 +277,9 @@ convert_expr (SIR.Expr'Match id ty sp match_tok_sp scrutinee arms) = do
             SIR.VariableKey
                       -> SIR.Pattern LastSIR
                       -> ConvertState [RIR.MatchClause]
-        pattern_to_clauses scrutinee_var (SIR.Pattern'Variable _ _ var_key) = pure [RIR.MatchClause'Assign var_key (RIR.MatchAssignRHS'OtherVar scrutinee_var)]
-        pattern_to_clauses _ (SIR.Pattern'Wildcard _ _) = pure []
-        pattern_to_clauses scrutinee_var (SIR.Pattern'Tuple _ _ a b) =
+        pattern_to_clauses scrutinee_var (SIR.Pattern'Variable _ _ _ var_key) = pure [RIR.MatchClause'Assign var_key (RIR.MatchAssignRHS'OtherVar scrutinee_var)]
+        pattern_to_clauses _ (SIR.Pattern'Wildcard _ _ _) = pure []
+        pattern_to_clauses scrutinee_var (SIR.Pattern'Tuple _ _ _ a b) =
             -- scrutinee -> (A, B) becomes [scrutinee -> (,), a = scrutinee.tuple_l, b = scrutinee.tuple_r, a -> A, b -> B]
             new_variable (SIR.pattern_type a) (SIR.pattern_span a) >>= \ a_var ->
             new_variable (SIR.pattern_type b) (SIR.pattern_span b) >>= \ b_var ->
@@ -285,17 +289,17 @@ convert_expr (SIR.Expr'Match id ty sp match_tok_sp scrutinee arms) = do
 
             pure (RIR.MatchClause'Match scrutinee_var RIR.Match'Tuple : RIR.MatchClause'Assign a_var (RIR.MatchAssignRHS'TupleDestructure1 (SIR.pattern_type a) scrutinee_var) : RIR.MatchClause'Assign b_var (RIR.MatchAssignRHS'TupleDestructure2 (SIR.pattern_type b) scrutinee_var) : (a_subpat_matchers <> b_subpat_matchers))
 
-        pattern_to_clauses scrutinee_var (SIR.Pattern'Named _ _ _ (Located _ var_key) subpat) =
+        pattern_to_clauses scrutinee_var (SIR.Pattern'Named _ _ _ _ (Located _ var_key) subpat) =
             -- scrutinee -> name@P becomes [name = scrutinee, scrutinee -> P]
             pattern_to_clauses scrutinee_var subpat >>= \ subpat_matchers ->
             pure (RIR.MatchClause'Assign var_key (RIR.MatchAssignRHS'OtherVar scrutinee_var) : subpat_matchers)
 
-        pattern_to_clauses scrutinee_var (SIR.Pattern'AnonADTVariant ty sp variant_iden tyargs fields) = do
+        pattern_to_clauses scrutinee_var (SIR.Pattern'AnonADTVariant _ ty sp variant_iden tyargs fields) = do
             -- Variant(F0, F1, ...) becomes [scrutinee -> Variant, f0 = (scrutinee as Variant).0, f1 = (scrutinee as Variant).1, f0 -> F0, f1 -> F1, ...]
             field_vars <- fields & mapM (\ pat -> new_variable (SIR.pattern_type pat) (SIR.pattern_span pat))
             field_subpat_clauses <- zipWithM pattern_to_clauses field_vars fields
             (adt_arena, _, _, _, _, _, _, _) <- ask
-            variant_index <- get_variant_iden_resolved $ SIR.split_identifier_resolved variant_iden
+            variant_index <- get_variant_iden_resolved $ SIR.split_identifier_id variant_iden
             let field_idxs = Type.ADT.variant_field_idxs adt_arena <$> variant_index
             pure $
                 RIR.MatchClause'Match scrutinee_var (RIR.Match'AnonADTVariant variant_index)
@@ -315,14 +319,14 @@ convert_expr (SIR.Expr'Match id ty sp match_tok_sp scrutinee arms) = do
                                 fields
                     <> concat field_subpat_clauses
 
-        pattern_to_clauses _ (SIR.Pattern'NamedADTVariant _ _ _ _ _) = todo
-        pattern_to_clauses _ (SIR.Pattern'Poison _ _) = pure []
+        pattern_to_clauses _ (SIR.Pattern'NamedADTVariant _ _ _ _ _ _) = todo
+        pattern_to_clauses _ (SIR.Pattern'Poison _ _ _) = pure []
 
-convert_expr (SIR.Expr'Poison id ty sp) = pure $ RIR.Expr'Poison id ty sp
-convert_expr (SIR.Expr'Hole id ty sp _) = pure $ RIR.Expr'Poison id ty sp
-convert_expr (SIR.Expr'TypeAnnotation _ _ _ _ other) = convert_expr other
-convert_expr (SIR.Expr'Forall id ty sp _ vars e) = RIR.Expr'Forall id sp vars <$> convert_expr e
-convert_expr (SIR.Expr'TypeApply id ty sp e (arg, arg_ty)) = RIR.Expr'TypeApply id ty sp <$> convert_expr e <*> lift (get_type_expr_evaled_as_type arg_ty)
+convert_expr (SIR.Expr'Poison _ id ty sp) = pure $ RIR.Expr'Poison id ty sp
+convert_expr (SIR.Expr'Hole _ id ty sp _) = pure $ RIR.Expr'Poison id ty sp
+convert_expr (SIR.Expr'TypeAnnotation _ _ _ _ _ other) = convert_expr other
+convert_expr (SIR.Expr'Forall _ id ty sp _ vars e) = RIR.Expr'Forall id sp vars <$> convert_expr e
+convert_expr (SIR.Expr'TypeApply _ id ty sp e (arg, arg_ty)) = RIR.Expr'TypeApply id ty sp <$> convert_expr e <*> lift (get_type_expr_evaled_as_type arg_ty)
 
 assign_pattern :: Span -> SIR.Pattern LastSIR -> RIR.Expr -> ConvertState [RIR.Binding]
 assign_pattern incomplete_err_sp pat expr = do
@@ -333,9 +337,9 @@ assign_pattern incomplete_err_sp pat expr = do
 
     go pat expr
     where
-        go (SIR.Pattern'Variable _ _ var) expr = pure [RIR.Binding var expr]
-        go (SIR.Pattern'Wildcard _ _) _ = pure []
-        go (SIR.Pattern'Tuple whole_ty whole_sp a b) expr =
+        go (SIR.Pattern'Variable _ _ _ var) expr = pure [RIR.Binding var expr]
+        go (SIR.Pattern'Wildcard _ _ _) _ = pure []
+        go (SIR.Pattern'Tuple _ whole_ty whole_sp a b) expr =
             let a_sp = SIR.pattern_span a
                 b_sp = SIR.pattern_span b
                 a_ty = SIR.pattern_type a
@@ -362,7 +366,7 @@ assign_pattern incomplete_err_sp pat expr = do
 
             pure (RIR.Binding whole_var expr : assign_a ++ assign_b)
 
-        go (SIR.Pattern'Named ty sp _ var other) expr =
+        go (SIR.Pattern'Named _ ty sp _ var other) expr =
             --      a@... = e
             --  becomes
             --      a = e
@@ -371,10 +375,10 @@ assign_pattern incomplete_err_sp pat expr = do
             go other refer >>= \ other_assignments ->
             pure (RIR.Binding (unlocate var) expr : other_assignments)
 
-        go (SIR.Pattern'AnonADTVariant ty sp variant tyargs fields) expr = todo
-        go (SIR.Pattern'NamedADTVariant ty sp variant tyargs fields) expr = todo
+        go (SIR.Pattern'AnonADTVariant _ ty sp variant tyargs fields) expr = todo
+        go (SIR.Pattern'NamedADTVariant _ ty sp variant tyargs fields) expr = todo
 
-        go (SIR.Pattern'Poison _ _) _ = pure []
+        go (SIR.Pattern'Poison _ _ _) _ = pure []
 
 sort_bindings :: [RIR.Binding] -> ConvertState RIR.Bindings
 sort_bindings bindings = do

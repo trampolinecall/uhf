@@ -112,7 +112,7 @@ prepare_expr (SIR.Expr'BinaryOps eid id () type_info sp first ops) = do
     first <- prepare_expr first
     ops <- mapM (\(sp, iden, rhs) -> (sp,,) <$> prepare_split_iden iden <*> prepare_expr rhs) ops
 
-    infix_group_key <- new_infix_grouped_key $ InfixGroupTask (map (\(_, iden, _) -> SIR.split_iden_id iden) ops)
+    infix_group_key <- new_infix_grouped_key $ InfixGroupTask (map (\(_, iden, _) -> SIR.split_identifier_id iden) ops)
 
     pure $ SIR.Expr'BinaryOps eid id infix_group_key type_info sp first ops
 prepare_expr (SIR.Expr'Call eid id type_info sp callee arg) = SIR.Expr'Call eid id type_info sp <$> prepare_expr callee <*> prepare_expr arg

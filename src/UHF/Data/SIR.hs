@@ -30,7 +30,7 @@ module UHF.Data.SIR
     , expr_span
     , pattern_span
     , type_expr_span
-    , split_iden_id
+    , split_identifier_id
     ) where
 
 import UHF.Prelude
@@ -203,9 +203,9 @@ type_expr_span (TypeExpr'Apply _ _ span _ _) = span
 type_expr_span (TypeExpr'Wild _ _ span) = span
 type_expr_span (TypeExpr'Poison _ _ span) = span
 
-split_iden_id :: SplitIdentifier id_name stage -> SIR.ID.ID id_name
-split_iden_id (SplitIdentifier'Get id _ _) = id
-split_iden_id (SplitIdentifier'Single id _ _) = id
+split_identifier_id :: SplitIdentifier id_name stage -> SIR.ID.ID id_name
+split_identifier_id (SplitIdentifier'Get id _ _) = id
+split_identifier_id (SplitIdentifier'Single id _ _) = id
 
 expr_type :: Expr stage -> Stage.TypeInfo stage
 expr_type (Expr'Refer _ _ type_info _ _) = type_info

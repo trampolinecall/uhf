@@ -10,7 +10,6 @@ import UHF.Prelude
 
 import UHF.Source.Located (Located (Located, unlocate))
 import qualified UHF.Data.IR.ID as ID
-import qualified UHF.Data.IR.Intrinsics as Intrinsics
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.Type.PP as Type.PP
@@ -70,26 +69,29 @@ refer_var k = get_var k >>= \case
     SIR.Variable _ id _ _ -> pure $ PP.String (ID.stringify id)
 
 -- TODO: rename this to something better
-refer_bv :: SIR.ValueRef -> IRReader stage PP.Token
-refer_bv (SIR.ValueRef'Variable v) = refer_var v
-refer_bv (SIR.ValueRef'ADTVariantConstructor var) = refer_iden var
-refer_bv (SIR.ValueRef'Intrinsic i) = pure $ PP.String $ Intrinsics.intrinsic_name i
+-- TODO: remove this and print it through annotations
+-- refer_bv :: SIR.ValueRef -> IRReader stage PP.Token
+-- refer_bv (SIR.ValueRef'Variable v) = refer_var v
+-- refer_bv (SIR.ValueRef'ADTVariantConstructor var) = refer_iden var
+-- refer_bv (SIR.ValueRef'Intrinsic i) = pure $ PP.String $ Intrinsics.intrinsic_name i
 
 -- TODO: rename this to something better
-refer_decl :: DumpableType stage t => SIR.DeclRef t -> IRReader stage PP.Token
-refer_decl d = case d of
-    SIR.DeclRef'Module m ->
-        get_module m >>= \ (SIR.Module _ id _ _ _ _) ->
-        pure (PP.String $ ID.stringify id)
-    SIR.DeclRef'Type ty -> refer_type ty
-    SIR.DeclRef'ExternPackage SIR.ExternPackage'IntrinsicsPackage -> pure "uhf_intrinsics"
+-- -- TODO: remove this and print it through annotations
+-- refer_decl :: DumpableType stage t => SIR.DeclRef t -> IRReader stage PP.Token
+-- refer_decl d = case d of
+--     SIR.DeclRef'Module m ->
+--         get_module m >>= \ (SIR.Module _ id _ _ _ _) ->
+--         pure (PP.String $ ID.stringify id)
+--     SIR.DeclRef'Type ty -> refer_type ty
+--     SIR.DeclRef'ExternPackage SIR.ExternPackage'IntrinsicsPackage -> pure "uhf_intrinsics"
 
-refer_adt_variant :: Type.ADT.VariantIndex -> IRReader stage PP.Token
-refer_adt_variant variant_index@(Type.ADT.VariantIndex _ adt_key _) =
-    Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_referred ->
-    Type.ADT.get_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
-    let variant_name = unlocate $ Type.ADT.variant_name variant
-    in pure $ PP.List [adt_referred, "::", PP.String variant_name]
+-- TODO: remove this and print it through annotations
+-- refer_adt_variant :: Type.ADT.VariantIndex -> IRReader stage PP.Token
+-- refer_adt_variant variant_index@(Type.ADT.VariantIndex _ adt_key _) =
+--     Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_referred ->
+--     Type.ADT.get_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
+--     let variant_name = unlocate $ Type.ADT.variant_name variant
+--     in pure $ PP.List [adt_referred, "::", PP.String variant_name]
 
 class DumpableType stage ty where
     refer_type :: ty -> IRReader stage PP.Token
@@ -119,22 +121,23 @@ instance DumpableIdentifier stage t => DumpableIdentifier stage (Maybe t) where 
 instance DumpableIdentifier stage Text where
     refer_iden = pure . PP.String
 
-instance DumpableType stage t => DumpableIdentifier stage (SIR.DeclRef t) where
-    refer_iden = refer_decl
-instance DumpableIdentifier stage SIR.ValueRef where
-    refer_iden = refer_bv
-instance DumpableIdentifier stage Type.ADT.VariantIndex where
-    refer_iden = refer_adt_variant
+-- TODO: remove these
+-- instance DumpableType stage t => DumpableIdentifier stage (SIR.DeclRef t) where
+--     refer_iden = refer_decl
+-- instance DumpableIdentifier stage SIR.ValueRef where
+--     refer_iden = refer_bv
+-- instance DumpableIdentifier stage Type.ADT.VariantIndex where
+--     refer_iden = refer_adt_variant
 
 -- TODO: figure out how to overload this for if resolved is not ()
-refer_split_iden :: (DumpableConstraints stage, DumpableIdentifier stage resolved) => SIR.SplitIdentifier resolved stage -> IRReader stage PP.Token
-refer_split_iden (SIR.SplitIdentifier'Get _ texpr next resolved) = type_expr texpr >>= \ texpr -> pure (PP.List [texpr, "::", PP.String $ unlocate next])
-refer_split_iden (SIR.SplitIdentifier'Single _ _ name resolved) = refer_iden name
+refer_split_iden :: (DumpableConstraints stage) => SIR.SplitIdentifier id_name stage -> IRReader stage PP.Token
+refer_split_iden (SIR.SplitIdentifier'Get _ texpr next) = type_expr texpr >>= \ texpr -> pure (PP.List [texpr, "::", PP.String $ unlocate next])
+refer_split_iden (SIR.SplitIdentifier'Single _ _ name) = refer_iden name
 
 -- TODO: figure out how to overload this for if resolved is not ()
-refer_split_iden_and_resolved :: (DumpableConstraints stage, DumpableIdentifier stage single) => SIR.SplitIdentifier single stage -> resolved -> IRReader stage PP.Token
-refer_split_iden_and_resolved (SIR.SplitIdentifier'Get _ texpr next resolved) _ = type_expr texpr >>= \ texpr -> pure (PP.List [texpr, "::", PP.String $ unlocate next])
-refer_split_iden_and_resolved (SIR.SplitIdentifier'Single _ _ name resolved) _ = refer_iden name
+refer_split_iden_and_resolved :: (DumpableConstraints stage) => SIR.SplitIdentifier id_name stage -> resolved -> IRReader stage PP.Token
+refer_split_iden_and_resolved (SIR.SplitIdentifier'Get _ texpr next) _ = type_expr texpr >>= \ texpr -> pure (PP.List [texpr, "::", PP.String $ unlocate next])
+refer_split_iden_and_resolved (SIR.SplitIdentifier'Single _ _ name) _ = refer_iden name
 
 -- TODO: dump type info too
 

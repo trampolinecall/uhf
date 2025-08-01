@@ -1,3 +1,5 @@
+{-# LANGUAGE DataKinds #-}
+
 module UHF.Driver
     ( CompileOptions(..)
     , OutputFormat(..)
@@ -24,6 +26,7 @@ import qualified UHF.Data.IR.Type.ADT as IR.Type.ADT
 import qualified UHF.Data.RIR as RIR
 import qualified UHF.Data.RIR.PP as RIR.PP
 import qualified UHF.Data.SIR as SIR
+import qualified UHF.Data.SIR.ID as SIR.ID
 import qualified UHF.Data.SIR.PP as SIR.PP
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Settings as DiagnosticSettings
@@ -40,19 +43,20 @@ import qualified UHF.Parts.ToSIR as ToSIR
 import qualified UHF.Source.File as File
 import qualified UHF.Source.FormattedString as FormattedString
 import qualified UHF.Util.Arena as Arena
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (IdenResolvedKey, TypeExprEvaledKey, TypeExprEvaledAsTypeKey)
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (TypeExprEvaledKey, TypeExprEvaledAsTypeKey)
 import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupResult, InfixGroupedKey)
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameResolve.NameMaps
 import qualified UHF.Parts.UnifiedFrontendSolver as UnifiedFrontendSolver
 import Data.Functor.Const (Const)
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef, ValueRef)
 
 type AST = [AST.Decl]
 type FirstSIR = SIR.SIR ((), Const () (), (), (), (), (), ())
-type SolvedSIR = (SIR.SIR (NameResolve.NameMaps.NameContextKey, IdenResolvedKey (), IR.Type.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, Maybe IR.Type.Type, InfixGroupedKey)
-        , Arena.Arena (Maybe (SIR.DeclRef IR.Type.Type)) (IdenResolvedKey (SIR.DeclRef IR.Type.Type))
-        , Arena.Arena (Maybe SIR.ValueRef) (IdenResolvedKey SIR.ValueRef)
-        , Arena.Arena (Maybe IR.Type.ADT.VariantIndex) (IdenResolvedKey IR.Type.ADT.VariantIndex)
-        , Arena.Arena (Maybe (SIR.DeclRef IR.Type.Type)) TypeExprEvaledKey
+type SolvedSIR = (SIR.SIR (NameResolve.NameMaps.NameContextKey, Const () (), IR.Type.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, Maybe IR.Type.Type, InfixGroupedKey)
+        , Map (SIR.ID.ID "DeclIden") (Maybe (DeclRef IR.Type.Type))
+        , Map (SIR.ID.ID "ValueIden") (Maybe ValueRef)
+        , Map (SIR.ID.ID "VariantIden") (Maybe IR.Type.ADT.VariantIndex)
+        , Arena.Arena (Maybe (DeclRef IR.Type.Type)) TypeExprEvaledKey
         , Arena.Arena (Maybe IR.Type.Type) TypeExprEvaledAsTypeKey
         , Arena.Arena (Maybe InfixGroupResult) InfixGroupedKey)
 type RIR = RIR.RIR

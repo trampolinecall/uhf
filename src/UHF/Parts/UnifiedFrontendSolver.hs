@@ -20,7 +20,7 @@ import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Solve as InfixGroup.
 import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Task as InfixGroup.Task
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Finalize as NameResolve.Finalize
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameResolve.NameMaps
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef, ValueRef)
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef)
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result
     ( DeclIdenFinalResults
     , DeclIdenResults

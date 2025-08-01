@@ -16,10 +16,8 @@ import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as Na
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef (..), ValueRef)
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result
     ( DeclIdenResults
-    , TypeExprEvaledArena
-    , TypeExprEvaledAsTypeArena
     , ValueIdenResults
-    , VariantIdenResults
+    , VariantIdenResults, TypeExprsEvaled, TypeExprsEvaledAsTypes
     )
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Task (IdenResolveTask (..), TypeExprEvalAsTypeTask (..), TypeExprEvalTask (..))
 import UHF.Parts.UnifiedFrontendSolver.ProgressMade (ProgressMade (..))
@@ -77,7 +75,7 @@ variant_iden_resolved_selector s =
                        )
                    )
 
-type_expr_evaled_selector :: State TypeExprEvaledArena () -> SolveMonad ()
+type_expr_evaled_selector :: State TypeExprsEvaled () -> SolveMonad ()
 type_expr_evaled_selector s =
     state $
         \( (decl_iden_results, value_iden_results, variant_iden_results, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
@@ -92,7 +90,7 @@ type_expr_evaled_selector s =
                        , infer_vars
                        )
                    )
-type_expr_evaled_as_type_selector :: State TypeExprEvaledAsTypeArena () -> SolveMonad ()
+type_expr_evaled_as_type_selector :: State TypeExprsEvaledAsTypes () -> SolveMonad ()
 type_expr_evaled_as_type_selector s =
     state $
         \( (decl_iden_results, value_iden_results, variant_iden_results, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
@@ -123,22 +121,22 @@ resolve ::
     SolveMonad (ProgressMade (IdenResolveTask (SIR.ID.ID id_name)))
 resolve selector resolve_root _ (ResolveRoot name_context name result_key) = do
     result <- resolve_root name_context name
-    put_result_in_map selector result_key result
+    put_result selector result_key result
 resolve selector _ resolve_get (ResolveGet parent name result_key) = do
     parent_evaled <- get_type_expr_evaled parent
     result <- case parent_evaled of
         Solved texpr_evaled -> resolve_get texpr_evaled name
         Errored erp -> pure $ Errored erp
         Inconclusive _ -> pure (Inconclusive Nothing)
-    put_result_in_map selector result_key result
+    put_result selector result_key result
 
-put_result_in_map ::
+put_result ::
     Ord key =>
     (State (Map key (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise result)) () -> SolveMonad ()) ->
     key ->
     SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise result ->
     SolveMonad (ProgressMade task)
-put_result_in_map selector k res = do
+put_result selector k res = do
     case res of
         Inconclusive _ -> pure NoProgressMade
         _ -> do
@@ -152,29 +150,6 @@ put_result_in_map selector k res = do
                             )
                             k
                             map
-            pure $ ProgressMade []
-
--- TODO: remove this and rename put_result_in_map to just put_result
-put_result ::
-    Arena.Key key =>
-    (State (Arena.Arena (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise result) key) () -> SolveMonad ()) ->
-    key ->
-    SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise result ->
-    SolveMonad (ProgressMade task)
-put_result selector k res = do
-    case res of
-        Inconclusive _ -> pure NoProgressMade
-        _ -> do
-            selector $
-                modify $
-                    \arena ->
-                        Arena.modify
-                            arena
-                            k
-                            ( \case
-                                Inconclusive _ -> res
-                                _ -> res -- TODO: internal warning because there was already a result here and it was recomputed?
-                            )
             pure $ ProgressMade []
 
 look_up_decl ::
@@ -256,14 +231,14 @@ eval_type_expr (MakeApply whole_sp (Located ty_sp ty) (Located arg_sp arg) resul
         _ -> do
             type_expr_evaled_selector $
                 modify $
-                    \arena ->
-                        Arena.modify
-                            arena
-                            result_key
+                    \map ->
+                        Map.alter
                             ( \case
-                                Inconclusive _ -> DeclRef'Type . TypeWithInferVar.Type'InferVar <$> result_ty
-                                _ -> DeclRef'Type . TypeWithInferVar.Type'InferVar <$> result_ty -- TODO: internal warning because there was already a result here and it was recomputed?
+                                Just (Inconclusive _) -> Just $ DeclRef'Type . TypeWithInferVar.Type'InferVar <$> result_ty
+                                _ -> Just $ DeclRef'Type . TypeWithInferVar.Type'InferVar <$> result_ty -- TODO: internal warning because there was already a result here and it was recomputed?
                             )
+                            result_key
+                            map
             pure $ ProgressMade $ map (Left . Constraint) new_constraints
 eval_type_expr (MakeInferVar sp result_key) = do
     infer_var <- make_infer_var (TypeWithInferVar.TypeExpr sp)

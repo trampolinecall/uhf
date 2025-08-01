@@ -23,7 +23,6 @@ import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Util.Arena as Arena
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (TypeExprEvaledAsTypeKey)
 import qualified Data.Map as Map
 import qualified UHF.Data.SIR.ID as SIR.ID
 
@@ -42,7 +41,7 @@ instance Diagnostic.ToWarning (NotUseful stage) where
     to_warning (NotUseful pat) = Diagnostic.Warning (Just $ SIR.pattern_span pat) "useless pattern" [] []
 
 type Type = Maybe Type.Type
-type CorrectStage s = (SIR.TypeInfo s ~ Type, SIR.TypeExprEvaledAsTypeKey s ~ TypeExprEvaledAsTypeKey) -- TODO: this constraint doesnt really make sense anymore
+type CorrectStage s = (SIR.TypeInfo s ~ Type) -- TODO: this constraint doesnt really make sense anymore
 
 data MatchValue
     = Any
@@ -62,9 +61,9 @@ check :: forall stage. CorrectStage stage =>
     Arena.Arena (SIR.ADT stage) Type.ADTKey ->
     Arena.Arena (SIR.TypeSynonym stage) Type.TypeSynonymKey ->
     Map (SIR.ID.ID "VariantIden") (Maybe Type.ADT.VariantIndex) ->
-    Arena.Arena Type TypeExprEvaledAsTypeKey ->
+    Map (SIR.ID.ID "TypeExprEvaledAsType") Type ->
     [SIR.Pattern stage] -> ([MatchValue], [(SIR.Pattern stage, [MatchValue])])
-check adt_arena type_synonym_arena variant_idens_resolved type_expr_evaled_as_type_arena = mapAccumL check_one_pattern [Any]
+check adt_arena type_synonym_arena variant_idens_resolved type_exprs_evaled_as_types = mapAccumL check_one_pattern [Any]
     where
         check_one_pattern :: [MatchValue] -> SIR.Pattern stage -> ([MatchValue], (SIR.Pattern stage, [MatchValue]))
         check_one_pattern uncovered cur_pattern =
@@ -120,7 +119,7 @@ check adt_arena type_synonym_arena variant_idens_resolved type_expr_evaled_as_ty
                                 else []
                         enumerate_adt_ctors_and_fields (Type.Type'Synonym ts_key) =
                             let (Type.TypeSynonym _ _ (_, expansion)) = Arena.get type_synonym_arena ts_key
-                            in maybe [] enumerate_adt_ctors_and_fields (Arena.get type_expr_evaled_as_type_arena expansion) -- in the case that the type synonym had a type error and is Nothing, treat it like it has no constructors / like an uninhabited type
+                            in maybe [] enumerate_adt_ctors_and_fields (type_exprs_evaled_as_types Map.! expansion) -- in the case that the type synonym had a type error and is Nothing, treat it like it has no constructors / like an uninhabited type
                         enumerate_adt_ctors_and_fields Type.Type'Int = error_for_enumerate_adt_ctors_and_fields "Type'Int"
                         enumerate_adt_ctors_and_fields Type.Type'Float = error_for_enumerate_adt_ctors_and_fields "Type'Float"
                         enumerate_adt_ctors_and_fields Type.Type'Char = error_for_enumerate_adt_ctors_and_fields "Type'Char"
@@ -188,16 +187,16 @@ check adt_arena type_synonym_arena variant_idens_resolved type_expr_evaled_as_ty
 
         is_valid_match_value mv = True -- TODO: not (has_uninhabited_values mv)
 
-check_complete :: (CorrectStage stage) => Arena.Arena (SIR.ADT stage) Type.ADTKey -> Arena.Arena (SIR.TypeSynonym stage) Type.TypeSynonymKey -> Map (SIR.ID.ID "VariantIden") (Maybe Type.ADT.VariantIndex) -> Arena.Arena Type TypeExprEvaledAsTypeKey -> Span -> [SIR.Pattern stage] -> Either (CompletenessError stage) ()
-check_complete adt_arena type_synonym_arena variant_idens_resolved type_expr_evaled_as_type_arena err_sp patterns =
-    let (left_over, _) = check adt_arena type_synonym_arena variant_idens_resolved type_expr_evaled_as_type_arena patterns
+check_complete :: (CorrectStage stage) => Arena.Arena (SIR.ADT stage) Type.ADTKey -> Arena.Arena (SIR.TypeSynonym stage) Type.TypeSynonymKey -> Map (SIR.ID.ID "VariantIden") (Maybe Type.ADT.VariantIndex) -> Map (SIR.ID.ID "TypeExprEvaledAsType") Type -> Span -> [SIR.Pattern stage] -> Either (CompletenessError stage) ()
+check_complete adt_arena type_synonym_arena variant_idens_resolved type_exprs_evaled_as_types err_sp patterns =
+    let (left_over, _) = check adt_arena type_synonym_arena variant_idens_resolved type_exprs_evaled_as_types patterns
     in if null left_over
         then Right ()
         else Left $ CompletenessError adt_arena err_sp patterns left_over
 
-check_useful :: (CorrectStage stage) => Arena.Arena (SIR.ADT stage) Type.ADTKey -> Arena.Arena (SIR.TypeSynonym stage) Type.TypeSynonymKey -> Map (SIR.ID.ID "VariantIden") (Maybe Type.ADT.VariantIndex) -> Arena.Arena Type TypeExprEvaledAsTypeKey -> [SIR.Pattern stage] -> Either [NotUseful stage] ()
-check_useful adt_arena type_synonym_arena variant_idens_resolved type_expr_evaled_as_type_arena patterns =
-    let (_, patterns') = check adt_arena type_synonym_arena variant_idens_resolved type_expr_evaled_as_type_arena patterns
+check_useful :: (CorrectStage stage) => Arena.Arena (SIR.ADT stage) Type.ADTKey -> Arena.Arena (SIR.TypeSynonym stage) Type.TypeSynonymKey -> Map (SIR.ID.ID "VariantIden") (Maybe Type.ADT.VariantIndex) -> Map (SIR.ID.ID "TypeExprEvaledAsType") Type -> [SIR.Pattern stage] -> Either [NotUseful stage] ()
+check_useful adt_arena type_synonym_arena variant_idens_resolved type_exprs_evaled_as_types patterns =
+    let (_, patterns') = check adt_arena type_synonym_arena variant_idens_resolved type_exprs_evaled_as_types patterns
         warns = mapMaybe (\ (pat, covers) -> if null covers then Just (NotUseful pat) else Nothing) patterns'
     in if null warns
         then Right ()

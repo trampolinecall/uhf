@@ -9,13 +9,12 @@ import qualified UHF.Data.SIR as SIR
 import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupedArena, InfixGroupedKey)
 import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Task (InfixGroupTask (..))
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameMaps
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (TypeExprEvaledAsTypeKey, TypeExprEvaledKey)
 import UHF.Parts.UnifiedFrontendSolver.SolveResult
 import qualified UHF.Util.Arena as Arena
 import Data.Functor.Const (Const)
 
-type Unprepared = (NameMaps.NameContextKey, Const () (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, (), ())
-type Prepared = (NameMaps.NameContextKey, Const () (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, (), InfixGroupedKey)
+type Unprepared = (NameMaps.NameContextKey, Const () (), TypeWithInferVar.Type, (), (), (), ())
+type Prepared = (NameMaps.NameContextKey, Const () (), TypeWithInferVar.Type, (), (), (), InfixGroupedKey)
 
 type PrepareState = WriterT [InfixGroupTask] (State InfixGroupedArena)
 
@@ -71,31 +70,31 @@ prepare_binding :: SIR.Binding Unprepared -> PrepareState (SIR.Binding Prepared)
 prepare_binding (SIR.Binding id target eq_sp expr) = SIR.Binding id <$> prepare_pat target <*> pure eq_sp <*> prepare_expr expr
 
 prepare_type_expr :: SIR.TypeExpr Unprepared -> PrepareState (SIR.TypeExpr Prepared)
-prepare_type_expr (SIR.TypeExpr'Refer id nrid evaled sp name_maps iden) = pure $ SIR.TypeExpr'Refer id nrid evaled sp name_maps iden
-prepare_type_expr (SIR.TypeExpr'Get id nrid evaled sp parent name) = do
+prepare_type_expr (SIR.TypeExpr'Refer id nrid sp name_maps iden) = pure $ SIR.TypeExpr'Refer id nrid sp name_maps iden
+prepare_type_expr (SIR.TypeExpr'Get id nrid sp parent name) = do
     parent <- prepare_type_expr parent
-    pure $ SIR.TypeExpr'Get id nrid evaled sp parent name
-prepare_type_expr (SIR.TypeExpr'Tuple id evaled sp a b) = do
+    pure $ SIR.TypeExpr'Get id nrid sp parent name
+prepare_type_expr (SIR.TypeExpr'Tuple id sp a b) = do
     a <- prepare_type_expr a
     b <- prepare_type_expr b
-    pure $ SIR.TypeExpr'Tuple id evaled sp a b
-prepare_type_expr (SIR.TypeExpr'Hole id evaled evaled_as_type sp hid) = pure $ SIR.TypeExpr'Hole id evaled evaled_as_type sp hid
-prepare_type_expr (SIR.TypeExpr'Function id evaled sp arg res) = do
+    pure $ SIR.TypeExpr'Tuple id sp a b
+prepare_type_expr (SIR.TypeExpr'Hole id evaled_as_type sp hid) = pure $ SIR.TypeExpr'Hole id evaled_as_type sp hid
+prepare_type_expr (SIR.TypeExpr'Function id sp arg res) = do
     arg <- prepare_type_expr arg
     res <- prepare_type_expr res
 
-    pure $ SIR.TypeExpr'Function id evaled sp arg res
-prepare_type_expr (SIR.TypeExpr'Forall id evaled sp name_maps vars ty) = do
+    pure $ SIR.TypeExpr'Function id sp arg res
+prepare_type_expr (SIR.TypeExpr'Forall id sp name_maps vars ty) = do
     ty <- prepare_type_expr ty
 
-    pure $ SIR.TypeExpr'Forall id evaled sp name_maps vars ty
-prepare_type_expr (SIR.TypeExpr'Apply id evaled sp ty args) = do
+    pure $ SIR.TypeExpr'Forall id sp name_maps vars ty
+prepare_type_expr (SIR.TypeExpr'Apply id sp ty args) = do
     ty <- prepare_type_expr ty
     args <- prepare_type_expr args
 
-    pure $ SIR.TypeExpr'Apply id evaled sp ty args
-prepare_type_expr (SIR.TypeExpr'Wild id evaled sp) = pure $ SIR.TypeExpr'Wild id evaled sp
-prepare_type_expr (SIR.TypeExpr'Poison id evaled sp) = pure $ SIR.TypeExpr'Poison id evaled sp
+    pure $ SIR.TypeExpr'Apply id sp ty args
+prepare_type_expr (SIR.TypeExpr'Wild id sp) = pure $ SIR.TypeExpr'Wild id sp
+prepare_type_expr (SIR.TypeExpr'Poison id sp) = pure $ SIR.TypeExpr'Poison id sp
 
 prepare_expr :: SIR.Expr Unprepared -> PrepareState (SIR.Expr Prepared)
 prepare_expr (SIR.Expr'Refer eid id type_info sp iden) = SIR.Expr'Refer eid id type_info sp <$> prepare_split_iden iden

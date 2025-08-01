@@ -39,8 +39,8 @@ type SIR = SIR.SIR SIRStage
 
 type Module = SIR.Module SIRStage
 type Binding = SIR.Binding SIRStage
-type ADT = Type.ADT (TypeExpr, ())
-type TypeSynonym = Type.TypeSynonym (TypeExpr, ())
+type ADT = SIR.ADT SIRStage
+type TypeSynonym = SIR.TypeSynonym SIRStage
 type TypeExpr = SIR.TypeExpr SIRStage
 type Expr = SIR.Expr SIRStage
 type Pattern = SIR.Pattern SIRStage
@@ -167,7 +167,8 @@ convert_decls var_parent decl_parent decls =
         convert_decl _ (AST.Decl'TypeSyn _ l_name@(Located _ name) expansion) =
             runMaybeT (
                 lift (convert_type expansion) >>= \ expansion' ->
-                lift (new_type_synonym (Type.TypeSynonym (ID.DeclID decl_parent (convert_aiden_tok name)) (convert_aiden_tok <$> l_name) (expansion', ())))
+                lift (lift SIR.ID.gen_id) >>= \ tyeatid ->
+                lift (new_type_synonym (Type.TypeSynonym (ID.DeclID decl_parent (convert_aiden_tok name)) (convert_aiden_tok <$> l_name) (expansion', tyeatid)))
             ) >>= \case
                 Just syn_key -> pure ([], [], [syn_key])
                 Nothing -> pure ([], [], [])
@@ -178,7 +179,8 @@ convert_decls var_parent decl_parent decls =
                 <$> zipWithM
                     (\ field_idx ty_ast ->
                         lift (convert_type ty_ast) >>= \ ty ->
-                        pure (ID.ADTFieldID variant_id (show (field_idx :: Int)), (ty, ())))
+                        lift (lift SIR.ID.gen_id) >>= \ tyeatid ->
+                        pure (ID.ADTFieldID variant_id (show (field_idx :: Int)), (ty, tyeatid)))
                     [0..]
                     fields
         convert_variant adt_id (AST.DataVariant'Named (Located variant_name_sp (Token.AlphaIdentifier variant_name)) fields) =
@@ -188,30 +190,31 @@ convert_decls var_parent decl_parent decls =
                 <$> mapM
                     (\ (Located _ (Token.AlphaIdentifier field_name), ty_ast) ->
                         lift (convert_type ty_ast) >>= \ ty ->
-                        pure (ID.ADTFieldID variant_id field_name, field_name, (ty, ())))
+                        lift (lift SIR.ID.gen_id) >>= \ tyeatid ->
+                        pure (ID.ADTFieldID variant_id field_name, field_name, (ty, tyeatid)))
                     fields
 
 convert_type :: AST.Type -> MakeIRState TypeExpr
-convert_type (AST.Type'Refer id) = lift SIR.ID.gen_id >>= \ teid -> lift SIR.ID.gen_id >>= \ tenrid -> pure $ SIR.TypeExpr'Refer teid tenrid () (just_span id) () (convert_aiden_tok <$> id)
-convert_type (AST.Type'Get sp prev name) = lift SIR.ID.gen_id >>= \ teid -> lift SIR.ID.gen_id >>= \ tenrid -> convert_type prev >>= \ prev -> pure (SIR.TypeExpr'Get teid tenrid () sp prev (convert_aiden_tok <$> name))
+convert_type (AST.Type'Refer id) = lift SIR.ID.gen_id >>= \ teid -> lift SIR.ID.gen_id >>= \ tenrid -> pure $ SIR.TypeExpr'Refer teid tenrid (just_span id) () (convert_aiden_tok <$> id)
+convert_type (AST.Type'Get sp prev name) = lift SIR.ID.gen_id >>= \ teid -> lift SIR.ID.gen_id >>= \ tenrid -> convert_type prev >>= \ prev -> pure (SIR.TypeExpr'Get teid tenrid sp prev (convert_aiden_tok <$> name))
 convert_type (AST.Type'Tuple sp items) = mapM convert_type items >>= group_items
     where
         -- TODO: better spans for this
-        group_items [a, b] = lift SIR.ID.gen_id >>= \ teid -> pure $ SIR.TypeExpr'Tuple teid () sp a b
-        group_items (a:b:more) = lift SIR.ID.gen_id >>= \ teid -> SIR.TypeExpr'Tuple teid () sp a <$> group_items (b:more)
-        group_items [_] = tell_error (Tuple1 sp) >> lift SIR.ID.gen_id >>= \ teid -> pure (SIR.TypeExpr'Poison teid () sp)
-        group_items [] = tell_error (Tuple0 sp) >> lift SIR.ID.gen_id >>= \ teid -> pure (SIR.TypeExpr'Poison teid () sp)
-convert_type (AST.Type'Hole sp id) = lift SIR.ID.gen_id >>= \ teid -> pure $ SIR.TypeExpr'Hole teid () () sp (convert_aiden_tok <$> id)
-convert_type (AST.Type'Function sp arg res) = SIR.TypeExpr'Function <$> lift SIR.ID.gen_id <*> pure () <*> pure sp <*> convert_type arg <*> convert_type res
+        group_items [a, b] = lift SIR.ID.gen_id >>= \ teid -> pure $ SIR.TypeExpr'Tuple teid sp a b
+        group_items (a:b:more) = lift SIR.ID.gen_id >>= \ teid -> SIR.TypeExpr'Tuple teid sp a <$> group_items (b:more)
+        group_items [_] = tell_error (Tuple1 sp) >> lift SIR.ID.gen_id >>= \ teid -> pure (SIR.TypeExpr'Poison teid sp)
+        group_items [] = tell_error (Tuple0 sp) >> lift SIR.ID.gen_id >>= \ teid -> pure (SIR.TypeExpr'Poison teid sp)
+convert_type (AST.Type'Hole sp id) = lift SIR.ID.gen_id >>= \ teid -> lift SIR.ID.gen_id >>= \ hid -> pure $ SIR.TypeExpr'Hole teid hid sp (convert_aiden_tok <$> id)
+convert_type (AST.Type'Function sp arg res) = SIR.TypeExpr'Function <$> lift SIR.ID.gen_id <*> pure sp <*> convert_type arg <*> convert_type res
 convert_type (AST.Type'Forall sp tys ty) =
     mapM (new_type_var . fmap convert_aiden_tok) tys >>= \case
         [] -> convert_type ty -- can happen if the user passed none
-        tyv1:tyv_more -> lift SIR.ID.gen_id >>= \ teid -> SIR.TypeExpr'Forall teid () sp () (tyv1 :| tyv_more) <$> convert_type ty
+        tyv1:tyv_more -> lift SIR.ID.gen_id >>= \ teid -> SIR.TypeExpr'Forall teid sp () (tyv1 :| tyv_more) <$> convert_type ty
 
 convert_type (AST.Type'Apply sp ty args) =
     convert_type ty >>= \ ty ->
-    foldlM (\ ty arg -> lift SIR.ID.gen_id >>= \ teid -> SIR.TypeExpr'Apply teid () sp ty <$> convert_type arg) ty args -- TODO: fix spans
-convert_type (AST.Type'Wild sp) = lift SIR.ID.gen_id >>= \ teid -> pure $ SIR.TypeExpr'Wild teid () sp
+    foldlM (\ ty arg -> lift SIR.ID.gen_id >>= \ teid -> SIR.TypeExpr'Apply teid sp ty <$> convert_type arg) ty args -- TODO: fix spans
+convert_type (AST.Type'Wild sp) = lift SIR.ID.gen_id >>= \ teid -> pure $ SIR.TypeExpr'Wild teid sp
 
 convert_expr :: ID.ExprID -> AST.Expr -> MakeIRState Expr
 convert_expr cur_id (AST.Expr'ReferAlpha sp t i) = lift SIR.ID.gen_id >>= \ eid -> SIR.Expr'Refer eid cur_id () sp <$> make_split_identifier t (convert_aiden_tok <$> i)
@@ -295,7 +298,7 @@ convert_expr cur_id (AST.Expr'Match sp (Located match_tok_sp _) e arms) =
         >>= \ arms ->
     pure (SIR.Expr'Match eid cur_id () sp match_tok_sp e arms)
 
-convert_expr cur_id (AST.Expr'TypeAnnotation sp ty e) = lift SIR.ID.gen_id >>= \ eid -> SIR.Expr'TypeAnnotation eid cur_id () sp <$> ((,()) <$> convert_type ty) <*> convert_expr (ID.ExprID'TypeAnnotationSubject cur_id) e
+convert_expr cur_id (AST.Expr'TypeAnnotation sp ty e) = lift SIR.ID.gen_id >>= \ eid -> lift SIR.ID.gen_id >>= \ tyeatid -> SIR.Expr'TypeAnnotation eid cur_id () sp <$> ((,tyeatid) <$> convert_type ty) <*> convert_expr (ID.ExprID'TypeAnnotationSubject cur_id) e
 convert_expr cur_id (AST.Expr'Forall sp tys e) =
     mapM (new_type_var . fmap convert_aiden_tok) tys >>= \case
         [] -> convert_expr (ID.ExprID'ForallResult cur_id) e
@@ -308,8 +311,9 @@ convert_expr cur_id (AST.Expr'TypeApply sp e args) =
     snd <$> foldlM
         (\ (apply_id, e) arg ->
             lift SIR.ID.gen_id >>= \ eid ->
+            lift SIR.ID.gen_id >>= \ tyeatid ->
             convert_type arg >>= \ arg ->
-            pure (ID.ExprID'TypeApplyOn apply_id, SIR.Expr'TypeApply eid apply_id () sp e (arg, ())))
+            pure (ID.ExprID'TypeApplyOn apply_id, SIR.Expr'TypeApply eid apply_id () sp e (arg, tyeatid)))
         (ID.ExprID'TypeApplyOn cur_id, e)
         args -- TODO: fix span for this
 convert_expr cur_id (AST.Expr'Hole sp hid) = lift SIR.ID.gen_id >>= \ eid -> pure (SIR.Expr'Hole eid cur_id () sp (convert_aiden_tok <$> hid))

@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+
 module UHF.Parts.UnifiedFrontendSolver.TypeSolve.Finalize (remove_infer_vars) where
 
 import UHF.Prelude
@@ -7,29 +8,36 @@ import qualified Data.List.NonEmpty as NonEmpty
 
 import Control.Monad.Fix (mfix)
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
-import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupedKey)
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (TypeExprEvaledKey, TypeExprEvaledAsTypeKey, DeclIdenAlmostFinalResults, DeclIdenFinalResults)
+import Data.Functor.Const (Const)
+import qualified Data.Map as Map
 import qualified UHF.Compiler as Compiler
+import UHF.Data.IR.Type (Type)
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Data.SIR as SIR
-import qualified UHF.Parts.UnifiedFrontendSolver.Error as SolveError
-import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameMaps
-import qualified UHF.Util.Arena as Arena
-import UHF.Data.IR.Type (Type)
-import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Error (Error(..))
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef (..))
 import qualified UHF.Data.SIR.ID as SIR.ID
-import Data.Functor.Const (Const)
-import qualified Data.Map as Map
+import qualified UHF.Parts.UnifiedFrontendSolver.Error as SolveError
+import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupedKey)
+import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameMaps
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef (..))
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result
+    ( DeclIdenAlmostFinalResults
+    , DeclIdenFinalResults
+    , TypeExprsEvaled
+    , TypeExprsEvaledAsTypes
+    , TypeExprsFinalEvaled
+    , TypeExprsFinalEvaledAsTypes, TypeExprsAlmostFinalEvaled, TypeExprsAlmostFinalEvaledAsTypes
+    )
+import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Error (Error (..))
+import qualified UHF.Util.Arena as Arena
 
 type WithInferVars =
     ( NameMaps.NameContextKey
     , Const () ()
     , TypeWithInferVar.Type
-    , TypeExprEvaledKey
-    , TypeExprEvaledAsTypeKey
+    , ()
+    , ()
     , TypeWithInferVar.Type
     , InfixGroupedKey
     )
@@ -37,8 +45,8 @@ type WithoutInferVars =
     ( NameMaps.NameContextKey
     , Const () ()
     , Type.Type
-    , TypeExprEvaledKey
-    , TypeExprEvaledAsTypeKey
+    , ()
+    , ()
     , Maybe Type.Type
     , InfixGroupedKey
     )
@@ -46,16 +54,18 @@ type WithoutInferVars =
 remove_infer_vars ::
     TypeWithInferVar.InferVarArena ->
     DeclIdenAlmostFinalResults ->
-    Arena.Arena (Maybe (DeclRef TypeWithInferVar.Type)) TypeExprEvaledKey ->
-    Arena.Arena (Maybe TypeWithInferVar.Type) TypeExprEvaledAsTypeKey ->
+    TypeExprsAlmostFinalEvaled ->
+    TypeExprsAlmostFinalEvaledAsTypes ->
     SIR.SIR WithInferVars ->
-    Compiler.WithDiagnostics SolveError.Error Void
+    Compiler.WithDiagnostics
+        SolveError.Error
+        Void
         ( SIR.SIR WithoutInferVars
         , DeclIdenFinalResults
-        , Arena.Arena (Maybe (DeclRef Type.Type)) TypeExprEvaledKey
-        , Arena.Arena (Maybe Type.Type) TypeExprEvaledAsTypeKey
+        , TypeExprsFinalEvaled
+        , TypeExprsFinalEvaledAsTypes
         )
-remove_infer_vars infer_vars decl_iden_results type_expr_evaled_arena type_expr_evaled_as_type_arena (SIR.SIR modules adts type_synonyms type_vars variables (SIR.CU root_module main_function)) = do
+remove_infer_vars infer_vars decl_iden_results type_exprs_evaled type_exprs_evaled_as_types (SIR.SIR modules adts type_synonyms type_vars variables (SIR.CU root_module main_function)) = do
     infer_vars <- convert_vars infer_vars
     pure
         ( SIR.SIR
@@ -66,11 +76,12 @@ remove_infer_vars infer_vars decl_iden_results type_expr_evaled_arena type_expr_
             (Arena.transform (variable infer_vars) variables)
             (SIR.CU root_module main_function)
         , Map.map (>>= decl_ref infer_vars) decl_iden_results
-        , Arena.transform (>>= decl_ref infer_vars) type_expr_evaled_arena
-        , Arena.transform (>>= type_ infer_vars) type_expr_evaled_as_type_arena
+        , Map.map (>>= decl_ref infer_vars) type_exprs_evaled
+        , Map.map (>>= type_ infer_vars) type_exprs_evaled_as_types
         )
 
-convert_vars :: TypeWithInferVar.InferVarArena -> Compiler.WithDiagnostics SolveError.Error Void (Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey)
+convert_vars ::
+    TypeWithInferVar.InferVarArena -> Compiler.WithDiagnostics SolveError.Error Void (Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey)
 convert_vars infer_vars =
     -- infinite recursion is not possible because occurs check prevents loops in substitution
     mfix (\infer_vars_converted -> Arena.transformM (runMaybeT . convert_var infer_vars_converted) infer_vars)
@@ -122,14 +133,16 @@ pattern infer_vars (SIR.Pattern'Wildcard id ty sp) = SIR.Pattern'Wildcard id (ty
 pattern infer_vars (SIR.Pattern'Tuple id ty sp l r) = SIR.Pattern'Tuple id (type_ infer_vars ty) sp (pattern infer_vars l) (pattern infer_vars r)
 pattern infer_vars (SIR.Pattern'Named id ty sp at_sp bnk subpat) = SIR.Pattern'Named id (type_ infer_vars ty) sp at_sp bnk (pattern infer_vars subpat)
 pattern infer_vars (SIR.Pattern'AnonADTVariant id ty sp variant_iden tyargs fields) =
-    SIR.Pattern'AnonADTVariant id
+    SIR.Pattern'AnonADTVariant
+        id
         (type_ infer_vars ty)
         sp
         (split_identifier infer_vars variant_iden)
         (map (type_ infer_vars) tyargs)
         (map (pattern infer_vars) fields)
 pattern infer_vars (SIR.Pattern'NamedADTVariant id ty sp variant_iden tyargs fields) =
-    SIR.Pattern'NamedADTVariant id
+    SIR.Pattern'NamedADTVariant
+        id
         (type_ infer_vars ty)
         sp
         (split_identifier infer_vars variant_iden)
@@ -154,7 +167,8 @@ expr infer_vars (SIR.Expr'Call eid id ty sp callee arg) = SIR.Expr'Call eid id (
 expr infer_vars (SIR.Expr'If eid id ty sp if_sp cond true false) = SIR.Expr'If eid id (type_ infer_vars ty) sp if_sp (expr infer_vars cond) (expr infer_vars true) (expr infer_vars false)
 expr infer_vars (SIR.Expr'Match eid id ty sp match_tok_sp testing arms) =
     SIR.Expr'Match
-        eid id
+        eid
+        id
         (type_ infer_vars ty)
         sp
         match_tok_sp
@@ -167,17 +181,18 @@ expr infer_vars (SIR.Expr'Hole eid id ty sp hid) = SIR.Expr'Hole eid id (type_ i
 expr infer_vars (SIR.Expr'Poison eid id ty sp) = SIR.Expr'Poison eid id (type_ infer_vars ty) sp
 
 type_expr :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.TypeExpr WithInferVars -> SIR.TypeExpr WithoutInferVars
-type_expr _ (SIR.TypeExpr'Refer id nrid evaled sp name_context iden) = SIR.TypeExpr'Refer id nrid evaled sp name_context iden
-type_expr infer_vars (SIR.TypeExpr'Get id nrid evaled sp parent name) = SIR.TypeExpr'Get id nrid evaled sp (type_expr infer_vars parent) name
-type_expr infer_vars (SIR.TypeExpr'Tuple id evaled sp a b) = SIR.TypeExpr'Tuple id evaled sp (type_expr infer_vars a) (type_expr infer_vars b)
-type_expr _ (SIR.TypeExpr'Hole id evaled tyinfo sp hid) = SIR.TypeExpr'Hole id evaled tyinfo sp hid
-type_expr infer_vars (SIR.TypeExpr'Function id evaled sp arg res) = SIR.TypeExpr'Function id evaled sp (type_expr infer_vars arg) (type_expr infer_vars res)
-type_expr infer_vars (SIR.TypeExpr'Forall id evaled sp name_map_index names sub) = SIR.TypeExpr'Forall id evaled sp name_map_index names (type_expr infer_vars sub)
-type_expr infer_vars (SIR.TypeExpr'Apply id evaled sp applied_to args) = SIR.TypeExpr'Apply id evaled sp (type_expr infer_vars applied_to) (type_expr infer_vars args)
-type_expr _ (SIR.TypeExpr'Wild id evaled sp) = SIR.TypeExpr'Wild id evaled sp
-type_expr _ (SIR.TypeExpr'Poison id evaled sp) = SIR.TypeExpr'Poison id evaled sp
+type_expr _ (SIR.TypeExpr'Refer id nrid sp name_context iden) = SIR.TypeExpr'Refer id nrid sp name_context iden
+type_expr infer_vars (SIR.TypeExpr'Get id nrid sp parent name) = SIR.TypeExpr'Get id nrid sp (type_expr infer_vars parent) name
+type_expr infer_vars (SIR.TypeExpr'Tuple id sp a b) = SIR.TypeExpr'Tuple id sp (type_expr infer_vars a) (type_expr infer_vars b)
+type_expr _ (SIR.TypeExpr'Hole id hid sp hiden) = SIR.TypeExpr'Hole id hid sp hiden
+type_expr infer_vars (SIR.TypeExpr'Function id sp arg res) = SIR.TypeExpr'Function id sp (type_expr infer_vars arg) (type_expr infer_vars res)
+type_expr infer_vars (SIR.TypeExpr'Forall id sp name_map_index names sub) = SIR.TypeExpr'Forall id sp name_map_index names (type_expr infer_vars sub)
+type_expr infer_vars (SIR.TypeExpr'Apply id sp applied_to args) = SIR.TypeExpr'Apply id sp (type_expr infer_vars applied_to) (type_expr infer_vars args)
+type_expr _ (SIR.TypeExpr'Wild id sp) = SIR.TypeExpr'Wild id sp
+type_expr _ (SIR.TypeExpr'Poison id sp) = SIR.TypeExpr'Poison id sp
 
-split_identifier :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.SplitIdentifier id_name WithInferVars -> SIR.SplitIdentifier id_name WithoutInferVars
+split_identifier ::
+    Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.SplitIdentifier id_name WithInferVars -> SIR.SplitIdentifier id_name WithoutInferVars
 split_identifier infer_vars (SIR.SplitIdentifier'Get id texpr next) = SIR.SplitIdentifier'Get id (type_expr infer_vars texpr) next
 split_identifier _ (SIR.SplitIdentifier'Single id name_context name) = SIR.SplitIdentifier'Single id name_context name
 

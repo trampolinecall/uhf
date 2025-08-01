@@ -1,21 +1,30 @@
 {-# LANGUAGE DataKinds #-}
+
 module UHF.Parts.UnifiedFrontendSolver.TypeSolve.Task (EqInWhat (..), ExpectInWhat (..), TypeSolveTask (..), Constraint (..), priority) where
 
 import UHF.Prelude
 
 import UHF.Data.IR.TypeWithInferVar
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (TypeExprEvaledAsTypeKey, TypeExprEvaledKey)
+import qualified UHF.Data.SIR.ID as SIR.ID
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef, ValueRef)
 import UHF.Source.Located (Located)
 import UHF.Source.Span (Span)
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (ValueRef, DeclRef)
-import qualified UHF.Data.SIR.ID as SIR.ID
 
 data EqInWhat = InAssignment | InNamedPattern | InIfBranches | InMatchPatterns | InMatchArms deriving Show
-data ExpectInWhat = InTypeAnnotation | InCallExpr | InIfCondition | InTypeApplication | InADTVariantPatternField | InADTFieldType | InMainFunction | InVariable deriving Show
+data ExpectInWhat
+    = InTypeAnnotation
+    | InCallExpr
+    | InIfCondition
+    | InTypeApplication
+    | InADTVariantPatternField
+    | InADTFieldType
+    | InMainFunction
+    | InVariable
+    deriving Show
 
 data TypeSolveTask
-    = WhenTypeExprEvaledAsType TypeExprEvaledAsTypeKey (Type -> TypeSolveTask)
-    | WhenTypeExprEvaled TypeExprEvaledKey (DeclRef Type -> TypeSolveTask)
+    = WhenTypeExprEvaledAsType (SIR.ID.ID "TypeExprEvaledAsType") (Type -> TypeSolveTask)
+    | WhenTypeExprEvaled (SIR.ID.ID "TypeExpr") (DeclRef Type -> TypeSolveTask)
     | WhenValueRefResolved (SIR.ID.ID "ValueIden") (ValueRef -> TypeSolveTask)
     | EvalAsType Span (DeclRef Type) (Type -> TypeSolveTask)
     | GetValueRefType ValueRef (Type -> TypeSolveTask)

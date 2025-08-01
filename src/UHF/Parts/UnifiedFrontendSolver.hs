@@ -20,18 +20,14 @@ import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Solve as InfixGroup.
 import qualified UHF.Parts.UnifiedFrontendSolver.InfixGroup.Task as InfixGroup.Task
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Finalize as NameResolve.Finalize
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameResolve.NameMaps
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef)
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result
     ( DeclIdenFinalResults
     , DeclIdenResults
-    , TypeExprEvaledAsTypeKey
-    , TypeExprEvaledKey
     , ValueIdenFinalResults
     , ValueIdenResults
     , VariantIdenFinalResults
-    , VariantIdenResults
+    , VariantIdenResults, TypeExprsFinalEvaled, TypeExprsFinalEvaledAsTypes, TypeExprsEvaled, TypeExprsEvaledAsTypes
     )
-import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result as NameResolve.Result
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.OtherPreparation.AssignNameMaps as NameResolve.OtherPreparation.AssignNameMaps
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Prepare as NameResolve.Prepare
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Solve as NameResolve.Solve
@@ -47,7 +43,7 @@ import qualified UHF.Util.Arena as Arena
 
 type PreSolve = ((), Const () (), (), (), (), (), ())
 type PostSolve =
-    (NameResolve.NameMaps.NameContextKey, Const () (), Type.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, Maybe Type.Type, InfixGroupedKey)
+    (NameResolve.NameMaps.NameContextKey, Const () (), Type.Type, (), (), Maybe Type.Type, InfixGroupedKey)
 
 solve ::
     SIR.SIR PreSolve ->
@@ -58,8 +54,8 @@ solve ::
         , ( DeclIdenFinalResults
           , ValueIdenFinalResults
           , VariantIdenFinalResults
-          , Arena.Arena (Maybe (DeclRef Type.Type)) TypeExprEvaledKey
-          , Arena.Arena (Maybe Type.Type) TypeExprEvaledAsTypeKey
+          , TypeExprsFinalEvaled
+          , TypeExprsFinalEvaledAsTypes
           )
         , Arena.Arena (Maybe InfixGroupResult) InfixGroupedKey
         )
@@ -104,8 +100,8 @@ solve' ::
         ( ( DeclIdenResults
           , ValueIdenResults
           , VariantIdenResults
-          , NameResolve.Result.TypeExprEvaledArena
-          , NameResolve.Result.TypeExprEvaledAsTypeArena
+          , TypeExprsEvaled
+          , TypeExprsEvaledAsTypes
           )
         , InfixGroup.Result.InfixGroupedArena
         , TypeWithInferVar.InferVarArena

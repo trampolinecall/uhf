@@ -12,25 +12,24 @@ import UHF.Prelude
 
 import UHF.Data.IR.Type.QuantVar (QuantVarKey)
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps (NameContextKey)
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (TypeExprEvaledAsTypeKey, TypeExprEvaledKey)
 import UHF.Source.Located (Located)
 import UHF.Source.Span (Span)
 import qualified UHF.Data.SIR.ID as SIR.ID
 
 data IdenResolveTask result_id
     = ResolveRoot NameContextKey (Located Text) result_id
-    | ResolveGet TypeExprEvaledKey (Located Text) result_id
+    | ResolveGet (SIR.ID.ID "TypeExpr") (Located Text) result_id
 
 data TypeExprEvalTask
-    = GetFromDeclIdenResolved (SIR.ID.ID "DeclIden") TypeExprEvaledKey
-    | MakeTuple (Located TypeExprEvaledKey) (Located TypeExprEvaledKey) TypeExprEvaledKey
-    | MakeFunction (Located TypeExprEvaledKey) (Located TypeExprEvaledKey) TypeExprEvaledKey
-    | MakeForall (NonEmpty QuantVarKey) (Located TypeExprEvaledKey) TypeExprEvaledKey
-    | MakeApply Span (Located TypeExprEvaledKey) (Located TypeExprEvaledKey) TypeExprEvaledKey
-    | MakeInferVar Span TypeExprEvaledKey
+    = GetFromDeclIdenResolved (SIR.ID.ID "DeclIden") (SIR.ID.ID "TypeExpr")
+    | MakeTuple (Located (SIR.ID.ID "TypeExpr")) (Located (SIR.ID.ID "TypeExpr")) (SIR.ID.ID "TypeExpr")
+    | MakeFunction (Located (SIR.ID.ID "TypeExpr")) (Located (SIR.ID.ID "TypeExpr")) (SIR.ID.ID "TypeExpr")
+    | MakeForall (NonEmpty QuantVarKey) (Located (SIR.ID.ID "TypeExpr")) (SIR.ID.ID "TypeExpr")
+    | MakeApply Span (Located (SIR.ID.ID "TypeExpr")) (Located (SIR.ID.ID "TypeExpr")) (SIR.ID.ID "TypeExpr")
+    | MakeInferVar Span (SIR.ID.ID "TypeExpr")
 
 data TypeExprEvalAsTypeTask
-    = EvalAsType (Located TypeExprEvaledKey) TypeExprEvaledAsTypeKey
+    = EvalAsType (Located (SIR.ID.ID "TypeExpr")) (SIR.ID.ID "TypeExprEvaledAsType")
 
 iden_resolve_task_priority :: IdenResolveTask res -> Int
 iden_resolve_task_priority (ResolveRoot _ _ _) = 0

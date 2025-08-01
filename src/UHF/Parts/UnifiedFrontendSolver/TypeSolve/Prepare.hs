@@ -6,7 +6,6 @@ import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameMaps
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (TypeExprEvaledAsTypeKey, TypeExprEvaledKey)
 import UHF.Source.Located (Located (..))
 import qualified UHF.Util.Arena as Arena
 import UHF.Parts.UnifiedFrontendSolver.TypeSolve.Task (TypeSolveTask (..), Constraint (..), ExpectInWhat (..), EqInWhat (..))
@@ -16,9 +15,9 @@ import UHF.Data.IR.TypeWithInferVar (InferVarArena)
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef)
 import Data.Functor.Const (Const)
 
-type Unadded = (NameMaps.NameContextKey, Const () (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, (), InfixGroupedKey)
+type Unadded = (NameMaps.NameContextKey, Const () (), TypeWithInferVar.Type, (), (), (), InfixGroupedKey)
 type Added =
-    (NameMaps.NameContextKey, Const () (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, TypeWithInferVar.Type, InfixGroupedKey)
+    (NameMaps.NameContextKey, Const () (), TypeWithInferVar.Type, (), (), TypeWithInferVar.Type, InfixGroupedKey)
 
 -- TODO: remove these
 type TypedWithInferVarsDIden = Maybe (DeclRef TypeWithInferVar.Type)
@@ -107,15 +106,15 @@ add_in_type_synonym :: SIR.TypeSynonym Unadded -> AddMonad adts type_synonyms qu
 add_in_type_synonym (Type.TypeSynonym id name (expansion, as_type)) = Type.TypeSynonym id name <$> ((,as_type) <$> add_in_type_expr expansion)
 
 add_in_type_expr :: SIR.TypeExpr Unadded -> AddMonad adts type_synonyms quant_vars vars (SIR.TypeExpr Added)
-add_in_type_expr (SIR.TypeExpr'Refer id nrid evaled sp name_context iden) = pure (SIR.TypeExpr'Refer id nrid evaled sp name_context iden)
-add_in_type_expr (SIR.TypeExpr'Get id nrid evaled sp parent name) = SIR.TypeExpr'Get id nrid evaled sp <$> add_in_type_expr parent <*> pure name
-add_in_type_expr (SIR.TypeExpr'Tuple id evaled sp a b) = SIR.TypeExpr'Tuple id evaled sp <$> add_in_type_expr a <*> add_in_type_expr b
-add_in_type_expr (SIR.TypeExpr'Hole id evaled ty sp hid) = pure (SIR.TypeExpr'Hole id evaled ty sp hid)
-add_in_type_expr (SIR.TypeExpr'Function id evaled sp arg res) = SIR.TypeExpr'Function id evaled sp <$> add_in_type_expr arg <*> add_in_type_expr res
-add_in_type_expr (SIR.TypeExpr'Forall id evaled sp name_context names t) = SIR.TypeExpr'Forall id evaled sp name_context names <$> add_in_type_expr t
-add_in_type_expr (SIR.TypeExpr'Apply id evaled sp t arg) = SIR.TypeExpr'Apply id evaled sp <$> add_in_type_expr t <*> add_in_type_expr arg
-add_in_type_expr (SIR.TypeExpr'Wild id evaled sp) = pure (SIR.TypeExpr'Wild id evaled sp)
-add_in_type_expr (SIR.TypeExpr'Poison id evaled sp) = pure (SIR.TypeExpr'Poison id evaled sp)
+add_in_type_expr (SIR.TypeExpr'Refer id nrid sp name_context iden) = pure (SIR.TypeExpr'Refer id nrid sp name_context iden)
+add_in_type_expr (SIR.TypeExpr'Get id nrid sp parent name) = SIR.TypeExpr'Get id nrid sp <$> add_in_type_expr parent <*> pure name
+add_in_type_expr (SIR.TypeExpr'Tuple id sp a b) = SIR.TypeExpr'Tuple id sp <$> add_in_type_expr a <*> add_in_type_expr b
+add_in_type_expr (SIR.TypeExpr'Hole id hid sp hiden) = pure (SIR.TypeExpr'Hole id hid sp hiden)
+add_in_type_expr (SIR.TypeExpr'Function id sp arg res) = SIR.TypeExpr'Function id sp <$> add_in_type_expr arg <*> add_in_type_expr res
+add_in_type_expr (SIR.TypeExpr'Forall id sp name_context names t) = SIR.TypeExpr'Forall id sp name_context names <$> add_in_type_expr t
+add_in_type_expr (SIR.TypeExpr'Apply id sp t arg) = SIR.TypeExpr'Apply id sp <$> add_in_type_expr t <*> add_in_type_expr arg
+add_in_type_expr (SIR.TypeExpr'Wild id sp) = pure (SIR.TypeExpr'Wild id sp)
+add_in_type_expr (SIR.TypeExpr'Poison id sp) = pure (SIR.TypeExpr'Poison id sp)
 
 add_in_binding :: SIR.Binding Unadded -> AddMonad adts type_synonyms quant_vars AddedVariableArena (SIR.Binding Added)
 add_in_binding (SIR.Binding id p eq_sp e) = do

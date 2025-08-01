@@ -18,21 +18,17 @@ import qualified UHF.Parts.ToRIR.PatternCheck as PatternCheck
 import qualified UHF.Parts.ToRIR.TopologicalSort as TopologicalSort
 import qualified UHF.Util.Arena as Arena
 import qualified UHF.Util.IDGen as IDGen
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (TypeExprEvaledKey, TypeExprEvaledAsTypeKey)
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameResolve.NameMaps
 import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupedKey, InfixGroupResult)
 import Data.Functor.Const (Const)
 import qualified UHF.Data.SIR.ID as SIR.ID
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef, ValueRef (..))
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (ValueRef (..))
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (DeclIdenFinalResults, ValueIdenFinalResults, VariantIdenFinalResults, TypeExprsFinalEvaled, TypeExprsFinalEvaledAsTypes)
 
 type Type = Maybe Type.Type
 
-type DIden = Maybe (DeclRef Type.Type)
-type VIden = Maybe ValueRef
-type PIden = Maybe Type.ADT.VariantIndex
-
 type LastSIR =
-    ( NameResolve.NameMaps.NameContextKey, Const () (), Type.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, Maybe Type.Type, InfixGroupedKey)
+    ( NameResolve.NameMaps.NameContextKey, Const () (), Type.Type, (), (), Maybe Type.Type, InfixGroupedKey)
 
 type VariableArena = Arena.Arena RIR.Variable RIR.VariableKey
 
@@ -48,19 +44,19 @@ type ConvertState =
     ReaderT
         ( Arena.Arena (SIR.ADT LastSIR) Type.ADTKey
         , Arena.Arena (SIR.TypeSynonym LastSIR) Type.TypeSynonymKey
-        , Map (SIR.ID.ID "DeclIden") (Maybe (DeclRef Type.Type))
-        , Map (SIR.ID.ID "ValueIden") (Maybe ValueRef)
-        , Map (SIR.ID.ID "VariantIden") (Maybe Type.ADT.VariantIndex)
-        , Arena.Arena (Maybe (DeclRef Type.Type)) TypeExprEvaledKey
-        , Arena.Arena (Maybe Type.Type) TypeExprEvaledAsTypeKey
+        , DeclIdenFinalResults
+        , ValueIdenFinalResults
+        , VariantIdenFinalResults
+        , TypeExprsFinalEvaled
+        , TypeExprsFinalEvaledAsTypes
         , Arena.Arena (Maybe InfixGroupResult) InfixGroupedKey
         )
         (StateT VariableArena (IDGen.IDGenT ID.VariableID (IDGen.IDGenT ID.ExprID (Compiler.WithDiagnostics Error (PatternCheck.NotUseful LastSIR)))))
 
-get_type_expr_evaled_as_type :: TypeExprEvaledAsTypeKey -> ConvertState Type
+get_type_expr_evaled_as_type :: SIR.ID.ID "TypeExprEvaledAsType" -> ConvertState Type
 get_type_expr_evaled_as_type k = do
-    (_, _, _, _, _, _, type_expr_evaled_as_type_arena, _) <- ask
-    pure $ Arena.get type_expr_evaled_as_type_arena k
+    (_, _, _, _, _, _, type_exprs_evaled_as_types, _) <- ask
+    pure $ type_exprs_evaled_as_types Map.! k
 
 get_value_iden_resolved :: SIR.ID.ID "ValueIden" -> ConvertState (Maybe ValueRef)
 get_value_iden_resolved k = do
@@ -83,15 +79,15 @@ new_made_up_expr_id make =
     pure (make id)
 
 convert ::
-    Map (SIR.ID.ID "DeclIden") (Maybe (DeclRef Type.Type)) ->
-    Map (SIR.ID.ID "ValueIden") (Maybe ValueRef) ->
-    Map (SIR.ID.ID "VariantIden") (Maybe Type.ADT.VariantIndex) ->
-    Arena.Arena (Maybe (DeclRef Type.Type)) TypeExprEvaledKey ->
-    Arena.Arena (Maybe Type.Type) TypeExprEvaledAsTypeKey ->
+    DeclIdenFinalResults ->
+    ValueIdenFinalResults ->
+    VariantIdenFinalResults ->
+    TypeExprsFinalEvaled ->
+    TypeExprsFinalEvaledAsTypes ->
     Arena.Arena (Maybe InfixGroupResult) InfixGroupedKey ->
     SIR.SIR LastSIR ->
     Compiler.WithDiagnostics Error (PatternCheck.NotUseful LastSIR) RIR.RIR
-convert decl_iden_resolved_arena value_iden_resolved_arena variant_iden_resolved_arena type_expr_evaled_arena type_expr_evaled_as_type_arena infix_grouped_arena (SIR.SIR modules adts type_synonyms quant_vars vars (SIR.CU root_module main_function)) = do
+convert decl_idens_resolved value_idens_resolved variant_idens_resolved type_exprs_evaled type_exprs_evaled_as_types infix_grouped_arena (SIR.SIR modules adts type_synonyms quant_vars vars (SIR.CU root_module main_function)) = do
     let vars_converted = Arena.transform (\ (SIR.Variable _ id ty (Located sp _)) -> RIR.Variable id ty sp) vars
     ((adts_converted, type_synonyms_converted, cu), vars_with_new) <-
         IDGen.run_id_gen_t ID.ExprID'RIRGen $
@@ -104,7 +100,7 @@ convert decl_iden_resolved_arena value_iden_resolved_arena variant_iden_resolved
                             cu <- convert_root_module main_function (Arena.get modules root_module)
                             pure (adts_converted, type_synonyms_converted, cu)
                         )
-                        (adts, type_synonyms, decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena, infix_grouped_arena)
+                        (adts, type_synonyms, decl_idens_resolved, value_idens_resolved, variant_idens_resolved, type_exprs_evaled, type_exprs_evaled_as_types, infix_grouped_arena)
                     )
                     vars_converted
     pure (RIR.RIR adts_converted type_synonyms_converted quant_vars vars_with_new cu)

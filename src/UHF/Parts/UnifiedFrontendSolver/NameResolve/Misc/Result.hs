@@ -8,10 +8,12 @@ module UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result
     , DeclIdenFinalResults
     , ValueIdenFinalResults
     , VariantIdenFinalResults
-    , TypeExprEvaledKey
-    , TypeExprEvaledArena
-    , TypeExprEvaledAsTypeKey
-    , TypeExprEvaledAsTypeArena
+    , TypeExprsEvaled
+    , TypeExprsEvaledAsTypes
+    , TypeExprsAlmostFinalEvaled
+    , TypeExprsAlmostFinalEvaledAsTypes
+    , TypeExprsFinalEvaled
+    , TypeExprsFinalEvaledAsTypes
     ) where
 
 import UHF.Prelude
@@ -23,7 +25,6 @@ import qualified UHF.Data.SIR.ID as SIR.ID
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Error as Error
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef, ValueRef)
 import UHF.Parts.UnifiedFrontendSolver.SolveResult (SolveResult)
-import qualified UHF.Util.Arena as Arena
 import qualified UHF.Data.IR.Type as Type
 
 type DeclIdenResults = Map (SIR.ID.ID "DeclIden") (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise (DeclRef TypeWithInferVar.Type))
@@ -36,16 +37,11 @@ type VariantIdenFinalResults = Map (SIR.ID.ID "VariantIden") (Maybe Type.ADT.Var
 
 type DeclIdenFinalResults = Map (SIR.ID.ID "DeclIden") (Maybe (DeclRef Type.Type))
 
-newtype TypeExprEvaledKey = TypeExprEvaledKey Arena.KeyData deriving (Show, Eq, Ord)
-instance Arena.Key TypeExprEvaledKey where
-    make_key = TypeExprEvaledKey
-    unmake_key (TypeExprEvaledKey i) = i
-type TypeExprEvaledArena =
-    Arena.Arena (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise (DeclRef TypeWithInferVar.Type)) TypeExprEvaledKey
+type TypeExprsEvaled = Map (SIR.ID.ID "TypeExpr") (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise (DeclRef TypeWithInferVar.Type))
+type TypeExprsEvaledAsTypes = Map (SIR.ID.ID "TypeExprEvaledAsType") (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise TypeWithInferVar.Type)
 
-newtype TypeExprEvaledAsTypeKey = TypeExprEvaledAsTypeKey Arena.KeyData deriving (Show, Eq, Ord)
-instance Arena.Key TypeExprEvaledAsTypeKey where
-    make_key = TypeExprEvaledAsTypeKey
-    unmake_key (TypeExprEvaledAsTypeKey i) = i
-type TypeExprEvaledAsTypeArena =
-    Arena.Arena (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise TypeWithInferVar.Type) TypeExprEvaledAsTypeKey
+type TypeExprsAlmostFinalEvaled = Map (SIR.ID.ID "TypeExpr") (Maybe (DeclRef TypeWithInferVar.Type))
+type TypeExprsAlmostFinalEvaledAsTypes = Map (SIR.ID.ID "TypeExprEvaledAsType") (Maybe TypeWithInferVar.Type)
+
+type TypeExprsFinalEvaled = Map (SIR.ID.ID "TypeExpr") (Maybe (DeclRef Type.Type))
+type TypeExprsFinalEvaledAsTypes = Map (SIR.ID.ID "TypeExprEvaledAsType") (Maybe Type.Type)

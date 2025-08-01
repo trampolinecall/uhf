@@ -22,11 +22,9 @@ import qualified UHF.Data.AST.PP as AST.PP
 import qualified UHF.Data.BackendIR as BackendIR
 import qualified UHF.Data.BackendIR.PP as BackendIR.PP
 import qualified UHF.Data.IR.Type as IR.Type
-import qualified UHF.Data.IR.Type.ADT as IR.Type.ADT
 import qualified UHF.Data.RIR as RIR
 import qualified UHF.Data.RIR.PP as RIR.PP
 import qualified UHF.Data.SIR as SIR
-import qualified UHF.Data.SIR.ID as SIR.ID
 import qualified UHF.Data.SIR.PP as SIR.PP
 import qualified UHF.Diagnostic as Diagnostic
 import qualified UHF.Diagnostic.Settings as DiagnosticSettings
@@ -43,21 +41,20 @@ import qualified UHF.Parts.ToSIR as ToSIR
 import qualified UHF.Source.File as File
 import qualified UHF.Source.FormattedString as FormattedString
 import qualified UHF.Util.Arena as Arena
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (TypeExprEvaledKey, TypeExprEvaledAsTypeKey)
 import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupResult, InfixGroupedKey)
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameResolve.NameMaps
 import qualified UHF.Parts.UnifiedFrontendSolver as UnifiedFrontendSolver
 import Data.Functor.Const (Const)
-import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef, ValueRef)
+import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (DeclIdenFinalResults, ValueIdenFinalResults, VariantIdenFinalResults, TypeExprsFinalEvaled, TypeExprsFinalEvaledAsTypes)
 
 type AST = [AST.Decl]
 type FirstSIR = SIR.SIR ((), Const () (), (), (), (), (), ())
-type SolvedSIR = (SIR.SIR (NameResolve.NameMaps.NameContextKey, Const () (), IR.Type.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, Maybe IR.Type.Type, InfixGroupedKey)
-        , Map (SIR.ID.ID "DeclIden") (Maybe (DeclRef IR.Type.Type))
-        , Map (SIR.ID.ID "ValueIden") (Maybe ValueRef)
-        , Map (SIR.ID.ID "VariantIden") (Maybe IR.Type.ADT.VariantIndex)
-        , Arena.Arena (Maybe (DeclRef IR.Type.Type)) TypeExprEvaledKey
-        , Arena.Arena (Maybe IR.Type.Type) TypeExprEvaledAsTypeKey
+type SolvedSIR = (SIR.SIR (NameResolve.NameMaps.NameContextKey, Const () (), IR.Type.Type, (), (), Maybe IR.Type.Type, InfixGroupedKey)
+        , DeclIdenFinalResults
+        , ValueIdenFinalResults
+        , VariantIdenFinalResults
+        , TypeExprsFinalEvaled
+        , TypeExprsFinalEvaledAsTypes
         , Arena.Arena (Maybe InfixGroupResult) InfixGroupedKey)
 type RIR = RIR.RIR
 type ANFIR = ANFIR.ANFIR
@@ -191,7 +188,7 @@ get_solved_sir = get_or_calculate _get_solved_sir (\ cache solved_sir -> cache {
 get_rir :: PhaseResultsState (RIR, Outputable)
 get_rir = get_or_calculate _get_rir (\ cache rir -> cache { _get_rir = rir }) to_rir
     where
-        to_rir = get_solved_sir >>= run_stage_on_previous_stage_output (convert_errors . (\ (solved_sir, decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena, infix_group_result_arena ) -> ToRIR.convert decl_iden_resolved_arena value_iden_resolved_arena variant_iden_resolved_arena type_expr_evaled_arena type_expr_evaled_as_type_arena infix_group_result_arena solved_sir))
+        to_rir = get_solved_sir >>= run_stage_on_previous_stage_output (convert_errors . (\ (solved_sir, decl_idens_resolved, value_idens_resolved, variant_idens_resolved, type_exprs_evaled, type_exprs_evaled_as_types, infix_group_result_arena ) -> ToRIR.convert decl_idens_resolved value_idens_resolved variant_idens_resolved type_exprs_evaled type_exprs_evaled_as_types infix_group_result_arena solved_sir))
 
 get_anfir :: PhaseResultsState (ANFIR, Outputable)
 get_anfir = get_or_calculate _get_anfir (\ cache anfir -> cache { _get_anfir = anfir }) to_anfir

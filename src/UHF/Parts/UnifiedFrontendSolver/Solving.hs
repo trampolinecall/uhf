@@ -16,6 +16,7 @@ module UHF.Parts.UnifiedFrontendSolver.Solving
 import UHF.Prelude
 
 import Data.Functor.Const (Const)
+import qualified Data.Map as Map
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
@@ -28,23 +29,20 @@ import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as Na
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Refs (DeclRef, ValueRef)
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result
     ( DeclIdenResults
-    , TypeExprEvaledArena
-    , TypeExprEvaledAsTypeArena
-    , TypeExprEvaledAsTypeKey
-    , TypeExprEvaledKey
+    , TypeExprsEvaled
+    , TypeExprsEvaledAsTypes
     , ValueIdenResults
     , VariantIdenResults
     )
 import UHF.Parts.UnifiedFrontendSolver.SolveResult (SolveResult)
 import qualified UHF.Util.Arena as Arena
-import qualified Data.Map as Map
 
 type SolvingStage =
     ( NameMaps.NameContextKey
     , Const () () -- TODO: remove this stage item
     , TypeWithInferVar.Type
-    , TypeExprEvaledKey
-    , TypeExprEvaledAsTypeKey
+    , ()
+    , ()
     , TypeWithInferVar.Type
     , InfixGroupedKey
     )
@@ -54,8 +52,8 @@ type SolveMonad =
         ( ( DeclIdenResults
           , ValueIdenResults
           , VariantIdenResults
-          , TypeExprEvaledArena
-          , TypeExprEvaledAsTypeArena
+          , TypeExprsEvaled
+          , TypeExprsEvaledAsTypes
           )
         , InfixGroupedArena
         , TypeWithInferVar.InferVarArena
@@ -92,13 +90,13 @@ get_variant_iden_resolved key = do
     pure $ variant_iden_resolved_arena Map.! key
 
 get_type_expr_evaled ::
-    TypeExprEvaledKey -> SolveMonad (SolveResult (Maybe NameResolve.Error.Error) Compiler.ErrorReportedPromise (DeclRef TypeWithInferVar.Type))
+    SIR.ID.ID "TypeExpr" -> SolveMonad (SolveResult (Maybe NameResolve.Error.Error) Compiler.ErrorReportedPromise (DeclRef TypeWithInferVar.Type))
 get_type_expr_evaled key = do
-    ((_, _, _, type_expr_evaled_arena, _), _, _) <- get
-    pure $ Arena.get type_expr_evaled_arena key
+    ((_, _, _, type_exprs_evaled, _), _, _) <- get
+    pure $ type_exprs_evaled Map.! key
 
 get_type_expr_evaled_as_type ::
-    TypeExprEvaledAsTypeKey -> SolveMonad (SolveResult (Maybe NameResolve.Error.Error) Compiler.ErrorReportedPromise TypeWithInferVar.Type)
+    SIR.ID.ID "TypeExprEvaledAsType" -> SolveMonad (SolveResult (Maybe NameResolve.Error.Error) Compiler.ErrorReportedPromise TypeWithInferVar.Type)
 get_type_expr_evaled_as_type key = do
-    ((_, _, _, _, type_expr_evaled_as_type_arena), _, _) <- get
-    pure $ Arena.get type_expr_evaled_as_type_arena key
+    ((_, _, _, _, type_exprs_evaled_as_types), _, _) <- get
+    pure $ type_exprs_evaled_as_types Map.! key

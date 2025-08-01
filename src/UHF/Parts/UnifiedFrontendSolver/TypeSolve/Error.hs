@@ -16,11 +16,12 @@ import qualified UHF.PP as PP
 import qualified UHF.Util.Arena as Arena
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.EvaledAsType as EvaledAsType
 import UHF.Data.IR.TypeWithInferVar.PP.InferVarNamer (InferVarNamer, run_infer_var_namer, make_infer_var_name_messages)
+import qualified UHF.Data.SIR as SIR
 
 data ErrorTypeContext
-    = forall t. ErrorTypeContext
-        (Arena.Arena (Type.ADT t) Type.ADTKey)
-        (Arena.Arena (Type.TypeSynonym t) Type.TypeSynonymKey)
+    = forall stage. ErrorTypeContext
+        (Arena.Arena (SIR.ADT stage) Type.ADTKey)
+        (Arena.Arena (SIR.TypeSynonym stage) Type.TypeSynonymKey)
         (Arena.Arena Type.QuantVar Type.QuantVarKey)
         InferVarArena
 
@@ -151,4 +152,4 @@ instance Diagnostic.ToError Error where
     to_error (NotAType err) = Diagnostic.to_error err
 
 pp_type_with_error_context :: Bool -> ErrorTypeContext -> Type -> InferVarNamer PP.Token
-pp_type_with_error_context name_infer_vars (ErrorTypeContext adts type_synonyms quant_vars infer_vars) = pp_type name_infer_vars adts type_synonyms quant_vars infer_vars
+pp_type_with_error_context name_infer_vars (ErrorTypeContext adts type_synonyms quant_vars infer_vars) = pp_type name_infer_vars (todo adts) (todo type_synonyms) quant_vars infer_vars -- TODO: make this work

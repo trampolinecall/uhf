@@ -20,7 +20,6 @@ import qualified UHF.Data.SIR as SIR
 import qualified UHF.Parts.UnifiedFrontendSolver.Error as UnifiedError (Error(TSError))
 import qualified UHF.Util.Arena as Arena
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.EvaledAsType (evaled_as_type)
-import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.Intrinsics as Intrinsics
 
 solve :: TypeSolveTask -> SolveMonad (ProgressMade TypeSolveTask)
@@ -54,14 +53,14 @@ solve (GetValueRefType vr more) = do
             (SIR.SIR _ _ _ _ vars _) <- ask_sir
             let SIR.Variable _ ty _ = Arena.get vars var
             pure $ ProgressMade [more ty]
-        SIR.ValueRef'ADTVariantConstructor variant_index@(Type.ADT.VariantIndex _ adt_key _) -> do
+        SIR.ValueRef'ADTVariantConstructor variant_index@(SIR.ADTVariantIndex _ adt_key _) -> do
             (SIR.SIR _ adts _ _ _ _) <- ask_sir
-            let (Type.ADT _ _ adt_type_params _) = Arena.get adts adt_key
-            let variant = Type.ADT.get_variant adts variant_index
+            let (SIR.ADT _ _ adt_type_params _) = Arena.get adts adt_key
+            let variant = SIR.get_adt_variant adts variant_index
             case variant of
-                Type.ADT.Variant'Named _ _ _ -> error "bound value should not be made for a named adt variant" -- TODO: statically make sure this cant happen?
-                Type.ADT.Variant'Anon _ _ fields -> do
-                    fields_evaled <- sequence <$> mapM (get_type_expr_evaled_as_type . snd . snd) fields
+                SIR.ADTVariant'Named _ _ _ -> error "bound value should not be made for a named adt variant" -- TODO: statically make sure this cant happen?
+                SIR.ADTVariant'Anon _ _ fields -> do
+                    fields_evaled <- sequence <$> mapM (get_type_expr_evaled_as_type . (\(_, _, teeatk) -> teeatk)) fields
                     case fields_evaled of
                         Solved fields_evaled -> do
                             let change_quant_vars ty =
@@ -175,7 +174,7 @@ apply_ty sp (Type'InferVar infer_var) arg = do
         InferVar _ Fresh -> pure Nothing
 apply_ty sp ty@(Type'ADT adt params_already_applied) arg = do
     SIR.SIR _ adts _ _ _ _ <- ask_sir
-    let (Type.ADT _ _ type_params _) = Arena.get adts adt
+    let (SIR.ADT _ _ type_params _) = Arena.get adts adt
     if length params_already_applied < length type_params -- TODO: check kind of arg when higher kinds are implemented
           then pure $ Just $ Right $ Type'ADT adt (params_already_applied <> [arg])
           else Just <$> (Left <$> (DoesNotTakeTypeArgument <$> get_error_type_context <*> pure sp <*> pure ty))
@@ -217,7 +216,7 @@ unify (Type'Synonym a_syn_key, a_var_map) b =
 
 unify a (Type'Synonym b_syn_key, b_var_map) = do
     (SIR.SIR _ _ type_synonyms _ _ _) <- lift $ lift ask_sir
-    let (Type.TypeSynonym _ _ (_, b_expansion)) = Arena.get type_synonyms b_syn_key
+    let (SIR.TypeSynonym _ _ _ b_expansion) = Arena.get type_synonyms b_syn_key
     b_expansion <- lift $ lift $ todo b_expansion
 
     unify a (b_expansion, b_var_map)

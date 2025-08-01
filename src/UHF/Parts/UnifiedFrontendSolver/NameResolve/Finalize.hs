@@ -3,7 +3,6 @@ module UHF.Parts.UnifiedFrontendSolver.NameResolve.Finalize (finalize) where
 import UHF.Prelude
 
 import qualified UHF.Compiler as Compiler
-import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Data.SIR as SIR
 import UHF.Parts.UnifiedFrontendSolver.Error (Error (NRError))
@@ -23,7 +22,7 @@ import qualified UHF.Util.Arena as Arena
 finalize ::
     ( IdenResolvedArena (SIR.DeclRef TypeWithInferVar.Type)
     , IdenResolvedArena SIR.ValueRef
-    , IdenResolvedArena Type.ADT.VariantIndex
+    , IdenResolvedArena SIR.ADTVariantIndex
     , TypeExprEvaledArena
     , TypeExprEvaledAsTypeArena
     ) ->
@@ -32,7 +31,7 @@ finalize ::
         Void
         ( Arena.Arena (Maybe (SIR.DeclRef TypeWithInferVar.Type)) (IdenResolvedKey (SIR.DeclRef TypeWithInferVar.Type))
         , Arena.Arena (Maybe SIR.ValueRef) (IdenResolvedKey SIR.ValueRef)
-        , Arena.Arena (Maybe Type.ADT.VariantIndex) (IdenResolvedKey Type.ADT.VariantIndex)
+        , Arena.Arena (Maybe SIR.ADTVariantIndex) (IdenResolvedKey SIR.ADTVariantIndex)
         , Arena.Arena (Maybe (SIR.DeclRef TypeWithInferVar.Type)) TypeExprEvaledKey
         , Arena.Arena (Maybe TypeWithInferVar.Type) TypeExprEvaledAsTypeKey
         )

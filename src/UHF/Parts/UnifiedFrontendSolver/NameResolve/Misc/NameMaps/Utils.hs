@@ -8,7 +8,6 @@ module UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps.Utils
 import UHF.Prelude
 
 import qualified UHF.Data.IR.Type as Type
-import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Data.SIR as SIR
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.DeclAt (DeclAt (..))
@@ -16,21 +15,21 @@ import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps (ADTVariantChil
 import UHF.Source.Located (Located (Located))
 import qualified UHF.Util.Arena as Arena
 
-decls_to_children :: Monad under => [SIR.Binding stage] -> [Type.ADTKey] -> [Type.TypeSynonymKey] -> ReaderT (SIR.SIR stage) under ([DeclChild], [ValueChild], [ADTVariantChild])
+decls_to_children :: Monad under => [SIR.Binding stage] -> [SIR.ADTKey] -> [SIR.TypeSynonymKey] -> ReaderT (SIR.SIR stage) under ([DeclChild], [ValueChild], [ADTVariantChild])
 decls_to_children bindings adts type_synonyms = do
     (SIR.SIR _ adt_arena type_synonym_arena _ _ _) <- ask
     let (adt_decl_entries, adt_val_entries, adt_variant_entries) =
             adts
                 & map
                     ( \adt ->
-                        let (Type.ADT _ (Located adt_name_sp adt_name) _ _) = Arena.get adt_arena adt
+                        let (SIR.ADT _ (Located adt_name_sp adt_name) _ _) = Arena.get adt_arena adt
                             (variant_constructors, variant_patterns) =
-                                Type.ADT.variant_idxs adt_arena adt
+                                SIR.adt_variant_idxs adt_arena adt
                                     & map
                                         ( \variant_index ->
-                                            case Type.ADT.get_variant adt_arena variant_index of
-                                                Type.ADT.Variant'Anon (Located variant_name_sp variant_name) _ _ -> ((variant_name, DeclAt variant_name_sp, SIR.ValueRef'ADTVariantConstructor variant_index), (variant_name, DeclAt variant_name_sp, variant_index))
-                                                Type.ADT.Variant'Named _ _ _ -> todo
+                                            case SIR.get_adt_variant adt_arena variant_index of
+                                                SIR.ADTVariant'Anon (Located variant_name_sp variant_name) _ _ -> ((variant_name, DeclAt variant_name_sp, SIR.ValueRef'ADTVariantConstructor variant_index), (variant_name, DeclAt variant_name_sp, variant_index))
+                                                SIR.ADTVariant'Named _ _ _ -> todo
                                         )
                                     & unzip
                         in ([(adt_name, DeclAt adt_name_sp, SIR.DeclRef'Type $ TypeWithInferVar.Type'ADT adt [])], variant_constructors, variant_patterns) -- TODO: make this deal with named variants too; also TODO: move variants to inside their types
@@ -41,7 +40,7 @@ decls_to_children bindings adts type_synonyms = do
             type_synonyms
                 & map
                     ( \synonym ->
-                        let (Type.TypeSynonym _ (Located name_sp name) _) = Arena.get type_synonym_arena synonym
+                        let (SIR.TypeSynonym _ (Located name_sp name) _ _) = Arena.get type_synonym_arena synonym
                             synonym_decl_key = SIR.DeclRef'Type $ TypeWithInferVar.Type'Synonym synonym
                         in ([(name, DeclAt name_sp, synonym_decl_key)], [], [])
                     )

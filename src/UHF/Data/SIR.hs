@@ -9,9 +9,11 @@ module UHF.Data.SIR
     , CU (..)
     , ADT (..)
     , ADTVariant (..)
-    , VariantIndex (..)
-    , FieldIndex (..)
+    , ADTKey
+    , ADTVariantIndex (..)
+    , ADTFieldIndex (..)
     , TypeSynonym (..)
+    , TypeSynonymKey
     , DeclRef (..)
     , ExternPackage (..)
     , ModuleKey
@@ -35,15 +37,15 @@ module UHF.Data.SIR
     , expr_span
     , pattern_span
     , type_expr_span
-    , get_variant
-    , get_field_type
-    , get_field_id
-    , variant_idxs
-    , variant_field_idxs
-    , variant_name
-    , variant_id
-    , variant_field_ids
-    , variant_field_types
+    , get_adt_variant
+    , get_adt_field_type
+    , get_adt_field_id
+    , adt_variant_idxs
+    , adt_variant_field_idxs
+    , adt_variant_name
+    , adt_variant_id
+    , adt_variant_field_ids
+    , adt_variant_field_types
     ) where
 
 import UHF.Prelude
@@ -66,7 +68,7 @@ type AllShowable stage =
     , Stage.IdenResolvedKeyHasInstance (Stage.TypeExprEvaledAsTypeKey stage) Show stage
     , Stage.IdenResolvedKeyHasInstance (DeclRef (Stage.TypeInRefer stage)) Show stage
     , Stage.IdenResolvedKeyHasInstance ValueRef Show stage
-    , Stage.IdenResolvedKeyHasInstance VariantIndex Show stage
+    , Stage.IdenResolvedKeyHasInstance ADTVariantIndex Show stage
     )
 
 -- "syntax based ir"
@@ -91,8 +93,8 @@ data ADTVariant stage
     | ADTVariant'Anon (Located Text) ID.ADTVariantID [(ID.ADTFieldID, TypeExpr stage, Stage.TypeExprEvaledAsTypeKey stage)]
 deriving instance AllShowable stage => Show (ADTVariant stage)
 data DoNotConstruct = DoNotConstruct deriving (Show, Eq, Ord)
-data VariantIndex = VariantIndex DoNotConstruct ADTKey Int deriving (Show, Eq, Ord)
-data FieldIndex = FieldIndex DoNotConstruct VariantIndex Int deriving (Show, Eq, Ord)
+data ADTVariantIndex = ADTVariantIndex DoNotConstruct ADTKey Int deriving (Show, Eq, Ord)
+data ADTFieldIndex = ADTFieldIndex DoNotConstruct ADTVariantIndex Int deriving (Show, Eq, Ord)
 
 data TypeSynonym stage = TypeSynonym ID.DeclID (Located Text) (TypeExpr stage) (Stage.TypeExprEvaledAsTypeKey stage)
 deriving instance AllShowable stage => Show (TypeSynonym stage)
@@ -152,7 +154,7 @@ type OperatorRef stage = SplitIdentifier ValueRef stage
 
 data ValueRef
     = ValueRef'Variable VariableKey
-    | ValueRef'ADTVariantConstructor VariantIndex
+    | ValueRef'ADTVariantConstructor ADTVariantIndex
     | ValueRef'Intrinsic Intrinsics.Intrinsic
     deriving Show
 
@@ -189,7 +191,7 @@ data Expr stage
     | Expr'Poison ID.ExprID (Stage.TypeInfo stage) Span
 deriving instance AllShowable stage => Show (Expr stage)
 
-type PatternADTVariantRef stage = SplitIdentifier VariantIndex stage
+type PatternADTVariantRef stage = SplitIdentifier ADTVariantIndex stage
 
 data Pattern stage
     = Pattern'Variable (Stage.TypeInfo stage) Span VariableKey
@@ -298,44 +300,44 @@ pattern_span (Pattern'AnonADTVariant _ sp _ _ _) = sp
 pattern_span (Pattern'NamedADTVariant _ sp _ _ _) = sp
 
 -- TODO: find a better place to put these (but it is hard because there will probably be cyclic imports)
-variant_idxs :: Arena.Arena (ADT stage) ADTKey -> ADTKey -> [VariantIndex]
-variant_idxs arena key =
+adt_variant_idxs :: Arena.Arena (ADT stage) ADTKey -> ADTKey -> [ADTVariantIndex]
+adt_variant_idxs arena key =
     let (ADT _ _ _ variants) = Arena.get arena key
-    in map (VariantIndex DoNotConstruct key) [0 .. length variants - 1]
-variant_field_idxs :: Arena.Arena (ADT stage) ADTKey -> VariantIndex -> [FieldIndex]
-variant_field_idxs arena v_idx =
-    let variant = get_variant arena v_idx
+    in map (ADTVariantIndex DoNotConstruct key) [0 .. length variants - 1]
+adt_variant_field_idxs :: Arena.Arena (ADT stage) ADTKey -> ADTVariantIndex -> [ADTFieldIndex]
+adt_variant_field_idxs arena v_idx =
+    let variant = get_adt_variant arena v_idx
     in case variant of
-        (ADTVariant'Anon _ _ fields) -> fields & zipWith (\i _ -> FieldIndex DoNotConstruct v_idx i) [0 ..]
-        (ADTVariant'Named _ _ fields) -> fields & zipWith (\i _ -> FieldIndex DoNotConstruct v_idx i) [0 ..]
+        (ADTVariant'Anon _ _ fields) -> fields & zipWith (\i _ -> ADTFieldIndex DoNotConstruct v_idx i) [0 ..]
+        (ADTVariant'Named _ _ fields) -> fields & zipWith (\i _ -> ADTFieldIndex DoNotConstruct v_idx i) [0 ..]
 
-variant_name :: ADTVariant stage -> Located Text
-variant_name (ADTVariant'Anon name _ _) = name
-variant_name (ADTVariant'Named name _ _) = name
-variant_id :: ADTVariant stage -> ID.ADTVariantID
-variant_id (ADTVariant'Anon _ id _) = id
-variant_id (ADTVariant'Named _ id _) = id
-variant_field_ids :: ADTVariant stage -> [ID.ADTFieldID]
-variant_field_ids (ADTVariant'Anon _ _ fields) = map (\(id, _, _) -> id) fields
-variant_field_ids (ADTVariant'Named _ _ fields) = map (\(id, _, _, _) -> id) fields
-variant_field_types :: ADTVariant stage -> [Stage.TypeExprEvaledAsTypeKey stage]
-variant_field_types (ADTVariant'Anon _ _ tys) = map (\(_, _, ty) -> ty) tys
-variant_field_types (ADTVariant'Named _ _ tys) = map (\(_, _, _, ty) -> ty) tys
+adt_variant_name :: ADTVariant stage -> Located Text
+adt_variant_name (ADTVariant'Anon name _ _) = name
+adt_variant_name (ADTVariant'Named name _ _) = name
+adt_variant_id :: ADTVariant stage -> ID.ADTVariantID
+adt_variant_id (ADTVariant'Anon _ id _) = id
+adt_variant_id (ADTVariant'Named _ id _) = id
+adt_variant_field_ids :: ADTVariant stage -> [ID.ADTFieldID]
+adt_variant_field_ids (ADTVariant'Anon _ _ fields) = map (\(id, _, _) -> id) fields
+adt_variant_field_ids (ADTVariant'Named _ _ fields) = map (\(id, _, _, _) -> id) fields
+adt_variant_field_types :: ADTVariant stage -> [Stage.TypeExprEvaledAsTypeKey stage]
+adt_variant_field_types (ADTVariant'Anon _ _ tys) = map (\(_, _, ty) -> ty) tys
+adt_variant_field_types (ADTVariant'Named _ _ tys) = map (\(_, _, _, ty) -> ty) tys
 
--- technically is partial, but because VariantIndexes cannot be constructed outside of this module and this module is careful to only construct them to valid variants, this should hopefully never error in practice
-get_variant :: Arena.Arena (ADT stage) ADTKey -> VariantIndex -> ADTVariant stage
-get_variant adts (VariantIndex _ key i) =
+-- technically is partial, but because ADTVariantIndexes cannot be constructed outside of this module and this module is careful to only construct them to valid variants, this should hopefully never error in practice
+get_adt_variant :: Arena.Arena (ADT stage) ADTKey -> ADTVariantIndex -> ADTVariant stage
+get_adt_variant adts (ADTVariantIndex _ key i) =
     let (ADT _ _ _ variants) = Arena.get adts key
     in variants List.!! i
 
 -- same note about partial but should not be as above
-get_field_type :: Arena.Arena (ADT stage) ADTKey -> FieldIndex -> Stage.TypeExprEvaledAsTypeKey stage
-get_field_type adts (FieldIndex _ variant i) =
-    case get_variant adts variant of
+get_adt_field_type :: Arena.Arena (ADT stage) ADTKey -> ADTFieldIndex -> Stage.TypeExprEvaledAsTypeKey stage
+get_adt_field_type adts (ADTFieldIndex _ variant i) =
+    case get_adt_variant adts variant of
         ADTVariant'Named _ _ fields -> fields List.!! i & \(_, _, _, ty) -> ty
         ADTVariant'Anon _ _ fields -> fields List.!! i & \(_, _, ty) -> ty
-get_field_id :: Arena.Arena (ADT stage) ADTKey -> FieldIndex -> ID.ADTFieldID
-get_field_id adts (FieldIndex _ variant i) =
-    case get_variant adts variant of
+get_adt_field_id :: Arena.Arena (ADT stage) ADTKey -> ADTFieldIndex -> ID.ADTFieldID
+get_adt_field_id adts (ADTFieldIndex _ variant i) =
+    case get_adt_variant adts variant of
         ADTVariant'Named _ _ fields -> fields List.!! i & \(id, _, _, _) -> id
         ADTVariant'Anon _ _ fields -> fields List.!! i & \(id, _, _) -> id

@@ -51,7 +51,7 @@ value_iden_resolved_selector s =
                        , infer_vars
                        )
                    )
-variant_iden_resolved_selector :: State (IdenResolvedArena Type.ADT.VariantIndex) () -> SolveMonad ()
+variant_iden_resolved_selector :: State (IdenResolvedArena SIR.ADTVariantIndex) () -> SolveMonad ()
 variant_iden_resolved_selector s =
     state $
         \( (decl_iden_resolved_arena, value_iden_resolved_arena, variant_iden_resolved_arena, type_expr_evaled_arena, type_expr_evaled_as_type_arena)
@@ -103,7 +103,7 @@ resolve_decl_iden ::
 resolve_decl_iden = resolve decl_iden_resolved_selector look_up_decl get_decl_child
 resolve_value_iden :: IdenResolveTask SIR.ValueRef -> SolveMonad (ProgressMade (IdenResolveTask SIR.ValueRef))
 resolve_value_iden = resolve value_iden_resolved_selector look_up_value get_value_child
-resolve_variant_iden :: IdenResolveTask Type.ADT.VariantIndex -> SolveMonad (ProgressMade (IdenResolveTask Type.ADT.VariantIndex))
+resolve_variant_iden :: IdenResolveTask SIR.ADTVariantIndex -> SolveMonad (ProgressMade (IdenResolveTask SIR.ADTVariantIndex))
 resolve_variant_iden = resolve variant_iden_resolved_selector look_up_variant get_variant_child
 
 resolve ::
@@ -154,7 +154,7 @@ look_up_value ::
     NameMaps.NameContextKey -> Located Text -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise SIR.ValueRef)
 look_up_value name_maps_stack_key name = ask >>= \(name_maps_arena, _, _) -> report_errored $ NameMaps.look_up_value name_maps_arena name_maps_stack_key name
 look_up_variant ::
-    NameMaps.NameContextKey -> Located Text -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise Type.ADT.VariantIndex)
+    NameMaps.NameContextKey -> Located Text -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise SIR.ADTVariantIndex)
 look_up_variant name_maps_stack_key name = ask >>= \(name_maps_arena, _, _) -> report_errored $ NameMaps.look_up_variant name_maps_arena name_maps_stack_key name
 
 get_decl_child ::
@@ -166,7 +166,7 @@ get_value_child ::
     SIR.DeclRef TypeWithInferVar.Type -> Located Text -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise SIR.ValueRef)
 get_value_child parent name = ask >>= \(_, sir_child_maps, _) -> report_errored $ NameMaps.get_value_child sir_child_maps parent name
 get_variant_child ::
-    SIR.DeclRef TypeWithInferVar.Type -> Located Text -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise Type.ADT.VariantIndex)
+    SIR.DeclRef TypeWithInferVar.Type -> Located Text -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise SIR.ADTVariantIndex)
 get_variant_child parent name = ask >>= \(_, sir_child_maps, _) -> report_errored $ NameMaps.get_variant_child sir_child_maps parent name
 
 report_errored :: SolveResult Error.Error Error.Error res -> SolveMonad (SolveResult (Maybe Error.Error) Compiler.ErrorReportedPromise res)

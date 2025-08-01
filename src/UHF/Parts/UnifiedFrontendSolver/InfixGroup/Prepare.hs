@@ -2,8 +2,6 @@ module UHF.Parts.UnifiedFrontendSolver.InfixGroup.Prepare (prepare) where
 
 import UHF.Prelude
 
-import qualified UHF.Data.IR.Type as Type
-import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Data.SIR as SIR
 import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupedArena, InfixGroupedKey)
@@ -45,22 +43,22 @@ prepare_mod :: SIR.Module Unprepared -> PrepareState (SIR.Module Prepared)
 prepare_mod (SIR.Module id name_map bindings adts type_synonyms) = SIR.Module id name_map <$> mapM prepare_binding bindings <*> pure adts <*> pure type_synonyms
 
 prepare_adt :: SIR.ADT Unprepared -> PrepareState (SIR.ADT Prepared)
-prepare_adt (Type.ADT id name type_vars variants) = Type.ADT id name type_vars <$> mapM prepare_variant variants
+prepare_adt (SIR.ADT id name type_vars variants) = SIR.ADT id name type_vars <$> mapM prepare_variant variants
     where
-        prepare_variant (Type.ADT.Variant'Named name id fields) =
-            Type.ADT.Variant'Named name id
+        prepare_variant (SIR.ADTVariant'Named name id fields) =
+            SIR.ADTVariant'Named name id
                 <$> mapM
-                    (\(id, name, (ty, as_type)) -> prepare_type_expr ty >>= \ty -> pure (id, name, (ty, as_type)))
+                    (\(id, name, ty, as_type) -> prepare_type_expr ty >>= \ty -> pure (id, name, ty, as_type))
                     -- (\(id, name, ty) -> prepare_type_expr ty >>= \ty -> pure (id, name, ty))
                     fields
-        prepare_variant (Type.ADT.Variant'Anon name id fields) =
-            Type.ADT.Variant'Anon name id
-                <$> mapM (\(id, (ty, as_type)) -> prepare_type_expr ty >>= \ty -> pure (id, (ty, as_type))) fields
+        prepare_variant (SIR.ADTVariant'Anon name id fields) =
+            SIR.ADTVariant'Anon name id
+                <$> mapM (\(id, ty, as_type) -> prepare_type_expr ty >>= \ty -> pure (id, ty, as_type)) fields
 
 prepare_type_synonym :: SIR.TypeSynonym Unprepared -> PrepareState (SIR.TypeSynonym Prepared)
-prepare_type_synonym (Type.TypeSynonym id name (expansion, ex_as_type)) = do
+prepare_type_synonym (SIR.TypeSynonym id name expansion ex_as_type) = do
     expansion <- prepare_type_expr expansion
-    pure $ Type.TypeSynonym id name (expansion, ex_as_type)
+    pure $ SIR.TypeSynonym id name expansion ex_as_type
 
 prepare_variable :: SIR.Variable Unprepared -> PrepareState (SIR.Variable Prepared)
 prepare_variable (SIR.Variable varid tyinfo n) = pure $ SIR.Variable varid tyinfo n

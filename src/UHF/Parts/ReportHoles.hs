@@ -8,7 +8,6 @@ import UHF.Source.Located (Located (unlocate))
 import UHF.Source.Span (Span)
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type as Type
-import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.Type.PP as Type.PP
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Diagnostic as Diagnostic
@@ -24,7 +23,7 @@ type TypeExprEvaledAsTypeArena = Arena.Arena (Maybe Type.Type) TypeExprEvaledAsT
 data Error stage = Error (ADTArena stage) (TypeSynonymArena stage) QuantVarArena Span (Located Text) Type.Type
 instance Diagnostic.ToError (Error stage) where
     to_error (Error adts type_synonyms vars sp name ty) =
-        let message = "hole: '?" <> unlocate name <> "' of type '" <> PP.render (Type.PP.refer_type adts type_synonyms vars ty) <> "'"
+        let message = "hole: '?" <> unlocate name <> "' of type '" <> PP.render (Type.PP.refer_type (todo adts) (todo type_synonyms) vars ty) <> "'" -- TODO: make this work
         in Diagnostic.Error (Just sp) message [] []
 
 report_holes :: (SIR.TypeInfo stage ~ Maybe Type.Type, SIR.TypeExprEvaledAsTypeKey stage ~ TypeExprEvaledAsTypeKey) => Arena.Arena (Maybe Type.Type) TypeExprEvaledAsTypeKey -> SIR.SIR stage -> Compiler.WithDiagnostics (Error stage) Void ()
@@ -37,13 +36,13 @@ module_ key =
     in mapM_ binding bindings >> mapM_ adt adts >> mapM_ type_synonym type_synonyms
 
 adt :: (SIR.TypeInfo stage ~ Maybe Type.Type, SIR.TypeExprEvaledAsTypeKey stage ~ TypeExprEvaledAsTypeKey) => Type.ADTKey -> ReaderT (SIR.SIR stage, TypeExprEvaledAsTypeArena) (Compiler.WithDiagnostics (Error stage) Void) ()
-adt key = ask >>= \ (SIR.SIR _ adts _ _ _ _, _) -> let (Type.ADT _ _ _ variants) = Arena.get adts key in mapM_ variant variants
+adt key = ask >>= \ (SIR.SIR _ adts _ _ _ _, _) -> let (SIR.ADT _ _ _ variants) = Arena.get adts key in mapM_ variant variants
     where
-        variant (Type.ADT.Variant'Named _ _ fields) = mapM_ (\ (_, _, (ty, _)) -> type_expr ty) fields
-        variant (Type.ADT.Variant'Anon _ _ fields) = mapM_ (\ (_, (ty, _)) -> type_expr ty) fields
+        variant (SIR.ADTVariant'Named _ _ fields) = mapM_ (\ (_, _, ty, _) -> type_expr ty) fields
+        variant (SIR.ADTVariant'Anon _ _ fields) = mapM_ (\ (_, ty, _) -> type_expr ty) fields
 
 type_synonym :: (SIR.TypeInfo stage ~ Maybe Type.Type, SIR.TypeExprEvaledAsTypeKey stage ~ TypeExprEvaledAsTypeKey) => Type.TypeSynonymKey -> ReaderT (SIR.SIR stage, TypeExprEvaledAsTypeArena) (Compiler.WithDiagnostics (Error stage) Void) ()
-type_synonym key = ask >>= \ (SIR.SIR _ _ type_synonyms _ _ _, _) -> let (Type.TypeSynonym _ _ (expansion, _)) = Arena.get type_synonyms key in type_expr expansion
+type_synonym key = ask >>= \ (SIR.SIR _ _ type_synonyms _ _ _, _) -> let (SIR.TypeSynonym _ _ expansion _) = Arena.get type_synonyms key in type_expr expansion
 
 binding :: (SIR.TypeInfo stage ~ Maybe Type.Type, SIR.TypeExprEvaledAsTypeKey stage ~ TypeExprEvaledAsTypeKey) => SIR.Binding stage -> ReaderT (SIR.SIR stage, TypeExprEvaledAsTypeArena) (Compiler.WithDiagnostics (Error stage) Void) ()
 binding (SIR.Binding p _ e) = pattern p >> expr e

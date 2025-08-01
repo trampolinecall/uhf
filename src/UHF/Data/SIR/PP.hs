@@ -35,9 +35,9 @@ type DumpableConstraints stage = (Show Int)
 dump_main_module :: DumpableConstraints stage => SIR.SIR stage -> Text
 dump_main_module ir@(SIR.SIR modules _ _ _ _ (SIR.CU root_module _)) = PP.render $ runReader (define_module $ Arena.get modules root_module) ir
 
-get_adt_arena :: IRReader stage (Arena.Arena (Type.ADT (SIR.TypeExpr stage, SIR.TypeExprEvaledAsTypeKey stage)) Type.ADTKey)
+get_adt_arena :: IRReader stage (Arena.Arena (SIR.ADT stage) Type.ADTKey)
 get_adt_arena = reader (\ (SIR.SIR _ adts _ _ _ _) -> adts)
-get_type_synonym_arena :: IRReader stage (Arena.Arena (Type.TypeSynonym (SIR.TypeExpr stage, SIR.TypeExprEvaledAsTypeKey stage)) Type.TypeSynonymKey)
+get_type_synonym_arena :: IRReader stage (Arena.Arena (SIR.TypeSynonym stage) Type.TypeSynonymKey)
 get_type_synonym_arena = reader (\ (SIR.SIR _ _ syns _ _ _) -> syns)
 get_quant_var_arena :: IRReader stage (Arena.Arena Type.QuantVar Type.QuantVarKey)
 get_quant_var_arena = reader (\ (SIR.SIR _ _ _ vars _ _) -> vars)
@@ -46,9 +46,9 @@ get_var :: SIR.VariableKey -> IRReader stage (SIR.Variable stage)
 get_var k = reader (\ (SIR.SIR _ _ _ _ vars _) -> Arena.get vars k)
 get_module :: SIR.ModuleKey -> IRReader stage (SIR.Module stage)
 get_module k = reader (\ (SIR.SIR modules _ _ _ _ _) -> Arena.get modules k)
-get_adt :: Type.ADTKey -> IRReader stage (Type.ADT (SIR.TypeExpr stage, SIR.TypeExprEvaledAsTypeKey stage))
+get_adt :: Type.ADTKey -> IRReader stage (SIR.ADT stage)
 get_adt k = reader (\ (SIR.SIR _ adts _ _ _ _) -> Arena.get adts k)
-get_type_syn :: Type.TypeSynonymKey -> IRReader stage (Type.TypeSynonym (SIR.TypeExpr stage, SIR.TypeExprEvaledAsTypeKey stage))
+get_type_syn :: Type.TypeSynonymKey -> IRReader stage (SIR.TypeSynonym stage)
 get_type_syn k = reader (\ (SIR.SIR _ _ syns _ _ _) -> Arena.get syns k)
 get_quant_var :: Type.QuantVarKey -> IRReader stage Type.QuantVar
 get_quant_var k = reader (\ (SIR.SIR _ _ _ quant_vars _ _) -> Arena.get quant_vars k)
@@ -57,8 +57,8 @@ define_module :: DumpableConstraints stage => SIR.Module stage -> IRReader stage
 define_module (SIR.Module _ _ bindings adts type_synonyms) =
     ask >>= \ sir ->
     get_quant_var_arena >>= \ quant_var_arena ->
-    mapM (\ k -> get_adt k >>= \ adt -> pure (Type.PP.define_adt quant_var_arena (\ (ty, _) -> runReader (type_expr ty) sir) adt)) adts >>= \ adts_defined ->
-    mapM (\ k -> get_type_syn k >>= \ ts -> pure (Type.PP.define_type_synonym (\ (ty, _) -> runReader (type_expr ty) sir) ts)) type_synonyms >>= \ type_synonyms_defined ->
+    mapM (\ k -> get_adt k >>= \ adt -> pure todo {- (Type.PP.define_adt quant_var_arena (\ (ty, _) -> runReader (type_expr ty) sir) adt) -}) adts >>= \ adts_defined -> -- TODO: make this work
+    mapM (\ k -> get_type_syn k >>= \ ts -> pure (todo {- Type.PP.define_type_synonym (\ (ty, _) -> runReader (type_expr ty) sir) ts -})) type_synonyms >>= \ type_synonyms_defined -> -- TODO: make this work
     mapM define_binding bindings >>= \ bindings_defined ->
     pure (PP.flat_block $ adts_defined <> type_synonyms_defined <> bindings_defined)
 
@@ -84,10 +84,10 @@ refer_decl d = case d of
     SIR.DeclRef'Type ty -> refer_type ty
     SIR.DeclRef'ExternPackage SIR.ExternPackage'IntrinsicsPackage -> pure "uhf_intrinsics"
 
-refer_adt_variant :: Type.ADT.VariantIndex -> IRReader stage PP.Token
-refer_adt_variant variant_index@(Type.ADT.VariantIndex _ adt_key _) =
-    Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_referred ->
-    Type.ADT.get_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
+refer_adt_variant :: SIR.ADTVariantIndex -> IRReader stage PP.Token
+refer_adt_variant variant_index@(SIR.ADTVariantIndex _ adt_key _) =
+    todo {- Type.PP.refer_adt <$> get_adt adt_key -} >>= \ adt_referred -> -- TODO: make this work
+    todo {- Type.ADT.get_variant <$> get_adt_arena <*> pure variant_index -} >>= \ variant -> -- TODO: make this work
     let variant_name = unlocate $ Type.ADT.variant_name variant
     in pure $ PP.List [adt_referred, "::", PP.String variant_name]
 
@@ -99,13 +99,13 @@ instance DumpableType stage TypeWithInferVar.Type where
         adt_arena <- get_adt_arena
         type_synonym_arena <- get_type_synonym_arena
         quant_var_arena <- get_quant_var_arena
-        pure (fst $ TypeWithInferVar.PP.InferVarNamer.run_infer_var_namer $ TypeWithInferVar.PP.pp_type False adt_arena type_synonym_arena quant_var_arena todo t) -- TODO
+        pure (fst $ TypeWithInferVar.PP.InferVarNamer.run_infer_var_namer $ TypeWithInferVar.PP.pp_type False (todo adt_arena) (todo type_synonym_arena) quant_var_arena todo t) -- TODO: make this work
 instance DumpableType stage Type.Type where
     refer_type t = do
         adt_arena <- get_adt_arena
         type_synonym_arena <- get_type_synonym_arena
         quant_var_arena <- get_quant_var_arena
-        pure (Type.PP.refer_type adt_arena type_synonym_arena quant_var_arena t)
+        pure (Type.PP.refer_type (todo adt_arena) (todo type_synonym_arena) quant_var_arena t) -- TODO: make this work
 
 class DumpableIdentifier stage i where
     refer_iden :: i -> IRReader stage PP.Token
@@ -123,7 +123,7 @@ instance DumpableType stage t => DumpableIdentifier stage (SIR.DeclRef t) where
     refer_iden = refer_decl
 instance DumpableIdentifier stage SIR.ValueRef where
     refer_iden = refer_bv
-instance DumpableIdentifier stage Type.ADT.VariantIndex where
+instance DumpableIdentifier stage SIR.ADTVariantIndex where
     refer_iden = refer_adt_variant
 
 -- TODO: figure out how to overload this for if resolved is not ()
@@ -190,8 +190,8 @@ pp_let let_kw bindings adts type_synonyms body = do
     sir <- ask
     bindings <- mapM define_binding bindings
     quant_var_arena <- get_quant_var_arena
-    adts <- mapM (\ k -> get_adt k >>= \ adt -> pure (Type.PP.define_adt quant_var_arena (\ (ty, _) -> runReader (type_expr ty) sir) adt)) adts
-    type_synonyms <- mapM (\ k -> get_type_syn k >>= \ ts -> pure (Type.PP.define_type_synonym (\ (ty, _) -> runReader (type_expr ty) sir) ts)) type_synonyms
+    adts <- mapM (\ k -> get_adt k >>= \ adt -> pure (Type.PP.define_adt quant_var_arena (\ (ty, _) -> runReader (type_expr ty) sir) (todo adt))) adts -- TODO: make this work
+    type_synonyms <- mapM (\ k -> get_type_syn k >>= \ ts -> pure (Type.PP.define_type_synonym (\ (ty, _) -> runReader (type_expr ty) sir) (todo ts))) type_synonyms -- TODO: make this work
     body <- expr body
     let all_decls = adts ++ type_synonyms ++ bindings
     pure

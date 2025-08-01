@@ -116,7 +116,7 @@ expr (BackendIR.Expr'Match _ _ t) = tree t >>= \ t -> pure (PP.List ["match ", t
         matcher (BackendIR.Match'AnonADTVariant m_variant) =
             either
                 (\ _ -> pure "<name resolution error>")
-                (\ variant_index@(Type.ADT.VariantIndex _ adt_key _) ->
+                (\ variant_index@(Type.ADT.VariantIndex adt_key _) ->
                     Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_refer ->
                     Type.ADT.get_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
                     let variant_name = Type.ADT.variant_name variant
@@ -130,7 +130,7 @@ expr (BackendIR.Expr'ADTDestructure _ _ base m_field_idx) =
     refer_binding base >>= \ base ->
     either
         (\ _ -> pure ("<error>", "<error>"))
-        (\ (Type.ADT.FieldIndex _ variant_idx@(Type.ADT.VariantIndex _ adt_key _) field_idx) ->
+        (\ (Type.ADT.FieldIndex variant_idx@(Type.ADT.VariantIndex adt_key _) field_idx) ->
             Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_referred ->
             Type.ADT.get_variant <$> get_adt_arena <*> pure variant_idx >>= \ variant ->
             let variant_name = Type.ADT.variant_name variant
@@ -140,7 +140,7 @@ expr (BackendIR.Expr'ADTDestructure _ _ base m_field_idx) =
     pure (PP.List ["(", base, " as ", variant_referred, ").", field])
 expr (BackendIR.Expr'Forall _ _ var group e) = quant_var var >>= \ var -> define_binding_group group >>= \ group -> refer_binding e >>= \ e -> pure (PP.FirstOnLineIfMultiline $ PP.List ["#(", var, ") ", PP.indented_block [group, e]])
 expr (BackendIR.Expr'TypeApply _ _ e arg) = refer_binding e >>= \ e -> refer_type arg >>= \ arg -> pure (PP.List [e, "#(", arg, ")"])
-expr (BackendIR.Expr'MakeADT _ _ variant_index@(Type.ADT.VariantIndex _ adt_key _) tyargs args) =
+expr (BackendIR.Expr'MakeADT _ _ variant_index@(Type.ADT.VariantIndex adt_key _) tyargs args) =
     Type.PP.refer_adt <$> get_adt adt_key >>= \ adt_referred ->
     Type.ADT.get_variant <$> get_adt_arena <*> pure variant_index >>= \ variant ->
     mapM refer_binding args >>= \ args ->

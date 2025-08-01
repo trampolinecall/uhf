@@ -3,8 +3,6 @@ module UHF.Parts.UnifiedFrontendSolver.NameResolve.Prepare (prepare) where
 import UHF.Prelude
 
 import Data.Functor.Const (Const (Const))
-import qualified UHF.Data.IR.Type as Type
-import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameMaps
@@ -20,7 +18,6 @@ import UHF.Parts.UnifiedFrontendSolver.NameResolve.Task (IdenResolveTask (..), T
 import UHF.Parts.UnifiedFrontendSolver.SolveResult
 import UHF.Source.Located (Located (Located))
 import qualified UHF.Util.Arena as Arena
-import qualified UHF.Data.SIR.ADT as SIR.ADT
 
 type Unprepared = (NameMaps.NameContextKey, Const () (), TypeWithInferVar.Type, (), (), (), ())
 type Prepared = (NameMaps.NameContextKey, IdenResolvedKey (), TypeWithInferVar.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, (), ())
@@ -30,14 +27,14 @@ type PrepareState =
     WriterT
         ( [IdenResolveTask (SIR.DeclRef TypeWithInferVar.Type)]
         , [IdenResolveTask SIR.ValueRef]
-        , [IdenResolveTask SIR.ADT.VariantIndex]
+        , [IdenResolveTask SIR.ADTVariantIndex]
         , [TypeExprEvalTask]
         , [TypeExprEvalAsTypeTask]
         )
         ( State
             ( IdenResolvedArena (SIR.DeclRef TypeWithInferVar.Type)
             , IdenResolvedArena SIR.ValueRef
-            , IdenResolvedArena SIR.ADT.VariantIndex
+            , IdenResolvedArena SIR.ADTVariantIndex
             , TypeExprEvaledArena
             , TypeExprEvaledAsTypeArena
             )
@@ -58,7 +55,7 @@ new_val_iden_resolved_key make_task = do
     pure key
 
 new_variant_iden_resolved_key ::
-    (IdenResolvedKey SIR.ADT.VariantIndex -> IdenResolveTask SIR.ADT.VariantIndex) -> PrepareState (IdenResolvedKey SIR.ADT.VariantIndex)
+    (IdenResolvedKey SIR.ADTVariantIndex -> IdenResolveTask SIR.ADTVariantIndex) -> PrepareState (IdenResolvedKey SIR.ADTVariantIndex)
 new_variant_iden_resolved_key make_task = do
     key <- state $ \(decls, vals, variants, tees, teeats) -> let (key, variants') = Arena.put (Inconclusive Nothing) variants in (key, (decls, vals, variants', tees, teeats))
     writer ((), ([], [], [make_task key], [], []))
@@ -81,13 +78,13 @@ prepare ::
     ( SIR.SIR Prepared
     , ( IdenResolvedArena (SIR.DeclRef TypeWithInferVar.Type)
       , IdenResolvedArena SIR.ValueRef
-      , IdenResolvedArena SIR.ADT.VariantIndex
+      , IdenResolvedArena SIR.ADTVariantIndex
       , TypeExprEvaledArena
       , TypeExprEvaledAsTypeArena
       )
     , ( [IdenResolveTask (SIR.DeclRef TypeWithInferVar.Type)]
       , [IdenResolveTask SIR.ValueRef]
-      , [IdenResolveTask SIR.ADT.VariantIndex]
+      , [IdenResolveTask SIR.ADTVariantIndex]
       , [TypeExprEvalTask]
       , [TypeExprEvalAsTypeTask]
       )

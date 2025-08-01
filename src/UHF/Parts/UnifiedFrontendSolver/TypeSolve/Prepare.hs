@@ -87,20 +87,20 @@ add_in_module (SIR.Module id name_context_key bindings adts type_synonyms) = SIR
 
 -- TODO: figure this out
 add_in_adt :: SIR.ADT Unadded -> AddMonad (Arena.Arena (SIR.ADT whatever) Type.ADTKey) (Arena.Arena (SIR.TypeSynonym whatever2) Type.TypeSynonymKey) QuantVarArena vars (SIR.ADT Added)
-add_in_adt (Type.ADT id name quant_vars variants) = Type.ADT id name quant_vars <$> mapM add_in_variant variants
+add_in_adt (SIR.ADT id name quant_vars variants) = SIR.ADT id name quant_vars <$> mapM add_in_variant variants
     where
-        add_in_variant (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id <$> mapM (\ (id, name, (field, as_type)) -> (id, name,) <$> ((,as_type) <$> do_field field)) fields
-        add_in_variant (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id <$> mapM (\ (id, (field, as_type)) -> (id,) <$> ((,as_type) <$> do_field field)) fields
+        add_in_variant (SIR.ADTVariant'Named name id fields) = SIR.ADTVariant'Named name id <$> mapM (\ (id, name, field, as_type) -> (id, name,,as_type) <$> do_field field) fields
+        add_in_variant (SIR.ADTVariant'Anon name id fields) = SIR.ADTVariant'Anon name id <$> mapM (\ (id, field, as_type) -> (id,,as_type) <$> do_field field) fields
 
         do_field ty_expr = do
             ty_expr <- add_in_type_expr ty_expr
             let ty = SIR.type_expr_evaled ty_expr
             (adt_arena, type_synonym_arena, quant_var_arena, _) <- ask
-            tell [WhenTypeExprEvaled ty $ \ty -> EvalAsType (SIR.type_expr_span ty_expr) ty $ \ty -> Constraint $ Expect InADTFieldType (Located (SIR.type_expr_span ty_expr) (TypeWithInferVar.kind_of adt_arena (todo type_synonym_arena) quant_var_arena ty)) TypeWithInferVar.Type'Kind'Type]
+            tell [WhenTypeExprEvaled ty $ \ty -> EvalAsType (SIR.type_expr_span ty_expr) ty $ \ty -> Constraint $ Expect InADTFieldType (Located (SIR.type_expr_span ty_expr) (TypeWithInferVar.kind_of (todo adt_arena) (todo type_synonym_arena) quant_var_arena ty)) TypeWithInferVar.Type'Kind'Type]
             pure ty_expr
 
 add_in_type_synonym :: SIR.TypeSynonym Unadded -> AddMonad adts type_synonyms quant_vars vars (SIR.TypeSynonym Added)
-add_in_type_synonym (Type.TypeSynonym id name (expansion, as_type)) = Type.TypeSynonym id name <$> ((,as_type) <$> add_in_type_expr expansion)
+add_in_type_synonym (SIR.TypeSynonym id name expansion as_type) = SIR.TypeSynonym id name <$> add_in_type_expr expansion <*> pure as_type
 
 add_in_type_expr :: SIR.TypeExpr Unadded -> AddMonad adts type_synonyms quant_vars vars (SIR.TypeExpr Added)
 add_in_type_expr (SIR.TypeExpr'Refer evaled resolved sp name_context iden) = pure (SIR.TypeExpr'Refer evaled resolved sp name_context iden)

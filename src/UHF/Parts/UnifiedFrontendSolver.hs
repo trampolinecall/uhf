@@ -6,7 +6,6 @@ import Data.Functor.Const (Const)
 import Data.List (sortOn)
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type as Type
-import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Data.SIR as SIR
 import UHF.Parts.UnifiedFrontendSolver.Error (Error)
@@ -45,7 +44,7 @@ solve ::
         ( SIR.SIR PostSolve
         , ( Arena.Arena (Maybe (SIR.DeclRef Type.Type)) (IdenResolvedKey (SIR.DeclRef Type.Type))
           , Arena.Arena (Maybe SIR.ValueRef) (IdenResolvedKey SIR.ValueRef)
-          , Arena.Arena (Maybe Type.ADT.VariantIndex) (IdenResolvedKey Type.ADT.VariantIndex)
+          , Arena.Arena (Maybe SIR.ADTVariantIndex) (IdenResolvedKey SIR.ADTVariantIndex)
           , Arena.Arena (Maybe (SIR.DeclRef Type.Type)) TypeExprEvaledKey
           , Arena.Arena (Maybe Type.Type) TypeExprEvaledAsTypeKey
           )
@@ -78,7 +77,7 @@ solve sir = do
 solve' ::
     ( ( [NameResolve.Task.IdenResolveTask (SIR.DeclRef TypeWithInferVar.Type)]
       , [NameResolve.Task.IdenResolveTask SIR.ValueRef]
-      , [NameResolve.Task.IdenResolveTask Type.ADT.VariantIndex]
+      , [NameResolve.Task.IdenResolveTask SIR.ADTVariantIndex]
       , [Either TypeSolve.Task.TypeSolveTask NameResolve.Task.TypeExprEvalTask]
       , [NameResolve.Task.TypeExprEvalAsTypeTask]
       )
@@ -88,7 +87,7 @@ solve' ::
     StateT
         ( ( NameResolve.Result.IdenResolvedArena (SIR.DeclRef TypeWithInferVar.Type)
           , NameResolve.Result.IdenResolvedArena SIR.ValueRef
-          , NameResolve.Result.IdenResolvedArena Type.ADT.VariantIndex
+          , NameResolve.Result.IdenResolvedArena SIR.ADTVariantIndex
           , NameResolve.Result.TypeExprEvaledArena
           , NameResolve.Result.TypeExprEvaledAsTypeArena
           )

@@ -14,7 +14,6 @@ module UHF.Parts.UnifiedFrontendSolver.Solving
 import UHF.Prelude
 
 import qualified UHF.Compiler as Compiler
-import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Error as NameResolve.Error
 import UHF.Parts.UnifiedFrontendSolver.SolveResult (SolveResult)
@@ -39,7 +38,7 @@ type SolveMonad =
     StateT
         ( ( IdenResolvedArena (SIR.DeclRef TypeWithInferVar.Type)
           , IdenResolvedArena SIR.ValueRef
-          , IdenResolvedArena Type.ADT.VariantIndex
+          , IdenResolvedArena SIR.ADTVariantIndex
           , TypeExprEvaledArena
           , TypeExprEvaledAsTypeArena
           )
@@ -73,7 +72,7 @@ get_value_iden_resolved key = do
     pure $ Arena.get value_iden_resolved_arena key
 
 get_variant_iden_resolved ::
-    IdenResolvedKey Type.ADT.VariantIndex -> SolveMonad (SolveResult (Maybe NameResolve.Error.Error) Compiler.ErrorReportedPromise Type.ADT.VariantIndex)
+    IdenResolvedKey SIR.ADTVariantIndex -> SolveMonad (SolveResult (Maybe NameResolve.Error.Error) Compiler.ErrorReportedPromise SIR.ADTVariantIndex)
 get_variant_iden_resolved key = do
     ((_, _, variant_iden_resolved_arena, _, _), _, _) <- get
     pure $ Arena.get variant_iden_resolved_arena key

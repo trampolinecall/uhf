@@ -20,7 +20,6 @@ import qualified UHF.Data.AST.PP as AST.PP
 import qualified UHF.Data.BackendIR as BackendIR
 import qualified UHF.Data.BackendIR.PP as BackendIR.PP
 import qualified UHF.Data.IR.Type as IR.Type
-import qualified UHF.Data.IR.Type.ADT as IR.Type.ADT
 import qualified UHF.Data.RIR as RIR
 import qualified UHF.Data.RIR.PP as RIR.PP
 import qualified UHF.Data.SIR as SIR
@@ -51,7 +50,7 @@ type FirstSIR = SIR.SIR ((), Const () (), (), (), (), (), ())
 type SolvedSIR = (SIR.SIR (NameResolve.NameMaps.NameContextKey, IdenResolvedKey (), IR.Type.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, Maybe IR.Type.Type, InfixGroupedKey)
         , Arena.Arena (Maybe (SIR.DeclRef IR.Type.Type)) (IdenResolvedKey (SIR.DeclRef IR.Type.Type))
         , Arena.Arena (Maybe SIR.ValueRef) (IdenResolvedKey SIR.ValueRef)
-        , Arena.Arena (Maybe IR.Type.ADT.VariantIndex) (IdenResolvedKey IR.Type.ADT.VariantIndex)
+        , Arena.Arena (Maybe SIR.ADTVariantIndex) (IdenResolvedKey SIR.ADTVariantIndex)
         , Arena.Arena (Maybe (SIR.DeclRef IR.Type.Type)) TypeExprEvaledKey
         , Arena.Arena (Maybe IR.Type.Type) TypeExprEvaledAsTypeKey
         , Arena.Arena (Maybe InfixGroupResult) InfixGroupedKey)

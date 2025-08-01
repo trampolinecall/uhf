@@ -25,7 +25,7 @@ type Type = Maybe Type.Type
 
 type DIden = Maybe (SIR.DeclRef Type.Type)
 type VIden = Maybe SIR.ValueRef
-type PIden = Maybe Type.ADT.VariantIndex
+type PIden = Maybe SIR.ADTVariantIndex
 
 type LastSIR =
     ( NameResolve.NameMaps.NameContextKey, IdenResolvedKey (), Type.Type, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, Maybe Type.Type, InfixGroupedKey)
@@ -46,7 +46,7 @@ type ConvertState =
         , Arena.Arena (SIR.TypeSynonym LastSIR) Type.TypeSynonymKey
         , Arena.Arena (Maybe (SIR.DeclRef Type.Type)) (IdenResolvedKey (SIR.DeclRef Type.Type))
         , Arena.Arena (Maybe SIR.ValueRef) (IdenResolvedKey SIR.ValueRef)
-        , Arena.Arena (Maybe Type.ADT.VariantIndex) (IdenResolvedKey Type.ADT.VariantIndex)
+        , Arena.Arena (Maybe SIR.ADTVariantIndex) (IdenResolvedKey SIR.ADTVariantIndex)
         , Arena.Arena (Maybe (SIR.DeclRef Type.Type)) TypeExprEvaledKey
         , Arena.Arena (Maybe Type.Type) TypeExprEvaledAsTypeKey
         , Arena.Arena (Maybe InfixGroupResult) InfixGroupedKey
@@ -63,7 +63,7 @@ get_value_iden_resolved k = do
     (_, _, _, value_iden_resolved_arena, _, _, _, _) <- ask
     pure $ Arena.get value_iden_resolved_arena k
 
-get_variant_iden_resolved :: IdenResolvedKey Type.ADT.VariantIndex -> ConvertState (Maybe Type.ADT.VariantIndex)
+get_variant_iden_resolved :: IdenResolvedKey SIR.ADTVariantIndex -> ConvertState (Maybe SIR.ADTVariantIndex)
 get_variant_iden_resolved k = do
     (_, _, _, _, variant_iden_resolved_arena, _, _, _) <- ask
     pure $ Arena.get variant_iden_resolved_arena k
@@ -78,10 +78,16 @@ new_made_up_expr_id make =
     lift (lift $ lift IDGen.gen_id) >>= \ id ->
     pure (make id)
 
+convert_sir_variant_index :: SIR.ADTVariantIndex -> Type.ADT.VariantIndex
+convert_sir_variant_index (SIR.ADTVariantIndex _ ak i) = Type.ADT.VariantIndex ak i
+
+convert_sir_field_index :: SIR.ADTFieldIndex -> Type.ADT.FieldIndex
+convert_sir_field_index (SIR.ADTFieldIndex _ vi i)= Type.ADT.FieldIndex (convert_sir_variant_index vi) i
+
 convert ::
     Arena.Arena (Maybe (SIR.DeclRef Type.Type)) (IdenResolvedKey (SIR.DeclRef Type.Type)) ->
     Arena.Arena (Maybe SIR.ValueRef) (IdenResolvedKey SIR.ValueRef) ->
-    Arena.Arena (Maybe Type.ADT.VariantIndex) (IdenResolvedKey Type.ADT.VariantIndex) ->
+    Arena.Arena (Maybe SIR.ADTVariantIndex) (IdenResolvedKey SIR.ADTVariantIndex) ->
     Arena.Arena (Maybe (SIR.DeclRef Type.Type)) TypeExprEvaledKey ->
     Arena.Arena (Maybe Type.Type) TypeExprEvaledAsTypeKey ->
     Arena.Arena (Maybe InfixGroupResult) InfixGroupedKey ->
@@ -110,7 +116,7 @@ convert_root_module main_function (SIR.Module _ _ bindings adts type_synonyms) =
     adt_constructors <- adts
         & mapM ( \ adt_key -> do
             (adts, _, _, _, _, _, _, _) <- ask
-            let variants = Type.ADT.variant_idxs adts adt_key
+            let variants = SIR.adt_variant_idxs adts adt_key
             mapM (\ variant_idx -> (variant_idx,) <$> make_adt_constructor variant_idx) variants
         )
         & fmap concat
@@ -120,12 +126,12 @@ convert_root_module main_function (SIR.Module _ _ bindings adts type_synonyms) =
     bindings_sorted <- sort_bindings (bindings <> map (\ (_, (_, binding)) -> binding) adt_constructors)
     pure (RIR.CU bindings_sorted adts type_synonyms main_function)
 
-make_adt_constructor :: Type.ADT.VariantIndex -> ConvertState (RIR.VariableKey, RIR.Binding)
-make_adt_constructor variant_index@(Type.ADT.VariantIndex _ adt_key _) = do
+make_adt_constructor :: SIR.ADTVariantIndex -> ConvertState (RIR.VariableKey, RIR.Binding)
+make_adt_constructor variant_index@(SIR.ADTVariantIndex _ adt_key _) = do
     (adts, _, _, _, _, _, _, _) <- ask
-    let Type.ADT _ _ adt_quant_vars _ = Arena.get adts adt_key
-    let variant = Type.ADT.get_variant adts variant_index
-    let variant_name_sp = just_span $ Type.ADT.variant_name variant
+    let SIR.ADT _ _ adt_quant_vars _ = Arena.get adts adt_key
+    let variant = SIR.get_adt_variant adts variant_index
+    let variant_name_sp = just_span $ SIR.adt_variant_name variant
 
     -- TODO: do not use the adt quant variables? duplicate them instead?
     let wrap_in_forall = case adt_quant_vars of
@@ -134,7 +140,7 @@ make_adt_constructor variant_index@(Type.ADT.VariantIndex _ adt_key _) = do
 
     let make_lambdas type_params variant_index refer_to_params [] =
             let ty_params_as_tys = map Type.Type'QuantVar type_params
-            in new_made_up_expr_id $ \ id -> RIR.Expr'MakeADT id variant_name_sp variant_index (map Just ty_params_as_tys) refer_to_params
+            in new_made_up_expr_id $ \ id -> RIR.Expr'MakeADT id variant_name_sp (convert_sir_variant_index variant_index) (map Just ty_params_as_tys) refer_to_params
 
         make_lambdas type_params variant_index refer_to_params (cur_field_ty:more_field_tys) =
             new_variable cur_field_ty variant_name_sp >>= \ param_var_key ->
@@ -143,22 +149,22 @@ make_adt_constructor variant_index@(Type.ADT.VariantIndex _ adt_key _) = do
             make_lambdas type_params variant_index (refer_to_params <> [refer_expr]) more_field_tys >>= \ lambda_result ->
             new_made_up_expr_id (\ id -> RIR.Expr'Lambda id variant_name_sp param_var_key (TopologicalSort.get_captures param_var_key lambda_result) lambda_result)
 
-    lambdas <- mapM (get_type_expr_evaled_as_type . snd) (Type.ADT.variant_field_types variant) >>= make_lambdas adt_quant_vars variant_index [] >>= wrap_in_forall
+    lambdas <- mapM get_type_expr_evaled_as_type (SIR.adt_variant_field_types variant) >>= make_lambdas adt_quant_vars variant_index [] >>= wrap_in_forall
 
     var_arena <- lift get
     var_key <- new_variable (RIR.expr_type var_arena lambdas) variant_name_sp
     pure (var_key, RIR.Binding var_key lambdas)
 
 convert_adt :: SIR.ADT LastSIR -> ConvertState (Type.ADT Type)
-convert_adt (Type.ADT id name quant_vars variants) = Type.ADT id name quant_vars <$> mapM convert_variant variants
+convert_adt (SIR.ADT id name quant_vars variants) = Type.ADT id name quant_vars <$> mapM convert_variant variants
     where
-        convert_variant (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id <$> mapM (\ (id, name, (_, ty)) -> (id, name,) <$> get_type_expr_evaled_as_type ty) fields
-        convert_variant (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id <$> mapM (\ (id, (_, ty)) -> (id,) <$> get_type_expr_evaled_as_type ty) fields
+        convert_variant (SIR.ADTVariant'Named name id fields) = Type.ADT.Variant'Named name id <$> mapM (\ (id, name, _, ty) -> (id, name,) <$> get_type_expr_evaled_as_type ty) fields
+        convert_variant (SIR.ADTVariant'Anon name id fields) = Type.ADT.Variant'Anon name id <$> mapM (\ (id, _, ty) -> (id,) <$> get_type_expr_evaled_as_type ty) fields
 
 convert_type_synonym :: SIR.TypeSynonym LastSIR -> ConvertState (Type.TypeSynonym Type)
-convert_type_synonym (Type.TypeSynonym id name (_, expansion)) = Type.TypeSynonym id name <$> get_type_expr_evaled_as_type expansion
+convert_type_synonym (SIR.TypeSynonym id name _ expansion) = Type.TypeSynonym id name <$> get_type_expr_evaled_as_type expansion
 
-convert_binding :: SIR.Binding LastSIR -> ReaderT (Map Type.ADT.VariantIndex RIR.VariableKey) ConvertState [RIR.Binding]
+convert_binding :: SIR.Binding LastSIR -> ReaderT (Map SIR.ADTVariantIndex RIR.VariableKey) ConvertState [RIR.Binding]
 convert_binding (SIR.Binding pat eq_sp expr) = convert_expr expr >>= lift . assign_pattern eq_sp pat
 
 new_made_up_var_id :: ConvertState ID.VariableID
@@ -168,7 +174,7 @@ new_variable ty sp =
     new_made_up_var_id >>= \ id ->
     lift (state $ Arena.put (RIR.Variable id ty sp))
 
-convert_expr :: SIR.Expr LastSIR -> ReaderT (Map Type.ADT.VariantIndex RIR.VariableKey) ConvertState RIR.Expr
+convert_expr :: SIR.Expr LastSIR -> ReaderT (Map SIR.ADTVariantIndex RIR.VariableKey) ConvertState RIR.Expr
 convert_expr (SIR.Expr'Refer id ty sp iden) = do
     adt_constructor_map <- ask
     lift (get_value_iden_resolved (SIR.split_identifier_resolved iden)) >>= \case
@@ -296,15 +302,15 @@ convert_expr (SIR.Expr'Match id ty sp match_tok_sp scrutinee arms) = do
             field_subpat_clauses <- zipWithM pattern_to_clauses field_vars fields
             (adt_arena, _, _, _, _, _, _, _) <- ask
             variant_index <- get_variant_iden_resolved $ SIR.split_identifier_resolved variant_iden
-            let field_idxs = Type.ADT.variant_field_idxs adt_arena <$> variant_index
+            let field_idxs = SIR.adt_variant_field_idxs adt_arena <$> variant_index
             pure $
-                RIR.MatchClause'Match scrutinee_var (RIR.Match'AnonADTVariant variant_index)
+                RIR.MatchClause'Match scrutinee_var (RIR.Match'AnonADTVariant (convert_sir_variant_index <$> variant_index))
                     : case field_idxs of
                         Just field_idxs ->
                             if length field_idxs /= length field_vars
                                 then error "not the right number fields in a anon adt variant pattern" -- sanity check assertion
                             else zipWith3
-                                (\ field_idx field_var field_pat -> RIR.MatchClause'Assign field_var (RIR.MatchAssignRHS'AnonADTVariantField (SIR.pattern_type field_pat) scrutinee_var (Just field_idx)))
+                                (\ field_idx field_var field_pat -> RIR.MatchClause'Assign field_var (RIR.MatchAssignRHS'AnonADTVariantField (SIR.pattern_type field_pat) scrutinee_var (Just $ convert_sir_field_index field_idx)))
                                 field_idxs
                                 field_vars
                                 fields

@@ -10,7 +10,6 @@ import UHF.Parts.UnifiedFrontendSolver.InfixGroup.Misc.Result (InfixGroupedKey)
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.Result (IdenResolvedKey, TypeExprEvaledKey, TypeExprEvaledAsTypeKey, convert_decl_iden_resolved_key)
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type as Type
-import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Parts.UnifiedFrontendSolver.Error as SolveError
@@ -98,13 +97,13 @@ variable :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.Variabl
 variable infer_vars (SIR.Variable id ty name) = SIR.Variable id (type_ infer_vars ty) name
 
 adt :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.ADT WithInferVars -> SIR.ADT WithoutInferVars
-adt infer_vars (Type.ADT id name quant_var variants) = Type.ADT id name quant_var (map variant variants)
+adt infer_vars (SIR.ADT id name quant_var variants) = SIR.ADT id name quant_var (map variant variants)
     where
-        variant (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id (map (\(name, id, (ty, as_type)) -> (name, id, (type_expr infer_vars ty, as_type))) fields)
-        variant (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id (map (\(id, (ty, as_type)) -> (id, (type_expr infer_vars ty, as_type))) fields)
+        variant (SIR.ADTVariant'Named name id fields) = SIR.ADTVariant'Named name id (map (\(name, id, ty, as_type) -> (name, id, type_expr infer_vars ty, as_type)) fields)
+        variant (SIR.ADTVariant'Anon name id fields) = SIR.ADTVariant'Anon name id (map (\(id, ty, as_type) -> (id, type_expr infer_vars ty, as_type)) fields)
 
 type_synonym :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.TypeSynonym WithInferVars -> SIR.TypeSynonym WithoutInferVars
-type_synonym infer_vars (Type.TypeSynonym id name (expansion, expansion_as_type)) = Type.TypeSynonym id name (type_expr infer_vars expansion, expansion_as_type)
+type_synonym infer_vars (SIR.TypeSynonym id name expansion expansion_as_type) = SIR.TypeSynonym id name (type_expr infer_vars expansion) expansion_as_type
 
 binding :: Arena.Arena (Maybe Type) TypeWithInferVar.InferVarKey -> SIR.Binding WithInferVars -> SIR.Binding WithoutInferVars
 binding infer_vars (SIR.Binding p eq_sp e) = SIR.Binding (pattern infer_vars p) eq_sp (expr infer_vars e)

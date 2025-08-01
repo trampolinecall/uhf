@@ -36,7 +36,6 @@ import qualified Data.Map as Map
 
 import qualified GHC.Enum as Enum (enumFromTo, maxBound, minBound)
 import qualified UHF.Data.IR.Intrinsics as Intrinsics
-import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Data.SIR as SIR
 import UHF.Parts.UnifiedFrontendSolver.NameResolve.Error
@@ -50,7 +49,7 @@ import qualified UHF.Util.Arena as Arena
 -- can have 1 function that does some operation on Maps and then 2 exported functions that unwraps the ChildMaps and NameMaps newtypes and applies
 -- that 1 function to the underlying Maps instead of having 2 almost identical functions for both ChildMaps and NameMaps
 data Maps
-    = Maps (Map.Map Text (DeclAt, SIR.DeclRef TypeWithInferVar.Type)) (Map.Map Text (DeclAt, SIR.ValueRef)) (Map.Map Text (DeclAt, Type.ADT.VariantIndex))
+    = Maps (Map.Map Text (DeclAt, SIR.DeclRef TypeWithInferVar.Type)) (Map.Map Text (DeclAt, SIR.ValueRef)) (Map.Map Text (DeclAt, SIR.ADTVariantIndex))
     deriving Show
 
 -- ChilsMaps and NameMaps are very similar datatypes. the difference between them is conceptual: ChildMaps is a map that tells what the children of a
@@ -77,7 +76,7 @@ empty_child_maps = ChildMaps empty_maps
 type Child resolved = (Text, DeclAt, resolved)
 type DeclChild = Child (SIR.DeclRef TypeWithInferVar.Type)
 type ValueChild = Child SIR.ValueRef
-type ADTVariantChild = Child Type.ADT.VariantIndex
+type ADTVariantChild = Child SIR.ADTVariantIndex
 
 add_to_maps :: [DeclChild] -> [ValueChild] -> [ADTVariantChild] -> Maps -> Writer [Error] Maps
 add_to_maps decls values adt_variants maps = do
@@ -144,7 +143,7 @@ look_up_decl ::
 look_up_decl = look_up (\(NameMaps (Maps d _ _)) -> d)
 look_up_value :: Arena.Arena NameContext NameContextKey -> NameContextKey -> Located Text -> SolveResult Error Error SIR.ValueRef
 look_up_value = look_up (\(NameMaps (Maps _ val _)) -> val)
-look_up_variant :: Arena.Arena NameContext NameContextKey -> NameContextKey -> Located Text -> SolveResult Error Error Type.ADT.VariantIndex
+look_up_variant :: Arena.Arena NameContext NameContextKey -> NameContextKey -> Located Text -> SolveResult Error Error SIR.ADTVariantIndex
 look_up_variant = look_up (\(NameMaps (Maps _ _ var)) -> var)
 
 look_up ::
@@ -191,7 +190,7 @@ get_value_child sir_child_maps decl name =
     in case res of
         Just (_, res) -> Solved res
         Nothing -> Errored $ Error'CouldNotFindIn Nothing name -- TODO: put previous
-get_variant_child :: SIRChildMaps -> SIR.DeclRef TypeWithInferVar.Type -> Located Text -> SolveResult Error Error Type.ADT.VariantIndex
+get_variant_child :: SIRChildMaps -> SIR.DeclRef TypeWithInferVar.Type -> Located Text -> SolveResult Error Error SIR.ADTVariantIndex
 get_variant_child sir_child_maps decl name =
     let res = case decl of
             SIR.DeclRef'Module m ->

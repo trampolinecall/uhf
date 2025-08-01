@@ -10,7 +10,6 @@ import Data.Functor.Const (Const (Const))
 import qualified Data.Map as Map
 import qualified UHF.Compiler as Compiler
 import qualified UHF.Data.IR.Type as Type
-import qualified UHF.Data.IR.Type.ADT as Type.ADT
 import qualified UHF.Data.IR.TypeWithInferVar as TypeWithInferVar
 import qualified UHF.Data.SIR as SIR
 import qualified UHF.Parts.UnifiedFrontendSolver.Error as Solve.Error
@@ -126,7 +125,7 @@ assign_in_adts :: Map.Map Type.ADTKey NameMaps.NameContextKey -> UnassignedADTAr
 assign_in_adts adt_parent_name_maps = Arena.transform_with_keyM (assign_in_adt adt_parent_name_maps)
 
 assign_in_adt :: Map.Map Type.ADTKey NameMaps.NameContextKey -> Type.ADTKey -> SIR.ADT Unassigned -> AssignMonad (SIR.ADT Assigned)
-assign_in_adt adt_parent_name_maps adt_key (Type.ADT id name type_vars variants) = do
+assign_in_adt adt_parent_name_maps adt_key (SIR.ADT id name type_vars variants) = do
     let parent = adt_parent_name_maps Map.! adt_key
     new_name_map_stack <- lift $ new_name_map_stack_with_parent parent
 
@@ -134,20 +133,20 @@ assign_in_adt adt_parent_name_maps adt_key (Type.ADT id name type_vars variants)
     lift $ modify_name_map new_name_map_stack $ convert_add_to_name_maps $ NameMaps.add_to_name_maps children [] []
     -- TODO: also populate child map (when child maps for adts are implemented)
 
-    Type.ADT id name type_vars <$> mapM (assign_in_variant new_name_map_stack) variants
+    SIR.ADT id name type_vars <$> mapM (assign_in_variant new_name_map_stack) variants
     where
-        assign_in_variant nc_stack (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id <$> mapM (\(id, name, (ty, ())) -> assign_in_type_expr nc_stack ty >>= \ty -> pure (id, name, (ty, ()))) fields
-        assign_in_variant nc_stack (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id <$> mapM (\(id, (ty, ())) -> assign_in_type_expr nc_stack ty >>= \ty -> pure (id, (ty, ()))) fields
+        assign_in_variant nc_stack (SIR.ADTVariant'Named name id fields) = SIR.ADTVariant'Named name id <$> mapM (\(id, name, ty, ()) -> assign_in_type_expr nc_stack ty >>= \ty -> pure (id, name, ty, ())) fields
+        assign_in_variant nc_stack (SIR.ADTVariant'Anon name id fields) = SIR.ADTVariant'Anon name id <$> mapM (\(id, ty, ()) -> assign_in_type_expr nc_stack ty >>= \ty -> pure (id, ty, ())) fields
 
 assign_in_type_synonyms :: Map.Map Type.TypeSynonymKey NameMaps.NameContextKey -> UnassignedTypeSynonymArena -> AssignMonad AssignedTypeSynonymArena
 assign_in_type_synonyms type_synonym_parent_name_maps = Arena.transform_with_keyM (assign_in_type_synonym type_synonym_parent_name_maps)
 
 assign_in_type_synonym ::
     Map.Map Type.TypeSynonymKey NameMaps.NameContextKey -> Type.TypeSynonymKey -> SIR.TypeSynonym Unassigned -> AssignMonad (SIR.TypeSynonym Assigned)
-assign_in_type_synonym parent_maps synonym_key (Type.TypeSynonym id name (expansion, ())) = do
+assign_in_type_synonym parent_maps synonym_key (SIR.TypeSynonym id name expansion ()) = do
     let parent = parent_maps Map.! synonym_key
     expansion <- assign_in_type_expr parent expansion
-    pure (Type.TypeSynonym id name (expansion, ()))
+    pure $ SIR.TypeSynonym id name expansion ()
 
 assign_in_binding :: NameMaps.NameContextKey -> SIR.Binding Unassigned -> AssignMonad (SIR.Binding Assigned)
 assign_in_binding nc_stack (SIR.Binding target eq_sp expr) = SIR.Binding <$> assign_in_pat nc_stack target <*> pure eq_sp <*> assign_in_expr nc_stack expr

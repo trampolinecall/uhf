@@ -22,9 +22,7 @@ import UHF.Source.Span (Span)
 import qualified UHF.Source.Span as Span
 
 get_compile_tests :: IO TestTree
-get_compile_tests = do
-    filepaths <- compile_test_filepaths
-    pure $ testGroup "compile tests" $ map make_test_case filepaths -- TODO
+get_compile_tests = testGroup "compile tests" . map make_test_case <$> compile_test_filepaths
 
 compile_test_filepaths :: IO [FilePath]
 compile_test_filepaths = Glob.globDir1 compile_test_filepath_pattern compile_test_search_directory
@@ -42,7 +40,7 @@ make_test_case :: FilePath -> TestTree
 make_test_case test_path =
     testCase test_path $ do
         test_file_contents <- Text.IO.readFile test_path
-        let (expected_errors, expected_warnings) = parse_expectations test_file_contents
+        let (expected_errors, expected_warnings, expected_output) = parse_expectations test_file_contents
 
         compile_result <- Driver.compile_returning_diagnostics $ Driver.CompileOptions test_path Nothing [Driver.Check]
         let (compile_errors, compile_warnings) = case compile_result of
@@ -71,6 +69,8 @@ make_test_case test_path =
             ( \(Diagnostic.Warning m_sp msg _ _) -> assertFailure $ "unexpected warning with message '" ++ Text.unpack msg ++ "'" ++ maybe "" (\sp -> " at " ++ Text.unpack (format sp)) m_sp
             )
             unexpected_warnings
+
+        -- TODO: test expected output
     where
         parse_expectations test_file_contents =
             let test_file_contents_str = Text.unpack test_file_contents
@@ -79,7 +79,8 @@ make_test_case test_path =
                 expected_warnings = convert_expects (test_file_contents_str Regex.=~ ("EXPECT compile warning \"([^\"]+)\"" :: [Char]) :: [Regex.MatchText [Char]])
                 noloc_expected_errors = convert_noloc_expects (test_file_contents_str Regex.=~ ("EXPECT anywhere compile error \"([^\"]+)\"" :: [Char]) :: [Regex.MatchText [Char]])
                 noloc_expected_warnings = convert_noloc_expects (test_file_contents_str Regex.=~ ("EXPECT anywhere compile warning \"([^\"]+)\"" :: [Char]) :: [Regex.MatchText [Char]])
-            in (expected_errors ++ noloc_expected_errors, expected_warnings ++ noloc_expected_warnings)
+                expected_output = convert_noloc_expects (test_file_contents_str Regex.=~ ("EXPECT output \"([^\"]+)\"" :: [Char]) :: [Regex.MatchText [Char]])
+            in (expected_errors ++ noloc_expected_errors, expected_warnings ++ noloc_expected_warnings, expected_output)
             where
                 offset_to_line_number offset = Text.count "\n" (Text.take offset test_file_contents) + 1
                 convert_expects =

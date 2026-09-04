@@ -56,10 +56,9 @@ import UHF.Data.IR.Keys (ADTKey, QuantVarKey)
 import UHF.Data.IR.Type (TypeSynonymKey)
 import qualified UHF.Data.IR.Type as Type
 import qualified UHF.Data.IR.Type.ADT as Type.ADT
-import UHF.Data.SIR (Binding (..), DeclRef (..), Expr (..), ExprIdentifierRef, HoleIdentifier, IdenResolvedKey, InfixGroupedKey, Module (..), NameMapIndex, OperatorRef, Pattern (..), PatternADTVariantRef, SplitIdentifier (..), TypeExpr (..), TypeExprEvaledAsTypeKey, TypeExprEvaledKey, TypeInRefer, TypeInfo, TypeSynonym, ValueRef, Variable (..), VariableKey, CU (..), SIR (..))
+import UHF.Data.SIR (ADT, Binding (..), CU (..), DeclRef (..), Expr (..), ExprIdentifierRef, HoleIdentifier, IdenResolvedKey, InfixGroupedKey, Module (..), NameMapIndex, OperatorRef, Pattern (..), PatternADTVariantRef, SIR (..), SplitIdentifier (..), TypeExpr (..), TypeExprEvaledAsTypeKey, TypeExprEvaledKey, TypeInRefer, TypeInfo, TypeSynonym, ValueRef, Variable (..), VariableKey)
 import UHF.Source.Located (Located)
 import UHF.Source.Span (Span)
-import UHF.Data.SIR (ADT)
 import qualified UHF.Util.Arena as Arena
 
 -- TODO: somehow make an overall SIR visitor that can cover all use cases
@@ -68,10 +67,10 @@ class Monad m => TransformsNameMapIndex stage1 stage2 cx m visitor | visitor -> 
     transform_name_map_index :: Proxy visitor -> cx -> NameMapIndex stage1 -> m (NameMapIndex stage2)
     default transform_name_map_index :: NameMapIndex stage1 ~ NameMapIndex stage2 => Proxy visitor -> cx -> NameMapIndex stage1 -> m (NameMapIndex stage2)
     transform_name_map_index _ _ = pure
-class Monad m => TransformsIdenResolvedKey stage1 stage2 cx m visitor | visitor -> stage1 stage2 cx m where
-    transform_iden_resolved_key :: Proxy visitor -> cx -> (rs1 -> m rs2) -> IdenResolvedKey stage1 rs1 -> m (IdenResolvedKey stage2 rs2)
-    default transform_iden_resolved_key :: IdenResolvedKey stage1 rs1 ~ IdenResolvedKey stage2 rs2 => Proxy visitor -> cx -> (rs1 -> m rs2) -> IdenResolvedKey stage1 rs1 -> m (IdenResolvedKey stage2 rs2)
-    transform_iden_resolved_key _ _ _ = pure
+class Monad m => TransformsIdenResolvedKey stage1 stage2 rs1 rs2 cx m visitor | visitor -> stage1 stage2 cx m where
+    transform_iden_resolved_key :: Proxy visitor -> cx -> IdenResolvedKey stage1 rs1 -> m (IdenResolvedKey stage2 rs2)
+    default transform_iden_resolved_key :: (IdenResolvedKey stage1 rs1 ~ IdenResolvedKey stage2 rs2) => Proxy visitor -> cx -> IdenResolvedKey stage1 rs1 -> m (IdenResolvedKey stage2 rs2)
+    transform_iden_resolved_key _ _ = pure
 class Monad m => TransformsTypeInRefer stage1 stage2 cx m visitor | visitor -> stage1 stage2 cx m where
     transform_type_in_refer :: Proxy visitor -> cx -> TypeInRefer stage1 -> m (TypeInRefer stage2)
     default transform_type_in_refer :: TypeInRefer stage1 ~ TypeInRefer stage2 => Proxy visitor -> cx -> TypeInRefer stage1 -> m (TypeInRefer stage2)
@@ -110,7 +109,7 @@ visit_sir' proxy = fmap fst . visit_sir proxy ()
 class Monad m => CUVisitor stage1 stage2 cx m res visitor | visitor -> stage1 stage2 cx m res where
     visit_cu :: Proxy visitor -> cx -> CU stage1 -> m (CU stage2, res)
     default visit_cu :: (res ~ ()) => Proxy visitor -> cx -> CU stage1 -> m (CU stage2, res)
-    visit_cu proxy cx (CU root_module main_function) = pure (CU root_module main_function, ())
+    visit_cu _ _ (CU root_module main_function) = pure (CU root_module main_function, ())
 
 visit_cu' :: CUVisitor stage1 stage2 () m () visitor => Proxy visitor -> CU stage1 -> m (CU stage2)
 visit_cu' proxy = fmap fst . visit_cu proxy ()
@@ -187,26 +186,20 @@ class Monad m => BindingVisitor stage1 stage2 cx m res visitor | visitor -> stag
 visit_binding' :: BindingVisitor stage1 stage2 () m () visitor => Proxy visitor -> Binding stage1 -> m (Binding stage2)
 visit_binding' proxy = fmap fst . visit_binding proxy ()
 
--- use for type expr visitor which has to visit DeclRef
-go_decl_ref :: TransformsTypeInRefer stage1 stage2 cx m visitor => Proxy visitor -> cx -> DeclRef (TypeInRefer stage1) -> m (DeclRef (TypeInRefer stage2))
-go_decl_ref _ _ (DeclRef'Module mk) = pure $ DeclRef'Module mk
-go_decl_ref proxy cx (DeclRef'Type ty) = DeclRef'Type <$> transform_type_in_refer proxy cx ty
-go_decl_ref _ _ (DeclRef'ExternPackage ep) = pure $ DeclRef'ExternPackage ep
-
 class Monad m => TypeExprVisitor stage1 stage2 cx m res visitor | visitor -> stage1 stage2 cx m res where
     visit_type_expr_refer :: Proxy visitor -> cx -> TypeExprEvaledKey stage1 -> IdenResolvedKey stage1 (DeclRef (TypeInRefer stage1)) -> Span -> NameMapIndex stage1 -> Located Text -> m (TypeExpr stage2, res)
-    default visit_type_expr_refer :: (TransformsNameMapIndex stage1 stage2 cx m visitor, TransformsIdenResolvedKey stage1 stage2 cx m visitor, TransformsTypeInRefer stage1 stage2 cx m visitor, TransformsTypeExprEvaledKey stage1 stage2 cx m visitor, res ~ ()) => Proxy visitor -> cx -> TypeExprEvaledKey stage1 -> IdenResolvedKey stage1 (DeclRef (TypeInRefer stage1)) -> Span -> NameMapIndex stage1 -> Located Text -> m (TypeExpr stage2, res)
+    default visit_type_expr_refer :: (TransformsNameMapIndex stage1 stage2 cx m visitor, TransformsIdenResolvedKey stage1 stage2 (DeclRef (TypeInRefer stage1)) (DeclRef (TypeInRefer stage2)) cx m visitor, TransformsTypeInRefer stage1 stage2 cx m visitor, TransformsTypeExprEvaledKey stage1 stage2 cx m visitor, res ~ ()) => Proxy visitor -> cx -> TypeExprEvaledKey stage1 -> IdenResolvedKey stage1 (DeclRef (TypeInRefer stage1)) -> Span -> NameMapIndex stage1 -> Located Text -> m (TypeExpr stage2, res)
     visit_type_expr_refer proxy cx evaled resolved sp name_maps id = do
         evaled <- transform_type_expr_evaled_key proxy cx evaled
-        resolved <- transform_iden_resolved_key proxy cx (go_decl_ref proxy cx) resolved
+        resolved <- transform_iden_resolved_key proxy cx resolved
         name_maps <- transform_name_map_index proxy cx name_maps
         pure (TypeExpr'Refer evaled resolved sp name_maps id, ())
 
     visit_type_expr_get :: Proxy visitor -> cx -> TypeExprEvaledKey stage1 -> IdenResolvedKey stage1 (DeclRef (TypeInRefer stage1)) -> Span -> TypeExpr stage1 -> Located Text -> m (TypeExpr stage2, res)
-    default visit_type_expr_get :: (TransformsIdenResolvedKey stage1 stage2 cx m visitor, TransformsTypeInRefer stage1 stage2 cx m visitor, TransformsTypeExprEvaledKey stage1 stage2 cx m visitor, res ~ ()) => Proxy visitor -> cx -> TypeExprEvaledKey stage1 -> IdenResolvedKey stage1 (DeclRef (TypeInRefer stage1)) -> Span -> TypeExpr stage1 -> Located Text -> m (TypeExpr stage2, res)
+    default visit_type_expr_get :: (TransformsIdenResolvedKey stage1 stage2 (DeclRef (TypeInRefer stage1)) (DeclRef (TypeInRefer stage2)) cx m visitor, TransformsTypeInRefer stage1 stage2 cx m visitor, TransformsTypeExprEvaledKey stage1 stage2 cx m visitor, res ~ ()) => Proxy visitor -> cx -> TypeExprEvaledKey stage1 -> IdenResolvedKey stage1 (DeclRef (TypeInRefer stage1)) -> Span -> TypeExpr stage1 -> Located Text -> m (TypeExpr stage2, res)
     visit_type_expr_get proxy cx evaled resolved sp parent name = do
         evaled <- transform_type_expr_evaled_key proxy cx evaled
-        resolved <- transform_iden_resolved_key proxy cx (go_decl_ref proxy cx) resolved
+        resolved <- transform_iden_resolved_key proxy cx resolved
         (parent, ()) <- visit_type_expr proxy cx parent
         pure (TypeExpr'Get evaled resolved sp parent name, ())
 
@@ -277,17 +270,17 @@ visit_type_expr' proxy = fmap fst . visit_type_expr proxy ()
 
 class Monad m => ExprIdentifierRefVisitor stage1 stage2 cx m res visitor | visitor -> stage1 stage2 cx m res where
     visit_expr_identifier_ref_get :: Proxy visitor -> cx -> TypeExpr stage1 -> Located Text -> IdenResolvedKey stage1 ValueRef -> m (ExprIdentifierRef stage2, res)
-    default visit_expr_identifier_ref_get :: (TransformsIdenResolvedKey stage1 stage2 cx m visitor, TypeExprVisitor stage1 stage2 cx m () visitor, res ~ ()) => Proxy visitor -> cx -> TypeExpr stage1 -> Located Text -> IdenResolvedKey stage1 ValueRef -> m (ExprIdentifierRef stage2, res)
+    default visit_expr_identifier_ref_get :: (TransformsIdenResolvedKey stage1 stage2 ValueRef ValueRef cx m visitor, TypeExprVisitor stage1 stage2 cx m () visitor, res ~ ()) => Proxy visitor -> cx -> TypeExpr stage1 -> Located Text -> IdenResolvedKey stage1 ValueRef -> m (ExprIdentifierRef stage2, res)
     visit_expr_identifier_ref_get proxy cx t n r = do
         (t, ()) <- visit_type_expr proxy cx t
-        r <- transform_iden_resolved_key proxy cx pure r
+        r <- transform_iden_resolved_key proxy cx r
         pure (SplitIdentifier'Get t n r, ())
 
     visit_expr_identifier_ref_single :: Proxy visitor -> cx -> NameMapIndex stage1 -> Located Text -> IdenResolvedKey stage1 ValueRef -> m (ExprIdentifierRef stage2, res)
-    default visit_expr_identifier_ref_single :: (TransformsNameMapIndex stage1 stage2 cx m visitor, TransformsIdenResolvedKey stage1 stage2 cx m visitor, res ~ ()) => Proxy visitor -> cx -> NameMapIndex stage1 -> Located Text -> IdenResolvedKey stage1 ValueRef -> m (ExprIdentifierRef stage2, res)
+    default visit_expr_identifier_ref_single :: (TransformsNameMapIndex stage1 stage2 cx m visitor, TransformsIdenResolvedKey stage1 stage2 ValueRef ValueRef cx m visitor, res ~ ()) => Proxy visitor -> cx -> NameMapIndex stage1 -> Located Text -> IdenResolvedKey stage1 ValueRef -> m (ExprIdentifierRef stage2, res)
     visit_expr_identifier_ref_single proxy cx nm n r = do
         nm <- transform_name_map_index proxy cx nm
-        r <- transform_iden_resolved_key proxy cx pure r
+        r <- transform_iden_resolved_key proxy cx r
         pure (SplitIdentifier'Single nm n r, ())
 
 visit_expr_identifier_ref :: ExprIdentifierRefVisitor stage1 stage2 cx m res visitor => Proxy visitor -> cx -> ExprIdentifierRef stage1 -> m (ExprIdentifierRef stage2, res)
@@ -299,17 +292,17 @@ visit_expr_identifier_ref' proxy = fmap fst . visit_expr_identifier_ref proxy ()
 
 class Monad m => OperatorRefVisitor stage1 stage2 cx m res visitor | visitor -> stage1 stage2 cx m res where
     visit_operator_ref_get :: Proxy visitor -> cx -> TypeExpr stage1 -> Located Text -> IdenResolvedKey stage1 ValueRef -> m (OperatorRef stage2, res)
-    default visit_operator_ref_get :: (TransformsIdenResolvedKey stage1 stage2 cx m visitor, TypeExprVisitor stage1 stage2 cx m () visitor, res ~ ()) => Proxy visitor -> cx -> TypeExpr stage1 -> Located Text -> IdenResolvedKey stage1 ValueRef -> m (OperatorRef stage2, res)
+    default visit_operator_ref_get :: (TransformsIdenResolvedKey stage1 stage2 ValueRef ValueRef cx m visitor, TypeExprVisitor stage1 stage2 cx m () visitor, res ~ ()) => Proxy visitor -> cx -> TypeExpr stage1 -> Located Text -> IdenResolvedKey stage1 ValueRef -> m (OperatorRef stage2, res)
     visit_operator_ref_get proxy cx t n r = do
         (t, ()) <- visit_type_expr proxy cx t
-        r <- transform_iden_resolved_key proxy cx pure r
+        r <- transform_iden_resolved_key proxy cx r
         pure (SplitIdentifier'Get t n r, ())
 
     visit_operator_ref_single :: Proxy visitor -> cx -> NameMapIndex stage1 -> Located Text -> IdenResolvedKey stage1 ValueRef -> m (OperatorRef stage2, res)
-    default visit_operator_ref_single :: (TransformsNameMapIndex stage1 stage2 cx m visitor, TransformsIdenResolvedKey stage1 stage2 cx m visitor, res ~ ()) => Proxy visitor -> cx -> NameMapIndex stage1 -> Located Text -> IdenResolvedKey stage1 ValueRef -> m (OperatorRef stage2, res)
+    default visit_operator_ref_single :: (TransformsNameMapIndex stage1 stage2 cx m visitor, TransformsIdenResolvedKey stage1 stage2 ValueRef ValueRef cx m visitor, res ~ ()) => Proxy visitor -> cx -> NameMapIndex stage1 -> Located Text -> IdenResolvedKey stage1 ValueRef -> m (OperatorRef stage2, res)
     visit_operator_ref_single proxy cx nm n r = do
         nm <- transform_name_map_index proxy cx nm
-        r <- transform_iden_resolved_key proxy cx pure r
+        r <- transform_iden_resolved_key proxy cx r
         pure (SplitIdentifier'Single nm n r, ())
 
 visit_operator_ref :: OperatorRefVisitor stage1 stage2 cx m res visitor => Proxy visitor -> cx -> OperatorRef stage1 -> m (OperatorRef stage2, res)
@@ -489,17 +482,17 @@ visit_expr' proxy = fmap fst . visit_expr proxy ()
 
 class Monad m => PatternADTVariantRefVisitor stage1 stage2 cx m res visitor | visitor -> stage1 stage2 cx m res where
     visit_pattern_adt_variant_ref_get :: Proxy visitor -> cx -> TypeExpr stage1 -> Located Text -> IdenResolvedKey stage1 Type.ADT.VariantIndex -> m (PatternADTVariantRef stage2, res)
-    default visit_pattern_adt_variant_ref_get :: (TransformsIdenResolvedKey stage1 stage2 cx m visitor, TypeExprVisitor stage1 stage2 cx m () visitor, res ~ ()) => Proxy visitor -> cx -> TypeExpr stage1 -> Located Text -> IdenResolvedKey stage1 Type.ADT.VariantIndex -> m (PatternADTVariantRef stage2, res)
+    default visit_pattern_adt_variant_ref_get :: (TransformsIdenResolvedKey stage1 stage2 Type.ADT.VariantIndex Type.ADT.VariantIndex cx m visitor, TypeExprVisitor stage1 stage2 cx m () visitor, res ~ ()) => Proxy visitor -> cx -> TypeExpr stage1 -> Located Text -> IdenResolvedKey stage1 Type.ADT.VariantIndex -> m (PatternADTVariantRef stage2, res)
     visit_pattern_adt_variant_ref_get proxy cx t n r = do
         (t, ()) <- visit_type_expr proxy cx t
-        r <- transform_iden_resolved_key proxy cx pure r
+        r <- transform_iden_resolved_key proxy cx r
         pure (SplitIdentifier'Get t n r, ())
 
     visit_pattern_adt_variant_ref_single :: Proxy visitor -> cx -> NameMapIndex stage1 -> Located Text -> IdenResolvedKey stage1 Type.ADT.VariantIndex -> m (PatternADTVariantRef stage2, res)
-    default visit_pattern_adt_variant_ref_single :: (TransformsNameMapIndex stage1 stage2 cx m visitor, TransformsIdenResolvedKey stage1 stage2 cx m visitor, res ~ ()) => Proxy visitor -> cx -> NameMapIndex stage1 -> Located Text -> IdenResolvedKey stage1 Type.ADT.VariantIndex -> m (PatternADTVariantRef stage2, res)
+    default visit_pattern_adt_variant_ref_single :: (TransformsNameMapIndex stage1 stage2 cx m visitor, TransformsIdenResolvedKey stage1 stage2 Type.ADT.VariantIndex Type.ADT.VariantIndex cx m visitor, res ~ ()) => Proxy visitor -> cx -> NameMapIndex stage1 -> Located Text -> IdenResolvedKey stage1 Type.ADT.VariantIndex -> m (PatternADTVariantRef stage2, res)
     visit_pattern_adt_variant_ref_single proxy cx nm n r = do
         nm <- transform_name_map_index proxy cx nm
-        r <- transform_iden_resolved_key proxy cx pure r
+        r <- transform_iden_resolved_key proxy cx r
         pure (SplitIdentifier'Single nm n r, ())
 
 visit_pattern_adt_variant_ref :: PatternADTVariantRefVisitor stage1 stage2 cx m res visitor => Proxy visitor -> cx -> PatternADTVariantRef stage1 -> m (PatternADTVariantRef stage2, res)

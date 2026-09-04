@@ -48,4 +48,3 @@ newtype ParamKey = ParamKey Arena.KeyData deriving (Show, Eq)
 instance Arena.Key ParamKey where
     make_key = ParamKey
     unmake_key (ParamKey i) = i
-

@@ -6,6 +6,7 @@
 module UHF.Data.SIR
     ( SIR (..)
     , Stage.Stage (..)
+    , AllShowable
     , CU (..)
     , ADT (..)
     -- , ADTVariant (..) TODO: sir-type
@@ -50,7 +51,7 @@ import qualified UHF.Util.Arena as Arena
 -- TODO: transpose grouping of these? ie restructure as files for ast, type synonyms, intrinsics, ..., and all related operations like child maps, getting children, ... together in thesdecls with all related thing in the same file
 
 type AllShowable stage =
-    ( Stage.AllShowable stage
+    ( Stage.AllHaveInstance Show stage
     , Stage.IdenResolvedKeyHasInstance (Stage.TypeExprEvaledKey stage) Show stage
     , Stage.IdenResolvedKeyHasInstance (Stage.TypeExprEvaledAsTypeKey stage) Show stage
     , Stage.IdenResolvedKeyHasInstance (DeclRef (Stage.TypeInRefer stage)) Show stage
@@ -70,7 +71,7 @@ data SIR stage
     }
 deriving instance AllShowable stage => Show (SIR stage)
 
--- TODO: when support for compiling libraries that should not need a main function, a field should be added that identifies whether or not the compilation unit is a library or an executable or this should be split into 2 constructors for libraries or executables
+-- TODO: when support is added for compiling libraries, which should not need a main function, a field should be added that identifies whether or not the compilation unit is a library or an executable or this should be split into 2 constructors for libraries or executables
 data CU stage = CU {cu_root_module :: ModuleKey, cu_main_function :: Maybe VariableKey} deriving Show
 
 -- TODO: make these into their own datatypes and do not share representation with types

@@ -7,10 +7,7 @@ module UHF.Data.SIR.Stage
     ( Stage (..)
     , AllHaveInstance
     , IdenResolvedKeyHasInstance
-    , AllShowable
     ) where
-
-import UHF.Prelude
 
 import Data.Kind (Type, Constraint)
 
@@ -44,10 +41,10 @@ instance Stage (name_map_index, iden_resolved_key (), type_in_refer, type_expr_e
 
 type AllHaveInstance (c :: Type -> Constraint) s =
     ( c (NameMapIndex s)
+    , c (TypeInRefer s)
     , c (TypeExprEvaledKey s)
     , c (TypeExprEvaledAsTypeKey s)
     , c (TypeInfo s)
     , c (InfixGroupedKey s)
     )
 type IdenResolvedKeyHasInstance d (c :: Type -> Constraint) s = c (IdenResolvedKey s d)
-type AllShowable s = AllHaveInstance Show s

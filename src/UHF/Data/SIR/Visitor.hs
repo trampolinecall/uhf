@@ -61,8 +61,6 @@ import UHF.Source.Located (Located)
 import UHF.Source.Span (Span)
 import qualified UHF.Util.Arena as Arena
 
--- TODO: somehow make an overall SIR visitor that can cover all use cases
-
 class Monad m => TransformsNameMapIndex stage1 stage2 cx m visitor | visitor -> stage1 stage2 cx m where
     transform_name_map_index :: Proxy visitor -> cx -> NameMapIndex stage1 -> m (NameMapIndex stage2)
     default transform_name_map_index :: NameMapIndex stage1 ~ NameMapIndex stage2 => Proxy visitor -> cx -> NameMapIndex stage1 -> m (NameMapIndex stage2)

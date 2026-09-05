@@ -186,7 +186,7 @@ visit_binding' proxy = fmap fst . visit_binding proxy ()
 
 class Monad m => TypeExprVisitor stage1 stage2 cx m res visitor | visitor -> stage1 stage2 cx m res where
     visit_type_expr_refer :: Proxy visitor -> cx -> TypeExprEvaledKey stage1 -> IdenResolvedKey stage1 (DeclRef (TypeInRefer stage1)) -> Span -> NameMapIndex stage1 -> Located Text -> m (TypeExpr stage2, res)
-    default visit_type_expr_refer :: (TransformsNameMapIndex stage1 stage2 cx m visitor, TransformsIdenResolvedKey stage1 stage2 (DeclRef (TypeInRefer stage1)) (DeclRef (TypeInRefer stage2)) cx m visitor, TransformsTypeInRefer stage1 stage2 cx m visitor, TransformsTypeExprEvaledKey stage1 stage2 cx m visitor, res ~ ()) => Proxy visitor -> cx -> TypeExprEvaledKey stage1 -> IdenResolvedKey stage1 (DeclRef (TypeInRefer stage1)) -> Span -> NameMapIndex stage1 -> Located Text -> m (TypeExpr stage2, res)
+    default visit_type_expr_refer :: (TransformsNameMapIndex stage1 stage2 cx m visitor, TransformsIdenResolvedKey stage1 stage2 (DeclRef (TypeInRefer stage1)) (DeclRef (TypeInRefer stage2)) cx m visitor, TransformsTypeExprEvaledKey stage1 stage2 cx m visitor, res ~ ()) => Proxy visitor -> cx -> TypeExprEvaledKey stage1 -> IdenResolvedKey stage1 (DeclRef (TypeInRefer stage1)) -> Span -> NameMapIndex stage1 -> Located Text -> m (TypeExpr stage2, res)
     visit_type_expr_refer proxy cx evaled resolved sp name_maps id = do
         evaled <- transform_type_expr_evaled_key proxy cx evaled
         resolved <- transform_iden_resolved_key proxy cx resolved
@@ -194,7 +194,7 @@ class Monad m => TypeExprVisitor stage1 stage2 cx m res visitor | visitor -> sta
         pure (TypeExpr'Refer evaled resolved sp name_maps id, ())
 
     visit_type_expr_get :: Proxy visitor -> cx -> TypeExprEvaledKey stage1 -> IdenResolvedKey stage1 (DeclRef (TypeInRefer stage1)) -> Span -> TypeExpr stage1 -> Located Text -> m (TypeExpr stage2, res)
-    default visit_type_expr_get :: (TransformsIdenResolvedKey stage1 stage2 (DeclRef (TypeInRefer stage1)) (DeclRef (TypeInRefer stage2)) cx m visitor, TransformsTypeInRefer stage1 stage2 cx m visitor, TransformsTypeExprEvaledKey stage1 stage2 cx m visitor, res ~ ()) => Proxy visitor -> cx -> TypeExprEvaledKey stage1 -> IdenResolvedKey stage1 (DeclRef (TypeInRefer stage1)) -> Span -> TypeExpr stage1 -> Located Text -> m (TypeExpr stage2, res)
+    default visit_type_expr_get :: (TransformsIdenResolvedKey stage1 stage2 (DeclRef (TypeInRefer stage1)) (DeclRef (TypeInRefer stage2)) cx m visitor, TransformsTypeExprEvaledKey stage1 stage2 cx m visitor, res ~ ()) => Proxy visitor -> cx -> TypeExprEvaledKey stage1 -> IdenResolvedKey stage1 (DeclRef (TypeInRefer stage1)) -> Span -> TypeExpr stage1 -> Located Text -> m (TypeExpr stage2, res)
     visit_type_expr_get proxy cx evaled resolved sp parent name = do
         evaled <- transform_type_expr_evaled_key proxy cx evaled
         resolved <- transform_iden_resolved_key proxy cx resolved

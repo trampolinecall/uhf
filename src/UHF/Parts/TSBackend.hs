@@ -82,7 +82,7 @@ convert_ts_adt (TSADT key) =
     mangle_adt key >>= \ mangled ->
     data_type >>= \ data_type ->
     pure $
-        TS.Stmt'Class mangled [] [TS.ClassMember'PropDecl "type" (Just $ TS.Type'StrLit mangled) Nothing, TS.ClassMember'Constructor [TS.Parameter (Just TS.Public) "data" (Just data_type)] (Just [])]
+        TS.Stmt'Class mangled [] [TS.ClassMember'PropDecl "type" (Just $ TS.Type'StrLit mangled) (Just $ TS.Expr'StrLit mangled), TS.ClassMember'Constructor [TS.Parameter (Just TS.Public) "data" (Just data_type)] (Just [])]
 
     where
         data_type =
@@ -245,7 +245,7 @@ lower_binding (BackendIR.Binding init) = l init
                     pure (TS.Stmt'Expr $ TS.Expr'Assign (TS.Expr'Get (TS.Expr'Identifier current_var) capt_capt) (TS.Expr'Identifier capt_var)))
                 (toList captures) >>= \ set_captures ->
             let_current id (TS.Expr'New (TS.Expr'Identifier lambda) (map (const (TS.Expr'Identifier "undefined")) (toList captures))) >>= \ let_stmt ->
-            pure (let_stmt : set_captures) -- TODO: figure this out because this does not work (if the captures are undefined, then this will just set the captures inthe lambda object to be also undefined; the captures in the lambda object will not be updated when the captures are defined)
+            pure (let_stmt : set_captures) -- TODO: figure this out because this does not work (if the captures are undefined, then this will just set the captures in the lambda object to be also undefined; the captures in the lambda object will not be updated when the captures are defined)
         l (BackendIR.Expr'Param id _ _) = let_current id (TS.Expr'Identifier "param") >>= \ let_stmt -> pure [let_stmt]
         l (BackendIR.Expr'Call id _ callee arg) = mangle_binding_as_var callee >>= \ callee -> mangle_binding_as_var arg >>= \ arg -> let_current id (TS.Expr'Call (TS.Expr'Get (TS.Expr'Identifier callee) "call") [TS.Expr'Identifier arg]) >>= \ let_stmt -> pure [let_stmt]
 

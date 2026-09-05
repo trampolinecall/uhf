@@ -1,3 +1,6 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+
 module UHF.Parts.UnifiedFrontendSolver.NameResolve.OtherPreparation.AssignNameMaps
     ( Unassigned
     , Assigned
@@ -18,22 +21,15 @@ import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Error as NameResolv
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps as NameMaps
 import qualified UHF.Parts.UnifiedFrontendSolver.NameResolve.Misc.NameMaps.Utils as NameMaps.Utils
 import qualified UHF.Util.Arena as Arena
+import Data.Data (Proxy (..))
+import UHF.Data.SIR.Visitor
 
 -- TODO: figure out a better solution than to have adt_parents and type_synonym_parents
 
 type NameContextArena = Arena.Arena NameMaps.NameContext NameMaps.NameContextKey
 
 type Unassigned = ((), Const () (), (), (), (), (), ())
-
-type UnassignedModuleArena = Arena.Arena (SIR.Module Unassigned) SIR.ModuleKey
-type UnassignedADTArena = Arena.Arena (SIR.ADT Unassigned) Type.ADTKey
-type UnassignedTypeSynonymArena = Arena.Arena (SIR.TypeSynonym Unassigned) Type.TypeSynonymKey
-
 type Assigned = (NameMaps.NameContextKey, Const () (), TypeWithInferVar.Type, (), (), (), ())
-
-type AssignedModuleArena = Arena.Arena (SIR.Module Assigned) SIR.ModuleKey
-type AssignedADTArena = Arena.Arena (SIR.ADT Assigned) Type.ADTKey
-type AssignedTypeSynonymArena = Arena.Arena (SIR.TypeSynonym Assigned) Type.TypeSynonymKey
 
 type AssignMonad = ReaderT (SIR.SIR Unassigned) (StateT (NameContextArena, NameMaps.SIRChildMaps) (Compiler.WithDiagnostics Solve.Error.Error Void))
 
@@ -65,16 +61,16 @@ convert_add_to_name_maps fn thing =
     let (res, errs) = fn thing
     in Compiler.tell_errors (map Solve.Error.NRError errs) >> pure res
 
--- assign entry point {{{1
+-- assign {{{1
 assign :: SIR.SIR Unassigned -> Compiler.WithDiagnostics Solve.Error.Error Void (SIR.SIR Assigned, NameContextArena, NameMaps.SIRChildMaps)
 assign sir@(SIR.SIR mods adts type_synonyms type_vars variables (SIR.CU root_module main_function)) = do
     (sir', (name_maps_arena, sir_child_maps)) <-
         runStateT
             ( runReaderT
                 ( do
-                    (mods, adt_parents, type_synonym_parents) <- assign_in_mods mods
-                    adts <- assign_in_adts adt_parents adts
-                    type_synonyms <- assign_in_type_synonyms type_synonym_parents type_synonyms
+                    ((mods, adt_parents), type_synonym_parents) <- runWriterT $ runWriterT $ Arena.transform_with_keyM assign_in_module mods
+                    adts <- Arena.transform_with_keyM (assign_in_adt adt_parents) adts
+                    type_synonyms <- Arena.transform_with_keyM (assign_in_type_synonym type_synonym_parents) type_synonyms
                     pure (SIR.SIR mods adts type_synonyms type_vars (Arena.transform change_variable variables) (SIR.CU root_module main_function))
                 )
                 sir
@@ -84,16 +80,7 @@ assign sir@(SIR.SIR mods adts type_synonyms type_vars variables (SIR.CU root_mod
     where
         change_variable (SIR.Variable varid tyinfo n) = SIR.Variable varid tyinfo n
 
--- assigning through sir {{{1
-type ADTParentAndTypeSynonymParentWriter m =
-    WriterT (Map Type.ADTKey NameMaps.NameContextKey) (WriterT (Map Type.TypeSynonymKey NameMaps.NameContextKey) m)
-assign_in_mods ::
-    UnassignedModuleArena ->
-    AssignMonad (AssignedModuleArena, Map.Map Type.ADTKey NameMaps.NameContextKey, Map.Map Type.TypeSynonymKey NameMaps.NameContextKey)
-assign_in_mods module_arena = do
-    ((module_arena, adt_parents), type_synonym_parents) <- runWriterT $ runWriterT $ Arena.transform_with_keyM assign_in_module module_arena
-    pure (module_arena, adt_parents, type_synonym_parents)
-
+type ADTParentAndTypeSynonymParentWriter m = WriterT (Map Type.ADTKey NameMaps.NameContextKey) (WriterT (Map Type.TypeSynonymKey NameMaps.NameContextKey) m)
 assign_in_module :: SIR.ModuleKey -> SIR.Module Unassigned -> ADTParentAndTypeSynonymParentWriter AssignMonad (SIR.Module Assigned)
 assign_in_module module_key (SIR.Module id () bindings adts type_synonyms) = do
     module_name_map <- lift $ lift $ lift new_name_map_stack_end
@@ -108,7 +95,7 @@ assign_in_module module_key (SIR.Module id () bindings adts type_synonyms) = do
     mapM_ (\synonym -> lift $ tell $ Map.singleton synonym module_name_map) type_synonyms
 
     SIR.Module id module_name_map
-        <$> mapM (lift . lift . assign_in_binding module_name_map) bindings
+        <$> mapM (lift . lift . fmap fst . visit_binding (Proxy :: Proxy AssignVisitor) module_name_map) bindings
         <*> pure adts
         <*> pure type_synonyms
     where
@@ -122,9 +109,6 @@ assign_in_module module_key (SIR.Module id () bindings adts type_synonyms) = do
             ]
         primitive_vals = []
 
-assign_in_adts :: Map.Map Type.ADTKey NameMaps.NameContextKey -> UnassignedADTArena -> AssignMonad AssignedADTArena
-assign_in_adts adt_parent_name_maps = Arena.transform_with_keyM (assign_in_adt adt_parent_name_maps)
-
 assign_in_adt :: Map.Map Type.ADTKey NameMaps.NameContextKey -> Type.ADTKey -> SIR.ADT Unassigned -> AssignMonad (SIR.ADT Assigned)
 assign_in_adt adt_parent_name_maps adt_key (Type.ADT id name type_vars variants) = do
     let parent = adt_parent_name_maps Map.! adt_key
@@ -136,132 +120,102 @@ assign_in_adt adt_parent_name_maps adt_key (Type.ADT id name type_vars variants)
 
     Type.ADT id name type_vars <$> mapM (assign_in_variant new_name_map_stack) variants
     where
-        assign_in_variant nc_stack (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id <$> mapM (\(id, name, (ty, ())) -> assign_in_type_expr nc_stack ty >>= \ty -> pure (id, name, (ty, ()))) fields
-        assign_in_variant nc_stack (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id <$> mapM (\(id, (ty, ())) -> assign_in_type_expr nc_stack ty >>= \ty -> pure (id, (ty, ()))) fields
-
-assign_in_type_synonyms :: Map.Map Type.TypeSynonymKey NameMaps.NameContextKey -> UnassignedTypeSynonymArena -> AssignMonad AssignedTypeSynonymArena
-assign_in_type_synonyms type_synonym_parent_name_maps = Arena.transform_with_keyM (assign_in_type_synonym type_synonym_parent_name_maps)
+        assign_in_variant nc_stack (Type.ADT.Variant'Named name id fields) = Type.ADT.Variant'Named name id <$> mapM (\(id, name, (ty, ())) -> visit_type_expr (Proxy :: Proxy AssignVisitor) nc_stack ty >>= \(ty, ()) -> pure (id, name, (ty, ()))) fields
+        assign_in_variant nc_stack (Type.ADT.Variant'Anon name id fields) = Type.ADT.Variant'Anon name id <$> mapM (\(id, (ty, ())) -> visit_type_expr (Proxy :: Proxy AssignVisitor) nc_stack ty >>= \(ty, ()) -> pure (id, (ty, ()))) fields
 
 assign_in_type_synonym ::
     Map.Map Type.TypeSynonymKey NameMaps.NameContextKey -> Type.TypeSynonymKey -> SIR.TypeSynonym Unassigned -> AssignMonad (SIR.TypeSynonym Assigned)
 assign_in_type_synonym parent_maps synonym_key (Type.TypeSynonym id name (expansion, ())) = do
     let parent = parent_maps Map.! synonym_key
-    expansion <- assign_in_type_expr parent expansion
+    (expansion, ()) <- visit_type_expr (Proxy :: Proxy AssignVisitor) parent expansion
     pure (Type.TypeSynonym id name (expansion, ()))
 
-assign_in_binding :: NameMaps.NameContextKey -> SIR.Binding Unassigned -> AssignMonad (SIR.Binding Assigned)
-assign_in_binding nc_stack (SIR.Binding target eq_sp expr) = SIR.Binding <$> assign_in_pat nc_stack target <*> pure eq_sp <*> assign_in_expr nc_stack expr
+data AssignVisitor
 
-assign_in_type_expr :: NameMaps.NameContextKey -> SIR.TypeExpr Unassigned -> AssignMonad (SIR.TypeExpr Assigned)
-assign_in_type_expr nc_stack (SIR.TypeExpr'Refer evaled (Const ()) sp () id) = pure $ SIR.TypeExpr'Refer evaled (Const ()) sp nc_stack id
-assign_in_type_expr nc_stack (SIR.TypeExpr'Get evaled (Const ()) sp parent name) = SIR.TypeExpr'Get evaled (Const ()) sp <$> assign_in_type_expr nc_stack parent <*> pure name
-assign_in_type_expr nc_stack (SIR.TypeExpr'Tuple evaled sp a b) = SIR.TypeExpr'Tuple evaled sp <$> assign_in_type_expr nc_stack a <*> assign_in_type_expr nc_stack b
-assign_in_type_expr _ (SIR.TypeExpr'Hole evaled type_info sp hid) = pure $ SIR.TypeExpr'Hole evaled type_info sp hid
-assign_in_type_expr nc_stack (SIR.TypeExpr'Function evaled sp arg res) = SIR.TypeExpr'Function evaled sp <$> assign_in_type_expr nc_stack arg <*> assign_in_type_expr nc_stack res
-assign_in_type_expr nc_stack (SIR.TypeExpr'Forall evaled sp () vars ty) = do
-    new_name_map_stack <- lift $ new_name_map_stack_with_parent nc_stack
+instance TransformsIdenResolvedKey Unassigned Assigned (SIR.DeclRef ()) (SIR.DeclRef TypeWithInferVar.Type) NameMaps.NameContextKey AssignMonad AssignVisitor where
+    transform_iden_resolved_key _ _ (Const ()) = pure $ Const ()
+instance TransformsIdenResolvedKey Unassigned Assigned SIR.ValueRef SIR.ValueRef NameMaps.NameContextKey AssignMonad AssignVisitor where
+instance TransformsIdenResolvedKey Unassigned Assigned Type.ADT.VariantIndex Type.ADT.VariantIndex NameMaps.NameContextKey AssignMonad AssignVisitor where
+instance TransformsTypeExprEvaledKey Unassigned Assigned NameMaps.NameContextKey AssignMonad AssignVisitor where
+instance TransformsTypeExprEvaledAsTypeKey Unassigned Assigned NameMaps.NameContextKey AssignMonad AssignVisitor where
+instance TransformsTypeInfo Unassigned Assigned NameMaps.NameContextKey AssignMonad AssignVisitor where
+instance TransformsInfixGroupedKey Unassigned Assigned NameMaps.NameContextKey AssignMonad AssignVisitor where
 
-    children <- NameMaps.Utils.quant_vars_to_children $ toList vars
-    lift $ modify_name_map new_name_map_stack $ convert_add_to_name_maps $ NameMaps.add_to_name_maps children [] []
+instance BindingVisitor Unassigned Assigned NameMaps.NameContextKey AssignMonad () AssignVisitor where
 
-    SIR.TypeExpr'Forall evaled sp new_name_map_stack vars <$> assign_in_type_expr new_name_map_stack ty
-assign_in_type_expr nc_stack (SIR.TypeExpr'Apply assigned sp ty args) = SIR.TypeExpr'Apply assigned sp <$> assign_in_type_expr nc_stack ty <*> assign_in_type_expr nc_stack args
-assign_in_type_expr _ (SIR.TypeExpr'Wild assigned sp) = pure $ SIR.TypeExpr'Wild assigned sp
-assign_in_type_expr _ (SIR.TypeExpr'Poison assigned sp) = pure $ SIR.TypeExpr'Poison assigned sp
+instance TypeExprVisitor Unassigned Assigned NameMaps.NameContextKey AssignMonad () AssignVisitor where
+    visit_type_expr_refer _ nc_stack evaled (Const ()) sp () id = pure (SIR.TypeExpr'Refer evaled (Const ()) sp nc_stack id, ())
+    visit_type_expr_forall proxy nc_stack evaled sp () vars ty = do
+        new_name_map_stack <- lift $ new_name_map_stack_with_parent nc_stack
+        children <- NameMaps.Utils.quant_vars_to_children $ toList vars
+        lift $ modify_name_map new_name_map_stack $ convert_add_to_name_maps $ NameMaps.add_to_name_maps children [] []
 
-assign_in_expr :: NameMaps.NameContextKey -> SIR.Expr Unassigned -> AssignMonad (SIR.Expr Assigned)
-assign_in_expr nc_stack (SIR.Expr'Refer id type_info sp iden) = SIR.Expr'Refer id type_info sp <$> assign_split_iden nc_stack iden
-assign_in_expr _ (SIR.Expr'Char id type_info sp c) = pure $ SIR.Expr'Char id type_info sp c
-assign_in_expr _ (SIR.Expr'String id type_info sp s) = pure $ SIR.Expr'String id type_info sp s
-assign_in_expr _ (SIR.Expr'Int id type_info sp i) = pure $ SIR.Expr'Int id type_info sp i
-assign_in_expr _ (SIR.Expr'Float id type_info sp f) = pure $ SIR.Expr'Float id type_info sp f
-assign_in_expr _ (SIR.Expr'Bool id type_info sp b) = pure $ SIR.Expr'Bool id type_info sp b
-assign_in_expr nc_stack (SIR.Expr'Tuple id type_info sp a b) = SIR.Expr'Tuple id type_info sp <$> assign_in_expr nc_stack a <*> assign_in_expr nc_stack b
-assign_in_expr nc_stack (SIR.Expr'Lambda id type_info sp param body) = do
-    body_name_map_stack <- lift $ new_name_map_stack_with_parent nc_stack
+        (ty, ()) <- visit_type_expr proxy new_name_map_stack ty
 
-    children <- NameMaps.Utils.pattern_to_children param
-    lift $ modify_name_map body_name_map_stack $ convert_add_to_name_maps $ NameMaps.add_to_name_maps [] children []
+        pure (SIR.TypeExpr'Forall evaled sp new_name_map_stack vars ty, ())
 
-    SIR.Expr'Lambda id type_info sp <$> assign_in_pat nc_stack param <*> assign_in_expr body_name_map_stack body
-assign_in_expr nc_stack (SIR.Expr'Let id type_info sp () bindings adts type_synonyms body) = do
-    new_name_map_stack <- lift $ new_name_map_stack_with_parent nc_stack
+instance ExprIdentifierRefVisitor Unassigned Assigned NameMaps.NameContextKey AssignMonad () AssignVisitor where
+    visit_expr_identifier_ref_single _ nc_stack () i (Const ()) = pure (SIR.SplitIdentifier'Single nc_stack i (Const ()), ())
 
-    children <- NameMaps.Utils.decls_to_children bindings adts type_synonyms
-    lift $ modify_name_map new_name_map_stack $ convert_add_to_name_maps $ NameMaps.add_tuple_to_name_maps children
+instance OperatorRefVisitor Unassigned Assigned NameMaps.NameContextKey AssignMonad () AssignVisitor where
+    visit_operator_ref_single _ nc_stack () i (Const ()) = pure (SIR.SplitIdentifier'Single nc_stack i (Const ()), ())
 
-    SIR.Expr'Let id type_info sp new_name_map_stack
-        <$> mapM (assign_in_binding nc_stack) bindings
-        <*> pure adts
-        <*> pure type_synonyms
-        <*> assign_in_expr new_name_map_stack body
-assign_in_expr nc_stack (SIR.Expr'LetRec id type_info sp () bindings adts type_synonyms body) = do
-    new_name_map_stack <- lift $ new_name_map_stack_with_parent nc_stack
+instance ExprVisitor Unassigned Assigned NameMaps.NameContextKey AssignMonad () AssignVisitor where
+    visit_expr_lambda proxy nc_stack id type_info sp param body = do
+        body_name_map_stack <- lift $ new_name_map_stack_with_parent nc_stack
+        children <- NameMaps.Utils.pattern_to_children param
+        lift $ modify_name_map body_name_map_stack $ convert_add_to_name_maps $ NameMaps.add_to_name_maps [] children []
+        (param, ()) <- visit_pattern proxy nc_stack param
+        (body, ()) <- visit_expr proxy body_name_map_stack body
 
-    children <- NameMaps.Utils.decls_to_children bindings adts type_synonyms
-    lift $ modify_name_map new_name_map_stack $ convert_add_to_name_maps $ NameMaps.add_tuple_to_name_maps children
+        pure (SIR.Expr'Lambda id type_info sp param body, ())
 
-    SIR.Expr'LetRec id type_info sp new_name_map_stack
-        <$> mapM (assign_in_binding new_name_map_stack) bindings
-        <*> pure adts
-        <*> pure type_synonyms
-        <*> assign_in_expr new_name_map_stack body
-assign_in_expr nc_stack (SIR.Expr'BinaryOps id allowed type_info sp first ops) =
-    SIR.Expr'BinaryOps id allowed type_info sp
-        <$> assign_in_expr nc_stack first
-        <*> mapM
-            ( \(sp, iden, rhs) ->
-                (sp,,)
-                    <$> assign_split_iden nc_stack iden
-                    <*> assign_in_expr nc_stack rhs
-            )
-            ops
-assign_in_expr nc_stack (SIR.Expr'Call id type_info sp callee arg) = SIR.Expr'Call id type_info sp <$> assign_in_expr nc_stack callee <*> assign_in_expr nc_stack arg
-assign_in_expr nc_stack (SIR.Expr'If id type_info sp if_sp cond t f) = SIR.Expr'If id type_info sp if_sp <$> assign_in_expr nc_stack cond <*> assign_in_expr nc_stack t <*> assign_in_expr nc_stack f
-assign_in_expr nc_stack (SIR.Expr'Match id type_info sp match_tok_sp e arms) =
-    SIR.Expr'Match id type_info sp match_tok_sp
-        <$> assign_in_expr nc_stack e
-        <*> mapM
+    visit_expr_let proxy nc_stack id type_info sp () bindings adts type_synonyms body = do
+        new_name_map_stack <- lift $ new_name_map_stack_with_parent nc_stack
+        children <- NameMaps.Utils.decls_to_children bindings adts type_synonyms
+        lift $ modify_name_map new_name_map_stack $ convert_add_to_name_maps $ NameMaps.add_tuple_to_name_maps children
+        -- TODO: this also needs to tell parents of the adts and type_synonyms
+        bindings <- mapM (fmap fst . visit_binding proxy nc_stack) bindings
+        (body, ()) <- visit_expr proxy new_name_map_stack body
+
+        pure (SIR.Expr'Let id type_info sp new_name_map_stack bindings adts type_synonyms body, ())
+
+    visit_expr_let_rec proxy nc_stack id type_info sp () bindings adts type_synonyms body = do
+        new_name_map_stack <- lift $ new_name_map_stack_with_parent nc_stack
+        children <- NameMaps.Utils.decls_to_children bindings adts type_synonyms
+        lift $ modify_name_map new_name_map_stack $ convert_add_to_name_maps $ NameMaps.add_tuple_to_name_maps children
+        -- TODO: this also needs to tell parents of the adts and type_synonyms
+        bindings <- mapM (fmap fst . visit_binding proxy new_name_map_stack) bindings
+        (body, ()) <- visit_expr proxy new_name_map_stack body
+
+        pure (SIR.Expr'LetRec id type_info sp new_name_map_stack bindings adts type_synonyms body, ())
+
+    visit_expr_match proxy nc_stack id type_info sp match_tok_sp e arms = do
+        (e, ()) <- visit_expr proxy nc_stack e
+        arms <- mapM
             ( \((), pat, expr) -> do
                 arm_ncs <- lift $ new_name_map_stack_with_parent nc_stack
                 children <- NameMaps.Utils.pattern_to_children pat
                 lift $ modify_name_map arm_ncs $ convert_add_to_name_maps $ NameMaps.add_to_name_maps [] children []
 
-                pat' <- assign_in_pat nc_stack pat
-                expr' <- assign_in_expr arm_ncs expr
+                (pat', ()) <- visit_pattern proxy nc_stack pat
+                (expr', ()) <- visit_expr proxy arm_ncs expr
+
                 pure (arm_ncs, pat', expr')
             )
             arms
-assign_in_expr nc_stack (SIR.Expr'TypeAnnotation id type_info sp (ty, tye_ty) e) = SIR.Expr'TypeAnnotation id type_info sp <$> ((,tye_ty) <$> assign_in_type_expr nc_stack ty) <*> assign_in_expr nc_stack e
-assign_in_expr nc_stack (SIR.Expr'Forall id type_info sp () vars e) = do
-    new_ncs <- lift $ new_name_map_stack_with_parent nc_stack
 
-    children <- NameMaps.Utils.quant_vars_to_children $ toList vars
-    lift $ modify_name_map new_ncs $ convert_add_to_name_maps $ NameMaps.add_to_name_maps children [] []
+        pure (SIR.Expr'Match id type_info sp match_tok_sp e arms, ())
 
-    SIR.Expr'Forall id type_info sp new_ncs vars <$> assign_in_expr new_ncs e
-assign_in_expr nc_stack (SIR.Expr'TypeApply id type_info sp e (arg, arg_ty)) = SIR.Expr'TypeApply id type_info sp <$> assign_in_expr nc_stack e <*> ((,arg_ty) <$> assign_in_type_expr nc_stack arg)
-assign_in_expr _ (SIR.Expr'Hole id type_info sp hid) = pure $ SIR.Expr'Hole id type_info sp hid
-assign_in_expr _ (SIR.Expr'Poison id type_info sp) = pure $ SIR.Expr'Poison id type_info sp
+    visit_expr_forall proxy nc_stack id type_info sp () vars e = do
+        new_ncs <- lift $ new_name_map_stack_with_parent nc_stack
+        children <- NameMaps.Utils.quant_vars_to_children $ toList vars
+        lift $ modify_name_map new_ncs $ convert_add_to_name_maps $ NameMaps.add_to_name_maps children [] []
+        (e, ()) <- visit_expr proxy new_ncs e
 
-assign_in_pat :: NameMaps.NameContextKey -> SIR.Pattern Unassigned -> AssignMonad (SIR.Pattern Assigned)
-assign_in_pat _ (SIR.Pattern'Variable type_info sp bnk) = pure $ SIR.Pattern'Variable type_info sp bnk
-assign_in_pat _ (SIR.Pattern'Wildcard type_info sp) = pure $ SIR.Pattern'Wildcard type_info sp
-assign_in_pat nc_stack (SIR.Pattern'Tuple type_info sp a b) = SIR.Pattern'Tuple type_info sp <$> assign_in_pat nc_stack a <*> assign_in_pat nc_stack b
-assign_in_pat nc_stack (SIR.Pattern'Named type_info sp at_sp bnk subpat) = SIR.Pattern'Named type_info sp at_sp bnk <$> assign_in_pat nc_stack subpat
-assign_in_pat nc_stack (SIR.Pattern'AnonADTVariant type_info sp variant_iden tyargs subpat) =
-    SIR.Pattern'AnonADTVariant type_info sp
-        <$> assign_split_iden nc_stack variant_iden
-        <*> pure tyargs
-        <*> mapM (assign_in_pat nc_stack) subpat
-assign_in_pat nc_stack (SIR.Pattern'NamedADTVariant type_info sp variant_iden tyargs subpat) =
-    SIR.Pattern'NamedADTVariant type_info sp
-        <$> assign_split_iden nc_stack variant_iden
-        <*> pure tyargs
-        <*> mapM (\(field_name, field_pat) -> (field_name,) <$> assign_in_pat nc_stack field_pat) subpat
-assign_in_pat _ (SIR.Pattern'Poison type_info sp) = pure $ SIR.Pattern'Poison type_info sp
+        pure (SIR.Expr'Forall id type_info sp new_ncs vars e, ())
 
--- assigning identifiers {{{1
-assign_split_iden :: NameMaps.NameContextKey -> SIR.SplitIdentifier resolved Unassigned -> AssignMonad (SIR.SplitIdentifier resolved Assigned)
-assign_split_iden name_map_stack (SIR.SplitIdentifier'Get texpr next (Const ())) = SIR.SplitIdentifier'Get <$> assign_in_type_expr name_map_stack texpr <*> pure next <*> pure (Const ())
-assign_split_iden name_map_stack (SIR.SplitIdentifier'Single () i (Const ())) = pure $ SIR.SplitIdentifier'Single name_map_stack i (Const ())
+instance PatternADTVariantRefVisitor Unassigned Assigned NameMaps.NameContextKey AssignMonad () AssignVisitor where
+    visit_pattern_adt_variant_ref_single _ nc_stack () i (Const ()) = pure (SIR.SplitIdentifier'Single nc_stack i (Const ()), ())
+
+instance PatternVisitor Unassigned Assigned NameMaps.NameContextKey AssignMonad () AssignVisitor where
